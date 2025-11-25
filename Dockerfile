@@ -14,9 +14,9 @@ FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
 # Rails app lives here
 WORKDIR /rails
 
-# Install base packages
+# Install base packages including Node.js for Vite
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 libvips postgresql-client && \
+    apt-get install --no-install-recommends -y curl libjemalloc2 libvips postgresql-client nodejs npm && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
@@ -50,8 +50,16 @@ COPY . .
 # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
 RUN bundle exec bootsnap precompile -j 1 app/ lib/
 
+# Install Node.js and build frontend assets
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y nodejs npm && \
+    rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
+# Install frontend dependencies
+RUN npm install
 
+# Build Vite assets
+RUN bundle exec vite build
 
 # Final stage for app image
 FROM base
