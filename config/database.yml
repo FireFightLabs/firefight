@@ -86,8 +86,9 @@ test:
 staging:
   primary: &primary_staging
     <<: *default
-    database: firefight
-    username: firefight
+    host: <%= ENV["FIREFIGHT_DATABASE_HOST"] %>
+    database: <%= ENV["FIREFIGHT_DATABASE"] %>
+    username: <%= ENV["FIREFIGHT_DATABASE_USERNAME"] %>
     password: <%= ENV["FIREFIGHT_DATABASE_PASSWORD"] %>
   cache:
     <<: *primary_staging
@@ -128,18 +129,19 @@ staging:
 production:
   primary: &primary_production
     <<: *default
-    database: firefight
-    username: firefight
+    host: <%= ENV["FIREFIGHT_DATABASE_HOST"] %>
+    database: <%= ENV["FIREFIGHT_DATABASE"] %>
+    username: <%= ENV["FIREFIGHT_DATABASE_USERNAME"] %>
     password: <%= ENV["FIREFIGHT_DATABASE_PASSWORD"] %>
   cache:
     <<: *primary_production
-    database: firefight_cache
+    database: <%= ENV["FIREFIGHT_DATABASE_CACHE"] %>
     migrations_paths: db/cache_migrate
   queue:
     <<: *primary_production
-    database: firefight_queue
+    database: <%= ENV["FIREFIGHT_DATABASE_QUEUE"] %>
     migrations_paths: db/queue_migrate
   cable:
     <<: *primary_production
-    database: firefight_cable
+    database: <%= ENV["FIREFIGHT_DATABASE_CABLE"] %>
     migrations_paths: db/cable_migrate
