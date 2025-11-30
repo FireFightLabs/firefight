@@ -9,12 +9,23 @@
 #     priority: 2
 #     schedule: at 5am every day
 
+development:
+  refresh_slack_tokens:
+    class: RefreshSlackTokensJob
+    schedule: every hour
+
 staging:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
+  refresh_slack_tokens:
+    class: RefreshSlackTokensJob
+    schedule: every hour
 
 production:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
+  refresh_slack_tokens:
+    class: RefreshSlackTokensJob
+    schedule: every hour

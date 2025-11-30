@@ -1,0 +1,24 @@
+display_information:
+  name: Firefight
+  description: Firefight - Workspace management and collaboration
+  background_color: "#000000"
+
+features:
+  bot_user:
+    display_name: Firefight Bot
+    always_online: false
+
+oauth_config:
+  redirect_urls:
+    - https://firefight-production.up.railway.app/auth/slack/callback
+  scopes:
+    user:
+      - users:read
+      - users:read.email
+    bot:
+      - team:read
+
+settings:
+  org_deploy_enabled: true
+  socket_mode_enabled: false
+  token_rotation_enabled: true
