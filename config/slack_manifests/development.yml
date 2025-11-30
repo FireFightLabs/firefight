@@ -1,0 +1,24 @@
+display_information:
+  name: Firefight (Development)
+  description: Firefight development environment
+  background_color: "#000000"
+
+features:
+  bot_user:
+    display_name: Firefight Bot
+    always_online: false
+
+oauth_config:
+  redirect_urls:
+    - http://localhost:3000/auth/slack/callback
+  scopes:
+    user:
+      - users:read
+      - users:read.email
+    bot:
+      - team:read
+
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: true
