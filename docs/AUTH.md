@@ -17,6 +17,22 @@
 
 Firefight uses a **multi-provider OAuth 2.0 authentication system** designed to support multiple workspace platforms (currently Slack, with Microsoft Teams support planned).
 
+### Environments
+
+The application supports **3 environments**, each with separate Slack apps and credentials:
+
+| Environment | URL | Rails Env | Slack App | Purpose |
+|-------------|-----|-----------|-----------|---------|
+| **Development** | http://localhost:3000 | `development` | Separate dev app | Local development |
+| **Staging** | https://firefight-staging.up.railway.app | `staging` | Separate staging app | Pre-production testing |
+| **Production** | https://firefight-production.up.railway.app | `production` | Production app | Live application |
+
+**Important notes:**
+- Each environment requires its own Slack app (3 apps total)
+- Each environment has separate encrypted credentials file
+- Each environment should use different encryption keys
+- Credential files are environment-specific: `config/credentials/{environment}.yml.enc`
+
 ### Key Features
 - ✅ Platform-agnostic architecture (Slack today, Teams tomorrow)
 - ✅ Multi-workspace support (users can belong to multiple workspaces)
@@ -204,12 +220,12 @@ db/migrate/20251127104549_create_authentication_tables.rb
 **Frontend:** User clicks "Sign in with Slack" button
 ```tsx
 // app/frontend/components/auth/slack-auth-button.tsx
-<Button onClick={() => window.location.href = Routes.authProviderCallbackPath({ provider: 'slack' })}>
+<Button onClick={() => window.location.href = '/auth/slack'}>
   Sign in with Slack
 </Button>
 ```
 
-**Route:** `GET /auth/slack` (handled by OmniAuth)
+**Route:** `GET /auth/slack` (handled by OmniAuth middleware, not a Rails route)
 
 #### 2. OmniAuth Redirects to Slack
 OmniAuth constructs Slack OAuth URL:
@@ -325,33 +341,118 @@ The auth hash from OmniAuth contains:
 
 ### How to Store Credentials
 
-#### Option 1: Rails Credentials (Production)
+We use **environment-specific credential files** (Rails 7+):
+- `config/credentials/development.yml.enc` - Development credentials
+- `config/credentials/staging.yml.enc` - Staging credentials
+- `config/credentials/production.yml.enc` - Production credentials
+
+Each environment has its own encryption key in `.key` files (never commit these!).
+
+#### Setup for Development
+
+1. **Edit development credentials:**
 ```bash
-bin/rails credentials:edit
+EDITOR=nvim bin/rails credentials:edit --environment development
 ```
 
-Add:
+2. **Add Slack credentials:**
 ```yaml
 slack:
-  development:
-    client_id: "your-dev-client-id"
-    client_secret: "your-dev-client-secret"
-    signing_secret: "your-dev-signing-secret"
-  production:
-    client_id: "your-prod-client-id"
-    client_secret: "your-prod-client-secret"
-    signing_secret: "your-prod-signing-secret"
+  client_id: "1234567890.1234567890"
+  client_secret: "abc123def456..."
+  signing_secret: "xyz789abc..."
+
+active_record_encryption:
+  primary_key: "generated-key-here"
+  deterministic_key: "generated-key-here"
+  key_derivation_salt: "generated-salt-here"
 ```
 
-#### Option 2: Environment Variables (Alternative)
-Create `.env` (don't commit):
+3. **Generate encryption keys** (if you haven't):
 ```bash
-SLACK_CLIENT_ID=1234567890.1234567890
-SLACK_CLIENT_SECRET=abc123def456...
-SLACK_SIGNING_SECRET=xyz789abc...
+bin/rails db:encryption:init
+```
+Copy the output into your credentials file under `active_record_encryption:`.
+
+**Important:** No environment nesting! Since each file is already environment-specific, you just use `slack:` directly.
+
+#### Setup for Staging
+
+1. **Edit staging credentials:**
+```bash
+EDITOR=nvim bin/rails credentials:edit --environment staging
 ```
 
-**Note:** Our code currently reads from Rails credentials. To support ENV vars, update `lib/slack/token_refresh_service.rb` to check ENV first.
+2. **Add staging Slack credentials:**
+```yaml
+slack:
+  client_id: "staging-client-id"
+  client_secret: "staging-client-secret"
+  signing_secret: "staging-signing-secret"
+
+active_record_encryption:
+  primary_key: "different-key-for-staging"
+  deterministic_key: "different-key-for-staging"
+  key_derivation_salt: "different-salt-for-staging"
+```
+
+3. **Deploy staging key to Railway:**
+   - Copy contents of `config/credentials/staging.key`
+   - Set as `RAILS_MASTER_KEY` environment variable in Railway
+
+#### Setup for Production
+
+Same process as staging, but use:
+```bash
+bin/rails credentials:edit --environment production
+```
+
+And deploy `config/credentials/production.key` to production Railway environment.
+
+### Active Record Encryption Setup
+
+**Why needed:** We encrypt access tokens and refresh tokens in the database.
+
+**Setup steps:**
+
+1. **Generate encryption keys:**
+```bash
+bin/rails db:encryption:init
+```
+
+This outputs:
+```yaml
+active_record_encryption:
+  primary_key: 17b45Pdi5Fo2OSs85OIHRYgvo4CNT2tL
+  deterministic_key: 38CgyeU59oqxxGnTULEGwo4WILKMVFI1
+  key_derivation_salt: eTq5yozeTwkwb2bKbnIoV5TN0KLdnokF
+```
+
+2. **Add to credentials file:**
+```bash
+EDITOR=nvim bin/rails credentials:edit --environment development
+```
+
+Paste the generated keys.
+
+3. **Verify it works:**
+```ruby
+# In Rails console
+workspace = Workspace.first
+workspace.access_token  # Should return decrypted token, not gibberish
+```
+
+**What gets encrypted:**
+- `Workspace#access_token`
+- `Workspace#refresh_token`
+- `WorkspaceMembership#access_token`
+- `WorkspaceMembership#refresh_token`
+
+**Security notes:**
+- Each environment should have **different** encryption keys
+- Keys are stored in `.key` files (never commit!)
+- Without the key, encrypted data is unreadable
+- Losing the key means losing all encrypted tokens (users must re-authenticate)
 
 ### OAuth Scopes
 
@@ -442,22 +543,30 @@ workspace.reload.token_expires_at  # Check new expiration
 ```
 
 #### Via Rake Tasks
+
+**Important:** Rake tasks with arguments require quotes in most shells!
+
 ```bash
-# Refresh specific workspace
-bin/rails slack:refresh_workspace[workspace-uuid]
+# List all workspaces with token status (no arguments)
+bin/rails slack:list_workspaces
 
-# Refresh specific membership
-bin/rails slack:refresh_membership[membership-uuid]
+# Refresh specific workspace (use quotes!)
+bin/rails "slack:refresh_workspace[workspace-uuid-here]"
 
-# Refresh all expiring tokens
+# Refresh specific membership (use quotes!)
+bin/rails "slack:refresh_membership[membership-uuid-here]"
+
+# Refresh all expiring tokens (no arguments)
 bin/rails slack:refresh_all_expiring
 
-# Force refresh all workspaces (ignore expiration)
+# Force refresh all workspaces - ignore expiration (no arguments)
 bin/rails slack:force_refresh_all_workspaces
-
-# List all workspaces with token status
-bin/rails slack:list_workspaces
 ```
+
+**Shell escaping notes:**
+- **Bash/Zsh**: Use quotes around the entire task: `"slack:refresh_workspace[uuid]"`
+- **Fish**: Escape brackets: `slack:refresh_workspace\[uuid\]`
+- **No arguments**: No quotes needed: `slack:list_workspaces`
 
 ### Token Refresh API Call
 
@@ -485,10 +594,49 @@ bin/rails slack:list_workspaces
 
 ### Scheduled Refresh Job
 
-**Configuration:** `config/recurring.yml`
+Token refresh runs automatically via **Solid Queue** recurring jobs.
+
+#### Background Job Implementation
+
+**File:** `app/jobs/refresh_slack_tokens_job.rb`
+
+```ruby
+class RefreshSlackTokensJob < ApplicationJob
+  queue_as :default
+
+  # Refresh buffer - tokens expiring within this window get refreshed
+  REFRESH_BUFFER = 3.hours
+
+  def perform
+    service = Slack::TokenRefreshService.new
+    service.refresh_all_expiring(buffer: REFRESH_BUFFER)
+  end
+end
+```
+
+**How it works:**
+1. Job runs every hour (configured in `recurring.yml`)
+2. Calls `TokenRefreshService` to find tokens expiring within 3 hours
+3. Refreshes workspace tokens and membership tokens
+4. Logs results to Rails logger
+
+**Why 3-hour buffer?**
+- Tokens expire after 12 hours
+- Refresh starts at 9-hour mark (12 - 3 = 9)
+- Gives 9 hours to fix issues if refresh fails
+- Prevents last-minute token expiration emergencies
+
+#### Recurring Job Configuration
+
+**File:** `config/recurring.yml`
 
 ```yaml
 development:
+  refresh_slack_tokens:
+    class: RefreshSlackTokensJob
+    schedule: every hour
+
+staging:
   refresh_slack_tokens:
     class: RefreshSlackTokensJob
     schedule: every hour
@@ -499,14 +647,85 @@ production:
     schedule: every hour
 ```
 
-**Monitoring:**
-```bash
-# Check logs for refresh activity
-tail -f log/production.log | grep "Slack Token Refresh"
+**Schedule options:**
+- `every hour` - Runs at the top of every hour
+- `every 30 minutes` - Runs twice per hour
+- `every day at 3am` - Runs daily at specific time
+- See Solid Queue recurring docs for more options
 
-# Sample log output:
-# [Slack Token Refresh] Successfully refreshed workspace token for Acme Corp (uuid)
-# [Slack Token Refresh] Summary: Workspaces (5 succeeded, 0 failed), Memberships (12 succeeded, 0 failed)
+#### Starting the Job Queue
+
+**Development:**
+```bash
+# Start Solid Queue worker (in separate terminal)
+bin/jobs
+
+# Or use foreman/overmind with Procfile
+bin/dev
+```
+
+**Production (Railway):**
+Solid Queue starts automatically via `bin/jobs` in Procfile.
+
+#### Monitoring
+
+**Check job status:**
+```bash
+# Rails console
+RefreshSlackTokensJob.last_run  # If tracking enabled
+SolidQueue::Job.where(class_name: 'RefreshSlackTokensJob').last
+```
+
+**Check logs for refresh activity:**
+```bash
+# Development
+tail -f log/development.log | grep "Slack Token Refresh"
+
+# Production
+tail -f log/production.log | grep "Slack Token Refresh"
+```
+
+**Sample log output:**
+```
+[Slack Token Refresh] Successfully refreshed workspace token for Acme Corp (uuid-here)
+[Slack Token Refresh] Successfully refreshed membership token for user@example.com (uuid-here)
+[Slack Token Refresh] Summary: Workspaces (5 succeeded, 0 failed), Memberships (12 succeeded, 0 failed)
+```
+
+**Error logs:**
+```
+[Slack Token Refresh] Failed to refresh workspace token for Acme Corp: invalid_grant
+[Slack Token Refresh] Error refreshing workspace token uuid: Connection refused
+```
+
+#### Manual Job Execution
+
+**Trigger job immediately (console):**
+```ruby
+RefreshSlackTokensJob.perform_now
+```
+
+**Enqueue job (background):**
+```ruby
+RefreshSlackTokensJob.perform_later
+```
+
+#### Troubleshooting Jobs
+
+**Job not running:**
+1. Check Solid Queue is running: `ps aux | grep jobs`
+2. Check recurring configuration: `cat config/recurring.yml`
+3. Check for errors: `tail -f log/development.log`
+
+**Jobs failing:**
+1. Check credentials are set correctly
+2. Verify Slack app has token rotation enabled
+3. Test manual refresh: `bin/rails slack:refresh_all_expiring`
+4. Check service directly in console:
+```ruby
+service = Slack::TokenRefreshService.new
+workspace = Workspace.first
+service.refresh_workspace(workspace)
 ```
 
 ---
@@ -522,22 +741,53 @@ tail -f log/production.log | grep "Slack Token Refresh"
    - Create from manifest: `config/slack_manifests/development.yml`
    - Copy Client ID, Client Secret, Signing Secret
 
-2. **Add Credentials:**
+2. **Generate Encryption Keys:**
    ```bash
-   bin/rails credentials:edit
+   bin/rails db:encryption:init
    ```
-   Add Slack credentials (see [Required Credentials](#required-credentials))
+   Save the output - you'll need it in the next step.
 
-3. **Start Server:**
+3. **Add Credentials:**
+   ```bash
+   EDITOR=nvim bin/rails credentials:edit --environment development
+   ```
+   Add Slack credentials AND encryption keys:
+   ```yaml
+   slack:
+     client_id: "your-client-id"
+     client_secret: "your-client-secret"
+
+   active_record_encryption:
+     primary_key: "paste-from-step-2"
+     deterministic_key: "paste-from-step-2"
+     key_derivation_salt: "paste-from-step-2"
+   ```
+
+4. **Run Migrations:**
+   ```bash
+   bin/rails db:migrate
+   ```
+
+5. **Start Server:**
    ```bash
    bin/dev
    ```
 
-4. **Test OAuth Flow:**
+6. **Test OAuth Flow:**
    - Visit http://localhost:3000
    - Click "Sign in with Slack"
    - Authorize in Slack
    - Should redirect to dashboard
+
+7. **Verify in Console:**
+   ```bash
+   bin/rails console
+   ```
+   ```ruby
+   Workspace.count  # Should be > 0
+   User.count       # Should be > 0
+   WorkspaceMembership.count  # Should be > 0
+   ```
 
 #### Authentication Helpers
 
@@ -580,25 +830,56 @@ function MyComponent() {
 
 ### For Operations
 
-#### Production Deployment
+#### Staging/Production Deployment
 
-1. **Set Up Slack App:**
-   - Create production Slack app from `config/slack_manifests/production.yml`
-   - Update redirect URL to production domain
+**For each environment (staging, production):**
 
-2. **Add Production Credentials:**
+1. **Create Slack App:**
+   - Go to https://api.slack.com/apps
+   - Create new app from manifest:
+     - Staging: `config/slack_manifests/staging.yml`
+     - Production: `config/slack_manifests/production.yml`
+   - Copy Client ID, Client Secret
+
+2. **Generate Encryption Keys:**
    ```bash
-   bin/rails credentials:edit --environment production
+   bin/rails db:encryption:init
+   ```
+   **Important:** Use different keys for each environment!
+
+3. **Add Credentials:**
+   ```bash
+   # For staging
+   EDITOR=nvim bin/rails credentials:edit --environment staging
+
+   # For production
+   EDITOR=nvim bin/rails credentials:edit --environment production
    ```
 
-3. **Deploy:**
-   - Ensure `RAILS_MASTER_KEY` is set in production environment
+   Add Slack credentials AND encryption keys:
+   ```yaml
+   slack:
+     client_id: "environment-specific-client-id"
+     client_secret: "environment-specific-client-secret"
+
+   active_record_encryption:
+     primary_key: "unique-key-for-this-environment"
+     deterministic_key: "unique-key-for-this-environment"
+     key_derivation_salt: "unique-salt-for-this-environment"
+   ```
+
+4. **Deploy to Railway:**
+   - Set `RAILS_MASTER_KEY` environment variable in Railway:
+     - Staging: Copy contents of `config/credentials/staging.key`
+     - Production: Copy contents of `config/credentials/production.key`
    - Deploy code
    - Run migrations: `bin/rails db:migrate`
 
-4. **Verify Token Refresh:**
-   - Check Solid Queue is running
-   - Monitor logs for refresh activity
+5. **Verify Deployment:**
+   - Test OAuth flow on deployed URL
+   - Check Solid Queue is running: `ps aux | grep jobs`
+   - Monitor logs for refresh activity: `tail -f log/production.log`
+   - Run: `bin/rails slack:list_workspaces`
 
 #### Monitoring
 
@@ -609,7 +890,7 @@ bin/rails slack:list_workspaces
 
 **Manual Refresh if Needed:**
 ```bash
-bin/rails slack:refresh_workspace[workspace-id]
+bin/rails "slack:refresh_workspace[workspace-id]"
 ```
 
 **Console Debugging:**
@@ -638,8 +919,17 @@ service.refresh_workspace(workspace)
 
 **Fix:**
 ```bash
-bin/rails credentials:edit
-# Verify slack.development.client_id matches Slack app
+# Check current environment credentials
+EDITOR=nvim bin/rails credentials:edit --environment development
+
+# Verify structure:
+# slack:
+#   client_id: "should-match-slack-app"
+#   client_secret: "should-match-slack-app"
+
+# Verify in console:
+Rails.application.credentials.dig(:slack, :client_id)
+# Should return your client ID, not nil
 ```
 
 #### 2. Token Refresh Fails
@@ -677,7 +967,28 @@ membership = WorkspaceMembership.find_by(user: user)
 membership.role  # Check role
 ```
 
-#### 4. Multiple Users, Only One is Owner
+#### 4. Missing Active Record Encryption Keys
+
+**Symptoms:** Error when saving workspace or user: "Missing Active Record encryption credential"
+
+**Fix:**
+```bash
+# Generate encryption keys
+bin/rails db:encryption:init
+
+# Add to credentials
+EDITOR=nvim bin/rails credentials:edit --environment development
+
+# Paste the generated keys under:
+# active_record_encryption:
+#   primary_key: "..."
+#   deterministic_key: "..."
+#   key_derivation_salt: "..."
+
+# Restart server
+```
+
+#### 5. Multiple Users, Only One is Owner
 
 **Expected Behavior:** First user to connect workspace = owner
 
@@ -819,7 +1130,7 @@ user.admin_of?(workspace)
 #### Workspace
 ```ruby
 # Enums
-enum :platform, { slack: 'slack', teams: 'teams' }
+enum :platform, { slack: 'slack', teams: 'teams' }, suffix: true
 
 # Associations
 has_many :workspace_memberships
@@ -842,7 +1153,7 @@ workspace.teams_platform?  # from enum suffix
 #### WorkspaceMembership
 ```ruby
 # Enums
-enum :role, { member: 'member', admin: 'admin', owner: 'owner' }
+enum :role, { member: 'member', admin: 'admin', owner: 'owner' }, suffix: true
 
 # Associations
 belongs_to :user
@@ -883,13 +1194,15 @@ service.refresh_needed?(record, buffer: 3.hours)  # => Boolean
 ### Rake Tasks
 
 ```bash
-# Workspace operations
-bin/rails slack:refresh_workspace[uuid]
-bin/rails slack:force_refresh_all_workspaces
+# List workspaces
 bin/rails slack:list_workspaces
 
-# Membership operations
-bin/rails slack:refresh_membership[uuid]
+# Workspace operations (use quotes!)
+bin/rails "slack:refresh_workspace[uuid]"
+bin/rails slack:force_refresh_all_workspaces
+
+# Membership operations (use quotes!)
+bin/rails "slack:refresh_membership[uuid]"
 
 # Bulk operations
 bin/rails slack:refresh_all_expiring
@@ -948,6 +1261,20 @@ For questions or issues, check:
 
 ---
 
-**Last Updated:** November 27, 2025
-**Version:** 1.0
+**Last Updated:** November 27, 2024
+**Version:** 1.1
 **Maintainer:** Firefight Team
+
+### Changelog
+
+**v1.1 (2024-11-27):**
+- Added Active Record Encryption setup documentation
+- Fixed credentials structure (removed environment nesting)
+- Added 3-environment setup (development, staging, production)
+- Documented token rotation background job (RefreshSlackTokensJob)
+- Fixed rake task shell escaping examples
+- Updated enum examples to use `suffix: true` (Rails 8.1)
+- Fixed Slack auth button code example
+
+**v1.0 (2024-11-27):**
+- Initial documentation
