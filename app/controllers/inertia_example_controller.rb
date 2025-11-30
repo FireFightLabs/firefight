@@ -2,6 +2,6 @@
 
 class InertiaExampleController < InertiaController
   def index
-    render inertia: { name: params.fetch(:name, 'World') }
+    render inertia: { name: params.fetch(:name, "World") }
   end
 end

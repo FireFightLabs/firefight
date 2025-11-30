@@ -1,6 +1,6 @@
 class WorkspaceMembership < ApplicationRecord
   # Enums - Use strings for better readability
-  enum :role, { member: 'member', admin: 'admin', owner: 'owner' }, suffix: true
+  enum :role, { member: "member", admin: "admin", owner: "owner" }, suffix: true
 
   # Associations
   belongs_to :user

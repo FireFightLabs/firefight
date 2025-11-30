@@ -12,16 +12,16 @@ module Slack
 
       response = call_slack_refresh_api(workspace.refresh_token)
 
-      if response['ok']
+      if response["ok"]
         workspace.update!(
-          access_token: response['access_token'],
-          refresh_token: response['refresh_token'],
-          token_expires_at: calculate_expiration(response['expires_in'])
+          access_token: response["access_token"],
+          refresh_token: response["refresh_token"],
+          token_expires_at: calculate_expiration(response["expires_in"])
         )
         log_success("workspace", workspace.name, workspace.id)
         true
       else
-        log_error("workspace", workspace.name, response['error'])
+        log_error("workspace", workspace.name, response["error"])
         false
       end
     rescue => e
@@ -38,16 +38,16 @@ module Slack
 
       response = call_slack_refresh_api(membership.refresh_token)
 
-      if response['ok']
+      if response["ok"]
         membership.update!(
-          access_token: response['access_token'],
-          refresh_token: response['refresh_token'],
-          token_expires_at: calculate_expiration(response['expires_in'])
+          access_token: response["access_token"],
+          refresh_token: response["refresh_token"],
+          token_expires_at: calculate_expiration(response["expires_in"])
         )
         log_success("membership", membership.user.email, membership.id)
         true
       else
-        log_error("membership", membership.user.email, response['error'])
+        log_error("membership", membership.user.email, response["error"])
         false
       end
     rescue => e
@@ -100,27 +100,27 @@ module Slack
     def expiring_workspaces(buffer)
       Workspace
         .slack_platform
-        .where('token_expires_at IS NOT NULL')
-        .where('token_expires_at <= ?', buffer.from_now)
+        .where("token_expires_at IS NOT NULL")
+        .where("token_expires_at <= ?", buffer.from_now)
     end
 
     def expiring_memberships(buffer)
       WorkspaceMembership
         .joins(:workspace)
-        .where(workspaces: { platform: 'slack' })
-        .where('workspace_memberships.token_expires_at IS NOT NULL')
-        .where('workspace_memberships.token_expires_at <= ?', buffer.from_now)
+        .where(workspaces: { platform: "slack" })
+        .where("workspace_memberships.token_expires_at IS NOT NULL")
+        .where("workspace_memberships.token_expires_at <= ?", buffer.from_now)
     end
 
     def call_slack_refresh_api(refresh_token)
-      HTTParty.post('https://slack.com/api/oauth.v2.access',
+      HTTParty.post("https://slack.com/api/oauth.v2.access",
         headers: {
-          'Content-Type' => 'application/x-www-form-urlencoded'
+          "Content-Type" => "application/x-www-form-urlencoded"
         },
         body: {
           client_id: slack_client_id,
           client_secret: slack_client_secret,
-          grant_type: 'refresh_token',
+          grant_type: "refresh_token",
           refresh_token: refresh_token
         }
       )

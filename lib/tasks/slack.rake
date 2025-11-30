@@ -1,6 +1,6 @@
 namespace :slack do
   desc "Refresh token for a specific workspace by ID"
-  task :refresh_workspace, [:workspace_id] => :environment do |t, args|
+  task :refresh_workspace, [ :workspace_id ] => :environment do |t, args|
     if args[:workspace_id].blank?
       puts "❌ Error: workspace_id is required"
       puts "Usage: bin/rails slack:refresh_workspace[workspace-uuid]"
@@ -29,7 +29,7 @@ namespace :slack do
   end
 
   desc "Refresh token for a specific workspace membership by ID"
-  task :refresh_membership, [:membership_id] => :environment do |t, args|
+  task :refresh_membership, [ :membership_id ] => :environment do |t, args|
     if args[:membership_id].blank?
       puts "❌ Error: membership_id is required"
       puts "Usage: bin/rails slack:refresh_membership[membership-uuid]"
@@ -58,7 +58,7 @@ namespace :slack do
   end
 
   desc "Refresh all expiring tokens (workspaces and memberships)"
-  task :refresh_all_expiring => :environment do
+  task refresh_all_expiring: :environment do
     puts "🔄 Refreshing all expiring tokens..."
 
     service = Slack::TokenRefreshService.new
@@ -78,7 +78,7 @@ namespace :slack do
   end
 
   desc "Force refresh all workspace tokens (ignore expiration)"
-  task :force_refresh_all_workspaces => :environment do
+  task force_refresh_all_workspaces: :environment do
     puts "🔄 Force refreshing ALL workspace tokens..."
 
     service = Slack::TokenRefreshService.new
@@ -106,7 +106,7 @@ namespace :slack do
   end
 
   desc "List all workspaces with token expiration info"
-  task :list_workspaces => :environment do
+  task list_workspaces: :environment do
     workspaces = Workspace.slack_platform.order(:name)
 
     if workspaces.empty?
