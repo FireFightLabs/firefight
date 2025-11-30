@@ -6,17 +6,12 @@ require Rails.root.join('lib', 'slack', 'manifest_reader')
 slack_scopes = Slack::ManifestReader.scopes_for_environment(Rails.env)
 
 Rails.application.config.middleware.use OmniAuth::Builder do
-  # Build authorize params based on environment
-  authorize_params = {}
-  # Force workspace picker in dev and staging for testing
-  authorize_params[:team] = nil if Rails.env.development? || Rails.env.staging?
-
   provider :slack,
     Rails.application.credentials.dig(:slack, :client_id),
     Rails.application.credentials.dig(:slack, :client_secret),
     scope: slack_scopes[:scope],
-    user_scope: slack_scopes[:user_scope],
-    authorize_params: authorize_params
+    user_scope: slack_scopes[:user_scope]
+  # Note: team parameter completely omitted to allow workspace selection
 end
 
 # Configure OmniAuth
