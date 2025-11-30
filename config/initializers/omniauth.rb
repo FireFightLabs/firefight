@@ -10,7 +10,10 @@ Rails.application.config.middleware.use OmniAuth::Builder do
     Rails.application.credentials.dig(:slack, :client_id),
     Rails.application.credentials.dig(:slack, :client_secret),
     scope: slack_scopes[:scope],
-    user_scope: slack_scopes[:user_scope]
+    user_scope: slack_scopes[:user_scope],
+    authorize_params: {
+      team: nil  # Forces workspace selection during OAuth
+    }
 end
 
 # Configure OmniAuth
