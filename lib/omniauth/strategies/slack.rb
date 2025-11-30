@@ -1,27 +1,27 @@
-require 'omniauth-oauth2'
+require "omniauth-oauth2"
 
 module OmniAuth
   module Strategies
     class Slack < OmniAuth::Strategies::OAuth2
-      option :name, 'slack'
+      option :name, "slack"
 
       option :client_options, {
-        site: 'https://slack.com',
-        authorize_url: 'https://slack.com/oauth/v2/authorize',
-        token_url: 'https://slack.com/api/oauth.v2.access'
+        site: "https://slack.com",
+        authorize_url: "https://slack.com/oauth/v2/authorize",
+        token_url: "https://slack.com/api/oauth.v2.access"
       }
 
       # Unique identifier for the user
-      uid { raw_info.dig('authed_user', 'id') }
+      uid { raw_info.dig("authed_user", "id") }
 
       # Basic info about the user and team
       info do
         {
-          name: user_info.dig('user', 'real_name') || user_info.dig('user', 'name'),
-          email: user_info.dig('user', 'profile', 'email'),
-          image: user_info.dig('user', 'profile', 'image_512'),
-          team_id: raw_info.dig('team', 'id'),
-          team_name: raw_info.dig('team', 'name')
+          name: user_info.dig("user", "real_name") || user_info.dig("user", "name"),
+          email: user_info.dig("user", "profile", "email"),
+          image: user_info.dig("user", "profile", "image_512"),
+          team_id: raw_info.dig("team", "id"),
+          team_name: raw_info.dig("team", "name")
         }
       end
 
@@ -41,24 +41,24 @@ module OmniAuth
 
       # Team/workspace information
       def team_info
-        @team_info ||= raw_info['team'] || {}
+        @team_info ||= raw_info["team"] || {}
       end
 
       # Detailed user information
       def user_info
         @user_info ||= begin
-          user_id = raw_info.dig('authed_user', 'id')
-          token = raw_info.dig('authed_user', 'access_token') || access_token.token
+          user_id = raw_info.dig("authed_user", "id")
+          token = raw_info.dig("authed_user", "access_token") || access_token.token
 
-          response = access_token.client.request(:get, 'https://slack.com/api/users.info',
+          response = access_token.client.request(:get, "https://slack.com/api/users.info",
             params: { user: user_id },
-            headers: { 'Authorization' => "Bearer #{token}" }
+            headers: { "Authorization" => "Bearer #{token}" }
           )
 
           JSON.parse(response.body)
         rescue => e
           Rails.logger.error "Failed to fetch Slack user info: #{e.message}"
-          { 'user' => {} }
+          { "user" => {} }
         end
       end
 
@@ -71,4 +71,4 @@ module OmniAuth
 end
 
 # Register the strategy with OmniAuth
-OmniAuth.config.add_camelization 'slack', 'Slack'
+OmniAuth.config.add_camelization "slack", "Slack"

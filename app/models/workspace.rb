@@ -1,6 +1,6 @@
 class Workspace < ApplicationRecord
   # Enums - Keep teams for future extensibility but only implement Slack for now
-  enum :platform, { slack: 'slack', teams: 'teams' }, suffix: true
+  enum :platform, { slack: "slack", teams: "teams" }, suffix: true
 
   # Associations
   has_many :workspace_memberships, dependent: :destroy
@@ -15,7 +15,7 @@ class Workspace < ApplicationRecord
 
   # Scopes
   scope :by_platform, ->(platform) { where(platform: platform) }
-  scope :slack_platform, -> { where(platform: 'slack') }
+  scope :slack_platform, -> { where(platform: "slack") }
   scope :recent, -> { order(created_at: :desc) }
 
   # Class Methods
@@ -24,9 +24,9 @@ class Workspace < ApplicationRecord
 
     find_or_create_by!(
       platform: :slack,
-      platform_id: team_info['id']
+      platform_id: team_info["id"]
     ) do |workspace|
-      workspace.name = team_info['name']
+      workspace.name = team_info["name"]
       workspace.platform_data = team_info
       workspace.access_token = auth_hash.credentials.token
       workspace.refresh_token = auth_hash.credentials.refresh_token if auth_hash.credentials.refresh_token

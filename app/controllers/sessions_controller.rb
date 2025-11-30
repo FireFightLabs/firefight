@@ -6,12 +6,12 @@ class SessionsController < InertiaController
       return
     end
 
-    render inertia: 'auth/login'
+    render inertia: "auth/login"
   end
 
   def destroy
     session.delete(:user_id)
     session.delete(:workspace_id)
-    redirect_to root_path, notice: 'Signed out successfully'
+    redirect_to root_path, notice: "Signed out successfully"
   end
 end

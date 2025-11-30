@@ -18,7 +18,7 @@ class CreateAuthenticationTables < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :workspaces, [:platform, :platform_id], unique: true
+    add_index :workspaces, [ :platform, :platform_id ], unique: true
     add_index :workspaces, :platform
 
     # Users table - application users
@@ -47,7 +47,7 @@ class CreateAuthenticationTables < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :workspace_memberships, [:workspace_id, :platform_user_id],
+    add_index :workspace_memberships, [ :workspace_id, :platform_user_id ],
               unique: true,
               name: 'index_workspace_memberships_on_workspace_and_platform_user'
     add_index :workspace_memberships, :role

@@ -8,17 +8,17 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   # Public routes
-  root to: 'sessions#new'
-  get '/login', to: 'sessions#new', as: :login
-  delete '/logout', to: 'sessions#destroy', as: :logout
+  root to: "sessions#new"
+  get "/login", to: "sessions#new", as: :login
+  delete "/logout", to: "sessions#destroy", as: :logout
 
   # OmniAuth routes
-  get '/auth/:provider/callback', to: 'auth/omniauth_callbacks#slack', as: :auth_provider_callback
-  get '/auth/failure', to: 'auth/omniauth_callbacks#failure'
+  get "/auth/:provider/callback", to: "auth/omniauth_callbacks#slack", as: :auth_provider_callback
+  get "/auth/failure", to: "auth/omniauth_callbacks#failure"
 
   # Authenticated routes
-  get '/dashboard', to: 'dashboard#index', as: :dashboard
+  get "/dashboard", to: "dashboard#index", as: :dashboard
 
   # Example route (can remove later)
-  get 'inertia-example', to: 'inertia_example#index'
+  get "inertia-example", to: "inertia_example#index"
 end
