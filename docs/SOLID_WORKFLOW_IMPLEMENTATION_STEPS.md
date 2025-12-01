@@ -986,6 +986,134 @@ class ConditionalWorkflow < ApplicationWorkflow
 end
 ```
 
+### Step 6.5: Add Manual Retry/Skip (Future Enhancement)
+
+Allow admins to manually retry failed steps or skip problematic ones.
+
+**When to use:**
+- **Retry:** Transient failures now resolved (API back up, credentials fixed)
+- **Skip:** Non-critical step failing, want to complete workflow anyway
+
+```ruby
+# app/models/workflow_step.rb
+class WorkflowStep < ApplicationRecord
+  # ... existing code ...
+
+  def retry_now!
+    transaction do
+      update!(
+        status: "pending",
+        attempts: 0,
+        last_error: nil,
+        run_at: nil
+      )
+
+      workflow.record_event("step.manual_retry", step: self)
+    end
+
+    WorkflowOrchestrator.enqueue_next_steps!(workflow)
+  end
+
+  def skip!(reason:)
+    transaction do
+      update!(
+        status: "skipped",
+        skip_reason: reason,
+        completed_at: Time.current
+      )
+
+      workflow.record_event("step.manual_skip", step: self, reason: reason)
+    end
+
+    WorkflowOrchestrator.enqueue_next_steps!(workflow)
+  end
+end
+```
+
+**Test manual retry/skip:**
+
+```ruby
+# spec/models/workflow_step_spec.rb
+RSpec.describe WorkflowStep do
+  describe "#retry_now!" do
+    let(:workflow) { create(:workflow) }
+    let(:step) { create(:workflow_step, workflow: workflow, status: "failed", attempts: 3, last_error: "Error") }
+
+    it "resets step for retry" do
+      step.retry_now!
+
+      expect(step.status).to eq("pending")
+      expect(step.attempts).to eq(0)
+      expect(step.last_error).to be_nil
+      expect(step.run_at).to be_nil
+    end
+
+    it "records manual retry event" do
+      expect {
+        step.retry_now!
+      }.to change(WorkflowEvent, :count).by(1)
+
+      event = workflow.workflow_events.last
+      expect(event.event_type).to eq("step.manual_retry")
+    end
+
+    it "triggers orchestrator" do
+      expect(WorkflowOrchestrator).to receive(:enqueue_next_steps!).with(workflow)
+      step.retry_now!
+    end
+  end
+
+  describe "#skip!" do
+    let(:workflow) { create(:workflow) }
+    let(:step) { create(:workflow_step, workflow: workflow, status: "failed") }
+
+    it "marks step as skipped with reason" do
+      step.skip!(reason: "Not critical, can skip")
+
+      expect(step.status).to eq("skipped")
+      expect(step.skip_reason).to eq("Not critical, can skip")
+      expect(step.completed_at).to be_present
+    end
+
+    it "records skip event" do
+      expect {
+        step.skip!(reason: "Test skip")
+      }.to change(WorkflowEvent, :count).by(1)
+
+      event = workflow.workflow_events.last
+      expect(event.event_type).to eq("step.manual_skip")
+      expect(event.metadata["reason"]).to eq("Test skip")
+    end
+
+    it "triggers orchestrator to continue workflow" do
+      expect(WorkflowOrchestrator).to receive(:enqueue_next_steps!).with(workflow)
+      step.skip!(reason: "Skip test")
+    end
+  end
+end
+```
+
+**UI integration example:**
+
+```ruby
+# app/controllers/workflows/workflow_steps_controller.rb
+module Workflows
+  class WorkflowStepsController < ApplicationController
+    def retry
+      step = WorkflowStep.find(params[:id])
+      step.retry_now!
+      redirect_to workflows_workflow_path(step.workflow), notice: "Step retry scheduled"
+    end
+
+    def skip
+      step = WorkflowStep.find(params[:id])
+      step.skip!(reason: params[:reason] || "Manually skipped by admin")
+      redirect_to workflows_workflow_path(step.workflow), notice: "Step skipped"
+    end
+  end
+end
+```
+
 ---
 
 ## Phase 7: Observability

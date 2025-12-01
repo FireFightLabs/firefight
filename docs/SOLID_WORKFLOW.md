@@ -593,18 +593,55 @@ workflow.workflow_steps.where(status: "running").count
 
 ### Pause/Resume (Future)
 
+Temporarily stop a workflow, then continue it later.
+
+**Use cases:**
+- Wait for external approval (e.g., "Pause until manager approves budget")
+- Scheduled maintenance (e.g., "Pause all workflows during deployment")
+- Rate limiting (e.g., "Pause workflows hitting Slack API limits")
+- Human intervention (e.g., "Pause until user provides more info")
+
 ```ruby
 # Not yet implemented
-workflow.pause!
-workflow.resume!
+workflow = IncidentCreationWorkflow.start!(incident)
+# Workflow is running...
+
+workflow.pause!  # Stop scheduling new steps
+# state: "paused", running steps complete but no new steps start
+
+# Later...
+workflow.resume!  # Continue where it left off
+# Orchestrator runs, schedules next ready steps
 ```
 
-### Manual Step Retry (Future)
+### Manual Step Retry/Skip (Future)
+
+Admin can manually retry failed steps or skip problematic ones.
+
+**Retry - Use cases:**
+- Transient failures now resolved (API back up, credentials fixed)
+- External service was down temporarily
+- Network issue has been resolved
+
+**Skip - Use cases:**
+- Non-critical step failing, want to complete workflow anyway
+- Step is optional and can be safely omitted
+- Workaround applied manually outside workflow
 
 ```ruby
 # Not yet implemented
-step = workflow.workflow_steps.find_by(name: "create_channel")
+
+# Retry a failed step
+step = workflow.workflow_steps.find_by(name: "create_channel", status: "failed")
 step.retry_now!
+# Resets: status → "pending", attempts → 0, last_error → nil
+# Triggers: orchestrator to schedule it immediately
+
+# Skip a problematic step
+step = workflow.workflow_steps.find_by(name: "post_announcement", status: "failed")
+step.skip!(reason: "Channel archived, not critical")
+# Sets: status → "skipped", skip_reason → "..."
+# Triggers: orchestrator to continue with dependent steps
 ```
 
 ## Observability
