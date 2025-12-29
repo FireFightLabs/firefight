@@ -4,7 +4,7 @@
 # Steps using these helpers are safe to retry without side effects.
 #
 # Usage:
-#   class MyWorkflow < Workflows::Base
+#   class MyWorkflow < Base
 #     include Workflows::IdempotentSteps
 #
 #     def create_channel(workflow:, step:, input:)

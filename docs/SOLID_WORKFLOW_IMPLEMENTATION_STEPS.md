@@ -168,13 +168,14 @@ module Workflow::Stateable
     enum :state, {
       pending: "pending",
       running: "running",
+      paused: "paused",
       succeeded: "succeeded",
       failed: "failed",
       cancelled: "cancelled"
     }
 
     scope :completed, -> { where(state: %w[succeeded failed cancelled]) }
-    scope :active, -> { where(state: %w[pending running]) }
+    scope :active, -> { where(state: %w[pending running paused]) }
   end
 
   def transition_to!(new_state)
@@ -254,11 +255,16 @@ module Workflow::Orchestratable
 
   # Main orchestration method
   def enqueue_next_steps
-    with_lock("workflow_orchestrate_#{id}") do
+    # Use PostgreSQL advisory lock to prevent concurrent orchestration
+    lock_key = advisory_lock_key
+
+    ApplicationRecord.connection.execute("SELECT pg_advisory_lock(#{lock_key.to_i})")
+
+    begin
       reload
       steps = workflow_steps.reload.to_a
 
-      return if completed?
+      return if completed? || paused?
 
       ready = steps.select { |step| step.ready_to_run?(steps) }
       ready = apply_concurrency_limit(steps, ready)
@@ -269,6 +275,9 @@ module Workflow::Orchestratable
       end
 
       update_workflow_state(steps)
+    ensure
+      # Always release the advisory lock
+      ApplicationRecord.connection.execute("SELECT pg_advisory_unlock(#{lock_key.to_i})")
     end
   end
 
@@ -278,6 +287,11 @@ module Workflow::Orchestratable
   end
 
   private
+
+    # Generate a unique advisory lock key for this workflow
+    def advisory_lock_key
+      Zlib.crc32("workflow_orchestrate_#{id}")
+    end
 
     def apply_concurrency_limit(all_steps, ready_steps)
       max_concurrent = workflow_config.dig("max_concurrent_steps")
@@ -1478,18 +1492,13 @@ end
 
 Advisory locks are already implemented in the `Workflow::Orchestratable` concern (see Step 2.1d).
 
-The `with_lock` call prevents concurrent orchestration of the same workflow.
+The implementation uses PostgreSQL's native advisory locks via direct SQL execution to prevent concurrent orchestration of the same workflow.
 
-```ruby
-# Gemfile
-gem 'with_advisory_lock'
-```
-
-After adding the gem, run:
-
-```bash
-bundle install
-```
+Key points:
+- Uses `pg_advisory_lock` for blocking lock acquisition
+- Generates consistent lock key using CRC32 hash of workflow ID
+- Always releases lock in `ensure` block to prevent deadlocks
+- No external gem dependencies required (uses raw PostgreSQL)
 
 ### Step 8.2: Add Debounced Orchestrator Job
 
@@ -1539,22 +1548,15 @@ class WorkflowSweeperJob < ApplicationJob
   private
 
   def sweep_stuck_workflows
-    Workflow.where(state: %w[pending running])
-      .where("updated_at < ?", 5.minutes.ago)
-      .find_each do |workflow|
-
-      Rails.logger.info("Sweeper resuming workflow", workflow_id: workflow.id)
+    Workflow.stuck.find_each do |workflow|
+      Rails.logger.info({ event: "workflow.sweeper.resuming", workflow_id: workflow.id })
       workflow.enqueue_next_steps
     end
   end
 
   def sweep_orphaned_steps
-    # Steps that are running but haven't updated in 10 minutes (worker likely crashed)
-    WorkflowStep.where(status: "running")
-      .where("updated_at < ?", 10.minutes.ago)
-      .find_each do |step|
-
-      Rails.logger.warn("Sweeper resetting orphaned step", step_id: step.id)
+    WorkflowStep.orphaned.find_each do |step|
+      Rails.logger.warn({ event: "workflow.sweeper.resetting_orphan", step_id: step.id })
 
       step.update!(
         status: "pending",

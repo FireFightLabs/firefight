@@ -49,7 +49,7 @@ A workflow is a directed acyclic graph (DAG) of steps. Each workflow:
 - Has a unique ID and name
 - Is attached to a subject (e.g., `Incident`, `User`)
 - Contains immutable context (input configuration)
-- Has a state: `pending`, `running`, `succeeded`, `failed`, `cancelled`
+- Has a state: `pending`, `running`, `paused`, `succeeded`, `failed`, `cancelled`
 
 ### Step
 
@@ -141,9 +141,9 @@ app/
 │   └── concerns/
 │       └── workflow_events.rb       # Event type constants
 ├── workflows/
-│   ├── base.rb                      # Workflows::Base (base class)
-│   ├── incident_creation.rb         # IncidentCreation workflow
-│   └── welcome_user.rb              # WelcomeUser workflow
+│   ├── base.rb                      # class Base (Zeitwerk auto-namespaces as Workflows::Base)
+│   ├── incident_creation.rb         # class IncidentCreation < Base
+│   └── welcome_user.rb              # class WelcomeUser < Base
 ├── jobs/
 │   └── workflows/                   # Namespaced jobs
 │       ├── run_step_job.rb         # Workflows::RunStepJob
@@ -253,7 +253,7 @@ create_table :workflow_events, id: :uuid do |t|
   t.uuid       :workflow_step_id
   t.string     :event_type,       null: false
   t.jsonb      :metadata,         default: {}
-  t.timestamp  :created_at,       null: false
+  t.timestamps
 
   t.index :workflow_id
   t.index :workflow_step_id
@@ -271,7 +271,7 @@ add_foreign_key :workflow_events, :workflow_steps
 ### 1. Define a Workflow
 
 ```ruby
-class WelcomeUser < Workflows::Base
+class WelcomeUser < Base
   workflow_name "user.welcome.v1"
 
   step :create_user_record
@@ -347,7 +347,7 @@ workflow.workflow_steps.pluck(:name, :status)
 ### Basic Structure
 
 ```ruby
-class MyWorkflow < Workflows::Base
+class MyWorkflow < Base
   # Workflow metadata
   workflow_name "my_workflow.v1"
 
@@ -647,7 +647,7 @@ workflow.workflow_steps.where(status: "running").count
 # => 1 (running steps complete but don't trigger new steps)
 ```
 
-### Pause/Resume (Future)
+### Pause/Resume
 
 Temporarily stop a workflow, then continue it later.
 
@@ -658,19 +658,40 @@ Temporarily stop a workflow, then continue it later.
 - Human intervention (e.g., "Pause until user provides more info")
 
 ```ruby
-# Not yet implemented
 workflow = IncidentCreation.start!(incident)
 # Workflow is running...
 
-workflow.pause!  # Stop scheduling new steps
+# Pause workflow
+workflow.pause!(
+  reason: "Waiting for manager approval",
+  by: "approval_system"
+)
 # state: "paused", running steps complete but no new steps start
 
 # Later...
-workflow.resume!  # Continue where it left off
+workflow.resume!(by: "manager@example.com")
 # Orchestrator runs, schedules next ready steps
+
+# Check pause status
+workflow.paused? # => true/false
+
+# Get pause metadata
+workflow.pause_metadata
+# => {
+#   paused_at: 2025-01-15 10:30:00,
+#   paused_by: "approval_system",
+#   pause_reason: "Waiting for manager approval",
+#   resumed_at: 2025-01-15 11:00:00,
+#   resumed_by: "manager@example.com"
+# }
+
+# Calculate pause duration
+workflow.paused_duration # => 1800.0 (seconds)
 ```
 
-### Manual Step Retry/Skip (Future)
+See [Pause and Resume](#pause-and-resume) section for more details.
+
+### Manual Step Retry/Skip
 
 Admin can manually retry failed steps or skip problematic ones.
 
@@ -685,8 +706,6 @@ Admin can manually retry failed steps or skip problematic ones.
 - Workaround applied manually outside workflow
 
 ```ruby
-# Not yet implemented
-
 # Retry a failed step
 step = workflow.workflow_steps.find_by(name: "create_channel", status: "failed")
 step.retry_now!
@@ -730,11 +749,14 @@ event.metadata
 - `workflow.succeeded`
 - `workflow.failed`
 - `workflow.cancelled`
+- `workflow.paused`
+- `workflow.resumed`
 - `step.started`
 - `step.succeeded`
 - `step.failed`
 - `step.skipped`
 - `step.cancelled`
+- `step.reset`
 
 ### Metrics
 
@@ -1006,8 +1028,8 @@ SolidWorkflow includes optional features for enhanced functionality and develope
 The `IdempotentSteps` module provides reusable patterns for making steps safe to retry:
 
 ```ruby
-class MyWorkflow < Workflows::Base
-  # IdempotentSteps is automatically included
+class MyWorkflow < Base
+  include Workflows::IdempotentSteps
 
   def create_channel(workflow:, step:, input:)
     incident = workflow.subject
@@ -1263,12 +1285,12 @@ end
 When making breaking changes, create a new workflow class:
 
 ```ruby
-class IncidentCreationV1 < Workflows::Base
+class IncidentCreationV1 < Base
   workflow_name "incident.create.v1"
   # ...
 end
 
-class IncidentCreationV2 < Workflows::Base
+class IncidentCreationV2 < Base
   workflow_name "incident.create.v2"
   # New/changed steps
 end
@@ -1295,7 +1317,7 @@ end
 ### 9. Use Workflow Config for Rate Limiting
 
 ```ruby
-class SlackIntensive < Workflows::Base
+class SlackIntensive < Base
   workflow_config(
     max_concurrent_steps: 2  # Limit Slack API calls
   )
@@ -1433,8 +1455,6 @@ end
 ## Future Enhancements
 
 - [ ] Web UI for workflow visualization
-- [ ] Pause/resume workflows
-- [ ] Manual step retry/skip
 - [ ] Workflow templates
 - [ ] Step-level timeouts
 - [ ] Compensation/rollback steps

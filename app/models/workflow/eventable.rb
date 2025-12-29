@@ -10,7 +10,7 @@ module Workflow::Eventable
   end
 
   def timeline
-    workflow_events.order(:created_at).map do |event|
+    workflow_events.includes(:workflow_step).order(:created_at).map do |event|
       {
         timestamp: event.created_at,
         type: event.event_type,
