@@ -116,6 +116,50 @@ Orchestrator → identifies next ready steps
 └─────────────────────────────────────────────────────────┘
 ```
 
+## File Organization
+
+SolidWorkflow follows 37signals/Rails conventions with a concern-based architecture:
+
+```
+app/
+├── models/
+│   ├── workflow.rb                   # Main workflow model
+│   ├── workflow/                     # Workflow-specific concerns
+│   │   ├── stateable.rb             # State machine logic
+│   │   ├── eventable.rb             # Event tracking
+│   │   ├── orchestratable.rb        # Orchestration logic
+│   │   ├── cancellable.rb           # Cancellation logic
+│   │   └── metrics.rb               # Metrics and analytics
+│   ├── workflow_step.rb             # Main step model
+│   ├── workflow_step/               # Step-specific concerns
+│   │   ├── statusable.rb            # Status enum and scopes
+│   │   ├── executable.rb            # Execution logic
+│   │   ├── retryable.rb             # Retry logic
+│   │   ├── dependencies.rb          # Dependency resolution
+│   │   └── metrics.rb               # Step metrics
+│   ├── workflow_event.rb            # Event model
+│   └── concerns/
+│       └── workflow_events.rb       # Event type constants
+├── workflows/
+│   ├── base.rb                      # Workflows::Base (base class)
+│   ├── incident_creation.rb         # IncidentCreation workflow
+│   └── welcome_user.rb              # WelcomeUser workflow
+├── jobs/
+│   └── workflows/                   # Namespaced jobs
+│       ├── run_step_job.rb         # Workflows::RunStepJob
+│       ├── orchestrate_job.rb      # Workflows::OrchestrateJob
+│       └── workflow_sweeper_job.rb # WorkflowSweeperJob
+└── controllers/
+    └── workflows_controller.rb      # WorkflowsController
+```
+
+**Key Principles:**
+- **No service objects** - Use model concerns instead
+- **Thin jobs** - Jobs delegate to model methods
+- **`_later`/`_now` suffix** - `execute_later` enqueues job, `execute_now` runs synchronously
+- **Concerns over inheritance** - Break features into focused concerns
+- **Resource-oriented controllers** - Use nested resources for actions
+
 ## Installation
 
 ### 1. Install Dependencies
@@ -149,11 +193,11 @@ production:
 ### Workflows Table
 
 ```ruby
-create_table :workflows do |t|
+create_table :workflows, id: :uuid do |t|
   t.string   :name,                null: false
   t.string   :workflow_class,      null: false
   t.string   :subject_type,        null: false
-  t.bigint   :subject_id,          null: false
+  t.uuid     :subject_id,          null: false
   t.string   :state,               null: false, default: "pending"
   t.jsonb    :context,             null: false, default: {}
   t.jsonb    :workflow_config,     default: {}
@@ -173,8 +217,8 @@ end
 ### Workflow Steps Table
 
 ```ruby
-create_table :workflow_steps do |t|
-  t.references :workflow,      null: false, foreign_key: true
+create_table :workflow_steps, id: :uuid do |t|
+  t.uuid       :workflow_id,   null: false
   t.string     :name,          null: false
   t.string     :status,        null: false, default: "pending"
   t.string     :depends_on,    array: true, default: []
@@ -191,27 +235,35 @@ create_table :workflow_steps do |t|
   t.text       :skip_reason
   t.timestamps
 
+  t.index :workflow_id
   t.index [:workflow_id, :name]
   t.index [:workflow_id, :status]
   t.index :status
   t.index :run_at
 end
+
+add_foreign_key :workflow_steps, :workflows
 ```
 
 ### Workflow Events Table
 
 ```ruby
-create_table :workflow_events do |t|
-  t.references :workflow,      null: false, foreign_key: true
-  t.references :workflow_step, foreign_key: true
-  t.string     :event_type,    null: false
-  t.jsonb      :metadata,      default: {}
-  t.timestamp  :created_at,    null: false
+create_table :workflow_events, id: :uuid do |t|
+  t.uuid       :workflow_id,      null: false
+  t.uuid       :workflow_step_id
+  t.string     :event_type,       null: false
+  t.jsonb      :metadata,         default: {}
+  t.timestamp  :created_at,       null: false
 
+  t.index :workflow_id
+  t.index :workflow_step_id
   t.index [:workflow_id, :created_at]
   t.index :event_type
   t.index :created_at
 end
+
+add_foreign_key :workflow_events, :workflows
+add_foreign_key :workflow_events, :workflow_steps
 ```
 
 ## Quick Start
@@ -219,7 +271,7 @@ end
 ### 1. Define a Workflow
 
 ```ruby
-class WelcomeUserWorkflow < ApplicationWorkflow
+class WelcomeUser < Workflows::Base
   workflow_name "user.welcome.v1"
 
   step :create_user_record
@@ -260,15 +312,19 @@ end
 ```ruby
 user = User.find(123)
 
-workflow = WelcomeUserWorkflow.start!(
+# Async mode (default) - steps execute in background jobs
+workflow = WelcomeUser.start!(
   user,
   context: {
     source: "admin_panel",
     admin_id: current_user.id
   }
 )
-
 # => #<Workflow id: 456, state: "pending", ...>
+
+# Sync mode - useful for console debugging or tests
+workflow = WelcomeUser.start_inline!(user, context: { source: "console" })
+# => #<Workflow id: 457, state: "succeeded", ...>
 ```
 
 ### 3. Monitor Progress
@@ -291,7 +347,7 @@ workflow.workflow_steps.pluck(:name, :status)
 ### Basic Structure
 
 ```ruby
-class MyWorkflow < ApplicationWorkflow
+class MyWorkflow < Workflows::Base
   # Workflow metadata
   workflow_name "my_workflow.v1"
 
@@ -384,7 +440,7 @@ step :my_step
 step :my_step,
      retry_config: {
        max_attempts: 3,
-       backoff: "exponential"  # or "linear", "fixed"
+       backoff: WorkflowStep::Retryable::BACKOFF_EXPONENTIAL  # or BACKOFF_LINEAR, BACKOFF_FIXED
      }
 
 # No retries
@@ -397,7 +453,7 @@ step :my_step,
 step :my_step,
      retry_config: {
        max_attempts: 5,
-       backoff: "fixed",
+       backoff: WorkflowStep::Retryable::BACKOFF_FIXED,
        backoff_seconds: 30
      }
 ```
@@ -603,7 +659,7 @@ Temporarily stop a workflow, then continue it later.
 
 ```ruby
 # Not yet implemented
-workflow = IncidentCreationWorkflow.start!(incident)
+workflow = IncidentCreation.start!(incident)
 # Workflow is running...
 
 workflow.pause!  # Stop scheduling new steps
@@ -682,113 +738,191 @@ event.metadata
 
 ### Metrics
 
-Track key metrics for monitoring:
+Track key metrics for monitoring using built-in metrics concerns:
 
 ```ruby
-# Query workflow stats
-Workflow.where(created_at: 1.hour.ago..).group(:state).count
-# => { "succeeded" => 45, "running" => 3, "failed" => 2 }
+# Workflow summary statistics
+Workflow.summary
+# => {
+#   total: 45,
+#   by_state: { "succeeded" => 40, "running" => 3, "failed" => 2 },
+#   by_workflow_class: { "IncidentCreation" => 30, "UserOnboarding" => 15 },
+#   avg_duration: 125.5,
+#   stuck_count: 1
+# }
 
 # Average workflow duration
-Workflow.where(state: "succeeded")
-  .where("completed_at > ?", 24.hours.ago)
-  .average("EXTRACT(EPOCH FROM (completed_at - created_at))")
+Workflow.average_duration(time_range: 24.hours.ago..)
 # => 125.5 (seconds)
 
-# Step failure rate
-WorkflowStep.where(created_at: 1.day.ago..)
-  .group(:name, :status).count
+# Failure rate
+Workflow.failure_rate(time_range: 7.days.ago..)
+# => 4.5 (percent)
+
+Workflow.failure_rate(workflow_class: "IncidentCreation")
+# => 2.1 (percent)
+
+# State summary
+Workflow.state_summary(time_range: 1.hour.ago..)
+# => { "succeeded" => 45, "running" => 3, "failed" => 2 }
+
+# Step statistics
+WorkflowStep.step_stats
+# => {
+#   ["create_channel", "succeeded"] => 45,
+#   ["create_channel", "failed"] => 2,
+#   ["post_message", "succeeded"] => 43
+# }
+
+# Step failure rates
+WorkflowStep.step_failure_rates
+# => {
+#   "create_channel" => 4.5,
+#   "post_message" => 2.1
+# }
+
+# Average step durations
+WorkflowStep.average_step_durations
+# => {
+#   "create_channel" => 2.5,
+#   "post_message" => 1.2
+# }
+
+# Instance methods
+workflow.duration
+# => 125.5
+
+workflow.stuck?
+# => false
+
+step.duration
+# => 2.5
 ```
 
 ### Querying Workflows
 
 ```ruby
+# Using scopes
+Workflow.active
+# => All pending or running workflows
+
+Workflow.completed
+# => All succeeded, failed, or cancelled workflows
+
+Workflow.stuck
+# => Active workflows that haven't updated in 5+ minutes
+
+Workflow.stuck(10.minutes.ago)
+# => Stuck workflows with custom threshold
+
 # All running workflows
-Workflow.where(state: "running")
+Workflow.running
 
 # Workflows for a subject
 incident.workflows
 
 # Failed workflows in last 24h
-Workflow.where(state: "failed")
-  .where("created_at > ?", 24.hours.ago)
+Workflow.failed.where(created_at: 24.hours.ago..)
 
 # Workflows with specific step failed
 Workflow.joins(:workflow_steps)
   .where(workflow_steps: { name: "create_channel", status: "failed" })
 
-# Stuck workflows (updated more than 30min ago)
-Workflow.where(state: "running")
-  .where("updated_at < ?", 30.minutes.ago)
+# Orphaned steps
+WorkflowStep.orphaned
+# => Steps stuck in "running" for 10+ minutes
+
+WorkflowStep.orphaned(15.minutes.ago)
+# => Orphaned steps with custom threshold
 ```
 
 ## Testing
 
 ### Synchronous Test Mode
 
-Run workflows synchronously in tests:
+SolidWorkflow includes built-in support for synchronous testing. Use the `run_workflow_sync` helper to execute workflows without background jobs:
 
 ```ruby
-# In test environment
-class ApplicationWorkflow
-  def self.start!(subject, context: {})
-    if Rails.env.test?
-      start_inline!(subject, context: context)
-    else
-      start_async!(subject, context: context)
-    end
+# spec/support/workflow_helpers.rb is auto-loaded
+RSpec.describe WelcomeUserWorkflow, type: :workflow do
+  let(:user) { create(:user) }
+
+  it "executes all steps in order" do
+    workflow = run_workflow_sync(WelcomeUserWorkflow, user)
+
+    expect_workflow_succeeded(workflow)
   end
 
-  def self.start_inline!(subject, context: {})
-    wf = create_workflow!(subject, context)
+  it "passes data between steps" do
+    workflow = run_workflow_sync(WelcomeUserWorkflow, user)
 
-    # Execute synchronously
-    loop do
-      wf.reload
-      steps = wf.workflow_steps.reload.to_a
-
-      ready = steps.select { |s| WorkflowOrchestrator.ready_to_run?(s, steps) }
-      break if ready.empty?
-
-      ready.each do |step|
-        RunWorkflowStepJob.new.perform(step.id)
-      end
-
-      WorkflowOrchestrator.enqueue_next_steps!(wf)
-    end
-
-    wf.reload
+    step = find_step(workflow, :send_welcome_email)
+    expect(step.succeeded?).to be true
   end
 end
 ```
 
+### Test Helpers
+
+The `WorkflowHelpers` module provides convenient test helpers:
+
+```ruby
+# Run workflow synchronously
+workflow = run_workflow_sync(MyWorkflow, user, context: { source: "admin" })
+
+# Assertions
+expect_workflow_succeeded(workflow)
+expect_workflow_failed(workflow)
+
+# Find and inspect steps
+step = find_step(workflow, :create_channel)
+expect(step.output["channel_id"]).to eq("C123")
+
+# Check step output
+expect_step_output(workflow, :create_channel, channel_id: "C123")
+
+# Check skipped steps
+expect_step_skipped(workflow, :premium_feature, reason: "User not premium")
+
+# Debug helper
+step_statuses(workflow)
+# => { "step_one" => "succeeded", "step_two" => "succeeded" }
+```
+
+### How It Works
+
+SolidWorkflow provides two methods for starting workflows:
+
+```ruby
+# Asynchronous (default) - steps execute in background jobs
+workflow = MyWorkflow.start!(subject, context: { ... })
+
+# Synchronous - executes entire workflow immediately
+workflow = MyWorkflow.start_inline!(subject, context: { ... })
+```
+
+The `run_workflow_sync` helper simply calls `start_inline!` for you.
+
 ### Test Example
 
 ```ruby
-RSpec.describe WelcomeUserWorkflow do
-  it "creates user and sends welcome email" do
-    user = create(:user)
+RSpec.describe WelcomeUserWorkflow, type: :workflow do
+  let(:user) { create(:user) }
 
+  before do
     # Mock external services
     allow(SlackClient).to receive(:create_channel).and_return("C123")
     allow(SlackClient).to receive(:invite_user).and_return(true)
+  end
 
-    workflow = WelcomeUserWorkflow.start!(
-      user,
-      context: { source: "test" }
-    )
+  it "creates user and sends welcome email" do
+    workflow = run_workflow_sync(WelcomeUserWorkflow, user, context: { source: "test" })
 
-    expect(workflow.state).to eq("succeeded")
-    expect(workflow.workflow_steps.pluck(:status).uniq).to eq(["succeeded"])
-
-    # Verify step outputs
-    channel_step = workflow.workflow_steps.find_by(name: "create_slack_channel")
-    expect(channel_step.output["channel_id"]).to eq("C123")
+    expect_workflow_succeeded(workflow)
+    expect_step_output(workflow, :create_slack_channel, channel_id: "C123")
   end
 
   it "handles Slack API failures with retry" do
-    user = create(:user)
-
     call_count = 0
     allow(SlackClient).to receive(:create_channel) do
       call_count += 1
@@ -796,20 +930,34 @@ RSpec.describe WelcomeUserWorkflow do
       "C123"
     end
 
-    workflow = WelcomeUserWorkflow.start!(user)
+    workflow = run_workflow_sync(WelcomeUserWorkflow, user)
 
-    expect(workflow.state).to eq("succeeded")
+    expect_workflow_succeeded(workflow)
     expect(call_count).to eq(3)  # Failed twice, succeeded third time
+
+    # Verify retry tracking
+    step = find_step(workflow, :create_slack_channel)
+    expect(step.attempts).to eq(3)
   end
 
   it "skips premium step for non-premium users" do
     user = create(:user, premium: false)
 
-    workflow = PremiumOnboardingWorkflow.start!(user)
+    workflow = run_workflow_sync(PremiumOnboardingWorkflow, user)
 
-    skip_step = workflow.workflow_steps.find_by(name: "send_premium_welcome")
-    expect(skip_step.status).to eq("skipped")
-    expect(skip_step.skip_reason).to eq("User is not on premium plan")
+    expect_workflow_succeeded(workflow)
+    expect_step_skipped(workflow, :send_premium_welcome, reason: "not on premium plan")
+  end
+
+  it "is idempotent when retried" do
+    user.update!(slack_channel_id: "C123", initial_message_ts: "123.456")
+
+    # Should not call external APIs
+    expect(SlackClient).not_to receive(:create_channel)
+    expect(SlackClient).not_to receive(:post_message)
+
+    workflow = run_workflow_sync(WelcomeUserWorkflow, user)
+    expect_workflow_succeeded(workflow)
   end
 end
 ```
@@ -847,6 +995,154 @@ RSpec.describe WelcomeUserWorkflow do
     end
   end
 end
+```
+
+## Optional Features
+
+SolidWorkflow includes optional features for enhanced functionality and developer experience.
+
+### Idempotency Helpers
+
+The `IdempotentSteps` module provides reusable patterns for making steps safe to retry:
+
+```ruby
+class MyWorkflow < Workflows::Base
+  # IdempotentSteps is automatically included
+
+  def create_channel(workflow:, step:, input:)
+    incident = workflow.subject
+
+    # Helper automatically checks if field exists
+    idempotent_field(incident, :slack_channel_id) do
+      SlackClient.create_channel("inc-#{incident.id}")
+    end
+  end
+end
+```
+
+**Available helpers:**
+
+```ruby
+# Check field, return value or execute block
+idempotent_field(record, :field_name) do
+  # Create/fetch value
+end
+
+# Find existing or create
+find_or_create(
+  local_check: -> { incident.slack_channel_id },
+  external_check: -> { SlackClient.find_channel("inc-#{incident.id}") },
+  create: -> { SlackClient.create_channel("inc-#{incident.id}") }
+)
+
+# Conditional execution with skip
+conditional_step(user.premium?, skip_reason: "User not premium") do
+  PremiumMailer.welcome(user).deliver_now
+  { email_sent: true }
+end
+
+# Retry with backoff for transient errors
+with_retry(max_attempts: 3, rescue_classes: [Slack::Web::Api::Errors::TooManyRequestsError]) do
+  SlackClient.post_message(channel, text)
+end
+```
+
+### Pause and Resume
+
+Workflows can be paused and resumed for human approvals or rate limiting:
+
+```ruby
+# Pause workflow
+workflow.pause!(
+  reason: "Waiting for manager approval",
+  by: "approval_system"
+)
+
+# Resume later
+workflow.resume!(by: "manager@example.com")
+
+# Check if paused
+workflow.paused? # => true
+
+# Get pause metadata
+workflow.pause_metadata
+# => {
+#   paused_at: 2025-01-15 10:30:00,
+#   paused_by: "approval_system",
+#   pause_reason: "Waiting for manager approval",
+#   resumed_at: 2025-01-15 11:00:00,
+#   resumed_by: "manager@example.com"
+# }
+
+# Calculate pause duration
+workflow.paused_duration # => 1800.0 (seconds)
+```
+
+**Use cases:**
+
+```ruby
+# Wait for approval
+def wait_for_approval(workflow:, step:, input:)
+  ManagerMailer.approval_request(workflow).deliver_later
+  workflow.pause!(reason: "Awaiting manager approval")
+  { paused: true }
+end
+
+# Later, when manager approves
+workflow.resume!(by: current_user.email)
+# Workflow continues automatically
+
+# Automatic resume after delay
+def handle_rate_limit(workflow:, step:, input:)
+  workflow.pause!(reason: "Slack rate limit hit")
+  ResumeWorkflowJob.set(wait: 60.seconds).perform_later(workflow.id)
+end
+```
+
+### Structured Logging
+
+All workflow operations are logged with structured data:
+
+```ruby
+# Step start
+# [INFO] workflow_step_started workflow_id=abc-123 step_name=create_channel attempt=1
+
+# Step success
+# [INFO] workflow_step_succeeded workflow_id=abc-123 step_name=create_channel duration_seconds=2.5
+
+# Step failure
+# [ERROR] workflow_step_failed workflow_id=abc-123 step_name=post_message error_class=Slack::Web::Api::Errors::TooManyRequestsError will_retry=true
+
+# Orchestration
+# [INFO] workflow_orchestration_started workflow_id=abc-123 current_state=running
+# [INFO] workflow_orchestration_completed workflow_id=abc-123 new_state=running duration_seconds=0.05
+```
+
+Log fields include:
+- `workflow_id`, `workflow_class`
+- `step_id`, `step_name`
+- `attempt`, `max_attempts`, `will_retry`
+- `duration_seconds`
+- `error_class`, `error_message`, `backtrace`
+- `subject_type`, `subject_id`
+
+### Workflow Validations
+
+Models include validations to catch configuration errors:
+
+```ruby
+# Validates workflow_class exists and inherits from Workflows::Base
+Workflow.create!(
+  workflow_class: "NonExistentWorkflow", # ❌
+  subject: incident
+)
+# => ActiveRecord::RecordInvalid: workflow_class must be a valid class name
+
+Workflow.create!(
+  workflow_class: "SomeRandomClass", # ❌ Not a Workflows::Base subclass
+  subject: incident
+)
+# => ActiveRecord::RecordInvalid: workflow_class must inherit from Workflows::Base
 ```
 
 ## Best Practices
@@ -967,18 +1263,18 @@ end
 When making breaking changes, create a new workflow class:
 
 ```ruby
-class IncidentCreationWorkflowV1 < ApplicationWorkflow
+class IncidentCreationV1 < Workflows::Base
   workflow_name "incident.create.v1"
   # ...
 end
 
-class IncidentCreationWorkflowV2 < ApplicationWorkflow
+class IncidentCreationV2 < Workflows::Base
   workflow_name "incident.create.v2"
   # New/changed steps
 end
 
 # In application code, use latest
-class IncidentCreationWorkflow < IncidentCreationWorkflowV2
+class IncidentCreation < IncidentCreationV2
 end
 ```
 
@@ -999,7 +1295,7 @@ end
 ### 9. Use Workflow Config for Rate Limiting
 
 ```ruby
-class SlackIntensiveWorkflow < ApplicationWorkflow
+class SlackIntensive < Workflows::Base
   workflow_config(
     max_concurrent_steps: 2  # Limit Slack API calls
   )
@@ -1026,7 +1322,7 @@ end
 
 ## API Reference
 
-### ApplicationWorkflow
+### Workflows::Base
 
 **Class Methods:**
 
@@ -1109,20 +1405,25 @@ end
 - `workflow` - Belongs to workflow
 - `workflow_step` - Optionally belongs to step
 
-### WorkflowOrchestrator
+### Workflow::Orchestratable Concern
 
-**Class Methods:**
+**Instance Methods:**
 
-- `enqueue_next_steps!(workflow)` - Schedule ready steps
-- `ready_to_run?(step, all_steps)` - Check if step is ready
+- `enqueue_next_steps` - Schedule ready steps (with advisory lock)
+- `enqueue_next_steps_later` - Schedule orchestration with debounce
+
+**Private Methods:**
+
+- `apply_concurrency_limit(all_steps, ready_steps)` - Limit concurrent steps
+- `update_workflow_state(steps)` - Update workflow state based on step statuses
 
 ### Jobs
 
-**RunWorkflowStepJob:**
+**Workflows::RunStepJob:**
 - `perform(step_id)` - Execute a step
 
-**OrchestrateWorkflowJob:**
-- `perform(workflow_id)` - Run orchestrator for workflow
+**Workflows::OrchestrateJob:**
+- `perform(workflow_id)` - Run orchestration for workflow (debounced)
 
 **WorkflowSweeperJob:**
 - `perform` - Resume stuck workflows (run periodically)
