@@ -16,7 +16,7 @@
 #
 # See: docs/WorkflowSweeperJob.md for detailed explanation
 #
-class WorkflowSweeperJob < ApplicationJob
+class Workflows::WorkflowSweeperJob < ApplicationJob
   queue_as :workflows
 
   # Main entry point - runs both recovery mechanisms
@@ -59,7 +59,7 @@ class WorkflowSweeperJob < ApplicationJob
   #
   def sweep_stuck_workflows
     Workflow.stuck.find_each do |workflow|
-      Rails.logger.info("Sweeper resuming workflow", workflow_id: workflow.id)
+      Rails.logger.info({ event: "workflow.sweeper.resuming", workflow_id: workflow.id })
       workflow.enqueue_next_steps
     end
   end
@@ -97,7 +97,7 @@ class WorkflowSweeperJob < ApplicationJob
   #
   def sweep_orphaned_steps
     WorkflowStep.orphaned.find_each do |step|
-      Rails.logger.warn("Sweeper resetting orphaned step", step_id: step.id)
+      Rails.logger.warn({ event: "workflow.sweeper.resetting_orphan", step_id: step.id })
 
       step.update!(
         status: :pending,

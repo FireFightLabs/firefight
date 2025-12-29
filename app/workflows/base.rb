@@ -1,6 +1,4 @@
-class Workflows::Base
-  include IdempotentSteps
-
+class Base
   class << self
     # Define workflow name
     def workflow_name(val = nil)
@@ -86,7 +84,8 @@ class Workflows::Base
         raise "Workflow exceeded max iterations (#{max_iterations})" if iteration > max_iterations
 
         wf.reload
-        steps = wf.workflow_steps.reload.to_a
+        # Reload steps and force a fresh query with all attributes including output
+        steps = WorkflowStep.where(workflow_id: wf.id).order(:position).to_a
 
         # Find ready steps
         ready = steps.select { |s| s.ready_to_run?(steps) }
@@ -94,6 +93,10 @@ class Workflows::Base
 
         # Execute ready steps synchronously
         ready.each do |step|
+          # Reload steps again to get the latest outputs from any previously executed steps in this batch
+          steps = WorkflowStep.where(workflow_id: wf.id).order(:position).to_a
+          step = steps.find { |s| s.id == step.id } # Get the fresh version
+
           step.populate_input!(steps)
           Workflows::RunStepJob.new.perform(step.id)
         end

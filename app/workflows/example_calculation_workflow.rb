@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 # ExampleCalculationWorkflow - Demo workflow showing input/output flow and parallel execution
 #
 # This workflow demonstrates:
@@ -13,32 +11,32 @@
 # Usage:
 #   workflow = ExampleCalculationWorkflow.start!(subject, context: { numbers: [1, 2, 3, 4, 5] })
 #
-class ExampleCalculationWorkflow < Workflows::Base
+class ExampleCalculationWorkflow < Base
   workflow_name "example.calculation.v1"
 
   # Step 1: Fetch numbers (either from context or generate them)
   step :fetch_numbers
 
   # Step 2 & 3: Run in parallel (both depend on fetch_numbers)
-  step :calculate_sum, depends_on: [:fetch_numbers]
-  step :calculate_product, depends_on: [:fetch_numbers]
+  step :calculate_sum, depends_on: [ :fetch_numbers ]
+  step :calculate_product, depends_on: [ :fetch_numbers ]
 
   # Step 4: Combine results (waits for both calculations to complete)
-  step :combine_results, depends_on: [:calculate_sum, :calculate_product]
+  step :combine_results, depends_on: [ :fetch_numbers, :calculate_sum, :calculate_product ]
 
   # Step 5: Store final result
-  step :store_result, depends_on: [:combine_results]
+  step :store_result, depends_on: [ :combine_results ]
 
   # Fetch or generate numbers to process
   def fetch_numbers(workflow:, step:, input:)
     numbers = workflow.context["numbers"] || (1..10).to_a
 
-    Rails.logger.info(
-      :workflow_step_fetch_numbers,
+    Rails.logger.info({
+      event: "workflow.step.fetch_numbers",
       workflow_id: workflow.id,
       numbers: numbers,
       count: numbers.size
-    )
+    })
 
     { numbers: numbers, count: numbers.size }
   end
@@ -48,12 +46,11 @@ class ExampleCalculationWorkflow < Workflows::Base
     numbers = input["fetch_numbers"]["numbers"]
     sum = numbers.sum
 
-    Rails.logger.info(
-      :workflow_step_calculate_sum,
+    Rails.logger.info({
+      event: "workflow.step.calculate_sum",
       workflow_id: workflow.id,
-      numbers: numbers,
       sum: sum
-    )
+    })
 
     # Simulate some work
     sleep(0.1)
@@ -66,12 +63,11 @@ class ExampleCalculationWorkflow < Workflows::Base
     numbers = input["fetch_numbers"]["numbers"]
     product = numbers.reduce(1, :*)
 
-    Rails.logger.info(
-      :workflow_step_calculate_product,
+    Rails.logger.info({
+      event: "workflow.step.calculate_product",
       workflow_id: workflow.id,
-      numbers: numbers,
       product: product
-    )
+    })
 
     # Simulate some work
     sleep(0.1)
@@ -93,11 +89,11 @@ class ExampleCalculationWorkflow < Workflows::Base
       operations_completed: 2
     }
 
-    Rails.logger.info(
-      :workflow_step_combine_results,
+    Rails.logger.info({
+      event: "workflow.step.combine_results",
       workflow_id: workflow.id,
       result: result
-    )
+    })
 
     result
   end
@@ -116,12 +112,12 @@ class ExampleCalculationWorkflow < Workflows::Base
       subject_id: workflow.subject_id
     }
 
-    Rails.logger.info(
-      :workflow_step_store_result,
+    Rails.logger.info({
+      event: "workflow.step.store_result",
       workflow_id: workflow.id,
       subject_id: workflow.subject_id,
       result: result
-    )
+    })
 
     result
   end

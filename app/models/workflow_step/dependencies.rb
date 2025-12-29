@@ -15,8 +15,25 @@ module WorkflowStep::Dependencies
     input_data = {}
     depends_on.each do |dep_name|
       dep_step = all_steps.find { |s| s.name == dep_name }
+
+      Rails.logger.info({
+        event: "workflow.step.populate_input.debug",
+        step_name: name,
+        dep_name: dep_name,
+        dep_step_found: !!dep_step,
+        dep_step_output: dep_step&.output,
+        dep_step_status: dep_step&.status
+      })
+
       input_data[dep_name] = dep_step.output if dep_step
     end
-  update!(input: input_data) if input_data.any?
+
+    Rails.logger.info({
+      event: "workflow.step.populate_input.result",
+      step_name: name,
+      input_data: input_data
+    })
+
+    update!(input: input_data) if input_data.any?
   end
 end

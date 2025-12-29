@@ -41,13 +41,13 @@ module Workflow::Pausable
       record_event(WorkflowEvents::Workflow::PAUSED, reason: reason, by: by)
     end
 
-    Rails.logger.info(
-      :workflow_paused,
+    Rails.logger.info({
+      event: "workflow.paused",
       workflow_id: id,
       workflow_class: workflow_class,
       reason: reason,
       by: by
-    )
+    })
   end
 
   # Resume a paused workflow
@@ -77,13 +77,13 @@ module Workflow::Pausable
       record_event(WorkflowEvents::Workflow::RESUMED, by: by)
     end
 
-    Rails.logger.info(
-      :workflow_resumed,
+    Rails.logger.info({
+      event: "workflow.resumed",
       workflow_id: id,
       workflow_class: workflow_class,
       by: by,
       paused_duration_seconds: paused_duration
-    )
+    })
 
     enqueue_next_steps
   end

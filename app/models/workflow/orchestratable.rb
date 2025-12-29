@@ -3,7 +3,13 @@ module Workflow::Orchestratable
 
   # Main orchestration method
   def enqueue_next_steps
-    with_lock("workflow_orchestrate_#{id}") do
+    # Use PostgreSQL advisory lock to prevent concurrent orchestration
+    # of the same workflow (e.g., multiple OrchestrateJobs running at once)
+    lock_key = advisory_lock_key
+
+    ApplicationRecord.connection.execute("SELECT pg_advisory_lock(#{lock_key.to_i})")
+
+    begin
       reload
       steps = workflow_steps.reload.to_a
 
@@ -12,13 +18,15 @@ module Workflow::Orchestratable
       ready = steps.select { |s| s.ready_to_run?(steps) }
       ready = apply_concurrency_limit(steps, ready)
 
-    ready.each do |step|
-      step.populate_input!(steps)
-      Workflows::RunStepJob.perform_later(step.id)
-    end
+      ready.each do |step|
+        step.populate_input!(steps)
+        Workflows::RunStepJob.perform_later(step.id)
+      end
 
-
-    update_workflow_state(steps)
+      update_workflow_state(steps)
+    ensure
+      # Always release the advisory lock
+      ApplicationRecord.connection.execute("SELECT pg_advisory_unlock(#{lock_key.to_i})")
     end
   end
 
@@ -29,6 +37,14 @@ module Workflow::Orchestratable
 
 
   private
+
+  # Generate a unique advisory lock key for this workflow
+  # PostgreSQL advisory locks use bigint (8 bytes), so we hash the UUID
+  def advisory_lock_key
+    # Convert UUID to a consistent integer for advisory lock
+    # Use CRC32 for a simple hash that fits in PostgreSQL's bigint
+    Zlib.crc32("workflow_orchestrate_#{id}")
+  end
 
   def apply_concurrency_limit(all_steps, ready_steps)
     max_concurrent = workflow_config.dig("max_concurrent_steps")

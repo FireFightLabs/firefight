@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 # IdempotentSteps - Reusable patterns for making workflow steps idempotent
 #
 # Provides helper methods to reduce boilerplate when implementing idempotent steps.
@@ -7,7 +5,7 @@
 #
 # Usage:
 #   class MyWorkflow < Workflows::Base
-#     include IdempotentSteps
+#     include Workflows::IdempotentSteps
 #
 #     def create_channel(workflow:, step:, input:)
 #       incident = workflow.subject
@@ -41,24 +39,24 @@ module IdempotentSteps
     value = record.public_send(field)
 
     if value.present?
-      Rails.logger.info(
-        :idempotent_field_cache_hit,
+      Rails.logger.info({
+        event: "workflow.idempotent_field.cache_hit",
         record_type: record.class.name,
         record_id: record.id,
         field: field
-      )
+      })
       return { field => value }
     end
 
     result = block.call
     record.update!(field => result)
 
-    Rails.logger.info(
-      :idempotent_field_created,
+    Rails.logger.info({
+      event: "workflow.idempotent_field.created",
       record_type: record.class.name,
       record_id: record.id,
       field: field
-    )
+    })
 
     { field => result }
   end
@@ -116,7 +114,7 @@ module IdempotentSteps
   #
   def conditional_step(condition, skip_reason:, &block)
     unless condition
-      Rails.logger.info(:conditional_step_skipped, reason: skip_reason)
+      Rails.logger.info({ event: "workflow.step.skipped", reason: skip_reason })
       return { skipped: true, reason: skip_reason }
     end
 
@@ -147,13 +145,13 @@ module IdempotentSteps
     rescue *rescue_classes => e
       if attempt < max_attempts
         sleep_time = backoff_base**attempt
-        Rails.logger.warn(
-          :step_retry,
+        Rails.logger.warn({
+          event: "workflow.step.retry",
           attempt: attempt,
           max_attempts: max_attempts,
           sleep_seconds: sleep_time,
           error: e.message
-        )
+        })
         sleep(sleep_time)
         retry
       else
