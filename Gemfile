@@ -74,5 +74,3 @@ end
 gem "inertia_rails", "~> 3.13"
 
 gem "vite_rails", "~> 3.0"
-
-gem "with_advisory_lock", "~> 7.0"

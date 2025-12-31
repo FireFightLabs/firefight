@@ -2328,7 +2328,6 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "rails", ">= 7.0"
   spec.add_dependency "solid_queue", ">= 0.1"
-  spec.add_dependency "with_advisory_lock", ">= 4.0"
 
   spec.add_development_dependency "rspec-rails"
   spec.add_development_dependency "factory_bot_rails"
