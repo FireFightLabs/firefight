@@ -29,6 +29,7 @@ class Workflows::WorkflowSweeperJob < ApplicationJob
   def perform
     sweep_stuck_workflows
     sweep_orphaned_steps
+    sweep_timed_out_workflows
   end
 
   private
@@ -105,6 +106,60 @@ class Workflows::WorkflowSweeperJob < ApplicationJob
       )
 
       step.workflow.record_event(WorkflowEvents::Step::RESET, step: step, reason: "sweeper")
+    end
+  end
+
+  # Detects and fails workflows that have exceeded their configured timeout
+  #
+  # Problem Solved:
+  #   Workflows can run indefinitely if they don't have automatic cleanup,
+  #   consuming resources and preventing proper incident resolution.
+  #
+  # How It Works:
+  #   1. Finds workflows with a configured timeout
+  #   2. Checks if running_duration > configured timeout
+  #   3. Marks workflow as failed with timeout reason
+  #   4. Cancels all pending/running steps
+  #   5. Records TIMEOUT event for audit trail
+  #
+  # Example Scenario:
+  #   - Workflow has timeout: 1.hour in workflow_config
+  #   - Workflow started at 10:00 AM
+  #   - Current time: 11:05 AM (65 minutes)
+  #   - Sweeper marks it as failed due to timeout
+  #
+  # Timeframe: Checks every 5 minutes (sweeper frequency)
+  #
+  def sweep_timed_out_workflows
+    Workflow.timed_out.each do |workflow|
+      Rails.logger.warn({
+        event: "workflow.sweeper.timeout",
+        workflow_id: workflow.id,
+        workflow_class: workflow.workflow_class,
+        timeout_seconds: workflow.workflow_config.dig("timeout"),
+        running_duration: Time.current - (workflow.started_at || workflow.created_at)
+      })
+
+      workflow.transaction do
+        # Cancel all pending/running steps
+        workflow.workflow_steps.where(status: %i[pending running]).update_all(
+          status: :cancelled,
+          completed_at: Time.current
+        )
+
+        # Mark workflow as failed
+        workflow.update!(
+          state: :failed,
+          completed_at: Time.current
+        )
+
+        # Record timeout event
+        workflow.record_event(
+          WorkflowEvents::Workflow::FAILED,
+          reason: "timeout",
+          timeout_seconds: workflow.workflow_config.dig("timeout")
+        )
+      end
     end
   end
 end

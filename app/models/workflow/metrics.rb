@@ -82,6 +82,18 @@ module Workflow::Metrics
     def state_summary(time_range: 1.hour.ago..)
       where(created_at: time_range).group(:state).count
     end
+
+    # Find workflows that have exceeded their configured timeout
+    #
+    # @return [Array<Workflow>] Timed out workflows
+    #
+    # @example
+    #   Workflow.timed_out
+    #   # => [#<Workflow ...>]
+    #
+    def timed_out
+      active.select(&:timed_out?)
+    end
   end
 
   # Calculate duration for this workflow instance
@@ -110,5 +122,22 @@ module Workflow::Metrics
   #
   def stuck?
     active? && updated_at < 30.minutes.ago
+  end
+
+  # Check if this workflow has exceeded its configured timeout
+  #
+  # @return [Boolean] true if timed out
+  #
+  # @example
+  #   workflow.timed_out?
+  #   # => false
+  #
+  def timed_out?
+    return false unless active?
+    return false unless workflow_config.dig("timeout")
+
+    timeout_seconds = workflow_config["timeout"].to_i
+    running_duration = Time.current - (started_at || created_at)
+    running_duration > timeout_seconds
   end
 end

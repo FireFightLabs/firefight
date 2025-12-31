@@ -1,17 +1,21 @@
 module WorkflowStep::Dependencies
   extend ActiveSupport::Concern
 
-  def ready_to_run?(all_steps)
+  def ready_to_run?(all_steps_or_map)
     return false unless pending?
     return false if run_at && run_at > Time.current
 
+    # Support both array (legacy) and hash map (optimized) lookups
+    step_map = all_steps_or_map.is_a?(Hash) ? all_steps_or_map : all_steps_or_map.index_by(&:name)
+
     depends_on.all? do |dep_name|
-      dep_step = all_steps.find { |s| s.name == dep_name }
+      dep_step = step_map[dep_name]
       dep_step && (dep_step.succeeded? || dep_step.skipped?)
     end
   end
 
-  def populate_input!(all_steps)
+  # Populate input data without saving (for batch updates)
+  def populate_input_data(all_steps)
     input_data = {}
     depends_on.each do |dep_name|
       dep_step = all_steps.find { |s| s.name == dep_name }
@@ -34,6 +38,12 @@ module WorkflowStep::Dependencies
       input_data: input_data
     })
 
-    update!(input: input_data) if input_data.any?
+    self.input = input_data if input_data.any?
+  end
+
+  # Legacy method for backward compatibility
+  def populate_input!(all_steps)
+    populate_input_data(all_steps)
+    save! if changed?
   end
 end

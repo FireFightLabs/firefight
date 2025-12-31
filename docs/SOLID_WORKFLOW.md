@@ -57,7 +57,8 @@ A step is a single unit of work. Each step:
 - Executes in its own background job
 - Can depend on other steps
 - Has input (from dependencies) and output (results)
-- Is idempotent and retryable
+- **MUST be idempotent** (safe to retry) - see [Idempotency Requirement](#idempotency-requirement)
+- Has automatic retries with exponential backoff
 - Has a status: `pending`, `running`, `succeeded`, `failed`, `skipped`, `cancelled`
 
 ### Orchestrator
@@ -66,7 +67,7 @@ The orchestrator:
 - Determines which steps are ready to run
 - Schedules Solid Queue jobs for ready steps
 - Updates workflow state based on step results
-- Uses advisory locks to prevent race conditions
+- Uses optimistic locking for high-throughput concurrent execution
 
 ### Execution Model
 
@@ -104,7 +105,7 @@ Orchestrator → identifies next ready steps
                             ↓
 ┌─────────────────────────────────────────────────────────┐
 │                     Orchestrator                         │
-│           (Advisory Lock + Dependency Check)             │
+│         (Optimistic Locking + Dependency Check)          │
 └─────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -573,9 +574,34 @@ Steps automatically retry on failure with exponential backoff:
 # After 5 attempts: step fails, workflow fails
 ```
 
-### Idempotency Pattern
+### Idempotency Requirement
 
-Always make steps idempotent to handle retries safely:
+**CRITICAL: Step implementations MUST be idempotent.**
+
+If a step crashes after performing work but before marking itself as succeeded, it will be retried. Steps that are not idempotent will cause duplicate side effects (duplicate emails, duplicate API calls, duplicate database records, etc.).
+
+**Why idempotency is required:**
+
+SolidWorkflow uses optimistic locking for scalability. This means:
+- Multiple workers may attempt to execute the same step concurrently
+- Only one worker will successfully claim the step
+- If a step crashes mid-execution, another worker will retry it
+- The retry has no way to know what work was completed before the crash
+
+**Example of non-idempotent step (DO NOT DO THIS):**
+
+```ruby
+# ❌ DANGEROUS - Not idempotent
+def send_notification(workflow:, step:, input:)
+  User.find(input["user_id"]).notify!("Incident created")
+  { notified: true }
+end
+
+# If this crashes after notify! but before returning,
+# the retry will send a duplicate notification!
+```
+
+**Correct idempotent implementation:**
 
 ```ruby
 def create_slack_channel(workflow:, step:, input:)
@@ -599,6 +625,14 @@ def create_slack_channel(workflow:, step:, input:)
   { channel_id: channel_id }
 end
 ```
+
+**Idempotency strategies:**
+
+1. **Check database first** - Store results in DB, return early if exists
+2. **Query external system** - Check if resource already exists before creating
+3. **Use unique constraints** - Let DB prevent duplicates, catch exception
+4. **Idempotency keys** - Pass unique key to external API
+5. **Track completion flags** - Set boolean flags on subject record
 
 ### Error Information
 
@@ -1431,7 +1465,7 @@ end
 
 **Instance Methods:**
 
-- `enqueue_next_steps` - Schedule ready steps (with advisory lock)
+- `enqueue_next_steps` - Schedule ready steps (with optimistic locking)
 - `enqueue_next_steps_later` - Schedule orchestration with debounce
 
 **Private Methods:**

@@ -1,5 +1,16 @@
 class Base
   class << self
+    # Registry of all workflow classes (for security - prevents arbitrary constantize)
+    def registry
+      @registry ||= {}
+    end
+
+    def inherited(subclass)
+      super
+      # Auto-register workflow classes when they're defined
+      registry[subclass.name] = subclass
+    end
+
     # Define workflow name
     def workflow_name(val = nil)
       @workflow_name = val if val
@@ -87,8 +98,9 @@ class Base
         # Reload steps and force a fresh query with all attributes including output
         steps = WorkflowStep.where(workflow_id: wf.id).order(:position).to_a
 
-        # Find ready steps
-        ready = steps.select { |s| s.ready_to_run?(steps) }
+        # Find ready steps - use step map for O(1) lookups
+        step_map = steps.index_by(&:name)
+        ready = steps.select { |s| s.ready_to_run?(step_map) }
         break if ready.empty?
 
         # Execute ready steps synchronously
@@ -114,6 +126,11 @@ class Base
     private
 
     def create_workflow!(subject, context)
+      # Validate that workflow has at least one step defined
+      if steps.empty?
+        raise ArgumentError, "#{name} must define at least one step. Use the 'step' DSL method to define workflow steps."
+      end
+
       Workflow.transaction do
         wf = Workflow.create!(
           name: workflow_name,

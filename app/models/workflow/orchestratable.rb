@@ -3,31 +3,49 @@ module Workflow::Orchestratable
 
   # Main orchestration method
   def enqueue_next_steps
-    # Use PostgreSQL advisory lock to prevent concurrent orchestration
-    # of the same workflow (e.g., multiple OrchestrateJobs running at once)
-    lock_key = advisory_lock_key
+    reload
+    steps = workflow_steps.reload.to_a
 
-    ApplicationRecord.connection.execute("SELECT pg_advisory_lock(#{lock_key.to_i})")
+    return if completed? || paused?
 
-    begin
-      reload
-      steps = workflow_steps.reload.to_a
+    # Build step map for O(1) lookups instead of O(n) array searches
+    step_map = steps.index_by(&:name)
+    ready = steps.select { |s| s.ready_to_run?(step_map) }
+    ready = apply_concurrency_limit(steps, ready)
 
-      return if completed? || paused?
-
-      ready = steps.select { |s| s.ready_to_run?(steps) }
-      ready = apply_concurrency_limit(steps, ready)
-
-      ready.each do |step|
-        step.populate_input!(steps)
-        Workflows::RunStepJob.perform_later(step.id)
-      end
-
-      update_workflow_state(steps)
-    ensure
-      # Always release the advisory lock
-      ApplicationRecord.connection.execute("SELECT pg_advisory_unlock(#{lock_key.to_i})")
+    # Batch update inputs to avoid N+1 queries
+    ready.each do |step|
+      step.populate_input_data(steps)
     end
+
+    # Track successfully updated steps for job enqueueing
+    successfully_updated = []
+
+    # Batch update all step inputs with optimistic locking
+    WorkflowStep.transaction do
+      ready.each do |step|
+        next unless step.changed?
+
+        # Optimistic locking: only update if status and updated_at haven't changed
+        rows_updated = WorkflowStep.where(
+          id: step.id,
+          status: step.status_was,
+          updated_at: step.updated_at_was
+        ).update_all(
+          input: step.input,
+          updated_at: Time.current
+        )
+
+        successfully_updated << step if rows_updated > 0
+      end
+    end
+
+    # Only enqueue jobs for steps that were successfully updated
+    successfully_updated.each do |step|
+      Workflows::RunStepJob.perform_later(step.id)
+    end
+
+    update_workflow_state(steps)
   end
 
   # Schedule with debounce
@@ -37,14 +55,6 @@ module Workflow::Orchestratable
 
 
   private
-
-  # Generate a unique advisory lock key for this workflow
-  # PostgreSQL advisory locks use bigint (8 bytes), so we hash the UUID
-  def advisory_lock_key
-    # Convert UUID to a consistent integer for advisory lock
-    # Use CRC32 for a simple hash that fits in PostgreSQL's bigint
-    Zlib.crc32("workflow_orchestrate_#{id}")
-  end
 
   def apply_concurrency_limit(all_steps, ready_steps)
     max_concurrent = workflow_config.dig("max_concurrent_steps")
@@ -57,15 +67,58 @@ module Workflow::Orchestratable
   end
 
   def update_workflow_state(steps)
+    reload # Get fresh state
+
     if steps.all? { |s| s.succeeded? || s.skipped? }
-      update!(state: :succeeded, completed_at: Time.current)
-      record_event(WorkflowEvents::Workflow::SUCCEEDED)
+      # Atomic transition to succeeded with optimistic locking
+      current_updated_at = updated_at
+      rows_updated = Workflow.where(
+        id: id,
+        state: [ :pending, :running ],
+        updated_at: current_updated_at
+      ).update_all(
+        state: :succeeded,
+        completed_at: Time.current,
+        updated_at: Time.current
+      )
+
+      if rows_updated > 0
+        reload
+        record_event(WorkflowEvents::Workflow::SUCCEEDED)
+      end
 
     elsif steps.any? { |s| s.failed? && s.attempts >= s.max_attempts }
-      update!(state: :failed, completed_at: Time.current)
-      record_event(WorkflowEvents::Workflow::FAILED)
+      # Atomic transition to failed with optimistic locking
+      current_updated_at = updated_at
+      rows_updated = Workflow.where(
+        id: id,
+        state: [ :pending, :running ],
+        updated_at: current_updated_at
+      ).update_all(
+        state: :failed,
+        completed_at: Time.current,
+        updated_at: Time.current
+      )
+
+      if rows_updated > 0
+        reload
+        record_event(WorkflowEvents::Workflow::FAILED)
+      end
+
     elsif pending?
-      update!(state: :running, started_at: Time.current)
+      # Atomic transition to running with optimistic locking
+      current_updated_at = updated_at
+      rows_updated = Workflow.where(
+        id: id,
+        state: :pending,
+        updated_at: current_updated_at
+      ).update_all(
+        state: :running,
+        started_at: Time.current,
+        updated_at: Time.current
+      )
+
+      reload if rows_updated > 0
     end
   end
 end

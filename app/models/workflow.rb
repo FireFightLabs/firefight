@@ -11,31 +11,19 @@ class Workflow < ApplicationRecord
   has_many :workflow_events, dependent: :destroy
 
   validates :name, :workflow_class, :subject_type, :subject_id, :state, presence: true
-  validate :workflow_class_must_exist
-  validate :workflow_class_must_inherit_from_base
+  validate :workflow_class_must_be_registered
 
   def workflow_klass
-    @workflow_klass ||= workflow_class.constantize
+    @workflow_klass ||= Base.registry[workflow_class]
   end
 
   private
 
-  def workflow_class_must_exist
+  def workflow_class_must_be_registered
     return if workflow_class.blank?
 
-    workflow_class.constantize
-  rescue NameError => e
-    errors.add(:workflow_class, "must be a valid class name (#{workflow_class} not found)")
-  end
-
-  def workflow_class_must_inherit_from_base
-    return if workflow_class.blank?
-
-    klass = workflow_class.constantize
-    unless klass < Workflows::Base
-      errors.add(:workflow_class, "must inherit from Workflows::Base (#{workflow_class} does not)")
+    unless Base.registry.key?(workflow_class)
+      errors.add(:workflow_class, "must be a registered workflow class (#{workflow_class} not found in registry)")
     end
-  rescue NameError
-    # Already handled by workflow_class_must_exist
   end
 end

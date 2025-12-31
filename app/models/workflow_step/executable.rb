@@ -5,15 +5,8 @@ module WorkflowStep::Executable
     return if workflow.cancelled?
     return if succeeded? || cancelled?
 
-    # Record start
-    workflow.record_event(WorkflowEvents::Step::STARTED, step: self)
-
-    # Update to running
-    update!(
-      status: :running,
-      attempts: attempts + 1,
-      started_at: Time.current
-    )
+    # Status transition to 'running' now handled by RunStepJob
+    # This method assumes step is already in 'running' status
 
     # Execute the step
     runner = workflow.workflow_klass.new
@@ -24,13 +17,27 @@ module WorkflowStep::Executable
       input: input
     )
 
-    # Mark as succeeded
-    update!(
+    # Atomic transition: running → succeeded with optimistic locking
+    current_updated_at = updated_at
+    rows_updated = WorkflowStep.where(
+      id: id,
+      status: :running,
+      updated_at: current_updated_at
+    ).update_all(
       status: :succeeded,
       output: output || {},
-      completed_at: Time.current
+      completed_at: Time.current,
+      updated_at: Time.current
     )
 
+    # If update failed, step was cancelled/modified - reload and check
+    if rows_updated == 0
+      reload
+      return if cancelled? # Cancelled during execution - exit gracefully
+      raise "Step status changed unexpectedly during execution"
+    end
+
+    reload # Reload to get updated attributes
     workflow.record_event(WorkflowEvents::Step::SUCCEEDED, step: self)
   end
 
