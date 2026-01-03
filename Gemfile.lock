@@ -197,7 +197,7 @@ GEM
     multi_xml (0.8.0)
       bigdecimal (>= 3.1, < 5)
     mutex_m (0.3.0)
-    net-http (0.8.0)
+    net-http (0.9.1)
       uri (>= 0.11.1)
     net-imap (0.5.12)
       date
@@ -241,8 +241,8 @@ GEM
       logger
       rack (>= 2.2.3)
       rack-protection
-    omniauth-oauth2 (1.8.0)
-      oauth2 (>= 1.4, < 3)
+    omniauth-oauth2 (1.9.0)
+      oauth2 (>= 2.0.2, < 3)
       omniauth (~> 2.0)
     omniauth-rails_csrf_protection (2.0.1)
       actionpack (>= 4.2)
