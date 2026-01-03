@@ -38,7 +38,7 @@ gem "omniauth-oauth2"
 gem "omniauth-rails_csrf_protection"
 
 # Generate JavaScript routes from Rails routes
-gem "js-routes", "~> 2.2"
+gem "js-routes", "~> 2.3"
 
 # HTTP client for API requests
 gem "httparty"
