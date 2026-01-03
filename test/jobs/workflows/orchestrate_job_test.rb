@@ -7,7 +7,7 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
 
     # Mark first step as succeeded
     fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
-    fetch_numbers.update!(status: :succeeded, output: { numbers: [1, 2, 3] })
+    fetch_numbers.update!(status: :succeeded, output: { numbers: [ 1, 2, 3 ] })
 
     # Orchestrate
     job = Workflows::OrchestrateJob.new
@@ -22,8 +22,8 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
 
     assert_not_nil calculate_sum.input
     assert_not_nil calculate_product.input
-    assert_equal({ "numbers" => [1, 2, 3] }, calculate_sum.input["fetch_numbers"])
-    assert_equal({ "numbers" => [1, 2, 3] }, calculate_product.input["fetch_numbers"])
+    assert_equal({ "numbers" => [ 1, 2, 3 ] }, calculate_sum.input["fetch_numbers"])
+    assert_equal({ "numbers" => [ 1, 2, 3 ] }, calculate_product.input["fetch_numbers"])
   end
 
   test "updates workflow state to running when first step starts" do
@@ -132,7 +132,7 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
 
     # Mark first step as succeeded
     fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
-    fetch_numbers.update!(status: :succeeded, output: { numbers: [1, 2, 3] })
+    fetch_numbers.update!(status: :succeeded, output: { numbers: [ 1, 2, 3 ] })
 
     enqueued_count = 0
     threads = []

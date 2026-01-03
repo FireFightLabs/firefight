@@ -66,7 +66,7 @@ class WorkflowStepTest < ActiveSupport::TestCase
     workflow = ExampleCalculationWorkflow.start!(user)
 
     fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
-    fetch_numbers.update!(status: :succeeded, output: { numbers: [1, 2, 3] })
+    fetch_numbers.update!(status: :succeeded, output: { numbers: [ 1, 2, 3 ] })
 
     calculate_sum = workflow.workflow_steps.find_by(name: "calculate_sum")
     steps = workflow.workflow_steps.reload.to_a
@@ -94,7 +94,7 @@ class WorkflowStepTest < ActiveSupport::TestCase
     fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
     fetch_numbers.update!(
       status: :succeeded,
-      output: { numbers: [1, 2, 3], count: 3 }
+      output: { numbers: [ 1, 2, 3 ], count: 3 }
     )
 
     calculate_sum = workflow.workflow_steps.find_by(name: "calculate_sum")
@@ -114,7 +114,7 @@ class WorkflowStepTest < ActiveSupport::TestCase
     combine_results.populate_input_data(steps)
 
     assert_equal 3, combine_results.input.keys.size
-    assert_equal({ "numbers" => [1, 2, 3], "count" => 3 }, combine_results.input["fetch_numbers"])
+    assert_equal({ "numbers" => [ 1, 2, 3 ], "count" => 3 }, combine_results.input["fetch_numbers"])
     assert_equal({ "sum" => 6, "operation" => "sum" }, combine_results.input["calculate_sum"])
     assert_equal({ "product" => 6, "operation" => "product" }, combine_results.input["calculate_product"])
   end

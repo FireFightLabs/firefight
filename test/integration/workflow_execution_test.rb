@@ -7,8 +7,8 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     # Create linear workflow
     linear_workflow = Class.new(Base) do
       step :step1
-      step :step2, depends_on: [:step1]
-      step :step3, depends_on: [:step2]
+      step :step2, depends_on: [ :step1 ]
+      step :step3, depends_on: [ :step2 ]
 
       def step1(**); { result: "step1" }; end
       def step2(input:, **); { result: "step2", prev: input["step1"]["result"] }; end
@@ -25,8 +25,8 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     )
 
     workflow.workflow_steps.create!(name: "step1", status: :pending, depends_on: [], position: 0, max_attempts: 5)
-    workflow.workflow_steps.create!(name: "step2", status: :pending, depends_on: ["step1"], position: 1, max_attempts: 5)
-    workflow.workflow_steps.create!(name: "step3", status: :pending, depends_on: ["step2"], position: 2, max_attempts: 5)
+    workflow.workflow_steps.create!(name: "step2", status: :pending, depends_on: [ "step1" ], position: 1, max_attempts: 5)
+    workflow.workflow_steps.create!(name: "step3", status: :pending, depends_on: [ "step2" ], position: 2, max_attempts: 5)
 
     # Execute inline
     workflow_instance = linear_workflow.new
@@ -64,7 +64,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
 
   test "parallel workflow with DAG executes correctly" do
     user = User.create!(name: "Test User", email: "test@example.com")
-    workflow = ExampleCalculationWorkflow.start_inline!(user, context: { numbers: [1, 2, 3] })
+    workflow = ExampleCalculationWorkflow.start_inline!(user, context: { numbers: [ 1, 2, 3 ] })
 
     workflow.reload
     assert workflow.succeeded?
@@ -73,7 +73,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
 
     # Verify outputs flowed correctly
     fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
-    assert_equal [1, 2, 3], fetch_numbers.output["numbers"]
+    assert_equal [ 1, 2, 3 ], fetch_numbers.output["numbers"]
 
     calculate_sum = workflow.workflow_steps.find_by(name: "calculate_sum")
     assert_equal 6, calculate_sum.output["sum"]
@@ -211,7 +211,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
 
   test "input data flows between steps correctly" do
     user = User.create!(name: "Test User", email: "test@example.com")
-    workflow = ExampleCalculationWorkflow.start_inline!(user, context: { numbers: [5, 10, 15] })
+    workflow = ExampleCalculationWorkflow.start_inline!(user, context: { numbers: [ 5, 10, 15 ] })
 
     workflow.reload
     combine_results = workflow.workflow_steps.find_by(name: "combine_results")
@@ -223,7 +223,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     assert_includes combine_results.input.keys, "calculate_product"
 
     # Verify correct data
-    assert_equal [5, 10, 15], combine_results.input["fetch_numbers"]["numbers"]
+    assert_equal [ 5, 10, 15 ], combine_results.input["fetch_numbers"]["numbers"]
     assert_equal 30, combine_results.input["calculate_sum"]["sum"]
     assert_equal 750, combine_results.input["calculate_product"]["product"]
   end

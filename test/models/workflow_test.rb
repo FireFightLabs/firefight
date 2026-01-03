@@ -63,7 +63,7 @@ class WorkflowTest < ActiveSupport::TestCase
 
   test "stores context as jsonb" do
     user = User.create!(name: "Test User", email: "test@example.com")
-    context = { numbers: [1, 2, 3], metadata: "test" }
+    context = { numbers: [ 1, 2, 3 ], metadata: "test" }
     workflow = ExampleCalculationWorkflow.start!(user, context: context)
     assert_equal context.stringify_keys, workflow.context
   end
