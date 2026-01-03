@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_15_092821) do
+ActiveRecord::Schema[8.1].define(version: 2025_12_31_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -57,6 +57,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_15_092821) do
     t.datetime "updated_at", null: false
     t.uuid "workflow_id", null: false
     t.index ["run_at"], name: "index_workflow_steps_on_run_at"
+    t.index ["status", "updated_at"], name: "index_workflow_steps_on_status_and_updated_at"
     t.index ["status"], name: "index_workflow_steps_on_status"
     t.index ["workflow_id", "name"], name: "index_workflow_steps_on_workflow_id_and_name"
     t.index ["workflow_id", "status"], name: "index_workflow_steps_on_workflow_id_and_status"
@@ -80,6 +81,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_15_092821) do
     t.index ["created_at"], name: "index_workflows_on_created_at"
     t.index ["state", "updated_at"], name: "index_workflows_on_state_and_updated_at"
     t.index ["state"], name: "index_workflows_on_state"
+    t.index ["subject_type", "subject_id", "state"], name: "index_workflows_on_subject_and_state"
     t.index ["subject_type", "subject_id"], name: "index_workflows_on_subject"
     t.index ["workflow_class"], name: "index_workflows_on_workflow_class"
   end
