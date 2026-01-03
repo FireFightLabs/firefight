@@ -13,6 +13,10 @@ development:
   refresh_slack_tokens:
     class: RefreshSlackTokensJob
     schedule: every hour
+  workflow_sweeper:
+    class: Workflows::WorkflowSweeperJob
+    queue: workflows
+    schedule: every 5 minutes
 
 staging:
   clear_solid_queue_finished_jobs:
@@ -21,6 +25,10 @@ staging:
   refresh_slack_tokens:
     class: RefreshSlackTokensJob
     schedule: every hour
+  workflow_sweeper:
+    class: Workflows::WorkflowSweeperJob
+    queue: workflows
+    schedule: every 5 minutes
 
 production:
   clear_solid_queue_finished_jobs:
@@ -29,3 +37,7 @@ production:
   refresh_slack_tokens:
     class: RefreshSlackTokensJob
     schedule: every hour
+  workflow_sweeper:
+    class: Workflows::WorkflowSweeperJob
+    queue: workflows
+    schedule: every 5 minutes
