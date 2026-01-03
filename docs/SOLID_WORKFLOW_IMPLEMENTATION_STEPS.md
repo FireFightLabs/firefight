@@ -30,11 +30,11 @@ Create three migration files:
 # db/migrate/20250101000001_create_workflows.rb
 class CreateWorkflows < ActiveRecord::Migration[7.0]
   def change
-    create_table :workflows do |t|
+    create_table :workflows, id: :uuid do |t|
       t.string   :name,                null: false
       t.string   :workflow_class,      null: false
       t.string   :subject_type,        null: false
-      t.bigint   :subject_id,          null: false
+      t.uuid     :subject_id,          null: false
       t.string   :state,               null: false, default: "pending"
       t.jsonb    :context,             null: false, default: {}
       t.jsonb    :workflow_config,     default: {}
@@ -60,8 +60,8 @@ end
 # db/migrate/20250101000002_create_workflow_steps.rb
 class CreateWorkflowSteps < ActiveRecord::Migration[7.0]
   def change
-    create_table :workflow_steps do |t|
-      t.references :workflow,      null: false, foreign_key: true, index: true
+    create_table :workflow_steps, id: :uuid do |t|
+      t.uuid       :workflow_id,   null: false
       t.string     :name,          null: false
       t.string     :status,        null: false, default: "pending"
       t.string     :depends_on,    array: true, default: []
@@ -78,11 +78,14 @@ class CreateWorkflowSteps < ActiveRecord::Migration[7.0]
       t.text       :skip_reason
       t.timestamps
 
+      t.index :workflow_id, name: "index_workflow_steps_on_workflow_id"
       t.index [:workflow_id, :name], name: "index_workflow_steps_on_workflow_and_name"
       t.index [:workflow_id, :status], name: "index_workflow_steps_on_workflow_and_status"
       t.index :status
       t.index :run_at
     end
+
+    add_foreign_key :workflow_steps, :workflows
   end
 end
 ```
@@ -93,17 +96,22 @@ end
 # db/migrate/20250101000003_create_workflow_events.rb
 class CreateWorkflowEvents < ActiveRecord::Migration[7.0]
   def change
-    create_table :workflow_events do |t|
-      t.references :workflow,      null: false, foreign_key: true, index: true
-      t.references :workflow_step, foreign_key: true, index: true
-      t.string     :event_type,    null: false
-      t.jsonb      :metadata,      default: {}
-      t.timestamp  :created_at,    null: false
+    create_table :workflow_events, id: :uuid do |t|
+      t.uuid       :workflow_id,      null: false
+      t.uuid       :workflow_step_id
+      t.string     :event_type,       null: false
+      t.jsonb      :metadata,         default: {}
+      t.timestamp  :created_at,       null: false
 
+      t.index :workflow_id, name: "index_workflow_events_on_workflow_id"
+      t.index :workflow_step_id, name: "index_workflow_events_on_workflow_step_id"
       t.index [:workflow_id, :created_at], name: "index_workflow_events_on_workflow_and_created_at"
       t.index :event_type
       t.index :created_at
     end
+
+    add_foreign_key :workflow_events, :workflows
+    add_foreign_key :workflow_events, :workflow_steps
   end
 end
 ```
@@ -125,35 +133,73 @@ rails db:schema:dump
 
 ## Phase 2: Core Models
 
-### Step 2.1: Create Workflow Model
+Following 37signals patterns, we'll use concerns to break up model logic into focused, reusable modules.
+
+### Step 2.1: Create Workflow Model (Thin)
 
 ```ruby
 # app/models/workflow.rb
 class Workflow < ApplicationRecord
-  # Associations
+  include Workflow::Stateable
+  include Workflow::Eventable
+  include Workflow::Orchestratable
+  include Workflow::Cancellable
+
   belongs_to :subject, polymorphic: true
-  has_many :workflow_steps, dependent: :destroy
+  has_many :workflow_steps, -> { order(:position) }, dependent: :destroy
   has_many :workflow_events, dependent: :destroy
 
-  # Validations
-  validates :name, presence: true
-  validates :workflow_class, presence: true
-  validates :state, presence: true, inclusion: {
-    in: %w[pending running succeeded failed cancelled]
-  }
+  validates :name, :workflow_class, presence: true
 
-  # Scopes
-  scope :pending, -> { where(state: "pending") }
-  scope :running, -> { where(state: "running") }
-  scope :completed, -> { where(state: %w[succeeded failed cancelled]) }
-  scope :active, -> { where(state: %w[pending running]) }
-
-  # Get workflow class constant
   def workflow_klass
-    workflow_class.constantize
+    @workflow_klass ||= workflow_class.constantize
+  end
+end
+```
+
+### Step 2.1a: Create Workflow::Stateable Concern
+
+```ruby
+# app/models/workflow/stateable.rb
+module Workflow::Stateable
+  extend ActiveSupport::Concern
+
+  included do
+    enum :state, {
+      pending: "pending",
+      running: "running",
+      paused: "paused",
+      succeeded: "succeeded",
+      failed: "failed",
+      cancelled: "cancelled"
+    }
+
+    scope :completed, -> { where(state: %w[succeeded failed cancelled]) }
+    scope :active, -> { where(state: %w[pending running paused]) }
   end
 
-  # Record an event
+  def transition_to!(new_state)
+    update!(state: new_state, "#{new_state}_at": Time.current)
+    record_event("workflow.#{new_state}")
+  end
+
+  def completed?
+    succeeded? || failed? || cancelled?
+  end
+
+  def active?
+    pending? || running?
+  end
+end
+```
+
+### Step 2.1b: Create Workflow::Eventable Concern
+
+```ruby
+# app/models/workflow/eventable.rb
+module Workflow::Eventable
+  extend ActiveSupport::Concern
+
   def record_event(event_type, step: nil, **metadata)
     workflow_events.create!(
       event_type: event_type,
@@ -161,36 +207,453 @@ class Workflow < ApplicationRecord
       metadata: metadata
     )
   end
+
+  def timeline
+    workflow_events.order(:created_at).map do |event|
+      {
+        timestamp: event.created_at,
+        type: event.event_type,
+        step: event.workflow_step&.name,
+        metadata: event.metadata
+      }
+    end
+  end
 end
 ```
 
-### Step 2.2: Create WorkflowStep Model
+### Step 2.1c: Create Workflow::Cancellable Concern
+
+```ruby
+# app/models/workflow/cancellable.rb
+module Workflow::Cancellable
+  extend ActiveSupport::Concern
+
+  def cancel!(reason:, by:)
+    transaction do
+      update!(
+        state: :cancelled,
+        cancelled_by: by,
+        cancellation_reason: reason,
+        completed_at: Time.current
+      )
+
+      workflow_steps.where(status: :pending).update_all(status: :cancelled)
+      record_event(WorkflowEvents::Workflow::CANCELLED, reason: reason, by: by)
+    end
+  end
+end
+```
+
+### Step 2.1d: Create Workflow::Orchestratable Concern
+
+Following 37signals pattern: no service objects, all logic in model concerns.
+
+**Note**: Uses optimistic locking for high-throughput concurrent execution (no advisory locks).
+
+```ruby
+# app/models/workflow/orchestratable.rb
+module Workflow::Orchestratable
+  extend ActiveSupport::Concern
+
+  # Main orchestration method
+  def enqueue_next_steps
+    reload
+    steps = workflow_steps.reload.to_a
+
+    return if completed? || paused?
+
+    # Build step map for O(1) lookups
+    step_map = steps.index_by(&:name)
+    ready = steps.select { |s| s.ready_to_run?(step_map) }
+    ready = apply_concurrency_limit(steps, ready)
+
+    # Batch update inputs
+    ready.each do |step|
+      step.populate_input_data(steps)
+    end
+
+    # Track successfully updated steps for job enqueueing
+    successfully_updated = []
+
+    # Batch update all step inputs with optimistic locking
+    WorkflowStep.transaction do
+      ready.each do |step|
+        next unless step.changed?
+
+        # Optimistic locking: only update if status and updated_at haven't changed
+        rows_updated = WorkflowStep.where(
+          id: step.id,
+          status: step.status_was,
+          updated_at: step.updated_at_was
+        ).update_all(
+          input: step.input,
+          updated_at: Time.current
+        )
+
+        successfully_updated << step if rows_updated > 0
+      end
+    end
+
+    # Only enqueue jobs for steps that were successfully updated
+    successfully_updated.each do |step|
+      Workflows::RunStepJob.perform_later(step.id)
+    end
+
+    update_workflow_state(steps)
+  end
+
+  # Schedule with debounce
+  def enqueue_next_steps_later
+    Workflows::OrchestrateJob.set(wait: 1.second).perform_later(id)
+  end
+
+  private
+
+    def apply_concurrency_limit(all_steps, ready_steps)
+      max_concurrent = workflow_config.dig("max_concurrent_steps")
+      return ready_steps unless max_concurrent
+
+      running_count = all_steps.count(&:running?)
+      available_slots = [max_concurrent - running_count, 0].max
+
+      ready_steps.take(available_slots)
+    end
+
+    def update_workflow_state(steps)
+      reload # Get fresh state
+
+      if steps.all? { |s| s.succeeded? || s.skipped? }
+        # Atomic transition to succeeded with optimistic locking
+        current_updated_at = updated_at
+        rows_updated = Workflow.where(
+          id: id,
+          state: [:pending, :running],
+          updated_at: current_updated_at
+        ).update_all(
+          state: :succeeded,
+          completed_at: Time.current,
+          updated_at: Time.current
+        )
+
+        if rows_updated > 0
+          reload
+          record_event(WorkflowEvents::Workflow::SUCCEEDED)
+        end
+
+      elsif steps.any? { |s| s.failed? && s.attempts >= s.max_attempts }
+        # Atomic transition to failed with optimistic locking
+        current_updated_at = updated_at
+        rows_updated = Workflow.where(
+          id: id,
+          state: [:pending, :running],
+          updated_at: current_updated_at
+        ).update_all(
+          state: :failed,
+          completed_at: Time.current,
+          updated_at: Time.current
+        )
+
+        if rows_updated > 0
+          reload
+          record_event(WorkflowEvents::Workflow::FAILED)
+        end
+
+      elsif pending?
+        # Atomic transition to running with optimistic locking
+        current_updated_at = updated_at
+        rows_updated = Workflow.where(
+          id: id,
+          state: :pending,
+          updated_at: current_updated_at
+        ).update_all(
+          state: :running,
+          started_at: Time.current,
+          updated_at: Time.current
+        )
+
+        reload if rows_updated > 0
+      end
+    end
+end
+```
+
+### Step 2.2: Create WorkflowStep Model (Thin)
 
 ```ruby
 # app/models/workflow_step.rb
 class WorkflowStep < ApplicationRecord
-  # Associations
+  include WorkflowStep::Statusable
+  include WorkflowStep::Executable
+  include WorkflowStep::Retryable
+  include WorkflowStep::Dependencies
+
   belongs_to :workflow
   has_many :workflow_events, dependent: :destroy
 
-  # Validations
-  validates :name, presence: true
-  validates :status, presence: true, inclusion: {
-    in: %w[pending running succeeded failed skipped cancelled]
-  }
+  validates :name, :status, presence: true
 
-  # Check if step is ready to execute
-  def ready_to_run?(all_steps)
-    return false unless status == "pending"
+  scope :ordered, -> { order(:position) }
+end
+```
+
+### Step 2.2a: Create WorkflowStep::Statusable Concern
+
+```ruby
+# app/models/workflow_step/statusable.rb
+module WorkflowStep::Statusable
+  extend ActiveSupport::Concern
+
+  included do
+    enum :status, {
+      pending: "pending",
+      running: "running",
+      succeeded: "succeeded",
+      failed: "failed",
+      skipped: "skipped",
+      cancelled: "cancelled"
+    }
+
+    scope :pending, -> { where(status: :pending) }
+    scope :running, -> { where(status: :running) }
+    scope :completed, -> { where(status: %i[succeeded skipped]) }
+    scope :failed, -> { where(status: :failed) }
+    scope :in_progress, -> { where(status: :running) }
+  end
+
+  def completed?
+    succeeded? || failed? || skipped? || cancelled?
+  end
+end
+```
+
+### Step 2.2b: Create WorkflowStep::Dependencies Concern
+
+```ruby
+# app/models/workflow_step/dependencies.rb
+module WorkflowStep::Dependencies
+  extend ActiveSupport::Concern
+
+  def ready_to_run?(all_steps_or_map)
+    return false unless pending?
     return false if run_at && run_at > Time.current
 
-    # Check all dependencies are completed
+    # Support both array (legacy) and hash map (optimized) lookups
+    step_map = all_steps_or_map.is_a?(Hash) ? all_steps_or_map : all_steps_or_map.index_by(&:name)
+
     depends_on.all? do |dep_name|
+      dep_step = step_map[dep_name]
+      dep_step && (dep_step.succeeded? || dep_step.skipped?)
+    end
+  end
+
+  # Populate input data without saving (for batch updates)
+  def populate_input_data(all_steps)
+    input_data = {}
+    depends_on.each do |dep_name|
       dep_step = all_steps.find { |s| s.name == dep_name }
-      dep_step&.status&.in?(%w[succeeded skipped])
+      input_data[dep_name] = dep_step.output if dep_step
+    end
+
+    self.input = input_data if input_data.any?
+  end
+
+  # Legacy method for backward compatibility
+  def populate_input!(all_steps)
+    populate_input_data(all_steps)
+    save! if changed?
+  end
+end
+```
+
+### Step 2.2c: Create WorkflowStep::Executable Concern
+
+**Note**: Status transition to 'running' now handled by RunStepJob using optimistic locking.
+
+```ruby
+# app/models/workflow_step/executable.rb
+module WorkflowStep::Executable
+  extend ActiveSupport::Concern
+
+  def execute!
+    return if workflow.cancelled?
+    return if succeeded? || cancelled?
+
+    # Status transition to 'running' now handled by RunStepJob
+    # This method assumes step is already in 'running' status
+
+    # Execute the step
+    runner = workflow.workflow_klass.new
+    output = runner.run_step(
+      name,
+      workflow: workflow,
+      step: self,
+      input: input
+    )
+
+    # Atomic transition: running → succeeded with optimistic locking
+    current_updated_at = updated_at
+    rows_updated = WorkflowStep.where(
+      id: id,
+      status: :running,
+      updated_at: current_updated_at
+    ).update_all(
+      status: :succeeded,
+      output: output || {},
+      completed_at: Time.current,
+      updated_at: Time.current
+    )
+
+    # If update failed, step was cancelled/modified - reload and check
+    if rows_updated == 0
+      reload
+      return if cancelled? # Cancelled during execution - exit gracefully
+      raise "Step status changed unexpectedly during execution"
+    end
+
+    reload # Reload to get updated attributes
+    workflow.record_event(WorkflowEvents::Step::SUCCEEDED, step: self)
+  end
+
+  def mark_failed!(error)
+    update!(last_error: format_error(error))
+    workflow.record_event(WorkflowEvents::Step::FAILED, step: self, error: error.message)
+
+    if should_retry?
+      schedule_retry!
+    else
+      update!(status: :failed, completed_at: Time.current)
+    end
+  end
+
+  private
+
+  def format_error(error)
+    "#{error.class}: #{error.message}\n#{error.backtrace.first(5).join("\n")}"
+  end
+end
+```
+
+### Step 2.2d: Create WorkflowStep::Retryable Concern
+
+```ruby
+# app/models/workflow_step/retryable.rb
+module WorkflowStep::Retryable
+  extend ActiveSupport::Concern
+
+  # Backoff strategy constants
+  BACKOFF_EXPONENTIAL = "exponential"
+  BACKOFF_LINEAR = "linear"
+  BACKOFF_FIXED = "fixed"
+
+  def should_retry?
+    attempts < max_attempts
+  end
+
+  def schedule_retry!
+    delay = calculate_backoff
+
+    update!(
+      status: :pending,
+      run_at: Time.current + delay
+    )
+
+    workflow.record_event(WorkflowEvents::Step::RETRY_SCHEDULED, step: self, delay: delay, attempt: attempts)
+  end
+
+  def retry_now!
+    transaction do
+      update!(
+        status: :pending,
+        attempts: 0,
+        last_error: nil,
+        run_at: nil
+      )
+
+      workflow.record_event(WorkflowEvents::Step::MANUAL_RETRY, step: self)
+    end
+
+    workflow.enqueue_next_steps
+  end
+
+  def skip!(reason:)
+    transaction do
+      update!(
+        status: :skipped,
+        skip_reason: reason,
+        completed_at: Time.current
+      )
+
+      workflow.record_event(WorkflowEvents::Step::MANUAL_SKIP, step: self, reason: reason)
+    end
+
+    workflow.enqueue_next_steps
+  end
+
+  private
+
+  def calculate_backoff
+    strategy = retry_config&.dig("backoff") || BACKOFF_EXPONENTIAL
+
+    case strategy
+    when BACKOFF_EXPONENTIAL
+      [2**attempts, 300].min.seconds
+    when BACKOFF_LINEAR
+      [attempts * 30, 300].min.seconds
+    when BACKOFF_FIXED
+      (retry_config["backoff_seconds"] || 60).seconds
+    else
+      60.seconds
     end
   end
 end
+```
+
+### Step 2.2e: Create WorkflowEvents Constants Module
+
+All workflow event types are centralized in a constants module to prevent typos and enable IDE autocomplete.
+
+```ruby
+# app/models/concerns/workflow_events.rb
+module WorkflowEvents
+  # Workflow-level events
+  module Workflow
+    STARTED = "workflow.started"
+    RUNNING = "workflow.running"
+    SUCCEEDED = "workflow.succeeded"
+    FAILED = "workflow.failed"
+    CANCELLED = "workflow.cancelled"
+  end
+
+  # Step-level events
+  module Step
+    STARTED = "step.started"
+    SUCCEEDED = "step.succeeded"
+    FAILED = "step.failed"
+    SKIPPED = "step.skipped"
+    CANCELLED = "step.cancelled"
+    RETRY_SCHEDULED = "step.retry_scheduled"
+    MANUAL_RETRY = "step.manual_retry"
+    MANUAL_SKIP = "step.manual_skip"
+    RESET = "step.reset"
+  end
+end
+```
+
+**Event Naming Convention:**
+
+Events follow the pattern `<scope>.<action>`:
+- **Scopes:** `workflow` (workflow-level), `step` (step-level)
+- **Actions:** Past tense for completed actions (`succeeded`, `failed`, `started`)
+- **Format:** lowercase with underscores for multi-word actions (`retry_scheduled`)
+
+**Usage:**
+
+```ruby
+# Instead of:
+record_event("workflow.succeeded")
+
+# Use:
+record_event(WorkflowEvents::Workflow::SUCCEEDED)
 ```
 
 ### Step 2.3: Create WorkflowEvent Model
@@ -264,7 +727,7 @@ RSpec.describe WorkflowStep, type: :model do
     let(:step_c) { create(:workflow_step, workflow: workflow, name: "step_c", status: "pending", depends_on: ["step_a", "step_b"]) }
 
     it "returns true when no dependencies" do
-      step = create(:workflow_step, workflow: workflow, status: "pending", depends_on: [])
+      step = create(:workflow_step, workflow: workflow, status: :pending, depends_on: [])
       expect(step.ready_to_run?([])).to be true
     end
 
@@ -279,17 +742,17 @@ RSpec.describe WorkflowStep, type: :model do
     end
 
     it "returns false when run_at is in future" do
-      step = create(:workflow_step, workflow: workflow, status: "pending", run_at: 1.hour.from_now)
+      step = create(:workflow_step, workflow: workflow, status: :pending, run_at: 1.hour.from_now)
       expect(step.ready_to_run?([])).to be false
     end
 
     it "returns false when status is not pending" do
-      step = create(:workflow_step, workflow: workflow, status: "running")
+      step = create(:workflow_step, workflow: workflow, status: :running)
       expect(step.ready_to_run?([])).to be false
     end
 
     it "returns true when dependency is skipped" do
-      step_a.update!(status: "skipped")
+      step_a.update!(status: :skipped)
       all_steps = [step_a, step_b]
       expect(step_b.ready_to_run?(all_steps)).to be true
     end
@@ -301,11 +764,11 @@ end
 
 ## Phase 3: Basic Workflow Execution
 
-### Step 3.1: Create ApplicationWorkflow Base Class
+### Step 3.1: Create Workflows::Base Class
 
 ```ruby
-# app/workflows/application_workflow.rb
-class ApplicationWorkflow
+# app/workflows/base.rb
+class Workflows::Base
   class << self
     # Define workflow name
     def workflow_name(val = nil)
@@ -336,7 +799,7 @@ class ApplicationWorkflow
     # Start a workflow (async)
     def start!(subject, context: {})
       wf = create_workflow!(subject, context)
-      WorkflowOrchestrator.enqueue_next_steps!(wf)
+      wf.enqueue_next_steps
       wf
     end
 
@@ -365,12 +828,12 @@ class ApplicationWorkflow
         )
       end
 
-      wf.record_event("workflow.started")
+      wf.record_event(WorkflowEvents::Workflow::STARTED)
       wf
     end
 
     def default_retry_config
-      { max_attempts: 5, backoff: "exponential" }
+      { max_attempts: 5, backoff: WorkflowStep::Retryable::BACKOFF_EXPONENTIAL }
     end
   end
 
@@ -382,171 +845,92 @@ class ApplicationWorkflow
 end
 ```
 
-### Step 3.2: Create Orchestrator
+### Step 3.2: Orchestration Logic
 
-```ruby
-# app/services/workflow_orchestrator.rb
-class WorkflowOrchestrator
-  class << self
-    # Main orchestration method
-    def enqueue_next_steps!(workflow)
-      workflow.reload
-      steps = workflow.workflow_steps.reload.to_a
+The orchestration logic is now in the `Workflow::Orchestratable` concern (see Step 2.1d).
 
-      # Find steps ready to run
-      ready = steps.select { |step| ready_to_run?(step, steps) }
-
-      # Enqueue ready steps
-      ready.each do |step|
-        populate_step_input(step, steps)
-        RunWorkflowStepJob.perform_later(step.id)
-      end
-
-      # Update workflow state
-      update_workflow_state(workflow, steps)
-    end
-
-    # Check if step is ready
-    def ready_to_run?(step, all_steps)
-      step.ready_to_run?(all_steps)
-    end
-
-    private
-
-    # Auto-inject dependency outputs into step input
-    def populate_step_input(step, all_steps)
-      input = {}
-      step.depends_on.each do |dep_name|
-        dep_step = all_steps.find { |s| s.name == dep_name }
-        input[dep_name] = dep_step.output if dep_step
-      end
-      step.update!(input: input) if input.any?
-    end
-
-    # Update workflow state based on step statuses
-    def update_workflow_state(workflow, steps)
-      if steps.all? { |s| s.status.in?(%w[succeeded skipped]) }
-        workflow.update!(state: "succeeded", completed_at: Time.current)
-        workflow.record_event("workflow.succeeded")
-
-      elsif steps.any? { |s| s.status == "failed" && s.attempts >= s.max_attempts }
-        workflow.update!(state: "failed", completed_at: Time.current)
-        workflow.record_event("workflow.failed")
-
-      elsif workflow.state == "pending"
-        workflow.update!(state: "running", started_at: Time.current)
-      end
-    end
-  end
-end
-```
+No separate service class needed - following 37signals pattern of keeping logic in model concerns.
 
 ### Step 3.3: Create Step Job
 
+The job is lightweight and uses optimistic locking for atomic step claiming:
+
+**Note**: Uses atomic claim pattern with optimistic locking (no pessimistic locks).
+
 ```ruby
-# app/jobs/run_workflow_step_job.rb
-class RunWorkflowStepJob < ApplicationJob
+# app/jobs/workflows/run_step_job.rb
+class Workflows::RunStepJob < ApplicationJob
   queue_as :workflows
 
   def perform(step_id)
-    @step = WorkflowStep.lock.find(step_id)
-    @workflow = @step.workflow.reload
+    start_time = Time.current
 
-    # Check if should execute
-    return if @workflow.state.in?(%w[cancelled])
-    return if @step.status.in?(%w[succeeded cancelled])
+    @step = WorkflowStep.find(step_id)
+    @workflow = @step.workflow
 
-    # Record start
-    @workflow.record_event("step.started", step: @step)
+    # Early returns for already-processed states (idempotency)
+    return if @step.succeeded? || @step.cancelled? || @step.running?
+    return if @workflow.cancelled?
 
-    # Execute in transaction
-    ActiveRecord::Base.transaction do
-      @step.update!(
-        status: "running",
-        attempts: @step.attempts + 1,
-        started_at: Time.current
-      )
+    # Atomic claim: try to transition pending → running with optimistic locking
+    current_updated_at = @step.updated_at
+    rows_updated = WorkflowStep.where(
+      id: @step.id,
+      status: :pending,
+      updated_at: current_updated_at
+    ).update_all(
+      status: :running,
+      attempts: @step.attempts + 1,
+      started_at: Time.current,
+      updated_at: Time.current
+    )
 
-      # Run the step
-      runner = @workflow.workflow_klass.new
-      output = runner.run_step(
-        @step.name,
-        workflow: @workflow,
-        step: @step,
-        input: @step.input
-      )
+    # Another worker won the race - exit gracefully
+    return if rows_updated == 0
 
-      # Mark as succeeded
-      @step.update!(
-        status: "succeeded",
-        output: output || {},
-        completed_at: Time.current
-      )
+    # Reload to get updated attributes
+    @step.reload
+    @workflow.reload
 
-      @workflow.record_event("step.succeeded", step: @step)
+    # Double-check workflow not cancelled after claim
+    if @workflow.cancelled?
+      @step.update!(status: :cancelled, completed_at: Time.current)
+      return
     end
+
+    @workflow.record_event(WorkflowEvents::Step::STARTED, step: @step)
+
+    Rails.logger.info({
+      event: "workflow.step.started",
+      workflow_id: @workflow.id,
+      workflow_class: @workflow.workflow_class,
+      step_id: @step.id,
+      step_name: @step.name,
+      attempt: @step.attempts,
+      max_attempts: @step.max_attempts,
+      subject_type: @workflow.subject_type,
+      subject_id: @workflow.subject_id
+    })
+
+    @step.execute!
 
   rescue StandardError => e
-    handle_failure(e)
+    @step.mark_failed!(e)
+    raise
   ensure
-    # Always call orchestrator
-    WorkflowOrchestrator.enqueue_next_steps!(@workflow) if @workflow
-  end
-
-  private
-
-  def handle_failure(error)
-    @step.update!(
-      last_error: format_error(error)
-    )
-
-    @workflow.record_event("step.failed", step: @step, error: error.message)
-
-    # Retry if attempts remaining
-    if @step.attempts < @step.max_attempts
-      schedule_retry
-    else
-      @step.update!(status: "failed")
-    end
-  end
-
-  def schedule_retry
-    delay = calculate_backoff(@step.attempts, @step.retry_config)
-
-    @step.update!(
-      status: "pending",
-      run_at: Time.current + delay
-    )
-
-    self.class.set(wait: delay).perform_later(@step.id)
-  end
-
-  def calculate_backoff(attempt, config)
-    strategy = config&.dig("backoff") || "exponential"
-
-    case strategy
-    when "exponential"
-      [2**attempt, 300].min.seconds
-    when "linear"
-      [attempt * 30, 300].min.seconds
-    when "fixed"
-      (config["backoff_seconds"] || 60).seconds
-    else
-      60.seconds
-    end
-  end
-
-  def format_error(error)
-    "#{error.class}: #{error.message}\n#{error.backtrace.first(5).join("\n")}"
+    # Always trigger orchestration
+    @workflow.enqueue_next_steps_later if @workflow
   end
 end
 ```
+
+All execution logic is in the `WorkflowStep::Executable` and `WorkflowStep::Retryable` concerns. The job focuses on atomic claiming and coordination.
 
 ### Step 3.4: Create Example Workflow
 
 ```ruby
 # app/workflows/test_workflow.rb
-class TestWorkflow < ApplicationWorkflow
+class TestWorkflow < Workflows::Base
   workflow_name "test.workflow.v1"
 
   step :step_one
@@ -632,7 +1016,7 @@ The current orchestrator already supports parallel execution through the DAG. Te
 
 ```ruby
 # app/workflows/parallel_workflow.rb
-class ParallelWorkflow < ApplicationWorkflow
+class ParallelWorkflow < Workflows::Base
   workflow_name "parallel.test.v1"
 
   step :start_step
@@ -701,47 +1085,11 @@ RSpec.describe ParallelWorkflow do
 end
 ```
 
-### Step 4.3: Add Concurrency Limiting
+### Step 4.3: Concurrency Limiting
 
-```ruby
-# app/services/workflow_orchestrator.rb
-class WorkflowOrchestrator
-  class << self
-    def enqueue_next_steps!(workflow)
-      workflow.reload
-      steps = workflow.workflow_steps.reload.to_a
+Concurrency limiting is already implemented in the `Workflow::Orchestratable` concern (see Step 2.1d).
 
-      # Find steps ready to run
-      ready = steps.select { |step| ready_to_run?(step, steps) }
-
-      # Apply concurrency limit
-      ready = apply_concurrency_limit(workflow, steps, ready)
-
-      # Enqueue ready steps
-      ready.each do |step|
-        populate_step_input(step, steps)
-        RunWorkflowStepJob.perform_later(step.id)
-      end
-
-      update_workflow_state(workflow, steps)
-    end
-
-    private
-
-    def apply_concurrency_limit(workflow, all_steps, ready_steps)
-      max_concurrent = workflow.workflow_config.dig("max_concurrent_steps")
-      return ready_steps unless max_concurrent
-
-      running_count = all_steps.count { |s| s.status == "running" }
-      available_slots = [max_concurrent - running_count, 0].max
-
-      ready_steps.take(available_slots)
-    end
-
-    # ... rest of methods
-  end
-end
-```
+The `apply_concurrency_limit` private method respects the `max_concurrent_steps` config.
 
 ---
 
@@ -817,8 +1165,8 @@ module IdempotentSteps
   end
 end
 
-# Include in ApplicationWorkflow
-class ApplicationWorkflow
+# Include in Workflows::Base
+class Workflows::Base
   include IdempotentSteps
 end
 ```
@@ -827,7 +1175,7 @@ end
 
 ```ruby
 # app/workflows/slack_channel_workflow.rb
-class SlackChannelWorkflow < ApplicationWorkflow
+class SlackChannelWorkflow < Workflows::Base
   workflow_name "slack.channel.create.v1"
 
   step :create_channel
@@ -893,7 +1241,7 @@ class Workflow < ApplicationRecord
       # Cancel all pending steps
       workflow_steps.where(status: "pending").update_all(status: "cancelled")
 
-      record_event("workflow.cancelled", reason: reason, by: by)
+      record_event(WorkflowEvents::Workflow::CANCELLED, reason: reason, by: by)
     end
   end
 end
@@ -946,7 +1294,7 @@ class WorkflowStep < ApplicationRecord
       completed_at: Time.current
     )
 
-    workflow.record_event("step.skipped", step: self, reason: reason)
+    workflow.record_event(WorkflowEvents::Step::SKIPPED, step: self, reason: reason)
   end
 end
 ```
@@ -955,7 +1303,7 @@ end
 
 ```ruby
 # app/workflows/conditional_workflow.rb
-class ConditionalWorkflow < ApplicationWorkflow
+class ConditionalWorkflow < Workflows::Base
   workflow_name "conditional.test.v1"
 
   step :check_eligibility
@@ -986,49 +1334,18 @@ class ConditionalWorkflow < ApplicationWorkflow
 end
 ```
 
-### Step 6.5: Add Manual Retry/Skip (Future Enhancement)
+### Step 6.5: Manual Retry/Skip
 
-Allow admins to manually retry failed steps or skip problematic ones.
+Manual retry and skip functionality is already implemented in the `WorkflowStep::Retryable` concern (see Step 2.2d).
 
 **When to use:**
+
 - **Retry:** Transient failures now resolved (API back up, credentials fixed)
 - **Skip:** Non-critical step failing, want to complete workflow anyway
 
-```ruby
-# app/models/workflow_step.rb
-class WorkflowStep < ApplicationRecord
-  # ... existing code ...
-
-  def retry_now!
-    transaction do
-      update!(
-        status: "pending",
-        attempts: 0,
-        last_error: nil,
-        run_at: nil
-      )
-
-      workflow.record_event("step.manual_retry", step: self)
-    end
-
-    WorkflowOrchestrator.enqueue_next_steps!(workflow)
-  end
-
-  def skip!(reason:)
-    transaction do
-      update!(
-        status: "skipped",
-        skip_reason: reason,
-        completed_at: Time.current
-      )
-
-      workflow.record_event("step.manual_skip", step: self, reason: reason)
-    end
-
-    WorkflowOrchestrator.enqueue_next_steps!(workflow)
-  end
-end
-```
+The methods are available on any WorkflowStep instance:
+- `step.retry_now!` - Resets the step to pending and triggers orchestration
+- `step.skip!(reason: "...")` - Marks step as skipped and continues workflow
 
 **Test manual retry/skip:**
 
@@ -1057,20 +1374,20 @@ RSpec.describe WorkflowStep do
       expect(event.event_type).to eq("step.manual_retry")
     end
 
-    it "triggers orchestrator" do
-      expect(WorkflowOrchestrator).to receive(:enqueue_next_steps!).with(workflow)
+    it "triggers orchestration" do
+      expect(workflow).to receive(:enqueue_next_steps)
       step.retry_now!
     end
   end
 
   describe "#skip!" do
     let(:workflow) { create(:workflow) }
-    let(:step) { create(:workflow_step, workflow: workflow, status: "failed") }
+    let(:step) { create(:workflow_step, workflow: workflow, status: :failed) }
 
     it "marks step as skipped with reason" do
       step.skip!(reason: "Not critical, can skip")
 
-      expect(step.status).to eq("skipped")
+      expect(step.skipped?).to be true
       expect(step.skip_reason).to eq("Not critical, can skip")
       expect(step.completed_at).to be_present
     end
@@ -1085,8 +1402,8 @@ RSpec.describe WorkflowStep do
       expect(event.metadata["reason"]).to eq("Test skip")
     end
 
-    it "triggers orchestrator to continue workflow" do
-      expect(WorkflowOrchestrator).to receive(:enqueue_next_steps!).with(workflow)
+    it "triggers orchestration to continue workflow" do
+      expect(workflow).to receive(:enqueue_next_steps)
       step.skip!(reason: "Skip test")
     end
   end
@@ -1121,99 +1438,148 @@ end
 ### Step 7.1: Events Already Implemented
 
 Events are already being recorded in:
+
 - `workflow.record_event()` calls
-- `RunWorkflowStepJob` (start, success, failure)
-- `WorkflowOrchestrator` (workflow state changes)
+- `Workflows::RunStepJob` (start, success, failure)
+- `Workflow::Orchestratable` concern (workflow state changes)
 
-### Step 7.2: Add Query Helpers
+### Step 7.2: Add Workflow Metrics Concern
 
-```ruby
-# app/models/workflow.rb
-class Workflow < ApplicationRecord
-  # ... existing code ...
-
-  # Get timeline of events
-  def timeline
-    workflow_events.order(:created_at).map do |event|
-      {
-        timestamp: event.created_at,
-        type: event.event_type,
-        step: event.workflow_step&.name,
-        metadata: event.metadata
-      }
-    end
-  end
-
-  # Get duration
-  def duration
-    return nil unless completed_at
-    completed_at - created_at
-  end
-
-  # Check if stuck
-  def stuck?
-    state.in?(%w[pending running]) && updated_at < 30.minutes.ago
-  end
-end
-```
-
-### Step 7.3: Add Metrics Module
+Following the 37signals pattern of no service objects, add metrics as a concern:
 
 ```ruby
-# app/services/workflow_metrics.rb
-class WorkflowMetrics
-  class << self
+# app/models/workflow/metrics.rb
+module Workflow::Metrics
+  extend ActiveSupport::Concern
+
+  class_methods do
     def summary(time_range: 1.hour.ago..)
+      workflows = where(created_at: time_range)
+
       {
-        total: Workflow.where(created_at: time_range).count,
-        by_state: Workflow.where(created_at: time_range).group(:state).count,
-        by_workflow_class: Workflow.where(created_at: time_range).group(:workflow_class).count,
+        total: workflows.count,
+        by_state: workflows.group(:state).count,
+        by_workflow_class: workflows.group(:workflow_class).count,
         avg_duration: average_duration(time_range),
-        stuck_count: stuck_workflows.count
+        stuck_count: stuck.count
       }
     end
 
-    def step_stats(workflow_class: nil, time_range: 1.hour.ago..)
-      scope = WorkflowStep.joins(:workflow).where(workflows: { created_at: time_range })
-      scope = scope.where(workflows: { workflow_class: workflow_class }) if workflow_class
-
-      scope.group(:name, :status).count
-    end
-
-    def failure_rate(workflow_class: nil, time_range: 24.hours.ago..)
-      scope = Workflow.where(created_at: time_range)
-      scope = scope.where(workflow_class: workflow_class) if workflow_class
-
-      total = scope.count
-      return 0 if total.zero?
-
-      failed = scope.where(state: "failed").count
-      (failed.to_f / total * 100).round(2)
-    end
-
-    private
-
-    def average_duration(time_range)
-      Workflow.where(state: "succeeded")
+    def average_duration(time_range: 1.day.ago..)
+      where(state: :succeeded)
         .where(created_at: time_range)
         .average("EXTRACT(EPOCH FROM (completed_at - created_at))")
         &.to_f
         &.round(2)
     end
 
-    def stuck_workflows
-      Workflow.where(state: %w[pending running])
-        .where("updated_at < ?", 30.minutes.ago)
+    def failure_rate(workflow_class: nil, time_range: 24.hours.ago..)
+      scope = where(created_at: time_range)
+      scope = scope.where(workflow_class: workflow_class) if workflow_class
+
+      total = scope.count
+      return 0.0 if total.zero?
+
+      failed = scope.where(state: :failed).count
+      (failed.to_f / total * 100).round(2)
+    end
+
+    def state_summary(time_range: 1.hour.ago..)
+      where(created_at: time_range).group(:state).count
     end
   end
+
+  # Instance methods
+  def duration
+    return nil unless completed_at
+    completed_at - created_at
+  end
+
+  def stuck?
+    active? && updated_at < 30.minutes.ago
+  end
+end
+```
+
+Include in Workflow model:
+
+```ruby
+# app/models/workflow.rb
+class Workflow < ApplicationRecord
+  include Workflow::Stateable
+  include Workflow::Eventable
+  include Workflow::Orchestratable
+  include Workflow::Cancellable
+  include Workflow::Metrics  # Add this
+
+  # ... rest of model
+end
+```
+
+### Step 7.3: Add WorkflowStep Metrics Concern
+
+```ruby
+# app/models/workflow_step/metrics.rb
+module WorkflowStep::Metrics
+  extend ActiveSupport::Concern
+
+  class_methods do
+    def step_stats(workflow_class: nil, time_range: 1.hour.ago..)
+      scope = joins(:workflow).where(workflows: { created_at: time_range })
+      scope = scope.where(workflows: { workflow_class: workflow_class }) if workflow_class
+
+      scope.group(:name, :status).count
+    end
+
+    def step_failure_rates(time_range: 24.hours.ago..)
+      scope = where(created_at: time_range)
+      totals = scope.group(:name).count
+      failures = scope.where(status: :failed).group(:name).count
+
+      totals.transform_values do |total|
+        step_name = totals.key(total)
+        failed_count = failures[step_name] || 0
+        total.zero? ? 0.0 : (failed_count.to_f / total * 100).round(2)
+      end
+    end
+
+    def average_step_durations(time_range: 24.hours.ago..)
+      where(status: :succeeded)
+        .where(created_at: time_range)
+        .where.not(started_at: nil, completed_at: nil)
+        .group(:name)
+        .average("EXTRACT(EPOCH FROM (completed_at - started_at))")
+        .transform_values { |v| v&.to_f&.round(2) }
+    end
+  end
+
+  def duration
+    return nil unless started_at && completed_at
+    completed_at - started_at
+  end
+end
+```
+
+Include in WorkflowStep model:
+
+```ruby
+# app/models/workflow_step.rb
+class WorkflowStep < ApplicationRecord
+  include WorkflowStep::Statusable
+  include WorkflowStep::Executable
+  include WorkflowStep::Retryable
+  include WorkflowStep::Dependencies
+  include WorkflowStep::Metrics  # Add this
+
+  # ... rest of model
 end
 ```
 
 ### Step 7.4: Add Logging
 
 ```ruby
-# app/jobs/run_workflow_step_job.rb
-class RunWorkflowStepJob < ApplicationJob
+# app/jobs/workflows/run_step_job.rb
+class Workflows::RunStepJob < ApplicationJob
   # ... existing code ...
 
   def perform(step_id)
@@ -1247,47 +1613,32 @@ end
 
 ## Phase 8: Performance and Safety
 
-### Step 8.1: Add Advisory Locks
+### Step 8.1: Optimistic Locking for Scalability
+
+**Important**: SolidWorkflow uses optimistic locking instead of advisory locks for high-throughput concurrent execution.
+
+The implementation (already in `Workflow::Orchestratable` and `Workflows::RunStepJob` - see Steps 2.1d and 3.3) uses PostgreSQL's `UPDATE ... WHERE` pattern to prevent race conditions without holding locks.
+
+**Key points**:
+- **No advisory locks** - Allows 1000s of concurrent workflows without lock contention
+- **Atomic updates** - Uses `WHERE id=X AND status=Y AND updated_at=Z` pattern
+- **Graceful failures** - If concurrent update fails, operation is skipped (another process won)
+- **Step idempotency required** - Steps MUST be idempotent since retries can occur
+
+**Benefits over advisory locks**:
+- Scales to 10,000+ concurrent workflows
+- No connection pool exhaustion from long-held locks
+- No deadlock risk
+- Better database utilization
+
+**Trade-off**:
+- Steps must be carefully designed to be idempotent (documented in SOLID_WORKFLOW.md)
+
+### Step 8.2: Add Debounced Orchestrator Job
 
 ```ruby
-# Gemfile
-gem 'with_advisory_lock'
-```
-
-```ruby
-# app/services/workflow_orchestrator.rb
-class WorkflowOrchestrator
-  class << self
-    def enqueue_next_steps!(workflow)
-      # Use advisory lock to prevent concurrent orchestration
-      workflow.with_lock("workflow_orchestrate_#{workflow.id}") do
-        workflow.reload
-        steps = workflow.workflow_steps.reload.to_a
-
-        return if workflow.state.in?(%w[succeeded failed cancelled])
-
-        ready = steps.select { |step| ready_to_run?(step, steps) }
-        ready = apply_concurrency_limit(workflow, steps, ready)
-
-        ready.each do |step|
-          populate_step_input(step, steps)
-          RunWorkflowStepJob.perform_later(step.id)
-        end
-
-        update_workflow_state(workflow, steps)
-      end
-    end
-
-    # ... rest of methods
-  end
-end
-```
-
-### Step 8.2: Add Debounced Orchestrator
-
-```ruby
-# app/jobs/orchestrate_workflow_job.rb
-class OrchestrateWorkflowJob < ApplicationJob
+# app/jobs/workflows/orchestrate_job.rb
+class Workflows::OrchestrateJob < ApplicationJob
   queue_as :workflows
 
   # Prevent duplicate jobs
@@ -1295,38 +1646,23 @@ class OrchestrateWorkflowJob < ApplicationJob
 
   def perform(workflow_id)
     workflow = Workflow.find(workflow_id)
-    WorkflowOrchestrator.enqueue_next_steps!(workflow)
+    workflow.enqueue_next_steps
   end
 end
 ```
 
-```ruby
-# app/services/workflow_orchestrator.rb
-class WorkflowOrchestrator
-  class << self
-    # Debounced version - call this from jobs
-    def enqueue_next_steps_debounced!(workflow)
-      OrchestrateWorkflowJob.set(wait: 1.second).perform_later(workflow.id)
-    end
-
-    # Direct version - use for immediate orchestration
-    def enqueue_next_steps!(workflow)
-      # ... existing implementation
-    end
-  end
-end
-```
+Update the step job to use debounced orchestration:
 
 ```ruby
-# app/jobs/run_workflow_step_job.rb
-class RunWorkflowStepJob < ApplicationJob
+# app/jobs/workflows/run_step_job.rb
+class Workflows::RunStepJob < ApplicationJob
   # ... existing code ...
 
   def perform(step_id)
     # ... existing code ...
   ensure
-    # Use debounced orchestrator
-    WorkflowOrchestrator.enqueue_next_steps_debounced!(@workflow) if @workflow
+    # Use debounced orchestration
+    @workflow.enqueue_next_steps_later if @workflow
   end
 end
 ```
@@ -1346,29 +1682,22 @@ class WorkflowSweeperJob < ApplicationJob
   private
 
   def sweep_stuck_workflows
-    Workflow.where(state: %w[pending running])
-      .where("updated_at < ?", 5.minutes.ago)
-      .find_each do |workflow|
-
-      Rails.logger.info("Sweeper resuming workflow", workflow_id: workflow.id)
-      WorkflowOrchestrator.enqueue_next_steps!(workflow)
+    Workflow.stuck.find_each do |workflow|
+      Rails.logger.info({ event: "workflow.sweeper.resuming", workflow_id: workflow.id })
+      workflow.enqueue_next_steps
     end
   end
 
   def sweep_orphaned_steps
-    # Steps that are running but haven't updated in 10 minutes (worker likely crashed)
-    WorkflowStep.where(status: "running")
-      .where("updated_at < ?", 10.minutes.ago)
-      .find_each do |step|
-
-      Rails.logger.warn("Sweeper resetting orphaned step", step_id: step.id)
+    WorkflowStep.orphaned.find_each do |step|
+      Rails.logger.warn({ event: "workflow.sweeper.resetting_orphan", step_id: step.id })
 
       step.update!(
         status: "pending",
         last_error: "Step was running but worker appears to have crashed (reset by sweeper)"
       )
 
-      step.workflow.record_event("step.reset", step: step, reason: "sweeper")
+      step.workflow.record_event(WorkflowEvents::Step::RESET, step: step, reason: "sweeper")
     end
   end
 end
@@ -1401,26 +1730,20 @@ production:
 
 ### Step 9.1: Add Synchronous Test Helper
 
-```ruby
-# app/workflows/application_workflow.rb
-class ApplicationWorkflow
-  class << self
-    def start!(subject, context: {})
-      if Rails.env.test? && ENV['WORKFLOW_SYNC'] == 'true'
-        start_inline!(subject, context: context)
-      else
-        start_async!(subject, context: context)
-      end
-    end
+Add `start_inline!` method to `Workflows::Base` for synchronous execution:
 
-    # Async version (production)
-    def start_async!(subject, context: {})
+```ruby
+# app/workflows/base.rb
+class Workflows::Base
+  class << self
+    # Start a workflow asynchronously (default)
+    def start!(subject, context: {})
       wf = create_workflow!(subject, context)
-      WorkflowOrchestrator.enqueue_next_steps!(wf)
+      wf.enqueue_next_steps
       wf
     end
 
-    # Sync version (testing)
+    # Start workflow synchronously (for tests and debugging)
     def start_inline!(subject, context: {})
       wf = create_workflow!(subject, context)
 
@@ -1429,26 +1752,26 @@ class ApplicationWorkflow
 
       loop do
         iteration += 1
-        raise "Workflow exceeded max iterations" if iteration > max_iterations
+        raise "Workflow exceeded max iterations (#{max_iterations})" if iteration > max_iterations
 
         wf.reload
         steps = wf.workflow_steps.reload.to_a
 
         # Find ready steps
-        ready = steps.select { |s| WorkflowOrchestrator.ready_to_run?(s, steps) }
+        ready = steps.select { |s| s.ready_to_run?(steps) }
         break if ready.empty?
 
-        # Execute ready steps
+        # Execute ready steps synchronously
         ready.each do |step|
-          WorkflowOrchestrator.send(:populate_step_input, step, steps)
-          RunWorkflowStepJob.new.perform(step.id)
+          step.populate_input!(steps)
+          Workflows::RunStepJob.new.perform(step.id)
         end
 
-        # Update state (without debounce)
-        WorkflowOrchestrator.enqueue_next_steps!(wf)
+        # Update workflow state
+        wf.enqueue_next_steps
 
         wf.reload
-        break if wf.state.in?(%w[succeeded failed cancelled])
+        break if wf.completed?
       end
 
       wf.reload
@@ -1459,30 +1782,61 @@ class ApplicationWorkflow
 end
 ```
 
+**Usage:**
+- `start!` - Always async (production, console, everywhere)
+- `start_inline!` - Explicitly synchronous (tests, debugging)
+
 ### Step 9.2: Create Test Helpers Module
+
+Create comprehensive test helpers in `spec/support/workflow_helpers.rb`:
 
 ```ruby
 # spec/support/workflow_helpers.rb
 module WorkflowHelpers
+  # Run workflow synchronously
   def run_workflow_sync(workflow_class, subject, context: {})
-    ENV['WORKFLOW_SYNC'] = 'true'
-    workflow = workflow_class.start!(subject, context: context)
-    ENV.delete('WORKFLOW_SYNC')
-    workflow
+    workflow_class.start_inline!(subject, context: context)
   end
 
+  # Assertions
   def expect_workflow_succeeded(workflow)
-    expect(workflow.state).to eq("succeeded")
-    expect(workflow.workflow_steps.pluck(:status).uniq).to match_array(["succeeded", "skipped"])
+    expect(workflow.state).to eq("succeeded"),
+      "Expected workflow to succeed but was #{workflow.state}"
+    expect(workflow.workflow_steps.pluck(:status).uniq).to match_array(%w[succeeded skipped])
   end
 
   def expect_workflow_failed(workflow)
-    expect(workflow.state).to eq("failed")
-    expect(workflow.workflow_steps.where(status: "failed").count).to be > 0
+    expect(workflow.state).to eq("failed"),
+      "Expected workflow to fail but was #{workflow.state}"
+    expect(workflow.workflow_steps.failed.count).to be > 0
   end
 
+  # Finders
   def find_step(workflow, name)
-    workflow.workflow_steps.find_by(name: name)
+    workflow.workflow_steps.find_by(name: name.to_s)
+  end
+
+  # Step assertions
+  def expect_step_output(workflow, step_name, expected_output)
+    step = find_step(workflow, step_name)
+    expect(step).to be_present
+    expect(step.succeeded?).to be true
+
+    expected_output.each do |key, value|
+      expect(step.output[key.to_s]).to eq(value)
+    end
+  end
+
+  def expect_step_skipped(workflow, step_name, reason: nil)
+    step = find_step(workflow, step_name)
+    expect(step).to be_present
+    expect(step.skipped?).to be true
+    expect(step.skip_reason).to include(reason) if reason
+  end
+
+  # Debug helper
+  def step_statuses(workflow)
+    workflow.workflow_steps.ordered.pluck(:name, :status).to_h
   end
 end
 
@@ -1500,14 +1854,14 @@ FactoryBot.define do
     name { "test.workflow.v1" }
     workflow_class { "TestWorkflow" }
     association :subject, factory: :incident
-    state { "pending" }
+    state { :pending }
     context { {} }
   end
 
   factory :workflow_step do
     association :workflow
     name { "test_step" }
-    status { "pending" }
+    status { :pending }
     depends_on { [] }
     position { 0 }
     attempts { 0 }
@@ -1650,7 +2004,7 @@ module Workflows
 
     def retry
       @workflow = Workflow.find(params[:id])
-      WorkflowOrchestrator.enqueue_next_steps!(@workflow)
+      @workflow.enqueue_next_steps
       redirect_to workflows_workflow_path(@workflow), notice: "Workflow retry scheduled"
     end
   end
@@ -1819,12 +2173,30 @@ graph TD
   font-weight: bold;
 }
 
-.badge-pending { background: #E0E0E0; color: #333; }
-.badge-running { background: #4A90E2; color: white; }
-.badge-succeeded { background: #90EE90; color: #333; }
-.badge-failed { background: #FF6B6B; color: white; }
-.badge-skipped { background: #FFE5B4; color: #333; }
-.badge-cancelled { background: #D3D3D3; color: #333; }
+.badge-pending {
+  background: #e0e0e0;
+  color: #333;
+}
+.badge-running {
+  background: #4a90e2;
+  color: white;
+}
+.badge-succeeded {
+  background: #90ee90;
+  color: #333;
+}
+.badge-failed {
+  background: #ff6b6b;
+  color: white;
+}
+.badge-skipped {
+  background: #ffe5b4;
+  color: #333;
+}
+.badge-cancelled {
+  background: #d3d3d3;
+  color: #333;
+}
 
 .mermaid {
   background: white;
@@ -1859,7 +2231,8 @@ table {
   margin: 20px 0;
 }
 
-th, td {
+th,
+td {
   padding: 10px;
   text-align: left;
   border-bottom: 1px solid #ddd;
@@ -1955,7 +2328,6 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "rails", ">= 7.0"
   spec.add_dependency "solid_queue", ">= 0.1"
-  spec.add_dependency "with_advisory_lock", ">= 4.0"
 
   spec.add_development_dependency "rspec-rails"
   spec.add_development_dependency "factory_bot_rails"
@@ -1964,7 +2336,7 @@ end
 
 ### Step 5: Installation Instructions
 
-```ruby
+````ruby
 # README.md installation section:
 
 ## Installation
@@ -1972,9 +2344,10 @@ end
 Add to Gemfile:
 ```ruby
 gem 'solid_workflow'
-```
+````
 
 Install:
+
 ```bash
 bundle install
 rails solid_workflow:install:migrations
@@ -1982,6 +2355,7 @@ rails db:migrate
 ```
 
 Mount UI (optional):
+
 ```ruby
 # config/routes.rb
 mount SolidWorkflow::Engine, at: "/workflows"
@@ -2054,6 +2428,7 @@ Each phase builds on the previous one. Test thoroughly after each phase before p
 ## Support
 
 For questions or issues during implementation:
+
 1. Review the main SOLID_WORKFLOW.md documentation
 2. Check test files for usage examples
 3. Use `rails console` to debug workflow state

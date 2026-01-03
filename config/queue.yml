@@ -3,6 +3,12 @@ default: &default
     - polling_interval: 1
       batch_size: 500
   workers:
+    # Dedicated worker for workflows queue
+    - queues: workflows
+      threads: 5
+      processes: <%= ENV.fetch("WORKFLOW_JOB_CONCURRENCY", 1) %>
+      polling_interval: 0.1
+    # Default worker for all other queues
     - queues: "*"
       threads: 3
       processes: <%= ENV.fetch("JOB_CONCURRENCY", 1) %>
