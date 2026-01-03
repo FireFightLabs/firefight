@@ -7,6 +7,18 @@ features:
   bot_user:
     display_name: Firefight Bot
     always_online: false
+  slash_commands:
+    - command: /firefight
+      url: http://localhost:3000/api/v1/commands
+      description: Firefight incident management
+      usage_hint: "[subcommand]"
+    - command: /ff
+      url: http://localhost:3000/api/v1/commands
+      description: Firefight (short alias)
+      usage_hint: "[subcommand]"
+  interactivity:
+    is_enabled: true
+    request_url: http://localhost:3000/api/v1/interactions
 
 oauth_config:
   redirect_urls:
@@ -17,6 +29,8 @@ oauth_config:
       - users:read.email
     bot:
       - team:read
+      - commands
+      - chat:write
 
 settings:
   org_deploy_enabled: false

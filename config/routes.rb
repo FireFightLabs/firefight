@@ -7,6 +7,14 @@ Rails.application.routes.draw do
   # Health check
   get "up" => "rails/health#show", as: :rails_health_check
 
+  # API routes
+  namespace :api do
+    namespace :v1 do
+      post "commands", to: "commands#create"
+      post "interactions", to: "interactions#create"
+    end
+  end
+
   # Public routes
   root to: "sessions#new"
   get "/login", to: "sessions#new", as: :login
