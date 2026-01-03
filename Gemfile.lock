@@ -136,7 +136,8 @@ GEM
       raabro (~> 1.4)
     globalid (1.3.0)
       activesupport (>= 6.1)
-    hashie (5.0.0)
+    hashie (5.1.0)
+      logger
     httparty (0.23.2)
       csv
       mini_mime (>= 1.0.0)
@@ -243,7 +244,7 @@ GEM
     omniauth-oauth2 (1.8.0)
       oauth2 (>= 1.4, < 3)
       omniauth (~> 2.0)
-    omniauth-rails_csrf_protection (2.0.0)
+    omniauth-rails_csrf_protection (2.0.1)
       actionpack (>= 4.2)
       omniauth (~> 2.0)
     ostruct (0.6.3)
