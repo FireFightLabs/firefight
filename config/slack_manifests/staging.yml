@@ -16,9 +16,6 @@ features:
       url: https://firefight-staging.up.railway.app/api/v1/commands
       description: Firefight (short alias)
       usage_hint: "[subcommand]"
-  interactivity:
-    is_enabled: true
-    request_url: https://firefight-staging.up.railway.app/api/v1/interactions
 
 oauth_config:
   redirect_urls:
@@ -33,6 +30,9 @@ oauth_config:
       - chat:write
 
 settings:
+  interactivity:
+    is_enabled: true
+    request_url: https://firefight-staging.up.railway.app/api/v1/interactions
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: true

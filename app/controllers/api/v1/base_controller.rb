@@ -1,7 +1,6 @@
 class Api::V1::BaseController < ActionController::API
-  # Skip CSRF protection for API endpoints
-  # These endpoints use signature verification instead
-  skip_forgery_protection
+  # ActionController::API doesn't include CSRF protection by default
+  # These endpoints use Slack signature verification instead
 
   # Error handling
   rescue_from ActiveRecord::RecordNotFound, with: :not_found

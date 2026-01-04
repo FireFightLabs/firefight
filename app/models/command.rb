@@ -16,8 +16,6 @@ class Command
   validates :platform, presence: true, inclusion: { in: %w[slack teams] }
   validates :workspace_id, presence: true
   validates :user_id, presence: true
-  validates :text, allow_blank: true, type: String
-  validates :metadata, type: Hash
 
   def initialize(attributes = {})
     @metadata = {}

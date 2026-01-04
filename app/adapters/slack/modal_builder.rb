@@ -10,11 +10,11 @@ module Slack
         callback_id: "incident_creation_modal",
         title: {
           type: "plain_text",
-          text: "Create Incident"
+          text: "Declare an incident"
         },
         submit: {
           type: "plain_text",
-          text: "Create"
+          text: "Declare"
         },
         close: {
           type: "plain_text",
@@ -23,37 +23,23 @@ module Slack
         blocks: [
           {
             type: "input",
-            block_id: "title_block",
+            block_id: "name_block",
             element: {
               type: "plain_text_input",
-              action_id: "title_input",
+              action_id: "name_input",
               placeholder: {
                 type: "plain_text",
-                text: "Brief description of the incident"
+                text: "Write something"
               },
               max_length: 200
             },
             label: {
               type: "plain_text",
-              text: "Incident Title"
-            }
-          },
-          {
-            type: "input",
-            block_id: "description_block",
-            element: {
-              type: "plain_text_input",
-              action_id: "description_input",
-              multiline: true,
-              placeholder: {
-                type: "plain_text",
-                text: "What's happening? Include any relevant details..."
-              },
-              max_length: 3000
+              text: "Incident name (optional)"
             },
-            label: {
+            hint: {
               type: "plain_text",
-              text: "Description"
+              text: "Give a short description of what is happening. If you'd like to, you can leave it blank and change it later"
             },
             optional: true
           },
@@ -71,44 +57,64 @@ module Slack
                 {
                   text: {
                     type: "plain_text",
-                    text: "🔴 Critical - System down, major impact"
+                    text: "Critical"
                   },
                   value: "critical"
                 },
                 {
                   text: {
                     type: "plain_text",
-                    text: "🟠 High - Significant degradation"
+                    text: "Major"
                   },
-                  value: "high"
+                  value: "major"
                 },
                 {
                   text: {
                     type: "plain_text",
-                    text: "🟡 Medium - Minor issues, workaround available"
+                    text: "Minor"
                   },
-                  value: "medium"
-                },
-                {
-                  text: {
-                    type: "plain_text",
-                    text: "🟢 Low - Minimal impact"
-                  },
-                  value: "low"
+                  value: "minor"
                 }
               ],
               initial_option: {
                 text: {
                   type: "plain_text",
-                  text: "🟠 High - Significant degradation"
+                  text: "Minor"
                 },
-                value: "high"
+                value: "minor"
               }
             },
             label: {
               type: "plain_text",
               text: "Severity"
+            },
+            hint: {
+              type: "plain_text",
+              text: "Issues with low impact, which can usually be handled within working hours. Most customers are unlikely to notice any problems. Examples include a slight drop in application performance."
             }
+          },
+          {
+            type: "input",
+            block_id: "summary_block",
+            element: {
+              type: "plain_text_input",
+              action_id: "summary_input",
+              multiline: true,
+              placeholder: {
+                type: "plain_text",
+                text: "Think about what you'd like to read if you were coming to the incident fresh..."
+              },
+              max_length: 3000
+            },
+            label: {
+              type: "plain_text",
+              text: "Summary (optional)"
+            },
+            hint: {
+              type: "plain_text",
+              text: "Your current understanding of what happened in the incident, and the impact it had. It's fine to go into detail here."
+            },
+            optional: true
           }
         ]
       }
