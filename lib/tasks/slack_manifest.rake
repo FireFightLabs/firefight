@@ -3,7 +3,7 @@
 namespace :slack do
   namespace :manifest do
     desc "Push Slack app manifest to Slack (usage: slack:manifest:push[environment])"
-    task :push, [:environment] => :environment do |_t, args|
+    task :push, [ :environment ] => :environment do |_t, args|
       env = args[:environment] || Rails.env.to_s
 
       puts "📤 Pushing Slack manifest for #{env} environment..."
@@ -64,7 +64,7 @@ namespace :slack do
     end
 
     desc "Validate Slack app manifest (usage: slack:manifest:validate[environment])"
-    task :validate, [:environment] => :environment do |_t, args|
+    task :validate, [ :environment ] => :environment do |_t, args|
       env = args[:environment] || Rails.env.to_s
 
       puts "🔍 Validating Slack manifest for #{env} environment..."
@@ -107,7 +107,7 @@ namespace :slack do
     end
 
     desc "Show current Slack app configuration"
-    task :info, [:environment] => :environment do |_t, args|
+    task :info, [ :environment ] => :environment do |_t, args|
       env = args[:environment] || Rails.env.to_s
 
       puts "ℹ️  Slack App Configuration for #{env}"
