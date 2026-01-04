@@ -13,7 +13,7 @@ class Command
                 :channel_id,     # String: Platform-specific channel ID
                 :metadata        # Hash: Platform-specific additional data
 
-  validates :platform, presence: true, inclusion: { in: %w[slack teams] }
+  validates :platform, presence: true, inclusion: { in: Platforms::ALL }
   validates :workspace_id, presence: true
   validates :user_id, presence: true
 
@@ -34,12 +34,12 @@ class Command
 
   # Check if command is from Slack
   def slack?
-    platform == "slack"
+    platform == Platforms::SLACK
   end
 
   # Check if command is from Teams
   def teams?
-    platform == "teams"
+    platform == Platforms::TEAMS
   end
 
   # Get command arguments as array

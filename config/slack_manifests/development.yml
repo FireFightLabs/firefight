@@ -9,18 +9,18 @@ features:
     always_online: false
   slash_commands:
     - command: /firefight
-      url: https://sbxgrf-ip-95-180-89-16.tunnelmole.net/api/v1/commands
+      url: https://br9xk9-ip-95-180-89-16.tunnelmole.net/api/v1/commands
       description: Firefight incident management
       usage_hint: "[subcommand]"
     - command: /ff
-      url: https://sbxgrf-ip-95-180-89-16.tunnelmole.net/api/v1/commands
+      url: https://br9xk9-ip-95-180-89-16.tunnelmole.net/api/v1/commands
       description: Firefight (short alias)
       usage_hint: "[subcommand]"
 
 oauth_config:
   redirect_urls:
     - http://localhost:3000/auth/slack/callback
-    - https://sbxgrf-ip-95-180-89-16.tunnelmole.net/auth/slack/callback
+    - https://br9xk9-ip-95-180-89-16.tunnelmole.net/auth/slack/callback
   scopes:
     user:
       - users:read
@@ -33,7 +33,7 @@ oauth_config:
 settings:
   interactivity:
     is_enabled: true
-    request_url: https://sbxgrf-ip-95-180-89-16.tunnelmole.net/api/v1/interactions
+    request_url: https://br9xk9-ip-95-180-89-16.tunnelmole.net/api/v1/interactions
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: true

@@ -7,7 +7,7 @@ module Slack
     # @return [Command] Platform-agnostic command object
     def self.parse(payload)
       Command.new(
-        platform: "slack",
+        platform: Platforms::SLACK,
         workspace_id: find_workspace_id(payload["team_id"]),
         user_id: payload["user_id"],
         text: payload["text"].to_s.strip,
@@ -28,7 +28,7 @@ module Slack
 
     # Find workspace UUID from Slack team_id
     def self.find_workspace_id(team_id)
-      workspace = Workspace.find_by(platform: "slack", platform_id: team_id)
+      workspace = Workspace.find_by(platform: Platforms::SLACK, platform_id: team_id)
       workspace&.id
     end
   end

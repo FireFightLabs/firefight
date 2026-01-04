@@ -60,15 +60,66 @@ slack:
 
 Repeat for staging and production environments.
 
-### 2. Update Slack App Manifest
+### 2. Add Slack App ID to Credentials
 
-The manifest files have been updated for all environments:
+Each environment needs its Slack App ID configured:
+
+```bash
+# For development
+EDITOR="code --wait" bin/rails credentials:edit --environment development
+```
+
+Add the app ID:
+
+```yaml
+slack:
+  client_id: "existing..."
+  client_secret: "existing..."
+  signing_secret: "existing..."
+  app_id: "YOUR_APP_ID_HERE"  # Add this line
+```
+
+**Where to find the App ID:**
+1. Go to https://api.slack.com/apps
+2. Select your Firefight app
+3. The App ID is at the top of "Basic Information" (starts with `A`)
+
+Repeat for staging and production environments.
+
+### 3. Update Slack App Manifest
+
+The manifest files are version controlled in:
 
 - `config/slack_manifests/development.yml`
 - `config/slack_manifests/staging.yml`
 - `config/slack_manifests/production.yml`
 
-**Apply the manifest to your Slack app:**
+#### Option A: Push via CLI (Recommended)
+
+Install the Slack CLI and push manifests programmatically:
+
+```bash
+# Install Slack CLI
+brew install slack-cli
+
+# Login to Slack (one-time setup)
+slack login
+
+# Push manifest to development
+bin/rails slack:manifest:push[development]
+
+# Or for production
+bin/rails slack:manifest:push[production]
+```
+
+**Available rake tasks:**
+- `slack:manifest:push[env]` - Push manifest to Slack
+- `slack:manifest:validate[env]` - Validate manifest syntax
+- `slack:manifest:info[env]` - Show current configuration
+
+#### Option B: Manual Update (Fallback)
+
+If you prefer to update manually or don't have the Slack CLI installed:
 
 1. Go to https://api.slack.com/apps
 2. Select your Firefight app
@@ -78,7 +129,7 @@ The manifest files have been updated for all environments:
 
 **Important:** For local development, you'll need to use ngrok or a similar tool to expose your local server to Slack.
 
-### 3. Set Up ngrok for Local Development
+### 4. Set Up ngrok for Local Development
 
 Slack needs to reach your local server. Use ngrok:
 
@@ -103,7 +154,7 @@ features:
     request_url: https://YOUR-NGROK-URL.ngrok.io/api/v1/interactions
 ```
 
-### 4. Reinstall Slack App
+### 5. Reinstall Slack App
 
 After updating the manifest, you need to reinstall the app to your workspace:
 
@@ -111,7 +162,7 @@ After updating the manifest, you need to reinstall the app to your workspace:
 2. Click "Reinstall to Workspace"
 3. Approve the new permissions (`commands` and `chat:write`)
 
-### 5. Start Your Rails Server
+### 6. Start Your Rails Server
 
 ```bash
 bin/dev
@@ -262,10 +313,12 @@ end
 
 ### Immediate
 
-1. Add signing secret to credentials
-2. Set up ngrok
-3. Update and apply Slack manifest
-4. Test slash commands
+1. Add signing secret and app ID to credentials
+2. Install Slack CLI (`brew install slack-cli`)
+3. Login to Slack CLI (`slack login`)
+4. Set up ngrok
+5. Push Slack manifest (`bin/rails slack:manifest:push[development]`)
+6. Test slash commands
 
 ### Future Implementation
 

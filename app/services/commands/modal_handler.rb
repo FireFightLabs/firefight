@@ -8,9 +8,9 @@ module Commands
     # @return [void]
     def self.execute(command)
       case command.platform
-      when "slack"
+      when Platforms::SLACK
         execute_slack(command)
-      when "teams"
+      when Platforms::TEAMS
         execute_teams(command)
       else
         raise ArgumentError, "Unsupported platform: #{command.platform}"

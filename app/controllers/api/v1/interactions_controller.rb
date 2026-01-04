@@ -1,10 +1,9 @@
 class Api::V1::InteractionsController < Api::V1::BaseController
   # POST /api/v1/interactions
   # Handles Slack interactive components (modal submissions, button clicks, etc.)
+  #
+  # Signature verification handled by BaseController before_action
   def create
-    # Verify Slack signature
-    verify_slack_signature!
-
     # Parse the payload (Slack sends it as a form-encoded 'payload' parameter)
     payload = parse_payload
 
@@ -25,16 +24,10 @@ class Api::V1::InteractionsController < Api::V1::BaseController
     end
 
     # Acknowledge receipt
-    render json: { ok: true }, status: :ok
+    head :ok
   end
 
   private
-
-  def verify_slack_signature!
-    Slack::SignatureVerifier.verify!(request)
-  rescue Slack::SignatureVerifier::InvalidSignatureError, Slack::SignatureVerifier::ReplayAttackError => e
-    render json: { error: "Unauthorized: #{e.message}" }, status: :unauthorized
-  end
 
   def parse_payload
     payload_json = params[:payload]

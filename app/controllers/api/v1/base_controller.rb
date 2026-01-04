@@ -2,18 +2,32 @@ class Api::V1::BaseController < ActionController::API
   # ActionController::API doesn't include CSRF protection by default
   # These endpoints use Slack signature verification instead
 
+  # Verify Slack signature on all requests by default
+  # Controllers can skip with: skip_before_action :verify_slack_signature!
+  before_action :verify_slack_signature!
+
   # Error handling
   rescue_from ActiveRecord::RecordNotFound, with: :not_found
   rescue_from ActionController::ParameterMissing, with: :bad_request
+  rescue_from Slack::SignatureVerifier::InvalidSignatureError,
+              Slack::SignatureVerifier::ReplayAttackError, with: :unauthorized
 
   private
 
+  def verify_slack_signature!
+    Slack::SignatureVerifier.verify!(request)
+  end
+
   def not_found(exception)
-    render json: { error: exception.message }, status: :not_found
+    render json: { error: "Not found" }, status: :not_found
   end
 
   def bad_request(exception)
-    render json: { error: exception.message }, status: :bad_request
+    render json: { error: "Bad request" }, status: :bad_request
+  end
+
+  def unauthorized(exception)
+    render json: { error: "Unauthorized" }, status: :unauthorized
   end
 
   def server_error(exception)

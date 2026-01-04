@@ -1,5 +1,10 @@
 # Background job to process slash commands
-# Must complete within 3 seconds due to Slack trigger_id expiration
+#
+# TIMING REQUIREMENTS:
+# - Controller responds to Slack in <3 seconds (handled by immediate 200 OK response)
+# - Slack trigger_id expires 3 seconds after slash command (for opening modals)
+# - This job should ideally complete <3s for modal operations
+# - For non-modal operations, this job can run longer without issues
 class ProcessCommandJob < ApplicationJob
   queue_as :default
 
@@ -33,9 +38,9 @@ class ProcessCommandJob < ApplicationJob
   # Parse platform-specific payload into Command object
   def parse_command(platform, payload)
     case platform
-    when "slack"
+    when Platforms::SLACK
       Slack::CommandAdapter.parse(payload)
-    when "teams"
+    when Platforms::TEAMS
       # Teams::CommandAdapter.parse(payload)
       raise NotImplementedError, "Teams support coming soon"
     else
@@ -46,7 +51,7 @@ class ProcessCommandJob < ApplicationJob
   # Notify user of error
   def notify_error(command, error)
     case command.platform
-    when "slack"
+    when Platforms::SLACK
       workspace = command.workspace
       return unless workspace
 

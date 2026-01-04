@@ -1,35 +1,28 @@
 class Api::V1::CommandsController < Api::V1::BaseController
   # POST /api/v1/commands
   # Handles Slack slash commands (/firefight, /ff)
+  #
+  # Signature verification handled by BaseController before_action
   def create
-    # Verify Slack signature
-    verify_slack_signature!
-
     # Find workspace by Slack team_id
-    workspace = find_workspace!
+    # Raises ParameterMissing if team_id not present (handled by BaseController)
+    # Raises RecordNotFound if workspace not found (handled by BaseController)
+    find_workspace!
 
     # Enqueue background job to process command
-    # Must complete within 3 seconds due to trigger_id expiration
-    ProcessCommandJob.perform_later("slack", command_params.to_h)
+    # Job must complete within 3 seconds for modal operations (trigger_id expiration)
+    ProcessCommandJob.perform_later(Platforms::SLACK, command_params.to_h)
 
     # Respond immediately to Slack (must respond within 3 seconds)
-    render json: { ok: true }, status: :ok
+    # Empty 200 OK response is all Slack needs
+    head :ok
   end
 
   private
 
-  def verify_slack_signature!
-    Slack::SignatureVerifier.verify!(request)
-  rescue Slack::SignatureVerifier::InvalidSignatureError, Slack::SignatureVerifier::ReplayAttackError => e
-    render json: { error: "Unauthorized: #{e.message}" }, status: :unauthorized
-  end
-
   def find_workspace!
-    workspace = Workspace.find_by!(platform: "slack", platform_id: params[:team_id])
-    workspace
-  rescue ActiveRecord::RecordNotFound
-    render json: { error: "Workspace not found. Please install the Firefight app first." }, status: :not_found
-    nil
+    team_id = params.require(:team_id)
+    Workspace.find_by!(platform: Platforms::SLACK, platform_id: team_id)
   end
 
   def command_params
