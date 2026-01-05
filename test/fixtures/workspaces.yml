@@ -1,0 +1,33 @@
+# Workspaces for testing
+slack_workspace_one:
+  id: 11111111-1111-1111-1111-111111111111
+  platform: slack
+  platform_id: T12345678
+  name: Test Workspace One
+  access_token: xoxb-test-token-1
+  refresh_token: xoxe-1-test-refresh-1
+  token_expires_at: <%= 1.day.from_now %>
+  installed_at: <%= 1.week.ago %>
+  platform_data: {}
+
+slack_workspace_two:
+  id: 22222222-2222-2222-2222-222222222222
+  platform: slack
+  platform_id: T87654321
+  name: Test Workspace Two
+  access_token: xoxb-test-token-2
+  refresh_token: xoxe-1-test-refresh-2
+  token_expires_at: <%= 1.day.from_now %>
+  installed_at: <%= 1.week.ago %>
+  platform_data: {}
+
+slack_workspace_expired:
+  id: 33333333-3333-3333-3333-333333333333
+  platform: slack
+  platform_id: T99999999
+  name: Expired Workspace
+  access_token: xoxb-test-token-expired
+  refresh_token: xoxe-1-test-refresh-expired
+  token_expires_at: <%= 1.day.ago %>
+  installed_at: <%= 1.month.ago %>
+  platform_data: {}

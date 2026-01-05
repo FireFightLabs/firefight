@@ -12,6 +12,14 @@ Rails.application.configure do
   # Show full error reports.
   config.consider_all_requests_local = true
 
+  # Allow requests from tunnelmole or ngrok (for Slack webhooks in development)
+  # Set ALLOWED_HOSTS in .env file
+  if ENV["ALLOWED_HOSTS"].present?
+    ENV["ALLOWED_HOSTS"].split(",").each do |host|
+      config.hosts << host.strip
+    end
+  end
+
   # Enable server timing.
   config.server_timing = true
 

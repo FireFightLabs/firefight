@@ -7,6 +7,15 @@ features:
   bot_user:
     display_name: Firefight Bot
     always_online: false
+  slash_commands:
+    - command: /firefight
+      url: https://firefight-production.up.railway.app/api/v1/commands
+      description: Firefight incident management
+      usage_hint: "[subcommand]"
+    - command: /ff
+      url: https://firefight-production.up.railway.app/api/v1/commands
+      description: Firefight (short alias)
+      usage_hint: "[subcommand]"
 
 oauth_config:
   redirect_urls:
@@ -17,8 +26,13 @@ oauth_config:
       - users:read.email
     bot:
       - team:read
+      - commands
+      - chat:write
 
 settings:
+  interactivity:
+    is_enabled: true
+    request_url: https://firefight-production.up.railway.app/api/v1/interactions
   org_deploy_enabled: true
   socket_mode_enabled: false
   token_rotation_enabled: true
