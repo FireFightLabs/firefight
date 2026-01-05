@@ -1,0 +1,36 @@
+# Workspace memberships for testing
+alice_workspace_one:
+  id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  workspace: slack_workspace_one
+  user: alice
+  platform_user_id: U12345678
+  role: owner
+  access_token: xoxp-alice-token-1
+  refresh_token: xoxe-1-alice-refresh-1
+  token_expires_at: <%= 1.day.from_now %>
+  joined_at: <%= 1.week.ago %>
+  platform_data: {}
+
+bob_workspace_one:
+  id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  workspace: slack_workspace_one
+  user: bob
+  platform_user_id: U87654321
+  role: member
+  access_token: xoxp-bob-token-1
+  refresh_token: xoxe-1-bob-refresh-1
+  token_expires_at: <%= 1.day.from_now %>
+  joined_at: <%= 1.week.ago %>
+  platform_data: {}
+
+alice_workspace_two:
+  id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
+  workspace: slack_workspace_two
+  user: alice
+  platform_user_id: U11111111
+  role: owner
+  access_token: xoxp-alice-token-2
+  refresh_token: xoxe-1-alice-refresh-2
+  token_expires_at: <%= 1.day.from_now %>
+  joined_at: <%= 1.week.ago %>
+  platform_data: {}
