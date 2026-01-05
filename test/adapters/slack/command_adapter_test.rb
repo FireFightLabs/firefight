@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Slack::CommandAdapterTest < ActiveSupport::TestCase
+  fixtures :workspaces
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
   end
@@ -99,7 +101,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parse returns nil workspace_id for non-existent workspace" do
     payload = {
-      "team_id" => "T99999999", # Non-existent workspace
+      "team_id" => "TNONEXIST", # Non-existent workspace
       "user_id" => "U12345678",
       "text" => "help",
       "trigger_id" => "123456.789.abc123",

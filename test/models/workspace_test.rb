@@ -1,6 +1,8 @@
 require "test_helper"
 
 class WorkspaceTest < ActiveSupport::TestCase
+  fixtures :workspaces
+
   test "the truth" do
     assert true
   end

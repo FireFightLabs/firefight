@@ -6,6 +6,7 @@ class Api::V1::InteractionsController < Api::V1::BaseController
   def create
     # Parse the payload (Slack sends it as a form-encoded 'payload' parameter)
     payload = parse_payload
+    return unless payload # parse_payload renders error and returns nil on failure
 
     # Log the interaction for now
     Rails.logger.info("Slack interaction received: #{payload["type"]}")
@@ -35,7 +36,7 @@ class Api::V1::InteractionsController < Api::V1::BaseController
   rescue JSON::ParserError => e
     Rails.logger.error("Failed to parse Slack payload: #{e.message}")
     render json: { error: "Invalid payload" }, status: :bad_request
-    {}
+    nil
   end
 
   # Handle modal submission (when user clicks "Submit" on modal)

@@ -8,10 +8,10 @@ Dir[Rails.root.join("test/support/**/*.rb")].each { |f| require f }
 module ActiveSupport
   class TestCase
     # Run tests in parallel with specified workers
-    # parallelize(workers: :number_of_processors)
+    parallelize(workers: :number_of_processors)
 
-    # Load fixtures for all tests
-    fixtures :all
+    # Don't load all fixtures by default - let each test specify what it needs
+    # fixtures :all
 
     # Include Slack signature helper
     include SlackSignatureHelper

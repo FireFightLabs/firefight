@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
+  fixtures :workspaces
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
   end
@@ -72,7 +74,7 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
 
   test "should return 404 when workspace not found" do
     request_data = slack_command_request(
-      team_id: "T99999999" # Non-existent workspace
+      team_id: "TNONEXIST" # Non-existent workspace
     )
 
     post api_v1_commands_url,
@@ -133,7 +135,7 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
 
     assert_enqueued_with(
       job: ProcessCommandJob,
-      args: [ Platforms::SLACK, hash_including("text" => "help me") ]
+      args: ->(args) { args[0] == Platforms::SLACK && args[1]["text"] == "help me" }
     ) do
       post api_v1_commands_url,
            params: request_data[:body],

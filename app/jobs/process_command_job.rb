@@ -24,6 +24,9 @@ class ProcessCommandJob < ApplicationJob
 
     # Dispatch to appropriate handler
     CommandDispatcher.dispatch(command)
+  rescue ArgumentError, NotImplementedError
+    # Re-raise programming errors - these should fail fast
+    raise
   rescue StandardError => e
     # Log error
     Rails.logger.error("Error processing command: #{e.message}")
