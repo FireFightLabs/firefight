@@ -73,7 +73,7 @@ group :test do
   # TODO: Remove this pin once Rails 8.1.2+ is released with Minitest 6 support
   # Rails 8.1.1 has incompatibility issues with Minitest 6.0+
   # See: https://github.com/rails/rails/issues/53303
-  gem "minitest", "~> 5.25"
+  gem "minitest", "~> 6.0"
 
   # Mocking and stubbing for Minitest
   gem "mocha"
