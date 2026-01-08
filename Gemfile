@@ -1,7 +1,8 @@
 source "https://rubygems.org"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
-gem "rails", "~> 8.1.1"
+# gem "rails", "~> 8.1.1"
+gem "rails", github: "rails/rails", branch: "8-1-stable"
 # Use postgresql as the database for Active Record
 gem "pg", "~> 1.6"
 # Use the Puma web server [https://github.com/puma/puma]
@@ -74,9 +75,6 @@ group :test do
   # Rails 8.1.1 has incompatibility issues with Minitest 6.0+
   # See: https://github.com/rails/rails/issues/53303
   gem "minitest", "~> 6.0"
-
-  # Mocking and stubbing for Minitest
-  gem "mocha"
 end
 
 gem "inertia_rails", "~> 3.16"
