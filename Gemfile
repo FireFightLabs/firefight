@@ -1,7 +1,8 @@
 source "https://rubygems.org"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
-gem "rails", "~> 8.1.1"
+# gem "rails", "~> 8.1.1"
+gem "rails", github: "rails/rails", branch: "8-1-stable"
 # Use postgresql as the database for Active Record
 gem "pg", "~> 1.6"
 # Use the Puma web server [https://github.com/puma/puma]
@@ -73,10 +74,7 @@ group :test do
   # TODO: Remove this pin once Rails 8.1.2+ is released with Minitest 6 support
   # Rails 8.1.1 has incompatibility issues with Minitest 6.0+
   # See: https://github.com/rails/rails/issues/53303
-  gem "minitest", "~> 5.25"
-
-  # Mocking and stubbing for Minitest
-  gem "mocha"
+  gem "minitest", "~> 6.0"
 end
 
 gem "inertia_rails", "~> 3.16"

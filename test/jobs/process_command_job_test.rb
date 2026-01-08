@@ -1,11 +1,19 @@
 require "test_helper"
-require "mocha/minitest"
 
 class ProcessCommandJobTest < ActiveJob::TestCase
   fixtures :workspaces
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
+  end
+
+  # Helper method to stub class methods
+  def stub_class_method(klass, method_name, stub_impl)
+    original_method = klass.method(method_name)
+    klass.define_singleton_method(method_name, stub_impl)
+    yield
+  ensure
+    klass.define_singleton_method(method_name, original_method)
   end
 
   test "should process valid slack command" do
@@ -17,9 +25,13 @@ class ProcessCommandJobTest < ActiveJob::TestCase
       "channel_id" => "C12345678"
     }
 
-    # Use Mocha to verify CommandDispatcher.dispatch is called
-    CommandDispatcher.expects(:dispatch).once
-    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    # Verify CommandDispatcher.dispatch is called once
+    dispatch_called = false
+    stub_class_method(CommandDispatcher, :dispatch, ->(_cmd) { dispatch_called = true }) do
+      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    end
+
+    assert dispatch_called, "dispatch should be called"
   end
 
   test "should parse slack payload into Command object" do
@@ -33,11 +45,12 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
     # Capture the command passed to dispatch
     dispatched_command = nil
-    CommandDispatcher.stubs(:dispatch).with do |cmd|
+    stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd|
       dispatched_command = cmd
-      true
+      nil
+    }) do
+      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
     end
-    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
 
     assert_equal Platforms::SLACK, dispatched_command.platform
     assert_equal @workspace.id, dispatched_command.workspace_id
@@ -55,8 +68,15 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     }
 
     # Track if dispatch was called
-    CommandDispatcher.expects(:dispatch).never
-    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    dispatch_called = false
+    stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd|
+      dispatch_called = true
+      nil
+    }) do
+      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    end
+
+    assert_equal false, dispatch_called, "dispatch should not be called for invalid workspace"
   end
 
   test "should handle commands with empty text" do
@@ -69,11 +89,12 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     }
 
     dispatched_command = nil
-    CommandDispatcher.stubs(:dispatch).with do |cmd|
+    stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd|
       dispatched_command = cmd
-      true
+      nil
+    }) do
+      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
     end
-    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
 
     assert dispatched_command.blank?, "command should be blank for empty text"
   end
@@ -88,11 +109,12 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     }
 
     dispatched_command = nil
-    CommandDispatcher.stubs(:dispatch).with do |cmd|
+    stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd|
       dispatched_command = cmd
-      true
+      nil
+    }) do
+      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
     end
-    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
 
     assert_equal "status", dispatched_command.text
     assert_equal "status", dispatched_command.subcommand
@@ -130,13 +152,13 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     }
 
     # Simulate an error during dispatch
-    CommandDispatcher.stubs(:dispatch).raises(StandardError, "Test error")
-    # Mock Slack client to verify error notification is sent
-    Slack::Client.stubs(:post_ephemeral).returns(nil)
-
-    # Should not raise, error is caught
-    assert_nothing_raised do
-      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd| raise StandardError, "Test error" }) do
+      stub_class_method(Slack::Client, :post_ephemeral, lambda { |args| nil }) do
+        # Should not raise, error is caught
+        assert_nothing_raised do
+          ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+        end
+      end
     end
   end
 
@@ -151,15 +173,15 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
     notification_params = nil
 
-    # Simulate an error during dispatch
-    CommandDispatcher.stubs(:dispatch).raises(StandardError, "Test error")
-    # Capture the notification call
-    Slack::Client.stubs(:post_ephemeral).with do |args|
-      notification_params = args
-      true
+    # Simulate an error during dispatch and capture notification
+    stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd| raise StandardError, "Test error" }) do
+      stub_class_method(Slack::Client, :post_ephemeral, lambda { |args|
+        notification_params = args
+        true
+      }) do
+        ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+      end
     end
-
-    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
 
     assert_not_nil notification_params, "error notification should be sent"
     assert_equal @workspace, notification_params[:workspace]
@@ -178,12 +200,13 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     }
 
     # Simulate error during dispatch AND notification failure
-    CommandDispatcher.stubs(:dispatch).raises(StandardError, "Test error")
-    Slack::Client.stubs(:post_ephemeral).raises(StandardError, "Notification failed")
-
-    # Should not raise, both errors are caught
-    assert_nothing_raised do
-      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd| raise StandardError, "Test error" }) do
+      stub_class_method(Slack::Client, :post_ephemeral, lambda { |args| raise StandardError, "Notification failed" }) do
+        # Should not raise, both errors are caught
+        assert_nothing_raised do
+          ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+        end
+      end
     end
   end
 end
