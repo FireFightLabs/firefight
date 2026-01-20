@@ -5,26 +5,14 @@ module Auth
     def slack
       auth_hash = request.env["omniauth.auth"]
 
-      ActiveRecord::Base.transaction do
-        # Find or create workspace from Slack team
-        workspace = Workspace.find_or_create_from_slack!(auth_hash)
+      service = SlackAuthenticationService.new
+      result = service.process_oauth_callback(auth_hash)
 
-        # Find or create user from Slack user
-        user = User.find_or_create_from_omniauth!(auth_hash)
+      session[:user_id] = result[:user].id
+      session[:workspace_id] = result[:workspace].id
 
-        # Create or update membership (first user = owner, rest = member)
-        membership = WorkspaceMembership.find_or_create_from_omniauth!(
-          user,
-          workspace,
-          auth_hash
-        )
-
-        # Set session
-        session[:user_id] = user.id
-        session[:workspace_id] = workspace.id
-      end
-
-      redirect_to dashboard_path, notice: "Successfully signed in with Slack!"
+      notice = result[:first_install] ? "Setting up your FireFight workspace..." : "Successfully signed in with Slack!"
+      redirect_to dashboard_path, notice: notice
     rescue => e
       Rails.logger.error "Slack OAuth failed: #{e.message}"
       Rails.logger.error e.backtrace.join("\n")

@@ -35,6 +35,26 @@ class Workspace < ApplicationRecord
     end
   end
 
+  # Process Slack OAuth installation
+  # Coordinates creation of workspace, user, and membership in a transaction
+  #
+  # @param auth_hash [OmniAuth::AuthHash] OAuth response from Slack
+  # @return [Hash] Result with :workspace, :user, :membership, :first_install
+  def self.process_slack_installation(auth_hash)
+    transaction do
+      workspace = find_or_create_from_slack!(auth_hash)
+      user = User.find_or_create_from_omniauth!(auth_hash)
+      membership = WorkspaceMembership.find_or_create_from_omniauth!(user, workspace, auth_hash)
+
+      {
+        workspace: workspace,
+        user: user,
+        membership: membership,
+        first_install: workspace.previously_new_record? || workspace.incidents_channel_id.blank?
+      }
+    end
+  end
+
   # Instance Methods
   def token_expired?
     token_expires_at.present? && token_expires_at < Time.current
