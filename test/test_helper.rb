@@ -5,6 +5,9 @@ require "rails/test_help"
 # Load test support files
 Dir[Rails.root.join("test/support/**/*.rb")].each { |f| require f }
 
+# Eager load workflow classes so they register themselves
+Dir[Rails.root.join("app/workflows/**/*.rb")].each { |f| require f }
+
 module ActiveSupport
   class TestCase
     # Run tests in parallel with specified workers

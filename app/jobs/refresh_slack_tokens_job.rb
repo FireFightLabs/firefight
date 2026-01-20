@@ -5,7 +5,7 @@ class RefreshSlackTokensJob < ApplicationJob
   REFRESH_BUFFER = 3.hours
 
   def perform
-    service = Slack::TokenRefreshService.new
-    service.refresh_all_expiring(buffer: REFRESH_BUFFER)
+    manager = Slack::TokenManager.new
+    manager.refresh_all_expiring(buffer: REFRESH_BUFFER)
   end
 end
