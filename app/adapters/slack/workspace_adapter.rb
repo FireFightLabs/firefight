@@ -78,6 +78,25 @@ module Slack
       { message_ts: result[:ts] }
     end
 
+    # Post preview announcement (ephemeral - only visible to user)
+    #
+    # @param channel_id [String] Slack channel ID
+    # @param user_id [String] Slack user ID who will see the preview
+    # @return [Hash] Response with :message_ts
+    def post_preview_announcement(channel_id:, user_id:)
+      preview = Slack::InstallationMessageBuilder.preview_announcement_blocks(user_id)
+
+      result = Slack::Client.post_ephemeral(
+        workspace: @workspace,
+        channel: channel_id,
+        user: user_id,
+        text: "[PREVIEW] Website is down",
+        blocks: preview[:blocks]
+      )
+
+      { message_ts: result[:ts] }
+    end
+
     private
 
     def find_existing_channel(name)

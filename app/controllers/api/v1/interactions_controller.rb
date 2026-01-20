@@ -60,10 +60,23 @@ class Api::V1::InteractionsController < Api::V1::BaseController
 
   # Handle button clicks and other block actions
   def handle_block_actions(payload)
-    Rails.logger.info("Block action triggered")
-    Rails.logger.info("Actions: #{payload["actions"].inspect}")
+    action = payload.dig("actions", 0)
+    action_id = action&.dig("action_id")
 
-    # TODO: Implement button click handlers
+    service = SlackInteractionsService.new
+
+    case action_id
+    when "preview_announcement"
+      result = service.handle_preview_announcement(payload)
+      render json: result
+    when "preview_homepage_disabled", "preview_subscribe_disabled"
+      # These are disabled preview buttons - do nothing
+      render json: { response_action: "clear" }
+    else
+      Rails.logger.info("Block action triggered")
+      Rails.logger.info("Actions: #{payload["actions"].inspect}")
+      # TODO: Implement other button click handlers
+    end
   end
 
   # Handle modal close (when user clicks "Cancel" or X)
