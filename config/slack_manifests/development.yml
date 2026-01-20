@@ -9,31 +9,34 @@ features:
     always_online: false
   slash_commands:
     - command: /firefight
-      url: https://br9xk9-ip-95-180-89-16.tunnelmole.net/api/v1/commands
+      url: https://ff.bugrewind.com/api/v1/commands
       description: Firefight incident management
       usage_hint: "[subcommand]"
     - command: /ff
-      url: https://br9xk9-ip-95-180-89-16.tunnelmole.net/api/v1/commands
+      url: https://ff.bugrewind.com/api/v1/commands
       description: Firefight (short alias)
       usage_hint: "[subcommand]"
 
 oauth_config:
   redirect_urls:
     - http://localhost:3000/auth/slack/callback
-    - https://br9xk9-ip-95-180-89-16.tunnelmole.net/auth/slack/callback
+    - https://ff.bugrewind.com/auth/slack/callback
   scopes:
     user:
-      - users:read
-      - users:read.email
+      - users:read         # Get user profile info (name, avatar) during OAuth
+      - users:read.email   # Get user email for account linking
     bot:
-      - team:read
-      - commands
-      - chat:write
-
+      - team:read          # Get workspace info (name, domain) during installation
+      - commands           # Enable slash commands (/firefight, /ff)
+      - chat:write         # Post messages to channels (welcome, incident announcements)
+      - channels:manage    # Create #incidents channel on installation (FIR-10)
+      - channels:join      # Bot can join channels it creates
+      - channels:read      # Read channel info (check if #incidents exists)
+      - users:read         # Get user info for @mentions in messages
 settings:
   interactivity:
     is_enabled: true
-    request_url: https://br9xk9-ip-95-180-89-16.tunnelmole.net/api/v1/interactions
+    request_url: https://ff.bugrewind.com/api/v1/interactions
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: true

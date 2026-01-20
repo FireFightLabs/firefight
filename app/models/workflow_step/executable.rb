@@ -8,6 +8,9 @@ module WorkflowStep::Executable
     # Status transition to 'running' now handled by RunStepJob
     # This method assumes step is already in 'running' status
 
+    # Reload to get latest input data populated by orchestrator
+    reload
+
     # Execute the step
     runner = workflow.workflow_klass.new
     output = runner.run_step(

@@ -1,0 +1,92 @@
+
+module Slack
+  class WorkspaceAdapter
+    CHANNEL_DESCRIPTION = "FireFight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
+
+    def initialize(workspace)
+      @workspace = workspace
+    end
+
+    # Create incidents channel
+    #
+    # @return [Hash] Normalized response with :channel_id, :channel_name, :already_existed
+    def create_incidents_channel
+      result = Slack::Client.create_channel(
+        workspace: @workspace,
+        name: "incidents",
+        is_private: false
+      )
+
+      {
+        channel_id: result[:channel][:id],
+        channel_name: result[:channel][:name],
+        already_existed: false
+      }
+    rescue Slack::Client::ChannelExistsError => e
+      Rails.logger.warn({
+        event: "slack.workspace_adapter.channel_already_exists",
+        message: "Incidents channel already exists, will use existing",
+        workspace_id: @workspace.id,
+        error: e.message
+      })
+
+      existing = find_existing_channel("incidents")
+
+      {
+        channel_id: existing[:id],
+        channel_name: existing[:name],
+        already_existed: true
+      }
+    end
+
+    def set_channel_metadata(channel_id:)
+      Slack::Client.set_channel_topic(
+        workspace: @workspace,
+        channel: channel_id,
+        topic: CHANNEL_DESCRIPTION
+      )
+
+      Slack::Client.set_channel_purpose(
+        workspace: @workspace,
+        channel: channel_id,
+        purpose: CHANNEL_DESCRIPTION
+      )
+
+      { success: true }
+    end
+
+    def invite_user(channel_id:, user_id:)
+      Slack::Client.invite_to_channel(
+        workspace: @workspace,
+        channel: channel_id,
+        users: user_id
+      )
+
+      { invited_user: user_id }
+    end
+
+    def post_welcome_message(channel_id:)
+      message = Slack::InstallationMessageBuilder.welcome_message_blocks
+
+      result = Slack::Client.post_message(
+        workspace: @workspace,
+        channel: channel_id,
+        text: "Welcome to FireFight!",
+        blocks: message[:blocks]
+      )
+
+      { message_ts: result[:ts] }
+    end
+
+    private
+
+    def find_existing_channel(name)
+      channels = Slack::Client.list_conversations(workspace: @workspace)
+      channel = channels.find { |ch| ch[:name] == name }
+
+      raise Slack::Client::ChannelNotFoundError, "Channel '#{name}' not found" unless channel
+
+      channel
+    end
+  end
+end
