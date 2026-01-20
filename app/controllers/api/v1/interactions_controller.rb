@@ -41,21 +41,23 @@ class Api::V1::InteractionsController < Api::V1::BaseController
 
   # Handle modal submission (when user clicks "Submit" on modal)
   def handle_view_submission(payload)
-    Rails.logger.info("Modal submitted")
-    Rails.logger.info("Callback ID: #{payload.dig("view", "callback_id")}")
-    Rails.logger.info("Values: #{payload.dig("view", "state", "values").inspect}")
+    callback_id = payload.dig("view", "callback_id")
 
-    # TODO: Implement incident creation logic here
-    # For now, just log the submission
+    service = SlackInteractionsService.new
 
-    # Return empty response to close the modal
-    # Or return errors to keep modal open:
-    # render json: {
-    #   response_action: "errors",
-    #   errors: {
-    #     "block_id": "error message"
-    #   }
-    # }
+    case callback_id
+    when "share_incidents_channel_modal"
+      result = service.handle_share_modal_submission(payload)
+      render json: result
+    else
+      Rails.logger.info({
+        event: "interactions.modal_submitted",
+        message: "Unhandled modal submission",
+        callback_id: callback_id,
+        values: payload.dig("view", "state", "values")
+      })
+      # TODO: Implement other modal submissions
+    end
   end
 
   # Handle button clicks and other block actions
@@ -68,6 +70,9 @@ class Api::V1::InteractionsController < Api::V1::BaseController
     case action_id
     when "preview_announcement"
       result = service.handle_preview_announcement(payload)
+      render json: result
+    when "share_incidents_channel"
+      result = service.handle_share_channel(payload)
       render json: result
     when "preview_homepage_disabled", "preview_subscribe_disabled"
       # These are disabled preview buttons - do nothing

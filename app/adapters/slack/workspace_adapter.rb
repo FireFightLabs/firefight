@@ -97,6 +97,61 @@ module Slack
       { message_ts: result[:ts] }
     end
 
+    # Open share channel modal
+    #
+    # @param trigger_id [String] Slack trigger ID from interaction
+    # @param user_id [String] Slack user ID who clicked the button
+    # @param channel_id [String] Incidents channel ID to share
+    # @return [Hash] Response with :success
+    def open_share_modal(trigger_id:, user_id:, channel_id:)
+      modal = Slack::InstallationMessageBuilder.share_channel_modal(user_id, channel_id)
+
+      Slack::Client.open_modal(
+        workspace: @workspace,
+        trigger_id: trigger_id,
+        view: modal
+      )
+
+      { success: true }
+    end
+
+    # Post share message to selected channels
+    #
+    # @param user_id [String] User ID who is sharing
+    # @param channel_id [String] Incidents channel ID
+    # @param target_conversations [Array<String>] Channel/DM IDs to post to
+    # @return [Hash] Response with :shared_count, :failed_count
+    def post_share_messages(user_id:, channel_id:, target_conversations:)
+      share_message = Slack::InstallationMessageBuilder.share_message(user_id, channel_id)
+
+      succeeded = 0
+      failed = 0
+
+      target_conversations.each do |conversation_id|
+        begin
+          Slack::Client.post_message(
+            workspace: @workspace,
+            channel: conversation_id,
+            text: "FireFight is available in this workspace",
+            blocks: share_message[:blocks]
+          )
+          succeeded += 1
+        rescue Slack::Client::ApiError => e
+          # Handle errors gracefully (bot not in channel, missing permissions, etc.)
+          Rails.logger.warn({
+            event: "slack.workspace_adapter.share_failed",
+            message: "Failed to share to conversation",
+            workspace_id: @workspace.id,
+            conversation_id: conversation_id,
+            error: e.message
+          })
+          failed += 1
+        end
+      end
+
+      { shared_count: succeeded, failed_count: failed }
+    end
+
     private
 
     def find_existing_channel(name)
