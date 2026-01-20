@@ -20,12 +20,11 @@ class Api::V1::InteractionsController < Api::V1::BaseController
       handle_block_actions(payload)
     when "view_closed"
       handle_view_closed(payload)
+      head :ok
     else
       Rails.logger.warn("Unknown interaction type: #{payload["type"]}")
+      head :ok
     end
-
-    # Acknowledge receipt
-    head :ok
   end
 
   private

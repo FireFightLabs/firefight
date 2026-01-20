@@ -122,7 +122,11 @@ module Slack
     # @param target_conversations [Array<String>] Channel/DM IDs to post to
     # @return [Hash] Response with :shared_count, :failed_count
     def post_share_messages(user_id:, channel_id:, target_conversations:)
-      share_message = Slack::InstallationMessageBuilder.share_message(user_id, channel_id)
+      share_message = Slack::InstallationMessageBuilder.share_message(
+        user_id,
+        channel_id,
+        @workspace.platform_id
+      )
 
       succeeded = 0
       failed = 0

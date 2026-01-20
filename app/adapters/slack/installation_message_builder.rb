@@ -183,7 +183,7 @@ module Slack
     end
 
     # Message sent when sharing the channel
-    def self.share_message(sharing_user_id, channel_id)
+    def self.share_message(sharing_user_id, channel_id, team_id)
       {
         blocks: [
           {
@@ -200,10 +200,10 @@ module Slack
                 type: "button",
                 text: {
                   type: "plain_text",
-                  text: "Join the channel",
+                  text: ":slack: Join the channel",
                   emoji: true
                 },
-                url: "slack://channel?id=#{channel_id}",
+                url: "slack://channel?team=#{team_id}&id=#{channel_id}",
                 style: "primary"
               }
             ]
