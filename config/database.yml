@@ -17,12 +17,24 @@ default: &default
   encoding: unicode
   # For details on connection pooling, see Rails configuration guide
   # https://guides.rubyonrails.org/configuring.html#database-pooling
-  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 } %>
 
 development:
-  <<: *default
-  database: firefight_development
-
+  primary:
+    <<: *default
+    database: firefight_development
+  cache:
+    <<: *default
+    database: firefight_development
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *default
+    database: firefight_development
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *default
+    database: firefight_development
+    migrations_paths: db/cable_migrate
   # The specified database role being used to connect to PostgreSQL.
   # To create additional roles in PostgreSQL see `$ createuser --help`.
   # When left blank, PostgreSQL will use the default role. This is

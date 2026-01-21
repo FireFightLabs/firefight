@@ -22,12 +22,18 @@ oauth_config:
     - https://firefight-production.up.railway.app/auth/slack/callback
   scopes:
     user:
-      - users:read
-      - users:read.email
+      - users:read         # Get user profile info (name, avatar) during OAuth
+      - users:read.email   # Get user email for account linking
     bot:
-      - team:read
-      - commands
-      - chat:write
+      - team:read          # Get workspace info (name, domain) during installation
+      - commands           # Enable slash commands (/firefight, /ff)
+      - chat:write         # Post messages to channels (welcome, incident announcements)
+      - chat:write.public  # Post to public channels without being a member (for sharing)
+      - im:write           # Send DMs to users (for sharing via DM)
+      - channels:manage    # Create #incidents channel on installation (FIR-10)
+      - channels:join      # Bot can join channels it creates
+      - channels:read      # Read channel info (check if #incidents exists)
+      - users:read         # Get user info for @mentions in messages
 
 settings:
   interactivity:

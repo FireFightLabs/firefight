@@ -11,10 +11,10 @@ class WorkflowTest < ActiveSupport::TestCase
   test "workflow_class must be registered" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = Workflow.new(
-      name: "test",
-      workflow_class: "NonExistentWorkflow",
-      subject: user,
-      state: :pending
+    name: "test",
+    workflow_class: "NonExistentWorkflow",
+    subject: user,
+    state: :pending
     )
     assert_not workflow.valid?
     assert workflow.errors[:workflow_class].any? { |msg| msg.include?("must be a registered workflow class") }
@@ -23,10 +23,10 @@ class WorkflowTest < ActiveSupport::TestCase
   test "creates workflow with registered class" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = Workflow.create!(
-      name: "example.calculation.v1",
-      workflow_class: "ExampleCalculationWorkflow",
-      subject: user,
-      state: :pending
+    name: "example.calculation.v1",
+    workflow_class: "ExampleCalculationWorkflow",
+    subject: user,
+    state: :pending
     )
     assert workflow.persisted?
     assert_equal "ExampleCalculationWorkflow", workflow.workflow_class
@@ -43,7 +43,7 @@ class WorkflowTest < ActiveSupport::TestCase
     workflow = ExampleCalculationWorkflow.start!(user)
     assert_equal 5, workflow.workflow_steps.count
     assert_equal %w[fetch_numbers calculate_sum calculate_product combine_results store_result],
-                 workflow.workflow_steps.map(&:name)
+               workflow.workflow_steps.map(&:name)
   end
 
   test "has many workflow_events" do

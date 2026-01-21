@@ -22,16 +22,42 @@ class Workspace < ApplicationRecord
   def self.find_or_create_from_slack!(auth_hash)
     team_info = auth_hash.extra.team_info
 
-    find_or_create_by!(
+    workspace = find_or_initialize_by(
       platform: :slack,
       platform_id: team_info["id"]
-    ) do |workspace|
-      workspace.name = team_info["name"]
-      workspace.platform_data = team_info
-      workspace.access_token = auth_hash.credentials.token
-      workspace.refresh_token = auth_hash.credentials.refresh_token if auth_hash.credentials.refresh_token
-      workspace.token_expires_at = Time.at(auth_hash.credentials.expires_at) if auth_hash.credentials.expires_at
-      workspace.installed_at = Time.current
+    )
+
+    # Update attributes for both new and existing workspaces
+    workspace.assign_attributes(
+      name: team_info["name"],
+      platform_data: team_info,
+      access_token: auth_hash.credentials.token,
+      refresh_token: auth_hash.credentials.refresh_token,
+      token_expires_at: auth_hash.credentials.expires_at ? Time.at(auth_hash.credentials.expires_at) : nil,
+      installed_at: workspace.new_record? ? Time.current : workspace.installed_at
+    )
+
+    workspace.save!
+    workspace
+  end
+
+  # Process Slack OAuth installation
+  # Coordinates creation of workspace, user, and membership in a transaction
+  #
+  # @param auth_hash [OmniAuth::AuthHash] OAuth response from Slack
+  # @return [Hash] Result with :workspace, :user, :membership, :first_install
+  def self.process_slack_installation(auth_hash)
+    transaction do
+      workspace = find_or_create_from_slack!(auth_hash)
+      user = User.find_or_create_from_omniauth!(auth_hash)
+      membership = WorkspaceMembership.find_or_create_from_omniauth!(user, workspace, auth_hash)
+
+      {
+        workspace: workspace,
+        user: user,
+        membership: membership,
+        first_install: workspace.previously_new_record? || workspace.incidents_channel_id.blank?
+      }
     end
   end
 

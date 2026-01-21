@@ -29,7 +29,14 @@ module WorkflowStep::Dependencies
         dep_step_status: dep_step&.status
       })
 
-      input_data[dep_name] = dep_step.output if dep_step
+      if dep_step
+        # Store the dependency's output under its name
+        input_data[dep_name] = dep_step.output
+
+        # Also merge in all of the dependency's input data to propagate data through the chain
+        # This allows downstream steps to access data from any upstream step, not just direct dependencies
+        input_data.merge!(dep_step.input) if dep_step.input.present?
+      end
     end
 
     Rails.logger.info({

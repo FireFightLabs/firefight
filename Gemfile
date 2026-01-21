@@ -75,6 +75,9 @@ group :test do
   # Rails 8.1.1 has incompatibility issues with Minitest 6.0+
   # See: https://github.com/rails/rails/issues/53303
   gem "minitest", "~> 6.0"
+
+  # Thread-safe mocking and stubbing for parallel test execution
+  gem "mocha"
 end
 
 gem "inertia_rails", "~> 3.16"

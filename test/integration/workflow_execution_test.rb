@@ -6,22 +6,22 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
 
     # Create linear workflow
     linear_workflow = Class.new(Base) do
-      step :step1
-      step :step2, depends_on: [ :step1 ]
-      step :step3, depends_on: [ :step2 ]
+    step :step1
+    step :step2, depends_on: [ :step1 ]
+    step :step3, depends_on: [ :step2 ]
 
-      def step1(**); { result: "step1" }; end
-      def step2(input:, **); { result: "step2", prev: input["step1"]["result"] }; end
-      def step3(input:, **); { result: "step3", prev: input["step2"]["result"] }; end
+    def step1(**); { result: "step1" }; end
+    def step2(input:, **); { result: "step2", prev: input["step1"]["result"] }; end
+    def step3(input:, **); { result: "step3", prev: input["step2"]["result"] }; end
     end
 
     Base.registry["TestLinearWorkflow"] = linear_workflow
 
     workflow = Workflow.create!(
-      name: "test.linear",
-      workflow_class: "TestLinearWorkflow",
-      subject: user,
-      state: :pending
+    name: "test.linear",
+    workflow_class: "TestLinearWorkflow",
+    subject: user,
+    state: :pending
     )
 
     workflow.workflow_steps.create!(name: "step1", status: :pending, depends_on: [], position: 0, max_attempts: 5)
@@ -36,25 +36,25 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     iteration = 0
 
     loop do
-      iteration += 1
-      break if iteration > max_iterations
+    iteration += 1
+    break if iteration > max_iterations
 
-      workflow.reload
+    workflow.reload
+    steps = WorkflowStep.where(workflow_id: workflow.id).order(:position).to_a
+    step_map = steps.index_by(&:name)
+    ready = steps.select { |s| s.ready_to_run?(step_map) }
+    break if ready.empty?
+
+    ready.each do |step|
       steps = WorkflowStep.where(workflow_id: workflow.id).order(:position).to_a
-      step_map = steps.index_by(&:name)
-      ready = steps.select { |s| s.ready_to_run?(step_map) }
-      break if ready.empty?
-
-      ready.each do |step|
-        steps = WorkflowStep.where(workflow_id: workflow.id).order(:position).to_a
-        step = steps.find { |s| s.id == step.id }
-        step.populate_input!(steps)
-        Workflows::RunStepJob.new.perform(step.id)
+      step = steps.find { |s| s.id == step.id }
+      step.populate_input!(steps)
+      Workflows::RunStepJob.new.perform(step.id)
       end
 
-      workflow.enqueue_next_steps
-      workflow.reload
-      break if workflow.completed?
+    workflow.enqueue_next_steps
+    workflow.reload
+    break if workflow.completed?
     end
 
     workflow.reload
@@ -91,28 +91,28 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     user = User.create!(name: "Test User", email: "test@example.com")
 
     failing_workflow = Class.new(Base) do
-      step :failing_step, retry_config: { max_attempts: 2 }
+    step :failing_step, retry_config: { max_attempts: 2 }
 
-      def failing_step(**)
-        raise StandardError, "Always fails"
+    def failing_step(**)
+      raise StandardError, "Always fails"
       end
     end
 
     Base.registry["TestFailingWorkflow"] = failing_workflow
 
     workflow = Workflow.create!(
-      name: "test.failing",
-      workflow_class: "TestFailingWorkflow",
-      subject: user,
-      state: :pending
+    name: "test.failing",
+    workflow_class: "TestFailingWorkflow",
+    subject: user,
+    state: :pending
     )
 
     workflow.workflow_steps.create!(
-      name: "failing_step",
-      status: :pending,
-      depends_on: [],
-      position: 0,
-      max_attempts: 2
+    name: "failing_step",
+    status: :pending,
+    depends_on: [],
+    position: 0,
+    max_attempts: 2
     )
 
     step = workflow.workflow_steps.first
@@ -232,35 +232,35 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     user = User.create!(name: "Test User", email: "test@example.com")
 
     limited_workflow = Class.new(Base) do
-      workflow_config max_concurrent_steps: 1
+    workflow_config max_concurrent_steps: 1
 
-      step :step1
-      step :step2
-      step :step3
+    step :step1
+    step :step2
+    step :step3
 
-      def step1(**); sleep 0.01; { result: 1 }; end
-      def step2(**); sleep 0.01; { result: 2 }; end
-      def step3(**); sleep 0.01; { result: 3 }; end
+    def step1(**); sleep 0.01; { result: 1 }; end
+    def step2(**); sleep 0.01; { result: 2 }; end
+    def step3(**); sleep 0.01; { result: 3 }; end
     end
 
     Base.registry["TestLimitedWorkflow"] = limited_workflow
 
     workflow = Workflow.create!(
-      name: "test.limited",
-      workflow_class: "TestLimitedWorkflow",
-      subject: user,
-      state: :pending,
-      workflow_config: { max_concurrent_steps: 1 }
+    name: "test.limited",
+    workflow_class: "TestLimitedWorkflow",
+    subject: user,
+    state: :pending,
+    workflow_config: { max_concurrent_steps: 1 }
     )
 
     3.times do |i|
-      workflow.workflow_steps.create!(
-        name: "step#{i + 1}",
-        status: :pending,
-        depends_on: [],
-        position: i,
-        max_attempts: 5
-      )
+    workflow.workflow_steps.create!(
+      name: "step#{i + 1}",
+      status: :pending,
+      depends_on: [],
+      position: i,
+      max_attempts: 5
+    )
     end
 
     # First orchestration

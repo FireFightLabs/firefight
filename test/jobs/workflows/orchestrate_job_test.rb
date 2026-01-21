@@ -51,7 +51,7 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
 
     # Mark all steps as succeeded
     workflow.workflow_steps.each do |step|
-      step.update!(status: :succeeded, output: { result: "test" })
+    step.update!(status: :succeeded, output: { result: "test" })
     end
 
     # Orchestrate
@@ -83,38 +83,38 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
 
     # Create workflow with concurrency limit
     parallel_workflow = Class.new(Base) do
-      workflow_config max_concurrent_steps: 2
+    workflow_config max_concurrent_steps: 2
 
-      step :step1
-      step :step2
-      step :step3
-      step :step4
+    step :step1
+    step :step2
+    step :step3
+    step :step4
 
-      def step1(**); { result: 1 }; end
-      def step2(**); { result: 2 }; end
-      def step3(**); { result: 3 }; end
-      def step4(**); { result: 4 }; end
+    def step1(**); { result: 1 }; end
+    def step2(**); { result: 2 }; end
+    def step3(**); { result: 3 }; end
+    def step4(**); { result: 4 }; end
     end
 
     Base.registry["TestParallelWorkflow"] = parallel_workflow
 
     workflow = Workflow.create!(
-      name: "test.parallel",
-      workflow_class: "TestParallelWorkflow",
-      subject: user,
-      state: :pending,
-      workflow_config: { max_concurrent_steps: 2 }
+    name: "test.parallel",
+    workflow_class: "TestParallelWorkflow",
+    subject: user,
+    state: :pending,
+    workflow_config: { max_concurrent_steps: 2 }
     )
 
     # Create 4 steps, all ready to run
     4.times do |i|
-      workflow.workflow_steps.create!(
-        name: "step#{i + 1}",
-        status: :pending,
-        depends_on: [],
-        position: i,
-        max_attempts: 5
-      )
+    workflow.workflow_steps.create!(
+      name: "step#{i + 1}",
+      status: :pending,
+      depends_on: [],
+      position: i,
+      max_attempts: 5
+    )
     end
 
     # Orchestrate
@@ -139,31 +139,31 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
 
     # Simulate 2 orchestrators running concurrently
     2.times do
-      threads << Thread.new do
-        workflow.reload
-        steps = workflow.workflow_steps.reload.to_a
+    threads << Thread.new do
+      workflow.reload
+      steps = workflow.workflow_steps.reload.to_a
 
-        step_map = steps.index_by(&:name)
-        ready = steps.select { |s| s.ready_to_run?(step_map) }
+      step_map = steps.index_by(&:name)
+      ready = steps.select { |s| s.ready_to_run?(step_map) }
 
-        ready.each do |step|
-          step.populate_input_data(steps)
+      ready.each do |step|
+        step.populate_input_data(steps)
         end
 
-        # Try to update inputs (optimistic locking)
-        ready.each do |step|
-          next unless step.changed?
+      # Try to update inputs (optimistic locking)
+      ready.each do |step|
+        next unless step.changed?
 
-          rows = WorkflowStep.where(
-            id: step.id,
-            status: step.status_was,
-            updated_at: step.updated_at_was
-          ).update_all(
-            input: step.input,
-            updated_at: Time.current
-          )
+        rows = WorkflowStep.where(
+          id: step.id,
+          status: step.status_was,
+          updated_at: step.updated_at_was
+        ).update_all(
+          input: step.input,
+          updated_at: Time.current
+        )
 
-          enqueued_count += 1 if rows > 0
+        enqueued_count += 1 if rows > 0
         end
       end
     end

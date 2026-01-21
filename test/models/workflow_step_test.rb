@@ -93,20 +93,20 @@ class WorkflowStepTest < ActiveSupport::TestCase
 
     fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
     fetch_numbers.update!(
-      status: :succeeded,
-      output: { numbers: [ 1, 2, 3 ], count: 3 }
+    status: :succeeded,
+    output: { numbers: [ 1, 2, 3 ], count: 3 }
     )
 
     calculate_sum = workflow.workflow_steps.find_by(name: "calculate_sum")
     calculate_sum.update!(
-      status: :succeeded,
-      output: { sum: 6, operation: "sum" }
+    status: :succeeded,
+    output: { sum: 6, operation: "sum" }
     )
 
     calculate_product = workflow.workflow_steps.find_by(name: "calculate_product")
     calculate_product.update!(
-      status: :succeeded,
-      output: { product: 6, operation: "product" }
+    status: :succeeded,
+    output: { product: 6, operation: "product" }
     )
 
     combine_results = workflow.workflow_steps.find_by(name: "combine_results")

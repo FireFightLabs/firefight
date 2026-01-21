@@ -1,5 +1,5 @@
 module Slack
-  class TokenRefreshService
+  class TokenManager
     # Default buffer time before token expiration to trigger refresh
     DEFAULT_BUFFER = 3.hours
 

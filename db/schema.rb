@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_31_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_15_120112) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -108,6 +108,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_31_120000) do
     t.text "access_token"
     t.string "avatar_url"
     t.datetime "created_at", null: false
+    t.string "incidents_channel_id"
     t.datetime "installed_at", null: false
     t.string "name", null: false
     t.string "platform", default: "slack", null: false
@@ -116,6 +117,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_31_120000) do
     t.text "refresh_token"
     t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
+    t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["platform", "platform_id"], name: "index_workspaces_on_platform_and_platform_id", unique: true
     t.index ["platform"], name: "index_workspaces_on_platform"
   end
