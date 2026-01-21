@@ -15,27 +15,26 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
   # create_incidents_channel tests
 
   test "create_incidents_channel creates new channel successfully" do
-    stub_create_channel do
-      result = @service.create_incidents_channel(@workspace)
+    stub_create_channel
 
-      assert result[:channel_id].present?
-      assert_equal "incidents", result[:channel_name]
-      assert_not result[:already_existed]
-    end
+    result = @service.create_incidents_channel(@workspace)
+
+    assert result[:channel_id].present?
+    assert_equal "incidents", result[:channel_name]
+    assert_not result[:already_existed]
   end
 
   test "create_incidents_channel handles existing channel" do
     existing_channel = { id: "C87654321", name: "incidents" }
 
-    stub_create_channel(raises: Slack::Client::ChannelExistsError.new("Channel exists")) do
-      stub_list_conversations(channels: [ existing_channel ]) do
-        result = @service.create_incidents_channel(@workspace)
+    stub_create_channel(raises: Slack::Client::ChannelExistsError.new("Channel exists"))
+    stub_list_conversations(channels: [ existing_channel ])
 
-        assert_equal "C87654321", result[:channel_id]
-        assert_equal "incidents", result[:channel_name]
-        assert result[:already_existed]
-      end
-    end
+    result = @service.create_incidents_channel(@workspace)
+
+    assert_equal "C87654321", result[:channel_id]
+    assert_equal "incidents", result[:channel_name]
+    assert result[:already_existed]
   end
 
   test "create_incidents_channel logs creation event" do
@@ -47,9 +46,8 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
       logged_events << message if message.is_a?(Hash)
     end
 
-    stub_create_channel do
-      @service.create_incidents_channel(@workspace)
-    end
+    stub_create_channel
+    @service.create_incidents_channel(@workspace)
 
     event = logged_events.find { |e| e[:event] == "workspace_setup.channel_created" }
     assert event.present?
@@ -61,13 +59,11 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
   # set_channel_metadata tests
 
   test "set_channel_metadata sets topic and purpose" do
-    stub_set_channel_topic do
-      stub_set_channel_purpose do
+    stub_set_channel_topic
+      stub_set_channel_purpose
         result = @service.set_channel_metadata(@workspace, "C12345678")
 
         assert result[:success]
-      end
-    end
   end
 
   test "set_channel_metadata logs success event" do
@@ -79,11 +75,9 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
       logged_events << message if message.is_a?(Hash)
     end
 
-    stub_set_channel_topic do
-      stub_set_channel_purpose do
+    stub_set_channel_topic
+      stub_set_channel_purpose
         @service.set_channel_metadata(@workspace, "C12345678")
-      end
-    end
 
     event = logged_events.find { |e| e[:event] == "workspace_setup.metadata_set" }
     assert event.present?
@@ -95,12 +89,11 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
   # invite_user tests
 
   test "invite_user invites user to channel" do
-    stub_invite_to_channel do
+    stub_invite_to_channel
       result = @service.invite_user(@workspace, "C12345678", "U12345678")
 
       assert_equal "U12345678", result[:invited_user]
       assert_not result[:skipped]
-    end
   end
 
   test "invite_user skips invitation if channel already existed" do
@@ -147,9 +140,8 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
       logged_events << message if message.is_a?(Hash)
     end
 
-    stub_invite_to_channel do
+    stub_invite_to_channel
       @service.invite_user(@workspace, "C12345678", "U12345678")
-    end
 
     event = logged_events.find { |e| e[:event] == "workspace_setup.user_invited" }
     assert event.present?
@@ -161,11 +153,10 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
   # post_welcome_message tests
 
   test "post_welcome_message posts message to channel" do
-    stub_post_message do
+    stub_post_message
       result = @service.post_welcome_message(@workspace, "C12345678")
 
       assert result[:message_ts].present?
-    end
   end
 
   test "post_welcome_message logs event" do
@@ -177,9 +168,8 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
       logged_events << message if message.is_a?(Hash)
     end
 
-    stub_post_message do
+    stub_post_message
       @service.post_welcome_message(@workspace, "C12345678")
-    end
 
     event = logged_events.find { |e| e[:event] == "workspace_setup.welcome_posted" }
     assert event.present?
@@ -229,11 +219,11 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
   # Integration test
 
   test "full workspace setup flow creates channel and sets metadata" do
-    stub_create_channel do
-      stub_set_channel_topic do
-        stub_set_channel_purpose do
-          stub_invite_to_channel do
-            stub_post_message do
+    stub_create_channel
+      stub_set_channel_topic
+        stub_set_channel_purpose
+          stub_invite_to_channel
+            stub_post_message
               # Create channel
               create_result = @service.create_incidents_channel(@workspace)
               channel_id = create_result[:channel_id]
@@ -257,10 +247,5 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
               # Verify workspace was updated
               @workspace.reload
               assert_equal channel_id, @workspace.incidents_channel_id
-            end
-          end
-        end
-      end
-    end
   end
 end

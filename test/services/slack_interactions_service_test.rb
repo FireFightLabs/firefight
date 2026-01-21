@@ -24,11 +24,11 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
       }
     )
 
-    stub_post_ephemeral do
-      result = @service.handle_preview_announcement(payload)
+    stub_post_ephemeral
 
-      assert_equal "clear", result[:response_action]
-    end
+    result = @service.handle_preview_announcement(payload)
+
+    assert_equal "clear", result[:response_action]
   end
 
   test "handle_preview_announcement logs event" do
@@ -41,9 +41,9 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
       logged_events << message if message.is_a?(Hash)
     end
 
-    stub_post_ephemeral do
-      @service.handle_preview_announcement(payload)
-    end
+    stub_post_ephemeral
+
+    @service.handle_preview_announcement(payload)
 
     event = logged_events.find { |e| e[:event] == "interactions.preview_posted" }
     assert event.present?
@@ -76,23 +76,23 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
       }
     )
 
-    stub_open_modal do
-      result = @service.handle_share_channel(payload)
+    stub_open_modal
 
-      assert_equal "clear", result[:response_action]
-    end
+    result = @service.handle_share_channel(payload)
+
+    assert_equal "clear", result[:response_action]
   end
 
   test "handle_share_channel handles expired trigger" do
     payload = mock_slack_interaction_payload(team_id: @workspace.platform_id, type: "block_actions")
 
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("Trigger expired")) do
-      result = @service.handle_share_channel(payload)
+    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("Trigger expired"))
 
-      assert_equal "errors", result[:response_action]
-      assert result[:errors][:base].present?
-      assert_includes result[:errors][:base], "expired"
-    end
+    result = @service.handle_share_channel(payload)
+
+    assert_equal "errors", result[:response_action]
+    assert result[:errors][:base].present?
+    assert_includes result[:errors][:base], "expired"
   end
 
   test "handle_share_channel logs modal opened event" do
@@ -105,9 +105,9 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
       logged_events << message if message.is_a?(Hash)
     end
 
-    stub_open_modal do
-      @service.handle_share_channel(payload)
-    end
+    stub_open_modal
+
+    @service.handle_share_channel(payload)
 
     event = logged_events.find { |e| e[:event] == "interactions.share_modal_opened" }
     assert event.present?
@@ -126,9 +126,9 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
       logged_events << message if message.is_a?(Hash)
     end
 
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("Trigger expired")) do
-      @service.handle_share_channel(payload)
-    end
+    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("Trigger expired"))
+
+    @service.handle_share_channel(payload)
 
     event = logged_events.find { |e| e[:event] == "interactions.trigger_expired" }
     assert event.present?
@@ -141,11 +141,11 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
   test "handle_share_modal_submission shares to selected channels" do
     payload = mock_slack_interaction_payload(team_id: @workspace.platform_id, type: "view_submission")
 
-    stub_post_message do
-      result = @service.handle_share_modal_submission(payload)
+    stub_post_message
 
-      assert_equal "clear", result[:response_action]
-    end
+    result = @service.handle_share_modal_submission(payload)
+
+    assert_equal "clear", result[:response_action]
   end
 
   test "handle_share_modal_submission returns error if no targets selected" do
@@ -221,9 +221,9 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
       logged_events << message if message.is_a?(Hash)
     end
 
-    stub_post_message do
-      @service.handle_share_modal_submission(payload)
-    end
+    stub_post_message
+
+    @service.handle_share_modal_submission(payload)
 
     event = logged_events.find { |e| e[:event] == "interactions.channel_shared" }
     assert event.present?
@@ -273,10 +273,10 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
   test "find_workspace extracts team_id from team field" do
     payload = mock_slack_interaction_payload(team_id: @workspace.platform_id, type: "block_actions")
 
-    stub_post_ephemeral do
-      result = @service.handle_preview_announcement(payload)
-      assert result.present?
-    end
+    stub_post_ephemeral
+
+    result = @service.handle_preview_announcement(payload)
+    assert result.present?
   end
 
   test "find_workspace extracts team_id from user.team_id field" do
@@ -289,10 +289,10 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
       }
     )
 
-    stub_post_ephemeral do
-      result = @service.handle_preview_announcement(payload)
-      assert result.present?
-    end
+    stub_post_ephemeral
+
+    result = @service.handle_preview_announcement(payload)
+    assert result.present?
   end
 
   test "find_workspace raises error if team_id not found in payload" do

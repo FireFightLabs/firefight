@@ -8,7 +8,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
   end
 
   test "process_oauth_callback creates workspace, user, and membership for first install" do
-    stub_successful_slack_workflow do
+    stub_successful_slack_workflow
       result = @service.process_oauth_callback(@auth_hash)
 
       assert result[:workspace].present?
@@ -31,7 +31,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       membership = result[:membership]
       assert_equal user.id, membership.user_id
       assert_equal workspace.id, membership.workspace_id
-    end
   end
 
   test "process_oauth_callback returns existing workspace for reinstall" do
@@ -58,7 +57,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
   end
 
   test "process_oauth_callback triggers workflow for first install" do
-    stub_successful_slack_workflow do
+    stub_successful_slack_workflow
       # Track if workflow was started
       workflow_started = false
       captured_context = nil
@@ -80,7 +79,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
 
       # Restore original method
       SlackWorkspaceSetupWorkflow.define_singleton_method(:start!, original_start)
-    end
   end
 
   test "process_oauth_callback does not trigger workflow for reinstall" do
@@ -128,7 +126,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       incidents_channel_id: nil
     )
 
-    stub_successful_slack_workflow do
+    stub_successful_slack_workflow
       workflow_started = false
       original_start = SlackWorkspaceSetupWorkflow.method(:start!)
 
@@ -148,7 +146,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
 
       # Restore original method
       SlackWorkspaceSetupWorkflow.define_singleton_method(:start!, original_start)
-    end
   end
 
   test "process_oauth_callback handles transaction rollback on error" do
@@ -180,18 +177,17 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       name: "Old Name"
     )
 
-    stub_successful_slack_workflow do
+    stub_successful_slack_workflow
       result = @service.process_oauth_callback(@auth_hash)
 
       # User should be updated with new name
       existing_user.reload
       assert_equal "Test User", existing_user.name
       assert_equal existing_user.id, result[:user].id
-    end
   end
 
   test "process_oauth_callback logs workflow trigger event" do
-    stub_successful_slack_workflow do
+    stub_successful_slack_workflow
       logged_events = []
       original_logger = Rails.logger
 
@@ -209,6 +205,5 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       assert_equal "U12345678", workflow_log[:installer_user_id]
 
       Rails.logger = original_logger
-    end
   end
 end

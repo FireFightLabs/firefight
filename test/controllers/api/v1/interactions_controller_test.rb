@@ -274,7 +274,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     request_data = slack_interaction_request(payload)
 
     # Stub the Slack API call
-    stub_post_ephemeral do
+    stub_post_ephemeral
       post api_v1_interactions_url,
            params: request_data[:body],
            headers: request_data[:headers]
@@ -282,7 +282,6 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
       response_json = JSON.parse(response.body)
       assert_equal "clear", response_json["response_action"]
-    end
   end
 
   test "should handle share_incidents_channel button click" do
@@ -301,7 +300,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
 
     request_data = slack_interaction_request(payload)
 
-    stub_open_modal do
+    stub_open_modal
       post api_v1_interactions_url,
            params: request_data[:body],
            headers: request_data[:headers]
@@ -309,7 +308,6 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
       response_json = JSON.parse(response.body)
       assert_equal "clear", response_json["response_action"]
-    end
   end
 
   test "should handle share_incidents_channel with expired trigger" do
@@ -328,7 +326,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
 
     request_data = slack_interaction_request(payload)
 
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired")) do
+    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
       post api_v1_interactions_url,
            params: request_data[:body],
            headers: request_data[:headers]
@@ -337,7 +335,6 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
       response_json = JSON.parse(response.body)
       assert_equal "errors", response_json["response_action"]
       assert response_json["errors"]["base"].present?
-    end
   end
 
   test "should handle share modal submission with targets" do
@@ -364,7 +361,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
 
     request_data = slack_interaction_request(payload)
 
-    stub_post_message do
+    stub_post_message
       post api_v1_interactions_url,
            params: request_data[:body],
            headers: request_data[:headers]
@@ -372,7 +369,6 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
       response_json = JSON.parse(response.body)
       assert_equal "clear", response_json["response_action"]
-    end
   end
 
   test "should handle share modal submission with no targets" do

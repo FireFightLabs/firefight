@@ -14,7 +14,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
   # Successful workflow execution
 
   test "workflow completes successfully with new channel" do
-    stub_successful_slack_workflow do
+    stub_successful_slack_workflow
       workflow = SlackWorkspaceSetupWorkflow.start_inline!(
         @workspace,
         context: { installer_user_id: "U12345678" }
@@ -26,7 +26,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       # Verify workspace was updated
       @workspace.reload
       assert @workspace.incidents_channel_id.present?
-    end
   end
 
   test "workflow executes all steps in correct order" do
@@ -108,10 +107,10 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
   test "workflow passes installer_user_id to invite step" do
     invited_user = nil
 
-    stub_create_channel do
-      stub_set_channel_topic do
-        stub_set_channel_purpose do
-          stub_post_message do
+    stub_create_channel
+      stub_set_channel_topic
+        stub_set_channel_purpose
+          stub_post_message
             # Capture the invited user
             original_invite = Slack::Client.method(:invite_to_channel)
             Slack::Client.define_singleton_method(:invite_to_channel) do |**args|
@@ -128,10 +127,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
             assert_equal "U99999999", invited_user
 
             Slack::Client.define_singleton_method(:invite_to_channel, original_invite)
-          end
-        end
-      end
-    end
   end
 
   # Workflow with existing channel
@@ -143,10 +138,10 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       result: { channel: { id: "C12345678", name: "incidents" } },
       raises: Slack::Client::ChannelExistsError.new("exists")
     ) do
-      stub_list_conversations(channels: [ { id: "C12345678", name: "incidents" } ]) do
-        stub_set_channel_topic do
-          stub_set_channel_purpose do
-            stub_post_message do
+      stub_list_conversations(channels: [ { id: "C12345678", name: "incidents" } ])
+        stub_set_channel_topic
+          stub_set_channel_purpose
+            stub_post_message
               # Track if invitation was attempted
               original_invite = Slack::Client.method(:invite_to_channel)
               Slack::Client.define_singleton_method(:invite_to_channel) do |**args|
@@ -163,17 +158,13 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
               assert_not invitation_attempted, "Should not invite if channel existed"
 
               Slack::Client.define_singleton_method(:invite_to_channel, original_invite)
-            end
-          end
-        end
-      end
     end
   end
 
   # Error handling
 
   test "workflow fails if channel creation fails" do
-    stub_create_channel(raises: Slack::Client::ApiError.new("permission_denied")) do
+    stub_create_channel(raises: Slack::Client::ApiError.new("permission_denied"))
       workflow = SlackWorkspaceSetupWorkflow.start_inline!(
         @workspace,
         context: { installer_user_id: "U12345678" }
@@ -184,12 +175,11 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       step = workflow.workflow_steps.find_by(name: "create_incidents_channel")
       assert step.pending? || step.failed?
       assert step.last_error.present?
-    end
   end
 
   test "workflow fails if setting metadata fails" do
-    stub_create_channel do
-      stub_set_channel_topic do
+    stub_create_channel
+      stub_set_channel_topic
         # Stub purpose to fail
         original_purpose = Slack::Client.method(:set_channel_purpose)
         Slack::Client.define_singleton_method(:set_channel_purpose) do |**args|
@@ -207,15 +197,13 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
         assert step.last_error.present?
 
         Slack::Client.define_singleton_method(:set_channel_purpose, original_purpose)
-      end
-    end
   end
 
   test "workflow fails if posting welcome message fails" do
-    stub_create_channel do
-      stub_set_channel_topic do
-        stub_set_channel_purpose do
-          stub_post_message(raises: Slack::Client::ApiError.new("channel_not_found")) do
+    stub_create_channel
+      stub_set_channel_topic
+        stub_set_channel_purpose
+          stub_post_message(raises: Slack::Client::ApiError.new("channel_not_found"))
             workflow = SlackWorkspaceSetupWorkflow.start_inline!(
               @workspace,
               context: { installer_user_id: "U12345678" }
@@ -225,19 +213,15 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
             step = workflow.workflow_steps.find_by(name: "post_welcome_message")
             assert step.pending? || step.failed?
             assert step.last_error.present?
-          end
-        end
-      end
-    end
   end
 
   test "workflow continues if invitation fails but does not fail workflow" do
-    stub_create_channel do
-      stub_set_channel_topic do
-        stub_set_channel_purpose do
-          stub_post_message do
+    stub_create_channel
+      stub_set_channel_topic
+        stub_set_channel_purpose
+          stub_post_message
             # Invitation fails but workflow should handle gracefully
-            stub_invite_to_channel(raises: Slack::Client::ApiError.new("user_not_found")) do
+            stub_invite_to_channel(raises: Slack::Client::ApiError.new("user_not_found"))
               workflow = SlackWorkspaceSetupWorkflow.start_inline!(
                 @workspace,
                 context: { installer_user_id: "U12345678" }
@@ -247,11 +231,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
               step = workflow.workflow_steps.find_by(name: "invite_installer")
               assert step.pending? || step.failed?
               assert step.last_error.present? if step.failed?
-            end
-          end
-        end
-      end
-    end
   end
 
   # Step dependencies
@@ -297,7 +276,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
   # Context validation
 
   test "workflow requires installer_user_id in context" do
-    stub_successful_slack_workflow do
+    stub_successful_slack_workflow
       # This tests that workflow uses the context
       workflow = SlackWorkspaceSetupWorkflow.start_inline!(
         @workspace,
@@ -305,13 +284,12 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       )
 
       assert_equal "succeeded", workflow.state
-    end
   end
 
   # Integration with workspace
 
   test "workflow stores channel_id on workspace" do
-    stub_successful_slack_workflow do
+    stub_successful_slack_workflow
       assert_nil @workspace.incidents_channel_id
 
       workflow = SlackWorkspaceSetupWorkflow.start_inline!(
@@ -323,11 +301,10 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
 
       @workspace.reload
       assert_equal "C12345678", @workspace.incidents_channel_id
-    end
   end
 
   test "workflow can be started asynchronously" do
-    stub_successful_slack_workflow do
+    stub_successful_slack_workflow
       # This just verifies the method exists and doesn't error
       # Actual async execution would require background job processing
       workflow = SlackWorkspaceSetupWorkflow.start!(
@@ -338,6 +315,5 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       assert workflow.present?
       assert workflow.respond_to?(:id)
       assert workflow.respond_to?(:state)
-    end
   end
 end
