@@ -235,37 +235,28 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
 
   test "handle_share_modal_submission handles multiple targets" do
     payload = mock_slack_interaction_payload(
-    team_id: @workspace.platform_id,
-    type: "view_submission",
-    overrides: {
-      "view" => {
-        "callback_id" => "share_incidents_channel_modal",
-        "state" => {
-          "values" => {
-            "share_target_block" => {
-              "share_target_select" => {
-                "selected_conversations" => [ "C11111111", "C22222222", "D33333333" ]
+      team_id: @workspace.platform_id,
+      type: "view_submission",
+      overrides: {
+        "view" => {
+          "callback_id" => "share_incidents_channel_modal",
+          "state" => {
+            "values" => {
+              "share_target_block" => {
+                "share_target_select" => {
+                  "selected_conversations" => [ "C11111111", "C22222222", "D33333333" ]
+                }
               }
             }
           }
         }
       }
-    }
     )
 
-    post_count = 0
-    original_post = Slack::Client.method(:post_message)
-    Slack::Client.define_singleton_method(:post_message) do |**args|
-    post_count += 1
-    { ok: true, ts: "123.#{post_count}" }
-    end
+    # Verify post_message is called 3 times (once per target)
+    Slack::Client.expects(:post_message).times(3).returns({ ok: true, ts: "123.456" })
 
     @service.handle_share_modal_submission(payload)
-
-    # Should have attempted to post to 3 targets
-    assert_equal 3, post_count
-
-    Slack::Client.define_singleton_method(:post_message, original_post)
   end
 
   # find_workspace tests

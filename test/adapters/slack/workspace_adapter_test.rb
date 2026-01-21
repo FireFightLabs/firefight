@@ -115,20 +115,12 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
   end
 
   test "post_welcome_message uses welcome message blocks" do
-    message_blocks = nil
-
-    original_post = Slack::Client.method(:post_message)
-    Slack::Client.define_singleton_method(:post_message) do |**args|
-    message_blocks = args[:blocks]
-    { ok: true, ts: "123.456" }
-    end
+    # Verify post_message is called with blocks argument
+    Slack::Client.expects(:post_message).with do |**args|
+      args[:blocks].present? && args[:blocks].is_a?(Array)
+    end.returns({ ok: true, ts: "123.456" })
 
     @adapter.post_welcome_message(channel_id: "C12345678")
-
-    assert message_blocks.present?
-    assert message_blocks.is_a?(Array)
-
-    Slack::Client.define_singleton_method(:post_message, original_post)
   end
 
   # post_preview_announcement tests
@@ -144,24 +136,16 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
   end
 
   test "post_preview_announcement includes user_id in blocks" do
-    captured_blocks = nil
-
-    original_ephemeral = Slack::Client.method(:post_ephemeral)
-    Slack::Client.define_singleton_method(:post_ephemeral) do |**args|
-    captured_blocks = args[:blocks]
-    { ok: true, ts: "123.456" }
-    end
+    # Verify post_ephemeral is called with user_id in blocks
+    Slack::Client.expects(:post_ephemeral).with do |**args|
+      blocks_json = args[:blocks].to_json
+      blocks_json.include?("U87654321")
+    end.returns({ ok: true, ts: "123.456" })
 
     @adapter.post_preview_announcement(
-    channel_id: "C12345678",
-    user_id: "U87654321"
+      channel_id: "C12345678",
+      user_id: "U87654321"
     )
-
-    # Verify user ID appears in blocks (for @mentions)
-    blocks_json = captured_blocks.to_json
-    assert_includes blocks_json, "U87654321"
-
-    Slack::Client.define_singleton_method(:post_ephemeral, original_ephemeral)
   end
 
   # open_share_modal tests
@@ -191,48 +175,34 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
   # post_share_messages tests
 
   test "post_share_messages posts to all target conversations" do
-    post_count = 0
-
-    original_post = Slack::Client.method(:post_message)
-    Slack::Client.define_singleton_method(:post_message) do |**args|
-    post_count += 1
-    { ok: true, ts: "123.#{post_count}" }
-    end
+    # Verify post_message is called 3 times (once per conversation)
+    Slack::Client.expects(:post_message).times(3).returns({ ok: true, ts: "123.456" })
 
     result = @adapter.post_share_messages(
-    user_id: "U12345678",
-    channel_id: "C12345678",
-    target_conversations: [ "C11111111", "C22222222", "C33333333" ]
+      user_id: "U12345678",
+      channel_id: "C12345678",
+      target_conversations: [ "C11111111", "C22222222", "C33333333" ]
     )
 
-    assert_equal 3, post_count
     assert_equal 3, result[:shared_count]
     assert_equal 0, result[:failed_count]
-
-    Slack::Client.define_singleton_method(:post_message, original_post)
   end
 
   test "post_share_messages handles partial failures gracefully" do
-    post_count = 0
-
-    original_post = Slack::Client.method(:post_message)
-    Slack::Client.define_singleton_method(:post_message) do |**args|
-    post_count += 1
-    raise Slack::Client::ApiError.new("not_in_channel") if post_count == 2
-    { ok: true, ts: "123.#{post_count}" }
-    end
+    # Stub to succeed on 1st call, fail on 2nd, succeed on 3rd
+    Slack::Client.stubs(:post_message)
+      .returns({ ok: true, ts: "123.1" })
+      .then.raises(Slack::Client::ApiError.new("not_in_channel"))
+      .then.returns({ ok: true, ts: "123.3" })
 
     result = @adapter.post_share_messages(
-    user_id: "U12345678",
-    channel_id: "C12345678",
-    target_conversations: [ "C11111111", "C22222222", "C33333333" ]
+      user_id: "U12345678",
+      channel_id: "C12345678",
+      target_conversations: [ "C11111111", "C22222222", "C33333333" ]
     )
 
-    assert_equal 3, post_count
     assert_equal 2, result[:shared_count]
     assert_equal 1, result[:failed_count]
-
-    Slack::Client.define_singleton_method(:post_message, original_post)
   end
 
   test "post_share_messages logs warning on failure" do
@@ -241,48 +211,36 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
     Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:warn) do |message|
-    logged_events << message if message.is_a?(Hash)
+      logged_events << message if message.is_a?(Hash)
     end
 
-    original_post = Slack::Client.method(:post_message)
-    Slack::Client.define_singleton_method(:post_message) do |**args|
-    raise Slack::Client::ApiError.new("not_in_channel")
-    end
+    Slack::Client.stubs(:post_message).raises(Slack::Client::ApiError.new("not_in_channel"))
 
     @adapter.post_share_messages(
-    user_id: "U12345678",
-    channel_id: "C12345678",
-    target_conversations: [ "C11111111" ]
+      user_id: "U12345678",
+      channel_id: "C12345678",
+      target_conversations: [ "C11111111" ]
     )
 
     event = logged_events.find { |e| e[:event] == "slack.workspace_adapter.share_failed" }
     assert event.present?
     assert_equal "C11111111", event[:conversation_id]
 
-    Slack::Client.define_singleton_method(:post_message, original_post)
     Rails.logger = original_logger
   end
 
   test "post_share_messages includes team_id in deep link" do
-    captured_blocks = nil
-
-    original_post = Slack::Client.method(:post_message)
-    Slack::Client.define_singleton_method(:post_message) do |**args|
-    captured_blocks = args[:blocks]
-    { ok: true, ts: "123.456" }
-    end
+    # Verify post_message is called with team_id in deep link
+    Slack::Client.expects(:post_message).with do |**args|
+      blocks_json = args[:blocks].to_json
+      blocks_json.include?("slack://channel?team=#{@workspace.platform_id}")
+    end.returns({ ok: true, ts: "123.456" })
 
     @adapter.post_share_messages(
-    user_id: "U12345678",
-    channel_id: "C12345678",
-    target_conversations: [ "C11111111" ]
+      user_id: "U12345678",
+      channel_id: "C12345678",
+      target_conversations: [ "C11111111" ]
     )
-
-    # Verify team_id is in the deep link URL
-    blocks_json = captured_blocks.to_json
-    assert_includes blocks_json, "slack://channel?team=#{@workspace.platform_id}"
-
-    Slack::Client.define_singleton_method(:post_message, original_post)
   end
 
   # find_existing_channel tests
