@@ -354,7 +354,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
             share_target_block: {
               share_target_select: {
                 type: "multi_conversations_select",
-                selected_conversations: ["C11111111", "C22222222"]
+                selected_conversations: [ "C11111111", "C22222222" ]
               }
             }
           }
@@ -412,7 +412,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
   test "should handle disabled preview buttons" do
     @workspace.update!(incidents_channel_id: "C12345678")
 
-    ["preview_homepage_disabled", "preview_subscribe_disabled"].each do |action_id|
+    [ "preview_homepage_disabled", "preview_subscribe_disabled" ].each do |action_id|
       payload = {
         type: "block_actions",
         team: { id: @workspace.platform_id },

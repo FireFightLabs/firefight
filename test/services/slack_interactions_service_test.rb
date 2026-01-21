@@ -19,7 +19,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
     payload = mock_slack_interaction_payload(
       type: "block_actions",
       overrides: {
-        "actions" => [{ "action_id" => "preview_announcement" }]
+        "actions" => [ { "action_id" => "preview_announcement" } ]
       }
     )
 
@@ -69,7 +69,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
     payload = mock_slack_interaction_payload(
       type: "block_actions",
       overrides: {
-        "actions" => [{ "action_id" => "share_incidents_channel" }]
+        "actions" => [ { "action_id" => "share_incidents_channel" } ]
       }
     )
 
@@ -223,7 +223,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
     event = logged_events.find { |e| e[:event] == "interactions.channel_shared" }
     assert event.present?
     assert_equal 1, event[:target_count]
-    assert_equal ["C87654321"], event[:targets]
+    assert_equal [ "C87654321" ], event[:targets]
 
     Rails.logger = original_logger
   end
@@ -238,7 +238,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
             "values" => {
               "share_target_block" => {
                 "share_target_select" => {
-                  "selected_conversations" => ["C11111111", "C22222222", "D33333333"]
+                  "selected_conversations" => [ "C11111111", "C22222222", "D33333333" ]
                 }
               }
             }

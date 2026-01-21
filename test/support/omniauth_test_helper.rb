@@ -103,7 +103,7 @@ module OmniauthTestHelper
               "share_target_block" => {
                 "share_target_select" => {
                   "type" => "multi_conversations_select",
-                  "selected_conversations" => ["C87654321"]
+                  "selected_conversations" => [ "C87654321" ]
                 }
               }
             }

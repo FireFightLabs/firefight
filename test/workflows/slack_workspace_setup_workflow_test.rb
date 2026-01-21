@@ -122,7 +122,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       result: { channel: { id: "C12345678", name: "incidents" } },
       raises: Slack::Client::ChannelExistsError.new("exists")
     ) do
-      stub_list_conversations(channels: [{ id: "C12345678", name: "incidents" }]) do
+      stub_list_conversations(channels: [ { id: "C12345678", name: "incidents" } ]) do
         stub_set_channel_topic do
           stub_set_channel_purpose do
             stub_post_message do
@@ -216,7 +216,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
               )
 
               # Depending on error handling, this might fail or complete
-              assert ["failed", "completed"].include?(workflow.status)
+              assert [ "failed", "completed" ].include?(workflow.status)
             end
           end
         end

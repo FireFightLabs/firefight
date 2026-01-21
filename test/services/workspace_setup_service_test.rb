@@ -28,7 +28,7 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
     existing_channel = { id: "C87654321", name: "incidents" }
 
     stub_create_channel(raises: Slack::Client::ChannelExistsError.new("Channel exists")) do
-      stub_list_conversations(channels: [existing_channel]) do
+      stub_list_conversations(channels: [ existing_channel ]) do
         result = @service.create_incidents_channel(@workspace)
 
         assert_equal "C87654321", result[:channel_id]

@@ -252,7 +252,7 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
       Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
     ]
 
-    valid_block_types = ["header", "section", "divider", "actions", "context", "input"]
+    valid_block_types = [ "header", "section", "divider", "actions", "context", "input" ]
 
     messages.each do |message|
       message[:blocks].each do |block|

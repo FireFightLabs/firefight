@@ -29,7 +29,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     existing_channel = { id: "C87654321", name: "incidents" }
 
     stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists")) do
-      stub_list_conversations(channels: [existing_channel]) do
+      stub_list_conversations(channels: [ existing_channel ]) do
         result = @adapter.create_incidents_channel
 
         assert_equal "C87654321", result[:channel_id]
@@ -50,7 +50,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     end
 
     stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists")) do
-      stub_list_conversations(channels: [existing_channel]) do
+      stub_list_conversations(channels: [ existing_channel ]) do
         @adapter.create_incidents_channel
       end
     end
@@ -219,7 +219,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     result = @adapter.post_share_messages(
       user_id: "U12345678",
       channel_id: "C12345678",
-      target_conversations: ["C11111111", "C22222222", "C33333333"]
+      target_conversations: [ "C11111111", "C22222222", "C33333333" ]
     )
 
     assert_equal 3, post_count
@@ -242,7 +242,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     result = @adapter.post_share_messages(
       user_id: "U12345678",
       channel_id: "C12345678",
-      target_conversations: ["C11111111", "C22222222", "C33333333"]
+      target_conversations: [ "C11111111", "C22222222", "C33333333" ]
     )
 
     assert_equal 3, post_count
@@ -269,7 +269,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     @adapter.post_share_messages(
       user_id: "U12345678",
       channel_id: "C12345678",
-      target_conversations: ["C11111111"]
+      target_conversations: [ "C11111111" ]
     )
 
     event = logged_events.find { |e| e[:event] == "slack.workspace_adapter.share_failed" }
@@ -292,7 +292,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     @adapter.post_share_messages(
       user_id: "U12345678",
       channel_id: "C12345678",
-      target_conversations: ["C11111111"]
+      target_conversations: [ "C11111111" ]
     )
 
     # Verify team_id is in the deep link URL
