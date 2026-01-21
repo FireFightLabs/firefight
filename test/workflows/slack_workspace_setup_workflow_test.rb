@@ -20,7 +20,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
         context: { installer_user_id: "U12345678" }
       )
 
-      assert_equal "completed", workflow.state
+      assert_equal "succeeded", workflow.state
       assert workflow.completed?
 
       # Verify workspace was updated
@@ -69,7 +69,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       context: { installer_user_id: "U12345678" }
     )
 
-    assert_equal "completed", workflow.state
+    assert_equal "succeeded", workflow.state
 
     # Verify steps executed in order
     assert_equal [
@@ -103,7 +103,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
               context: { installer_user_id: "U99999999" }
             )
 
-            assert_equal "completed", workflow.state
+            assert_equal "succeeded", workflow.state
             assert_equal "U99999999", invited_user
 
             Slack::Client.define_singleton_method(:invite_to_channel, original_invite)
@@ -138,7 +138,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
                 context: { installer_user_id: "U12345678" }
               )
 
-              assert_equal "completed", workflow.state
+              assert_equal "succeeded", workflow.state
               assert_not invitation_attempted, "Should not invite if channel existed"
 
               Slack::Client.define_singleton_method(:invite_to_channel, original_invite)
@@ -274,7 +274,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
         context: { installer_user_id: "U12345678" }
       )
 
-      assert_equal "completed", workflow.state
+      assert_equal "succeeded", workflow.state
     end
   end
 
@@ -289,7 +289,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
         context: { installer_user_id: "U12345678" }
       )
 
-      assert_equal "completed", workflow.state
+      assert_equal "succeeded", workflow.state
 
       @workspace.reload
       assert_equal "C12345678", @workspace.incidents_channel_id

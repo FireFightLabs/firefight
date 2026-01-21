@@ -1,4 +1,5 @@
 require "test_helper"
+require "ostruct"
 
 class SlackAuthenticationServiceTest < ActiveSupport::TestCase
   setup do
@@ -54,16 +55,19 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     stub_successful_slack_workflow do
       # Track if workflow was started
       workflow_started = false
+      captured_context = nil
       original_start = SlackWorkspaceSetupWorkflow.method(:start!)
 
       SlackWorkspaceSetupWorkflow.define_singleton_method(:start!) do |workspace, context:|
         workflow_started = true
-        assert_equal "U12345678", context[:installer_user_id]
+        captured_context = context
         # Return mock workflow result
         OpenStruct.new(id: "workflow-123", status: "running")
       end
 
       result = @service.process_oauth_callback(@auth_hash)
+
+      assert_equal "U12345678", captured_context[:installer_user_id]
 
       assert result[:first_install]
       assert workflow_started, "Workflow should have been started for first install"
@@ -176,7 +180,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       original_logger = Rails.logger
 
       # Capture log messages
-      Rails.logger = Logger.new(nil)
+      Rails.logger = Logger.new(IO::NULL)
       Rails.logger.define_singleton_method(:info) do |message|
         logged_events << message if message.is_a?(Hash)
       end

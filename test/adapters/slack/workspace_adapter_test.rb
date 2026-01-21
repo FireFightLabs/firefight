@@ -44,7 +44,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     logged_events = []
     original_logger = Rails.logger
 
-    Rails.logger = Logger.new(nil)
+    Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:warn) do |message|
       logged_events << message if message.is_a?(Hash)
     end
@@ -256,7 +256,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     logged_events = []
     original_logger = Rails.logger
 
-    Rails.logger = Logger.new(nil)
+    Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:warn) do |message|
       logged_events << message if message.is_a?(Hash)
     end

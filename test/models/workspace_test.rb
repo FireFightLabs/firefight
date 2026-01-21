@@ -102,7 +102,9 @@ class WorkspaceTest < ActiveSupport::TestCase
     # Stub User.find_or_create_from_omniauth! to raise error
     original_method = User.method(:find_or_create_from_omniauth!)
     User.define_singleton_method(:find_or_create_from_omniauth!) do |*args|
-      raise ActiveRecord::RecordInvalid, "Simulated error"
+      user = User.new
+      user.errors.add(:base, "Simulated error")
+      raise ActiveRecord::RecordInvalid.new(user)
     end
 
     assert_raises(ActiveRecord::RecordInvalid) do
