@@ -5,7 +5,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
     @service = SlackInteractionsService.new
     @workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Test Workspace",
       access_token: "xoxb-test-token",
       installed_at: Time.current,
@@ -17,6 +17,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
 
   test "handle_preview_announcement posts ephemeral preview message" do
     payload = mock_slack_interaction_payload(
+      team_id: @workspace.platform_id,
       type: "block_actions",
       overrides: {
         "actions" => [ { "action_id" => "preview_announcement" } ]
@@ -31,7 +32,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
   end
 
   test "handle_preview_announcement logs event" do
-    payload = mock_slack_interaction_payload(type: "block_actions")
+    payload = mock_slack_interaction_payload(team_id: @workspace.platform_id, type: "block_actions")
     logged_events = []
     original_logger = Rails.logger
 
@@ -54,6 +55,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
 
   test "handle_preview_announcement raises error if workspace not found" do
     payload = mock_slack_interaction_payload(
+      team_id: @workspace.platform_id,
       type: "block_actions",
       overrides: { "team" => { "id" => "T_NONEXISTENT" } }
     )
@@ -67,7 +69,9 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
 
   test "handle_share_channel opens modal successfully" do
     payload = mock_slack_interaction_payload(
+      team_id: @workspace.platform_id,
       type: "block_actions",
+      team_id: @workspace.platform_id,
       overrides: {
         "actions" => [ { "action_id" => "share_incidents_channel" } ]
       }
@@ -81,7 +85,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
   end
 
   test "handle_share_channel handles expired trigger" do
-    payload = mock_slack_interaction_payload(type: "block_actions")
+    payload = mock_slack_interaction_payload(team_id: @workspace.platform_id, type: "block_actions")
 
     stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("Trigger expired")) do
       result = @service.handle_share_channel(payload)
@@ -93,7 +97,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
   end
 
   test "handle_share_channel logs modal opened event" do
-    payload = mock_slack_interaction_payload(type: "block_actions")
+    payload = mock_slack_interaction_payload(team_id: @workspace.platform_id, type: "block_actions")
     logged_events = []
     original_logger = Rails.logger
 
@@ -114,7 +118,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
   end
 
   test "handle_share_channel logs warning on trigger expired" do
-    payload = mock_slack_interaction_payload(type: "block_actions")
+    payload = mock_slack_interaction_payload(team_id: @workspace.platform_id, type: "block_actions")
     logged_events = []
     original_logger = Rails.logger
 
@@ -136,7 +140,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
   # handle_share_modal_submission tests
 
   test "handle_share_modal_submission shares to selected channels" do
-    payload = mock_slack_interaction_payload(type: "view_submission")
+    payload = mock_slack_interaction_payload(team_id: @workspace.platform_id, type: "view_submission")
 
     stub_post_message do
       result = @service.handle_share_modal_submission(payload)
@@ -147,6 +151,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
 
   test "handle_share_modal_submission returns error if no targets selected" do
     payload = mock_slack_interaction_payload(
+      team_id: @workspace.platform_id,
       type: "view_submission",
       overrides: {
         "view" => {
@@ -173,6 +178,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
 
   test "handle_share_modal_submission logs warning if no targets selected" do
     payload = mock_slack_interaction_payload(
+      team_id: @workspace.platform_id,
       type: "view_submission",
       overrides: {
         "view" => {
@@ -207,7 +213,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
   end
 
   test "handle_share_modal_submission logs success event" do
-    payload = mock_slack_interaction_payload(type: "view_submission")
+    payload = mock_slack_interaction_payload(team_id: @workspace.platform_id, type: "view_submission")
     logged_events = []
     original_logger = Rails.logger
 
@@ -230,6 +236,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
 
   test "handle_share_modal_submission handles multiple targets" do
     payload = mock_slack_interaction_payload(
+      team_id: @workspace.platform_id,
       type: "view_submission",
       overrides: {
         "view" => {
@@ -260,7 +267,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
   # find_workspace tests
 
   test "find_workspace extracts team_id from team field" do
-    payload = mock_slack_interaction_payload(type: "block_actions")
+    payload = mock_slack_interaction_payload(team_id: @workspace.platform_id, type: "block_actions")
 
     stub_post_ephemeral do
       result = @service.handle_preview_announcement(payload)
@@ -270,10 +277,11 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
 
   test "find_workspace extracts team_id from user.team_id field" do
     payload = mock_slack_interaction_payload(
+      team_id: @workspace.platform_id,
       type: "block_actions",
       overrides: {
         "team" => nil,
-        "user" => { "id" => "U12345678", "team_id" => "T12345678" }
+        "user" => { "id" => "U12345678", "team_id" => @workspace.platform_id }
       }
     )
 
@@ -285,6 +293,7 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
 
   test "find_workspace raises error if team_id not found in payload" do
     payload = mock_slack_interaction_payload(
+      team_id: @workspace.platform_id,
       type: "block_actions",
       overrides: {
         "team" => nil,

@@ -37,7 +37,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     # Create existing workspace first
     existing_workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Test Workspace",
       access_token: "existing-token",
       installed_at: Time.current,
@@ -77,7 +77,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     # Create existing workspace with channel already set up
     Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Test Workspace",
       access_token: "existing-token",
       installed_at: Time.current,
@@ -105,7 +105,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     # Create workspace without incidents channel
     existing_workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Test Workspace",
       access_token: "existing-token",
       installed_at: Time.current,
@@ -147,7 +147,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
 
     # Verify no user or workspace was persisted due to transaction rollback
     assert_nil User.find_by(email: "test@example.com")
-    assert_nil Workspace.find_by(platform_id: "T12345678")
+    assert_nil Workspace.find_by(platform_id: "T#{SecureRandom.hex(8)}")
 
     # Restore original method
     Workspace.define_singleton_method(:find_or_create_from_slack!, original_create)

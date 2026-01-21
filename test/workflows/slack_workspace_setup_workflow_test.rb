@@ -4,7 +4,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
   setup do
     @workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Test Workspace",
       access_token: "xoxb-test-token",
       installed_at: Time.current
@@ -20,7 +20,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
         context: { installer_user_id: "U12345678" }
       )
 
-      assert_equal "completed", workflow.status
+      assert_equal "completed", workflow.state
       assert workflow.completed?
 
       # Verify workspace was updated
@@ -69,7 +69,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       context: { installer_user_id: "U12345678" }
     )
 
-    assert_equal "completed", workflow.status
+    assert_equal "completed", workflow.state
 
     # Verify steps executed in order
     assert_equal [
@@ -103,7 +103,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
               context: { installer_user_id: "U99999999" }
             )
 
-            assert_equal "completed", workflow.status
+            assert_equal "completed", workflow.state
             assert_equal "U99999999", invited_user
 
             Slack::Client.define_singleton_method(:invite_to_channel, original_invite)
@@ -138,7 +138,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
                 context: { installer_user_id: "U12345678" }
               )
 
-              assert_equal "completed", workflow.status
+              assert_equal "completed", workflow.state
               assert_not invitation_attempted, "Should not invite if channel existed"
 
               Slack::Client.define_singleton_method(:invite_to_channel, original_invite)
@@ -158,7 +158,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
         context: { installer_user_id: "U12345678" }
       )
 
-      assert_equal "failed", workflow.status
+      assert_equal "failed", workflow.state
       assert workflow.failed?
     end
   end
@@ -177,7 +177,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
           context: { installer_user_id: "U12345678" }
         )
 
-        assert_equal "failed", workflow.status
+        assert_equal "failed", workflow.state
 
         Slack::Client.define_singleton_method(:set_channel_purpose, original_purpose)
       end
@@ -194,7 +194,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
               context: { installer_user_id: "U12345678" }
             )
 
-            assert_equal "failed", workflow.status
+            assert_equal "failed", workflow.state
           end
         end
       end
@@ -216,7 +216,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
               )
 
               # Depending on error handling, this might fail or complete
-              assert [ "failed", "completed" ].include?(workflow.status)
+              assert [ "failed", "completed" ].include?(workflow.state)
             end
           end
         end
@@ -230,32 +230,32 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     workflow_class = SlackWorkspaceSetupWorkflow
     steps = workflow_class.steps
 
-    metadata_step = steps.find { |s| s.name == :set_channel_metadata }
-    assert metadata_step.dependencies.include?(:create_incidents_channel)
+    metadata_step = steps.find { |s| s[:name] == "set_channel_metadata" }
+    assert metadata_step[:depends_on].include?("create_incidents_channel")
   end
 
   test "post_welcome_message depends on set_channel_metadata" do
     workflow_class = SlackWorkspaceSetupWorkflow
     steps = workflow_class.steps
 
-    welcome_step = steps.find { |s| s.name == :post_welcome_message }
-    assert welcome_step.dependencies.include?(:set_channel_metadata)
+    welcome_step = steps.find { |s| s[:name] == "post_welcome_message" }
+    assert welcome_step[:depends_on].include?("set_channel_metadata")
   end
 
   test "invite_installer depends on post_welcome_message" do
     workflow_class = SlackWorkspaceSetupWorkflow
     steps = workflow_class.steps
 
-    invite_step = steps.find { |s| s.name == :invite_installer }
-    assert invite_step.dependencies.include?(:post_welcome_message)
+    invite_step = steps.find { |s| s[:name] == "invite_installer" }
+    assert invite_step[:depends_on].include?("post_welcome_message")
   end
 
   test "store_channel_id depends on create_incidents_channel" do
     workflow_class = SlackWorkspaceSetupWorkflow
     steps = workflow_class.steps
 
-    store_step = steps.find { |s| s.name == :store_channel_id }
-    assert store_step.dependencies.include?(:create_incidents_channel)
+    store_step = steps.find { |s| s[:name] == "store_channel_id" }
+    assert store_step[:depends_on].include?("create_incidents_channel")
   end
 
   # Workflow name
@@ -274,7 +274,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
         context: { installer_user_id: "U12345678" }
       )
 
-      assert_equal "completed", workflow.status
+      assert_equal "completed", workflow.state
     end
   end
 
@@ -289,7 +289,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
         context: { installer_user_id: "U12345678" }
       )
 
-      assert_equal "completed", workflow.status
+      assert_equal "completed", workflow.state
 
       @workspace.reload
       assert_equal "C12345678", @workspace.incidents_channel_id
@@ -307,7 +307,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
 
       assert workflow.present?
       assert workflow.respond_to?(:id)
-      assert workflow.respond_to?(:status)
+      assert workflow.respond_to?(:state)
     end
   end
 end

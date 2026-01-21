@@ -60,16 +60,16 @@ module OmniauthTestHelper
   # @param type [String] Interaction type (block_actions, view_submission, etc.)
   # @param overrides [Hash] Custom values to override defaults
   # @return [Hash] Mock interaction payload
-  def mock_slack_interaction_payload(type:, overrides: {})
+  def mock_slack_interaction_payload(type:, overrides: {}, team_id: "T12345678")
     base = {
       "type" => type,
       "user" => {
         "id" => "U12345678",
         "username" => "testuser",
-        "team_id" => "T12345678"
+        "team_id" => team_id
       },
       "team" => {
-        "id" => "T12345678",
+        "id" => team_id,
         "domain" => "test-workspace"
       },
       "api_app_id" => "A12345678",

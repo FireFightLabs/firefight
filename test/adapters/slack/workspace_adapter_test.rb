@@ -4,7 +4,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
   setup do
     @workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Test Workspace",
       access_token: "xoxb-test-token",
       installed_at: Time.current,

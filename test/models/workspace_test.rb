@@ -62,7 +62,7 @@ class WorkspaceTest < ActiveSupport::TestCase
     # Create existing workspace
     existing = Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Test Workspace",
       access_token: "existing-token",
       installed_at: Time.current,
@@ -81,7 +81,7 @@ class WorkspaceTest < ActiveSupport::TestCase
     # Create workspace without incidents channel
     existing = Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Test Workspace",
       access_token: "existing-token",
       installed_at: Time.current,
@@ -110,7 +110,7 @@ class WorkspaceTest < ActiveSupport::TestCase
     end
 
     # Verify no workspace was persisted due to transaction rollback
-    assert_nil Workspace.find_by(platform_id: "T12345678")
+    assert_nil Workspace.find_by(platform_id: "T#{SecureRandom.hex(8)}")
 
     # Restore original method
     User.define_singleton_method(:find_or_create_from_omniauth!, original_method)
@@ -120,7 +120,7 @@ class WorkspaceTest < ActiveSupport::TestCase
     # Create existing records
     existing_workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Old Name",
       access_token: "old-token",
       installed_at: Time.current
@@ -161,7 +161,7 @@ class WorkspaceTest < ActiveSupport::TestCase
     # Create existing records without membership
     existing_workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Test Workspace",
       access_token: "token",
       installed_at: Time.current
@@ -185,7 +185,7 @@ class WorkspaceTest < ActiveSupport::TestCase
   test "process_slack_installation sets first_install false if channel exists" do
     existing = Workspace.create!(
       platform: "slack",
-      platform_id: "T12345678",
+      platform_id: "T#{SecureRandom.hex(8)}",
       name: "Test Workspace",
       access_token: "token",
       installed_at: Time.current,
