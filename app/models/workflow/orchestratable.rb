@@ -6,6 +6,15 @@ module Workflow::Orchestratable
     reload
     steps = workflow_steps.reload.to_a
 
+    Rails.logger.info({
+      event: "workflow.orchestration.debug_start",
+      workflow_id: id,
+      workflow_state: state,
+      completed: completed?,
+      paused: paused?,
+      steps_count: steps.count
+    })
+
     return if completed? || paused?
 
     # Build step map for O(1) lookups instead of O(n) array searches
@@ -13,21 +22,25 @@ module Workflow::Orchestratable
     ready = steps.select { |s| s.ready_to_run?(step_map) }
     ready = apply_concurrency_limit(steps, ready)
 
+    Rails.logger.info({
+      event: "workflow.orchestration.debug_ready",
+      workflow_id: id,
+      ready_count: ready.count,
+      ready_steps: ready.map(&:name)
+    })
+
     # Batch update inputs to avoid N+1 queries
     ready.each do |step|
       step.populate_input_data(steps)
     end
 
-    # Track successfully updated steps for job enqueueing
-    successfully_updated = []
-
-    # Batch update all step inputs with optimistic locking
+    # Batch update step inputs with optimistic locking (only for steps with dependencies)
     WorkflowStep.transaction do
       ready.each do |step|
         next unless step.changed?
 
         # Optimistic locking: only update if status and updated_at haven't changed
-        rows_updated = WorkflowStep.where(
+        WorkflowStep.where(
           id: step.id,
           status: step.status_was,
           updated_at: step.updated_at_was
@@ -35,13 +48,23 @@ module Workflow::Orchestratable
           input: step.input,
           updated_at: Time.current
         )
-
-        successfully_updated << step if rows_updated > 0
       end
     end
 
-    # Only enqueue jobs for steps that were successfully updated
-    successfully_updated.each do |step|
+    # Enqueue jobs for all ready steps
+    Rails.logger.info({
+      event: "workflow.orchestration.debug_enqueue",
+      workflow_id: id,
+      enqueueing_count: ready.count
+    })
+
+    ready.each do |step|
+      Rails.logger.info({
+        event: "workflow.orchestration.debug_enqueue_step",
+        workflow_id: id,
+        step_id: step.id,
+        step_name: step.name
+      })
       Workflows::RunStepJob.perform_later(step.id)
     end
 
