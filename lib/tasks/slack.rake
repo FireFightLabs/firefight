@@ -16,9 +16,9 @@ namespace :slack do
 
     puts "🔄 Refreshing token for workspace: #{workspace.name} (#{workspace.platform})"
 
-    service = Slack::TokenRefreshService.new
+    manager = Slack::TokenManager.new
 
-    if service.refresh_workspace(workspace)
+    if manager.refresh_workspace(workspace)
       puts "✅ Successfully refreshed token for #{workspace.name}"
       puts "   Expires at: #{workspace.reload.token_expires_at}"
     else
@@ -45,9 +45,9 @@ namespace :slack do
 
     puts "🔄 Refreshing token for user: #{membership.user.email} in #{membership.workspace.name}"
 
-    service = Slack::TokenRefreshService.new
+    manager = Slack::TokenManager.new
 
-    if service.refresh_membership(membership)
+    if manager.refresh_membership(membership)
       puts "✅ Successfully refreshed token for #{membership.user.email}"
       puts "   Expires at: #{membership.reload.token_expires_at}"
     else
@@ -61,8 +61,8 @@ namespace :slack do
   task refresh_all_expiring: :environment do
     puts "🔄 Refreshing all expiring tokens..."
 
-    service = Slack::TokenRefreshService.new
-    results = service.refresh_all_expiring
+    manager = Slack::TokenManager.new
+    results = manager.refresh_all_expiring
 
     puts "\n📊 Results:"
     puts "   Workspaces: #{results[:workspaces][:succeeded]} succeeded, #{results[:workspaces][:failed]} failed"
@@ -81,12 +81,12 @@ namespace :slack do
   task force_refresh_all_workspaces: :environment do
     puts "🔄 Force refreshing ALL workspace tokens..."
 
-    service = Slack::TokenRefreshService.new
+    manager = Slack::TokenManager.new
     succeeded = 0
     failed = 0
 
     Workspace.slack_platform.find_each do |workspace|
-      if service.refresh_workspace(workspace)
+      if manager.refresh_workspace(workspace)
         succeeded += 1
         puts "✅ #{workspace.name}"
       else

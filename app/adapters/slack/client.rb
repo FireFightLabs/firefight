@@ -5,39 +5,32 @@ module Slack
 
     class ApiError < StandardError; end
     class TriggerExpiredError < ApiError; end
+    class ChannelExistsError < ApiError; end
+    class ChannelNotFoundError < ApiError; end
 
     # Open a modal in Slack
     #
     # @param workspace [Workspace] The workspace to use for authentication
     # @param trigger_id [String] Slack trigger_id from slash command (expires in 3s)
     # @param view [Hash] Block Kit modal view JSON
-    # @return [Hash] Slack API response
+    # @return [Hash] Slack API response with indifferent access
     # @raise [TriggerExpiredError] if trigger_id has expired
     # @raise [ApiError] if Slack API returns an error
     def self.open_modal(workspace:, trigger_id:, view:)
-      response = HTTParty.post(
-        "#{SLACK_API_BASE}/views.open",
-        headers: {
-          "Authorization" => "Bearer #{workspace.access_token}",
-          "Content-Type" => "application/json"
-        },
-        body: {
+      body = api_post(
+        workspace: workspace,
+        endpoint: "views.open",
+        payload: {
           trigger_id: trigger_id,
           view: view
-        }.to_json
+        }
       )
 
-      body = JSON.parse(response.body)
-
-      unless body["ok"]
-        error = body["error"]
-        raise TriggerExpiredError, "Trigger ID expired" if error == "expired_trigger_id"
-        raise ApiError, "Slack API error: #{error}"
+      if !body[:ok] && body[:error] == "expired_trigger_id"
+        raise TriggerExpiredError, "Trigger ID expired"
       end
 
       body
-    rescue JSON::ParserError => e
-      raise ApiError, "Failed to parse Slack API response: #{e.message}"
     end
 
     # Post a message to a Slack channel
@@ -46,31 +39,18 @@ module Slack
     # @param channel [String] Channel ID
     # @param text [String] Message text
     # @param blocks [Array<Hash>] Optional Block Kit blocks
-    # @return [Hash] Slack API response
+    # @return [Hash] Slack API response with indifferent access
     # @raise [ApiError] if Slack API returns an error
     def self.post_message(workspace:, channel:, text:, blocks: nil)
-      response = HTTParty.post(
-        "#{SLACK_API_BASE}/chat.postMessage",
-        headers: {
-          "Authorization" => "Bearer #{workspace.access_token}",
-          "Content-Type" => "application/json"
-        },
-        body: {
+      api_post(
+        workspace: workspace,
+        endpoint: "chat.postMessage",
+        payload: {
           channel: channel,
           text: text,
           blocks: blocks
-        }.compact.to_json
+        }.compact
       )
-
-      body = JSON.parse(response.body)
-
-      unless body["ok"]
-        raise ApiError, "Slack API error: #{body["error"]}"
-      end
-
-      body
-    rescue JSON::ParserError => e
-      raise ApiError, "Failed to parse Slack API response: #{e.message}"
     end
 
     # Post an ephemeral message (only visible to specific user)
@@ -79,26 +59,154 @@ module Slack
     # @param channel [String] Channel ID
     # @param user [String] User ID who will see the message
     # @param text [String] Message text
-    # @return [Hash] Slack API response
+    # @param blocks [Array<Hash>] Optional Block Kit blocks
+    # @return [Hash] Slack API response with indifferent access
     # @raise [ApiError] if Slack API returns an error
-    def self.post_ephemeral(workspace:, channel:, user:, text:)
+    def self.post_ephemeral(workspace:, channel:, user:, text:, blocks: nil)
+      api_post(
+        workspace: workspace,
+        endpoint: "chat.postEphemeral",
+        payload: {
+          channel: channel,
+          user: user,
+          text: text,
+          blocks: blocks
+        }.compact
+      )
+    end
+
+    # Create a Slack channel
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param name [String] Channel name
+    # @param is_private [Boolean] Whether the channel should be private
+    # @return [Hash] Slack API response with indifferent access
+    # @raise [ChannelExistsError] if channel name already exists
+    # @raise [ApiError] if Slack API returns an error
+    # @see https://api.slack.com/methods/conversations.create
+    def self.create_channel(workspace:, name:, is_private: false)
+      body = api_post(
+        workspace: workspace,
+        endpoint: "conversations.create",
+        payload: {
+          name: name,
+          is_private: is_private
+        }
+      )
+
+      body
+    rescue ApiError => e
+      # Check if this is a "channel already exists" error
+      if e.message.include?("name_taken")
+        raise ChannelExistsError, "Channel '#{name}' already exists"
+      else
+        raise # Re-raise other ApiErrors
+      end
+    end
+
+    # Set channel topic
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param channel [String] Channel ID
+    # @param topic [String] New topic text
+    # @return [Hash] Slack API response with indifferent access
+    # @raise [ApiError] if Slack API returns an error
+    def self.set_channel_topic(workspace:, channel:, topic:)
+      api_post(
+        workspace: workspace,
+        endpoint: "conversations.setTopic",
+        payload: {
+          channel: channel,
+          topic: topic
+        }
+      )
+    end
+
+    # Set channel purpose (description)
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param channel [String] Channel ID
+    # @param purpose [String] New purpose text
+    # @return [Hash] Slack API response with indifferent access
+    # @raise [ApiError] if Slack API returns an error
+    def self.set_channel_purpose(workspace:, channel:, purpose:)
+      api_post(
+        workspace: workspace,
+        endpoint: "conversations.setPurpose",
+        payload: {
+          channel: channel,
+          purpose: purpose
+        }
+      )
+    end
+
+    # Invite users to a channel
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param channel [String] Channel ID
+    # @param users [Array<String>, String] User IDs to invite (array or comma-separated string)
+    # @return [Hash] Slack API response with indifferent access
+    # @raise [ApiError] if Slack API returns an error
+    def self.invite_to_channel(workspace:, channel:, users:)
+      users_str = if users.is_a?(Array)
+        users.join(",")
+      else
+        users.to_s
+      end
+
+      api_post(
+        workspace: workspace,
+        endpoint: "conversations.invite",
+        payload: {
+          channel: channel,
+          users: users_str
+        }
+      )
+    end
+
+    # List all channels in the workspace
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param types [String] Comma-separated list of channel types (default: "public_channel")
+    # @return [Array<Hash>] Array of channel objects
+    # @raise [ApiError] if Slack API returns an error
+    def self.list_conversations(workspace:, types: "public_channel")
+      body = api_post(
+        workspace: workspace,
+        endpoint: "conversations.list",
+        payload: {
+          types: types,
+          exclude_archived: true
+        }
+      )
+
+      body[:channels] || []
+    end
+
+    private
+
+    # Make a POST request to Slack API
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param endpoint [String] Slack API endpoint (e.g., "chat.postMessage")
+    # @param payload [Hash] Request payload
+    # @return [Hash] Parsed JSON response with indifferent access
+    # @raise [ApiError] if request fails or Slack returns an error
+    def self.api_post(workspace:, endpoint:, payload:)
       response = HTTParty.post(
-        "#{SLACK_API_BASE}/chat.postEphemeral",
+        "#{SLACK_API_BASE}/#{endpoint}",
         headers: {
           "Authorization" => "Bearer #{workspace.access_token}",
           "Content-Type" => "application/json"
         },
-        body: {
-          channel: channel,
-          user: user,
-          text: text
-        }.to_json
+        body: payload.to_json
       )
 
-      body = JSON.parse(response.body)
+      body = JSON.parse(response.body).with_indifferent_access
 
-      unless body["ok"]
-        raise ApiError, "Slack API error: #{body["error"]}"
+      unless body[:ok]
+        error_details = body.slice(:error, :response_metadata, :needed, :provided)
+        raise ApiError, "Slack API error: #{body[:error]} (details: #{error_details.to_json})"
       end
 
       body

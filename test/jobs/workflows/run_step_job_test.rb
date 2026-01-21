@@ -71,22 +71,22 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
 
     # Simulate 3 workers trying to claim same step
     3.times do
-      threads << Thread.new do
-        job = Workflows::RunStepJob.new
-        current_updated_at = step.updated_at
+    threads << Thread.new do
+      job = Workflows::RunStepJob.new
+      current_updated_at = step.updated_at
 
-        rows = WorkflowStep.where(
-          id: step.id,
-          status: :pending,
-          updated_at: current_updated_at
-        ).update_all(
-          status: :running,
-          attempts: step.attempts + 1,
-          started_at: Time.current,
-          updated_at: Time.current
-        )
+      rows = WorkflowStep.where(
+        id: step.id,
+        status: :pending,
+        updated_at: current_updated_at
+      ).update_all(
+        status: :running,
+        attempts: step.attempts + 1,
+        started_at: Time.current,
+        updated_at: Time.current
+      )
 
-        claimed_count += 1 if rows > 0
+      claimed_count += 1 if rows > 0
       end
     end
 
@@ -128,7 +128,7 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
 
     # Simulate the check after claim in perform method
     if workflow.cancelled?
-      step.update!(status: :cancelled, completed_at: Time.current)
+    step.update!(status: :cancelled, completed_at: Time.current)
     end
 
     step.reload
@@ -140,10 +140,10 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
 
     # Create a failing workflow class
     failing_workflow_class = Class.new(Base) do
-      step :failing_step
+    step :failing_step
 
-      def failing_step(workflow:, step:, input:)
-        raise StandardError, "Intentional test failure"
+    def failing_step(workflow:, step:, input:)
+      raise StandardError, "Intentional test failure"
       end
     end
 
@@ -151,18 +151,18 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
     Base.registry["TestFailingWorkflow"] = failing_workflow_class
 
     workflow = Workflow.create!(
-      name: "test.failing",
-      workflow_class: "TestFailingWorkflow",
-      subject: user,
-      state: :pending
+    name: "test.failing",
+    workflow_class: "TestFailingWorkflow",
+    subject: user,
+    state: :pending
     )
 
     workflow.workflow_steps.create!(
-      name: "failing_step",
-      status: :pending,
-      depends_on: [],
-      position: 0,
-      max_attempts: 5
+    name: "failing_step",
+    status: :pending,
+    depends_on: [],
+    position: 0,
+    max_attempts: 5
     )
 
     step = workflow.workflow_steps.first

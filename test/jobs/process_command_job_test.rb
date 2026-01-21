@@ -18,17 +18,17 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
   test "should process valid slack command" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     # Verify CommandDispatcher.dispatch is called once
     dispatch_called = false
     stub_class_method(CommandDispatcher, :dispatch, ->(_cmd) { dispatch_called = true }) do
-      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
     end
 
     assert dispatch_called, "dispatch should be called"
@@ -36,20 +36,20 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
   test "should parse slack payload into Command object" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "help",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "help",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     # Capture the command passed to dispatch
     dispatched_command = nil
     stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd|
-      dispatched_command = cmd
-      nil
+    dispatched_command = cmd
+    nil
     }) do
-      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
     end
 
     assert_equal Platforms::SLACK, dispatched_command.platform
@@ -60,20 +60,20 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
   test "should not dispatch invalid command" do
     payload = {
-      "team_id" => "TNONEXIST", # Non-existent workspace
-      "user_id" => "U12345678",
-      "text" => "help",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => "TNONEXIST", # Non-existent workspace
+    "user_id" => "U12345678",
+    "text" => "help",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     # Track if dispatch was called
     dispatch_called = false
     stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd|
-      dispatch_called = true
-      nil
+    dispatch_called = true
+    nil
     }) do
-      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
     end
 
     assert_equal false, dispatch_called, "dispatch should not be called for invalid workspace"
@@ -81,19 +81,19 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
   test "should handle commands with empty text" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     dispatched_command = nil
     stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd|
-      dispatched_command = cmd
-      nil
+    dispatched_command = cmd
+    nil
     }) do
-      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
     end
 
     assert dispatched_command.blank?, "command should be blank for empty text"
@@ -101,19 +101,19 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
   test "should handle commands with text" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "status",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "status",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     dispatched_command = nil
     stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd|
-      dispatched_command = cmd
-      nil
+    dispatched_command = cmd
+    nil
     }) do
-      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    ProcessCommandJob.perform_now(Platforms::SLACK, payload)
     end
 
     assert_equal "status", dispatched_command.text
@@ -122,41 +122,41 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
   test "should raise NotImplementedError for teams platform" do
     payload = {
-      "team_id" => "some-teams-id",
-      "user_id" => "some-user-id"
+    "team_id" => "some-teams-id",
+    "user_id" => "some-user-id"
     }
 
     assert_raises(NotImplementedError) do
-      ProcessCommandJob.perform_now(Platforms::TEAMS, payload)
+    ProcessCommandJob.perform_now(Platforms::TEAMS, payload)
     end
   end
 
   test "should raise ArgumentError for unknown platform" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678"
     }
 
     assert_raises(ArgumentError) do
-      ProcessCommandJob.perform_now("unknown_platform", payload)
+    ProcessCommandJob.perform_now("unknown_platform", payload)
     end
   end
 
   test "should handle errors during command processing" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "help",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "help",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     # Simulate an error during dispatch
     stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd| raise StandardError, "Test error" }) do
-      stub_class_method(Slack::Client, :post_ephemeral, lambda { |args| nil }) do
-        # Should not raise, error is caught
-        assert_nothing_raised do
-          ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    stub_class_method(Slack::Client, :post_ephemeral, lambda { |args| nil }) do
+      # Should not raise, error is caught
+      assert_nothing_raised do
+        ProcessCommandJob.perform_now(Platforms::SLACK, payload)
         end
       end
     end
@@ -164,22 +164,22 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
   test "should attempt to notify user when error occurs" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "help",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "help",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     notification_params = nil
 
     # Simulate an error during dispatch and capture notification
     stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd| raise StandardError, "Test error" }) do
-      stub_class_method(Slack::Client, :post_ephemeral, lambda { |args|
-        notification_params = args
-        true
-      }) do
-        ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    stub_class_method(Slack::Client, :post_ephemeral, lambda { |args|
+      notification_params = args
+      true
+    }) do
+      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
       end
     end
 
@@ -192,19 +192,19 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
   test "should handle error notification failure gracefully" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "help",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "help",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     # Simulate error during dispatch AND notification failure
     stub_class_method(CommandDispatcher, :dispatch, lambda { |cmd| raise StandardError, "Test error" }) do
-      stub_class_method(Slack::Client, :post_ephemeral, lambda { |args| raise StandardError, "Notification failed" }) do
-        # Should not raise, both errors are caught
-        assert_nothing_raised do
-          ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    stub_class_method(Slack::Client, :post_ephemeral, lambda { |args| raise StandardError, "Notification failed" }) do
+      # Should not raise, both errors are caught
+      assert_nothing_raised do
+        ProcessCommandJob.perform_now(Platforms::SLACK, payload)
         end
       end
     end

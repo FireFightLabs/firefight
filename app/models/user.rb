@@ -9,10 +9,16 @@ class User < ApplicationRecord
 
   # Class Methods
   def self.find_or_create_from_omniauth!(auth_hash)
-    find_or_create_by!(email: auth_hash.info.email) do |user|
-      user.name = auth_hash.info.name
-      user.avatar_url = auth_hash.info.image
-    end
+    user = find_or_initialize_by(email: auth_hash.info.email)
+
+    # Update attributes for both new and existing users
+    user.assign_attributes(
+      name: auth_hash.info.name,
+      avatar_url: auth_hash.info.image
+    )
+
+    user.save!
+    user
   end
 
   # Instance Methods
