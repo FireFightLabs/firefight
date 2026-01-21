@@ -43,7 +43,7 @@ class WorkspaceTest < ActiveSupport::TestCase
     workspace = result[:workspace]
     assert workspace.persisted?
     assert_equal "slack", workspace.platform
-    assert_equal "T12345678", workspace.platform_id
+    assert_equal auth_hash.extra.team_info["id"], workspace.platform_id
     assert_equal "Test Workspace", workspace.name
 
     # Verify user
@@ -59,17 +59,21 @@ class WorkspaceTest < ActiveSupport::TestCase
   end
 
   test "process_slack_installation returns existing workspace for reinstall" do
-    # Create existing workspace
+    # Create existing workspace with specific team_id
+    team_id = "T#{SecureRandom.hex(8)}"
     existing = Workspace.create!(
       platform: "slack",
-      platform_id: "T#{SecureRandom.hex(8)}",
+      platform_id: team_id,
       name: "Test Workspace",
       access_token: "existing-token",
       installed_at: Time.current,
       incidents_channel_id: "C12345678"
     )
 
-    auth_hash = mock_slack_auth_hash
+    # Use the same team_id in auth_hash
+    auth_hash = mock_slack_auth_hash(
+      extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
+    )
 
     result = Workspace.process_slack_installation(auth_hash)
 
@@ -79,16 +83,19 @@ class WorkspaceTest < ActiveSupport::TestCase
 
   test "process_slack_installation treats workspace without channel as first install" do
     # Create workspace without incidents channel
+    team_id = "T#{SecureRandom.hex(8)}"
     existing = Workspace.create!(
       platform: "slack",
-      platform_id: "T#{SecureRandom.hex(8)}",
+      platform_id: team_id,
       name: "Test Workspace",
       access_token: "existing-token",
       installed_at: Time.current,
       incidents_channel_id: nil
     )
 
-    auth_hash = mock_slack_auth_hash
+    auth_hash = mock_slack_auth_hash(
+      extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
+    )
 
     result = Workspace.process_slack_installation(auth_hash)
 
@@ -120,9 +127,10 @@ class WorkspaceTest < ActiveSupport::TestCase
 
   test "process_slack_installation updates existing user and workspace" do
     # Create existing records
+    team_id = "T#{SecureRandom.hex(8)}"
     existing_workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T#{SecureRandom.hex(8)}",
+      platform_id: team_id,
       name: "Old Name",
       access_token: "old-token",
       installed_at: Time.current
@@ -134,9 +142,13 @@ class WorkspaceTest < ActiveSupport::TestCase
     )
 
     auth_hash = mock_slack_auth_hash(
+      credentials: {
+        token: "new-token"
+      },
       extra: {
+        team_info: { "id" => team_id, "name" => "Updated Workspace" },
         raw_info: {
-          team: { id: "T12345678", name: "Updated Workspace" },
+          team: { id: team_id, name: "Updated Workspace" },
           authed_user: { id: "U12345678" },
           access_token: "new-token"
         }
@@ -161,9 +173,10 @@ class WorkspaceTest < ActiveSupport::TestCase
 
   test "process_slack_installation creates membership for existing workspace and user" do
     # Create existing records without membership
+    team_id = "T#{SecureRandom.hex(8)}"
     existing_workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T#{SecureRandom.hex(8)}",
+      platform_id: team_id,
       name: "Test Workspace",
       access_token: "token",
       installed_at: Time.current
@@ -174,7 +187,9 @@ class WorkspaceTest < ActiveSupport::TestCase
       name: "Test User"
     )
 
-    auth_hash = mock_slack_auth_hash
+    auth_hash = mock_slack_auth_hash(
+      extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
+    )
 
     result = Workspace.process_slack_installation(auth_hash)
 
@@ -185,16 +200,19 @@ class WorkspaceTest < ActiveSupport::TestCase
   end
 
   test "process_slack_installation sets first_install false if channel exists" do
+    team_id = "T#{SecureRandom.hex(8)}"
     existing = Workspace.create!(
       platform: "slack",
-      platform_id: "T#{SecureRandom.hex(8)}",
+      platform_id: team_id,
       name: "Test Workspace",
       access_token: "token",
       installed_at: Time.current,
       incidents_channel_id: "C12345678"
     )
 
-    auth_hash = mock_slack_auth_hash
+    auth_hash = mock_slack_auth_hash(
+      extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
+    )
 
     result = Workspace.process_slack_installation(auth_hash)
 

@@ -5,6 +5,9 @@ module OmniauthTestHelper
   # @param overrides [Hash] Custom values to override defaults
   # @return [OmniAuth::AuthHash] Mock OAuth hash
   def mock_slack_auth_hash(overrides = {})
+    # Use unique team_id by default to avoid parallel test conflicts
+    team_id = overrides.dig(:extra, :team_info, "id") || "T#{SecureRandom.hex(8)}"
+
     defaults = {
       provider: "slack",
       uid: "U12345678",
@@ -21,7 +24,7 @@ module OmniauthTestHelper
       },
       extra: {
         team_info: {
-          "id" => "T12345678",
+          "id" => team_id,
           "name" => "Test Workspace"
         },
         user_info: {
@@ -36,7 +39,7 @@ module OmniauthTestHelper
             id: "U12345678"
           },
           team: {
-            id: "T12345678",
+            id: team_id,
             name: "Test Workspace"
           },
           enterprise: nil,

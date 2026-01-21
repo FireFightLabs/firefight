@@ -297,7 +297,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
     # Verify team_id is in the deep link URL
     blocks_json = captured_blocks.to_json
-    assert_includes blocks_json, "slack://channel?team=T12345678"
+    assert_includes blocks_json, "slack://channel?team=#{@workspace.platform_id}"
 
     Slack::Client.define_singleton_method(:post_message, original_post)
   end

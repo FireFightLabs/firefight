@@ -71,7 +71,6 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
     payload = mock_slack_interaction_payload(
       team_id: @workspace.platform_id,
       type: "block_actions",
-      team_id: @workspace.platform_id,
       overrides: {
         "actions" => [ { "action_id" => "share_incidents_channel" } ]
       }
@@ -255,13 +254,18 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
     )
 
     post_count = 0
-    stub_post_message do
+    original_post = Slack::Client.method(:post_message)
+    Slack::Client.define_singleton_method(:post_message) do |**args|
       post_count += 1
-      @service.handle_share_modal_submission(payload)
+      { ok: true, ts: "123.#{post_count}" }
     end
+
+    @service.handle_share_modal_submission(payload)
 
     # Should have attempted to post to 3 targets
     assert_equal 3, post_count
+
+    Slack::Client.define_singleton_method(:post_message, original_post)
   end
 
   # find_workspace tests
@@ -293,11 +297,11 @@ class SlackInteractionsServiceTest < ActiveSupport::TestCase
 
   test "find_workspace raises error if team_id not found in payload" do
     payload = mock_slack_interaction_payload(
-      team_id: @workspace.platform_id,
+      team_id: "T_NONEXISTENT",
       type: "block_actions",
       overrides: {
-        "team" => nil,
-        "user" => { "id" => "U12345678" }
+        "team" => { "id" => "T_NONEXISTENT" },
+        "user" => { "id" => "U12345678", "team_id" => "T_NONEXISTENT" }
       }
     )
 

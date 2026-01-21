@@ -19,7 +19,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       # Verify workspace was created
       workspace = result[:workspace]
       assert_equal "slack", workspace.platform
-      assert_equal "T12345678", workspace.platform_id
+      assert_equal @auth_hash.extra.team_info["id"], workspace.platform_id
       assert_equal "Test Workspace", workspace.name
 
       # Verify user was created
@@ -36,16 +36,22 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
 
   test "process_oauth_callback returns existing workspace for reinstall" do
     # Create existing workspace first
+    team_id = "T#{SecureRandom.hex(8)}"
     existing_workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T#{SecureRandom.hex(8)}",
+      platform_id: team_id,
       name: "Test Workspace",
       access_token: "existing-token",
       installed_at: Time.current,
       incidents_channel_id: "C12345678"
     )
 
-    result = @service.process_oauth_callback(@auth_hash)
+    # Use auth_hash with matching team_id
+    auth_hash = mock_slack_auth_hash(
+      extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
+    )
+
+    result = @service.process_oauth_callback(auth_hash)
 
     assert_equal existing_workspace.id, result[:workspace].id
     assert_not result[:first_install]
@@ -79,9 +85,10 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
 
   test "process_oauth_callback does not trigger workflow for reinstall" do
     # Create existing workspace with channel already set up
+    team_id = "T#{SecureRandom.hex(8)}"
     Workspace.create!(
       platform: "slack",
-      platform_id: "T#{SecureRandom.hex(8)}",
+      platform_id: team_id,
       name: "Test Workspace",
       access_token: "existing-token",
       installed_at: Time.current,
@@ -96,7 +103,11 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       OpenStruct.new(id: "workflow-123", status: "running")
     end
 
-    result = @service.process_oauth_callback(@auth_hash)
+    auth_hash = mock_slack_auth_hash(
+      extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
+    )
+
+    result = @service.process_oauth_callback(auth_hash)
 
     assert_not result[:first_install]
     assert_not workflow_started, "Workflow should not start for reinstall"
@@ -107,9 +118,10 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
 
   test "process_oauth_callback treats workspace without incidents_channel_id as first install" do
     # Create workspace without incidents channel
+    team_id = "T#{SecureRandom.hex(8)}"
     existing_workspace = Workspace.create!(
       platform: "slack",
-      platform_id: "T#{SecureRandom.hex(8)}",
+      platform_id: team_id,
       name: "Test Workspace",
       access_token: "existing-token",
       installed_at: Time.current,
@@ -125,7 +137,11 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
         OpenStruct.new(id: "workflow-123", status: "running")
       end
 
-      result = @service.process_oauth_callback(@auth_hash)
+      auth_hash = mock_slack_auth_hash(
+        extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
+      )
+
+      result = @service.process_oauth_callback(auth_hash)
 
       assert result[:first_install]
       assert workflow_started, "Workflow should start if incidents_channel_id is missing"
