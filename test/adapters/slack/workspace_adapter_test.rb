@@ -3,12 +3,12 @@ require "test_helper"
 class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
   setup do
     @workspace = Workspace.create!(
-      platform: "slack",
-      platform_id: "T#{SecureRandom.hex(8)}",
-      name: "Test Workspace",
-      access_token: "xoxb-test-token",
-      installed_at: Time.current,
-      incidents_channel_id: "C12345678"
+    platform: "slack",
+    platform_id: "T#{SecureRandom.hex(8)}",
+    name: "Test Workspace",
+    access_token: "xoxb-test-token",
+    installed_at: Time.current,
+    incidents_channel_id: "C12345678"
     )
     @adapter = Slack::WorkspaceAdapter.new(@workspace)
   end
@@ -17,11 +17,11 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   test "create_incidents_channel creates new channel" do
     stub_create_channel
-      result = @adapter.create_incidents_channel
+    result = @adapter.create_incidents_channel
 
-      assert_equal "C12345678", result[:channel_id]
-      assert_equal "incidents", result[:channel_name]
-      assert_not result[:already_existed]
+    assert_equal "C12345678", result[:channel_id]
+    assert_equal "incidents", result[:channel_name]
+    assert_not result[:already_existed]
   end
 
   test "create_incidents_channel handles existing channel" do
@@ -29,11 +29,11 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
     stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
       stub_list_conversations(channels: [ existing_channel ])
-        result = @adapter.create_incidents_channel
+      result = @adapter.create_incidents_channel
 
-        assert_equal "C87654321", result[:channel_id]
-        assert_equal "incidents", result[:channel_name]
-        assert result[:already_existed]
+      assert_equal "C87654321", result[:channel_id]
+      assert_equal "incidents", result[:channel_name]
+      assert result[:already_existed]
   end
 
   test "create_incidents_channel logs warning when channel exists" do
@@ -43,12 +43,12 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
     Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:warn) do |message|
-      logged_events << message if message.is_a?(Hash)
+    logged_events << message if message.is_a?(Hash)
     end
 
     stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
       stub_list_conversations(channels: [ existing_channel ])
-        @adapter.create_incidents_channel
+      @adapter.create_incidents_channel
 
     event = logged_events.find { |e| e[:event] == "slack.workspace_adapter.channel_already_exists" }
     assert event.present?
@@ -60,8 +60,8 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
   test "create_incidents_channel raises error if existing channel not found" do
     stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
       stub_list_conversations(channels: [])
-        assert_raises(Slack::Client::ChannelNotFoundError) do
-          @adapter.create_incidents_channel
+      assert_raises(Slack::Client::ChannelNotFoundError) do
+        @adapter.create_incidents_channel
         end
   end
 
@@ -70,9 +70,9 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
   test "set_channel_metadata sets topic and purpose" do
     stub_set_channel_topic
       stub_set_channel_purpose
-        result = @adapter.set_channel_metadata(channel_id: "C12345678")
+      result = @adapter.set_channel_metadata(channel_id: "C12345678")
 
-        assert result[:success]
+      assert result[:success]
   end
 
   test "set_channel_metadata uses correct description" do
@@ -80,10 +80,10 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     purpose_set = nil
 
     stub_set_channel_topic
-      topic_set = true
+    topic_set = true
       stub_set_channel_purpose
-        purpose_set = true
-        @adapter.set_channel_metadata(channel_id: "C12345678")
+      purpose_set = true
+      @adapter.set_channel_metadata(channel_id: "C12345678")
 
     assert topic_set
     assert purpose_set
@@ -93,15 +93,15 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   test "invite_user invites user to channel" do
     stub_invite_to_channel
-      result = @adapter.invite_user(channel_id: "C12345678", user_id: "U12345678")
+    result = @adapter.invite_user(channel_id: "C12345678", user_id: "U12345678")
 
-      assert_equal "U12345678", result[:invited_user]
+    assert_equal "U12345678", result[:invited_user]
   end
 
   test "invite_user raises error on API failure" do
     stub_invite_to_channel(raises: Slack::Client::ApiError.new("not_in_channel"))
-      assert_raises(Slack::Client::ApiError) do
-        @adapter.invite_user(channel_id: "C12345678", user_id: "U12345678")
+    assert_raises(Slack::Client::ApiError) do
+      @adapter.invite_user(channel_id: "C12345678", user_id: "U12345678")
       end
   end
 
@@ -109,9 +109,9 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   test "post_welcome_message posts to channel" do
     stub_post_message
-      result = @adapter.post_welcome_message(channel_id: "C12345678")
+    result = @adapter.post_welcome_message(channel_id: "C12345678")
 
-      assert result[:message_ts].present?
+    assert result[:message_ts].present?
   end
 
   test "post_welcome_message uses welcome message blocks" do
@@ -119,8 +119,8 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
     original_post = Slack::Client.method(:post_message)
     Slack::Client.define_singleton_method(:post_message) do |**args|
-      message_blocks = args[:blocks]
-      { ok: true, ts: "123.456" }
+    message_blocks = args[:blocks]
+    { ok: true, ts: "123.456" }
     end
 
     @adapter.post_welcome_message(channel_id: "C12345678")
@@ -135,12 +135,12 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   test "post_preview_announcement posts ephemeral message" do
     stub_post_ephemeral
-      result = @adapter.post_preview_announcement(
-        channel_id: "C12345678",
-        user_id: "U12345678"
-      )
+    result = @adapter.post_preview_announcement(
+      channel_id: "C12345678",
+      user_id: "U12345678"
+    )
 
-      assert result[:message_ts].present?
+    assert result[:message_ts].present?
   end
 
   test "post_preview_announcement includes user_id in blocks" do
@@ -148,13 +148,13 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
     original_ephemeral = Slack::Client.method(:post_ephemeral)
     Slack::Client.define_singleton_method(:post_ephemeral) do |**args|
-      captured_blocks = args[:blocks]
-      { ok: true, ts: "123.456" }
+    captured_blocks = args[:blocks]
+    { ok: true, ts: "123.456" }
     end
 
     @adapter.post_preview_announcement(
-      channel_id: "C12345678",
-      user_id: "U87654321"
+    channel_id: "C12345678",
+    user_id: "U87654321"
     )
 
     # Verify user ID appears in blocks (for @mentions)
@@ -168,23 +168,23 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   test "open_share_modal opens modal with trigger_id" do
     stub_open_modal
-      result = @adapter.open_share_modal(
-        trigger_id: "12345.trigger",
-        user_id: "U12345678",
-        channel_id: "C12345678"
-      )
+    result = @adapter.open_share_modal(
+      trigger_id: "12345.trigger",
+      user_id: "U12345678",
+      channel_id: "C12345678"
+    )
 
-      assert result[:success]
+    assert result[:success]
   end
 
   test "open_share_modal raises TriggerExpiredError on expired trigger" do
     stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
-      assert_raises(Slack::Client::TriggerExpiredError) do
-        @adapter.open_share_modal(
-          trigger_id: "expired.trigger",
-          user_id: "U12345678",
-          channel_id: "C12345678"
-        )
+    assert_raises(Slack::Client::TriggerExpiredError) do
+      @adapter.open_share_modal(
+        trigger_id: "expired.trigger",
+        user_id: "U12345678",
+        channel_id: "C12345678"
+      )
       end
   end
 
@@ -195,14 +195,14 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
     original_post = Slack::Client.method(:post_message)
     Slack::Client.define_singleton_method(:post_message) do |**args|
-      post_count += 1
-      { ok: true, ts: "123.#{post_count}" }
+    post_count += 1
+    { ok: true, ts: "123.#{post_count}" }
     end
 
     result = @adapter.post_share_messages(
-      user_id: "U12345678",
-      channel_id: "C12345678",
-      target_conversations: [ "C11111111", "C22222222", "C33333333" ]
+    user_id: "U12345678",
+    channel_id: "C12345678",
+    target_conversations: [ "C11111111", "C22222222", "C33333333" ]
     )
 
     assert_equal 3, post_count
@@ -217,15 +217,15 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
     original_post = Slack::Client.method(:post_message)
     Slack::Client.define_singleton_method(:post_message) do |**args|
-      post_count += 1
-      raise Slack::Client::ApiError.new("not_in_channel") if post_count == 2
-      { ok: true, ts: "123.#{post_count}" }
+    post_count += 1
+    raise Slack::Client::ApiError.new("not_in_channel") if post_count == 2
+    { ok: true, ts: "123.#{post_count}" }
     end
 
     result = @adapter.post_share_messages(
-      user_id: "U12345678",
-      channel_id: "C12345678",
-      target_conversations: [ "C11111111", "C22222222", "C33333333" ]
+    user_id: "U12345678",
+    channel_id: "C12345678",
+    target_conversations: [ "C11111111", "C22222222", "C33333333" ]
     )
 
     assert_equal 3, post_count
@@ -241,18 +241,18 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
     Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:warn) do |message|
-      logged_events << message if message.is_a?(Hash)
+    logged_events << message if message.is_a?(Hash)
     end
 
     original_post = Slack::Client.method(:post_message)
     Slack::Client.define_singleton_method(:post_message) do |**args|
-      raise Slack::Client::ApiError.new("not_in_channel")
+    raise Slack::Client::ApiError.new("not_in_channel")
     end
 
     @adapter.post_share_messages(
-      user_id: "U12345678",
-      channel_id: "C12345678",
-      target_conversations: [ "C11111111" ]
+    user_id: "U12345678",
+    channel_id: "C12345678",
+    target_conversations: [ "C11111111" ]
     )
 
     event = logged_events.find { |e| e[:event] == "slack.workspace_adapter.share_failed" }
@@ -268,14 +268,14 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
     original_post = Slack::Client.method(:post_message)
     Slack::Client.define_singleton_method(:post_message) do |**args|
-      captured_blocks = args[:blocks]
-      { ok: true, ts: "123.456" }
+    captured_blocks = args[:blocks]
+    { ok: true, ts: "123.456" }
     end
 
     @adapter.post_share_messages(
-      user_id: "U12345678",
-      channel_id: "C12345678",
-      target_conversations: [ "C11111111" ]
+    user_id: "U12345678",
+    channel_id: "C12345678",
+    target_conversations: [ "C11111111" ]
     )
 
     # Verify team_id is in the deep link URL
@@ -289,29 +289,29 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   test "find_existing_channel returns channel by name" do
     channels = [
-      { id: "C11111111", name: "general" },
-      { id: "C22222222", name: "incidents" },
-      { id: "C33333333", name: "random" }
+    { id: "C11111111", name: "general" },
+    { id: "C22222222", name: "incidents" },
+    { id: "C33333333", name: "random" }
     ]
 
     stub_list_conversations(channels: channels)
       # Use create_incidents_channel with error to trigger find_existing_channel
       stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
-        result = @adapter.create_incidents_channel
+      result = @adapter.create_incidents_channel
 
-        assert_equal "C22222222", result[:channel_id]
+      assert_equal "C22222222", result[:channel_id]
   end
 
   test "find_existing_channel raises error if channel not found" do
     channels = [
-      { id: "C11111111", name: "general" },
-      { id: "C33333333", name: "random" }
+    { id: "C11111111", name: "general" },
+    { id: "C33333333", name: "random" }
     ]
 
     stub_list_conversations(channels: channels)
       stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
-        assert_raises(Slack::Client::ChannelNotFoundError) do
-          @adapter.create_incidents_channel
+      assert_raises(Slack::Client::ChannelNotFoundError) do
+        @adapter.create_incidents_channel
         end
   end
 end

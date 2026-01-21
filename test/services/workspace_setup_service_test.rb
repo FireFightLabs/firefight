@@ -4,11 +4,11 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
   setup do
     @service = WorkspaceSetupService.new
     @workspace = Workspace.create!(
-      platform: "slack",
-      platform_id: "T#{SecureRandom.hex(8)}",
-      name: "Test Workspace",
-      access_token: "xoxb-test-token",
-      installed_at: Time.current
+    platform: "slack",
+    platform_id: "T#{SecureRandom.hex(8)}",
+    name: "Test Workspace",
+    access_token: "xoxb-test-token",
+    installed_at: Time.current
     )
   end
 
@@ -43,7 +43,7 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
 
     Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:info) do |message|
-      logged_events << message if message.is_a?(Hash)
+    logged_events << message if message.is_a?(Hash)
     end
 
     stub_create_channel
@@ -61,9 +61,9 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
   test "set_channel_metadata sets topic and purpose" do
     stub_set_channel_topic
       stub_set_channel_purpose
-        result = @service.set_channel_metadata(@workspace, "C12345678")
+      result = @service.set_channel_metadata(@workspace, "C12345678")
 
-        assert result[:success]
+      assert result[:success]
   end
 
   test "set_channel_metadata logs success event" do
@@ -72,12 +72,12 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
 
     Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:info) do |message|
-      logged_events << message if message.is_a?(Hash)
+    logged_events << message if message.is_a?(Hash)
     end
 
     stub_set_channel_topic
       stub_set_channel_purpose
-        @service.set_channel_metadata(@workspace, "C12345678")
+      @service.set_channel_metadata(@workspace, "C12345678")
 
     event = logged_events.find { |e| e[:event] == "workspace_setup.metadata_set" }
     assert event.present?
@@ -90,18 +90,18 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
 
   test "invite_user invites user to channel" do
     stub_invite_to_channel
-      result = @service.invite_user(@workspace, "C12345678", "U12345678")
+    result = @service.invite_user(@workspace, "C12345678", "U12345678")
 
-      assert_equal "U12345678", result[:invited_user]
-      assert_not result[:skipped]
+    assert_equal "U12345678", result[:invited_user]
+    assert_not result[:skipped]
   end
 
   test "invite_user skips invitation if channel already existed" do
     result = @service.invite_user(
-      @workspace,
-      "C12345678",
-      "U12345678",
-      skip_if_channel_existed: true
+    @workspace,
+    "C12345678",
+    "U12345678",
+    skip_if_channel_existed: true
     )
 
     assert result[:skipped]
@@ -114,14 +114,14 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
 
     Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:info) do |message|
-      logged_events << message if message.is_a?(Hash)
+    logged_events << message if message.is_a?(Hash)
     end
 
     @service.invite_user(
-      @workspace,
-      "C12345678",
-      "U12345678",
-      skip_if_channel_existed: true
+    @workspace,
+    "C12345678",
+    "U12345678",
+    skip_if_channel_existed: true
     )
 
     event = logged_events.find { |e| e[:event] == "workspace_setup.invite_skipped" }
@@ -137,11 +137,11 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
 
     Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:info) do |message|
-      logged_events << message if message.is_a?(Hash)
+    logged_events << message if message.is_a?(Hash)
     end
 
     stub_invite_to_channel
-      @service.invite_user(@workspace, "C12345678", "U12345678")
+    @service.invite_user(@workspace, "C12345678", "U12345678")
 
     event = logged_events.find { |e| e[:event] == "workspace_setup.user_invited" }
     assert event.present?
@@ -154,9 +154,9 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
 
   test "post_welcome_message posts message to channel" do
     stub_post_message
-      result = @service.post_welcome_message(@workspace, "C12345678")
+    result = @service.post_welcome_message(@workspace, "C12345678")
 
-      assert result[:message_ts].present?
+    assert result[:message_ts].present?
   end
 
   test "post_welcome_message logs event" do
@@ -165,11 +165,11 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
 
     Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:info) do |message|
-      logged_events << message if message.is_a?(Hash)
+    logged_events << message if message.is_a?(Hash)
     end
 
     stub_post_message
-      @service.post_welcome_message(@workspace, "C12345678")
+    @service.post_welcome_message(@workspace, "C12345678")
 
     event = logged_events.find { |e| e[:event] == "workspace_setup.welcome_posted" }
     assert event.present?
@@ -195,7 +195,7 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
 
     Rails.logger = Logger.new(IO::NULL)
     Rails.logger.define_singleton_method(:info) do |message|
-      logged_events << message if message.is_a?(Hash)
+    logged_events << message if message.is_a?(Hash)
     end
 
     @service.store_channel_id(@workspace, "C12345678")
@@ -212,7 +212,7 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
     @workspace.platform_id = nil
 
     assert_raises(ActiveRecord::RecordInvalid) do
-      @service.store_channel_id(@workspace, "C12345678")
+    @service.store_channel_id(@workspace, "C12345678")
     end
   end
 
@@ -224,28 +224,28 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
         stub_set_channel_purpose
           stub_invite_to_channel
             stub_post_message
-              # Create channel
-              create_result = @service.create_incidents_channel(@workspace)
-              channel_id = create_result[:channel_id]
+            # Create channel
+            create_result = @service.create_incidents_channel(@workspace)
+            channel_id = create_result[:channel_id]
 
-              # Set metadata
-              metadata_result = @service.set_channel_metadata(@workspace, channel_id)
-              assert metadata_result[:success]
+            # Set metadata
+            metadata_result = @service.set_channel_metadata(@workspace, channel_id)
+            assert metadata_result[:success]
 
-              # Post welcome
-              welcome_result = @service.post_welcome_message(@workspace, channel_id)
-              assert welcome_result[:message_ts].present?
+            # Post welcome
+            welcome_result = @service.post_welcome_message(@workspace, channel_id)
+            assert welcome_result[:message_ts].present?
 
-              # Invite user
-              invite_result = @service.invite_user(@workspace, channel_id, "U12345678")
-              assert_equal "U12345678", invite_result[:invited_user]
+            # Invite user
+            invite_result = @service.invite_user(@workspace, channel_id, "U12345678")
+            assert_equal "U12345678", invite_result[:invited_user]
 
-              # Store channel
-              store_result = @service.store_channel_id(@workspace, channel_id)
-              assert_equal channel_id, store_result[:channel_id]
+            # Store channel
+            store_result = @service.store_channel_id(@workspace, channel_id)
+            assert_equal channel_id, store_result[:channel_id]
 
-              # Verify workspace was updated
-              @workspace.reload
-              assert_equal channel_id, @workspace.incidents_channel_id
+            # Verify workspace was updated
+            @workspace.reload
+            assert_equal channel_id, @workspace.incidents_channel_id
   end
 end

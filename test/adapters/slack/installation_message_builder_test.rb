@@ -147,7 +147,7 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     # Verify no section has "fields" array (which creates grid layout)
     sections = result[:blocks].select { |b| b[:type] == "section" }
     sections.each do |section|
-      assert_nil section[:fields], "Sections should not use fields array (grid layout)"
+    assert_nil section[:fields], "Sections should not use fields array (grid layout)"
     end
   end
 
@@ -247,37 +247,37 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
 
   test "all messages use valid block types" do
     messages = [
-      Slack::InstallationMessageBuilder.welcome_message_blocks,
-      Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678"),
-      Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
+    Slack::InstallationMessageBuilder.welcome_message_blocks,
+    Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678"),
+    Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
     ]
 
     valid_block_types = [ "header", "section", "divider", "actions", "context", "input" ]
 
     messages.each do |message|
-      message[:blocks].each do |block|
-        assert_includes valid_block_types, block[:type], "Invalid block type: #{block[:type]}"
+    message[:blocks].each do |block|
+      assert_includes valid_block_types, block[:type], "Invalid block type: #{block[:type]}"
       end
     end
   end
 
   test "all action buttons have required fields" do
     messages = [
-      Slack::InstallationMessageBuilder.welcome_message_blocks,
-      Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678"),
-      Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
+    Slack::InstallationMessageBuilder.welcome_message_blocks,
+    Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678"),
+    Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
     ]
 
     messages.each do |message|
-      actions = message[:blocks].select { |b| b[:type] == "actions" }
-      actions.each do |action_block|
-        action_block[:elements].each do |button|
-          assert button[:type].present?, "Button missing type"
-          assert button[:text].present?, "Button missing text"
+    actions = message[:blocks].select { |b| b[:type] == "actions" }
+    actions.each do |action_block|
+      action_block[:elements].each do |button|
+        assert button[:type].present?, "Button missing type"
+        assert button[:text].present?, "Button missing text"
 
-          # Buttons must have either action_id or url
-          assert(button[:action_id].present? || button[:url].present?,
-                 "Button must have action_id or url")
+        # Buttons must have either action_id or url
+        assert(button[:action_id].present? || button[:url].present?,
+               "Button must have action_id or url")
         end
       end
     end

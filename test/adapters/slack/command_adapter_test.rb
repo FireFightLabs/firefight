@@ -9,16 +9,16 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parse creates Command object from Slack payload" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "help me",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678",
-      "team_domain" => "test-workspace",
-      "channel_name" => "general",
-      "user_name" => "alice",
-      "command" => "/firefight",
-      "response_url" => "https://hooks.slack.com/commands/T12345678/12345/abc123"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "help me",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678",
+    "team_domain" => "test-workspace",
+    "channel_name" => "general",
+    "user_name" => "alice",
+    "command" => "/firefight",
+    "response_url" => "https://hooks.slack.com/commands/T12345678/12345/abc123"
     }
 
     command = Slack::CommandAdapter.parse(payload)
@@ -33,16 +33,16 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parse stores platform-specific data in metadata" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678",
-      "team_domain" => "test-workspace",
-      "channel_name" => "general",
-      "user_name" => "alice",
-      "command" => "/firefight",
-      "response_url" => "https://hooks.slack.com/commands/T12345678/12345/abc123"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678",
+    "team_domain" => "test-workspace",
+    "channel_name" => "general",
+    "user_name" => "alice",
+    "command" => "/firefight",
+    "response_url" => "https://hooks.slack.com/commands/T12345678/12345/abc123"
     }
 
     command = Slack::CommandAdapter.parse(payload)
@@ -57,11 +57,11 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parse handles empty text" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     command = Slack::CommandAdapter.parse(payload)
@@ -72,11 +72,11 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parse strips whitespace from text" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "  help me  ",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "  help me  ",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     command = Slack::CommandAdapter.parse(payload)
@@ -86,11 +86,11 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parse handles nil text" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => nil,
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => nil,
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     command = Slack::CommandAdapter.parse(payload)
@@ -101,11 +101,11 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parse returns nil workspace_id for non-existent workspace" do
     payload = {
-      "team_id" => "TNONEXIST", # Non-existent workspace
-      "user_id" => "U12345678",
-      "text" => "help",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => "TNONEXIST", # Non-existent workspace
+    "user_id" => "U12345678",
+    "text" => "help",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     command = Slack::CommandAdapter.parse(payload)
@@ -116,11 +116,11 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parsed command is valid when workspace exists" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "help",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "help",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     command = Slack::CommandAdapter.parse(payload)
@@ -131,11 +131,11 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parsed command can access workspace record" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "help",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "help",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     command = Slack::CommandAdapter.parse(payload)
@@ -146,11 +146,11 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parsed command identifies as slack platform" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "help",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "help",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     command = Slack::CommandAdapter.parse(payload)
@@ -161,11 +161,11 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
 
   test "parsed command can extract subcommand" do
     payload = {
-      "team_id" => @workspace.platform_id,
-      "user_id" => "U12345678",
-      "text" => "status --verbose",
-      "trigger_id" => "123456.789.abc123",
-      "channel_id" => "C12345678"
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "status --verbose",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
     }
 
     command = Slack::CommandAdapter.parse(payload)
