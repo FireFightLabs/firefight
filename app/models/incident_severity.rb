@@ -1,0 +1,2 @@
+class IncidentSeverity < ApplicationRecord
+end

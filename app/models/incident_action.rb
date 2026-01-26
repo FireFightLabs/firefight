@@ -1,0 +1,2 @@
+class IncidentAction < ApplicationRecord
+end

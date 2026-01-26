@@ -1,0 +1,2 @@
+class IncidentRole < ApplicationRecord
+end
