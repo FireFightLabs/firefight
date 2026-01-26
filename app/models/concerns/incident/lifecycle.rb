@@ -21,9 +21,14 @@ module Incident::Lifecycle
   end
 
   # Auto-set resolved_at when status changes to closed category
+  # Clear resolved_at when reopening incident
   def update_resolved_at
-    if incident_status_id_changed? && incident_status.closed? && resolved_at.nil?
-      self.resolved_at = Time.current
+    if incident_status_id_changed?
+      if incident_status.closed? && resolved_at.nil?
+        self.resolved_at = Time.current
+      elsif incident_status.live? && resolved_at.present?
+        self.resolved_at = nil
+      end
     end
   end
 end

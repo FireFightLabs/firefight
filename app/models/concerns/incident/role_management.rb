@@ -12,12 +12,12 @@ module Incident::RoleManagement
 
   # Role helper for MVP (returns the "Incident Lead" assignment)
   def lead
-    lead_role = workspace.incident_roles.incident_lead
+    lead_role = workspace.incident_roles.incident_lead.first
     incident_role_assignments.find_by(incident_role: lead_role)&.workspace_membership
   end
 
   def lead=(workspace_membership)
-    lead_role = workspace.incident_roles.incident_lead
+    lead_role = workspace.incident_roles.incident_lead.first
     return unless lead_role
 
     assignment = incident_role_assignments.find_or_initialize_by(incident_role: lead_role)

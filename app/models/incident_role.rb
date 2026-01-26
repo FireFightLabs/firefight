@@ -7,10 +7,8 @@ class IncidentRole < ApplicationRecord
   validates :slug, presence: true, uniqueness: { scope: :workspace_id }
   validates :position, presence: true, numericality: { only_integer: true }
 
+  scope :active, -> { where(deleted_at: nil) }
   scope :ordered, -> { order(:position) }
   scope :required_roles, -> { where(required: true) }
-
-  def self.incident_lead
-    find_by(slug: "incident_lead")
-  end
+  scope :incident_lead, -> { where(slug: "incident_lead") }
 end

@@ -15,6 +15,7 @@ class CreateIncidentEvents < ActiveRecord::Migration[8.1]
       t.index :incident_id
       t.index [ :incident_id, :created_at ]
       t.index :event_type
+      t.index :user_id
       t.index :metadata, using: :gin # For JSONB queries
     end
 

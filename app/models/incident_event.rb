@@ -10,12 +10,18 @@ class IncidentEvent < ApplicationRecord
   INCIDENT_RESOLVED = "incident.resolved"
   POSTMORTEM_GENERATED = "postmortem.generated"
 
+  EVENT_TYPES = [
+    INCIDENT_CREATED, INCIDENT_UPDATED, LEAD_ASSIGNED,
+    ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED,
+    INCIDENT_ESCALATED, INCIDENT_RESOLVED, POSTMORTEM_GENERATED
+  ].freeze
+
   # Associations
   belongs_to :incident
   belongs_to :user, class_name: "WorkspaceMembership", optional: true
 
   # Validations
-  validates :event_type, presence: true
+  validates :event_type, presence: true, inclusion: { in: EVENT_TYPES }
 
   # Scopes
   scope :chronological, -> { order(created_at: :asc) }

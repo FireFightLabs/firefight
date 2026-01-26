@@ -10,12 +10,13 @@ class IncidentStatus < ApplicationRecord
   validates :slug, presence: true, uniqueness: { scope: :workspace_id }
   validates :category, inclusion: { in: CATEGORIES }
   validates :position, presence: true, numericality: { only_integer: true }
+  validates :is_default, uniqueness: { scope: :workspace_id, if: :is_default? }
 
   scope :active, -> { where(deleted_at: nil) }
   scope :live, -> { where(category: CATEGORY_LIVE) }
   scope :closed, -> { where(category: CATEGORY_CLOSED) }
   scope :ordered, -> { order(:position) }
-  scope :default_status, -> { find_by(is_default: true) }
+  scope :default_status, -> { active.find_by(is_default: true) }
 
   def live?
     category == CATEGORY_LIVE

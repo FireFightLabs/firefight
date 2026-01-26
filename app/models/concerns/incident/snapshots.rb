@@ -18,7 +18,7 @@ module Incident::Snapshots
     {
       identifier: identifier,
       name: name,
-      summary: summary&.truncate(200), # Don't store massive text
+      summary: summary,
       severity: incident_severity.as_json(only: [ :id, :name, :slug, :rank, :color ]),
       status: incident_status.as_json(only: [ :id, :name, :slug, :category ]),
       lead: lead&.as_json(only: [ :id ], methods: [ :display_name, :email ]),
