@@ -5,6 +5,7 @@
 **Updated approach: Mutable incidents + event snapshots**
 
 Create foundational database schema for incident management with:
+
 - Workspace-configurable statuses (with live/closed categories)
 - Workspace-configurable severities (with rank)
 - Flexible incident role system (supports multiple roles, MVP uses one)
@@ -21,10 +22,12 @@ Create foundational database schema for incident management with:
 ### 1. Configurable Statuses (NOT Hardcoded)
 
 **Why:** Different teams use different terminology and workflows
+
 - Some use: Investigating → Identified → Mitigated → Resolved
 - Others use: Triaging → Working → Monitoring → Closed
 
 **Implementation:**
+
 - `incident_statuses` table with workspace_id
 - `category` field: "live" (active work) or "closed" (post-incident learning)
 - Default statuses seeded on workspace creation
@@ -32,11 +35,13 @@ Create foundational database schema for incident management with:
 ### 2. Configurable Severities (NOT Hardcoded)
 
 **Why:** Different companies use different severity scales
+
 - Some use: SEV1, SEV2, SEV3, SEV4
 - Others use: Critical, Major, Minor
 - Others use: P0, P1, P2, P3
 
 **Implementation:**
+
 - `incident_severities` table with workspace_id
 - `rank` field: Higher number = more severe (for comparison logic)
 - Default severities seeded on workspace creation
@@ -44,10 +49,12 @@ Create foundational database schema for incident management with:
 ### 3. Flexible Role System (Future-Proof)
 
 **Why:** Different incident structures need different roles
+
 - Simple teams: Just "Incident Lead"
 - Complex teams: Commander, Comms Lead, Tech Lead, Scribe
 
 **Implementation:**
+
 - `incident_roles` table with workspace_id
 - `incident_role_assignments` join table
 - MVP: Seed one default role "Incident Lead"
@@ -55,6 +62,7 @@ Create foundational database schema for incident management with:
 ### 4. Event-Based Audit Trail (Full Snapshots)
 
 **Why full snapshots instead of diffs:**
+
 - View incident state at ANY point in time
 - No need to "replay" diffs to rebuild state
 - Handles renamed/deleted statuses (denormalized data)
@@ -62,6 +70,7 @@ Create foundational database schema for incident management with:
 - Future-proof: any field changes are captured
 
 **Implementation:**
+
 - `incident_events` table stores full `before` and `after` snapshots
 - Denormalized related data (severity name, status name, lead info)
 - Timeline is queried directly from events (no reconstruction needed)
@@ -321,6 +330,7 @@ end
 ```
 
 **Metadata structure:**
+
 ```ruby
 {
   schema_version: 1,
@@ -374,13 +384,13 @@ class CreateIncidentActions < ActiveRecord::Migration[8.1]
 
       t.timestamps
 
-      # Indexes
+      # indexes
       t.index [:incident_id, :action_type]
       t.index [:incident_id, :status]
       t.index :assignee_id
     end
 
-    # Foreign key constraints
+    # foreign key constraints
     add_foreign_key :incident_actions, :incidents
     add_foreign_key :incident_actions, :workspace_memberships, column: :created_by_id
     add_foreign_key :incident_actions, :workspace_memberships, column: :assignee_id
@@ -398,6 +408,11 @@ end
 
 ```ruby
 class IncidentStatus < ApplicationRecord
+  # Categories as enum constants
+  CATEGORY_LIVE = "live"
+  CATEGORY_CLOSED = "closed"
+  CATEGORIES = [CATEGORY_LIVE, CATEGORY_CLOSED].freeze
+
   # Associations
   belongs_to :workspace
   has_many :incidents, dependent: :restrict_with_error
@@ -405,22 +420,23 @@ class IncidentStatus < ApplicationRecord
   # Validations
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: { scope: :workspace_id }
-  validates :category, inclusion: { in: %w[live closed] }
+  validates :category, inclusion: { in: CATEGORIES }
   validates :position, presence: true, numericality: { only_integer: true }
 
   # Scopes
-  scope :live, -> { where(category: "live") }
-  scope :closed, -> { where(category: "closed") }
+  scope :active, -> { where(deleted_at: nil) }
+  scope :live, -> { where(category: CATEGORY_LIVE) }
+  scope :closed, -> { where(category: CATEGORY_CLOSED) }
   scope :ordered, -> { order(:position) }
   scope :default_status, -> { find_by(is_default: true) }
 
   # Query methods
   def live?
-    category == "live"
+    category == CATEGORY_LIVE
   end
 
   def closed?
-    category == "closed"
+    category == CATEGORY_CLOSED
   end
 end
 ```
@@ -551,8 +567,8 @@ class Incident < ApplicationRecord
   before_save :update_resolved_at
 
   # Scopes
-  scope :active, -> { joins(:incident_status).where(incident_statuses: { category: "live" }) }
-  scope :closed, -> { joins(:incident_status).where(incident_statuses: { category: "closed" }) }
+  scope :active, -> { joins(:incident_status).merge(IncidentStatus.live) }
+  scope :closed, -> { joins(:incident_status).merge(IncidentStatus.closed) }
   scope :by_severity, -> { joins(:incident_severity).order("incident_severities.rank DESC") }
   scope :recent, -> { order(declared_at: :desc) }
 
@@ -668,17 +684,6 @@ end
 
 ```ruby
 class IncidentEvent < ApplicationRecord
-  # Associations
-  belongs_to :incident
-  belongs_to :user, class_name: "WorkspaceMembership", optional: true
-
-  # Validations
-  validates :event_type, presence: true
-
-  # Scopes
-  scope :chronological, -> { order(created_at: :asc) }
-  scope :recent, -> { order(created_at: :desc) }
-
   # Event type constants
   INCIDENT_CREATED = "incident.created"
   INCIDENT_UPDATED = "incident.updated"
@@ -689,6 +694,17 @@ class IncidentEvent < ApplicationRecord
   INCIDENT_ESCALATED = "incident.escalated"
   INCIDENT_RESOLVED = "incident.resolved"
   POSTMORTEM_GENERATED = "postmortem.generated"
+
+  # Associations
+  belongs_to :incident
+  belongs_to :user, class_name: "WorkspaceMembership", optional: true
+
+  # Validations
+  validates :event_type, presence: true
+
+  # Scopes
+  scope :chronological, -> { order(created_at: :asc) }
+  scope :recent, -> { order(created_at: :desc) }
 
   # Helper methods
   def before_snapshot
@@ -721,30 +737,42 @@ end
 
 ```ruby
 class IncidentAction < ApplicationRecord
+  # Action types as enum constants
+  ACTION_TYPE_ACTION = "action"
+  ACTION_TYPE_FOLLOWUP = "followup"
+  ACTION_TYPES = [ACTION_TYPE_ACTION, ACTION_TYPE_FOLLOWUP].freeze
+
+  # Status types as enum constants
+  STATUS_OPEN = "open"
+  STATUS_IN_PROGRESS = "in_progress"
+  STATUS_DONE = "done"
+  STATUSES = [STATUS_OPEN, STATUS_IN_PROGRESS, STATUS_DONE].freeze
+
   # Associations
   belongs_to :incident
   belongs_to :created_by, class_name: "WorkspaceMembership"
   belongs_to :assignee, class_name: "WorkspaceMembership", optional: true
 
   # Validations
-  validates :action_type, inclusion: { in: %w[action followup] }
-  validates :status, inclusion: { in: %w[open in_progress done] }
+  validates :action_type, inclusion: { in: ACTION_TYPES }
+  validates :status, inclusion: { in: STATUSES }
   validates :description, presence: true
 
   # Scopes
-  scope :actions, -> { where(action_type: "action") }
-  scope :followups, -> { where(action_type: "followup") }
-  scope :open, -> { where(status: "open") }
-  scope :completed, -> { where(status: "done") }
+  scope :active, -> { where(deleted_at: nil) }
+  scope :actions, -> { where(action_type: ACTION_TYPE_ACTION) }
+  scope :followups, -> { where(action_type: ACTION_TYPE_FOLLOWUP) }
+  scope :open, -> { where(status: STATUS_OPEN) }
+  scope :completed, -> { where(status: STATUS_DONE) }
   scope :recent, -> { order(created_at: :desc) }
 
   # Query methods
   def open?
-    status == "open"
+    status == STATUS_OPEN
   end
 
   def done?
-    status == "done"
+    status == STATUS_DONE
   end
 
   def assigned?
@@ -1010,18 +1038,22 @@ Run migrations in this order:
 ## Files Summary
 
 **New Migrations (7):**
+
 - Configuration: incident_statuses, incident_severities, incident_roles
 - Core: incidents (mutable), incident_role_assignments, incident_events (snapshots), incident_actions
 
 **New Models (7):**
+
 - Configuration: IncidentStatus, IncidentSeverity, IncidentRole, IncidentRoleAssignment
 - Core: Incident (with snapshot support), IncidentEvent (with helpers), IncidentAction
 
 **Updated Files (2):**
+
 - `app/models/workspace.rb` - Add associations
 - `app/services/workspace_setup_service.rb` - Seed defaults
 
 **Test Files (7):**
+
 - Tests for all 7 models
 - Fixtures for incidents, statuses, severities, roles
 

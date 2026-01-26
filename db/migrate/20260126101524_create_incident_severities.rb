@@ -18,8 +18,10 @@ class CreateIncidentSeverities < ActiveRecord::Migration[8.1]
       t.string :color # Hex color code like "#DC143C"
 
       t.timestamps
+      t.datetime :deleted_at
 
       t.index :workspace_id
+      t.index :deleted_at
       t.index [ :workspace_id, :slug ], unique: true
       t.index [ :workspace_id, :position ]
       t.index [ :workspace_id, :rank ]

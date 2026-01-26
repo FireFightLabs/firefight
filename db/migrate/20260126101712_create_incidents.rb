@@ -35,8 +35,10 @@ class CreateIncidents < ActiveRecord::Migration[8.1]
       t.datetime :resolved_at # Set when moved to "closed" category status
 
       t.timestamps
+      t.datetime :deleted_at
 
       # Indexes for performance
+      t.index [ :workspace_id, :deleted_at ]
       t.index :workspace_id
       t.index [ :workspace_id, :sequence_number ], unique: true
       t.index [ :workspace_id, :identifier ], unique: true

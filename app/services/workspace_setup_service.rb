@@ -7,6 +7,10 @@
 # - Console (debugging/testing)
 # - API endpoints (future)
 class WorkspaceSetupService
+  def initialize(workspace)
+    @workspace = workspace
+  end
+
   # Create incidents channel for a workspace
   #
   # @param workspace [Workspace] The workspace to create channel in

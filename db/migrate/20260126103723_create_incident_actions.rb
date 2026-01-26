@@ -13,8 +13,10 @@ class CreateIncidentActions < ActiveRecord::Migration[8.1]
       t.jsonb :platform_data, default: {}
 
       t.timestamps
+      t.datetime :deleted_at
 
       # indexes
+      t.index :deleted_at
       t.index [ :incident_id, :action_type ]
       t.index [ :incident_id, :status ]
       t.index :assignee_id

@@ -13,8 +13,10 @@ class CreateIncidentRoles < ActiveRecord::Migration[8.1]
       t.boolean :required, default: false # Must be filled before closing incident
 
       t.timestamps
+      t.datetime :deleted_at
 
       # Indexes
+      t.index :deleted_at
       t.index :workspace_id
       t.index [ :workspace_id, :slug ], unique: true
       t.index [ :workspace_id, :position ]
