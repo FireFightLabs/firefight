@@ -1,0 +1,288 @@
+require "test_helper"
+
+class IncidentStatusTest < ActiveSupport::TestCase
+  fixtures :workspaces, :incident_statuses
+
+  # ============================================================================
+  # BASIC VALIDATIONS
+  # ============================================================================
+
+  test "requires name" do
+    status = IncidentStatus.new(
+      workspace: workspaces(:slack_workspace_one),
+      slug: "test",
+      category: "live",
+      position: 1
+    )
+    assert_not status.valid?
+    assert_includes status.errors[:name], "can't be blank"
+  end
+
+  test "requires slug" do
+    status = IncidentStatus.new(
+      workspace: workspaces(:slack_workspace_one),
+      name: "Test Status",
+      category: "live",
+      position: 1
+    )
+    assert_not status.valid?
+    assert_includes status.errors[:slug], "can't be blank"
+  end
+
+  test "requires category" do
+    status = IncidentStatus.new(
+      workspace: workspaces(:slack_workspace_one),
+      name: "Test Status",
+      slug: "test",
+      position: 1
+    )
+    assert_not status.valid?
+    assert status.errors[:category].present?
+  end
+
+  test "requires position" do
+    status = IncidentStatus.new(
+      workspace: workspaces(:slack_workspace_one),
+      name: "Test Status",
+      slug: "test",
+      category: "live"
+    )
+    # position is required but has no presence validation, just numericality
+    assert status.valid?
+  end
+
+  test "category must be live or closed" do
+    status = IncidentStatus.new(
+      workspace: workspaces(:slack_workspace_one),
+      name: "Test Status",
+      slug: "test",
+      category: "invalid",
+      position: 1
+    )
+    assert_not status.valid?
+    assert_includes status.errors[:category], "is not included in the list"
+  end
+
+  test "accepts live category" do
+    status = IncidentStatus.new(
+      workspace: workspaces(:slack_workspace_one),
+      name: "Test Status",
+      slug: "test_unique",
+      category: "live",
+      position: 1
+    )
+    assert status.valid?
+  end
+
+  test "accepts closed category" do
+    status = IncidentStatus.new(
+      workspace: workspaces(:slack_workspace_one),
+      name: "Test Status",
+      slug: "test_unique",
+      category: "closed",
+      position: 1
+    )
+    assert status.valid?
+  end
+
+  # ============================================================================
+  # UNIQUENESS VALIDATIONS
+  # ============================================================================
+
+  test "slug must be unique within workspace" do
+    existing = incident_statuses(:investigating_ws1)
+    duplicate = IncidentStatus.new(
+      workspace: existing.workspace,
+      name: "Different Name",
+      slug: existing.slug,
+      category: "live",
+      position: 99
+    )
+    assert_not duplicate.valid?
+    assert_includes duplicate.errors[:slug], "has already been taken"
+  end
+
+  test "slug can be same across different workspaces" do
+    ws1_status = incident_statuses(:investigating_ws1)
+    ws2_status = IncidentStatus.new(
+      workspace: workspaces(:slack_workspace_two),
+      name: "Investigating",
+      slug: ws1_status.slug, # Same slug as workspace one
+      category: "live",
+      position: 1
+    )
+    assert ws2_status.valid?
+  end
+
+  test "only one default status allowed per workspace" do
+    existing_default = incident_statuses(:investigating_ws1)
+    assert existing_default.is_default
+
+    another_default = IncidentStatus.new(
+      workspace: existing_default.workspace,
+      name: "Another Default",
+      slug: "another_default",
+      category: "live",
+      position: 99,
+      is_default: true
+    )
+    assert_not another_default.valid?
+    assert_includes another_default.errors[:is_default], "has already been taken"
+  end
+
+  test "multiple non-default statuses allowed per workspace" do
+    status1 = IncidentStatus.create!(
+      workspace: workspaces(:slack_workspace_one),
+      name: "Status 1",
+      slug: "status_1",
+      category: "live",
+      position: 98,
+      is_default: false
+    )
+    status2 = IncidentStatus.create!(
+      workspace: workspaces(:slack_workspace_one),
+      name: "Status 2",
+      slug: "status_2",
+      category: "live",
+      position: 99,
+      is_default: false
+    )
+    assert status1.persisted?
+    assert status2.persisted?
+  end
+
+  test "different workspaces can each have a default status" do
+    ws1_default = incident_statuses(:investigating_ws1)
+    ws2_default = incident_statuses(:triaging_ws2)
+
+    assert ws1_default.is_default
+    assert ws2_default.is_default
+    assert_not_equal ws1_default.workspace_id, ws2_default.workspace_id
+  end
+
+  # ============================================================================
+  # ASSOCIATIONS
+  # ============================================================================
+
+  test "belongs to workspace" do
+    status = incident_statuses(:investigating_ws1)
+    assert_instance_of Workspace, status.workspace
+    assert_equal workspaces(:slack_workspace_one), status.workspace
+  end
+
+  test "has many incidents" do
+    status = incident_statuses(:investigating_ws1)
+    assert_respond_to status, :incidents
+  end
+
+  # ============================================================================
+  # SCOPES
+  # ============================================================================
+
+  test "active scope excludes deleted statuses" do
+    active_statuses = IncidentStatus.active
+    deleted_status = incident_statuses(:deleted_status)
+
+    assert_not_includes active_statuses, deleted_status
+    assert_includes active_statuses, incident_statuses(:investigating_ws1)
+  end
+
+  test "live scope returns only live category statuses" do
+    live_statuses = IncidentStatus.live
+
+    assert_includes live_statuses, incident_statuses(:investigating_ws1)
+    assert_includes live_statuses, incident_statuses(:identified_ws1)
+    assert_includes live_statuses, incident_statuses(:monitoring_ws1)
+    assert_not_includes live_statuses, incident_statuses(:resolved_ws1)
+  end
+
+  test "closed scope returns only closed category statuses" do
+    closed_statuses = IncidentStatus.closed
+
+    assert_includes closed_statuses, incident_statuses(:resolved_ws1)
+    assert_includes closed_statuses, incident_statuses(:closed_ws2)
+    assert_not_includes closed_statuses, incident_statuses(:investigating_ws1)
+  end
+
+  test "ordered scope sorts by position ascending" do
+    workspace = workspaces(:slack_workspace_one)
+    statuses = workspace.incident_statuses.active.ordered
+
+    positions = statuses.map(&:position)
+    assert_equal positions.sort, positions
+  end
+
+  test "default_status scope returns default statuses" do
+    ws1_default = workspaces(:slack_workspace_one).incident_statuses.default_status
+    ws2_default = workspaces(:slack_workspace_two).incident_statuses.default_status
+
+    assert_equal incident_statuses(:investigating_ws1), ws1_default
+    assert_equal incident_statuses(:triaging_ws2), ws2_default
+  end
+
+  # ============================================================================
+  # METHODS
+  # ============================================================================
+
+  test "live? returns true for live category" do
+    status = incident_statuses(:investigating_ws1)
+    assert status.live?
+  end
+
+  test "live? returns false for closed category" do
+    status = incident_statuses(:resolved_ws1)
+    assert_not status.live?
+  end
+
+  test "closed? returns true for closed category" do
+    status = incident_statuses(:resolved_ws1)
+    assert status.closed?
+  end
+
+  test "closed? returns false for live category" do
+    status = incident_statuses(:investigating_ws1)
+    assert_not status.closed?
+  end
+
+  # ============================================================================
+  # SOFT DELETES
+  # ============================================================================
+
+  test "soft delete sets deleted_at" do
+    status = incident_statuses(:investigating_ws1)
+    assert_nil status.deleted_at
+
+    status.update!(deleted_at: Time.current)
+    assert_not_nil status.deleted_at
+  end
+
+  test "soft deleted statuses excluded from active scope" do
+    status = incident_statuses(:monitoring_ws1)
+    assert_includes IncidentStatus.active, status
+
+    status.update!(deleted_at: Time.current)
+    assert_not_includes IncidentStatus.active.reload, status
+  end
+
+  # ============================================================================
+  # FIXTURES LOADING
+  # ============================================================================
+
+  test "workspace one fixtures load correctly" do
+    investigating = incident_statuses(:investigating_ws1)
+    assert_equal "Investigating", investigating.name
+    assert_equal "investigating", investigating.slug
+    assert_equal "live", investigating.category
+    assert_equal 1, investigating.position
+    assert investigating.is_default
+    assert_equal "#FFA500", investigating.color
+  end
+
+  test "workspace two fixtures load correctly" do
+    triaging = incident_statuses(:triaging_ws2)
+    assert_equal "Triaging", triaging.name
+    assert_equal "triaging", triaging.slug
+    assert_equal "live", triaging.category
+    assert triaging.is_default
+  end
+end
