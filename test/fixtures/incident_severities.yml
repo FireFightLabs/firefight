@@ -1,11 +1,84 @@
-# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+# Incident Severities for testing
+# Workspace One - SEV naming convention
+critical_ws1:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Critical
+  slug: critical
+  description: Service completely down, major customer impact
+  rank: 5
+  position: 1
+  is_default: false
+  color: "#DC143C"
 
-# This model initially had no columns defined. If you add columns to the
-# model remove the "{}" from the fixture names and add the columns immediately
-# below each fixture, per the syntax in the comments below
-#
-one: {}
-# column: value
-#
-two: {}
-# column: value
+major_ws1:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Major
+  slug: major
+  description: Significant feature degradation
+  rank: 3
+  position: 2
+  is_default: false
+  color: "#FF6B35"
+
+minor_ws1:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Minor
+  slug: minor
+  description: Limited impact to non-critical features
+  rank: 1
+  position: 3
+  is_default: true
+  color: "#FFA500"
+
+# Workspace Two - Priority naming convention (P0, P1, P2)
+p0_ws2:
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  name: P0
+  slug: p0
+  description: Critical system outage
+  rank: 10
+  position: 1
+  is_default: false
+  color: "#DC143C"
+
+p1_ws2:
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  name: P1
+  slug: p1
+  description: High priority issue
+  rank: 7
+  position: 2
+  is_default: true
+  color: "#FF6B35"
+
+p2_ws2:
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  name: P2
+  slug: p2
+  description: Medium priority issue
+  rank: 4
+  position: 3
+  is_default: false
+  color: "#FFA500"
+
+p3_ws2:
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  name: P3
+  slug: p3
+  description: Low priority issue
+  rank: 1
+  position: 4
+  is_default: false
+  color: "#4169E1"
+
+# Deleted severity for testing soft deletes
+deleted_severity:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Archived Severity
+  slug: archived_severity
+  description: This severity was deleted
+  rank: 99
+  position: 99
+  is_default: false
+  color: "#999999"
+  deleted_at: <%= 1.day.ago %>
