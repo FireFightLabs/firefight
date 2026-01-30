@@ -1,10 +1,18 @@
 class Workspace < ApplicationRecord
+  include Workspace::IncidentDefaults
+
   # Enums - Keep teams for future extensibility but only implement Slack for now
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
   # Associations
   has_many :workspace_memberships, dependent: :destroy
   has_many :users, through: :workspace_memberships
+
+  # Incident management
+  has_many :incidents, dependent: :destroy
+  has_many :incident_statuses, dependent: :destroy
+  has_many :incident_severities, dependent: :destroy
+  has_many :incident_roles, dependent: :destroy
 
   # Encryptions - Rails 7+ native encryption
   encrypts :access_token, :refresh_token, deterministic: false
@@ -51,6 +59,8 @@ class Workspace < ApplicationRecord
       workspace = find_or_create_from_slack!(auth_hash)
       user = User.find_or_create_from_omniauth!(auth_hash)
       membership = WorkspaceMembership.find_or_create_from_omniauth!(user, workspace, auth_hash)
+
+      workspace.setup_incident_configuration! if workspace.previously_new_record?
 
       {
         workspace: workspace,

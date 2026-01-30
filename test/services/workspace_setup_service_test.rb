@@ -2,7 +2,6 @@ require "test_helper"
 
 class WorkspaceSetupServiceTest < ActiveSupport::TestCase
   setup do
-    @service = WorkspaceSetupService.new
     @workspace = Workspace.create!(
     platform: "slack",
     platform_id: "T#{SecureRandom.hex(8)}",
@@ -10,6 +9,7 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
     access_token: "xoxb-test-token",
     installed_at: Time.current
     )
+    @service = WorkspaceSetupService.new(@workspace)
   end
 
   # create_incidents_channel tests

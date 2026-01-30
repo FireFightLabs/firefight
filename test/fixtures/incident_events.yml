@@ -1,0 +1,72 @@
+# Incident events for testing
+
+# Workspace One - Incident 1 events
+inc1_created:
+  incident: active_critical_ws1
+  event_type: incident.created
+  user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  created_at: <%= 2.hours.ago %>
+  metadata:
+    after:
+      name: "Database connection pool exhausted"
+      status: "investigating"
+      severity: "critical"
+
+inc1_updated:
+  incident: active_critical_ws1
+  event_type: incident.updated
+  user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  created_at: <%= 1.5.hours.ago %>
+  metadata:
+    before:
+      name: "Database connection pool exhausted"
+      summary: null
+    after:
+      name: "Database connection pool exhausted"
+      summary: "Production database hitting max connections"
+    changed_fields: ["summary"]
+
+inc1_lead_assigned:
+  incident: active_critical_ws1
+  event_type: lead.assigned
+  user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  created_at: <%= 1.hour.ago %>
+  metadata:
+    details:
+      role: "incident_lead"
+      assigned_to: "alice_workspace_one"
+
+# Workspace One - Incident 2 events
+inc2_created:
+  incident: active_major_ws1
+  event_type: incident.created
+  user_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  created_at: <%= 1.hour.ago %>
+  metadata:
+    after:
+      name: "Payment processing slow"
+      status: "identified"
+      severity: "major"
+
+# Resolved incident with resolution event
+inc3_resolved:
+  incident: resolved_minor_ws1
+  event_type: incident.resolved
+  user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  created_at: <%= 20.hours.ago %>
+  metadata:
+    details:
+      resolution_time: 4
+      resolution_notes: "Fixed by restarting upload service"
+
+# Workspace Two - Incident 1 events
+ws2_inc1_created:
+  incident: active_p0_ws2
+  event_type: incident.created
+  user_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
+  created_at: <%= 15.minutes.ago %>
+  metadata:
+    after:
+      name: "Complete service outage"
+      status: "triaging"
+      severity: "p0"
