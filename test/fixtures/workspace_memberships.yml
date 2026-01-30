@@ -1,8 +1,8 @@
 # Workspace memberships for testing
 alice_workspace_one:
   id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
-  workspace: slack_workspace_one
-  user: alice
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  user_id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
   platform_user_id: U12345678
   role: owner
   access_token: xoxp-alice-token-1
@@ -13,8 +13,8 @@ alice_workspace_one:
 
 bob_workspace_one:
   id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
-  workspace: slack_workspace_one
-  user: bob
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  user_id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
   platform_user_id: U87654321
   role: member
   access_token: xoxp-bob-token-1
@@ -25,8 +25,8 @@ bob_workspace_one:
 
 alice_workspace_two:
   id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
-  workspace: slack_workspace_two
-  user: alice
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  user_id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
   platform_user_id: U11111111
   role: owner
   access_token: xoxp-alice-token-2

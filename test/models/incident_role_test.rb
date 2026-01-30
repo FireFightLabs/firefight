@@ -128,7 +128,7 @@ class IncidentRoleTest < ActiveSupport::TestCase
   test "required_roles scope returns only required roles" do
     required_roles = IncidentRole.required_roles
 
-    assert_includes required_roles, incident_roles(:commander_ws2)
+    assert_includes required_roles, incident_roles(:incident_commander_ws2)
     assert_not_includes required_roles, incident_roles(:incident_lead_ws1)
     assert_not_includes required_roles, incident_roles(:comms_lead_ws2)
   end
@@ -137,7 +137,7 @@ class IncidentRoleTest < ActiveSupport::TestCase
     incident_leads = IncidentRole.incident_lead
 
     assert_includes incident_leads, incident_roles(:incident_lead_ws1)
-    assert_not_includes incident_leads, incident_roles(:commander_ws2)
+    assert_not_includes incident_leads, incident_roles(:incident_commander_ws2)
     assert_not_includes incident_leads, incident_roles(:comms_lead_ws2)
   end
 
@@ -166,7 +166,7 @@ class IncidentRoleTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "required can be true" do
-    role = incident_roles(:commander_ws2)
+    role = incident_roles(:incident_commander_ws2)
     assert role.required
   end
 
@@ -188,7 +188,7 @@ class IncidentRoleTest < ActiveSupport::TestCase
   end
 
   test "workspace two complex fixtures load correctly" do
-    commander = incident_roles(:commander_ws2)
+    commander = incident_roles(:incident_commander_ws2)
     assert_equal "Incident Commander", commander.name
     assert_equal "incident_commander", commander.slug
     assert_equal 1, commander.position
@@ -212,7 +212,7 @@ class IncidentRoleTest < ActiveSupport::TestCase
     workspace = workspaces(:slack_workspace_two)
     roles = workspace.incident_roles.active.ordered.to_a
 
-    assert_equal incident_roles(:commander_ws2), roles[0]
+    assert_equal incident_roles(:incident_commander_ws2), roles[0]
     assert_equal incident_roles(:comms_lead_ws2), roles[1]
     assert_equal incident_roles(:tech_lead_ws2), roles[2]
     assert_equal incident_roles(:scribe_ws2), roles[3]

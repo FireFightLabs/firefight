@@ -1,11 +1,68 @@
-# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+# Incident actions for testing
 
-# This model initially had no columns defined. If you add columns to the
-# model remove the "{}" from the fixture names and add the columns immediately
-# below each fixture, per the syntax in the comments below
-#
-one: {}
-# column: value
-#
-two: {}
-# column: value
+# Workspace One - Incident 1 actions
+inc1_action_open:
+  incident: active_critical_ws1
+  created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  assignee_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  action_type: action
+  status: open
+  description: "Increase database connection pool size"
+  created_at: <%= 1.5.hours.ago %>
+
+inc1_action_in_progress:
+  incident: active_critical_ws1
+  created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  assignee_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  action_type: action
+  status: in_progress
+  description: "Investigate long-running queries"
+  created_at: <%= 1.hour.ago %>
+
+inc1_followup:
+  incident: active_critical_ws1
+  created_by_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  action_type: followup
+  status: open
+  description: "Add connection pool monitoring alerts"
+  created_at: <%= 30.minutes.ago %>
+
+# Workspace One - Incident 2 actions
+inc2_action_done:
+  incident: active_major_ws1
+  created_by_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  assignee_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  action_type: action
+  status: done
+  description: "Restart payment gateway service"
+  created_at: <%= 45.minutes.ago %>
+
+# Resolved incident with completed followup
+inc3_followup_done:
+  incident: resolved_minor_ws1
+  created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  assignee_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  action_type: followup
+  status: done
+  description: "Update image upload documentation"
+  created_at: <%= 18.hours.ago %>
+
+# Deleted action for soft delete testing
+inc1_deleted_action:
+  incident: active_critical_ws1
+  created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  action_type: action
+  status: open
+  description: "This action was deleted"
+  created_at: <%= 2.hours.ago %>
+  deleted_at: <%= 1.hour.ago %>
+
+# Workspace Two - Incident 1 actions
+ws2_inc1_action:
+  incident: active_p0_ws2
+  created_by_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
+  assignee_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
+  action_type: action
+  status: in_progress
+  description: "Investigate service outage root cause"
+  created_at: <%= 10.minutes.ago %>
