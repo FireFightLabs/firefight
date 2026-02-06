@@ -20,6 +20,18 @@ module WorkflowStep::Executable
       input: input
     )
 
+    # If workflow was cancelled during execution, mark step cancelled
+    workflow.reload
+    if workflow.cancelled?
+      WorkflowStep.where(id: id, status: :running).update_all(
+        status: :cancelled,
+        completed_at: Time.current,
+        updated_at: Time.current
+      )
+      reload
+      return
+    end
+
     # Atomic transition: running → succeeded with optimistic locking
     current_updated_at = updated_at
     rows_updated = WorkflowStep.where(
@@ -36,7 +48,7 @@ module WorkflowStep::Executable
     # If update failed, step was cancelled/modified - reload and check
     if rows_updated == 0
       reload
-      return if cancelled? # Cancelled during execution - exit gracefully
+      return if cancelled? || workflow.cancelled?
       raise "Step status changed unexpectedly during execution"
     end
 

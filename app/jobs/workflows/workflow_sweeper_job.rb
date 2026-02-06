@@ -22,7 +22,6 @@ class Workflows::WorkflowSweeperJob < ApplicationJob
   # Main entry point - runs both recovery mechanisms
   #
   # This job is safe to run frequently because:
-  # - Uses advisory locks (won't double-execute)
   # - Only processes truly stuck workflows/steps
   # - Idempotent operations (safe to retry)
   #
@@ -47,7 +46,7 @@ class Workflows::WorkflowSweeperJob < ApplicationJob
   #   1. Finds workflows in pending/running state
   #   2. That haven't updated in 5+ minutes (abnormally stale)
   #   3. Re-triggers orchestration via enqueue_next_steps
-  #   4. Orchestrator uses advisory locks, so safe to call multiple times
+  #   4. Orchestrator is idempotent, so safe to call multiple times
   #
   # Example Scenario:
   #   - Step A completes successfully
