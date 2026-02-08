@@ -44,11 +44,17 @@ class Command
 
   # Get command arguments as array
   def args
-    text.split(/\s+/)
+    text.to_s.split(/\s+/)
   end
 
   # Get first word (subcommand)
   def subcommand
     args.first
+  end
+
+  # Get slash command name without leading "/"
+  # e.g., "/firefight" → "firefight", "/ff" → "ff"
+  def command_name
+    metadata[:command]&.to_s&.delete_prefix("/")
   end
 end

@@ -152,7 +152,8 @@ module Workflow::Orchestratable
   end
 
   def state_timestamps_merge_sql(state, timestamp)
+    state_value = Workflow.connection.quote(state.to_s)
     timestamp_value = Workflow.connection.quote(timestamp.iso8601)
-    Arel.sql("coalesce(state_timestamps, '{}'::jsonb) || jsonb_build_object('#{state}', #{timestamp_value})")
+    Arel.sql("coalesce(state_timestamps, '{}'::jsonb) || jsonb_build_object(#{state_value}, #{timestamp_value})")
   end
 end

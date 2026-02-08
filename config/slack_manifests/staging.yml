@@ -10,12 +10,14 @@ features:
   slash_commands:
     - command: /firefight
       url: https://firefight-staging.up.railway.app/api/v1/commands
-      description: Firefight incident management
-      usage_hint: "[subcommand]"
+      description: "Manage incidents and coordinate response"
+      usage_hint: "[new|summary|lead|status|actions|close|timeline|list]"
+      should_escape: false
     - command: /ff
       url: https://firefight-staging.up.railway.app/api/v1/commands
-      description: Firefight (short alias)
-      usage_hint: "[subcommand]"
+      description: "Manage incidents (short alias for /firefight)"
+      usage_hint: "[new|summary|lead|status|actions|close|timeline|list]"
+      should_escape: false
 
 oauth_config:
   redirect_urls:
