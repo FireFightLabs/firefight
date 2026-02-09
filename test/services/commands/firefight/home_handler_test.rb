@@ -17,15 +17,16 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     Commands::Firefight::HomeHandler.execute(command)
   end
 
-  test "handles empty command as home" do
+  test "opens home modal for empty command" do
+    stub_open_modal
     command = build_command("")
     response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
-    assert_includes response[:text], "Incident Home"
+    assert response[:ok]
   end
 
-  test "handles nil text as home" do
+  test "opens home modal for nil text" do
+    stub_open_modal
     command = Command.new(
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
@@ -36,16 +37,24 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     )
     response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
-    assert_includes response[:text], "Incident Home"
+    assert response[:ok]
   end
 
-  test "handles 'home' subcommand" do
+  test "opens home modal for 'home' subcommand" do
+    stub_open_modal
     command = build_command("home")
     response = Commands::Firefight::HomeHandler.execute(command)
 
+    assert response[:ok]
+  end
+
+  test "handles trigger expiration for home modal" do
+    stub_open_modal(raises: Slack::Client::TriggerExpiredError)
+    command = build_command("")
+    response = Commands::Firefight::HomeHandler.execute(command)
+
     assert_equal "ephemeral", response[:response_type]
-    assert_includes response[:text], "Incident Home"
+    assert_includes response[:text], "expired"
   end
 
   # --- Placeholder subcommands ---

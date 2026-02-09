@@ -15,8 +15,7 @@ module Commands
           # Delegate to existing modal handler for incident creation
           Commands::ModalHandler.execute(command)
         when "home", nil
-          # Phase 1.5: Incident Home modal
-          ephemeral("Opening Incident Home...")
+          open_home_modal(command)
         when "summary"
           # Phase 2.1
           ephemeral("Summary command coming soon...")
@@ -60,6 +59,21 @@ module Commands
         }.to_json)
 
         ephemeral("Sorry, something went wrong. Please try again.")
+      end
+
+      private_class_method def self.open_home_modal(command)
+        workspace = command.workspace
+        return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
+
+        Slack::Client.open_modal(
+          workspace: workspace,
+          trigger_id: command.trigger_id,
+          view: Slack::ModalBuilder.home_modal
+        )
+
+        { ok: true }
+      rescue Slack::Client::TriggerExpiredError
+        ephemeral("This command has expired. Please try `/ff` again.")
       end
 
       private_class_method def self.ephemeral(text)

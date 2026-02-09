@@ -12,7 +12,8 @@ class InteractionDispatcher
     Slack::Identifiers::PREVIEW_ANNOUNCEMENT => Interactions::PreviewAnnouncementHandler,
     Slack::Identifiers::SHARE_INCIDENTS_CHANNEL => Interactions::ShareChannelHandler,
     Slack::Identifiers::PREVIEW_HOMEPAGE_DISABLED => Interactions::NoopHandler,
-    Slack::Identifiers::PREVIEW_SUBSCRIBE_DISABLED => Interactions::NoopHandler
+    Slack::Identifiers::PREVIEW_SUBSCRIBE_DISABLED => Interactions::NoopHandler,
+    Slack::Identifiers::HOME_ACTION_SELECT => Interactions::HomeActionSelectHandler
   }.freeze
 
   # shortcut handlers keyed by callback_id

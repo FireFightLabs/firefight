@@ -35,6 +35,11 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::NoopHandler, InteractionDispatcher.find(payload)
   end
 
+  test "routes home_action_select to HomeActionSelectHandler" do
+    payload = { "type" => "block_actions", "actions" => [ { "action_id" => Slack::Identifiers::HOME_ACTION_SELECT } ] }
+    assert_equal Interactions::HomeActionSelectHandler, InteractionDispatcher.find(payload)
+  end
+
   test "routes unknown block_actions action_id to UnknownHandler" do
     payload = { "type" => "block_actions", "actions" => [ { "action_id" => "unknown_action" } ] }
     assert_equal Interactions::UnknownHandler, InteractionDispatcher.find(payload)
