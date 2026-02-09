@@ -14,7 +14,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     team: { id: @workspace.platform_id, domain: "test-workspace" },
     user: { id: "U12345678", username: "alice", name: "Alice Smith" },
     view: {
-      callback_id: "incident_creation_modal",
+      callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL,
       type: "modal",
       private_metadata: "",
       state: {
@@ -95,7 +95,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     team: { id: @workspace.platform_id },
     user: { id: "U12345678" },
     view: {
-      callback_id: "incident_creation_modal",
+      callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL,
       type: "modal"
     }
     }
@@ -144,7 +144,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     type: "view_submission",
     team: { id: "T99999999" }, # Non-existent workspace
     user: { id: "U12345678" },
-    view: { callback_id: "incident_creation_modal", state: { values: {} } }
+    view: { callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL, state: { values: {} } }
     }
 
     request_data = slack_interaction_request(payload)
@@ -166,7 +166,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     team: { id: @workspace.platform_id },
     user: { id: "U12345678" },
     view: {
-      callback_id: "incident_creation_modal",
+      callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL,
       state: {
         values: {
           name_block: {
@@ -207,7 +207,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     team: { id: @workspace.platform_id },
     user: { id: "U12345678" },
     view: {
-      callback_id: "incident_creation_modal",
+      callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL,
       private_metadata: metadata.to_json,
       state: { values: {} }
     }
@@ -235,7 +235,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     team: { id: @workspace.platform_id }, # But request comes from workspace_one
     user: { id: "U12345678" },
     view: {
-      callback_id: "incident_creation_modal",
+      callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL,
       private_metadata: metadata.to_json,
       state: { values: {} }
     }
@@ -267,7 +267,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     channel: { id: "C12345678" },
     trigger_id: "12345.67890.trigger",
     actions: [
-      { action_id: "preview_announcement", type: "button" }
+      { action_id: Slack::Identifiers::PREVIEW_ANNOUNCEMENT, type: "button" }
     ]
     }
 
@@ -294,7 +294,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     channel: { id: "C12345678" },
     trigger_id: "12345.67890.trigger",
     actions: [
-      { action_id: "share_incidents_channel", type: "button" }
+      { action_id: Slack::Identifiers::SHARE_INCIDENTS_CHANNEL, type: "button" }
     ]
     }
 
@@ -320,7 +320,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     channel: { id: "C12345678" },
     trigger_id: "expired.trigger",
     actions: [
-      { action_id: "share_incidents_channel", type: "button" }
+      { action_id: Slack::Identifiers::SHARE_INCIDENTS_CHANNEL, type: "button" }
     ]
     }
 
@@ -345,7 +345,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     team: { id: @workspace.platform_id },
     user: { id: "U12345678" },
     view: {
-      callback_id: "share_incidents_channel_modal",
+      callback_id: Slack::Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL,
       state: {
         values: {
           share_target_block: {
@@ -379,7 +379,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     team: { id: @workspace.platform_id },
     user: { id: "U12345678" },
     view: {
-      callback_id: "share_incidents_channel_modal",
+      callback_id: Slack::Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL,
       state: {
         values: {
           share_target_block: {
@@ -408,7 +408,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
   test "should handle disabled preview buttons" do
     @workspace.update!(incidents_channel_id: "C12345678")
 
-    [ "preview_homepage_disabled", "preview_subscribe_disabled" ].each do |action_id|
+    [ Slack::Identifiers::PREVIEW_HOMEPAGE_DISABLED, Slack::Identifiers::PREVIEW_SUBSCRIBE_DISABLED ].each do |action_id|
     payload = {
       type: "block_actions",
       team: { id: @workspace.platform_id },
@@ -459,7 +459,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     user: { id: "U12345678" },
     channel: { id: "C12345678" },
     actions: [
-      { action_id: "preview_announcement", type: "button" }
+      { action_id: Slack::Identifiers::PREVIEW_ANNOUNCEMENT, type: "button" }
     ]
     }
 

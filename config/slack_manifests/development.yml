@@ -18,6 +18,11 @@ features:
       description: "Manage incidents (short alias for /firefight)"
       usage_hint: "[new|summary|lead|status|actions|close|timeline|list]"
       should_escape: false
+  shortcuts:
+    - name: "Create an incident"
+      type: global
+      callback_id: create_incident_shortcut
+      description: "Quickly declare a new incident"
 
 oauth_config:
   redirect_urls:

@@ -29,7 +29,7 @@ module Slack
                   text: "🔗 Share this channel",
                   emoji: true
                 },
-                action_id: "share_incidents_channel",
+                action_id: Slack::Identifiers::SHARE_INCIDENTS_CHANNEL,
                 style: "primary"
               },
               {
@@ -39,7 +39,7 @@ module Slack
                   text: "📢 Preview an announcement",
                   emoji: true
                 },
-                action_id: "preview_announcement"
+                action_id: Slack::Identifiers::PREVIEW_ANNOUNCEMENT
               }
             ]
           }
@@ -119,7 +119,7 @@ module Slack
                   text: "🌐 Incident homepage",
                   emoji: true
                 },
-                action_id: "preview_homepage_disabled",
+                action_id: Slack::Identifiers::PREVIEW_HOMEPAGE_DISABLED,
                 style: "primary"
               },
               {
@@ -129,7 +129,7 @@ module Slack
                   text: "📌 Subscribe",
                   emoji: true
                 },
-                action_id: "preview_subscribe_disabled"
+                action_id: Slack::Identifiers::PREVIEW_SUBSCRIBE_DISABLED
               }
             ]
           }
@@ -141,7 +141,7 @@ module Slack
     def self.share_channel_modal(user_id, channel_id)
       {
         type: "modal",
-        callback_id: "share_incidents_channel_modal",
+        callback_id: Slack::Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL,
         title: {
           type: "plain_text",
           text: "Share this channel"

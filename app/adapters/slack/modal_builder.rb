@@ -7,7 +7,7 @@ module Slack
     def self.incident_creation_form
       {
         type: "modal",
-        callback_id: "incident_creation_modal",
+        callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL,
         title: {
           type: "plain_text",
           text: "Declare an incident"
@@ -115,6 +115,36 @@ module Slack
               text: "Your current understanding of what happened in the incident, and the impact it had. It's fine to go into detail here."
             },
             optional: true
+          },
+          {
+            type: "input",
+            block_id: "visibility_block",
+            element: {
+              type: "static_select",
+              action_id: "visibility_select",
+              options: [
+                {
+                  text: { type: "plain_text", text: "Everyone (public)" },
+                  value: "public"
+                },
+                {
+                  text: { type: "plain_text", text: "Private" },
+                  value: "private"
+                }
+              ],
+              initial_option: {
+                text: { type: "plain_text", text: "Everyone (public)" },
+                value: "public"
+              }
+            },
+            label: {
+              type: "plain_text",
+              text: "Who should be able to see this incident?"
+            },
+            hint: {
+              type: "plain_text",
+              text: "Public incidents are visible to everyone in the workspace. Private incidents are only accessible to invited members."
+            }
           }
         ]
       }

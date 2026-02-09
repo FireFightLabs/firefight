@@ -1,0 +1,45 @@
+require "test_helper"
+
+class Interactions::ShareChannelHandlerTest < ActiveSupport::TestCase
+  setup do
+    @workspace = Workspace.create!(
+      platform: "slack",
+      platform_id: "T#{SecureRandom.hex(8)}",
+      name: "Test Workspace",
+      access_token: "xoxb-test-token",
+      installed_at: Time.current,
+      incidents_channel_id: "C12345678"
+    )
+  end
+
+  test "opens share modal and returns clear" do
+    payload = mock_slack_interaction_payload(
+      team_id: @workspace.platform_id,
+      type: "block_actions",
+      overrides: {
+        "actions" => [ { "action_id" => Slack::Identifiers::SHARE_INCIDENTS_CHANNEL } ]
+      }
+    )
+
+    stub_open_modal
+
+    result = Interactions::ShareChannelHandler.execute(payload)
+
+    assert_equal "clear", result[:response_action]
+  end
+
+  test "handles expired trigger" do
+    payload = mock_slack_interaction_payload(
+      team_id: @workspace.platform_id,
+      type: "block_actions"
+    )
+
+    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("Trigger expired"))
+
+    result = Interactions::ShareChannelHandler.execute(payload)
+
+    assert_equal "errors", result[:response_action]
+    assert result[:errors][:base].present?
+    assert_includes result[:errors][:base], "expired"
+  end
+end
