@@ -3,7 +3,8 @@
 class InteractionDispatcher
   # view_submission handlers keyed by callback_id
   VIEW_SUBMISSION_HANDLERS = {
-    Slack::Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL => Interactions::ShareModalSubmissionHandler
+    Slack::Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL => Interactions::ShareModalSubmissionHandler,
+    Slack::Identifiers::INCIDENT_CREATION_MODAL => Interactions::IncidentCreationHandler
   }.freeze
 
   # block_actions handlers keyed by action_id

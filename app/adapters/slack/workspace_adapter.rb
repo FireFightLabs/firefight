@@ -7,6 +7,24 @@ module Slack
       @workspace = workspace
     end
 
+    # Create a Slack channel with given name
+    #
+    # @param name [String] Channel name
+    # @param is_private [Boolean] Whether channel is private
+    # @return [Hash] { channel_id:, channel_name: }
+    def create_channel(name:, is_private: false)
+      result = Slack::Client.create_channel(
+        workspace: @workspace,
+        name: name,
+        is_private: is_private
+      )
+
+      {
+        channel_id: result[:channel][:id],
+        channel_name: result[:channel][:name]
+      }
+    end
+
     # Create incidents channel
     #
     # @return [Hash] Normalized response with :channel_id, :channel_name, :already_existed

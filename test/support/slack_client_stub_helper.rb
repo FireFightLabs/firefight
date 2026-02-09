@@ -65,11 +65,24 @@ module SlackClientStubHelper
     Slack::Client.stubs(:list_conversations).returns(channels)
   end
 
+  def stub_pin_message
+    Slack::Client.stubs(:pin_message).returns({ ok: true })
+  end
+
+  def stub_update_modal(raises: nil)
+    if raises
+      Slack::Client.stubs(:update_modal).raises(raises)
+    else
+      Slack::Client.stubs(:update_modal).returns({ ok: true, view: { id: "V12345678" } })
+    end
+  end
+
   def stub_successful_slack_workflow
     stub_create_channel
     stub_set_channel_topic
     stub_set_channel_purpose
     stub_invite_to_channel
     stub_post_message
+    stub_pin_message
   end
 end
