@@ -85,6 +85,12 @@ class IncidentCreationWorkflow < Base
     incidents_channel_id = workspace.incidents_channel_id
 
     return { skipped: true } unless incidents_channel_id
+
+    if incident.is_private
+      Rails.logger.info({ event: "incident.announcement_skipped", incident_id: incident.id, reason: "private_incident" })
+      return { skipped: true }
+    end
+
     return { message_ts: incident.announcement_message_ts } if incident.announcement_message_ts
 
     blocks = Slack::IncidentMessageBuilder.announcement_blocks(incident)
