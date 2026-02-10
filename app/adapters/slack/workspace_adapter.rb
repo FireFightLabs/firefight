@@ -123,6 +123,8 @@ module Slack
       )
 
       { success: true }
+    rescue Slack::Client::TriggerExpiredError
+      raise AdapterError::TriggerExpired, "Modal trigger expired"
     end
 
     # Open share channel modal

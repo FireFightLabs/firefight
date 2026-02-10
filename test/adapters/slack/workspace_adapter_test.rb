@@ -161,15 +161,14 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     assert result[:success]
   end
 
-  test "open_share_modal raises TriggerExpiredError on expired trigger" do
+  test "open_modal translates TriggerExpiredError to platform-agnostic error" do
     stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
-    assert_raises(Slack::Client::TriggerExpiredError) do
-      @adapter.open_share_modal(
+    assert_raises(AdapterError::TriggerExpired) do
+      @adapter.open_modal(
         trigger_id: "expired.trigger",
-        user_id: "U12345678",
-        channel_id: "C12345678"
+        view: { type: "modal" }
       )
-      end
+    end
   end
 
   # post_share_messages tests

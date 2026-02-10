@@ -24,7 +24,7 @@ module Interactions
       })
 
       { response_action: "clear" }
-    rescue Slack::Client::TriggerExpiredError
+    rescue AdapterError::TriggerExpired
       Rails.logger.warn({
         event: "interactions.trigger_expired",
         message: "Trigger ID expired when opening share modal",

@@ -11,7 +11,7 @@ module Commands
         trigger_id: command.trigger_id,
         view: Slack::ModalBuilder.incident_creation_form
       )
-    rescue Slack::Client::TriggerExpiredError
+    rescue AdapterError::TriggerExpired
       { response_type: "ephemeral", text: "The command timed out. Please try again." }
     end
   end

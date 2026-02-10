@@ -8,12 +8,10 @@ module Interactions
       workspace = find_workspace(payload)
       trigger_id = payload["trigger_id"]
 
-      modal = Slack::ModalBuilder.incident_creation_form
-
-      Slack::Client.open_modal(
-        workspace: workspace,
+      adapter = WorkspaceAdapter.for(workspace)
+      adapter.open_modal(
         trigger_id: trigger_id,
-        view: modal
+        view: Slack::ModalBuilder.incident_creation_form
       )
 
       Rails.logger.info({
@@ -23,7 +21,7 @@ module Interactions
       })
 
       nil
-    rescue Slack::Client::TriggerExpiredError
+    rescue AdapterError::TriggerExpired
       Rails.logger.warn({
         event: "shortcut.trigger_expired",
         workspace_id: workspace&.id,

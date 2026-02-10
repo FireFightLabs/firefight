@@ -70,7 +70,7 @@ module Commands
           trigger_id: command.trigger_id,
           view: Slack::ModalBuilder.home_modal
         )
-      rescue Slack::Client::TriggerExpiredError
+      rescue AdapterError::TriggerExpired
         ephemeral("This command has expired. Please try `/ff` again.")
       end
 

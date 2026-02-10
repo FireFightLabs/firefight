@@ -1,6 +1,7 @@
 class WorkspaceAdapter
   class UnsupportedPlatformError < StandardError; end
 
+
   # Factory method to create appropriate adapter based on workspace platform
   #
   # @param workspace [Workspace] The workspace record
