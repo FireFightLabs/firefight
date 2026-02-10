@@ -65,28 +65,60 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
         end
   end
 
+  # create_channel tests
+
+  test "create_channel creates new channel" do
+    stub_create_channel(result: { channel: { id: "C_NEW", name: "inc-001-test", is_channel: true } })
+    result = @adapter.create_channel(name: "inc-001-test")
+
+    assert_equal "C_NEW", result[:channel_id]
+    assert_equal "inc-001-test", result[:channel_name]
+  end
+
+  test "create_channel translates ChannelExistsError to AdapterError" do
+    stub_create_channel(raises: Slack::Client::ChannelExistsError.new("name_taken"))
+    assert_raises(AdapterError::ChannelExists) do
+      @adapter.create_channel(name: "existing-channel")
+    end
+  end
+
   # set_channel_metadata tests
 
   test "set_channel_metadata sets topic and purpose" do
     stub_set_channel_topic
-      stub_set_channel_purpose
-      result = @adapter.set_channel_metadata(channel_id: "C12345678")
+    stub_set_channel_purpose
+    result = @adapter.set_channel_metadata(channel_id: "C12345678", topic: "my topic", purpose: "my purpose")
 
-      assert result[:success]
+    assert result[:success]
   end
 
-  test "set_channel_metadata uses correct description" do
-    topic_set = nil
-    purpose_set = nil
+  test "set_channel_metadata passes topic and purpose to Slack API" do
+    Slack::Client.expects(:set_channel_topic).with(
+      workspace: @workspace, channel: "C12345678", topic: "custom topic"
+    ).returns({ ok: true })
+    Slack::Client.expects(:set_channel_purpose).with(
+      workspace: @workspace, channel: "C12345678", purpose: "custom purpose"
+    ).returns({ ok: true })
 
-    stub_set_channel_topic
-    topic_set = true
-      stub_set_channel_purpose
-      purpose_set = true
-      @adapter.set_channel_metadata(channel_id: "C12345678")
+    @adapter.set_channel_metadata(channel_id: "C12345678", topic: "custom topic", purpose: "custom purpose")
+  end
 
-    assert topic_set
-    assert purpose_set
+  # post_message tests
+
+  test "post_message posts to channel and returns message_ts" do
+    stub_post_message
+    result = @adapter.post_message(channel_id: "C12345678", text: "hello", blocks: [])
+
+    assert_equal "1234567890.123456", result[:message_ts]
+  end
+
+  # pin_message tests
+
+  test "pin_message pins message in channel" do
+    stub_pin_message
+    result = @adapter.pin_message(channel_id: "C12345678", timestamp: "1234567890.123456")
+
+    assert result[:ok]
   end
 
   # invite_user tests

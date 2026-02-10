@@ -39,7 +39,11 @@ class WorkspaceSetupService
   # @return [Hash] Result with :success
   def set_channel_metadata(workspace, channel_id)
     adapter = WorkspaceAdapter.for(workspace)
-    adapter.set_channel_metadata(channel_id: channel_id)
+    adapter.set_channel_metadata(
+      channel_id: channel_id,
+      topic: Slack::WorkspaceAdapter::CHANNEL_DESCRIPTION,
+      purpose: Slack::WorkspaceAdapter::CHANNEL_DESCRIPTION
+    )
 
     Rails.logger.info({
       event: "workspace_setup.metadata_set",

@@ -23,6 +23,8 @@ module Slack
         channel_id: result[:channel][:id],
         channel_name: result[:channel][:name]
       }
+    rescue Slack::Client::ChannelExistsError
+      raise AdapterError::ChannelExists, "Channel name already taken"
     end
 
     # Create incidents channel
@@ -57,20 +59,41 @@ module Slack
       }
     end
 
-    def set_channel_metadata(channel_id:)
+    def set_channel_metadata(channel_id:, topic:, purpose:)
       Slack::Client.set_channel_topic(
         workspace: @workspace,
         channel: channel_id,
-        topic: CHANNEL_DESCRIPTION
+        topic: topic
       )
 
       Slack::Client.set_channel_purpose(
         workspace: @workspace,
         channel: channel_id,
-        purpose: CHANNEL_DESCRIPTION
+        purpose: purpose
       )
 
       { success: true }
+    end
+
+    def post_message(channel_id:, text:, blocks:)
+      result = Slack::Client.post_message(
+        workspace: @workspace,
+        channel: channel_id,
+        text: text,
+        blocks: blocks
+      )
+
+      { message_ts: result[:ts] }
+    end
+
+    def pin_message(channel_id:, timestamp:)
+      Slack::Client.pin_message(
+        workspace: @workspace,
+        channel: channel_id,
+        timestamp: timestamp
+      )
+
+      { ok: true }
     end
 
     def invite_user(channel_id:, user_id:)
