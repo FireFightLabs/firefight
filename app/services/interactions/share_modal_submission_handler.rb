@@ -1,15 +1,9 @@
-# Handles the share incidents channel modal submission
-# Posts share messages to selected conversations
 module Interactions
   class ShareModalSubmissionHandler
-    extend WorkspaceFinding
+    def self.execute(interaction)
+      workspace = interaction.workspace
 
-    def self.execute(payload)
-      workspace = find_workspace(payload)
-      user_id = payload.dig("user", "id")
-
-      values = payload.dig("view", "state", "values")
-      selected_conversations = values.dig(
+      selected_conversations = interaction.values.dig(
         "share_target_block",
         "share_target_select",
         "selected_conversations"
@@ -20,7 +14,7 @@ module Interactions
           event: "interactions.share_no_targets",
           message: "User tried to share without selecting targets",
           workspace_id: workspace.id,
-          user_id: user_id
+          user_id: interaction.user_id
         })
 
         return {
@@ -31,7 +25,7 @@ module Interactions
 
       adapter = Slack::WorkspaceAdapter.new(workspace)
       result = adapter.post_share_messages(
-        user_id: user_id,
+        user_id: interaction.user_id,
         channel_id: workspace.incidents_channel_id,
         target_conversations: selected_conversations
       )
@@ -40,7 +34,7 @@ module Interactions
         event: "interactions.channel_shared",
         message: "Shared incidents channel",
         workspace_id: workspace.id,
-        user_id: user_id,
+        user_id: interaction.user_id,
         target_count: result[:shared_count],
         targets: selected_conversations
       })

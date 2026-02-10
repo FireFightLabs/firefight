@@ -1,7 +1,6 @@
-# Handles modal close events (user clicks "Cancel" or X)
 module Interactions
   class ViewClosedHandler
-    def self.execute(_payload)
+    def self.execute(_interaction)
       Rails.logger.info("Modal closed without submission")
       nil
     end

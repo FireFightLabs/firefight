@@ -11,15 +11,10 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
   test "creates incident and starts workflow" do
     IncidentCreationWorkflow.stubs(:start!)
 
-    payload = build_payload(
-      severity: "critical",
-      name: "DB Down",
-      summary: "Primary DB offline",
-      visibility: "public"
-    )
-
     assert_difference "Incident.count", 1 do
-      result = Interactions::IncidentCreationHandler.execute(payload)
+      result = Interactions::IncidentCreationHandler.execute(
+        build_interaction(severity: "critical", name: "DB Down", summary: "Primary DB offline", visibility: "public")
+      )
       assert_nil result
     end
 
@@ -35,50 +30,45 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
   test "sets is_private when visibility is private" do
     IncidentCreationWorkflow.stubs(:start!)
 
-    payload = build_payload(visibility: "private")
-
-    Interactions::IncidentCreationHandler.execute(payload)
+    Interactions::IncidentCreationHandler.execute(
+      build_interaction(visibility: "private")
+    )
 
     incident = Incident.find_by!(name: "Test Incident")
     assert incident.is_private
   end
 
   test "returns error for invalid severity" do
-    payload = build_payload(severity: "nonexistent")
-
-    result = Interactions::IncidentCreationHandler.execute(payload)
+    result = Interactions::IncidentCreationHandler.execute(
+      build_interaction(severity: "nonexistent")
+    )
 
     assert_equal "errors", result[:response_action]
     assert result[:errors][:severity_block].present?
   end
 
   test "returns error for unknown workspace member" do
-    payload = build_payload
-    payload["user"]["id"] = "U_UNKNOWN"
-
-    result = Interactions::IncidentCreationHandler.execute(payload)
+    result = Interactions::IncidentCreationHandler.execute(
+      build_interaction(user_id: "U_UNKNOWN")
+    )
 
     assert_equal "errors", result[:response_action]
   end
 
   private
 
-  def build_payload(severity: "minor", name: "Test Incident", summary: "Test summary", visibility: "public")
-    {
-      "type" => "view_submission",
-      "team" => { "id" => @workspace.platform_id },
-      "user" => { "id" => @member.platform_user_id },
-      "view" => {
-        "callback_id" => Slack::Identifiers::INCIDENT_CREATION_MODAL,
-        "state" => {
-          "values" => {
-            "name_block" => { "name_input" => { "value" => name } },
-            "severity_block" => { "severity_select" => { "selected_option" => { "value" => severity } } },
-            "summary_block" => { "summary_input" => { "value" => summary } },
-            "visibility_block" => { "visibility_select" => { "selected_option" => { "value" => visibility } } }
-          }
-        }
+  def build_interaction(severity: "minor", name: "Test Incident", summary: "Test summary", visibility: "public", user_id: @member.platform_user_id)
+    Interaction.new(
+      type: "view_submission",
+      team_id: @workspace.platform_id,
+      user_id: user_id,
+      callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL,
+      values: {
+        "name_block" => { "name_input" => { "value" => name } },
+        "severity_block" => { "severity_select" => { "selected_option" => { "value" => severity } } },
+        "summary_block" => { "summary_input" => { "value" => summary } },
+        "visibility_block" => { "visibility_select" => { "selected_option" => { "value" => visibility } } }
       }
-    }
+    )
   end
 end

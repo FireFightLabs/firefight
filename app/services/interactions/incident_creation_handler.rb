@@ -1,13 +1,10 @@
 module Interactions
   class IncidentCreationHandler
-    extend WorkspaceFinding
+    def self.execute(interaction)
+      workspace = interaction.workspace
+      member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
-    def self.execute(payload)
-      workspace = find_workspace(payload)
-      user_id = payload.dig("user", "id")
-      member = workspace.workspace_memberships.find_by!(platform_user_id: user_id)
-
-      values = payload.dig("view", "state", "values")
+      values = interaction.values
       name = values.dig("name_block", "name_input", "value")
       severity_slug = values.dig("severity_block", "severity_select", "selected_option", "value")
       summary = values.dig("summary_block", "summary_input", "value")

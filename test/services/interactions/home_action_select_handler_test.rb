@@ -10,7 +10,7 @@ class Interactions::HomeActionSelectHandlerTest < ActiveSupport::TestCase
   test "updates modal with help text for selected action" do
     stub_update_modal
 
-    result = Interactions::HomeActionSelectHandler.execute(build_payload("new"))
+    result = Interactions::HomeActionSelectHandler.execute(build_interaction("new"))
 
     assert_nil result
   end
@@ -18,18 +18,21 @@ class Interactions::HomeActionSelectHandlerTest < ActiveSupport::TestCase
   test "returns nil on API error" do
     stub_update_modal(raises: Slack::Client::ApiError.new("update failed"))
 
-    result = Interactions::HomeActionSelectHandler.execute(build_payload("new"))
+    result = Interactions::HomeActionSelectHandler.execute(build_interaction("new"))
 
     assert_nil result
   end
 
   private
 
-  def build_payload(selected_value)
-    {
-      "type" => "block_actions",
-      "team" => { "id" => @workspace.platform_id },
-      "view" => {
+  def build_interaction(selected_value)
+    Interaction.new(
+      type: "block_actions",
+      team_id: @workspace.platform_id,
+      user_id: "U12345678",
+      action_id: Slack::Identifiers::HOME_ACTION_SELECT,
+      selected_value: selected_value,
+      view: {
         "id" => "V123",
         "title" => { "type" => "plain_text", "text" => "Incident Home" },
         "close" => { "type" => "plain_text", "text" => "Close" },
@@ -38,11 +41,7 @@ class Interactions::HomeActionSelectHandlerTest < ActiveSupport::TestCase
           { "block_id" => "action_select_block", "type" => "input" },
           { "block_id" => "command_details_block", "type" => "section", "text" => { "type" => "mrkdwn", "text" => "placeholder" } }
         ]
-      },
-      "actions" => [ {
-        "action_id" => Slack::Identifiers::HOME_ACTION_SELECT,
-        "selected_option" => { "value" => selected_value }
-      } ]
-    }
+      }
+    )
   end
 end

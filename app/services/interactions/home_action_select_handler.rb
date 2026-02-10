@@ -1,13 +1,10 @@
 module Interactions
   class HomeActionSelectHandler
-    extend WorkspaceFinding
+    def self.execute(interaction)
+      workspace = interaction.workspace
+      view = interaction.view
 
-    def self.execute(payload)
-      workspace = find_workspace(payload)
-      selected_value = payload.dig("actions", 0, "selected_option", "value")
-      view = payload["view"]
-
-      help_text = Slack::ModalBuilder.home_command_help(selected_value)
+      help_text = Slack::ModalBuilder.home_command_help(interaction.selected_value)
 
       updated_blocks = view["blocks"].map do |block|
         if block["block_id"] == "command_details_block"

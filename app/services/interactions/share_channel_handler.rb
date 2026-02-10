@@ -1,18 +1,12 @@
-# Handles the "Share incidents channel" button click
-# Opens a modal for the user to select channels/people to share with
 module Interactions
   class ShareChannelHandler
-    extend WorkspaceFinding
-
-    def self.execute(payload)
-      workspace = find_workspace(payload)
-      user_id = payload.dig("user", "id")
-      trigger_id = payload["trigger_id"]
+    def self.execute(interaction)
+      workspace = interaction.workspace
 
       adapter = Slack::WorkspaceAdapter.new(workspace)
       adapter.open_share_modal(
-        trigger_id: trigger_id,
-        user_id: user_id,
+        trigger_id: interaction.trigger_id,
+        user_id: interaction.user_id,
         channel_id: workspace.incidents_channel_id
       )
 
@@ -20,7 +14,7 @@ module Interactions
         event: "interactions.share_modal_opened",
         message: "Opened share channel modal",
         workspace_id: workspace.id,
-        user_id: user_id
+        user_id: interaction.user_id
       })
 
       { response_action: "clear" }
@@ -29,7 +23,7 @@ module Interactions
         event: "interactions.trigger_expired",
         message: "Trigger ID expired when opening share modal",
         workspace_id: workspace.id,
-        user_id: user_id
+        user_id: interaction.user_id
       })
 
       {

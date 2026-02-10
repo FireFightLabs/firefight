@@ -13,30 +13,32 @@ class Interactions::PreviewAnnouncementHandlerTest < ActiveSupport::TestCase
   end
 
   test "posts ephemeral preview message and returns clear" do
-    payload = mock_slack_interaction_payload(
-      team_id: @workspace.platform_id,
-      type: "block_actions",
-      overrides: {
-        "actions" => [ { "action_id" => Slack::Identifiers::PREVIEW_ANNOUNCEMENT } ]
-      }
-    )
+    interaction = build_interaction
 
     stub_post_ephemeral
 
-    result = Interactions::PreviewAnnouncementHandler.execute(payload)
+    result = Interactions::PreviewAnnouncementHandler.execute(interaction)
 
     assert_equal "clear", result[:response_action]
   end
 
   test "raises error if workspace not found" do
-    payload = mock_slack_interaction_payload(
-      team_id: @workspace.platform_id,
-      type: "block_actions",
-      overrides: { "team" => { "id" => "T_NONEXISTENT" } }
-    )
+    interaction = build_interaction(team_id: "T_NONEXISTENT")
 
     assert_raises(ActiveRecord::RecordNotFound) do
-      Interactions::PreviewAnnouncementHandler.execute(payload)
+      Interactions::PreviewAnnouncementHandler.execute(interaction)
     end
+  end
+
+  private
+
+  def build_interaction(team_id: @workspace.platform_id)
+    Interaction.new(
+      type: "block_actions",
+      team_id: team_id,
+      user_id: "U12345678",
+      channel_id: "C12345678",
+      action_id: Slack::Identifiers::PREVIEW_ANNOUNCEMENT
+    )
   end
 end
