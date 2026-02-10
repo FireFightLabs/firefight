@@ -65,13 +65,11 @@ module Commands
         workspace = command.workspace
         return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
 
-        Slack::Client.open_modal(
-          workspace: workspace,
+        adapter = WorkspaceAdapter.for(workspace)
+        adapter.open_modal(
           trigger_id: command.trigger_id,
           view: Slack::ModalBuilder.home_modal
         )
-
-        { ok: true }
       rescue Slack::Client::TriggerExpiredError
         ephemeral("This command has expired. Please try `/ff` again.")
       end

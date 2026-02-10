@@ -5,7 +5,7 @@ class IncidentCreationWorkflow < Base
   step :set_channel_metadata, depends_on: [ :create_slack_channel ]
   step :post_quick_actions_message, depends_on: [ :set_channel_metadata ]
   step :post_announcement, depends_on: [ :create_slack_channel ]
-  step :invite_declarer, depends_on: [ :post_announcement ]
+  step :invite_declarer, depends_on: [ :post_quick_actions_message ]
   step :create_incident_event
 
   def create_slack_channel(workflow:, step:, input:)

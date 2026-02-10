@@ -22,7 +22,7 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     command = build_command("")
     response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert response[:ok]
+    assert response[:success]
   end
 
   test "opens home modal for nil text" do
@@ -37,7 +37,7 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     )
     response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert response[:ok]
+    assert response[:success]
   end
 
   test "opens home modal for 'home' subcommand" do
@@ -45,7 +45,7 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     command = build_command("home")
     response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert response[:ok]
+    assert response[:success]
   end
 
   test "handles trigger expiration for home modal" do

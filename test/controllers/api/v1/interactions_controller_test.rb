@@ -125,6 +125,18 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "should return bad request for missing payload" do
+    body = ""
+    headers = generate_slack_signature(body: body)
+
+    post api_v1_interactions_url,
+         params: body,
+         headers: headers
+
+    assert_response :bad_request
+    assert_equal "Invalid payload", JSON.parse(response.body)["error"]
+  end
+
   test "should return bad request for invalid JSON payload" do
     body = "payload=not_valid_json"
     headers = generate_slack_signature(body: body)

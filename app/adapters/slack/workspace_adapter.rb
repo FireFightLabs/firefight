@@ -115,6 +115,16 @@ module Slack
       { message_ts: result[:ts] }
     end
 
+    def open_modal(trigger_id:, view:)
+      Slack::Client.open_modal(
+        workspace: @workspace,
+        trigger_id: trigger_id,
+        view: view
+      )
+
+      { success: true }
+    end
+
     # Open share channel modal
     #
     # @param trigger_id [String] Slack trigger ID from interaction
@@ -122,15 +132,10 @@ module Slack
     # @param channel_id [String] Incidents channel ID to share
     # @return [Hash] Response with :success
     def open_share_modal(trigger_id:, user_id:, channel_id:)
-      modal = Slack::InstallationMessageBuilder.share_channel_modal(user_id, channel_id)
-
-      Slack::Client.open_modal(
-        workspace: @workspace,
+      open_modal(
         trigger_id: trigger_id,
-        view: modal
+        view: Slack::InstallationMessageBuilder.share_channel_modal(user_id, channel_id)
       )
-
-      { success: true }
     end
 
     # Post share message to selected channels
