@@ -107,16 +107,6 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     assert_includes reporter.dig(:text, :text), "<@U12345678>"
   end
 
-  test "preview_announcement_blocks includes incident lead with firefighter emoji" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
-
-    sections = result[:blocks].select { |b| b[:type] == "section" }
-    lead = sections.find { |s| s.dig(:text, :text)&.include?("Incident Lead") }
-    assert lead.present?
-    assert_includes lead.dig(:text, :text), ":firefighter:"
-    assert_includes lead.dig(:text, :text), "<@U12345678>"
-  end
-
   test "preview_announcement_blocks includes dividers" do
     result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
 

@@ -5,7 +5,7 @@ class IncidentCreationWorkflow < Base
   step :set_channel_metadata, depends_on: [ :create_slack_channel ]
   step :post_quick_actions_message, depends_on: [ :set_channel_metadata ]
   step :post_announcement, depends_on: [ :create_slack_channel ]
-  step :invite_declarer, depends_on: [ :create_slack_channel ]
+  step :invite_declarer, depends_on: [ :post_announcement ]
   step :create_incident_event
 
   def create_slack_channel(workflow:, step:, input:)
@@ -53,24 +53,30 @@ class IncidentCreationWorkflow < Base
   def post_quick_actions_message(workflow:, step:, input:)
     incident = workflow.subject
     workspace = incident.workspace
-    blocks = Slack::IncidentMessageBuilder.quick_actions_blocks(incident)
 
-    result = Slack::Client.post_message(
-      workspace: workspace,
-      channel: incident.slack_channel_id,
-      text: "#{incident.identifier} - Quick Actions",
-      blocks: blocks
-    )
+    message_ts = incident.initial_message_ts
+
+    unless message_ts
+      blocks = Slack::IncidentMessageBuilder.quick_actions_blocks(incident)
+
+      result = Slack::Client.post_message(
+        workspace: workspace,
+        channel: incident.slack_channel_id,
+        text: "#{incident.identifier} - Quick Actions",
+        blocks: blocks
+      )
+
+      message_ts = result[:ts]
+      incident.update!(initial_message_ts: message_ts)
+    end
 
     Slack::Client.pin_message(
       workspace: workspace,
       channel: incident.slack_channel_id,
-      timestamp: result[:ts]
+      timestamp: message_ts
     )
 
-    incident.update!(initial_message_ts: result[:ts])
-
-    { message_ts: result[:ts] }
+    { message_ts: message_ts }
   end
 
   def post_announcement(workflow:, step:, input:)
@@ -79,6 +85,7 @@ class IncidentCreationWorkflow < Base
     incidents_channel_id = workspace.incidents_channel_id
 
     return { skipped: true } unless incidents_channel_id
+    return { message_ts: incident.announcement_message_ts } if incident.announcement_message_ts
 
     blocks = Slack::IncidentMessageBuilder.announcement_blocks(incident)
 

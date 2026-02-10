@@ -41,6 +41,7 @@ oauth_config:
       - channels:join      # Bot can join channels it creates
       - channels:read      # Read channel info (check if #incidents exists)
       - users:read         # Get user info for @mentions in messages
+      - pins:write         # Pin key messages in incident channels
 
 settings:
   interactivity:

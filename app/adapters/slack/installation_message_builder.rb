@@ -49,92 +49,23 @@ module Slack
 
     # Ephemeral preview message (only visible to clicking user)
     def self.preview_announcement_blocks(user_id)
-      {
-        blocks: [
-          {
-            type: "context",
-            elements: [
-              {
-                type: "mrkdwn",
-                text: "_Only visible to you_"
-              }
-            ]
-          },
-          {
-            type: "header",
-            text: {
-              type: "plain_text",
-              text: "[PREVIEW] Website is down",
-              emoji: true
-            }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "The marketing website is down: I'm getting a '502 Gateway OverallTimeout' error"
-            }
-          },
-          {
-            type: "divider"
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "🔥 *Severity:* Minor"
-            }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "📊 *Status:* Investigating"
-            }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "👤 *Reporter:* <@#{user_id}>"
-            }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: ":firefighter: *Incident Lead:* <@#{user_id}>"
-            }
-          },
-          {
-            type: "divider"
-          },
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "🌐 Incident homepage",
-                  emoji: true
-                },
-                action_id: Slack::Identifiers::PREVIEW_HOMEPAGE_DISABLED,
-                style: "primary"
-              },
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "📌 Subscribe",
-                  emoji: true
-                },
-                action_id: Slack::Identifiers::PREVIEW_SUBSCRIBE_DISABLED
-              }
-            ]
-          }
-        ]
-      }
+      preview_blocks = [
+        {
+          type: "context",
+          elements: [ { type: "mrkdwn", text: "_Only visible to you_" } ]
+        }
+      ]
+
+      preview_blocks += Slack::IncidentMessageBuilder.announcement_blocks_for(
+        title: "[PREVIEW] Website is down",
+        summary: "The marketing website is down: I'm getting a '502 Gateway OverallTimeout' error",
+        severity_name: "Minor",
+        severity_slug: "minor",
+        status_name: "Investigating",
+        reporter_id: user_id
+      )
+
+      { blocks: preview_blocks }
     end
 
     # Share channel modal

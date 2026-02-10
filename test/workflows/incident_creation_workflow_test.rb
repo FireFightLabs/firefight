@@ -87,6 +87,41 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     assert_equal false, event.metadata["is_private"]
   end
 
+  test "skips posting quick actions on retry when already posted" do
+    stub_successful_slack_workflow
+    @incident.update!(slack_channel_id: "C12345678", initial_message_ts: "existing.ts")
+
+    Slack::Client.expects(:post_message).never
+    Slack::Client.expects(:pin_message).once
+
+    runner = IncidentCreationWorkflow.new
+    result = runner.run_step(
+      "post_quick_actions_message",
+      workflow: build_workflow,
+      step: nil,
+      input: {}
+    )
+
+    assert_equal "existing.ts", result[:message_ts]
+  end
+
+  test "skips posting announcement on retry when already posted" do
+    stub_successful_slack_workflow
+    @incident.update!(announcement_message_ts: "existing.ts")
+
+    Slack::Client.expects(:post_message).never
+
+    runner = IncidentCreationWorkflow.new
+    result = runner.run_step(
+      "post_announcement",
+      workflow: build_workflow,
+      step: nil,
+      input: {}
+    )
+
+    assert_equal "existing.ts", result[:message_ts]
+  end
+
   test "handles channel name collision with fallback" do
     # First call raises ChannelExistsError, second succeeds
     Slack::Client.stubs(:create_channel)
@@ -102,5 +137,11 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
 
     @incident.reload
     assert_equal "C_FALLBACK", @incident.slack_channel_id
+  end
+
+  private
+
+  def build_workflow
+    Struct.new(:subject).new(@incident)
   end
 end
