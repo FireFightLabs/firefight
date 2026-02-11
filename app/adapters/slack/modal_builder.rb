@@ -215,6 +215,113 @@ module Slack
       ]
     end
 
+    def self.summary_modal(incident)
+      initial_value = incident.summary.present? ? { initial_value: incident.summary } : {}
+
+      {
+        type: "modal",
+        callback_id: Identifiers::UPDATE_SUMMARY_MODAL,
+        private_metadata: incident.id,
+        title: {
+          type: "plain_text",
+          text: "Update Summary"
+        },
+        submit: {
+          type: "plain_text",
+          text: "Save"
+        },
+        close: {
+          type: "plain_text",
+          text: "Cancel"
+        },
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "*#{incident.identifier}*: #{incident.name || 'Untitled Incident'}"
+            }
+          },
+          {
+            type: "input",
+            block_id: "summary_block",
+            element: {
+              type: "plain_text_input",
+              action_id: "summary_input",
+              multiline: true,
+              placeholder: {
+                type: "plain_text",
+                text: "What is your current understanding of the incident and its impact?"
+              },
+              max_length: 3000
+            }.merge(initial_value),
+            label: {
+              type: "plain_text",
+              text: "Summary"
+            },
+            hint: {
+              type: "plain_text",
+              text: "Describe what happened, the impact, and the current state. It's fine to go into detail."
+            },
+            optional: true
+          }
+        ]
+      }
+    end
+
+    def self.lead_modal(incident)
+      initial_user = incident.lead&.platform_user_id
+      element = {
+        type: "users_select",
+        action_id: "lead_select",
+        placeholder: {
+          type: "plain_text",
+          text: "Select a person"
+        }
+      }
+      element[:initial_user] = initial_user if initial_user
+
+      {
+        type: "modal",
+        callback_id: Identifiers::SET_LEAD_MODAL,
+        private_metadata: incident.id,
+        title: {
+          type: "plain_text",
+          text: "Set Incident Lead"
+        },
+        submit: {
+          type: "plain_text",
+          text: "Assign"
+        },
+        close: {
+          type: "plain_text",
+          text: "Cancel"
+        },
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "*#{incident.identifier}*: #{incident.name || 'Untitled Incident'}"
+            }
+          },
+          {
+            type: "input",
+            block_id: "lead_block",
+            element: element,
+            label: {
+              type: "plain_text",
+              text: "Incident Lead"
+            },
+            hint: {
+              type: "plain_text",
+              text: "The lead coordinates the incident response and provides regular updates."
+            }
+          }
+        ]
+      }
+    end
+
     def self.home_command_help(command)
       COMMAND_HELP[command] || "_Select an action above to see how to use the command directly._"
     end

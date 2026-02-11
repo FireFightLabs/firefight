@@ -244,6 +244,60 @@ module Slack
       { success: true }
     end
 
+    def update_message(channel_id:, ts:, text:, blocks:)
+      Slack::Client.update_message(
+        workspace: @workspace,
+        channel: channel_id,
+        ts: ts,
+        text: text,
+        blocks: blocks
+      )
+
+      { success: true }
+    end
+
+    def update_incident_quick_actions(channel_id:, ts:, incident:)
+      blocks = Slack::IncidentMessageBuilder.quick_actions_blocks(incident)
+      update_message(
+        channel_id: channel_id,
+        ts: ts,
+        text: "#{incident.identifier} - Quick Actions",
+        blocks: blocks
+      )
+    end
+
+    def update_incident_announcement(channel_id:, ts:, incident:)
+      blocks = Slack::IncidentMessageBuilder.announcement_blocks(incident)
+      update_message(
+        channel_id: channel_id,
+        ts: ts,
+        text: "New incident: #{incident.identifier}",
+        blocks: blocks
+      )
+    end
+
+    def open_summary_modal(trigger_id:, incident:)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.summary_modal(incident)
+      )
+    end
+
+    def open_lead_modal(trigger_id:, incident:)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.lead_modal(incident)
+      )
+    end
+
+    def post_lead_expectations(channel_id:, user_id:)
+      text = "*You're now the Incident Lead.* Here's what's expected:\n" \
+             "- Make sure it's clear who is doing what\n" \
+             "- Ensure everybody has what they need\n" \
+             "- Provide regular, clear updates"
+      post_ephemeral(channel_id: channel_id, user_id: user_id, text: text)
+    end
+
     def post_incident_quick_actions(channel_id:, incident:)
       blocks = Slack::IncidentMessageBuilder.quick_actions_blocks(incident)
       post_message(

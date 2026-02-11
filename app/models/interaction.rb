@@ -6,7 +6,8 @@ class Interaction
 
   attr_reader :type, :platform, :team_id, :user_id, :trigger_id,
               :channel_id, :action_id, :callback_id,
-              :selected_value, :view, :values, :raw
+              :selected_value, :action_value, :private_metadata,
+              :view, :values, :raw
 
   def initialize(attrs = {})
     attrs.each { |k, v| instance_variable_set(:"@#{k}", v) }

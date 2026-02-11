@@ -69,6 +69,14 @@ module SlackClientStubHelper
     Slack::Client.stubs(:pin_message).returns({ ok: true })
   end
 
+  def stub_update_message(raises: nil)
+    if raises
+      Slack::Client.stubs(:update_message).raises(raises)
+    else
+      Slack::Client.stubs(:update_message).returns({ ok: true, ts: "1234567890.123456", channel: "C12345678" })
+    end
+  end
+
   def stub_update_modal(raises: nil)
     if raises
       Slack::Client.stubs(:update_modal).raises(raises)

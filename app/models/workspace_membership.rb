@@ -14,6 +14,13 @@ class WorkspaceMembership < ApplicationRecord
   validates :platform_user_id, uniqueness: { scope: :workspace_id }
   validates :role, presence: true
 
+  # Delegations
+  delegate :email, to: :user
+
+  def display_name
+    user.name
+  end
+
   # Scopes
   scope :by_role, ->(role) { where(role: role) }
   scope :owners, -> { where(role: :owner) }

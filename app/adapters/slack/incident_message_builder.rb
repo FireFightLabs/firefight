@@ -30,13 +30,13 @@ module Slack
             {
               type: "button",
               text: { type: "plain_text", text: ":firefighter: Make me Lead", emoji: true },
-              action_id: "set_incident_lead_self",
+              action_id: Identifiers::SET_INCIDENT_LEAD_SELF,
               value: incident.id
             },
             {
               type: "button",
               text: { type: "plain_text", text: ":memo: Update summary", emoji: true },
-              action_id: "update_incident_summary",
+              action_id: Identifiers::UPDATE_INCIDENT_SUMMARY,
               value: incident.id
             }
           ]
