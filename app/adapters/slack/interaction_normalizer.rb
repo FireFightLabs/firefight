@@ -11,6 +11,8 @@ module Slack
         action_id: payload.dig("actions", 0, "action_id"),
         callback_id: payload.dig("view", "callback_id") || payload["callback_id"],
         selected_value: payload.dig("actions", 0, "selected_option", "value"),
+        action_value: payload.dig("actions", 0, "value"),
+        private_metadata: payload.dig("view", "private_metadata"),
         view: payload["view"],
         values: payload.dig("view", "state", "values"),
         raw: payload

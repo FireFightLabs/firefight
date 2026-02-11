@@ -17,11 +17,9 @@ module Commands
         when "home", nil
           open_home_modal(command)
         when "summary"
-          # Phase 2.1
-          ephemeral("Summary command coming soon...")
+          Commands::Firefight::SummaryHandler.execute(command)
         when "lead"
-          # Phase 2.2
-          ephemeral("Lead command coming soon...")
+          Commands::Firefight::LeadHandler.execute(command)
         when "status"
           # Phase 3.1
           ephemeral("Status command coming soon...")

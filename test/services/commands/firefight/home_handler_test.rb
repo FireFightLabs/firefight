@@ -59,7 +59,23 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
 
   # --- Placeholder subcommands ---
 
-  %w[summary lead status severity escalate timeline list postmortem].each do |sub|
+  test "routes 'summary' subcommand to SummaryHandler" do
+    command = build_command("summary")
+
+    Commands::Firefight::SummaryHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
+  end
+
+  test "routes 'lead' subcommand to LeadHandler" do
+    command = build_command("lead")
+
+    Commands::Firefight::LeadHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
+  end
+
+  %w[status severity escalate timeline list postmortem].each do |sub|
     test "handles '#{sub}' subcommand with placeholder" do
       command = build_command(sub)
       response = Commands::Firefight::HomeHandler.execute(command)
@@ -126,10 +142,10 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
 
   test "handles mixed case subcommands" do
     command = build_command("Summary")
-    response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
-    assert_includes response[:text], "coming soon"
+    Commands::Firefight::SummaryHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
   end
 
   # --- Subcommand with extra args ---

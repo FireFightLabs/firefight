@@ -26,58 +26,47 @@ module Slack
         { type: "divider" },
         {
           type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: ":firefighter: Make me Lead", emoji: true },
-              action_id: "set_incident_lead_self",
-              value: incident.id
-            },
-            {
-              type: "button",
-              text: { type: "plain_text", text: ":memo: Update summary", emoji: true },
-              action_id: "update_incident_summary",
-              value: incident.id
-            }
-          ]
+          elements: quick_action_buttons(incident)
         }
       ]
     end
 
     # Announcement posted to #incidents channel
     def self.announcement_blocks(incident)
-      announcement_blocks_for(
+      announcement_blocks_for({
         title: "#{incident.identifier}: #{incident.name || 'Untitled Incident'}",
         summary: incident.summary,
         severity_name: incident.incident_severity.name,
         severity_slug: incident.incident_severity.slug,
         status_name: incident.incident_status.name,
         reporter_id: incident.declared_by.platform_user_id,
+        lead_id: incident.lead&.platform_user_id,
         channel_id: incident.slack_channel_id
-      )
+      })
     end
 
     # Shared announcement block builder used by both real announcements and preview
-    def self.announcement_blocks_for(title:, severity_name:, severity_slug:, status_name:, reporter_id:, summary: nil, channel_id: nil)
+    def self.announcement_blocks_for(data)
       blocks = [
         {
           type: "header",
-          text: { type: "plain_text", text: title, emoji: true }
+          text: { type: "plain_text", text: data[:title], emoji: true }
         }
       ]
 
-      if summary.present?
+      if data[:summary].present?
         blocks << {
           type: "section",
-          text: { type: "mrkdwn", text: summary }
+          text: { type: "mrkdwn", text: data[:summary] }
         }
       end
 
       blocks << { type: "divider" }
-      blocks << { type: "section", text: { type: "mrkdwn", text: "#{severity_emoji_for(severity_slug)} *Severity:* #{severity_name}" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":bar_chart: *Status:* #{status_name}" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: *Reporter:* <@#{reporter_id}>" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":hash: *Channel:* <##{channel_id}>" } } if channel_id
+      blocks << { type: "section", text: { type: "mrkdwn", text: "#{severity_emoji_for(data[:severity_slug])} *Severity:* #{data[:severity_name]}" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":bar_chart: *Status:* #{data[:status_name]}" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: *Reporter:* <@#{data[:reporter_id]}>" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* <@#{data[:lead_id]}>" } } if data[:lead_id]
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":hash: *Channel:* <##{data[:channel_id]}>" } } if data[:channel_id]
       blocks << { type: "divider" }
       blocks << {
         type: "actions",
@@ -97,6 +86,28 @@ module Slack
       }
 
       blocks
+    end
+
+    def self.quick_action_buttons(incident)
+      buttons = []
+
+      unless incident.lead
+        buttons << {
+          type: "button",
+          text: { type: "plain_text", text: ":firefighter: Make me Lead", emoji: true },
+          action_id: Identifiers::SET_INCIDENT_LEAD_SELF,
+          value: incident.id
+        }
+      end
+
+      buttons << {
+        type: "button",
+        text: { type: "plain_text", text: ":memo: Update summary", emoji: true },
+        action_id: Identifiers::UPDATE_INCIDENT_SUMMARY,
+        value: incident.id
+      }
+
+      buttons
     end
 
     def self.severity_emoji(severity)

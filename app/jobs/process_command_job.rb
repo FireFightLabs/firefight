@@ -23,7 +23,8 @@ class ProcessCommandJob < ApplicationJob
     end
 
     # Dispatch to appropriate handler
-    CommandDispatcher.dispatch(command)
+    result = CommandDispatcher.dispatch(command)
+    send_ephemeral(command, result)
   rescue ArgumentError, NotImplementedError
     # Re-raise programming errors - these should fail fast
     raise
@@ -49,6 +50,23 @@ class ProcessCommandJob < ApplicationJob
     else
       raise ArgumentError, "Unknown platform: #{platform}"
     end
+  end
+
+  # Send ephemeral response to user when handler returns one
+  def send_ephemeral(command, result)
+    return unless result.is_a?(Hash) && result[:response_type] == "ephemeral"
+
+    workspace = command.workspace
+    return unless workspace
+
+    adapter = WorkspaceAdapter.for(workspace)
+    adapter.post_ephemeral(
+      channel_id: command.channel_id,
+      user_id: command.user_id,
+      text: result[:text]
+    )
+  rescue StandardError => e
+    Rails.logger.error({ event: "process_command_job.send_ephemeral_failed", error: e.message })
   end
 
   # Notify user of error

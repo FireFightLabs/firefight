@@ -182,6 +182,46 @@ module Slack
       )
     end
 
+    # Update an existing message in a Slack channel
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param channel [String] Channel ID
+    # @param ts [String] Timestamp of the message to update
+    # @param text [String] New message text
+    # @param blocks [Array<Hash>] Optional Block Kit blocks
+    # @return [Hash] Slack API response with indifferent access
+    # @raise [ApiError] if Slack API returns an error
+    def self.update_message(workspace:, channel:, ts:, text:, blocks: nil)
+      api_post(
+        workspace: workspace,
+        endpoint: "chat.update",
+        payload: {
+          channel: channel,
+          ts: ts,
+          text: text,
+          blocks: blocks
+        }.compact
+      )
+    end
+
+    # Delete a message from a Slack channel
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param channel [String] Channel ID
+    # @param ts [String] Timestamp of the message to delete
+    # @return [Hash] Slack API response with indifferent access
+    # @raise [ApiError] if Slack API returns an error
+    def self.delete_message(workspace:, channel:, ts:)
+      api_post(
+        workspace: workspace,
+        endpoint: "chat.delete",
+        payload: {
+          channel: channel,
+          ts: ts
+        }
+      )
+    end
+
     # Update an existing modal in Slack
     #
     # @param workspace [Workspace] The workspace to use for authentication
