@@ -31,7 +31,7 @@ class LeadAssignmentWorkflow < Base
     adapter = WorkspaceAdapter.for(workflow.subject.workspace)
     adapter.post_message(
       channel_id: workflow.subject.slack_channel_id,
-      text: "<@#{workflow.context["lead_platform_user_id"]}> is now the Incident Lead",
+      text: ":firefighter: <@#{workflow.context["lead_platform_user_id"]}> is now the Incident Lead",
       blocks: nil
     )
   end

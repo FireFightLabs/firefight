@@ -17,7 +17,7 @@ class SummaryUpdateWorkflow < Base
     adapter = WorkspaceAdapter.for(workflow.subject.workspace)
     adapter.post_message(
       channel_id: workflow.subject.slack_channel_id,
-      text: "Summary updated by <@#{workflow.context["updated_by_platform_user_id"]}>",
+      text: ":memo: Summary updated by <@#{workflow.context["updated_by_platform_user_id"]}>",
       blocks: nil
     )
   end
