@@ -34,11 +34,12 @@ class Interactions::PreviewAnnouncementHandlerTest < ActiveSupport::TestCase
 
   def build_interaction(team_id: @workspace.platform_id)
     Interaction.new(
+      platform: Platforms::SLACK,
       type: "block_actions",
       team_id: team_id,
       user_id: "U12345678",
       channel_id: "C12345678",
-      action_id: Slack::Identifiers::PREVIEW_ANNOUNCEMENT
+      action_id: Identifiers::PREVIEW_ANNOUNCEMENT
     )
   end
 end

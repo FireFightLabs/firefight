@@ -53,20 +53,16 @@ class ProcessCommandJob < ApplicationJob
 
   # Notify user of error
   def notify_error(command, error)
-    case command.platform
-    when Platforms::SLACK
-      workspace = command.workspace
-      return unless workspace
+    workspace = command.workspace
+    return unless workspace
 
-      Slack::Client.post_ephemeral(
-        workspace: workspace,
-        channel: command.channel_id,
-        user: command.user_id,
-        text: "❌ An error occurred: #{error.message}"
-      )
-    end
+    adapter = WorkspaceAdapter.for(workspace)
+    adapter.post_ephemeral(
+      channel_id: command.channel_id,
+      user_id: command.user_id,
+      text: "An error occurred: #{error.message}"
+    )
   rescue StandardError => e
-    # If error notification fails, just log it
     Rails.logger.error("Failed to notify user of error: #{e.message}")
   end
 end

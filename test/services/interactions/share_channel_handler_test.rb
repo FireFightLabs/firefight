@@ -34,11 +34,12 @@ class Interactions::ShareChannelHandlerTest < ActiveSupport::TestCase
 
   def build_interaction
     Interaction.new(
+      platform: Platforms::SLACK,
       type: "block_actions",
       team_id: @workspace.platform_id,
       user_id: "U12345678",
       trigger_id: "12345.67890.trigger",
-      action_id: Slack::Identifiers::SHARE_INCIDENTS_CHANNEL
+      action_id: Identifiers::SHARE_INCIDENTS_CHANNEL
     )
   end
 end

@@ -3,7 +3,7 @@ module Interactions
     def self.execute(interaction)
       workspace = interaction.workspace
 
-      adapter = Slack::WorkspaceAdapter.new(workspace)
+      adapter = WorkspaceAdapter.for(workspace)
       adapter.post_preview_announcement(channel_id: interaction.channel_id, user_id: interaction.user_id)
 
       Rails.logger.info({

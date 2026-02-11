@@ -7,7 +7,7 @@ module Slack
     def self.incident_creation_form
       {
         type: "modal",
-        callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL,
+        callback_id: Identifiers::INCIDENT_CREATION_MODAL,
         title: {
           type: "plain_text",
           text: "Declare an incident"
@@ -152,7 +152,7 @@ module Slack
     def self.home_modal
       {
         type: "modal",
-        callback_id: Slack::Identifiers::INCIDENT_HOME_MODAL,
+        callback_id: Identifiers::INCIDENT_HOME_MODAL,
         title: {
           type: "plain_text",
           text: "Incident Home"
@@ -175,7 +175,7 @@ module Slack
             block_id: "action_select_block",
             element: {
               type: "static_select",
-              action_id: Slack::Identifiers::HOME_ACTION_SELECT,
+              action_id: Identifiers::HOME_ACTION_SELECT,
               placeholder: {
                 type: "plain_text",
                 text: "Select an action"

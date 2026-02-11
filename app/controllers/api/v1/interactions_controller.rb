@@ -7,7 +7,8 @@ class Api::V1::InteractionsController < Api::V1::BaseController
     payload = parse_payload
     return unless payload
 
-    result = InteractionDispatcher.dispatch(payload)
+    interaction = Slack::InteractionNormalizer.call(payload)
+    result = InteractionDispatcher.dispatch(interaction)
 
     if result
       render json: result

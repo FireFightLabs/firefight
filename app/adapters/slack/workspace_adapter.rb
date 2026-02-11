@@ -204,6 +204,75 @@ module Slack
       { shared_count: succeeded, failed_count: failed }
     end
 
+    def open_incident_creation_modal(trigger_id:)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.incident_creation_form
+      )
+    end
+
+    def open_home_modal(trigger_id:)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.home_modal
+      )
+    end
+
+    def update_home_modal(view:, selected_command:)
+      help_text = Slack::ModalBuilder.home_command_help(selected_command)
+
+      updated_blocks = view["blocks"].map do |block|
+        if block["block_id"] == "command_details_block"
+          block.merge("text" => { "type" => "mrkdwn", "text" => help_text })
+        else
+          block
+        end
+      end
+
+      Slack::Client.update_modal(
+        workspace: @workspace,
+        view_id: view["id"],
+        view: {
+          type: "modal",
+          callback_id: Identifiers::INCIDENT_HOME_MODAL,
+          title: view["title"],
+          close: view["close"],
+          blocks: updated_blocks
+        }
+      )
+
+      { success: true }
+    end
+
+    def post_incident_quick_actions(channel_id:, incident:)
+      blocks = Slack::IncidentMessageBuilder.quick_actions_blocks(incident)
+      post_message(
+        channel_id: channel_id,
+        text: "#{incident.identifier} - Quick Actions",
+        blocks: blocks
+      )
+    end
+
+    def post_incident_announcement(channel_id:, incident:)
+      blocks = Slack::IncidentMessageBuilder.announcement_blocks(incident)
+      post_message(
+        channel_id: channel_id,
+        text: "New incident: #{incident.identifier}",
+        blocks: blocks
+      )
+    end
+
+    def post_ephemeral(channel_id:, user_id:, text:)
+      Slack::Client.post_ephemeral(
+        workspace: @workspace,
+        channel: channel_id,
+        user: user_id,
+        text: text
+      )
+
+      { success: true }
+    end
+
     private
 
     def find_existing_channel(name)

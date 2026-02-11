@@ -27,11 +27,9 @@ class IncidentCreationService
     message_ts = incident.initial_message_ts
 
     unless message_ts
-      blocks = Slack::IncidentMessageBuilder.quick_actions_blocks(incident)
-      result = adapter.post_message(
+      result = adapter.post_incident_quick_actions(
         channel_id: incident.slack_channel_id,
-        text: "#{incident.identifier} - Quick Actions",
-        blocks: blocks
+        incident: incident
       )
       message_ts = result[:message_ts]
       incident.update!(initial_message_ts: message_ts)
@@ -52,11 +50,9 @@ class IncidentCreationService
     return { message_ts: incident.announcement_message_ts } if incident.announcement_message_ts
 
     adapter = WorkspaceAdapter.for(@workspace)
-    blocks = Slack::IncidentMessageBuilder.announcement_blocks(incident)
-    result = adapter.post_message(
+    result = adapter.post_incident_announcement(
       channel_id: @workspace.incidents_channel_id,
-      text: "New incident: #{incident.identifier}",
-      blocks: blocks
+      incident: incident
     )
     incident.update!(announcement_message_ts: result[:message_ts])
     { message_ts: result[:message_ts] }

@@ -29,7 +29,7 @@ module Slack
                   text: "🔗 Share this channel",
                   emoji: true
                 },
-                action_id: Slack::Identifiers::SHARE_INCIDENTS_CHANNEL,
+                action_id: Identifiers::SHARE_INCIDENTS_CHANNEL,
                 style: "primary"
               },
               {
@@ -39,7 +39,7 @@ module Slack
                   text: "📢 Preview an announcement",
                   emoji: true
                 },
-                action_id: Slack::Identifiers::PREVIEW_ANNOUNCEMENT
+                action_id: Identifiers::PREVIEW_ANNOUNCEMENT
               }
             ]
           }
@@ -72,7 +72,7 @@ module Slack
     def self.share_channel_modal(user_id, channel_id)
       {
         type: "modal",
-        callback_id: Slack::Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL,
+        callback_id: Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL,
         title: {
           type: "plain_text",
           text: "Share this channel"

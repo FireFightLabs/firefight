@@ -27,10 +27,11 @@ class Interactions::HomeActionSelectHandlerTest < ActiveSupport::TestCase
 
   def build_interaction(selected_value)
     Interaction.new(
+      platform: Platforms::SLACK,
       type: "block_actions",
       team_id: @workspace.platform_id,
       user_id: "U12345678",
-      action_id: Slack::Identifiers::HOME_ACTION_SELECT,
+      action_id: Identifiers::HOME_ACTION_SELECT,
       selected_value: selected_value,
       view: {
         "id" => "V123",

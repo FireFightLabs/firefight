@@ -4,7 +4,7 @@ class Interaction
   SHORTCUT = "shortcut"
   VIEW_CLOSED = "view_closed"
 
-  attr_reader :type, :team_id, :user_id, :trigger_id,
+  attr_reader :type, :platform, :team_id, :user_id, :trigger_id,
               :channel_id, :action_id, :callback_id,
               :selected_value, :view, :values, :raw
 
@@ -13,6 +13,6 @@ class Interaction
   end
 
   def workspace
-    @workspace ||= Workspace.find_by!(platform: Platforms::SLACK, platform_id: team_id)
+    @workspace ||= Workspace.find_by!(platform: platform, platform_id: team_id)
   end
 end

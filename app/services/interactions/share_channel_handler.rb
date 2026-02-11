@@ -3,7 +3,7 @@ module Interactions
     def self.execute(interaction)
       workspace = interaction.workspace
 
-      adapter = Slack::WorkspaceAdapter.new(workspace)
+      adapter = WorkspaceAdapter.for(workspace)
       adapter.open_share_modal(
         trigger_id: interaction.trigger_id,
         user_id: interaction.user_id,

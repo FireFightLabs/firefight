@@ -89,7 +89,7 @@ module OmniauthTestHelper
         },
         "actions" => [
           {
-            "action_id" => Slack::Identifiers::PREVIEW_ANNOUNCEMENT,
+            "action_id" => Identifiers::PREVIEW_ANNOUNCEMENT,
             "block_id" => "block_id",
             "type" => "button"
           }
@@ -100,7 +100,7 @@ module OmniauthTestHelper
         "view" => {
           "id" => "V12345678",
           "type" => "modal",
-          "callback_id" => Slack::Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL,
+          "callback_id" => Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL,
           "state" => {
             "values" => {
               "share_target_block" => {

@@ -46,10 +46,11 @@ class Interactions::ShareModalSubmissionHandlerTest < ActiveSupport::TestCase
 
   def build_interaction(conversations: [ "C11111111" ])
     Interaction.new(
+      platform: Platforms::SLACK,
       type: "view_submission",
       team_id: @workspace.platform_id,
       user_id: "U12345678",
-      callback_id: Slack::Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL,
+      callback_id: Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL,
       values: {
         "share_target_block" => {
           "share_target_select" => {

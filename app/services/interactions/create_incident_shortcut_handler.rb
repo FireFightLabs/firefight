@@ -4,10 +4,7 @@ module Interactions
       workspace = interaction.workspace
 
       adapter = WorkspaceAdapter.for(workspace)
-      adapter.open_modal(
-        trigger_id: interaction.trigger_id,
-        view: Slack::ModalBuilder.incident_creation_form
-      )
+      adapter.open_incident_creation_modal(trigger_id: interaction.trigger_id)
 
       Rails.logger.info({
         event: "shortcut.create_incident",

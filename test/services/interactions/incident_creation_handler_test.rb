@@ -59,10 +59,11 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
 
   def build_interaction(severity: "minor", name: "Test Incident", summary: "Test summary", visibility: "public", user_id: @member.platform_user_id)
     Interaction.new(
+      platform: Platforms::SLACK,
       type: "view_submission",
       team_id: @workspace.platform_id,
       user_id: user_id,
-      callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL,
+      callback_id: Identifiers::INCIDENT_CREATION_MODAL,
       values: {
         "name_block" => { "name_input" => { "value" => name } },
         "severity_block" => { "severity_select" => { "selected_option" => { "value" => severity } } },

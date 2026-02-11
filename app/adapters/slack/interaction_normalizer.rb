@@ -2,6 +2,7 @@ module Slack
   class InteractionNormalizer
     def self.call(payload)
       Interaction.new(
+        platform: Platforms::SLACK,
         type: payload["type"],
         team_id: payload.dig("team", "id") || payload.dig("user", "team_id"),
         user_id: payload.dig("user", "id"),

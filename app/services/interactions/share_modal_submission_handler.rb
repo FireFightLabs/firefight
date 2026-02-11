@@ -23,7 +23,7 @@ module Interactions
         }
       end
 
-      adapter = Slack::WorkspaceAdapter.new(workspace)
+      adapter = WorkspaceAdapter.for(workspace)
       result = adapter.post_share_messages(
         user_id: interaction.user_id,
         channel_id: workspace.incidents_channel_id,

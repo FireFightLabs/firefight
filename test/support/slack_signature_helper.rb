@@ -61,7 +61,7 @@ module SlackSignatureHelper
         name: "Alice Smith"
       },
       view: {
-        callback_id: Slack::Identifiers::INCIDENT_CREATION_MODAL,
+        callback_id: Identifiers::INCIDENT_CREATION_MODAL,
         type: "modal",
         private_metadata: "",
         state: {

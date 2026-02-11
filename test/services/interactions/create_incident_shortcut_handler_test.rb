@@ -39,11 +39,12 @@ class Interactions::CreateIncidentShortcutHandlerTest < ActiveSupport::TestCase
 
   def build_interaction(team_id: @workspace.platform_id)
     Interaction.new(
+      platform: Platforms::SLACK,
       type: "shortcut",
       team_id: team_id,
       user_id: "U12345678",
       trigger_id: "12345.trigger",
-      callback_id: Slack::Identifiers::CREATE_INCIDENT_SHORTCUT
+      callback_id: Identifiers::CREATE_INCIDENT_SHORTCUT
     )
   end
 end

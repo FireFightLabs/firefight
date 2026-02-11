@@ -7,6 +7,8 @@
 # - Console (debugging/testing)
 # - API endpoints (future)
 class WorkspaceSetupService
+  INCIDENTS_CHANNEL_DESCRIPTION = "FireFight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
+
   def initialize(workspace)
     @workspace = workspace
   end
@@ -41,8 +43,8 @@ class WorkspaceSetupService
     adapter = WorkspaceAdapter.for(workspace)
     adapter.set_channel_metadata(
       channel_id: channel_id,
-      topic: Slack::WorkspaceAdapter::CHANNEL_DESCRIPTION,
-      purpose: Slack::WorkspaceAdapter::CHANNEL_DESCRIPTION
+      topic: INCIDENTS_CHANNEL_DESCRIPTION,
+      purpose: INCIDENTS_CHANNEL_DESCRIPTION
     )
 
     Rails.logger.info({

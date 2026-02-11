@@ -1,25 +1,24 @@
 # Routes interactions to appropriate handlers based on type and callback/action ID
-# Normalizes raw payload into an Interaction object before dispatching
+# Platform-agnostic — works with any Interaction object
 class InteractionDispatcher
   VIEW_SUBMISSION_HANDLERS = {
-    Slack::Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL => Interactions::ShareModalSubmissionHandler,
-    Slack::Identifiers::INCIDENT_CREATION_MODAL => Interactions::IncidentCreationHandler
+    Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL => Interactions::ShareModalSubmissionHandler,
+    Identifiers::INCIDENT_CREATION_MODAL => Interactions::IncidentCreationHandler
   }.freeze
 
   BLOCK_ACTION_HANDLERS = {
-    Slack::Identifiers::PREVIEW_ANNOUNCEMENT => Interactions::PreviewAnnouncementHandler,
-    Slack::Identifiers::SHARE_INCIDENTS_CHANNEL => Interactions::ShareChannelHandler,
-    Slack::Identifiers::PREVIEW_HOMEPAGE_DISABLED => Interactions::NoopHandler,
-    Slack::Identifiers::PREVIEW_SUBSCRIBE_DISABLED => Interactions::NoopHandler,
-    Slack::Identifiers::HOME_ACTION_SELECT => Interactions::HomeActionSelectHandler
+    Identifiers::PREVIEW_ANNOUNCEMENT => Interactions::PreviewAnnouncementHandler,
+    Identifiers::SHARE_INCIDENTS_CHANNEL => Interactions::ShareChannelHandler,
+    Identifiers::PREVIEW_HOMEPAGE_DISABLED => Interactions::NoopHandler,
+    Identifiers::PREVIEW_SUBSCRIBE_DISABLED => Interactions::NoopHandler,
+    Identifiers::HOME_ACTION_SELECT => Interactions::HomeActionSelectHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {
-    Slack::Identifiers::CREATE_INCIDENT_SHORTCUT => Interactions::CreateIncidentShortcutHandler
+    Identifiers::CREATE_INCIDENT_SHORTCUT => Interactions::CreateIncidentShortcutHandler
   }.freeze
 
-  def self.dispatch(payload)
-    interaction = Slack::InteractionNormalizer.call(payload)
+  def self.dispatch(interaction)
     handler = find(interaction)
     handler.execute(interaction)
   end

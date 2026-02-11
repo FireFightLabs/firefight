@@ -85,13 +85,13 @@ module Slack
           {
             type: "button",
             text: { type: "plain_text", text: ":globe_with_meridians: Incident homepage", emoji: true },
-            action_id: Slack::Identifiers::PREVIEW_HOMEPAGE_DISABLED,
+            action_id: Identifiers::PREVIEW_HOMEPAGE_DISABLED,
             style: "primary"
           },
           {
             type: "button",
             text: { type: "plain_text", text: ":pushpin: Subscribe", emoji: true },
-            action_id: Slack::Identifiers::PREVIEW_SUBSCRIBE_DISABLED
+            action_id: Identifiers::PREVIEW_SUBSCRIBE_DISABLED
           }
         ]
       }
