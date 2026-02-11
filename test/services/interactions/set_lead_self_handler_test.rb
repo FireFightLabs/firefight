@@ -1,0 +1,66 @@
+require "test_helper"
+
+class Interactions::SetLeadSelfHandlerTest < ActiveSupport::TestCase
+  fixtures :workspaces, :users, :workspace_memberships, :incidents,
+           :incident_statuses, :incident_severities, :incident_roles,
+           :incident_role_assignments
+
+  setup do
+    @workspace = workspaces(:slack_workspace_one)
+    @incident = incidents(:active_critical_ws1)
+    @alice = workspace_memberships(:alice_workspace_one)
+  end
+
+  test "assigns current user as lead" do
+    stub_all_side_effects
+
+    result = Interactions::SetLeadSelfHandler.execute(build_interaction)
+
+    assert_nil result
+    assert_equal @alice, @incident.reload.lead
+  end
+
+  test "creates lead assigned event" do
+    stub_all_side_effects
+
+    assert_difference -> { @incident.incident_events.count }, 1 do
+      Interactions::SetLeadSelfHandler.execute(build_interaction)
+    end
+
+    event = @incident.incident_events.find_by!(event_type: IncidentEvent::LEAD_ASSIGNED)
+    assert_equal @alice, event.user
+  end
+
+  test "starts lead assignment workflow" do
+    stub_all_side_effects
+
+    assert_difference "Workflow.count", 1 do
+      Interactions::SetLeadSelfHandler.execute(build_interaction)
+    end
+
+    workflow = Workflow.find_by!(name: "incident.lead_assignment.v1", subject: @incident)
+    assert_equal @alice.platform_user_id, workflow.context["lead_platform_user_id"]
+  end
+
+  private
+
+  def build_interaction
+    Interaction.new(
+      platform: Platforms::SLACK,
+      type: Interaction::BLOCK_ACTIONS,
+      team_id: @workspace.platform_id,
+      user_id: @alice.platform_user_id,
+      action_id: Identifiers::SET_INCIDENT_LEAD_SELF,
+      action_value: @incident.id,
+      channel_id: @incident.slack_channel_id
+    )
+  end
+
+  def stub_all_side_effects
+    stub_set_channel_topic
+    stub_set_channel_purpose
+    stub_update_message
+    stub_post_message
+    stub_post_ephemeral
+  end
+end
