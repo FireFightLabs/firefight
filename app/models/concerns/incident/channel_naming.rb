@@ -10,7 +10,8 @@ module Incident::ChannelNaming
 
   # Generate Slack/Teams channel name
   def channel_name
+    date = (declared_at || Time.current).strftime("%Y-%m-%d")
     slug = (name.presence || "untitled").parameterize[0..50]
-    "inc-#{sequence_number.to_s.rjust(3, '0')}-#{slug}"
+    "inc-#{date}-#{slug}"
   end
 end

@@ -164,6 +164,42 @@ module Slack
       )
     end
 
+    # Pin a message in a channel
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param channel [String] Channel ID
+    # @param timestamp [String] Message timestamp to pin
+    # @return [Hash] Slack API response
+    # @raise [ApiError] if Slack API returns an error
+    def self.pin_message(workspace:, channel:, timestamp:)
+      api_post(
+        workspace: workspace,
+        endpoint: "pins.add",
+        payload: {
+          channel: channel,
+          timestamp: timestamp
+        }
+      )
+    end
+
+    # Update an existing modal in Slack
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param view_id [String] The ID of the view to update
+    # @param view [Hash] Updated Block Kit modal view JSON
+    # @return [Hash] Slack API response with indifferent access
+    # @raise [ApiError] if Slack API returns an error
+    def self.update_modal(workspace:, view_id:, view:)
+      api_post(
+        workspace: workspace,
+        endpoint: "views.update",
+        payload: {
+          view_id: view_id,
+          view: view
+        }
+      )
+    end
+
     # List all channels in the workspace
     #
     # @param workspace [Workspace] The workspace to use for authentication
