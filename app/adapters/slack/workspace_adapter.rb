@@ -7,6 +7,26 @@ module Slack
       @workspace = workspace
     end
 
+    # Create a Slack channel with given name
+    #
+    # @param name [String] Channel name
+    # @param is_private [Boolean] Whether channel is private
+    # @return [Hash] { channel_id:, channel_name: }
+    def create_channel(name:, is_private: false)
+      result = Slack::Client.create_channel(
+        workspace: @workspace,
+        name: name,
+        is_private: is_private
+      )
+
+      {
+        channel_id: result[:channel][:id],
+        channel_name: result[:channel][:name]
+      }
+    rescue Slack::Client::ChannelExistsError
+      raise AdapterError::ChannelExists, "Channel name already taken"
+    end
+
     # Create incidents channel
     #
     # @return [Hash] Normalized response with :channel_id, :channel_name, :already_existed
@@ -39,20 +59,41 @@ module Slack
       }
     end
 
-    def set_channel_metadata(channel_id:)
+    def set_channel_metadata(channel_id:, topic:, purpose:)
       Slack::Client.set_channel_topic(
         workspace: @workspace,
         channel: channel_id,
-        topic: CHANNEL_DESCRIPTION
+        topic: topic
       )
 
       Slack::Client.set_channel_purpose(
         workspace: @workspace,
         channel: channel_id,
-        purpose: CHANNEL_DESCRIPTION
+        purpose: purpose
       )
 
       { success: true }
+    end
+
+    def post_message(channel_id:, text:, blocks:)
+      result = Slack::Client.post_message(
+        workspace: @workspace,
+        channel: channel_id,
+        text: text,
+        blocks: blocks
+      )
+
+      { message_ts: result[:ts] }
+    end
+
+    def pin_message(channel_id:, timestamp:)
+      Slack::Client.pin_message(
+        workspace: @workspace,
+        channel: channel_id,
+        timestamp: timestamp
+      )
+
+      { ok: true }
     end
 
     def invite_user(channel_id:, user_id:)
@@ -97,6 +138,18 @@ module Slack
       { message_ts: result[:ts] }
     end
 
+    def open_modal(trigger_id:, view:)
+      Slack::Client.open_modal(
+        workspace: @workspace,
+        trigger_id: trigger_id,
+        view: view
+      )
+
+      { success: true }
+    rescue Slack::Client::TriggerExpiredError
+      raise AdapterError::TriggerExpired, "Modal trigger expired"
+    end
+
     # Open share channel modal
     #
     # @param trigger_id [String] Slack trigger ID from interaction
@@ -104,15 +157,10 @@ module Slack
     # @param channel_id [String] Incidents channel ID to share
     # @return [Hash] Response with :success
     def open_share_modal(trigger_id:, user_id:, channel_id:)
-      modal = Slack::InstallationMessageBuilder.share_channel_modal(user_id, channel_id)
-
-      Slack::Client.open_modal(
-        workspace: @workspace,
+      open_modal(
         trigger_id: trigger_id,
-        view: modal
+        view: Slack::InstallationMessageBuilder.share_channel_modal(user_id, channel_id)
       )
-
-      { success: true }
     end
 
     # Post share message to selected channels
@@ -154,6 +202,75 @@ module Slack
       end
 
       { shared_count: succeeded, failed_count: failed }
+    end
+
+    def open_incident_creation_modal(trigger_id:)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.incident_creation_form
+      )
+    end
+
+    def open_home_modal(trigger_id:)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.home_modal
+      )
+    end
+
+    def update_home_modal(view:, selected_command:)
+      help_text = Slack::ModalBuilder.home_command_help(selected_command)
+
+      updated_blocks = view["blocks"].map do |block|
+        if block["block_id"] == "command_details_block"
+          block.merge("text" => { "type" => "mrkdwn", "text" => help_text })
+        else
+          block
+        end
+      end
+
+      Slack::Client.update_modal(
+        workspace: @workspace,
+        view_id: view["id"],
+        view: {
+          type: "modal",
+          callback_id: Identifiers::INCIDENT_HOME_MODAL,
+          title: view["title"],
+          close: view["close"],
+          blocks: updated_blocks
+        }
+      )
+
+      { success: true }
+    end
+
+    def post_incident_quick_actions(channel_id:, incident:)
+      blocks = Slack::IncidentMessageBuilder.quick_actions_blocks(incident)
+      post_message(
+        channel_id: channel_id,
+        text: "#{incident.identifier} - Quick Actions",
+        blocks: blocks
+      )
+    end
+
+    def post_incident_announcement(channel_id:, incident:)
+      blocks = Slack::IncidentMessageBuilder.announcement_blocks(incident)
+      post_message(
+        channel_id: channel_id,
+        text: "New incident: #{incident.identifier}",
+        blocks: blocks
+      )
+    end
+
+    def post_ephemeral(channel_id:, user_id:, text:)
+      Slack::Client.post_ephemeral(
+        workspace: @workspace,
+        channel: channel_id,
+        user: user_id,
+        text: text
+      )
+
+      { success: true }
     end
 
     private

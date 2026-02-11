@@ -29,13 +29,15 @@ module Workflow::Pausable
     return if completed?
 
     transaction do
+      current_time = Time.current
       update!(
         state: :paused,
         workflow_config: workflow_config.merge(
-          paused_at: Time.current.iso8601,
+          paused_at: current_time.iso8601,
           paused_by: by,
           pause_reason: reason
-        )
+        ),
+        state_timestamps: (state_timestamps || {}).merge("paused" => current_time.iso8601)
       )
 
       record_event(WorkflowEvents::Workflow::PAUSED, reason: reason, by: by)
@@ -66,12 +68,14 @@ module Workflow::Pausable
     return unless paused?
 
     transaction do
+      current_time = Time.current
       update!(
         state: :running,
         workflow_config: workflow_config.merge(
-          resumed_at: Time.current.iso8601,
+          resumed_at: current_time.iso8601,
           resumed_by: by
-        )
+        ),
+        state_timestamps: (state_timestamps || {}).merge("running" => current_time.iso8601)
       )
 
       record_event(WorkflowEvents::Workflow::RESUMED, by: by)

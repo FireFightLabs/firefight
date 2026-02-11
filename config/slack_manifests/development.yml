@@ -10,12 +10,19 @@ features:
   slash_commands:
     - command: /firefight
       url: https://ff.bugrewind.com/api/v1/commands
-      description: Firefight incident management
-      usage_hint: "[subcommand]"
+      description: "Manage incidents and coordinate response"
+      usage_hint: "[new|summary|lead|status|actions|close|timeline|list]"
+      should_escape: false
     - command: /ff
       url: https://ff.bugrewind.com/api/v1/commands
-      description: Firefight (short alias)
-      usage_hint: "[subcommand]"
+      description: "Manage incidents (short alias for /firefight)"
+      usage_hint: "[new|summary|lead|status|actions|close|timeline|list]"
+      should_escape: false
+  shortcuts:
+    - name: "Create an incident"
+      type: global
+      callback_id: create_incident_shortcut
+      description: "Quickly declare a new incident"
 
 oauth_config:
   redirect_urls:
@@ -35,6 +42,7 @@ oauth_config:
       - channels:join      # Bot can join channels it creates
       - channels:read      # Read channel info (check if #incidents exists)
       - users:read         # Get user info for @mentions in messages
+      - pins:write         # Pin key messages in incident channels
 settings:
   interactivity:
     is_enabled: true

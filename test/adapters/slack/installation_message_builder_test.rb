@@ -34,13 +34,13 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     assert_equal 2, actions[:elements].length
 
     # Share button
-    share_button = actions[:elements].find { |e| e[:action_id] == "share_incidents_channel" }
+    share_button = actions[:elements].find { |e| e[:action_id] == Identifiers::SHARE_INCIDENTS_CHANNEL }
     assert share_button.present?
     assert_equal "button", share_button[:type]
     assert_equal "primary", share_button[:style]
 
     # Preview button
-    preview_button = actions[:elements].find { |e| e[:action_id] == "preview_announcement" }
+    preview_button = actions[:elements].find { |e| e[:action_id] == Identifiers::PREVIEW_ANNOUNCEMENT }
     assert preview_button.present?
     assert_equal "button", preview_button[:type]
   end
@@ -107,16 +107,6 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     assert_includes reporter.dig(:text, :text), "<@U12345678>"
   end
 
-  test "preview_announcement_blocks includes incident lead with firefighter emoji" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
-
-    sections = result[:blocks].select { |b| b[:type] == "section" }
-    lead = sections.find { |s| s.dig(:text, :text)&.include?("Incident Lead") }
-    assert lead.present?
-    assert_includes lead.dig(:text, :text), ":firefighter:"
-    assert_includes lead.dig(:text, :text), "<@U12345678>"
-  end
-
   test "preview_announcement_blocks includes dividers" do
     result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
 
@@ -132,12 +122,12 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     assert_equal 2, actions[:elements].length
 
     # Homepage button
-    homepage_button = actions[:elements].find { |e| e[:action_id] == "preview_homepage_disabled" }
+    homepage_button = actions[:elements].find { |e| e[:action_id] == Identifiers::PREVIEW_HOMEPAGE_DISABLED }
     assert homepage_button.present?
     assert_equal "primary", homepage_button[:style]
 
     # Subscribe button
-    subscribe_button = actions[:elements].find { |e| e[:action_id] == "preview_subscribe_disabled" }
+    subscribe_button = actions[:elements].find { |e| e[:action_id] == Identifiers::PREVIEW_SUBSCRIBE_DISABLED }
     assert subscribe_button.present?
   end
 
@@ -157,7 +147,7 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     result = Slack::InstallationMessageBuilder.share_channel_modal("U12345678", "C12345678")
 
     assert_equal "modal", result[:type]
-    assert_equal "share_incidents_channel_modal", result[:callback_id]
+    assert_equal Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL, result[:callback_id]
     assert result[:title].present?
     assert result[:submit].present?
     assert result[:close].present?

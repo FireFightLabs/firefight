@@ -31,7 +31,7 @@ module Workflow::Orchestratable
 
     # Batch update inputs to avoid N+1 queries
     ready.each do |step|
-      step.populate_input_data(steps)
+      step.populate_input_data(steps, step_map: step_map)
     end
 
     # Batch update step inputs with optimistic locking (only for steps with dependencies)
@@ -93,6 +93,7 @@ module Workflow::Orchestratable
     reload # Get fresh state
 
     if steps.all? { |s| s.succeeded? || s.skipped? }
+      current_time = Time.current
       # Atomic transition to succeeded with optimistic locking
       current_updated_at = updated_at
       rows_updated = Workflow.where(
@@ -101,8 +102,9 @@ module Workflow::Orchestratable
         updated_at: current_updated_at
       ).update_all(
         state: :succeeded,
-        completed_at: Time.current,
-        updated_at: Time.current
+        completed_at: current_time,
+        updated_at: current_time,
+        state_timestamps: state_timestamps_merge_sql("succeeded", current_time)
       )
 
       if rows_updated > 0
@@ -111,6 +113,7 @@ module Workflow::Orchestratable
       end
 
     elsif steps.any? { |s| s.failed? && s.attempts >= s.max_attempts }
+      current_time = Time.current
       # Atomic transition to failed with optimistic locking
       current_updated_at = updated_at
       rows_updated = Workflow.where(
@@ -119,8 +122,9 @@ module Workflow::Orchestratable
         updated_at: current_updated_at
       ).update_all(
         state: :failed,
-        completed_at: Time.current,
-        updated_at: Time.current
+        completed_at: current_time,
+        updated_at: current_time,
+        state_timestamps: state_timestamps_merge_sql("failed", current_time)
       )
 
       if rows_updated > 0
@@ -129,6 +133,7 @@ module Workflow::Orchestratable
       end
 
     elsif pending?
+      current_time = Time.current
       # Atomic transition to running with optimistic locking
       current_updated_at = updated_at
       rows_updated = Workflow.where(
@@ -137,11 +142,18 @@ module Workflow::Orchestratable
         updated_at: current_updated_at
       ).update_all(
         state: :running,
-        started_at: Time.current,
-        updated_at: Time.current
+        started_at: current_time,
+        updated_at: current_time,
+        state_timestamps: state_timestamps_merge_sql("running", current_time)
       )
 
       reload if rows_updated > 0
     end
+  end
+
+  def state_timestamps_merge_sql(state, timestamp)
+    state_value = Workflow.connection.quote(state.to_s)
+    timestamp_value = Workflow.connection.quote(timestamp.iso8601)
+    Arel.sql("coalesce(state_timestamps, '{}'::jsonb) || jsonb_build_object(#{state_value}, #{timestamp_value})")
   end
 end

@@ -15,10 +15,12 @@ module WorkflowStep::Dependencies
   end
 
   # Populate input data without saving (for batch updates)
-  def populate_input_data(all_steps)
+  def populate_input_data(all_steps, step_map: nil)
     input_data = {}
+    step_map ||= all_steps.index_by(&:name)
+
     depends_on.each do |dep_name|
-      dep_step = all_steps.find { |s| s.name == dep_name }
+      dep_step = step_map[dep_name]
 
       Rails.logger.info({
         event: "workflow.step.populate_input.debug",

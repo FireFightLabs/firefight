@@ -18,7 +18,20 @@ module Workflow::Stateable
 
 
   def transition_to!(new_state)
-    update!(state: new_state, "#{new_state}_at": Time.current)
+    current_time = Time.current
+    attributes = {
+      state: new_state,
+      state_timestamps: (state_timestamps || {}).merge(new_state.to_s => current_time.iso8601)
+    }
+
+    case new_state.to_s
+    when "running"
+      attributes[:started_at] = current_time
+    when "succeeded", "failed", "cancelled"
+      attributes[:completed_at] = current_time
+    end
+
+    update!(attributes)
     record_event("workflow.#{new_state}")
   end
 

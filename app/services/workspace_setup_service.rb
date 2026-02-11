@@ -7,6 +7,8 @@
 # - Console (debugging/testing)
 # - API endpoints (future)
 class WorkspaceSetupService
+  INCIDENTS_CHANNEL_DESCRIPTION = "FireFight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
+
   def initialize(workspace)
     @workspace = workspace
   end
@@ -39,7 +41,11 @@ class WorkspaceSetupService
   # @return [Hash] Result with :success
   def set_channel_metadata(workspace, channel_id)
     adapter = WorkspaceAdapter.for(workspace)
-    adapter.set_channel_metadata(channel_id: channel_id)
+    adapter.set_channel_metadata(
+      channel_id: channel_id,
+      topic: INCIDENTS_CHANNEL_DESCRIPTION,
+      purpose: INCIDENTS_CHANNEL_DESCRIPTION
+    )
 
     Rails.logger.info({
       event: "workspace_setup.metadata_set",

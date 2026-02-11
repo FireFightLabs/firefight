@@ -29,7 +29,7 @@ module Slack
                   text: "🔗 Share this channel",
                   emoji: true
                 },
-                action_id: "share_incidents_channel",
+                action_id: Identifiers::SHARE_INCIDENTS_CHANNEL,
                 style: "primary"
               },
               {
@@ -39,7 +39,7 @@ module Slack
                   text: "📢 Preview an announcement",
                   emoji: true
                 },
-                action_id: "preview_announcement"
+                action_id: Identifiers::PREVIEW_ANNOUNCEMENT
               }
             ]
           }
@@ -49,99 +49,30 @@ module Slack
 
     # Ephemeral preview message (only visible to clicking user)
     def self.preview_announcement_blocks(user_id)
-      {
-        blocks: [
-          {
-            type: "context",
-            elements: [
-              {
-                type: "mrkdwn",
-                text: "_Only visible to you_"
-              }
-            ]
-          },
-          {
-            type: "header",
-            text: {
-              type: "plain_text",
-              text: "[PREVIEW] Website is down",
-              emoji: true
-            }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "The marketing website is down: I'm getting a '502 Gateway OverallTimeout' error"
-            }
-          },
-          {
-            type: "divider"
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "🔥 *Severity:* Minor"
-            }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "📊 *Status:* Investigating"
-            }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "👤 *Reporter:* <@#{user_id}>"
-            }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: ":firefighter: *Incident Lead:* <@#{user_id}>"
-            }
-          },
-          {
-            type: "divider"
-          },
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "🌐 Incident homepage",
-                  emoji: true
-                },
-                action_id: "preview_homepage_disabled",
-                style: "primary"
-              },
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "📌 Subscribe",
-                  emoji: true
-                },
-                action_id: "preview_subscribe_disabled"
-              }
-            ]
-          }
-        ]
-      }
+      preview_blocks = [
+        {
+          type: "context",
+          elements: [ { type: "mrkdwn", text: "_Only visible to you_" } ]
+        }
+      ]
+
+      preview_blocks += Slack::IncidentMessageBuilder.announcement_blocks_for(
+        title: "[PREVIEW] Website is down",
+        summary: "The marketing website is down: I'm getting a '502 Gateway OverallTimeout' error",
+        severity_name: "Minor",
+        severity_slug: "minor",
+        status_name: "Investigating",
+        reporter_id: user_id
+      )
+
+      { blocks: preview_blocks }
     end
 
     # Share channel modal
     def self.share_channel_modal(user_id, channel_id)
       {
         type: "modal",
-        callback_id: "share_incidents_channel_modal",
+        callback_id: Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL,
         title: {
           type: "plain_text",
           text: "Share this channel"
