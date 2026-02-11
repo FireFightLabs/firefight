@@ -4,9 +4,12 @@ module Interactions
       workspace = interaction.workspace
       incident = workspace.incidents.find(interaction.action_value)
 
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.open_summary_modal(trigger_id: interaction.trigger_id, incident: incident)
-
+      SummaryModalOpener.open(
+        workspace: workspace,
+        incident: incident,
+        trigger_id: interaction.trigger_id,
+        user_id: interaction.user_id
+      )
       nil
     rescue AdapterError::TriggerExpired
       nil

@@ -204,6 +204,24 @@ module Slack
       )
     end
 
+    # Delete a message from a Slack channel
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param channel [String] Channel ID
+    # @param ts [String] Timestamp of the message to delete
+    # @return [Hash] Slack API response with indifferent access
+    # @raise [ApiError] if Slack API returns an error
+    def self.delete_message(workspace:, channel:, ts:)
+      api_post(
+        workspace: workspace,
+        endpoint: "chat.delete",
+        payload: {
+          channel: channel,
+          ts: ts
+        }
+      )
+    end
+
     # Update an existing modal in Slack
     #
     # @param workspace [Workspace] The workspace to use for authentication

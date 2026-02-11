@@ -8,8 +8,12 @@ module Commands
         incident = workspace.incidents.active.in_channel(command.channel_id).first
         return ephemeral("This command must be run from an active incident channel.") unless incident
 
-        adapter = WorkspaceAdapter.for(workspace)
-        adapter.open_summary_modal(trigger_id: command.trigger_id, incident: incident)
+        SummaryModalOpener.open(
+          workspace: workspace,
+          incident: incident,
+          trigger_id: command.trigger_id,
+          user_id: command.user_id
+        )
         nil
       rescue AdapterError::TriggerExpired
         ephemeral("This command has expired. Please try `/ff summary` again.")

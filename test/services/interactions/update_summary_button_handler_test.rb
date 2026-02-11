@@ -11,6 +11,7 @@ class Interactions::UpdateSummaryButtonHandlerTest < ActiveSupport::TestCase
   end
 
   test "opens summary modal" do
+    stub_post_message
     stub_open_modal
 
     result = Interactions::UpdateSummaryButtonHandler.execute(build_interaction)
@@ -19,7 +20,9 @@ class Interactions::UpdateSummaryButtonHandlerTest < ActiveSupport::TestCase
   end
 
   test "handles trigger expiration gracefully" do
+    stub_post_message
     stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
+    stub_delete_message
 
     result = Interactions::UpdateSummaryButtonHandler.execute(build_interaction)
 

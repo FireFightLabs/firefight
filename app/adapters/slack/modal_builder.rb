@@ -215,13 +215,15 @@ module Slack
       ]
     end
 
-    def self.summary_modal(incident)
+    def self.summary_modal(incident, private_metadata: nil)
       initial_value = incident.summary.present? ? { initial_value: incident.summary } : {}
+      metadata = private_metadata || incident.id
 
       {
         type: "modal",
         callback_id: Identifiers::UPDATE_SUMMARY_MODAL,
-        private_metadata: incident.id,
+        notify_on_close: true,
+        private_metadata: metadata,
         title: {
           type: "plain_text",
           text: "Update Summary"

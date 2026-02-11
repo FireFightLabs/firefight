@@ -276,10 +276,20 @@ module Slack
       )
     end
 
-    def open_summary_modal(trigger_id:, incident:)
+    def delete_message(channel_id:, ts:)
+      Slack::Client.delete_message(
+        workspace: @workspace,
+        channel: channel_id,
+        ts: ts
+      )
+
+      { success: true }
+    end
+
+    def open_summary_modal(trigger_id:, incident:, private_metadata: nil)
       open_modal(
         trigger_id: trigger_id,
-        view: Slack::ModalBuilder.summary_modal(incident)
+        view: Slack::ModalBuilder.summary_modal(incident, private_metadata: private_metadata)
       )
     end
 

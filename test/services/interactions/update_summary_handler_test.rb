@@ -48,6 +48,25 @@ class Interactions::UpdateSummaryHandlerTest < ActiveSupport::TestCase
     assert_equal @member.platform_user_id, workflow.context["updated_by_platform_user_id"]
   end
 
+  test "returns modal error when incident not found" do
+    stub_delete_message
+
+    interaction = Interaction.new(
+      platform: Platforms::SLACK,
+      type: Interaction::VIEW_SUBMISSION,
+      team_id: @workspace.platform_id,
+      user_id: @member.platform_user_id,
+      callback_id: Identifiers::UPDATE_SUMMARY_MODAL,
+      private_metadata: { incident_id: SecureRandom.uuid, temp_message_ts: "1234567890.123456", channel_id: "C12345678" }.to_json,
+      values: { "summary_block" => { "summary_input" => { "value" => "test" } } }
+    )
+
+    result = Interactions::UpdateSummaryHandler.execute(interaction)
+
+    assert_equal "errors", result[:response_action]
+    assert result[:errors]["summary_block"].present?
+  end
+
   private
 
   def build_interaction(summary: "New summary")
@@ -57,7 +76,7 @@ class Interactions::UpdateSummaryHandlerTest < ActiveSupport::TestCase
       team_id: @workspace.platform_id,
       user_id: @member.platform_user_id,
       callback_id: Identifiers::UPDATE_SUMMARY_MODAL,
-      private_metadata: @incident.id,
+      private_metadata: { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.slack_channel_id }.to_json,
       values: {
         "summary_block" => {
           "summary_input" => {
@@ -71,5 +90,6 @@ class Interactions::UpdateSummaryHandlerTest < ActiveSupport::TestCase
   def stub_all_side_effects
     stub_update_message
     stub_post_message
+    stub_delete_message
   end
 end

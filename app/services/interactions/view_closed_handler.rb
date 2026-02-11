@@ -1,8 +1,22 @@
 module Interactions
   class ViewClosedHandler
-    def self.execute(_interaction)
-      Rails.logger.info("Modal closed without submission")
+    def self.execute(interaction)
+      return unless interaction.callback_id == Identifiers::UPDATE_SUMMARY_MODAL
+
+      delete_temp_message(interaction)
       nil
     end
+
+    def self.delete_temp_message(interaction)
+      metadata = JSON.parse(interaction.private_metadata)
+      return unless metadata["temp_message_ts"] && metadata["channel_id"]
+
+      workspace = interaction.workspace
+      adapter = WorkspaceAdapter.for(workspace)
+      adapter.delete_message(channel_id: metadata["channel_id"], ts: metadata["temp_message_ts"])
+    rescue JSON::ParserError, AdapterError, Slack::Client::ApiError => e
+      Rails.logger.warn({ event: "interactions.view_closed.delete_temp_failed", error: e.message })
+    end
+    private_class_method :delete_temp_message
   end
 end

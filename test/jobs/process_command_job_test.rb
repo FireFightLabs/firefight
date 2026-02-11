@@ -190,6 +190,57 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     assert_includes notification_params[:text], "Test error"
   end
 
+  test "sends ephemeral response when handler returns one" do
+    payload = {
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "summary",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
+    }
+
+    ephemeral_params = nil
+
+    stub_class_method(CommandDispatcher, :dispatch, lambda { |_cmd|
+    { response_type: "ephemeral", text: "Not in incident channel" }
+    }) do
+    stub_class_method(Slack::Client, :post_ephemeral, lambda { |args|
+      ephemeral_params = args
+      { ok: true, ts: "123" }
+    }) do
+      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+      end
+    end
+
+    assert_not_nil ephemeral_params, "ephemeral message should be posted"
+    assert_equal "C12345678", ephemeral_params[:channel]
+    assert_equal "U12345678", ephemeral_params[:user]
+    assert_includes ephemeral_params[:text], "Not in incident channel"
+  end
+
+  test "does not send ephemeral when handler returns nil" do
+    payload = {
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "summary",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
+    }
+
+    ephemeral_called = false
+
+    stub_class_method(CommandDispatcher, :dispatch, lambda { |_cmd| nil }) do
+    stub_class_method(Slack::Client, :post_ephemeral, lambda { |args|
+      ephemeral_called = true
+      { ok: true, ts: "123" }
+    }) do
+      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+      end
+    end
+
+    assert_equal false, ephemeral_called, "ephemeral should not be sent when handler returns nil"
+  end
+
   test "should handle error notification failure gracefully" do
     payload = {
     "team_id" => @workspace.platform_id,

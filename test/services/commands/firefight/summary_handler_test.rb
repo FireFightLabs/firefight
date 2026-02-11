@@ -10,6 +10,7 @@ class Commands::Firefight::SummaryHandlerTest < ActiveSupport::TestCase
   end
 
   test "opens summary modal in incident channel" do
+    stub_post_message
     stub_open_modal
 
     result = Commands::Firefight::SummaryHandler.execute(
@@ -29,7 +30,9 @@ class Commands::Firefight::SummaryHandlerTest < ActiveSupport::TestCase
   end
 
   test "handles trigger expiration" do
+    stub_post_message
     stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
+    stub_delete_message
 
     result = Commands::Firefight::SummaryHandler.execute(
       build_command(channel_id: @incident.slack_channel_id)
