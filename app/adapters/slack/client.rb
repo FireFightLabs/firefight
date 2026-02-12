@@ -7,6 +7,7 @@ module Slack
     class TriggerExpiredError < ApiError; end
     class ChannelExistsError < ApiError; end
     class ChannelNotFoundError < ApiError; end
+    class AlreadyArchivedError < ApiError; end
 
     # Open a modal in Slack
     #
@@ -238,6 +239,29 @@ module Slack
           view: view
         }
       )
+    end
+
+    # Archive a Slack channel
+    #
+    # @param workspace [Workspace] The workspace to use for authentication
+    # @param channel [String] Channel ID
+    # @return [Hash] Slack API response with indifferent access
+    # @raise [AlreadyArchivedError] if channel is already archived
+    # @raise [ApiError] if Slack API returns an error
+    def self.archive_channel(workspace:, channel:)
+      api_post(
+        workspace: workspace,
+        endpoint: "conversations.archive",
+        payload: {
+          channel: channel
+        }
+      )
+    rescue ApiError => e
+      if e.message.include?("already_archived")
+        raise AlreadyArchivedError, "Channel '#{channel}' is already archived"
+      else
+        raise
+      end
     end
 
     # List all channels in the workspace

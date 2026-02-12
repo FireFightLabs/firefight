@@ -76,7 +76,7 @@ class Interactions::UpdateSummaryHandlerTest < ActiveSupport::TestCase
       team_id: @workspace.platform_id,
       user_id: @member.platform_user_id,
       callback_id: Identifiers::UPDATE_SUMMARY_MODAL,
-      private_metadata: { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.slack_channel_id }.to_json,
+      private_metadata: { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.channel_id }.to_json,
       values: {
         "summary_block" => {
           "summary_input" => {

@@ -105,6 +105,102 @@ namespace :slack do
     end
   end
 
+  desc "[Dev] Archive ALL incident channels for a workspace, regardless of status"
+  task :archive_all_incident_channels, [ :workspace_id ] => :environment do |t, args|
+    abort "Error: workspace_id is required\nUsage: bin/rails 'slack:archive_all_incident_channels[workspace-uuid]'" if args[:workspace_id].blank?
+
+    workspace = Workspace.find_by(id: args[:workspace_id])
+    abort "Error: Workspace not found with ID: #{args[:workspace_id]}" unless workspace
+
+    incidents = workspace.incidents
+      .where.not(channel_id: nil)
+      .where(channel_archived_at: nil)
+
+    puts "Archiving ALL incident channels for #{workspace.name} (#{incidents.count} channels)..."
+
+    adapter = Slack::WorkspaceAdapter.new(workspace)
+    archived = 0
+    failed = 0
+
+    incidents.find_each do |incident|
+      adapter.archive_channel(channel_id: incident.channel_id)
+      incident.update!(
+        channel_archived_at: Time.current,
+        channel_archived_by: "rake:slack:archive_all_incident_channels"
+      )
+      archived += 1
+      puts "  Archived: #{incident.identifier} (#{incident.channel_name})"
+    rescue AdapterError::AlreadyArchived
+      incident.update!(
+        channel_archived_at: Time.current,
+        channel_archived_by: "rake:slack:archive_all_incident_channels"
+      )
+      archived += 1
+      puts "  Already archived: #{incident.identifier} (#{incident.channel_name})"
+    rescue => e
+      failed += 1
+      puts "  Failed: #{incident.identifier} (#{incident.channel_name}) - #{e.message}"
+    end
+
+    puts "\nDone: #{archived} archived, #{failed} failed"
+  end
+
+  desc "Archive Slack channels for closed incidents. Required: workspace_id. Optional: days"
+  task :archive_incident_channels, [ :workspace_id, :days ] => :environment do |t, args|
+    if args[:workspace_id].blank?
+      puts "Error: workspace_id is required"
+      puts "Usage: bin/rails slack:archive_incident_channels[workspace-uuid]"
+      puts "       bin/rails slack:archive_incident_channels[workspace-uuid,5]"
+      exit 1
+    end
+
+    workspace = Workspace.find_by(id: args[:workspace_id])
+
+    unless workspace
+      puts "Error: Workspace not found with ID: #{args[:workspace_id]}"
+      exit 1
+    end
+
+    incidents = workspace.incidents
+      .closed
+      .where.not(channel_id: nil)
+      .where(channel_archived_at: nil)
+
+    if args[:days].present?
+      days = args[:days].to_i
+      incidents = incidents.where("resolved_at < ?", days.days.ago)
+      puts "Archiving channels for incidents resolved more than #{days} days ago..."
+    else
+      puts "Archiving channels for all closed incidents..."
+    end
+
+    adapter = Slack::WorkspaceAdapter.new(workspace)
+    archived = 0
+    failed = 0
+
+    incidents.find_each do |incident|
+      adapter.archive_channel(channel_id: incident.channel_id)
+      incident.update!(
+        channel_archived_at: Time.current,
+        channel_archived_by: "rake:slack:archive_incident_channels"
+      )
+      archived += 1
+      puts "  Archived: #{incident.identifier} (#{incident.channel_name})"
+    rescue AdapterError::AlreadyArchived
+      incident.update!(
+        channel_archived_at: Time.current,
+        channel_archived_by: "rake:slack:archive_incident_channels"
+      )
+      archived += 1
+      puts "  Already archived: #{incident.identifier} (#{incident.channel_name})"
+    rescue => e
+      failed += 1
+      puts "  Failed: #{incident.identifier} (#{incident.channel_name}) - #{e.message}"
+    end
+
+    puts "\nDone: #{archived} archived, #{failed} failed"
+  end
+
   desc "List all workspaces with token expiration info"
   task list_workspaces: :environment do
     workspaces = Workspace.slack_platform.order(:name)

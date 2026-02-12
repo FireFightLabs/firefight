@@ -81,6 +81,14 @@ module SlackClientStubHelper
     Slack::Client.stubs(:delete_message).returns({ ok: true, ts: "1234567890.123456", channel: "C12345678" })
   end
 
+  def stub_archive_channel(raises: nil)
+    if raises
+      Slack::Client.stubs(:archive_channel).raises(raises)
+    else
+      Slack::Client.stubs(:archive_channel).returns({ ok: true })
+    end
+  end
+
   def stub_update_modal(raises: nil)
     if raises
       Slack::Client.stubs(:update_modal).raises(raises)

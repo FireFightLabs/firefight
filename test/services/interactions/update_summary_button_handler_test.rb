@@ -40,7 +40,7 @@ class Interactions::UpdateSummaryButtonHandlerTest < ActiveSupport::TestCase
       trigger_id: "12345.trigger",
       action_id: Identifiers::UPDATE_INCIDENT_SUMMARY,
       action_value: @incident.id,
-      channel_id: @incident.slack_channel_id
+      channel_id: @incident.channel_id
     )
   end
 end

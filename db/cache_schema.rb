@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_04_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_12_081823) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -118,6 +118,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_04_120000) do
 
   create_table "incidents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "announcement_message_ts"
+    t.datetime "channel_archived_at"
+    t.string "channel_archived_by"
+    t.string "channel_id"
+    t.string "channel_name"
     t.datetime "created_at", null: false
     t.jsonb "custom_fields", default: {}
     t.datetime "declared_at", null: false
@@ -132,8 +136,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_04_120000) do
     t.jsonb "platform_data", default: {}
     t.datetime "resolved_at"
     t.integer "sequence_number", null: false
-    t.string "slack_channel_id"
-    t.string "slack_channel_name"
     t.text "summary"
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false

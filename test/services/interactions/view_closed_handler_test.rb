@@ -14,7 +14,7 @@ class Interactions::ViewClosedHandlerTest < ActiveSupport::TestCase
 
     Slack::Client.expects(:delete_message).with(
       workspace: @workspace,
-      channel: @incident.slack_channel_id,
+      channel: @incident.channel_id,
       ts: "1234567890.123456"
     ).once
 
@@ -58,7 +58,7 @@ class Interactions::ViewClosedHandlerTest < ActiveSupport::TestCase
   private
 
   def build_interaction
-    metadata = { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.slack_channel_id }.to_json
+    metadata = { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.channel_id }.to_json
 
     Interaction.new(
       platform: Platforms::SLACK,
