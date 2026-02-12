@@ -10,8 +10,8 @@ active_critical_ws1:
   name: Database connection pool exhausted
   summary: Production database hitting max connections, users experiencing timeouts
   is_private: false
-  slack_channel_id: C12345678
-  slack_channel_name: inc-001-database-connection-pool
+  channel_id: C12345678
+  channel_name: inc-001-database-connection-pool
   declared_at: <%= 2.hours.ago %>
   resolved_at: null
   platform_data: {}
@@ -27,8 +27,8 @@ active_major_ws1:
   name: Payment processing slow
   summary: Payment gateway responding slowly, not affecting all users
   is_private: false
-  slack_channel_id: C23456789
-  slack_channel_name: inc-002-payment-processing-slow
+  channel_id: C23456789
+  channel_name: inc-002-payment-processing-slow
   declared_at: <%= 1.hour.ago %>
   resolved_at: null
   platform_data: {}
@@ -45,8 +45,8 @@ resolved_minor_ws1:
   name: Image upload broken
   summary: Users unable to upload profile images
   is_private: false
-  slack_channel_id: C34567890
-  slack_channel_name: inc-003-image-upload-broken
+  channel_id: C34567890
+  channel_name: inc-003-image-upload-broken
   declared_at: <%= 1.day.ago %>
   resolved_at: <%= 20.hours.ago %>
   platform_data: {}
@@ -79,8 +79,8 @@ active_p0_ws2:
   name: Complete service outage
   summary: All services down globally
   is_private: false
-  slack_channel_id: C99999999
-  slack_channel_name: inc-001-complete-service-outage
+  channel_id: C99999999
+  channel_name: inc-001-complete-service-outage
   declared_at: <%= 15.minutes.ago %>
   resolved_at: null
   platform_data: {}
@@ -96,8 +96,8 @@ resolved_p2_ws2:
   name: Search latency increased
   summary: Search queries taking 2x longer than usual
   is_private: false
-  slack_channel_id: C88888888
-  slack_channel_name: inc-002-search-latency-increased
+  channel_id: C88888888
+  channel_name: inc-002-search-latency-increased
   declared_at: <%= 3.days.ago %>
   resolved_at: <%= 2.days.ago %>
   platform_data: {}

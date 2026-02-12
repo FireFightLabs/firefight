@@ -20,7 +20,7 @@ class LeadAssignmentWorkflowTest < ActiveSupport::TestCase
       name: "Test incident",
       summary: "Test summary",
       is_private: false,
-      slack_channel_id: "C_INCIDENT",
+      channel_id: "C_INCIDENT",
       initial_message_ts: "1234567890.111111",
       announcement_message_ts: "1234567890.222222"
     )
@@ -72,7 +72,7 @@ class LeadAssignmentWorkflowTest < ActiveSupport::TestCase
 
     Slack::Client.expects(:post_message).with(
       has_entries(
-        channel: @incident.slack_channel_id,
+        channel: @incident.channel_id,
         text: includes(@bob.platform_user_id)
       )
     ).at_least_once.returns({ ok: true, ts: "123.456" })

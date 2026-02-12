@@ -3,7 +3,7 @@ class SummaryModalOpener
     adapter = WorkspaceAdapter.for(workspace)
 
     result = adapter.post_message(
-      channel_id: incident.slack_channel_id,
+      channel_id: incident.channel_id,
       text: ":writing_hand: <@#{user_id}> is updating the incident summary...",
       blocks: nil
     )
@@ -11,12 +11,12 @@ class SummaryModalOpener
     metadata = {
       incident_id: incident.id,
       temp_message_ts: result[:message_ts],
-      channel_id: incident.slack_channel_id
+      channel_id: incident.channel_id
     }.to_json
 
     adapter.open_summary_modal(trigger_id: trigger_id, incident: incident, private_metadata: metadata)
   rescue AdapterError::TriggerExpired
-    cleanup_temp_message(adapter, incident.slack_channel_id, result&.dig(:message_ts))
+    cleanup_temp_message(adapter, incident.channel_id, result&.dig(:message_ts))
     raise
   end
 

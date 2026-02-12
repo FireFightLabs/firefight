@@ -8,7 +8,7 @@ class IncidentUpdateService
 
     adapter = WorkspaceAdapter.for(@workspace)
     adapter.update_incident_quick_actions(
-      channel_id: incident.slack_channel_id,
+      channel_id: incident.channel_id,
       ts: incident.initial_message_ts,
       incident: incident
     )
@@ -30,7 +30,7 @@ class IncidentUpdateService
     lead_text = incident.lead ? " | Lead: #{incident.lead.user.name}" : ""
     topic = "Severity: #{incident.incident_severity.name} | Status: #{incident.incident_status.name}#{lead_text}"
     adapter.set_channel_metadata(
-      channel_id: incident.slack_channel_id,
+      channel_id: incident.channel_id,
       topic: topic,
       purpose: "Incident response channel for #{incident.identifier}"
     )

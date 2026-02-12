@@ -10,7 +10,7 @@
 #     def create_channel(workflow:, step:, input:)
 #       incident = workflow.subject
 #
-#       idempotent_field(incident, :slack_channel_id) do
+#       idempotent_field(incident, :channel_id) do
 #         SlackClient.create_channel("inc-#{incident.id}")
 #       end
 #     end
@@ -29,10 +29,10 @@ module IdempotentSteps
   # @return [Hash] Hash with field name as key
   #
   # @example Create Slack channel
-  #   idempotent_field(incident, :slack_channel_id) do
+  #   idempotent_field(incident, :channel_id) do
   #     SlackClient.create_channel("inc-#{incident.id}")
   #   end
-  #   # First run: Creates channel, stores ID, returns { slack_channel_id: "C123" }
+  #   # First run: Creates channel, stores ID, returns { channel_id: "C123" }
   #   # Retry: Returns existing ID immediately
   #
   def idempotent_field(record, field, &block)
@@ -73,7 +73,7 @@ module IdempotentSteps
   #
   # @example Find or create Slack channel
   #   find_or_create(
-  #     local_check: -> { incident.slack_channel_id },
+  #     local_check: -> { incident.channel_id },
   #     external_check: -> { SlackClient.find_channel_by_name("inc-#{incident.id}") },
   #     create: -> { SlackClient.create_channel("inc-#{incident.id}") }
   #   )
