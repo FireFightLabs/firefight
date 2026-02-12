@@ -13,10 +13,10 @@ class SummaryModalOpenerTest < ActiveSupport::TestCase
   test "posts temp message and opens summary modal" do
     Slack::Client.expects(:post_message).with(
       workspace: @workspace,
-      channel: @incident.slack_channel_id,
+      channel: @incident.channel_id,
       text: ":writing_hand: <@#{@user_id}> is updating the incident summary...",
       blocks: nil
-    ).returns({ ok: true, ts: "1234567890.123456", channel: @incident.slack_channel_id })
+    ).returns({ ok: true, ts: "1234567890.123456", channel: @incident.channel_id })
     stub_open_modal
 
     SummaryModalOpener.open(

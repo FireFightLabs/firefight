@@ -18,7 +18,7 @@ class SummaryUpdateWorkflowTest < ActiveSupport::TestCase
       name: "Test incident",
       summary: "Updated summary",
       is_private: false,
-      slack_channel_id: "C_INCIDENT",
+      channel_id: "C_INCIDENT",
       initial_message_ts: "1234567890.111111",
       announcement_message_ts: "1234567890.222222"
     )

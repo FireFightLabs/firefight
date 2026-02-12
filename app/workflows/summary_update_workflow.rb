@@ -16,7 +16,7 @@ class SummaryUpdateWorkflow < Base
   def post_confirmation(workflow:, step:, input:)
     adapter = WorkspaceAdapter.for(workflow.subject.workspace)
     adapter.post_message(
-      channel_id: workflow.subject.slack_channel_id,
+      channel_id: workflow.subject.channel_id,
       text: ":memo: Summary updated by <@#{workflow.context["updated_by_platform_user_id"]}>",
       blocks: nil
     )

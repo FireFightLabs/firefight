@@ -32,8 +32,8 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
 
     assert_equal "C_NEW", result[:channel_id]
     @incident.reload
-    assert_equal "C_NEW", @incident.slack_channel_id
-    assert_equal "inc-test", @incident.slack_channel_name
+    assert_equal "C_NEW", @incident.channel_id
+    assert_equal "inc-test", @incident.channel_name
   end
 
   test "create_channel falls back on name collision" do
@@ -45,13 +45,13 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
 
     assert_equal "C_FALLBACK", result[:channel_id]
     @incident.reload
-    assert_equal "C_FALLBACK", @incident.slack_channel_id
+    assert_equal "C_FALLBACK", @incident.channel_id
   end
 
   # set_channel_metadata
 
   test "set_channel_metadata sets topic and purpose" do
-    @incident.update!(slack_channel_id: "C_INC")
+    @incident.update!(channel_id: "C_INC")
 
     Slack::Client.expects(:set_channel_topic).with(
       workspace: @workspace, channel: "C_INC",
@@ -70,7 +70,7 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
   # post_quick_actions_message
 
   test "post_quick_actions_message posts and pins message" do
-    @incident.update!(slack_channel_id: "C_INC")
+    @incident.update!(channel_id: "C_INC")
     stub_post_message
     stub_pin_message
 
@@ -82,7 +82,7 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
   end
 
   test "post_quick_actions_message skips posting when already posted" do
-    @incident.update!(slack_channel_id: "C_INC", initial_message_ts: "existing.ts")
+    @incident.update!(channel_id: "C_INC", initial_message_ts: "existing.ts")
 
     Slack::Client.expects(:post_message).never
     stub_pin_message
@@ -95,7 +95,7 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
   # post_announcement
 
   test "post_announcement posts to incidents channel" do
-    @incident.update!(slack_channel_id: "C_INC")
+    @incident.update!(channel_id: "C_INC")
     stub_post_message
 
     result = @service.post_announcement(@incident)
@@ -134,7 +134,7 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
   # invite_declarer
 
   test "invite_declarer invites user to incident channel" do
-    @incident.update!(slack_channel_id: "C_INC")
+    @incident.update!(channel_id: "C_INC")
     stub_invite_to_channel
 
     result = @service.invite_declarer(@incident)

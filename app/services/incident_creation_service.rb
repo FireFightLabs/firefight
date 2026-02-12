@@ -5,13 +5,13 @@ class IncidentCreationService
 
   def create_channel(incident)
     adapter = WorkspaceAdapter.for(@workspace)
-    result = adapter.create_channel(name: incident.channel_name, is_private: incident.is_private)
-    incident.update!(slack_channel_id: result[:channel_id], slack_channel_name: result[:channel_name])
+    result = adapter.create_channel(name: incident.generated_channel_name, is_private: incident.is_private)
+    incident.update!(channel_id: result[:channel_id], channel_name: result[:channel_name])
     result
   rescue AdapterError::ChannelExists
-    fallback_name = "#{incident.channel_name}-#{Time.current.to_i}"
+    fallback_name = "#{incident.generated_channel_name}-#{Time.current.to_i}"
     result = adapter.create_channel(name: fallback_name, is_private: incident.is_private)
-    incident.update!(slack_channel_id: result[:channel_id], slack_channel_name: result[:channel_name])
+    incident.update!(channel_id: result[:channel_id], channel_name: result[:channel_name])
     result
   end
 
@@ -19,7 +19,7 @@ class IncidentCreationService
     adapter = WorkspaceAdapter.for(@workspace)
     topic = "Severity: #{incident.incident_severity.name} | Status: #{incident.incident_status.name}"
     purpose = "Incident response channel for #{incident.identifier}"
-    adapter.set_channel_metadata(channel_id: incident.slack_channel_id, topic: topic, purpose: purpose)
+    adapter.set_channel_metadata(channel_id: incident.channel_id, topic: topic, purpose: purpose)
   end
 
   def post_quick_actions_message(incident)
@@ -28,14 +28,14 @@ class IncidentCreationService
 
     unless message_ts
       result = adapter.post_incident_quick_actions(
-        channel_id: incident.slack_channel_id,
+        channel_id: incident.channel_id,
         incident: incident
       )
       message_ts = result[:message_ts]
       incident.update!(initial_message_ts: message_ts)
     end
 
-    adapter.pin_message(channel_id: incident.slack_channel_id, timestamp: message_ts)
+    adapter.pin_message(channel_id: incident.channel_id, timestamp: message_ts)
     { message_ts: message_ts }
   end
 
@@ -60,7 +60,7 @@ class IncidentCreationService
 
   def invite_declarer(incident)
     adapter = WorkspaceAdapter.for(@workspace)
-    adapter.invite_user(channel_id: incident.slack_channel_id, user_id: incident.declared_by.platform_user_id)
+    adapter.invite_user(channel_id: incident.channel_id, user_id: incident.declared_by.platform_user_id)
   end
 
   def create_incident_event(incident)

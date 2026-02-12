@@ -21,7 +21,7 @@ class Incident < ApplicationRecord
   validates :identifier, presence: true, uniqueness: { scope: :workspace_id }
   validates :declared_at, presence: true
 
-  scope :in_channel, ->(channel_id) { where(slack_channel_id: channel_id) }
+  scope :in_channel, ->(channel_id) { where(channel_id: channel_id) }
   scope :active, -> { joins(:incident_status).merge(IncidentStatus.live) }
   scope :closed, -> { joins(:incident_status).merge(IncidentStatus.closed) }
   scope :by_severity, -> { joins(:incident_severity).order("incident_severities.rank DESC") }

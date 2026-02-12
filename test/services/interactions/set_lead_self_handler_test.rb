@@ -52,7 +52,7 @@ class Interactions::SetLeadSelfHandlerTest < ActiveSupport::TestCase
       user_id: @alice.platform_user_id,
       action_id: Identifiers::SET_INCIDENT_LEAD_SELF,
       action_value: @incident.id,
-      channel_id: @incident.slack_channel_id
+      channel_id: @incident.channel_id
     )
   end
 

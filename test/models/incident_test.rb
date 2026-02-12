@@ -453,7 +453,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal 1, incident.sequence_number
     assert_equal "Database connection pool exhausted", incident.name
     assert_not incident.is_private
-    assert_not_nil incident.slack_channel_id
+    assert_not_nil incident.channel_id
     assert_nil incident.resolved_at
   end
 
@@ -471,8 +471,8 @@ class IncidentTest < ActiveSupport::TestCase
 
   test "manual incident without Slack channel loads correctly" do
     incident = incidents(:manual_incident_ws1)
-    assert_nil incident.slack_channel_id
-    assert_nil incident.slack_channel_name
+    assert_nil incident.channel_id
+    assert_nil incident.channel_name
   end
 
   test "workspace two fixtures use different naming conventions" do

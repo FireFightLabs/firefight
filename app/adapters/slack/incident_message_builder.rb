@@ -41,7 +41,7 @@ module Slack
         status_name: incident.incident_status.name,
         reporter_id: incident.declared_by.platform_user_id,
         lead_id: incident.lead&.platform_user_id,
-        channel_id: incident.slack_channel_id
+        channel_id: incident.channel_id
       })
     end
 

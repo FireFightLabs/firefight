@@ -37,8 +37,8 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     IncidentCreationWorkflow.start_inline!(@incident)
 
     @incident.reload
-    assert_equal "C12345678", @incident.slack_channel_id
-    assert_equal "incidents", @incident.slack_channel_name
+    assert_equal "C12345678", @incident.channel_id
+    assert_equal "incidents", @incident.channel_name
   end
 
   test "posts quick actions and pins message" do
@@ -89,7 +89,7 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
 
   test "skips posting quick actions on retry when already posted" do
     stub_successful_slack_workflow
-    @incident.update!(slack_channel_id: "C12345678", initial_message_ts: "existing.ts")
+    @incident.update!(channel_id: "C12345678", initial_message_ts: "existing.ts")
 
     Slack::Client.expects(:post_message).never
     Slack::Client.expects(:pin_message).once
@@ -136,7 +136,7 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     IncidentCreationWorkflow.start_inline!(@incident)
 
     @incident.reload
-    assert_equal "C_FALLBACK", @incident.slack_channel_id
+    assert_equal "C_FALLBACK", @incident.channel_id
   end
 
   private

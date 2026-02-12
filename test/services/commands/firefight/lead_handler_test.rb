@@ -13,7 +13,7 @@ class Commands::Firefight::LeadHandlerTest < ActiveSupport::TestCase
     stub_open_modal
 
     result = Commands::Firefight::LeadHandler.execute(
-      build_command(channel_id: @incident.slack_channel_id)
+      build_command(channel_id: @incident.channel_id)
     )
 
     assert_nil result
@@ -32,7 +32,7 @@ class Commands::Firefight::LeadHandlerTest < ActiveSupport::TestCase
     stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
 
     result = Commands::Firefight::LeadHandler.execute(
-      build_command(channel_id: @incident.slack_channel_id)
+      build_command(channel_id: @incident.channel_id)
     )
 
     assert_equal "ephemeral", result[:response_type]
@@ -46,7 +46,7 @@ class Commands::Firefight::LeadHandlerTest < ActiveSupport::TestCase
       user_id: "U12345678",
       text: "lead",
       trigger_id: "12345.trigger",
-      channel_id: @incident.slack_channel_id,
+      channel_id: @incident.channel_id,
       metadata: { command: "/ff" }
     )
 
