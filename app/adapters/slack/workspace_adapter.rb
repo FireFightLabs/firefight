@@ -66,6 +66,16 @@ module Slack
       raise AdapterError::AlreadyArchived, "Channel is already archived"
     end
 
+    def set_channel_topic(channel_id:, topic:)
+      Slack::Client.set_channel_topic(
+        workspace: @workspace,
+        channel: channel_id,
+        topic: topic
+      )
+
+      { success: true }
+    end
+
     def set_channel_metadata(channel_id:, topic:, purpose:)
       Slack::Client.set_channel_topic(
         workspace: @workspace,

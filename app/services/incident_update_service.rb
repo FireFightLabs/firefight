@@ -29,10 +29,9 @@ class IncidentUpdateService
     adapter = WorkspaceAdapter.for(@workspace)
     lead_text = incident.lead ? " | Lead: #{incident.lead.user.name}" : ""
     topic = "Severity: #{incident.incident_severity.name} | Status: #{incident.incident_status.name}#{lead_text}"
-    adapter.set_channel_metadata(
+    adapter.set_channel_topic(
       channel_id: incident.channel_id,
-      topic: topic,
-      purpose: "Incident response channel for #{incident.identifier}"
+      topic: topic
     )
   end
 
