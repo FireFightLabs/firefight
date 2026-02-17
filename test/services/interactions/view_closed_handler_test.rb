@@ -23,6 +23,31 @@ class Interactions::ViewClosedHandlerTest < ActiveSupport::TestCase
     assert_nil result
   end
 
+  test "deletes temp message when incident update modal is closed" do
+    stub_delete_message
+
+    metadata = { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.channel_id }.to_json
+
+    interaction = Interaction.new(
+      platform: Platforms::SLACK,
+      type: Interaction::VIEW_CLOSED,
+      team_id: @workspace.platform_id,
+      user_id: "U12345678",
+      callback_id: Identifiers::INCIDENT_UPDATE_MODAL,
+      private_metadata: metadata
+    )
+
+    Slack::Client.expects(:delete_message).with(
+      workspace: @workspace,
+      channel: @incident.channel_id,
+      ts: "1234567890.123456"
+    ).once
+
+    result = Interactions::ViewClosedHandler.execute(interaction)
+
+    assert_nil result
+  end
+
   test "ignores non-summary modal closures" do
     interaction = Interaction.new(
       platform: Platforms::SLACK,

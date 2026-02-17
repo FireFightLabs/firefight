@@ -1,7 +1,7 @@
 module Interactions
   class ViewClosedHandler
     def self.execute(interaction)
-      return unless interaction.callback_id == Identifiers::UPDATE_SUMMARY_MODAL
+      return unless [ Identifiers::UPDATE_SUMMARY_MODAL, Identifiers::INCIDENT_UPDATE_MODAL ].include?(interaction.callback_id)
 
       delete_temp_message(interaction)
       nil

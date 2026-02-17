@@ -5,6 +5,8 @@ module Identifiers
   SHARE_INCIDENTS_CHANNEL_MODAL = "share_incidents_channel_modal"
   UPDATE_SUMMARY_MODAL = "update_summary_modal"
   SET_LEAD_MODAL = "set_lead_modal"
+  INCIDENT_UPDATE_MODAL = "incident_update_modal"
+  SEND_INCIDENT_UPDATE = "send_incident_update"
 
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
