@@ -7,6 +7,10 @@ module Identifiers
   SET_LEAD_MODAL = "set_lead_modal"
   INCIDENT_UPDATE_MODAL = "incident_update_modal"
   SEND_INCIDENT_UPDATE = "send_incident_update"
+  INCIDENT_ACTIONS_MODAL = "incident_actions_modal"
+  INCIDENT_FOLLOWUPS_MODAL = "incident_followups_modal"
+  CREATE_ACTION_MODAL = "create_action_modal"
+  CREATE_FOLLOWUP_MODAL = "create_followup_modal"
 
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
@@ -20,4 +24,10 @@ module Identifiers
   SET_INCIDENT_LEAD_SELF = "set_incident_lead_self"
   UPDATE_INCIDENT_SUMMARY = "update_incident_summary"
   ESCALATE_INCIDENT = "escalate_incident"
+  PICK_UP_ACTION = "pick_up_action"
+  MARK_ACTION_DONE = "mark_action_done"
+  ADD_NEW_ACTION = "add_new_action"
+  ADD_NEW_FOLLOWUP = "add_new_followup"
+  CREATE_ACTION_FROM_REACTION = "create_action_from_reaction"
+  CREATE_FOLLOWUP_FROM_REACTION = "create_followup_from_reaction"
 end

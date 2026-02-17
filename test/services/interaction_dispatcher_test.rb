@@ -55,6 +55,46 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::SendIncidentUpdateButtonHandler, InteractionDispatcher.find(interaction)
   end
 
+  test "routes pick_up_action to PickUpActionHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::PICK_UP_ACTION)
+    assert_equal Interactions::PickUpActionHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes mark_action_done to MarkActionDoneHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::MARK_ACTION_DONE)
+    assert_equal Interactions::MarkActionDoneHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes add_new_action to AddNewActionHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::ADD_NEW_ACTION)
+    assert_equal Interactions::AddNewActionHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes add_new_followup to AddNewFollowupHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::ADD_NEW_FOLLOWUP)
+    assert_equal Interactions::AddNewFollowupHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes create_action_from_reaction to CreateActionFromReactionHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::CREATE_ACTION_FROM_REACTION)
+    assert_equal Interactions::CreateActionFromReactionHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes create_followup_from_reaction to CreateFollowupFromReactionHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::CREATE_FOLLOWUP_FROM_REACTION)
+    assert_equal Interactions::CreateFollowupFromReactionHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes create_action_modal to CreateActionHandler" do
+    interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::CREATE_ACTION_MODAL)
+    assert_equal Interactions::CreateActionHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes create_followup_modal to CreateFollowupHandler" do
+    interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::CREATE_FOLLOWUP_MODAL)
+    assert_equal Interactions::CreateFollowupHandler, InteractionDispatcher.find(interaction)
+  end
+
   test "routes unknown block_actions action_id to UnknownHandler" do
     interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: "unknown_action")
     assert_equal Interactions::UnknownHandler, InteractionDispatcher.find(interaction)

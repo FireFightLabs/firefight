@@ -12,6 +12,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       post "commands", to: "commands#create"
       post "interactions", to: "interactions#create"
+      post "events", to: "events#create"
     end
   end
 

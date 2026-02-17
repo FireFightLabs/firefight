@@ -6,7 +6,9 @@ class InteractionDispatcher
     Identifiers::INCIDENT_CREATION_MODAL => Interactions::IncidentCreationHandler,
     Identifiers::UPDATE_SUMMARY_MODAL => Interactions::UpdateSummaryHandler,
     Identifiers::SET_LEAD_MODAL => Interactions::SetLeadHandler,
-    Identifiers::INCIDENT_UPDATE_MODAL => Interactions::IncidentUpdateHandler
+    Identifiers::INCIDENT_UPDATE_MODAL => Interactions::IncidentUpdateHandler,
+    Identifiers::CREATE_ACTION_MODAL => Interactions::CreateActionHandler,
+    Identifiers::CREATE_FOLLOWUP_MODAL => Interactions::CreateFollowupHandler
   }.freeze
 
   BLOCK_ACTION_HANDLERS = {
@@ -18,7 +20,13 @@ class InteractionDispatcher
     Identifiers::SET_INCIDENT_LEAD_SELF => Interactions::SetLeadSelfHandler,
     Identifiers::UPDATE_INCIDENT_SUMMARY => Interactions::UpdateSummaryButtonHandler,
     Identifiers::ESCALATE_INCIDENT => Interactions::EscalatePlaceholderHandler,
-    Identifiers::SEND_INCIDENT_UPDATE => Interactions::SendIncidentUpdateButtonHandler
+    Identifiers::SEND_INCIDENT_UPDATE => Interactions::SendIncidentUpdateButtonHandler,
+    Identifiers::PICK_UP_ACTION => Interactions::PickUpActionHandler,
+    Identifiers::MARK_ACTION_DONE => Interactions::MarkActionDoneHandler,
+    Identifiers::ADD_NEW_ACTION => Interactions::AddNewActionHandler,
+    Identifiers::ADD_NEW_FOLLOWUP => Interactions::AddNewFollowupHandler,
+    Identifiers::CREATE_ACTION_FROM_REACTION => Interactions::CreateActionFromReactionHandler,
+    Identifiers::CREATE_FOLLOWUP_FROM_REACTION => Interactions::CreateFollowupFromReactionHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {

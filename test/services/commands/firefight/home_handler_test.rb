@@ -111,20 +111,36 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
 
   # --- Aliases ---
 
-  test "handles 'action' alias for 'actions'" do
+  test "routes 'action' to ActionsHandler" do
     command = build_command("action")
-    response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
-    assert_includes response[:text], "Actions"
+    Commands::Firefight::ActionsHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
   end
 
-  test "handles 'actions' subcommand" do
+  test "routes 'actions' to ActionsHandler" do
     command = build_command("actions")
-    response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
-    assert_includes response[:text], "Actions"
+    Commands::Firefight::ActionsHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
+  end
+
+  test "routes 'followup' to FollowupsHandler" do
+    command = build_command("followup")
+
+    Commands::Firefight::FollowupsHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
+  end
+
+  test "routes 'followups' to FollowupsHandler" do
+    command = build_command("followups")
+
+    Commands::Firefight::FollowupsHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
   end
 
   test "handles 'resolve' alias for 'close'" do

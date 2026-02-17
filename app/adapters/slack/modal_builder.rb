@@ -449,6 +449,215 @@ module Slack
     end
     private_class_method :next_update_options
 
+    def self.actions_list_modal(incident)
+      actions = incident.incident_actions.active.actions.recent
+      blocks = action_items_blocks(actions, empty_label: "actions", button_label: "+ Add new action",
+                                            button_action_id: Identifiers::ADD_NEW_ACTION,
+                                            incident_id: incident.id)
+
+      {
+        type: "modal",
+        callback_id: Identifiers::INCIDENT_ACTIONS_MODAL,
+        private_metadata: incident.id,
+        title: { type: "plain_text", text: "Actions" },
+        close: { type: "plain_text", text: "Done" },
+        blocks: blocks
+      }
+    end
+
+    def self.followups_list_modal(incident)
+      followups = incident.incident_actions.active.followups.recent
+      blocks = action_items_blocks(followups, empty_label: "follow-ups", button_label: "+ Add new follow-up",
+                                              button_action_id: Identifiers::ADD_NEW_FOLLOWUP,
+                                              incident_id: incident.id)
+
+      {
+        type: "modal",
+        callback_id: Identifiers::INCIDENT_FOLLOWUPS_MODAL,
+        private_metadata: incident.id,
+        title: { type: "plain_text", text: "Follow-ups" },
+        close: { type: "plain_text", text: "Done" },
+        blocks: blocks
+      }
+    end
+
+    def self.create_action_modal(incident, private_metadata: nil)
+      metadata = private_metadata || { incident_id: incident.id }.to_json
+      parsed = JSON.parse(metadata) rescue {}
+      initial_description = parsed["source_message_text"]
+
+      description_element = {
+        type: "plain_text_input",
+        action_id: "description_input",
+        multiline: true,
+        placeholder: { type: "plain_text", text: "Write something" },
+        max_length: 3000
+      }
+      description_element[:initial_value] = initial_description if initial_description.present?
+
+      {
+        type: "modal",
+        callback_id: Identifiers::CREATE_ACTION_MODAL,
+        private_metadata: metadata,
+        title: { type: "plain_text", text: "Create action" },
+        submit: { type: "plain_text", text: "Create" },
+        close: { type: "plain_text", text: "Cancel" },
+        blocks: [
+          {
+            type: "input",
+            block_id: "description_block",
+            element: description_element,
+            label: { type: "plain_text", text: "Description" }
+          },
+          {
+            type: "input",
+            block_id: "assignee_block",
+            element: {
+              type: "users_select",
+              action_id: "assignee_select",
+              placeholder: { type: "plain_text", text: "Pick an option" }
+            },
+            label: { type: "plain_text", text: "Who's picking it up?" },
+            optional: true
+          },
+          {
+            type: "context",
+            elements: [ { type: "mrkdwn", text: ":bulb: You can create an action from a Slack message by reacting with the :boom: emoji" } ]
+          }
+        ]
+      }
+    end
+
+    def self.create_followup_modal(incident, private_metadata: nil)
+      metadata = private_metadata || { incident_id: incident.id }.to_json
+      parsed = JSON.parse(metadata) rescue {}
+      initial_description = parsed["source_message_text"]
+
+      description_element = {
+        type: "plain_text_input",
+        action_id: "description_input",
+        multiline: true,
+        placeholder: { type: "plain_text", text: "Write something" },
+        max_length: 3000
+      }
+      description_element[:initial_value] = initial_description if initial_description.present?
+
+      {
+        type: "modal",
+        callback_id: Identifiers::CREATE_FOLLOWUP_MODAL,
+        private_metadata: metadata,
+        title: { type: "plain_text", text: "Create follow-up" },
+        submit: { type: "plain_text", text: "Create" },
+        close: { type: "plain_text", text: "Cancel" },
+        blocks: [
+          {
+            type: "input",
+            block_id: "description_block",
+            element: description_element,
+            label: { type: "plain_text", text: "Description" }
+          },
+          {
+            type: "input",
+            block_id: "assignee_block",
+            element: {
+              type: "users_select",
+              action_id: "assignee_select",
+              placeholder: { type: "plain_text", text: "Pick an option" }
+            },
+            label: { type: "plain_text", text: "Who's picking it up?" },
+            optional: true
+          },
+          {
+            type: "context",
+            elements: [ { type: "mrkdwn", text: ":bulb: You can create a follow-up from a Slack message by reacting with the :arrow_forward: emoji" } ]
+          }
+        ]
+      }
+    end
+
+    def self.action_items_blocks(items, empty_label:, button_label:, button_action_id:, incident_id:)
+      blocks = []
+
+      if items.any?
+        open_items = items.reject(&:done?)
+        done_items = items.select(&:done?)
+
+        open_items.each_with_index do |item, idx|
+          blocks << { type: "divider" } if idx > 0
+          blocks.concat(action_list_item_blocks(item))
+        end
+
+        if done_items.any?
+          blocks << { type: "divider" }
+          blocks << {
+            type: "context",
+            elements: [ { type: "mrkdwn", text: ":white_check_mark: *#{done_items.size} completed*" } ]
+          }
+          done_items.each do |item|
+            blocks << {
+              type: "context",
+              elements: [ { type: "mrkdwn", text: "~#{item.description.truncate(80)}~" } ]
+            }
+          end
+        end
+
+        blocks << { type: "divider" }
+      else
+        blocks << {
+          type: "section",
+          text: { type: "mrkdwn", text: "_No #{empty_label} yet. Click the button below to add one._" }
+        }
+      end
+
+      blocks << {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: button_label, emoji: true },
+            action_id: button_action_id,
+            value: incident_id
+          }
+        ]
+      }
+
+      blocks
+    end
+    private_class_method :action_items_blocks
+
+    def self.action_list_item_blocks(action)
+      status_icon = case action.status
+      when IncidentAction::STATUS_OPEN then ":white_circle:"
+      when IncidentAction::STATUS_IN_PROGRESS then ":large_blue_circle:"
+      when IncidentAction::STATUS_DONE then ":white_check_mark:"
+      end
+
+      blocks = []
+
+      blocks << {
+        type: "section",
+        text: { type: "mrkdwn", text: "#{status_icon}  *#{action.description}*" }
+      }
+
+      context_parts = []
+      if action.assigned?
+        context_parts << { type: "mrkdwn", text: "Assigned to <@#{action.assignee.platform_user_id}>" }
+      else
+        context_parts << { type: "mrkdwn", text: "Unassigned" }
+      end
+
+      status_label = case action.status
+      when IncidentAction::STATUS_OPEN then "Open"
+      when IncidentAction::STATUS_IN_PROGRESS then "In progress"
+      end
+      context_parts << { type: "mrkdwn", text: "  |  #{status_label}" } if status_label
+
+      blocks << { type: "context", elements: context_parts }
+
+      blocks
+    end
+    private_class_method :action_list_item_blocks
+
     def self.home_command_help(command)
       COMMAND_HELP[command] || "_Select an action above to see how to use the command directly._"
     end
