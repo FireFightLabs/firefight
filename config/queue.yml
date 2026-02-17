@@ -8,6 +8,11 @@ default: &default
       threads: 5
       processes: <%= ENV.fetch("WORKFLOW_JOB_CONCURRENCY", 1) %>
       polling_interval: 0.1
+    # Dedicated worker for events queue
+    - queues: events
+      threads: 3
+      processes: <%= ENV.fetch("EVENT_JOB_CONCURRENCY", 1) %>
+      polling_interval: 0.1
     # Default worker for all other queues
     - queues: "*"
       threads: 3

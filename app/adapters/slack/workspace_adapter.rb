@@ -167,6 +167,18 @@ module Slack
       raise AdapterError::TriggerExpired, "Modal trigger expired"
     end
 
+    def push_modal(trigger_id:, view:)
+      Slack::Client.push_modal(
+        workspace: @workspace,
+        trigger_id: trigger_id,
+        view: view
+      )
+
+      { success: true }
+    rescue Slack::Client::TriggerExpiredError
+      raise AdapterError::TriggerExpired, "Modal trigger expired"
+    end
+
     # Open share channel modal
     #
     # @param trigger_id [String] Slack trigger ID from interaction
@@ -378,6 +390,72 @@ module Slack
         channel_id: channel_id,
         user_id: user_id,
         text: "It's time to provide a status update for #{incident.identifier}",
+        blocks: blocks
+      )
+    end
+
+    def open_actions_list_modal(trigger_id:, incident:)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.actions_list_modal(incident)
+      )
+    end
+
+    def open_followups_list_modal(trigger_id:, incident:)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.followups_list_modal(incident)
+      )
+    end
+
+    def open_create_action_modal(trigger_id:, incident:, private_metadata: nil, push: false)
+      view = Slack::ModalBuilder.create_action_modal(incident, private_metadata: private_metadata)
+      push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
+    end
+
+    def open_create_followup_modal(trigger_id:, incident:, private_metadata: nil, push: false)
+      view = Slack::ModalBuilder.create_followup_modal(incident, private_metadata: private_metadata)
+      push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
+    end
+
+    def post_action_message(channel_id:, action:)
+      type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
+      blocks = Slack::IncidentMessageBuilder.action_created_blocks(action)
+      post_message(channel_id: channel_id, text: "New #{type_label} added", blocks: blocks)
+    end
+
+    def update_action_message(channel_id:, ts:, action:, blocks:)
+      type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
+      update_message(channel_id: channel_id, ts: ts, text: "#{type_label.capitalize} updated", blocks: blocks)
+    end
+
+    def get_message_permalink(channel_id:, message_ts:)
+      result = Slack::Client.get_permalink(
+        workspace: @workspace,
+        channel: channel_id,
+        message_ts: message_ts
+      )
+
+      { permalink: result[:permalink] }
+    end
+
+    def fetch_message(channel_id:, ts:)
+      Slack::Client.get_message(
+        workspace: @workspace,
+        channel: channel_id,
+        ts: ts
+      )
+    end
+
+    def post_action_from_reaction_prompt(channel_id:, user_id:, action_type:, message_text:, incident_id:, source_message_link:)
+      blocks = Slack::IncidentMessageBuilder.action_from_reaction_blocks(
+        action_type, message_text, incident_id, source_message_link
+      )
+      type_label = action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
+      post_ephemeral(
+        channel_id: channel_id,
+        user_id: user_id,
+        text: "Create #{type_label} from this message?",
         blocks: blocks
       )
     end

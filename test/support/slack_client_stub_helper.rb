@@ -61,6 +61,14 @@ module SlackClientStubHelper
     end
   end
 
+  def stub_push_modal(raises: nil)
+    if raises
+      Slack::Client.stubs(:push_modal).raises(raises)
+    else
+      Slack::Client.stubs(:push_modal).returns({ ok: true, view: { id: "V12345678" } })
+    end
+  end
+
   def stub_list_conversations(channels: [])
     Slack::Client.stubs(:list_conversations).returns(channels)
   end
@@ -95,6 +103,14 @@ module SlackClientStubHelper
     else
       Slack::Client.stubs(:update_modal).returns({ ok: true, view: { id: "V12345678" } })
     end
+  end
+
+  def stub_get_permalink(permalink: "https://workspace.slack.com/archives/C12345678/p1234567890123456")
+    Slack::Client.stubs(:get_permalink).returns({ ok: true, permalink: permalink })
+  end
+
+  def stub_get_message(text: "Test message")
+    Slack::Client.stubs(:get_message).returns({ "text" => text, "user" => "U12345678", "ts" => "1234567890.123456" })
   end
 
   def stub_successful_slack_workflow

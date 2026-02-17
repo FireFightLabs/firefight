@@ -194,6 +194,143 @@ module Slack
       ]
     end
 
+    def self.action_created_blocks(action)
+      type_emoji, type_label = action_type_display(action)
+      creator = "<@#{action.created_by.platform_user_id}>"
+
+      blocks = [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "#{type_emoji}  *New #{type_label}*" }
+        },
+        { type: "divider" },
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "> #{action.description}" }
+        },
+        {
+          type: "context",
+          elements: [
+            { type: "mrkdwn", text: "Added by #{creator}  |  #{action.assigned? ? "Assigned to <@#{action.assignee.platform_user_id}>" : "Unassigned"}" }
+          ]
+        }
+      ]
+
+      unless action.assigned?
+        blocks << {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: ":raised_hands: I can take this", emoji: true },
+              action_id: Identifiers::PICK_UP_ACTION,
+              value: action.id
+            }
+          ]
+        }
+      end
+
+      blocks
+    end
+
+    def self.action_picked_up_blocks(action)
+      type_emoji, type_label = action_type_display(action)
+
+      [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "#{type_emoji}  *New #{type_label}*" }
+        },
+        { type: "divider" },
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "> #{action.description}" }
+        },
+        {
+          type: "context",
+          elements: [
+            { type: "mrkdwn", text: ":large_blue_circle: Picked up by <@#{action.assignee.platform_user_id}>" }
+          ]
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: ":white_check_mark: Mark as done", emoji: true },
+              action_id: Identifiers::MARK_ACTION_DONE,
+              value: action.id
+            }
+          ]
+        }
+      ]
+    end
+
+    def self.action_completed_blocks(action)
+      type_emoji, _type_label = action_type_display(action)
+      completer = action.assignee ? "<@#{action.assignee.platform_user_id}>" : "someone"
+
+      [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "#{type_emoji}  ~#{action.description}~" }
+        },
+        {
+          type: "context",
+          elements: [
+            { type: "mrkdwn", text: ":white_check_mark: Completed by #{completer}" }
+          ]
+        }
+      ]
+    end
+
+    def self.action_from_reaction_blocks(action_type, message_text, incident_id, source_message_link)
+      if action_type == IncidentAction::ACTION_TYPE_FOLLOWUP
+        type_emoji = ":arrow_forward:"
+        type_label = "follow-up"
+        button_action_id = Identifiers::CREATE_FOLLOWUP_FROM_REACTION
+      else
+        type_emoji = ":boom:"
+        type_label = "action"
+        button_action_id = Identifiers::CREATE_ACTION_FROM_REACTION
+      end
+
+      preview = message_text.truncate(200)
+      button_value = {
+        incident_id: incident_id,
+        source_message_text: message_text.truncate(3000),
+        source_message_link: source_message_link
+      }.to_json
+
+      [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "#{type_emoji} *Create #{type_label} from this message?*\n> #{preview}" }
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "Create #{type_label}", emoji: true },
+              action_id: button_action_id,
+              value: button_value,
+              style: "primary"
+            }
+          ]
+        }
+      ]
+    end
+
+    def self.action_type_display(action)
+      if action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP
+        [ ":arrow_forward:", "follow-up" ]
+      else
+        [ ":boom:", "action" ]
+      end
+    end
+    private_class_method :action_type_display
+
     def self.diff_text(label, previous_name, current_name)
       if previous_name.present? && previous_name != current_name
         "#{label}: ~#{previous_name}~ → *#{current_name}*"

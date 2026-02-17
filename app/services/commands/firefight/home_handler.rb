@@ -30,8 +30,9 @@ module Commands
           # Phase 4.5
           ephemeral("Escalate command coming soon...")
         when "action", "actions"
-          # Phase 4.1
-          ephemeral("Actions command coming soon...")
+          Commands::Firefight::ActionsHandler.execute(command)
+        when "followup", "followups"
+          Commands::Firefight::FollowupsHandler.execute(command)
         when "close", "resolve"
           # Phase 5.1
           ephemeral("Close command coming soon...")
