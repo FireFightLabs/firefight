@@ -34,6 +34,23 @@ module Slack
       body
     end
 
+    def self.push_modal(workspace:, trigger_id:, view:)
+      body = api_post(
+        workspace: workspace,
+        endpoint: "views.push",
+        payload: {
+          trigger_id: trigger_id,
+          view: view
+        }
+      )
+
+      if !body[:ok] && body[:error] == "expired_trigger_id"
+        raise TriggerExpiredError, "Trigger ID expired"
+      end
+
+      body
+    end
+
     # Post a message to a Slack channel
     #
     # @param workspace [Workspace] The workspace to use for authentication
@@ -282,6 +299,34 @@ module Slack
       )
 
       body[:channels] || []
+    end
+
+    def self.get_permalink(workspace:, channel:, message_ts:)
+      body = api_post(
+        workspace: workspace,
+        endpoint: "chat.getPermalink",
+        payload: {
+          channel: channel,
+          message_ts: message_ts
+        }
+      )
+
+      body
+    end
+
+    def self.get_message(workspace:, channel:, ts:)
+      body = api_post(
+        workspace: workspace,
+        endpoint: "conversations.history",
+        payload: {
+          channel: channel,
+          latest: ts,
+          limit: 1,
+          inclusive: true
+        }
+      )
+
+      body[:messages]&.first
     end
 
     private
