@@ -75,7 +75,31 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     Commands::Firefight::HomeHandler.execute(command)
   end
 
-  %w[status severity escalate timeline list postmortem].each do |sub|
+  test "routes 'status' subcommand to StatusHandler" do
+    command = build_command("status")
+
+    Commands::Firefight::StatusHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
+  end
+
+  test "routes 'update' subcommand to UpdateHandler" do
+    command = build_command("update")
+
+    Commands::Firefight::UpdateHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
+  end
+
+  test "routes 'severity' subcommand to SeverityHandler" do
+    command = build_command("severity")
+
+    Commands::Firefight::SeverityHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
+  end
+
+  %w[escalate timeline list postmortem].each do |sub|
     test "handles '#{sub}' subcommand with placeholder" do
       command = build_command(sub)
       response = Commands::Firefight::HomeHandler.execute(command)

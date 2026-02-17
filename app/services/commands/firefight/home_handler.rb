@@ -21,11 +21,11 @@ module Commands
         when "lead"
           Commands::Firefight::LeadHandler.execute(command)
         when "status"
-          # Phase 3.1
-          ephemeral("Status command coming soon...")
+          Commands::Firefight::StatusHandler.execute(command)
+        when "update"
+          Commands::Firefight::UpdateHandler.execute(command)
         when "severity"
-          # Phase 3.2
-          ephemeral("Severity command coming soon...")
+          Commands::Firefight::SeverityHandler.execute(command)
         when "escalate"
           # Phase 4.5
           ephemeral("Escalate command coming soon...")

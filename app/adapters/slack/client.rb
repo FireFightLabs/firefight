@@ -42,14 +42,15 @@ module Slack
     # @param blocks [Array<Hash>] Optional Block Kit blocks
     # @return [Hash] Slack API response with indifferent access
     # @raise [ApiError] if Slack API returns an error
-    def self.post_message(workspace:, channel:, text:, blocks: nil)
+    def self.post_message(workspace:, channel:, text:, blocks: nil, thread_ts: nil)
       api_post(
         workspace: workspace,
         endpoint: "chat.postMessage",
         payload: {
           channel: channel,
           text: text,
-          blocks: blocks
+          blocks: blocks,
+          thread_ts: thread_ts
         }.compact
       )
     end
