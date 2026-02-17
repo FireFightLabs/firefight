@@ -333,12 +333,64 @@ module Slack
       )
     end
 
-    def post_ephemeral(channel_id:, user_id:, text:)
+    def open_incident_update_modal(trigger_id:, incident:, private_metadata: nil)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.incident_update_modal(incident, private_metadata: private_metadata)
+      )
+    end
+
+    def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil)
+      blocks = Slack::IncidentMessageBuilder.status_update_blocks(
+        incident,
+        message: message,
+        updated_by_platform_user_id: updated_by_platform_user_id,
+        previous_status_name: previous_status_name,
+        previous_severity_name: previous_severity_name
+      )
+      post_message(channel_id: channel_id, text: "Incident updated", blocks: blocks)
+    end
+
+    def post_incident_update_announcement_thread(channel_id:, thread_ts:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil)
+      blocks = Slack::IncidentMessageBuilder.status_update_announcement_blocks(
+        incident,
+        message: message,
+        updated_by_platform_user_id: updated_by_platform_user_id,
+        previous_status_name: previous_status_name,
+        previous_severity_name: previous_severity_name
+      )
+      post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident updated", blocks: blocks)
+    end
+
+    def post_incident_update_reminder(channel_id:, user_id:, incident:)
+      blocks = Slack::IncidentMessageBuilder.update_reminder_blocks(incident)
+      post_ephemeral(
+        channel_id: channel_id,
+        user_id: user_id,
+        text: "It's time to provide a status update for #{incident.identifier}",
+        blocks: blocks
+      )
+    end
+
+    def post_threaded_message(channel_id:, thread_ts:, text:, blocks: nil)
+      result = Slack::Client.post_message(
+        workspace: @workspace,
+        channel: channel_id,
+        text: text,
+        blocks: blocks,
+        thread_ts: thread_ts
+      )
+
+      { message_ts: result[:ts] }
+    end
+
+    def post_ephemeral(channel_id:, user_id:, text:, blocks: nil)
       Slack::Client.post_ephemeral(
         workspace: @workspace,
         channel: channel_id,
         user: user_id,
-        text: text
+        text: text,
+        blocks: blocks
       )
 
       { success: true }

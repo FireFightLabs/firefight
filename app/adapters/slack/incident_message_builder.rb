@@ -110,6 +110,100 @@ module Slack
       buttons
     end
 
+    # Compact inline format for the incident channel
+    def self.status_update_blocks(incident, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil)
+      severity_text = diff_text("Severity", previous_severity_name, incident.incident_severity.name)
+      status_text = diff_text("Status", previous_status_name, incident.incident_status.name)
+
+      context_parts = [
+        "Updated by: *<@#{updated_by_platform_user_id}>*",
+        severity_text,
+        status_text
+      ]
+
+      blocks = [
+        {
+          type: "header",
+          text: { type: "plain_text", text: "Incident updated", emoji: true }
+        },
+        {
+          type: "context",
+          elements: [
+            { type: "mrkdwn", text: context_parts.join("  |  ") }
+          ]
+        }
+      ]
+
+      if message.present?
+        blocks.insert(1, {
+          type: "section",
+          text: { type: "mrkdwn", text: message }
+        })
+      end
+
+      blocks
+    end
+
+    # Vertical format with divider for #incidents announcement thread
+    def self.status_update_announcement_blocks(incident, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil)
+      severity_text = diff_text("Severity", previous_severity_name, incident.incident_severity.name)
+      status_text = diff_text("Status", previous_status_name, incident.incident_status.name)
+
+      blocks = [
+        {
+          type: "header",
+          text: { type: "plain_text", text: "Incident updated", emoji: true }
+        },
+        { type: "divider" }
+      ]
+
+      if message.present?
+        blocks << {
+          type: "section",
+          text: { type: "mrkdwn", text: message }
+        }
+      end
+
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: Updated by: *<@#{updated_by_platform_user_id}>*" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":rotating_light: #{severity_text}" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":traffic_light: #{status_text}" } }
+
+      blocks
+    end
+
+    def self.update_reminder_blocks(incident)
+      [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ":alarm_clock: It's time to provide a status update for *#{incident.identifier}*"
+          }
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "Send an update", emoji: true },
+              action_id: Identifiers::SEND_INCIDENT_UPDATE,
+              value: incident.id,
+              style: "primary"
+            }
+          ]
+        }
+      ]
+    end
+
+    def self.diff_text(label, previous_name, current_name)
+      if previous_name.present? && previous_name != current_name
+        "#{label}: ~#{previous_name}~ → *#{current_name}*"
+      else
+        "#{label}: *#{current_name}*"
+      end
+    end
+    private_class_method :diff_text
+
     def self.severity_emoji(severity)
       severity_emoji_for(severity.slug)
     end

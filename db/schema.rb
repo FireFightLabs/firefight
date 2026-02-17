@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_12_081823) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_17_094536) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -133,6 +133,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_12_081823) do
     t.string "initial_message_ts"
     t.boolean "is_private", default: false
     t.string "name"
+    t.datetime "next_update_at"
     t.jsonb "platform_data", default: {}
     t.datetime "resolved_at"
     t.integer "sequence_number", null: false

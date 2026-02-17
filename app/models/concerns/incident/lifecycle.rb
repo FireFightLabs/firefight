@@ -26,6 +26,7 @@ module Incident::Lifecycle
     if incident_status_id_changed?
       if incident_status.closed? && resolved_at.nil?
         self.resolved_at = Time.current
+        self.next_update_at = nil
       elsif incident_status.live? && resolved_at.present?
         self.resolved_at = nil
       end

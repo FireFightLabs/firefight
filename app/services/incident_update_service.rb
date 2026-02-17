@@ -35,4 +35,31 @@ class IncidentUpdateService
       purpose: "Incident response channel for #{incident.identifier}"
     )
   end
+
+  def post_incident_update_message(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:)
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_incident_update_message(
+      channel_id: incident.channel_id,
+      incident: incident,
+      message: message,
+      updated_by_platform_user_id: updated_by_platform_user_id,
+      previous_status_name: previous_status_name,
+      previous_severity_name: previous_severity_name
+    )
+  end
+
+  def post_incident_update_announcement_thread(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:)
+    return unless incident.announcement_message_ts
+
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_incident_update_announcement_thread(
+      channel_id: @workspace.incidents_channel_id,
+      thread_ts: incident.announcement_message_ts,
+      incident: incident,
+      message: message,
+      updated_by_platform_user_id: updated_by_platform_user_id,
+      previous_status_name: previous_status_name,
+      previous_severity_name: previous_severity_name
+    )
+  end
 end

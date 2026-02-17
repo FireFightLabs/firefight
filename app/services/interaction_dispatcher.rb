@@ -5,7 +5,8 @@ class InteractionDispatcher
     Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL => Interactions::ShareModalSubmissionHandler,
     Identifiers::INCIDENT_CREATION_MODAL => Interactions::IncidentCreationHandler,
     Identifiers::UPDATE_SUMMARY_MODAL => Interactions::UpdateSummaryHandler,
-    Identifiers::SET_LEAD_MODAL => Interactions::SetLeadHandler
+    Identifiers::SET_LEAD_MODAL => Interactions::SetLeadHandler,
+    Identifiers::INCIDENT_UPDATE_MODAL => Interactions::IncidentUpdateHandler
   }.freeze
 
   BLOCK_ACTION_HANDLERS = {
@@ -16,7 +17,8 @@ class InteractionDispatcher
     Identifiers::HOME_ACTION_SELECT => Interactions::HomeActionSelectHandler,
     Identifiers::SET_INCIDENT_LEAD_SELF => Interactions::SetLeadSelfHandler,
     Identifiers::UPDATE_INCIDENT_SUMMARY => Interactions::UpdateSummaryButtonHandler,
-    Identifiers::ESCALATE_INCIDENT => Interactions::EscalatePlaceholderHandler
+    Identifiers::ESCALATE_INCIDENT => Interactions::EscalatePlaceholderHandler,
+    Identifiers::SEND_INCIDENT_UPDATE => Interactions::SendIncidentUpdateButtonHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {

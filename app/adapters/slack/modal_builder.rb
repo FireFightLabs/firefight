@@ -324,6 +324,131 @@ module Slack
       }
     end
 
+    def self.incident_update_modal(incident, private_metadata: nil)
+      workspace = incident.workspace
+      statuses = workspace.incident_statuses.active.ordered
+      severities = workspace.incident_severities.active.ordered
+      metadata = private_metadata || incident.id
+
+      current_status = incident.incident_status
+      current_severity = incident.incident_severity
+
+      status_options = statuses.map do |status|
+        option = {
+          text: { type: "plain_text", text: status.name },
+          value: status.slug
+        }
+        option[:description] = { type: "plain_text", text: status.description } if status.description.present?
+        option
+      end
+
+      severity_options = severities.map do |severity|
+        option = {
+          text: { type: "plain_text", text: severity.name },
+          value: severity.slug
+        }
+        option[:description] = { type: "plain_text", text: severity.description } if severity.description.present?
+        option
+      end
+
+      initial_status = status_options.find { |o| o[:value] == current_status.slug }
+      initial_severity = severity_options.find { |o| o[:value] == current_severity.slug }
+
+      {
+        type: "modal",
+        callback_id: Identifiers::INCIDENT_UPDATE_MODAL,
+        notify_on_close: true,
+        private_metadata: metadata,
+        title: {
+          type: "plain_text",
+          text: "Incident update"
+        },
+        submit: {
+          type: "plain_text",
+          text: "Send update"
+        },
+        close: {
+          type: "plain_text",
+          text: "Cancel"
+        },
+        blocks: [
+          {
+            type: "input",
+            block_id: "status_block",
+            element: {
+              type: "static_select",
+              action_id: "status_select",
+              options: status_options,
+              initial_option: initial_status
+            }.compact,
+            label: { type: "plain_text", text: "Status" }
+          },
+          {
+            type: "input",
+            block_id: "severity_block",
+            element: {
+              type: "static_select",
+              action_id: "severity_select",
+              options: severity_options,
+              initial_option: initial_severity
+            }.compact,
+            label: { type: "plain_text", text: "Severity" }
+          },
+          {
+            type: "input",
+            block_id: "message_block",
+            element: {
+              type: "plain_text_input",
+              action_id: "message_input",
+              multiline: true,
+              placeholder: {
+                type: "plain_text",
+                text: "What's happening at the moment? What are you doing next?"
+              },
+              max_length: 3000
+            },
+            label: { type: "plain_text", text: "Message" },
+            optional: true
+          },
+          {
+            type: "input",
+            block_id: "next_update_block",
+            element: {
+              type: "static_select",
+              action_id: "next_update_select",
+              placeholder: {
+                type: "plain_text",
+                text: "Select a time"
+              },
+              options: next_update_options
+            },
+            label: { type: "plain_text", text: "When will you provide the next update? (optional)" },
+            optional: true
+          }
+        ]
+      }
+    end
+
+    NEXT_UPDATE_OPTIONS = [
+      { label: "5 minutes", value: "5" },
+      { label: "15 minutes", value: "15" },
+      { label: "30 minutes", value: "30" },
+      { label: "1 hour", value: "60" },
+      { label: "3 hours", value: "180" },
+      { label: "1 day", value: "1440" },
+      { label: "7 days", value: "10080" }
+    ].freeze
+
+    def self.next_update_options
+      NEXT_UPDATE_OPTIONS.map do |opt|
+        {
+          text: { type: "plain_text", text: opt[:label] },
+          value: opt[:value]
+        }
+      end
+    end
+    private_class_method :next_update_options
+
     def self.home_command_help(command)
       COMMAND_HELP[command] || "_Select an action above to see how to use the command directly._"
     end
