@@ -185,10 +185,9 @@ module Slack
           elements: [
             {
               type: "button",
-              text: { type: "plain_text", text: "Send an update", emoji: true },
+              text: { type: "plain_text", text: ":writing_hand: Send an update", emoji: true },
               action_id: Identifiers::SEND_INCIDENT_UPDATE,
-              value: incident.id,
-              style: "primary"
+              value: incident.id
             }
           ]
         }
