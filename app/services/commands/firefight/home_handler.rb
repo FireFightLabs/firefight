@@ -34,8 +34,9 @@ module Commands
         when "followup", "followups"
           Commands::Firefight::FollowupsHandler.execute(command)
         when "close", "resolve"
-          # Phase 5.1
-          ephemeral("Close command coming soon...")
+          Commands::Firefight::CloseHandler.execute(command)
+        when "reopen"
+          Commands::Firefight::ReopenHandler.execute(command)
         when "postmortem"
           # Phase 5.2
           ephemeral("Postmortem command coming soon...")

@@ -143,20 +143,28 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     Commands::Firefight::HomeHandler.execute(command)
   end
 
-  test "handles 'resolve' alias for 'close'" do
+  test "routes 'resolve' to CloseHandler" do
     command = build_command("resolve")
-    response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
-    assert_includes response[:text], "Close"
+    Commands::Firefight::CloseHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
   end
 
-  test "handles 'close' subcommand" do
+  test "routes 'close' to CloseHandler" do
     command = build_command("close")
-    response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
-    assert_includes response[:text], "Close"
+    Commands::Firefight::CloseHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
+  end
+
+  test "routes 'reopen' to ReopenHandler" do
+    command = build_command("reopen")
+
+    Commands::Firefight::ReopenHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
   end
 
   # --- Unknown subcommand ---

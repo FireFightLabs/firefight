@@ -11,6 +11,8 @@ module Identifiers
   INCIDENT_FOLLOWUPS_MODAL = "incident_followups_modal"
   CREATE_ACTION_MODAL = "create_action_modal"
   CREATE_FOLLOWUP_MODAL = "create_followup_modal"
+  CLOSE_INCIDENT_MODAL = "close_incident_modal"
+  REOPEN_INCIDENT_MODAL = "reopen_incident_modal"
 
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
