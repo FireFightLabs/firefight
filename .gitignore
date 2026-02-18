@@ -50,3 +50,7 @@ node_modules
 # Except test key which is safe to commit (only contains test secrets)
 !/config/credentials/test.key
 
+
+# Ignore key files for decrypting credentials and more.
+/config/credentials/*.key
+
