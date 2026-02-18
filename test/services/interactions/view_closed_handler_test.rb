@@ -48,6 +48,48 @@ class Interactions::ViewClosedHandlerTest < ActiveSupport::TestCase
     assert_nil result
   end
 
+  test "deletes temp message when close incident modal is closed" do
+    stub_delete_message
+
+    metadata = { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.channel_id }.to_json
+
+    interaction = Interaction.new(
+      platform: Platforms::SLACK,
+      type: Interaction::VIEW_CLOSED,
+      team_id: @workspace.platform_id,
+      user_id: "U12345678",
+      callback_id: Identifiers::CLOSE_INCIDENT_MODAL,
+      private_metadata: metadata
+    )
+
+    Slack::Client.expects(:delete_message).once
+
+    result = Interactions::ViewClosedHandler.execute(interaction)
+
+    assert_nil result
+  end
+
+  test "deletes temp message when reopen incident modal is closed" do
+    stub_delete_message
+
+    metadata = { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.channel_id }.to_json
+
+    interaction = Interaction.new(
+      platform: Platforms::SLACK,
+      type: Interaction::VIEW_CLOSED,
+      team_id: @workspace.platform_id,
+      user_id: "U12345678",
+      callback_id: Identifiers::REOPEN_INCIDENT_MODAL,
+      private_metadata: metadata
+    )
+
+    Slack::Client.expects(:delete_message).once
+
+    result = Interactions::ViewClosedHandler.execute(interaction)
+
+    assert_nil result
+  end
+
   test "ignores non-summary modal closures" do
     interaction = Interaction.new(
       platform: Platforms::SLACK,
