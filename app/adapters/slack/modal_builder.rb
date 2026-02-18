@@ -575,6 +575,120 @@ module Slack
       }
     end
 
+    def self.close_modal(incident, private_metadata: nil)
+      metadata = private_metadata || incident.id
+      workspace = incident.workspace
+
+      name_value = incident.name.present? ? { initial_value: incident.name } : {}
+      summary_value = incident.summary.present? ? { initial_value: incident.summary } : {}
+
+      severities = workspace.incident_severities.active.ordered
+      severity_options = severities.map do |severity|
+        option = {
+          text: { type: "plain_text", text: severity.name },
+          value: severity.slug
+        }
+        option[:description] = { type: "plain_text", text: severity.description } if severity.description.present?
+        option
+      end
+      initial_severity = severity_options.find { |o| o[:value] == incident.incident_severity.slug }
+
+      lead_element = {
+        type: "users_select",
+        action_id: "lead_select",
+        placeholder: { type: "plain_text", text: "Select a person" }
+      }
+      lead_element[:initial_user] = incident.lead.platform_user_id if incident.lead
+
+      {
+        type: "modal",
+        callback_id: Identifiers::CLOSE_INCIDENT_MODAL,
+        notify_on_close: true,
+        private_metadata: metadata,
+        title: { type: "plain_text", text: "Close incident" },
+        submit: { type: "plain_text", text: "Close incident" },
+        close: { type: "plain_text", text: "Cancel" },
+        blocks: [
+          {
+            type: "input",
+            block_id: "name_block",
+            element: {
+              type: "plain_text_input",
+              action_id: "name_input",
+              placeholder: { type: "plain_text", text: "Incident name" },
+              max_length: 200
+            }.merge(name_value),
+            label: { type: "plain_text", text: "Incident name" },
+            optional: true
+          },
+          {
+            type: "input",
+            block_id: "summary_block",
+            element: {
+              type: "plain_text_input",
+              action_id: "summary_input",
+              multiline: true,
+              placeholder: { type: "plain_text", text: "Final summary of what happened and how it was resolved..." },
+              max_length: 3000
+            }.merge(summary_value),
+            label: { type: "plain_text", text: "Summary" },
+            optional: true
+          },
+          {
+            type: "input",
+            block_id: "severity_block",
+            element: {
+              type: "static_select",
+              action_id: "severity_select",
+              options: severity_options,
+              initial_option: initial_severity
+            }.compact,
+            label: { type: "plain_text", text: "Severity" }
+          },
+          {
+            type: "input",
+            block_id: "lead_block",
+            element: lead_element,
+            label: { type: "plain_text", text: "Incident Lead" },
+            optional: true
+          }
+        ]
+      }
+    end
+
+    def self.reopen_modal(incident, private_metadata: nil)
+      metadata = private_metadata || incident.id
+
+      {
+        type: "modal",
+        callback_id: Identifiers::REOPEN_INCIDENT_MODAL,
+        notify_on_close: true,
+        private_metadata: metadata,
+        title: { type: "plain_text", text: "Reopen incident" },
+        submit: { type: "plain_text", text: "Reopen incident" },
+        close: { type: "plain_text", text: "Cancel" },
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "*#{incident.identifier}: #{incident.name || 'Untitled Incident'}*" }
+          },
+          {
+            type: "input",
+            block_id: "reason_block",
+            element: {
+              type: "plain_text_input",
+              action_id: "reason_input",
+              multiline: true,
+              placeholder: { type: "plain_text", text: "Why is this incident being reopened?" },
+              max_length: 3000
+            },
+            label: { type: "plain_text", text: "Reason for reopening" },
+            optional: true
+          }
+        ]
+      }
+    end
+
     def self.action_items_blocks(items, empty_label:, button_label:, button_action_id:, incident_id:)
       blocks = []
 

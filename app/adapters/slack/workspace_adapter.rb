@@ -418,6 +418,40 @@ module Slack
       push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
     end
 
+    def open_close_incident_modal(trigger_id:, incident:, private_metadata: nil)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.close_modal(incident, private_metadata: private_metadata)
+      )
+    end
+
+    def open_reopen_incident_modal(trigger_id:, incident:, private_metadata: nil)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.reopen_modal(incident, private_metadata: private_metadata)
+      )
+    end
+
+    def post_resolution_message(channel_id:, incident:, resolved_by_platform_user_id:)
+      blocks = Slack::IncidentMessageBuilder.resolution_blocks(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
+      post_message(channel_id: channel_id, text: "Incident resolved", blocks: blocks)
+    end
+
+    def post_resolution_announcement_thread(channel_id:, thread_ts:, incident:, resolved_by_platform_user_id:)
+      blocks = Slack::IncidentMessageBuilder.resolution_announcement_thread_blocks(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
+      post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident resolved", blocks: blocks)
+    end
+
+    def post_reopen_message(channel_id:, incident:, reopened_by_platform_user_id:, reason: nil)
+      blocks = Slack::IncidentMessageBuilder.reopen_blocks(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
+      post_message(channel_id: channel_id, text: "Incident reopened", blocks: blocks)
+    end
+
+    def post_reopen_announcement_thread(channel_id:, thread_ts:, incident:, reopened_by_platform_user_id:, reason: nil)
+      blocks = Slack::IncidentMessageBuilder.reopen_announcement_thread_blocks(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
+      post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident reopened", blocks: blocks)
+    end
+
     def post_action_message(channel_id:, action:)
       type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
       blocks = Slack::IncidentMessageBuilder.action_created_blocks(action)

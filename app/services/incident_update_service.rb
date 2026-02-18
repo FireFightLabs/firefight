@@ -47,6 +47,50 @@ class IncidentUpdateService
     )
   end
 
+  def post_resolution_message(incident, resolved_by_platform_user_id:)
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_resolution_message(
+      channel_id: incident.channel_id,
+      incident: incident,
+      resolved_by_platform_user_id: resolved_by_platform_user_id
+    )
+  end
+
+  def post_resolution_announcement_thread(incident, resolved_by_platform_user_id:)
+    return unless incident.announcement_message_ts
+
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_resolution_announcement_thread(
+      channel_id: @workspace.incidents_channel_id,
+      thread_ts: incident.announcement_message_ts,
+      incident: incident,
+      resolved_by_platform_user_id: resolved_by_platform_user_id
+    )
+  end
+
+  def post_reopen_message(incident, reopened_by_platform_user_id:, reason: nil)
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_reopen_message(
+      channel_id: incident.channel_id,
+      incident: incident,
+      reopened_by_platform_user_id: reopened_by_platform_user_id,
+      reason: reason
+    )
+  end
+
+  def post_reopen_announcement_thread(incident, reopened_by_platform_user_id:, reason: nil)
+    return unless incident.announcement_message_ts
+
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_reopen_announcement_thread(
+      channel_id: @workspace.incidents_channel_id,
+      thread_ts: incident.announcement_message_ts,
+      incident: incident,
+      reopened_by_platform_user_id: reopened_by_platform_user_id,
+      reason: reason
+    )
+  end
+
   def post_incident_update_announcement_thread(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:)
     return unless incident.announcement_message_ts
 
