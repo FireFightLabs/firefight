@@ -10,10 +10,23 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_17_094536) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_25_100522) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
+
+  create_table "incident_action_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "action_type", null: false
+    t.string "action_update_type", null: false
+    t.uuid "actor_id", null: false
+    t.datetime "created_at", null: false
+    t.uuid "incident_action_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_update_type"], name: "index_incident_action_updates_on_action_update_type"
+    t.index ["actor_id"], name: "index_incident_action_updates_on_actor_id"
+    t.index ["incident_action_id", "created_at"], name: "idx_on_incident_action_id_created_at_ce446d496c"
+    t.index ["incident_action_id"], name: "index_incident_action_updates_on_incident_action_id"
+  end
 
   create_table "incident_actions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "action_type", default: "action", null: false
@@ -36,10 +49,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_094536) do
   create_table "incident_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "event_type", null: false
+    t.uuid "eventable_id"
+    t.string "eventable_type"
     t.uuid "incident_id", null: false
     t.jsonb "metadata", default: {}
     t.uuid "user_id"
     t.index ["event_type"], name: "index_incident_events_on_event_type"
+    t.index ["eventable_type", "eventable_id"], name: "index_incident_events_on_eventable_type_and_eventable_id"
     t.index ["incident_id", "created_at"], name: "index_incident_events_on_incident_id_and_created_at"
     t.index ["incident_id"], name: "index_incident_events_on_incident_id"
     t.index ["metadata"], name: "index_incident_events_on_metadata", using: :gin
@@ -114,6 +130,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_094536) do
     t.index ["workspace_id", "position"], name: "index_incident_statuses_on_workspace_id_and_position"
     t.index ["workspace_id", "slug"], name: "index_incident_statuses_on_workspace_id_and_slug", unique: true
     t.index ["workspace_id"], name: "index_incident_statuses_on_workspace_id"
+  end
+
+  create_table "incident_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "announcement_message_ts"
+    t.jsonb "changed_fields", default: [], null: false
+    t.datetime "channel_archived_at"
+    t.string "channel_archived_by"
+    t.string "channel_id"
+    t.string "channel_name"
+    t.datetime "created_at", null: false
+    t.uuid "created_by_id"
+    t.jsonb "custom_fields", default: {}, null: false
+    t.datetime "declared_at", null: false
+    t.uuid "declared_by_id", null: false
+    t.datetime "deleted_at"
+    t.string "identifier", null: false
+    t.uuid "incident_id", null: false
+    t.uuid "incident_severity_id", null: false
+    t.uuid "incident_status_id", null: false
+    t.string "initial_message_ts"
+    t.boolean "is_private", default: false, null: false
+    t.uuid "lead_id"
+    t.text "message"
+    t.string "name"
+    t.datetime "next_update_at"
+    t.jsonb "platform_data", default: {}, null: false
+    t.datetime "resolved_at"
+    t.integer "sequence_number", null: false
+    t.text "summary"
+    t.string "update_type", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["created_by_id"], name: "index_incident_updates_on_created_by_id"
+    t.index ["declared_by_id"], name: "index_incident_updates_on_declared_by_id"
+    t.index ["incident_id", "created_at"], name: "index_incident_updates_on_incident_id_and_created_at"
+    t.index ["incident_id"], name: "index_incident_updates_on_incident_id"
+    t.index ["incident_severity_id"], name: "index_incident_updates_on_incident_severity_id"
+    t.index ["incident_status_id"], name: "index_incident_updates_on_incident_status_id"
+    t.index ["lead_id"], name: "index_incident_updates_on_lead_id"
+    t.index ["update_type"], name: "index_incident_updates_on_update_type"
   end
 
   create_table "incidents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -401,6 +457,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_094536) do
     t.index ["platform"], name: "index_workspaces_on_platform"
   end
 
+  add_foreign_key "incident_action_updates", "incident_actions"
+  add_foreign_key "incident_action_updates", "workspace_memberships", column: "actor_id"
   add_foreign_key "incident_actions", "incidents"
   add_foreign_key "incident_actions", "workspace_memberships", column: "assignee_id"
   add_foreign_key "incident_actions", "workspace_memberships", column: "created_by_id"
@@ -413,6 +471,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_094536) do
   add_foreign_key "incident_roles", "workspaces"
   add_foreign_key "incident_severities", "workspaces"
   add_foreign_key "incident_statuses", "workspaces"
+  add_foreign_key "incident_updates", "incident_severities"
+  add_foreign_key "incident_updates", "incident_statuses"
+  add_foreign_key "incident_updates", "incidents"
+  add_foreign_key "incident_updates", "workspace_memberships", column: "created_by_id"
+  add_foreign_key "incident_updates", "workspace_memberships", column: "declared_by_id"
+  add_foreign_key "incident_updates", "workspace_memberships", column: "lead_id"
+  add_foreign_key "incident_updates", "workspaces"
   add_foreign_key "incidents", "incident_severities"
   add_foreign_key "incidents", "incident_statuses"
   add_foreign_key "incidents", "workspace_memberships", column: "declared_by_id"

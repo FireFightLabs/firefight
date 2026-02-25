@@ -17,7 +17,7 @@ module Interactions
       previous_status_name = incident.incident_status.name
       previous_severity_name = incident.incident_severity.name
 
-      incident.record_change!(IncidentEvent::INCIDENT_UPDATED, changed_by: member) do
+      incident.record_change!(IncidentEvent::INCIDENT_UPDATED, changed_by: member, message: message) do
         incident.update!(
           incident_status: new_status,
           incident_severity: new_severity

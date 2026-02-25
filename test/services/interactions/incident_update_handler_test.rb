@@ -42,7 +42,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
   test "creates incident event with change tracking" do
     stub_all_side_effects
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentUpdate.count" ], 1 do
       Interactions::IncidentUpdateHandler.execute(
         build_interaction(status_slug: "identified", severity_slug: "major")
       )
@@ -50,6 +50,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_UPDATED)
     assert_equal @member, event.user
+    assert_instance_of IncidentUpdate, event.eventable
     assert event.changed?(:status)
     assert event.changed?(:severity)
   end

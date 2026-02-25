@@ -45,15 +45,17 @@ class Interactions::CreateActionHandlerTest < ActiveSupport::TestCase
     assert_equal @bob, action.assignee
   end
 
-  test "creates incident event" do
+  test "creates incident event with action update" do
     stub_post_message
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentActionUpdate.count" ], 1 do
       Interactions::CreateActionHandler.execute(build_interaction(description: "Fix it"))
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_CREATED)
     assert_equal @member, event.user
+    assert_instance_of IncidentActionUpdate, event.eventable
+    assert_equal IncidentActionUpdate::CREATED, event.eventable.action_update_type
   end
 
   test "stores platform_data from reaction source" do

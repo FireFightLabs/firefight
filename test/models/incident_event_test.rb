@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentEventTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_statuses, :incident_severities, :incidents, :incident_events
+  fixtures :workspaces, :users, :workspace_memberships, :incident_statuses, :incident_severities, :incidents, :incident_events, :incident_actions
 
   # ============================================================================
   # ASSOCIATIONS
@@ -156,6 +156,162 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_equal "incident.updated", IncidentEvent::INCIDENT_UPDATED
     assert_equal "lead.assigned", IncidentEvent::LEAD_ASSIGNED
     assert_equal "incident.resolved", IncidentEvent::INCIDENT_RESOLVED
+  end
+
+  # ============================================================================
+  # EVENT DESCRIPTIONS
+  # ============================================================================
+
+  test "description returns human-readable text for each event type" do
+    IncidentEvent::EVENT_TYPES.each do |event_type|
+      event = IncidentEvent.new(event_type: event_type)
+      assert_not_nil event.description, "description should exist for #{event_type}"
+      assert_kind_of String, event.description
+    end
+  end
+
+  test "EVENT_DESCRIPTIONS covers all event types" do
+    IncidentEvent::EVENT_TYPES.each do |event_type|
+      assert IncidentEvent::EVENT_DESCRIPTIONS.key?(event_type),
+        "EVENT_DESCRIPTIONS should include #{event_type}"
+    end
+  end
+
+  # ============================================================================
+  # DOMAIN EVENT BUS
+  # ============================================================================
+
+  test "enqueues ProcessDomainEventJob after create" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+
+    ProcessDomainEventJob.expects(:perform_later).with { |hash|
+      hash["event_type"] == IncidentEvent::INCIDENT_UPDATED &&
+        hash["incident_id"] == incident.id &&
+        hash["user_id"] == member.id
+    }
+
+    IncidentEvent.create!(
+      incident: incident,
+      event_type: IncidentEvent::INCIDENT_UPDATED,
+      user: member,
+      metadata: { "changed_fields" => [ "summary" ] }
+    )
+  end
+
+  test "enqueued job receives correct event data" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+
+    ProcessDomainEventJob.expects(:perform_later).with { |hash|
+      hash["event_type"] == IncidentEvent::ACTION_CREATED &&
+        hash["incident_id"] == incident.id &&
+        hash["user_id"] == member.id &&
+        hash["data"] == { "action_id" => "test-123" } &&
+        hash["occurred_at"].present?
+    }
+
+    IncidentEvent.create!(
+      incident: incident,
+      event_type: IncidentEvent::ACTION_CREATED,
+      user: member,
+      metadata: { "action_id" => "test-123" }
+    )
+  end
+
+  # ============================================================================
+  # DELEGATED TYPES
+  # ============================================================================
+
+  test "delegated_type is optional" do
+    event = IncidentEvent.new(
+      incident: incidents(:active_critical_ws1),
+      event_type: IncidentEvent::INCIDENT_UPDATED
+    )
+    assert_nil event.eventable
+    assert event.valid?
+  end
+
+  test "updates scope returns events with IncidentUpdate eventable" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+
+    update = IncidentUpdate.create!(
+      incident: incident,
+      workspace_id: incident.workspace_id,
+      incident_status: incident.incident_status,
+      incident_severity: incident.incident_severity,
+      declared_by: incident.declared_by,
+      sequence_number: incident.sequence_number,
+      identifier: incident.identifier,
+      name: incident.name,
+      is_private: incident.is_private,
+      declared_at: incident.declared_at,
+      update_type: IncidentUpdate::UPDATED,
+      created_by: member,
+      changed_fields: [ "summary" ]
+    )
+
+    incident.incident_events.create!(
+      event_type: IncidentEvent::INCIDENT_UPDATED,
+      user: member,
+      eventable: update
+    )
+
+    assert_equal 1, incident.incident_events.updates.count
+  end
+
+  test "action_updates scope returns events with IncidentActionUpdate eventable" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    action = incident_actions(:inc1_action_open)
+
+    action_update = IncidentActionUpdate.create!(
+      incident_action: action,
+      action_update_type: IncidentActionUpdate::CREATED,
+      action_type: action.action_type,
+      actor: member
+    )
+
+    incident.incident_events.create!(
+      event_type: IncidentEvent::ACTION_CREATED,
+      user: member,
+      eventable: action_update
+    )
+
+    assert_equal 1, incident.incident_events.action_updates.count
+  end
+
+  test "changed_fields delegates to IncidentUpdate when eventable" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+
+    update = IncidentUpdate.create!(
+      incident: incident,
+      workspace_id: incident.workspace_id,
+      incident_status: incident.incident_status,
+      incident_severity: incident.incident_severity,
+      declared_by: incident.declared_by,
+      sequence_number: incident.sequence_number,
+      identifier: incident.identifier,
+      name: incident.name,
+      is_private: incident.is_private,
+      declared_at: incident.declared_at,
+      update_type: IncidentUpdate::UPDATED,
+      created_by: member,
+      changed_fields: [ "status", "severity" ]
+    )
+
+    event = incident.incident_events.create!(
+      event_type: IncidentEvent::INCIDENT_UPDATED,
+      user: member,
+      eventable: update
+    )
+
+    assert_equal [ "status", "severity" ], event.changed_fields
+    assert event.changed?(:status)
+    assert event.changed?(:severity)
+    assert_not event.changed?(:name)
   end
 
   # ============================================================================
