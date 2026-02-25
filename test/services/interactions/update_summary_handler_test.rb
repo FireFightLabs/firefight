@@ -21,7 +21,7 @@ class Interactions::UpdateSummaryHandlerTest < ActiveSupport::TestCase
     assert_equal "New summary text", @incident.reload.summary
   end
 
-  test "creates incident event" do
+  test "creates incident event with incident update" do
     stub_all_side_effects
 
     assert_difference -> { @incident.incident_events.count }, 1 do
@@ -30,8 +30,9 @@ class Interactions::UpdateSummaryHandlerTest < ActiveSupport::TestCase
       )
     end
 
-    event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_UPDATED)
+    event = @incident.incident_events.reload.find_by!(event_type: IncidentEvent::INCIDENT_UPDATED)
     assert_equal @member, event.user
+    assert_instance_of IncidentUpdate, event.eventable
     assert event.changed?(:summary)
   end
 

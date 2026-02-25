@@ -100,15 +100,16 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
     assert_equal @bob, @incident.reload.lead
   end
 
-  test "creates INCIDENT_RESOLVED event with snapshots" do
+  test "creates INCIDENT_RESOLVED event with incident update" do
     stub_all_side_effects
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentUpdate.count" ], 1 do
       Interactions::CloseIncidentHandler.execute(build_interaction)
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_RESOLVED)
     assert_equal @member, event.user
+    assert_instance_of IncidentUpdate, event.eventable
     assert event.changed?(:status)
     assert event.changed?(:resolved_at)
   end

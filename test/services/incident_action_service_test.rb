@@ -68,10 +68,10 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     assert_equal "followup", action.action_type
   end
 
-  test "create_action creates incident event" do
+  test "create_action creates incident event with action update" do
     stub_post_message
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentActionUpdate.count" ], 1 do
       @service.create_action(
         incident: @incident,
         created_by: @member,
@@ -82,6 +82,9 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_CREATED)
     assert_equal @member, event.user
+    assert_instance_of IncidentActionUpdate, event.eventable
+    assert_equal IncidentActionUpdate::CREATED, event.eventable.action_update_type
+    assert_equal "action", event.eventable.action_type
   end
 
   test "create_action stores platform_data" do
@@ -116,7 +119,7 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     assert_equal IncidentAction::STATUS_IN_PROGRESS, action.status
   end
 
-  test "pick_up_action creates incident event" do
+  test "pick_up_action creates incident event with action update" do
     stub_post_message
     stub_update_message
 
@@ -127,12 +130,14 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
       description: "Fix the issue"
     )
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentActionUpdate.count" ], 1 do
       @service.pick_up_action(action: action, picked_up_by: @bob)
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_PICKED_UP)
     assert_equal @bob, event.user
+    assert_instance_of IncidentActionUpdate, event.eventable
+    assert_equal IncidentActionUpdate::PICKED_UP, event.eventable.action_update_type
   end
 
   test "complete_action sets done status" do
@@ -154,7 +159,7 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     assert_equal IncidentAction::STATUS_DONE, action.status
   end
 
-  test "complete_action creates incident event" do
+  test "complete_action creates incident event with action update" do
     stub_post_message
     stub_update_message
 
@@ -168,11 +173,13 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
 
     @service.pick_up_action(action: action, picked_up_by: @bob)
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentActionUpdate.count" ], 1 do
       @service.complete_action(action: action, completed_by: @bob)
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_COMPLETED)
     assert_equal @bob, event.user
+    assert_instance_of IncidentActionUpdate, event.eventable
+    assert_equal IncidentActionUpdate::COMPLETED, event.eventable.action_update_type
   end
 end

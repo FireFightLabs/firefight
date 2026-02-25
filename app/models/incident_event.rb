@@ -33,6 +33,7 @@ class IncidentEvent < ApplicationRecord
   # Associations
   belongs_to :incident
   belongs_to :user, class_name: "WorkspaceMembership", optional: true
+  delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate], optional: true
 
   # Callbacks
   after_create_commit :publish_to_event_bus
@@ -43,6 +44,8 @@ class IncidentEvent < ApplicationRecord
   # Scopes
   scope :chronological, -> { order(created_at: :asc) }
   scope :recent, -> { order(created_at: :desc) }
+  scope :updates, -> { where(eventable_type: "IncidentUpdate") }
+  scope :action_updates, -> { where(eventable_type: "IncidentActionUpdate") }
 
   # Helper methods
   def before_snapshot
@@ -54,7 +57,11 @@ class IncidentEvent < ApplicationRecord
   end
 
   def changed_fields
-    metadata["changed_fields"] || []
+    if eventable.is_a?(IncidentUpdate)
+      eventable.changed_fields || []
+    else
+      metadata["changed_fields"] || []
+    end
   end
 
   def details

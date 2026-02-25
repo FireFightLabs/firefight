@@ -58,10 +58,10 @@ class Interactions::ReopenIncidentHandlerTest < ActiveSupport::TestCase
     assert @incident.active?
   end
 
-  test "creates INCIDENT_REOPENED event with reason in details" do
+  test "creates INCIDENT_REOPENED event with incident update" do
     stub_all_side_effects
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentUpdate.count" ], 1 do
       Interactions::ReopenIncidentHandler.execute(
         build_interaction(reason: "Issue is still occurring")
       )
@@ -69,6 +69,9 @@ class Interactions::ReopenIncidentHandlerTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_REOPENED)
     assert_equal @member, event.user
+    assert_instance_of IncidentUpdate, event.eventable
+    assert_equal IncidentUpdate::REOPENED, event.eventable.update_type
+    assert_equal "Issue is still occurring", event.eventable.message
     assert event.changed?(:status)
     assert event.changed?(:resolved_at)
     assert_equal "Issue is still occurring", event.details["reason"]

@@ -144,15 +144,20 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
 
   # create_incident_event
 
-  test "create_incident_event creates event record" do
-    assert_difference "IncidentEvent.count", 1 do
+  test "create_incident_event creates event with incident update" do
+    assert_difference [ "IncidentEvent.count", "IncidentUpdate.count" ], 1 do
       result = @service.create_incident_event(@incident)
       assert result[:ok]
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_CREATED)
     assert_equal @member, event.user
-    assert_equal "critical", event.metadata["severity"]
-    assert_equal false, event.metadata["is_private"]
+    assert_instance_of IncidentUpdate, event.eventable
+
+    update = event.eventable
+    assert_equal IncidentUpdate::CREATED, update.update_type
+    assert_equal @member, update.created_by
+    assert_equal @incident.incident_status, update.incident_status
+    assert_equal @incident.incident_severity, update.incident_severity
   end
 end

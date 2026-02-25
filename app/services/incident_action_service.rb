@@ -13,10 +13,17 @@ class IncidentActionService
       platform_data: platform_data
     )
 
+    action_update = IncidentActionUpdate.create!(
+      incident_action: action,
+      action_update_type: IncidentActionUpdate::CREATED,
+      action_type: action_type,
+      actor: created_by
+    )
+
     incident.incident_events.create!(
       event_type: IncidentEvent::ACTION_CREATED,
       user: created_by,
-      metadata: { action_id: action.id, action_type: action_type, description: description }
+      eventable: action_update
     )
 
     adapter = WorkspaceAdapter.for(@workspace)
@@ -29,10 +36,17 @@ class IncidentActionService
   def pick_up_action(action:, picked_up_by:)
     action.update!(assignee: picked_up_by, status: IncidentAction::STATUS_IN_PROGRESS)
 
+    action_update = IncidentActionUpdate.create!(
+      incident_action: action,
+      action_update_type: IncidentActionUpdate::PICKED_UP,
+      action_type: action.action_type,
+      actor: picked_up_by
+    )
+
     action.incident.incident_events.create!(
       event_type: IncidentEvent::ACTION_PICKED_UP,
       user: picked_up_by,
-      metadata: { action_id: action.id }
+      eventable: action_update
     )
 
     update_action_message(action, Slack::IncidentMessageBuilder.action_picked_up_blocks(action))
@@ -41,10 +55,17 @@ class IncidentActionService
   def complete_action(action:, completed_by:)
     action.update!(status: IncidentAction::STATUS_DONE)
 
+    action_update = IncidentActionUpdate.create!(
+      incident_action: action,
+      action_update_type: IncidentActionUpdate::COMPLETED,
+      action_type: action.action_type,
+      actor: completed_by
+    )
+
     action.incident.incident_events.create!(
       event_type: IncidentEvent::ACTION_COMPLETED,
       user: completed_by,
-      metadata: { action_id: action.id }
+      eventable: action_update
     )
 
     update_action_message(action, Slack::IncidentMessageBuilder.action_completed_blocks(action))
