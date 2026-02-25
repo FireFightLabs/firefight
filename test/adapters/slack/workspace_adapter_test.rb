@@ -59,10 +59,10 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   test "create_incidents_channel raises error if existing channel not found" do
     stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
-      stub_list_conversations(channels: [])
-      assert_raises(Slack::Client::ChannelNotFoundError) do
-        @adapter.create_incidents_channel
-        end
+    stub_list_conversations(channels: [])
+    assert_raises(AdapterError::NotFound) do
+      @adapter.create_incidents_channel
+    end
   end
 
   # create_channel tests
@@ -132,9 +132,9 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   test "invite_user raises error on API failure" do
     stub_invite_to_channel(raises: Slack::Client::ApiError.new("not_in_channel"))
-    assert_raises(Slack::Client::ApiError) do
+    assert_raises(AdapterError) do
       @adapter.invite_user(channel_id: "C12345678", user_id: "U12345678")
-      end
+    end
   end
 
   # post_welcome_message tests
@@ -293,14 +293,14 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   test "find_existing_channel raises error if channel not found" do
     channels = [
-    { id: "C11111111", name: "general" },
-    { id: "C33333333", name: "random" }
+      { id: "C11111111", name: "general" },
+      { id: "C33333333", name: "random" }
     ]
 
     stub_list_conversations(channels: channels)
-      stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
-      assert_raises(Slack::Client::ChannelNotFoundError) do
-        @adapter.create_incidents_channel
-        end
+    stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
+    assert_raises(AdapterError::NotFound) do
+      @adapter.create_incidents_channel
+    end
   end
 end
