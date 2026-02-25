@@ -31,15 +31,16 @@ class Interactions::CreateFollowupHandlerTest < ActiveSupport::TestCase
     assert_equal @member, action.created_by
   end
 
-  test "creates incident event for followup" do
+  test "creates incident event for followup with action update" do
     stub_post_message
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentActionUpdate.count" ], 1 do
       Interactions::CreateFollowupHandler.execute(build_interaction(description: "Write docs"))
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_CREATED)
-    assert_equal "followup", event.metadata["action_type"]
+    assert_instance_of IncidentActionUpdate, event.eventable
+    assert_equal "followup", event.eventable.action_type
   end
 
   private

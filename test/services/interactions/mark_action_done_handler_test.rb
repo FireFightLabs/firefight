@@ -42,15 +42,17 @@ class Interactions::MarkActionDoneHandlerTest < ActiveSupport::TestCase
     assert_equal IncidentAction::STATUS_DONE, @action.status
   end
 
-  test "creates incident event" do
+  test "creates incident event with action update" do
     stub_update_message
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentActionUpdate.count" ], 1 do
       Interactions::MarkActionDoneHandler.execute(build_interaction(@action.id))
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_COMPLETED)
     assert_equal @bob, event.user
+    assert_instance_of IncidentActionUpdate, event.eventable
+    assert_equal IncidentActionUpdate::COMPLETED, event.eventable.action_update_type
   end
 
   test "ignores already done action" do

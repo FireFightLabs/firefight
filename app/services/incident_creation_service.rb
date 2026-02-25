@@ -64,12 +64,7 @@ class IncidentCreationService
   end
 
   def create_incident_event(incident)
-    IncidentEvent.create!(
-      incident: incident,
-      user: incident.declared_by,
-      event_type: IncidentEvent::INCIDENT_CREATED,
-      metadata: { "severity" => incident.incident_severity.slug, "is_private" => incident.is_private }
-    )
+    incident.create_initial_update!(created_by: incident.declared_by)
     { ok: true }
   end
 end

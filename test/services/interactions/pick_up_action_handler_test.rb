@@ -40,15 +40,17 @@ class Interactions::PickUpActionHandlerTest < ActiveSupport::TestCase
     assert_equal IncidentAction::STATUS_IN_PROGRESS, @action.status
   end
 
-  test "creates incident event" do
+  test "creates incident event with action update" do
     stub_update_message
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentActionUpdate.count" ], 1 do
       Interactions::PickUpActionHandler.execute(build_interaction(@action.id))
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_PICKED_UP)
     assert_equal @bob, event.user
+    assert_instance_of IncidentActionUpdate, event.eventable
+    assert_equal IncidentActionUpdate::PICKED_UP, event.eventable.action_update_type
   end
 
   test "ignores already assigned action" do

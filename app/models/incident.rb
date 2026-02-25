@@ -12,6 +12,7 @@ class Incident < ApplicationRecord
   belongs_to :incident_severity
 
   has_many :incident_events, dependent: :destroy
+  has_many :incident_updates, dependent: :destroy
   has_many :incident_actions, dependent: :destroy
   has_many :incident_role_assignments, dependent: :destroy
   has_many :incident_roles, through: :incident_role_assignments

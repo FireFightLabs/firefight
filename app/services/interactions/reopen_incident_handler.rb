@@ -11,7 +11,7 @@ module Interactions
       reason = interaction.values.dig("reason_block", "reason_input", "value")
       default_status = workspace.incident_statuses.live.find_by(is_default: true) || workspace.incident_statuses.live.first
 
-      incident.record_change!(IncidentEvent::INCIDENT_REOPENED, changed_by: member, details: { reason: reason }) do
+      incident.record_change!(IncidentEvent::INCIDENT_REOPENED, changed_by: member, message: reason, details: { reason: reason }) do
         incident.update!(incident_status: default_status)
       end
 

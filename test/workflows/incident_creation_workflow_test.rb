@@ -73,18 +73,19 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     assert_nil @incident.announcement_message_ts
   end
 
-  test "creates incident event" do
+  test "creates incident event with initial update" do
     stub_successful_slack_workflow
 
-    assert_difference "IncidentEvent.count", 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentUpdate.count" ], 1 do
       IncidentCreationWorkflow.start_inline!(@incident)
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_CREATED)
     assert_equal @incident, event.incident
     assert_equal @member, event.user
-    assert_equal "critical", event.metadata["severity"]
-    assert_equal false, event.metadata["is_private"]
+    assert_instance_of IncidentUpdate, event.eventable
+    assert_equal IncidentUpdate::CREATED, event.eventable.update_type
+    assert_equal @incident.incident_severity, event.eventable.incident_severity
   end
 
   test "skips posting quick actions on retry when already posted" do

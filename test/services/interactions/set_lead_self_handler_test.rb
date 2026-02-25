@@ -20,15 +20,17 @@ class Interactions::SetLeadSelfHandlerTest < ActiveSupport::TestCase
     assert_equal @alice, @incident.reload.lead
   end
 
-  test "creates lead assigned event" do
+  test "creates lead assigned event with incident update" do
     stub_all_side_effects
 
-    assert_difference -> { @incident.incident_events.count }, 1 do
+    assert_difference [ "IncidentEvent.count", "IncidentUpdate.count" ], 1 do
       Interactions::SetLeadSelfHandler.execute(build_interaction)
     end
 
-    event = @incident.incident_events.find_by!(event_type: IncidentEvent::LEAD_ASSIGNED)
+    event = @incident.incident_events.updates.find_by!(event_type: IncidentEvent::LEAD_ASSIGNED)
     assert_equal @alice, event.user
+    assert_instance_of IncidentUpdate, event.eventable
+    assert_equal IncidentUpdate::LEAD_ASSIGNED, event.eventable.update_type
   end
 
   test "starts lead assignment workflow" do
