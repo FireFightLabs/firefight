@@ -37,7 +37,7 @@ module Interactions
 
       adapter = WorkspaceAdapter.for(workspace)
       adapter.delete_message(channel_id: metadata[:channel_id], ts: metadata[:temp_message_ts])
-    rescue AdapterError, Slack::Client::ApiError => e
+    rescue AdapterError => e
       Rails.logger.warn({ event: "interactions.update_summary.delete_temp_failed", error: e.message })
     end
     private_class_method :delete_temp_message

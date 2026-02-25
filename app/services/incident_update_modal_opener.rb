@@ -24,7 +24,7 @@ class IncidentUpdateModalOpener
     return unless ts
 
     adapter.delete_message(channel_id: channel_id, ts: ts)
-  rescue AdapterError, Slack::Client::ApiError => e
+  rescue AdapterError => e
     Rails.logger.warn({ event: "incident_update_modal_opener.cleanup_temp_failed", error: e.message })
   end
   private_class_method :cleanup_temp_message

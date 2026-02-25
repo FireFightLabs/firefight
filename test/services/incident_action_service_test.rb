@@ -38,7 +38,7 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     assert_equal IncidentAction::STATUS_OPEN, action.status
     assert_equal @member, action.created_by
     assert_nil action.assignee
-    assert_equal "1234567890.123456", action.slack_message_ts
+    assert_equal "1234567890.123456", action.message_ts
   end
 
   test "create_action with assignee" do

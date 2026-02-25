@@ -28,7 +28,7 @@ class IncidentActionService
 
     adapter = WorkspaceAdapter.for(@workspace)
     result = adapter.post_action_message(channel_id: incident.channel_id, action: action)
-    action.update!(slack_message_ts: result[:message_ts])
+    action.update!(message_ts: result[:message_ts])
 
     action
   end
@@ -49,7 +49,7 @@ class IncidentActionService
       eventable: action_update
     )
 
-    update_action_message(action, Slack::IncidentMessageBuilder.action_picked_up_blocks(action))
+    update_action_message(action, :picked_up)
   end
 
   def complete_action(action:, completed_by:)
@@ -68,20 +68,28 @@ class IncidentActionService
       eventable: action_update
     )
 
-    update_action_message(action, Slack::IncidentMessageBuilder.action_completed_blocks(action))
+    update_action_message(action, :completed)
   end
 
   private
 
-  def update_action_message(action, blocks)
-    return unless action.slack_message_ts
+  def update_action_message(action, update_type)
+    return unless action.message_ts
 
     adapter = WorkspaceAdapter.for(@workspace)
-    adapter.update_action_message(
-      channel_id: action.incident.channel_id,
-      ts: action.slack_message_ts,
-      action: action,
-      blocks: blocks
-    )
+    case update_type
+    when :picked_up
+      adapter.update_action_picked_up(
+        channel_id: action.incident.channel_id,
+        ts: action.message_ts,
+        action: action
+      )
+    when :completed
+      adapter.update_action_completed(
+        channel_id: action.incident.channel_id,
+        ts: action.message_ts,
+        action: action
+      )
+    end
   end
 end
