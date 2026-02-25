@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_25_100522) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_25_100523) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -36,8 +36,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_25_100522) do
     t.datetime "deleted_at"
     t.text "description", null: false
     t.uuid "incident_id", null: false
+    t.string "message_ts"
     t.jsonb "platform_data", default: {}
-    t.string "slack_message_ts"
     t.string "status", default: "open"
     t.datetime "updated_at", null: false
     t.index ["assignee_id"], name: "index_incident_actions_on_assignee_id"
