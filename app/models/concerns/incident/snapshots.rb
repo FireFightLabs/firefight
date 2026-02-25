@@ -29,12 +29,11 @@ module Incident::Snapshots
   end
 
   # Record change with full snapshots
-  def record_change!(event_type, details: nil, changed_by: nil)
+  def record_change!(event_type, details: nil, changed_by: nil, message: nil)
     before_snapshot = snapshot
-    yield # Perform the change
+    yield
     after_snapshot = reload.snapshot
 
-    # Detect changed fields
     changed_fields = before_snapshot.keys.select do |key|
       before_snapshot[key] != after_snapshot[key]
     end
@@ -47,7 +46,8 @@ module Incident::Snapshots
         before: before_snapshot,
         after: after_snapshot,
         changed_fields: changed_fields,
-        details: details
+        details: details,
+        message: message
       }
     )
   end

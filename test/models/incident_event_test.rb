@@ -159,6 +159,67 @@ class IncidentEventTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
+  # EVENT DESCRIPTIONS
+  # ============================================================================
+
+  test "description returns human-readable text for each event type" do
+    IncidentEvent::EVENT_TYPES.each do |event_type|
+      event = IncidentEvent.new(event_type: event_type)
+      assert_not_nil event.description, "description should exist for #{event_type}"
+      assert_kind_of String, event.description
+    end
+  end
+
+  test "EVENT_DESCRIPTIONS covers all event types" do
+    IncidentEvent::EVENT_TYPES.each do |event_type|
+      assert IncidentEvent::EVENT_DESCRIPTIONS.key?(event_type),
+        "EVENT_DESCRIPTIONS should include #{event_type}"
+    end
+  end
+
+  # ============================================================================
+  # DOMAIN EVENT BUS
+  # ============================================================================
+
+  test "enqueues ProcessDomainEventJob after create" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+
+    ProcessDomainEventJob.expects(:perform_later).with { |hash|
+      hash["event_type"] == IncidentEvent::INCIDENT_UPDATED &&
+        hash["incident_id"] == incident.id &&
+        hash["user_id"] == member.id
+    }
+
+    IncidentEvent.create!(
+      incident: incident,
+      event_type: IncidentEvent::INCIDENT_UPDATED,
+      user: member,
+      metadata: { "changed_fields" => [ "summary" ] }
+    )
+  end
+
+  test "enqueued job receives correct event data" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+
+    ProcessDomainEventJob.expects(:perform_later).with { |hash|
+      hash["event_type"] == IncidentEvent::ACTION_CREATED &&
+        hash["incident_id"] == incident.id &&
+        hash["user_id"] == member.id &&
+        hash["data"] == { "action_id" => "test-123" } &&
+        hash["occurred_at"].present?
+    }
+
+    IncidentEvent.create!(
+      incident: incident,
+      event_type: IncidentEvent::ACTION_CREATED,
+      user: member,
+      metadata: { "action_id" => "test-123" }
+    )
+  end
+
+  # ============================================================================
   # FIXTURES LOADING
   # ============================================================================
 
