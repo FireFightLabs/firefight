@@ -32,7 +32,7 @@ class Interactions::SetLeadHandlerTest < ActiveSupport::TestCase
       )
     end
 
-    event = @incident.incident_events.find_by!(event_type: IncidentEvent::LEAD_ASSIGNED)
+    event = @incident.incident_events.updates.find_by!(event_type: IncidentEvent::LEAD_ASSIGNED)
     assert_equal @alice, event.user
     assert_instance_of IncidentUpdate, event.eventable
     assert_equal IncidentUpdate::LEAD_ASSIGNED, event.eventable.update_type
