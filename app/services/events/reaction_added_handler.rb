@@ -36,7 +36,7 @@ module Events
         incident_id: incident.id,
         source_message_link: source_message_link
       )
-    rescue Slack::Client::ApiError => e
+    rescue AdapterError => e
       Rails.logger.warn({
         event: "events.reaction_added.api_error",
         error: e.message,
@@ -48,7 +48,7 @@ module Events
     def self.fetch_message_text(adapter, channel_id, ts)
       message = adapter.fetch_message(channel_id: channel_id, ts: ts)
       message&.dig(:text) || message&.dig("text") || ""
-    rescue Slack::Client::ApiError
+    rescue AdapterError
       ""
     end
     private_class_method :fetch_message_text
@@ -56,7 +56,7 @@ module Events
     def self.fetch_permalink(adapter, channel_id, message_ts)
       result = adapter.get_message_permalink(channel_id: channel_id, message_ts: message_ts)
       result[:permalink]
-    rescue Slack::Client::ApiError
+    rescue AdapterError
       nil
     end
     private_class_method :fetch_permalink
