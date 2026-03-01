@@ -41,13 +41,13 @@ class Interactions::SetLeadHandlerTest < ActiveSupport::TestCase
   test "starts lead assignment workflow" do
     stub_all_side_effects
 
-    assert_difference "Workflow.count", 1 do
+    assert_difference "SolidWorkflow::Workflow.count", 1 do
       Interactions::SetLeadHandler.execute(
         build_interaction(selected_user_id: @bob.platform_user_id)
       )
     end
 
-    workflow = Workflow.find_by!(name: "incident.lead_assignment.v1", subject: @incident)
+    workflow = SolidWorkflow::Workflow.find_by!(name: "incident.lead_assignment.v1", subject: @incident)
     assert_equal @bob.platform_user_id, workflow.context["lead_platform_user_id"]
   end
 

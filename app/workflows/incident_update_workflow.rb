@@ -1,4 +1,4 @@
-class IncidentUpdateWorkflow < Base
+class IncidentUpdateWorkflow < SolidWorkflow::Base
   workflow_name "incident.incident_update.v1"
 
   step :update_channel_topic

@@ -39,13 +39,13 @@ class Interactions::UpdateSummaryHandlerTest < ActiveSupport::TestCase
   test "starts summary update workflow" do
     stub_all_side_effects
 
-    assert_difference "Workflow.count", 1 do
+    assert_difference "SolidWorkflow::Workflow.count", 1 do
       Interactions::UpdateSummaryHandler.execute(
         build_interaction(summary: "Updated summary")
       )
     end
 
-    workflow = Workflow.find_by!(name: "incident.summary_update.v1", subject: @incident)
+    workflow = SolidWorkflow::Workflow.find_by!(name: "incident.summary_update.v1", subject: @incident)
     assert_equal @member.platform_user_id, workflow.context["updated_by_platform_user_id"]
   end
 

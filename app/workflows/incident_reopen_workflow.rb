@@ -1,4 +1,4 @@
-class IncidentReopenWorkflow < Base
+class IncidentReopenWorkflow < SolidWorkflow::Base
   workflow_name "incident.reopen.v1"
 
   step :update_channel_topic

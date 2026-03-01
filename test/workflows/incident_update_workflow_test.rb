@@ -29,8 +29,8 @@ class IncidentUpdateWorkflowTest < ActiveSupport::TestCase
     workflow = IncidentUpdateWorkflow.start_inline!(@incident, context: workflow_context)
 
     assert_equal "succeeded", workflow.state
-    assert_equal 5, workflow.workflow_steps.count
-    assert workflow.workflow_steps.all?(&:succeeded?)
+    assert_equal 5, workflow.steps.count
+    assert workflow.steps.all?(&:succeeded?)
   end
 
   test "skips quick actions update when no initial_message_ts" do

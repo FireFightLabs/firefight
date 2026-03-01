@@ -99,6 +99,13 @@ GIT
       tsort (>= 0.2)
       zeitwerk (~> 2.6)
 
+PATH
+  remote: engines/solid_workflow
+  specs:
+    solid_workflow (0.1.0)
+      rails (>= 8.0)
+      solid_queue
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -477,6 +484,7 @@ DEPENDENCIES
   solid_cable
   solid_cache
   solid_queue
+  solid_workflow!
   thruster
   tzinfo-data
   vite_rails (~> 3.0)
