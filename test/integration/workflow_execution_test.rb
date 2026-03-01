@@ -5,7 +5,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     user = User.create!(name: "Test User", email: "test@example.com")
 
     # Create linear workflow
-    linear_workflow = Class.new(Base) do
+    linear_workflow = Class.new(SolidWorkflow::Base) do
     step :step1
     step :step2, depends_on: [ :step1 ]
     step :step3, depends_on: [ :step2 ]
@@ -15,18 +15,18 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     def step3(input:, **); { result: "step3", prev: input["step2"]["result"] }; end
     end
 
-    Base.registry["TestLinearWorkflow"] = linear_workflow
+    SolidWorkflow::Base.registry["TestLinearWorkflow"] = linear_workflow
 
-    workflow = Workflow.create!(
+    workflow = SolidWorkflow::Workflow.create!(
     name: "test.linear",
     workflow_class: "TestLinearWorkflow",
     subject: user,
     state: :pending
     )
 
-    workflow.workflow_steps.create!(name: "step1", status: :pending, depends_on: [], position: 0, max_attempts: 5)
-    workflow.workflow_steps.create!(name: "step2", status: :pending, depends_on: [ "step1" ], position: 1, max_attempts: 5)
-    workflow.workflow_steps.create!(name: "step3", status: :pending, depends_on: [ "step2" ], position: 2, max_attempts: 5)
+    workflow.steps.create!(name: "step1", status: :pending, depends_on: [], position: 0, max_attempts: 5)
+    workflow.steps.create!(name: "step2", status: :pending, depends_on: [ "step1" ], position: 1, max_attempts: 5)
+    workflow.steps.create!(name: "step3", status: :pending, depends_on: [ "step2" ], position: 2, max_attempts: 5)
 
     # Execute inline
     workflow_instance = linear_workflow.new
@@ -40,16 +40,16 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     break if iteration > max_iterations
 
     workflow.reload
-    steps = WorkflowStep.where(workflow_id: workflow.id).order(:position).to_a
+    steps = SolidWorkflow::Step.where(workflow_id: workflow.id).order(:position).to_a
     step_map = steps.index_by(&:name)
     ready = steps.select { |s| s.ready_to_run?(step_map) }
     break if ready.empty?
 
     ready.each do |step|
-      steps = WorkflowStep.where(workflow_id: workflow.id).order(:position).to_a
+      steps = SolidWorkflow::Step.where(workflow_id: workflow.id).order(:position).to_a
       step = steps.find { |s| s.id == step.id }
       step.populate_input!(steps)
-      Workflows::RunStepJob.new.perform(step.id)
+      SolidWorkflow::RunStepJob.new.perform(step.id)
       end
 
     workflow.enqueue_next_steps
@@ -59,7 +59,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
 
     workflow.reload
     assert workflow.succeeded?
-    assert_equal 3, workflow.workflow_steps.succeeded.count
+    assert_equal 3, workflow.steps.succeeded.count
   end
 
   test "parallel workflow with DAG executes correctly" do
@@ -68,20 +68,20 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
 
     workflow.reload
     assert workflow.succeeded?
-    assert_equal 5, workflow.workflow_steps.count
-    assert_equal 5, workflow.workflow_steps.succeeded.count
+    assert_equal 5, workflow.steps.count
+    assert_equal 5, workflow.steps.succeeded.count
 
     # Verify outputs flowed correctly
-    fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    fetch_numbers = workflow.steps.find_by(name: "fetch_numbers")
     assert_equal [ 1, 2, 3 ], fetch_numbers.output["numbers"]
 
-    calculate_sum = workflow.workflow_steps.find_by(name: "calculate_sum")
+    calculate_sum = workflow.steps.find_by(name: "calculate_sum")
     assert_equal 6, calculate_sum.output["sum"]
 
-    calculate_product = workflow.workflow_steps.find_by(name: "calculate_product")
+    calculate_product = workflow.steps.find_by(name: "calculate_product")
     assert_equal 6, calculate_product.output["product"]
 
-    combine_results = workflow.workflow_steps.find_by(name: "combine_results")
+    combine_results = workflow.steps.find_by(name: "combine_results")
     assert_equal 6, combine_results.output["sum"]
     assert_equal 6, combine_results.output["product"]
     assert_equal 2.0, combine_results.output["average"]
@@ -90,7 +90,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
   test "workflow fails when step reaches max attempts" do
     user = User.create!(name: "Test User", email: "test@example.com")
 
-    failing_workflow = Class.new(Base) do
+    failing_workflow = Class.new(SolidWorkflow::Base) do
     step :failing_step, retry_config: { max_attempts: 2 }
 
     def failing_step(**)
@@ -98,16 +98,16 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
       end
     end
 
-    Base.registry["TestFailingWorkflow"] = failing_workflow
+    SolidWorkflow::Base.registry["TestFailingWorkflow"] = failing_workflow
 
-    workflow = Workflow.create!(
+    workflow = SolidWorkflow::Workflow.create!(
     name: "test.failing",
     workflow_class: "TestFailingWorkflow",
     subject: user,
     state: :pending
     )
 
-    workflow.workflow_steps.create!(
+    workflow.steps.create!(
     name: "failing_step",
     status: :pending,
     depends_on: [],
@@ -115,10 +115,10 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     max_attempts: 2
     )
 
-    step = workflow.workflow_steps.first
+    step = workflow.steps.first
 
     # First attempt
-    job = Workflows::RunStepJob.new
+    job = SolidWorkflow::RunStepJob.new
     job.perform(step.id)
 
     step.reload
@@ -150,8 +150,8 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     assert workflow.cancelled?
 
     # Try to run a step
-    step = workflow.workflow_steps.first
-    job = Workflows::RunStepJob.new
+    step = workflow.steps.first
+    job = SolidWorkflow::RunStepJob.new
     job.perform(step.id)
 
     step.reload
@@ -172,7 +172,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     workflow.enqueue_next_steps
 
     # No steps should be running
-    assert_equal 0, workflow.workflow_steps.running.count
+    assert_equal 0, workflow.steps.running.count
   end
 
   test "resumed workflow continues execution" do
@@ -193,15 +193,15 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     workflow = ExampleCalculationWorkflow.start!(user)
 
     # Mark first step as skipped
-    fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    fetch_numbers = workflow.steps.find_by(name: "fetch_numbers")
     fetch_numbers.skip!(reason: "Test skip")
 
     # Dependent steps should still be ready
     workflow.reload
-    steps = workflow.workflow_steps.reload.to_a
+    steps = workflow.steps.reload.to_a
     step_map = steps.index_by(&:name)
 
-    calculate_sum = workflow.workflow_steps.find_by(name: "calculate_sum")
+    calculate_sum = workflow.steps.find_by(name: "calculate_sum")
 
     # Note: In real implementation, skipped steps should allow dependents to run
     # For this test, we're just verifying the skip! method works
@@ -214,7 +214,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     workflow = ExampleCalculationWorkflow.start_inline!(user, context: { numbers: [ 5, 10, 15 ] })
 
     workflow.reload
-    combine_results = workflow.workflow_steps.find_by(name: "combine_results")
+    combine_results = workflow.steps.find_by(name: "combine_results")
 
     # Verify input contains all dependency outputs
     assert_equal 3, combine_results.input.keys.size
@@ -231,7 +231,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
   test "workflow with max_concurrent_steps limits parallel execution" do
     user = User.create!(name: "Test User", email: "test@example.com")
 
-    limited_workflow = Class.new(Base) do
+    limited_workflow = Class.new(SolidWorkflow::Base) do
     workflow_config max_concurrent_steps: 1
 
     step :step1
@@ -243,9 +243,9 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     def step3(**); sleep 0.01; { result: 3 }; end
     end
 
-    Base.registry["TestLimitedWorkflow"] = limited_workflow
+    SolidWorkflow::Base.registry["TestLimitedWorkflow"] = limited_workflow
 
-    workflow = Workflow.create!(
+    workflow = SolidWorkflow::Workflow.create!(
     name: "test.limited",
     workflow_class: "TestLimitedWorkflow",
     subject: user,
@@ -254,7 +254,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     )
 
     3.times do |i|
-    workflow.workflow_steps.create!(
+    workflow.steps.create!(
       name: "step#{i + 1}",
       status: :pending,
       depends_on: [],
@@ -267,7 +267,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     workflow.enqueue_next_steps
 
     # Only 1 step should have input populated
-    steps_with_input = workflow.workflow_steps.reload.count { |s| s.input.present? }
+    steps_with_input = workflow.steps.reload.count { |s| s.input.present? }
     assert_operator steps_with_input, :<=, 1
   end
 end

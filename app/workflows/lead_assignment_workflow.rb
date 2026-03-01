@@ -1,4 +1,4 @@
-class LeadAssignmentWorkflow < Base
+class LeadAssignmentWorkflow < SolidWorkflow::Base
   workflow_name "incident.lead_assignment.v1"
 
   step :update_channel_topic

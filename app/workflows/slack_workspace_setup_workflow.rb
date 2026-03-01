@@ -1,4 +1,4 @@
-class SlackWorkspaceSetupWorkflow < Base
+class SlackWorkspaceSetupWorkflow < SolidWorkflow::Base
   workflow_name "slack.workspace_setup.v1"
 
   step :create_incidents_channel

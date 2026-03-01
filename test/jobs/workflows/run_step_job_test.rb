@@ -1,12 +1,12 @@
 require "test_helper"
 
-class Workflows::RunStepJobTest < ActiveSupport::TestCase
+class SolidWorkflow::RunStepJobTest < ActiveSupport::TestCase
   test "executes step and transitions to succeeded" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
-    step = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    step = workflow.steps.find_by(name: "fetch_numbers")
 
-    job = Workflows::RunStepJob.new
+    job = SolidWorkflow::RunStepJob.new
     job.perform(step.id)
 
     step.reload
@@ -18,16 +18,16 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
   test "idempotency: does not re-execute succeeded steps" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
-    step = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    step = workflow.steps.find_by(name: "fetch_numbers")
 
     # First execution
-    job1 = Workflows::RunStepJob.new
+    job1 = SolidWorkflow::RunStepJob.new
     job1.perform(step.id)
     step.reload
     first_output = step.output
 
     # Second execution (should exit early)
-    job2 = Workflows::RunStepJob.new
+    job2 = SolidWorkflow::RunStepJob.new
     job2.perform(step.id)
     step.reload
 
@@ -38,10 +38,10 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
   test "idempotency: does not re-execute cancelled steps" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
-    step = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    step = workflow.steps.find_by(name: "fetch_numbers")
     step.update!(status: :cancelled)
 
-    job = Workflows::RunStepJob.new
+    job = SolidWorkflow::RunStepJob.new
     job.perform(step.id)
 
     step.reload
@@ -51,10 +51,10 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
   test "idempotency: does not re-execute running steps" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
-    step = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    step = workflow.steps.find_by(name: "fetch_numbers")
     step.update!(status: :running)
 
-    job = Workflows::RunStepJob.new
+    job = SolidWorkflow::RunStepJob.new
     job.perform(step.id)
 
     step.reload
@@ -64,7 +64,7 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
   test "optimistic locking: only one worker claims pending step" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
-    step = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    step = workflow.steps.find_by(name: "fetch_numbers")
 
     claimed_count = 0
     threads = []
@@ -72,10 +72,10 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
     # Simulate 3 workers trying to claim same step
     3.times do
     threads << Thread.new do
-      job = Workflows::RunStepJob.new
+      job = SolidWorkflow::RunStepJob.new
       current_updated_at = step.updated_at
 
-      rows = WorkflowStep.where(
+      rows = SolidWorkflow::Step.where(
         id: step.id,
         status: :pending,
         updated_at: current_updated_at
@@ -103,9 +103,9 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
     workflow = ExampleCalculationWorkflow.start!(user)
     workflow.cancel!(reason: "Test cancellation", by: "test")
 
-    step = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    step = workflow.steps.find_by(name: "fetch_numbers")
 
-    job = Workflows::RunStepJob.new
+    job = SolidWorkflow::RunStepJob.new
     job.perform(step.id)
 
     step.reload
@@ -115,7 +115,7 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
   test "marks step as cancelled if workflow cancelled after claim" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
-    step = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    step = workflow.steps.find_by(name: "fetch_numbers")
 
     # Manually claim the step
     step.update!(status: :running, attempts: 1)
@@ -124,7 +124,7 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
     workflow.cancel!(reason: "Test cancellation", by: "test")
 
     # RunStepJob checks after claim
-    job = Workflows::RunStepJob.new
+    job = SolidWorkflow::RunStepJob.new
 
     # Simulate the check after claim in perform method
     if workflow.cancelled?
@@ -139,7 +139,7 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
     user = User.create!(name: "Test User", email: "test@example.com")
 
     # Create a failing workflow class
-    failing_workflow_class = Class.new(Base) do
+    failing_workflow_class = Class.new(SolidWorkflow::Base) do
     step :failing_step
 
     def failing_step(workflow:, step:, input:)
@@ -148,16 +148,16 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
     end
 
     # Register it
-    Base.registry["TestFailingWorkflow"] = failing_workflow_class
+    SolidWorkflow::Base.registry["TestFailingWorkflow"] = failing_workflow_class
 
-    workflow = Workflow.create!(
+    workflow = SolidWorkflow::Workflow.create!(
     name: "test.failing",
     workflow_class: "TestFailingWorkflow",
     subject: user,
     state: :pending
     )
 
-    workflow.workflow_steps.create!(
+    workflow.steps.create!(
     name: "failing_step",
     status: :pending,
     depends_on: [],
@@ -165,9 +165,9 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
     max_attempts: 5
     )
 
-    step = workflow.workflow_steps.first
+    step = workflow.steps.first
 
-    job = Workflows::RunStepJob.new
+    job = SolidWorkflow::RunStepJob.new
     job.perform(step.id)
 
     step.reload
@@ -178,11 +178,11 @@ class Workflows::RunStepJobTest < ActiveSupport::TestCase
   test "increments attempts on execution" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
-    step = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    step = workflow.steps.find_by(name: "fetch_numbers")
 
     assert_equal 0, step.attempts
 
-    job = Workflows::RunStepJob.new
+    job = SolidWorkflow::RunStepJob.new
     job.perform(step.id)
 
     step.reload

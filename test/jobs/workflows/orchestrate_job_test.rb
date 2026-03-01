@@ -1,21 +1,21 @@
 require "test_helper"
 
-class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
+class SolidWorkflow::OrchestrateJobTest < ActiveSupport::TestCase
   test "finds and enqueues ready steps" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
 
     # Mark first step as succeeded
-    fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    fetch_numbers = workflow.steps.find_by(name: "fetch_numbers")
     fetch_numbers.update!(status: :succeeded, output: { numbers: [ 1, 2, 3 ] })
 
     # Orchestrate
-    job = Workflows::OrchestrateJob.new
+    job = SolidWorkflow::OrchestrateJob.new
     job.perform(workflow.id)
 
     # Both parallel steps should become ready (input populated)
-    calculate_sum = workflow.workflow_steps.find_by(name: "calculate_sum")
-    calculate_product = workflow.workflow_steps.find_by(name: "calculate_product")
+    calculate_sum = workflow.steps.find_by(name: "calculate_sum")
+    calculate_product = workflow.steps.find_by(name: "calculate_product")
 
     calculate_sum.reload
     calculate_product.reload
@@ -34,11 +34,11 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
     workflow.update!(state: :pending)
 
     # Mark first step as running
-    fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    fetch_numbers = workflow.steps.find_by(name: "fetch_numbers")
     fetch_numbers.update!(status: :running)
 
     # Orchestrate
-    job = Workflows::OrchestrateJob.new
+    job = SolidWorkflow::OrchestrateJob.new
     job.perform(workflow.id)
 
     workflow.reload
@@ -50,12 +50,12 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
     workflow = ExampleCalculationWorkflow.start!(user)
 
     # Mark all steps as succeeded
-    workflow.workflow_steps.each do |step|
+    workflow.steps.each do |step|
     step.update!(status: :succeeded, output: { result: "test" })
     end
 
     # Orchestrate
-    job = Workflows::OrchestrateJob.new
+    job = SolidWorkflow::OrchestrateJob.new
     job.perform(workflow.id)
 
     workflow.reload
@@ -67,11 +67,11 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
     workflow = ExampleCalculationWorkflow.start!(user)
 
     # Mark first step as failed with max attempts
-    fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    fetch_numbers = workflow.steps.find_by(name: "fetch_numbers")
     fetch_numbers.update!(status: :failed, attempts: 5, max_attempts: 5)
 
     # Orchestrate
-    job = Workflows::OrchestrateJob.new
+    job = SolidWorkflow::OrchestrateJob.new
     job.perform(workflow.id)
 
     workflow.reload
@@ -82,7 +82,7 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
     user = User.create!(name: "Test User", email: "test@example.com")
 
     # Create workflow with concurrency limit
-    parallel_workflow = Class.new(Base) do
+    parallel_workflow = Class.new(SolidWorkflow::Base) do
     workflow_config max_concurrent_steps: 2
 
     step :step1
@@ -96,9 +96,9 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
     def step4(**); { result: 4 }; end
     end
 
-    Base.registry["TestParallelWorkflow"] = parallel_workflow
+    SolidWorkflow::Base.registry["TestParallelWorkflow"] = parallel_workflow
 
-    workflow = Workflow.create!(
+    workflow = SolidWorkflow::Workflow.create!(
     name: "test.parallel",
     workflow_class: "TestParallelWorkflow",
     subject: user,
@@ -108,7 +108,7 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
 
     # Create 4 steps, all ready to run
     4.times do |i|
-    workflow.workflow_steps.create!(
+    workflow.steps.create!(
       name: "step#{i + 1}",
       status: :pending,
       depends_on: [],
@@ -118,11 +118,11 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
     end
 
     # Orchestrate
-    job = Workflows::OrchestrateJob.new
+    job = SolidWorkflow::OrchestrateJob.new
     job.perform(workflow.id)
 
     # Only 2 steps should have input populated (concurrency limit)
-    steps_with_input = workflow.workflow_steps.reload.count { |s| s.input.present? }
+    steps_with_input = workflow.steps.reload.count { |s| s.input.present? }
     assert_operator steps_with_input, :<=, 2
   end
 
@@ -131,7 +131,7 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
     workflow = ExampleCalculationWorkflow.start!(user)
 
     # Mark first step as succeeded
-    fetch_numbers = workflow.workflow_steps.find_by(name: "fetch_numbers")
+    fetch_numbers = workflow.steps.find_by(name: "fetch_numbers")
     fetch_numbers.update!(status: :succeeded, output: { numbers: [ 1, 2, 3 ] })
 
     enqueued_count = 0
@@ -141,7 +141,7 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
     2.times do
     threads << Thread.new do
       workflow.reload
-      steps = workflow.workflow_steps.reload.to_a
+      steps = workflow.steps.reload.to_a
 
       step_map = steps.index_by(&:name)
       ready = steps.select { |s| s.ready_to_run?(step_map) }
@@ -154,7 +154,7 @@ class Workflows::OrchestrateJobTest < ActiveSupport::TestCase
       ready.each do |step|
         next unless step.changed?
 
-        rows = WorkflowStep.where(
+        rows = SolidWorkflow::Step.where(
           id: step.id,
           status: step.status_was,
           updated_at: step.updated_at_was

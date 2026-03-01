@@ -1,4 +1,4 @@
-class SummaryUpdateWorkflow < Base
+class SummaryUpdateWorkflow < SolidWorkflow::Base
   workflow_name "incident.summary_update.v1"
 
   step :update_quick_actions

@@ -117,11 +117,11 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
   test "starts IncidentCloseWorkflow with context" do
     stub_all_side_effects
 
-    assert_difference "Workflow.count", 1 do
+    assert_difference "SolidWorkflow::Workflow.count", 1 do
       Interactions::CloseIncidentHandler.execute(build_interaction)
     end
 
-    workflow = Workflow.find_by!(name: "incident.close.v1", subject: @incident)
+    workflow = SolidWorkflow::Workflow.find_by!(name: "incident.close.v1", subject: @incident)
     assert_equal @member.platform_user_id, workflow.context["resolved_by_platform_user_id"]
   end
 

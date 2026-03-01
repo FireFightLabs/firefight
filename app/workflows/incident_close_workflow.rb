@@ -1,4 +1,4 @@
-class IncidentCloseWorkflow < Base
+class IncidentCloseWorkflow < SolidWorkflow::Base
   workflow_name "incident.close.v1"
 
   step :update_channel_topic

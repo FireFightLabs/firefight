@@ -36,8 +36,8 @@ class LeadAssignmentWorkflowTest < ActiveSupport::TestCase
     })
 
     assert_equal "succeeded", workflow.state
-    assert_equal 5, workflow.workflow_steps.count
-    assert workflow.workflow_steps.all?(&:succeeded?)
+    assert_equal 5, workflow.steps.count
+    assert workflow.steps.all?(&:succeeded?)
   end
 
   test "updates channel topic with lead name" do

@@ -27,8 +27,8 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     workflow = IncidentCreationWorkflow.start_inline!(@incident)
 
     assert_equal "succeeded", workflow.state
-    assert_equal 6, workflow.workflow_steps.count
-    assert workflow.workflow_steps.all? { |s| s.succeeded? || s.skipped? }
+    assert_equal 6, workflow.steps.count
+    assert workflow.steps.all? { |s| s.succeeded? || s.skipped? }
   end
 
   test "creates channel and updates incident" do
@@ -65,7 +65,7 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
 
     workflow = IncidentCreationWorkflow.start_inline!(@incident)
 
-    announcement_step = workflow.workflow_steps.find_by(name: "post_announcement")
+    announcement_step = workflow.steps.find_by(name: "post_announcement")
     assert announcement_step.succeeded?
     assert_equal({ "skipped" => true }, announcement_step.output)
 
