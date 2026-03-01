@@ -80,13 +80,13 @@ class Interactions::ReopenIncidentHandlerTest < ActiveSupport::TestCase
   test "starts IncidentReopenWorkflow with context including reason" do
     stub_all_side_effects
 
-    assert_difference "Workflow.count", 1 do
+    assert_difference "SolidWorkflow::Workflow.count", 1 do
       Interactions::ReopenIncidentHandler.execute(
         build_interaction(reason: "Not actually fixed")
       )
     end
 
-    workflow = Workflow.find_by!(name: "incident.reopen.v1", subject: @incident)
+    workflow = SolidWorkflow::Workflow.find_by!(name: "incident.reopen.v1", subject: @incident)
     assert_equal @member.platform_user_id, workflow.context["reopened_by_platform_user_id"]
     assert_equal "Not actually fixed", workflow.context["reason"]
   end

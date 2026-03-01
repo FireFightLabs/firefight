@@ -11,7 +11,7 @@
 # Usage:
 #   workflow = ExampleCalculationWorkflow.start!(subject, context: { numbers: [1, 2, 3, 4, 5] })
 #
-class ExampleCalculationWorkflow < Base
+class ExampleCalculationWorkflow < SolidWorkflow::Base
   workflow_name "example.calculation.v1"
 
   # Step 1: Fetch numbers (either from context or generate them)

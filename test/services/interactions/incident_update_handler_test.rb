@@ -58,13 +58,13 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
   test "starts incident update workflow with context" do
     stub_all_side_effects
 
-    assert_difference "Workflow.count", 1 do
+    assert_difference "SolidWorkflow::Workflow.count", 1 do
       Interactions::IncidentUpdateHandler.execute(
         build_interaction(status_slug: "identified", severity_slug: "major", message: "Working on fix")
       )
     end
 
-    workflow = Workflow.find_by!(name: "incident.incident_update.v1", subject: @incident)
+    workflow = SolidWorkflow::Workflow.find_by!(name: "incident.incident_update.v1", subject: @incident)
     assert_equal @member.platform_user_id, workflow.context["updated_by_platform_user_id"]
     assert_equal "Working on fix", workflow.context["message"]
     assert_equal "Investigating", workflow.context["previous_status_name"]

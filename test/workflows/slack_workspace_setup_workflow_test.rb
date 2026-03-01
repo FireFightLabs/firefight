@@ -159,7 +159,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
 
     # When step fails with retries enabled, workflow is running and step is pending (scheduled for retry)
     # To test immediate failure, check that the step failed and is scheduled for retry
-    step = workflow.workflow_steps.find_by(name: "create_incidents_channel")
+    step = workflow.steps.find_by(name: "create_incidents_channel")
     assert step.pending? || step.failed?
     assert step.last_error.present?
   end
@@ -176,7 +176,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     )
 
     # Check that the metadata step failed and has error
-    step = workflow.workflow_steps.find_by(name: "set_channel_metadata")
+    step = workflow.steps.find_by(name: "set_channel_metadata")
     assert step.pending? || step.failed?
     assert step.last_error.present?
   end
@@ -193,7 +193,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     )
 
     # Check that the welcome message step failed and has error
-    step = workflow.workflow_steps.find_by(name: "post_welcome_message")
+    step = workflow.steps.find_by(name: "post_welcome_message")
     assert step.pending? || step.failed?
     assert step.last_error.present?
   end
@@ -212,7 +212,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     )
 
     # Invitation step should have failed
-    step = workflow.workflow_steps.find_by(name: "invite_installer")
+    step = workflow.steps.find_by(name: "invite_installer")
     assert step.pending? || step.failed?
     assert step.last_error.present? if step.failed?
   end
