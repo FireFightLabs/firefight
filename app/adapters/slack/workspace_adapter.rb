@@ -380,24 +380,26 @@ module Slack
       )
     end
 
-    def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil)
+    def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
       blocks = Slack::IncidentMessageBuilder.status_update_blocks(
         incident,
         message: message,
         updated_by_platform_user_id: updated_by_platform_user_id,
         previous_status_name: previous_status_name,
-        previous_severity_name: previous_severity_name
+        previous_severity_name: previous_severity_name,
+        previous_type_name: previous_type_name
       )
       post_message(channel_id: channel_id, text: "Incident updated", blocks: blocks)
     end
 
-    def post_incident_update_announcement_thread(channel_id:, thread_ts:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil)
+    def post_incident_update_announcement_thread(channel_id:, thread_ts:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
       blocks = Slack::IncidentMessageBuilder.status_update_announcement_blocks(
         incident,
         message: message,
         updated_by_platform_user_id: updated_by_platform_user_id,
         previous_status_name: previous_status_name,
-        previous_severity_name: previous_severity_name
+        previous_severity_name: previous_severity_name,
+        previous_type_name: previous_type_name
       )
       post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident updated", blocks: blocks)
     end
@@ -443,6 +445,13 @@ module Slack
       )
     end
 
+    def open_link_incident_modal(trigger_id:, incident:, private_metadata: nil)
+      view = Slack::ModalBuilder.link_incident_modal(incident, private_metadata: private_metadata)
+      return unless view
+
+      open_modal(trigger_id: trigger_id, view: view)
+    end
+
     def open_reopen_incident_modal(trigger_id:, incident:, private_metadata: nil)
       open_modal(
         trigger_id: trigger_id,
@@ -458,6 +467,21 @@ module Slack
     def post_resolution_announcement_thread(channel_id:, thread_ts:, incident:, resolved_by_platform_user_id:)
       blocks = Slack::IncidentMessageBuilder.resolution_announcement_thread_blocks(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
       post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident resolved", blocks: blocks)
+    end
+
+    def post_related_link_message(channel_id:, source:, target:, linked_by_platform_user_id:)
+      blocks = Slack::IncidentMessageBuilder.related_link_blocks(source, target, linked_by_platform_user_id: linked_by_platform_user_id)
+      post_message(channel_id: channel_id, text: "Incident linked", blocks: blocks)
+    end
+
+    def post_duplicate_source_message(channel_id:, source:, canonical:, linked_by_platform_user_id:)
+      blocks = Slack::IncidentMessageBuilder.duplicate_source_blocks(source, canonical, linked_by_platform_user_id: linked_by_platform_user_id)
+      post_message(channel_id: channel_id, text: "Incident merged", blocks: blocks)
+    end
+
+    def post_duplicate_canonical_message(channel_id:, source:, canonical:, linked_by_platform_user_id:)
+      blocks = Slack::IncidentMessageBuilder.duplicate_canonical_blocks(source, canonical, linked_by_platform_user_id: linked_by_platform_user_id)
+      post_message(channel_id: channel_id, text: "Duplicate merged in", blocks: blocks)
     end
 
     def post_reopen_message(channel_id:, incident:, reopened_by_platform_user_id:, reason: nil)

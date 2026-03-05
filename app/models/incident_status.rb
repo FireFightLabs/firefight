@@ -1,28 +1,25 @@
 class IncidentStatus < ApplicationRecord
-  CATEGORY_LIVE = "live"
-  CATEGORY_CLOSED = "closed"
-  CATEGORIES = [ CATEGORY_LIVE, CATEGORY_CLOSED ].freeze
-
   belongs_to :workspace
+  belongs_to :incident_lifecycle_stage
+
   has_many :incidents, dependent: :restrict_with_error
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: { scope: :workspace_id }
-  validates :category, inclusion: { in: CATEGORIES }
   validates :position, presence: true, numericality: { only_integer: true }
   validates :is_default, uniqueness: { scope: :workspace_id, if: :is_default? }
 
   scope :active, -> { where(deleted_at: nil) }
-  scope :live, -> { where(category: CATEGORY_LIVE) }
-  scope :closed, -> { where(category: CATEGORY_CLOSED) }
+  scope :triage, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::TRIAGE }) }
+  scope :live, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: [ IncidentLifecycleStage::TRIAGE, IncidentLifecycleStage::ACTIVE ] }) }
+  scope :closed, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::CLOSED }) }
+  scope :canceled, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::CANCELED }) }
   scope :ordered, -> { order(:position) }
   scope :default_status, -> { active.find_by(is_default: true) }
 
-  def live?
-    category == CATEGORY_LIVE
-  end
+  delegate :triage?, :active?, :closed?, :canceled?, to: :incident_lifecycle_stage
 
-  def closed?
-    category == CATEGORY_CLOSED
+  def live?
+    triage? || active?
   end
 end

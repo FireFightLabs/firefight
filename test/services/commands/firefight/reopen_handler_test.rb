@@ -2,7 +2,7 @@ require "test_helper"
 
 class Commands::Firefight::ReopenHandlerTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships,
-           :incident_statuses, :incident_severities, :incident_roles
+           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

@@ -4,14 +4,14 @@
 #
 # Handles incident lifecycle state changes:
 # - Auto-setting declared_at timestamp on creation
-# - Auto-setting resolved_at when status moves to closed category
+# - Stage-driven timestamp side effects (resolved_at, next_update_at)
 #
 module Incident::Lifecycle
   extend ActiveSupport::Concern
 
   included do
     before_validation :set_declared_at, on: :create
-    before_save :update_resolved_at
+    before_save :apply_lifecycle_side_effects
   end
 
   private
@@ -20,16 +20,18 @@ module Incident::Lifecycle
     self.declared_at ||= Time.current
   end
 
-  # Auto-set resolved_at when status changes to closed category
-  # Clear resolved_at when reopening incident
-  def update_resolved_at
-    if incident_status_id_changed?
-      if incident_status.closed? && resolved_at.nil?
-        self.resolved_at = Time.current
-        self.next_update_at = nil
-      elsif incident_status.live? && resolved_at.present?
-        self.resolved_at = nil
-      end
+  def apply_lifecycle_side_effects
+    return unless incident_status_id_changed?
+
+    stage = incident_status.incident_lifecycle_stage
+
+    if stage.closed?
+      self.resolved_at ||= Time.current
+      self.next_update_at = nil
+    elsif stage.canceled?
+      self.next_update_at = nil
+    elsif stage.active? || stage.triage?
+      self.resolved_at = nil if resolved_at.present?
     end
   end
 end

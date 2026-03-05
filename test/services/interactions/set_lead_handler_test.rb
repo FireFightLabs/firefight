@@ -2,7 +2,7 @@ require "test_helper"
 
 class Interactions::SetLeadHandlerTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_statuses, :incident_severities, :incident_roles,
+           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles,
            :incident_role_assignments
 
   setup do

@@ -27,15 +27,16 @@ class IncidentUpdateService
 
   def update_channel_topic(incident)
     adapter = WorkspaceAdapter.for(@workspace)
+    type_text = incident.incident_type ? " | Type: #{incident.incident_type.name}" : ""
     lead_text = incident.lead ? " | Lead: #{incident.lead.user.name}" : ""
-    topic = "Severity: #{incident.incident_severity.name} | Status: #{incident.incident_status.name}#{lead_text}"
+    topic = "Severity: #{incident.incident_severity.name} | Status: #{incident.incident_status.name}#{type_text}#{lead_text}"
     adapter.set_channel_topic(
       channel_id: incident.channel_id,
       topic: topic
     )
   end
 
-  def post_incident_update_message(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:)
+  def post_incident_update_message(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:, previous_type_name: nil)
     adapter = WorkspaceAdapter.for(@workspace)
     adapter.post_incident_update_message(
       channel_id: incident.channel_id,
@@ -43,7 +44,8 @@ class IncidentUpdateService
       message: message,
       updated_by_platform_user_id: updated_by_platform_user_id,
       previous_status_name: previous_status_name,
-      previous_severity_name: previous_severity_name
+      previous_severity_name: previous_severity_name,
+      previous_type_name: previous_type_name
     )
   end
 
@@ -91,7 +93,7 @@ class IncidentUpdateService
     )
   end
 
-  def post_incident_update_announcement_thread(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:)
+  def post_incident_update_announcement_thread(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:, previous_type_name: nil)
     return unless incident.announcement_message_ts
 
     adapter = WorkspaceAdapter.for(@workspace)
@@ -102,7 +104,8 @@ class IncidentUpdateService
       message: message,
       updated_by_platform_user_id: updated_by_platform_user_id,
       previous_status_name: previous_status_name,
-      previous_severity_name: previous_severity_name
+      previous_severity_name: previous_severity_name,
+      previous_type_name: previous_type_name
     )
   end
 end

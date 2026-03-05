@@ -4,7 +4,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_statuses, :incident_severities, :incident_roles
+           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_types, :incident_roles
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -71,6 +71,51 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     assert_equal "Critical", workflow.context["previous_severity_name"]
   end
 
+  test "sets incident type" do
+    stub_all_side_effects
+
+    Interactions::IncidentUpdateHandler.execute(
+      build_interaction(type_slug: "service_outage")
+    )
+
+    @incident.reload
+    assert_equal "service_outage", @incident.incident_type.slug
+  end
+
+  test "clears incident type when none selected" do
+    @incident.update!(incident_type: incident_types(:service_outage_ws1))
+    stub_all_side_effects
+
+    Interactions::IncidentUpdateHandler.execute(
+      build_interaction(type_slug: nil)
+    )
+
+    assert_nil @incident.reload.incident_type
+  end
+
+  test "type change appears in changed_fields" do
+    stub_all_side_effects
+
+    Interactions::IncidentUpdateHandler.execute(
+      build_interaction(type_slug: "service_outage")
+    )
+
+    event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_UPDATED)
+    assert event.changed?(:type)
+  end
+
+  test "workflow context includes previous_type_name" do
+    @incident.update!(incident_type: incident_types(:service_outage_ws1))
+    stub_all_side_effects
+
+    Interactions::IncidentUpdateHandler.execute(
+      build_interaction(type_slug: "performance_degradation")
+    )
+
+    workflow = SolidWorkflow::Workflow.last
+    assert_equal "Service Outage", workflow.context["previous_type_name"]
+  end
+
   test "sets next_update_at when timer selected" do
     stub_all_side_effects
 
@@ -126,7 +171,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
 
   private
 
-  def build_interaction(status_slug: "investigating", severity_slug: "critical", message: nil, next_update_minutes: nil)
+  def build_interaction(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil)
     Interaction.new(
       platform: Platforms::SLACK,
       type: Interaction::VIEW_SUBMISSION,
@@ -134,12 +179,12 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
       user_id: @member.platform_user_id,
       callback_id: Identifiers::INCIDENT_UPDATE_MODAL,
       private_metadata: { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.channel_id }.to_json,
-      values: build_values(status_slug: status_slug, severity_slug: severity_slug, message: message, next_update_minutes: next_update_minutes)
+      values: build_values(status_slug: status_slug, severity_slug: severity_slug, type_slug: type_slug, message: message, next_update_minutes: next_update_minutes)
     )
   end
 
-  def build_values(status_slug: "investigating", severity_slug: "critical", message: nil, next_update_minutes: nil)
-    values = {
+  def build_values(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil)
+    {
       "status_block" => {
         "status_select" => {
           "selected_option" => { "value" => status_slug }
@@ -148,6 +193,11 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
       "severity_block" => {
         "severity_select" => {
           "selected_option" => { "value" => severity_slug }
+        }
+      },
+      "type_block" => {
+        "type_select" => {
+          "selected_option" => type_slug ? { "value" => type_slug } : nil
         }
       },
       "message_block" => {
@@ -161,7 +211,6 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
         }
       }
     }
-    values
   end
 
   def stub_all_side_effects

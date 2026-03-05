@@ -2,7 +2,7 @@ require "test_helper"
 require "rake"
 
 class SlackArchiveIncidentChannelsRakeTest < ActiveSupport::TestCase
-  fixtures :workspaces, :workspace_memberships, :users, :incident_statuses, :incident_severities, :incidents
+  fixtures :workspaces, :workspace_memberships, :users, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incidents
 
   setup do
     Rails.application.load_tasks unless Rake::Task.task_defined?("slack:archive_incident_channels")

@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_statuses, :incident_severities, :incident_roles, :incidents
+  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_types, :incident_roles, :incidents
 
   # ============================================================================
   # BASIC VALIDATIONS
@@ -156,6 +156,14 @@ class IncidentTest < ActiveSupport::TestCase
     assert_respond_to incident, :incident_actions
   end
 
+  test "belongs to incident_type optionally" do
+    incident = incidents(:active_critical_ws1)
+    assert_nil incident.incident_type
+
+    incident.update!(incident_type: incident_types(:service_outage_ws1))
+    assert_equal incident_types(:service_outage_ws1), incident.incident_type
+  end
+
   test "has many incident_role_assignments" do
     incident = incidents(:active_critical_ws1)
     assert_respond_to incident, :incident_role_assignments
@@ -169,6 +177,52 @@ class IncidentTest < ActiveSupport::TestCase
   test "has many assigned_members through incident_role_assignments" do
     incident = incidents(:active_critical_ws1)
     assert_respond_to incident, :assigned_members
+  end
+
+  # ============================================================================
+  # RELATIONSHIPS
+  # ============================================================================
+
+  test "related_incidents returns bidirectional related incidents" do
+    incident1 = incidents(:active_critical_ws1)
+    incident2 = incidents(:active_major_ws1)
+
+    IncidentRelationship.create!(
+      incident: incident1,
+      related_incident: incident2,
+      relationship_type: IncidentRelationship::RELATED
+    )
+
+    assert_includes incident1.related_incidents, incident2
+    assert_includes incident2.related_incidents, incident1
+  end
+
+  test "duplicate_of returns canonical incident" do
+    source = incidents(:active_critical_ws1)
+    canonical = incidents(:active_major_ws1)
+
+    IncidentRelationship.create!(
+      incident: source,
+      related_incident: canonical,
+      relationship_type: IncidentRelationship::DUPLICATE
+    )
+
+    assert_equal canonical, source.duplicate_of
+    assert_nil canonical.duplicate_of
+  end
+
+  test "duplicates returns incidents marked as duplicate of this one" do
+    source = incidents(:active_critical_ws1)
+    canonical = incidents(:active_major_ws1)
+
+    IncidentRelationship.create!(
+      incident: source,
+      related_incident: canonical,
+      relationship_type: IncidentRelationship::DUPLICATE
+    )
+
+    assert_includes canonical.duplicates, source
+    assert_empty source.duplicates
   end
 
   # ============================================================================
@@ -286,9 +340,9 @@ class IncidentTest < ActiveSupport::TestCase
     # Create required incident status and severity for new workspace
     status = IncidentStatus.create!(
       workspace: workspace,
+      incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Investigating",
       slug: "investigating",
-      category: "live",
       position: 1,
       is_default: true
     )
@@ -388,13 +442,12 @@ class IncidentTest < ActiveSupport::TestCase
   end
 
   test "does not change resolved_at when changing between closed statuses" do
-    # Create another closed status first
     another_closed_status = IncidentStatus.create!(
       workspace: workspaces(:slack_workspace_one),
+      incident_lifecycle_stage: incident_lifecycle_stages(:closed),
       name: "Completed",
       slug: "completed",
-      category: "closed",
-      position: 5
+      position: 6
     )
 
     incident = incidents(:resolved_minor_ws1)
@@ -402,6 +455,38 @@ class IncidentTest < ActiveSupport::TestCase
 
     incident.update!(incident_status: another_closed_status)
     assert_equal original_resolved_at.to_i, incident.resolved_at.to_i
+  end
+
+  test "canceled does not set resolved_at" do
+    incident = incidents(:active_critical_ws1)
+    assert_nil incident.resolved_at
+
+    incident.update!(incident_status: incident_statuses(:canceled_ws1))
+    assert_nil incident.resolved_at
+  end
+
+  test "canceled clears next_update_at" do
+    incident = incidents(:active_critical_ws1)
+    incident.update_column(:next_update_at, 30.minutes.from_now)
+
+    incident.update!(incident_status: incident_statuses(:canceled_ws1))
+    assert_nil incident.next_update_at
+  end
+
+  test "canceled? returns true for canceled status" do
+    incident = incidents(:active_critical_ws1)
+    incident.update!(incident_status: incident_statuses(:canceled_ws1))
+    assert incident.canceled?
+  end
+
+  test "transition from canceled to active clears resolved_at if present" do
+    incident = incidents(:active_critical_ws1)
+    incident.update!(incident_status: incident_statuses(:canceled_ws1))
+    # Manually set resolved_at to test clearing
+    incident.update_column(:resolved_at, Time.current)
+
+    incident.update!(incident_status: incident_statuses(:investigating_ws1))
+    assert_nil incident.resolved_at
   end
 
   # ============================================================================

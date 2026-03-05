@@ -328,6 +328,7 @@ module Slack
       workspace = incident.workspace
       statuses = workspace.incident_statuses.active.ordered
       severities = workspace.incident_severities.active.ordered
+      types = workspace.incident_types.active.ordered
       metadata = private_metadata || incident.id
 
       current_status = incident.incident_status
@@ -354,6 +355,68 @@ module Slack
       initial_status = status_options.find { |o| o[:value] == current_status.slug }
       initial_severity = severity_options.find { |o| o[:value] == current_severity.slug }
 
+      blocks = [
+        {
+          type: "input",
+          block_id: "status_block",
+          element: {
+            type: "static_select",
+            action_id: "status_select",
+            options: status_options,
+            initial_option: initial_status
+          }.compact,
+          label: { type: "plain_text", text: "Status" }
+        },
+        {
+          type: "input",
+          block_id: "severity_block",
+          element: {
+            type: "static_select",
+            action_id: "severity_select",
+            options: severity_options,
+            initial_option: initial_severity
+          }.compact,
+          label: { type: "plain_text", text: "Severity" }
+        }
+      ]
+
+      if types.any?
+        blocks << type_block(types, incident.incident_type)
+      end
+
+      blocks << {
+        type: "input",
+        block_id: "message_block",
+        element: {
+          type: "plain_text_input",
+          action_id: "message_input",
+          multiline: true,
+          placeholder: {
+            type: "plain_text",
+            text: "What's happening at the moment? What are you doing next?"
+          },
+          max_length: 3000
+        },
+        label: { type: "plain_text", text: "Message" },
+        optional: true
+      }
+
+      blocks << {
+        type: "input",
+        block_id: "next_update_block",
+        element: {
+          type: "static_select",
+          action_id: "next_update_select",
+          placeholder: {
+            type: "plain_text",
+            text: "Select a time"
+          },
+          options: next_update_options
+        },
+        label: { type: "plain_text", text: "When will you provide the next update? (optional)" },
+        optional: true
+      }
+
       {
         type: "modal",
         callback_id: Identifiers::INCIDENT_UPDATE_MODAL,
@@ -371,61 +434,7 @@ module Slack
           type: "plain_text",
           text: "Cancel"
         },
-        blocks: [
-          {
-            type: "input",
-            block_id: "status_block",
-            element: {
-              type: "static_select",
-              action_id: "status_select",
-              options: status_options,
-              initial_option: initial_status
-            }.compact,
-            label: { type: "plain_text", text: "Status" }
-          },
-          {
-            type: "input",
-            block_id: "severity_block",
-            element: {
-              type: "static_select",
-              action_id: "severity_select",
-              options: severity_options,
-              initial_option: initial_severity
-            }.compact,
-            label: { type: "plain_text", text: "Severity" }
-          },
-          {
-            type: "input",
-            block_id: "message_block",
-            element: {
-              type: "plain_text_input",
-              action_id: "message_input",
-              multiline: true,
-              placeholder: {
-                type: "plain_text",
-                text: "What's happening at the moment? What are you doing next?"
-              },
-              max_length: 3000
-            },
-            label: { type: "plain_text", text: "Message" },
-            optional: true
-          },
-          {
-            type: "input",
-            block_id: "next_update_block",
-            element: {
-              type: "static_select",
-              action_id: "next_update_select",
-              placeholder: {
-                type: "plain_text",
-                text: "Select a time"
-              },
-              options: next_update_options
-            },
-            label: { type: "plain_text", text: "When will you provide the next update? (optional)" },
-            optional: true
-          }
-        ]
+        blocks: blocks
       }
     end
 
@@ -438,6 +447,36 @@ module Slack
       { label: "1 day", value: "1440" },
       { label: "7 days", value: "10080" }
     ].freeze
+
+    def self.type_block(types, current_type)
+      type_options = types.map do |type|
+        option = {
+          text: { type: "plain_text", text: type.name },
+          value: type.slug
+        }
+        option[:description] = { type: "plain_text", text: type.description } if type.description.present?
+        option
+      end
+
+      initial_type = current_type ? type_options.find { |o| o[:value] == current_type.slug } : nil
+
+      element = {
+        type: "static_select",
+        action_id: "type_select",
+        placeholder: { type: "plain_text", text: "Select a type" },
+        options: type_options
+      }
+      element[:initial_option] = initial_type if initial_type
+
+      {
+        type: "input",
+        block_id: "type_block",
+        element: element,
+        label: { type: "plain_text", text: "Type" },
+        optional: true
+      }
+    end
+    private_class_method :type_block
 
     def self.next_update_options
       NEXT_UPDATE_OPTIONS.map do |opt|
@@ -651,6 +690,77 @@ module Slack
             element: lead_element,
             label: { type: "plain_text", text: "Incident Lead" },
             optional: true
+          }
+        ]
+      }
+    end
+
+    def self.link_incident_modal(incident, private_metadata: nil)
+      metadata = private_metadata || incident.id
+      workspace = incident.workspace
+
+      other_incidents = workspace.incidents
+        .where.not(id: incident.id)
+        .recent
+        .limit(100)
+
+      incident_options = other_incidents.map do |inc|
+        {
+          text: { type: "plain_text", text: "#{inc.identifier}: #{(inc.name || 'Untitled').truncate(60)}" },
+          value: inc.id
+        }
+      end
+
+      return nil if incident_options.empty?
+
+      {
+        type: "modal",
+        callback_id: Identifiers::LINK_INCIDENT_MODAL,
+        private_metadata: metadata,
+        title: { type: "plain_text", text: "Link incident" },
+        submit: { type: "plain_text", text: "Link" },
+        close: { type: "plain_text", text: "Cancel" },
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "*#{incident.identifier}: #{incident.name || 'Untitled Incident'}*" }
+          },
+          {
+            type: "input",
+            block_id: "relationship_type_block",
+            element: {
+              type: "static_select",
+              action_id: "relationship_type_select",
+              options: [
+                {
+                  text: { type: "plain_text", text: "Related" },
+                  value: IncidentRelationship::RELATED,
+                  description: { type: "plain_text", text: "Link as contextually related incidents" }
+                },
+                {
+                  text: { type: "plain_text", text: "Duplicate (merge into target)" },
+                  value: IncidentRelationship::DUPLICATE,
+                  description: { type: "plain_text", text: "Mark this incident as a duplicate and cancel it" }
+                }
+              ],
+              initial_option: {
+                text: { type: "plain_text", text: "Related" },
+                value: IncidentRelationship::RELATED,
+                description: { type: "plain_text", text: "Link as contextually related incidents" }
+              }
+            },
+            label: { type: "plain_text", text: "Relationship type" }
+          },
+          {
+            type: "input",
+            block_id: "target_incident_block",
+            element: {
+              type: "static_select",
+              action_id: "target_incident_select",
+              placeholder: { type: "plain_text", text: "Select an incident" },
+              options: incident_options
+            },
+            label: { type: "plain_text", text: "Target incident" }
           }
         ]
       }

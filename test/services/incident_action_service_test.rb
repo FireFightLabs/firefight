@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentActionServiceTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_statuses
+  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_lifecycle_stages, :incident_statuses
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -83,8 +83,15 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_CREATED)
     assert_equal @member, event.user
     assert_instance_of IncidentActionUpdate, event.eventable
-    assert_equal IncidentActionUpdate::CREATED, event.eventable.action_update_type
-    assert_equal "action", event.eventable.action_type
+
+    action_update = event.eventable
+    assert_equal IncidentActionUpdate::CREATED, action_update.update_type
+    assert_equal "action", action_update.action_type
+    assert_equal @incident, action_update.incident
+    assert_equal @member, action_update.created_by
+    assert_equal "Restart the service", action_update.description
+    assert_equal IncidentAction::STATUS_OPEN, action_update.status
+    assert_equal [], action_update.changed_fields
   end
 
   test "create_action stores platform_data" do
@@ -137,7 +144,13 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_PICKED_UP)
     assert_equal @bob, event.user
     assert_instance_of IncidentActionUpdate, event.eventable
-    assert_equal IncidentActionUpdate::PICKED_UP, event.eventable.action_update_type
+
+    action_update = event.eventable
+    assert_equal IncidentActionUpdate::PICKED_UP, action_update.update_type
+    assert_equal @bob, action_update.assignee
+    assert_equal IncidentAction::STATUS_IN_PROGRESS, action_update.status
+    assert_includes action_update.changed_fields, "assignee"
+    assert_includes action_update.changed_fields, "status"
   end
 
   test "complete_action sets done status" do
@@ -180,6 +193,10 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_COMPLETED)
     assert_equal @bob, event.user
     assert_instance_of IncidentActionUpdate, event.eventable
-    assert_equal IncidentActionUpdate::COMPLETED, event.eventable.action_update_type
+
+    action_update = event.eventable
+    assert_equal IncidentActionUpdate::COMPLETED, action_update.update_type
+    assert_equal IncidentAction::STATUS_DONE, action_update.status
+    assert_includes action_update.changed_fields, "status"
   end
 end
