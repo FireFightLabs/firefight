@@ -146,7 +146,8 @@ class IncidentEventTest < ActiveSupport::TestCase
     expected_types = [
       "incident.created", "incident.updated", "lead.assigned",
       "action.created", "action.picked_up", "action.completed",
-      "incident.escalated", "incident.resolved", "incident.reopened", "postmortem.generated"
+      "incident.escalated", "incident.resolved", "incident.reopened", "postmortem.generated",
+      "relationship.created", "incident.marked_duplicate", "incident.merged_into"
     ]
     assert_equal expected_types.sort, IncidentEvent::EVENT_TYPES.sort
   end

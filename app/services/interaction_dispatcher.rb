@@ -10,7 +10,8 @@ class InteractionDispatcher
     Identifiers::CREATE_ACTION_MODAL => Interactions::CreateActionHandler,
     Identifiers::CREATE_FOLLOWUP_MODAL => Interactions::CreateFollowupHandler,
     Identifiers::CLOSE_INCIDENT_MODAL => Interactions::CloseIncidentHandler,
-    Identifiers::REOPEN_INCIDENT_MODAL => Interactions::ReopenIncidentHandler
+    Identifiers::REOPEN_INCIDENT_MODAL => Interactions::ReopenIncidentHandler,
+    Identifiers::LINK_INCIDENT_MODAL => Interactions::LinkIncidentHandler
   }.freeze
 
   BLOCK_ACTION_HANDLERS = {

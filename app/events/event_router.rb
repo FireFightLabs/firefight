@@ -9,7 +9,10 @@ class EventRouter
     IncidentEvent::INCIDENT_ESCALATED => [],
     IncidentEvent::INCIDENT_RESOLVED => [],
     IncidentEvent::INCIDENT_REOPENED => [],
-    IncidentEvent::POSTMORTEM_GENERATED => []
+    IncidentEvent::POSTMORTEM_GENERATED => [],
+    IncidentEvent::RELATIONSHIP_CREATED => [],
+    IncidentEvent::MARKED_DUPLICATE => [],
+    IncidentEvent::MERGED_INTO => []
   }.freeze
 
   def self.route(event)

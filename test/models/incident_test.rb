@@ -180,6 +180,52 @@ class IncidentTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
+  # RELATIONSHIPS
+  # ============================================================================
+
+  test "related_incidents returns bidirectional related incidents" do
+    incident1 = incidents(:active_critical_ws1)
+    incident2 = incidents(:active_major_ws1)
+
+    IncidentRelationship.create!(
+      incident: incident1,
+      related_incident: incident2,
+      relationship_type: IncidentRelationship::RELATED
+    )
+
+    assert_includes incident1.related_incidents, incident2
+    assert_includes incident2.related_incidents, incident1
+  end
+
+  test "duplicate_of returns canonical incident" do
+    source = incidents(:active_critical_ws1)
+    canonical = incidents(:active_major_ws1)
+
+    IncidentRelationship.create!(
+      incident: source,
+      related_incident: canonical,
+      relationship_type: IncidentRelationship::DUPLICATE
+    )
+
+    assert_equal canonical, source.duplicate_of
+    assert_nil canonical.duplicate_of
+  end
+
+  test "duplicates returns incidents marked as duplicate of this one" do
+    source = incidents(:active_critical_ws1)
+    canonical = incidents(:active_major_ws1)
+
+    IncidentRelationship.create!(
+      incident: source,
+      related_incident: canonical,
+      relationship_type: IncidentRelationship::DUPLICATE
+    )
+
+    assert_includes canonical.duplicates, source
+    assert_empty source.duplicates
+  end
+
+  # ============================================================================
   # SCOPES
   # ============================================================================
 

@@ -18,6 +18,9 @@ class Incident < ApplicationRecord
   has_many :incident_role_assignments, dependent: :destroy
   has_many :incident_roles, through: :incident_role_assignments
   has_many :assigned_members, through: :incident_role_assignments, source: :workspace_membership
+  has_many :incident_relationships, dependent: :destroy
+  has_many :inverse_incident_relationships, class_name: "IncidentRelationship",
+           foreign_key: :related_incident_id, dependent: :destroy, inverse_of: :related_incident
 
   validates :sequence_number, presence: true, uniqueness: { scope: :workspace_id }
   validates :identifier, presence: true, uniqueness: { scope: :workspace_id }
@@ -40,5 +43,23 @@ class Incident < ApplicationRecord
 
   def canceled?
     incident_status.canceled?
+  end
+
+  def related_incidents
+    ids = IncidentRelationship.related
+      .where(incident_id: id)
+      .or(IncidentRelationship.related.where(related_incident_id: id))
+      .pluck(:incident_id, :related_incident_id)
+      .flatten.uniq - [ id ]
+    workspace.incidents.where(id: ids)
+  end
+
+  def duplicate_of
+    rel = incident_relationships.duplicates.first
+    rel&.related_incident
+  end
+
+  def duplicates
+    inverse_incident_relationships.duplicates.map(&:incident)
   end
 end

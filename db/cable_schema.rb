@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_05_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_05_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -83,6 +83,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_05_130000) do
     t.datetime "updated_at", null: false
     t.index ["key"], name: "index_incident_lifecycle_stages_on_key", unique: true
     t.index ["position"], name: "index_incident_lifecycle_stages_on_position"
+  end
+
+  create_table "incident_relationships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "created_by_id"
+    t.uuid "incident_id", null: false
+    t.uuid "related_incident_id", null: false
+    t.string "relationship_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_incident_relationships_on_created_by_id"
+    t.index ["incident_id", "related_incident_id", "relationship_type"], name: "idx_incident_relationships_unique_pair", unique: true
+    t.index ["incident_id"], name: "index_incident_relationships_on_incident_id"
+    t.index ["related_incident_id"], name: "index_incident_relationships_on_related_incident_id"
+    t.index ["relationship_type"], name: "index_incident_relationships_on_relationship_type"
+    t.check_constraint "incident_id <> related_incident_id", name: "chk_no_self_reference"
   end
 
   create_table "incident_role_assignments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -514,6 +529,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_05_130000) do
   add_foreign_key "incident_actions", "workspace_memberships", column: "created_by_id"
   add_foreign_key "incident_events", "incidents"
   add_foreign_key "incident_events", "workspace_memberships", column: "user_id"
+  add_foreign_key "incident_relationships", "incidents"
+  add_foreign_key "incident_relationships", "incidents", column: "related_incident_id"
+  add_foreign_key "incident_relationships", "workspace_memberships", column: "created_by_id"
   add_foreign_key "incident_role_assignments", "incident_roles"
   add_foreign_key "incident_role_assignments", "incidents"
   add_foreign_key "incident_role_assignments", "workspace_memberships"
