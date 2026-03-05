@@ -380,7 +380,19 @@ module Slack
         }
       ]
 
-      unless action.assigned?
+      if action.assigned?
+        blocks << {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: ":white_check_mark: Mark as done", emoji: true },
+              action_id: Identifiers::MARK_ACTION_DONE,
+              value: action.id
+            }
+          ]
+        }
+      else
         blocks << {
           type: "actions",
           elements: [
