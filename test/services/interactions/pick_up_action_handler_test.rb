@@ -50,7 +50,7 @@ class Interactions::PickUpActionHandlerTest < ActiveSupport::TestCase
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_PICKED_UP)
     assert_equal @bob, event.user
     assert_instance_of IncidentActionUpdate, event.eventable
-    assert_equal IncidentActionUpdate::PICKED_UP, event.eventable.action_update_type
+    assert_equal IncidentActionUpdate::PICKED_UP, event.eventable.update_type
   end
 
   test "ignores already assigned action" do

@@ -57,7 +57,7 @@ class IncidentEvent < ApplicationRecord
   end
 
   def changed_fields
-    if eventable.is_a?(IncidentUpdate)
+    if eventable.is_a?(IncidentUpdate) || eventable.is_a?(IncidentActionUpdate)
       eventable.changed_fields || []
     else
       metadata["changed_fields"] || []

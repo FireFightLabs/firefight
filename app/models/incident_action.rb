@@ -1,4 +1,6 @@
 class IncidentAction < ApplicationRecord
+  include IncidentAction::Snapshots
+
   ACTION_TYPE_ACTION = "action"
   ACTION_TYPE_FOLLOWUP = "followup"
   ACTION_TYPES = [ ACTION_TYPE_ACTION, ACTION_TYPE_FOLLOWUP ].freeze

@@ -10,22 +10,34 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_25_100523) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_05_103923) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
 
   create_table "incident_action_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "action_type", null: false
-    t.string "action_update_type", null: false
     t.uuid "actor_id", null: false
+    t.uuid "assignee_id"
+    t.jsonb "changed_fields", default: [], null: false
     t.datetime "created_at", null: false
+    t.uuid "created_by_id", null: false
+    t.datetime "deleted_at"
+    t.text "description", null: false
     t.uuid "incident_action_id", null: false
+    t.uuid "incident_id", null: false
+    t.string "message_ts"
+    t.jsonb "platform_data", default: {}, null: false
+    t.string "status", null: false
+    t.string "update_type", null: false
     t.datetime "updated_at", null: false
-    t.index ["action_update_type"], name: "index_incident_action_updates_on_action_update_type"
     t.index ["actor_id"], name: "index_incident_action_updates_on_actor_id"
+    t.index ["assignee_id"], name: "index_incident_action_updates_on_assignee_id"
+    t.index ["created_by_id"], name: "index_incident_action_updates_on_created_by_id"
     t.index ["incident_action_id", "created_at"], name: "idx_on_incident_action_id_created_at_ce446d496c"
     t.index ["incident_action_id"], name: "index_incident_action_updates_on_incident_action_id"
+    t.index ["incident_id"], name: "index_incident_action_updates_on_incident_id"
+    t.index ["update_type"], name: "index_incident_action_updates_on_update_type"
   end
 
   create_table "incident_actions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -349,30 +361,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_25_100523) do
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
-  create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.string "avatar_url"
-    t.datetime "created_at", null: false
-    t.string "email", null: false
-    t.string "name", null: false
-    t.datetime "updated_at", null: false
-    t.index ["email"], name: "index_users_on_email", unique: true
-  end
-
-  create_table "workflow_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "solid_workflow_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "event_type", null: false
     t.jsonb "metadata", default: {}
+    t.uuid "step_id"
     t.datetime "updated_at", null: false
     t.uuid "workflow_id", null: false
-    t.uuid "workflow_step_id"
-    t.index ["created_at"], name: "index_workflow_events_on_created_at"
-    t.index ["event_type"], name: "index_workflow_events_on_event_type"
+    t.index ["created_at"], name: "index_solid_workflow_events_on_created_at"
+    t.index ["event_type"], name: "index_solid_workflow_events_on_event_type"
+    t.index ["step_id"], name: "index_solid_workflow_events_on_step_id"
     t.index ["workflow_id", "created_at"], name: "index_workflow_events_on_workflow_and_created_at"
-    t.index ["workflow_id"], name: "index_workflow_events_on_workflow_id"
-    t.index ["workflow_step_id"], name: "index_workflow_events_on_workflow_step_id"
+    t.index ["workflow_id"], name: "index_solid_workflow_events_on_workflow_id"
   end
 
-  create_table "workflow_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "solid_workflow_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "attempts", default: 0, null: false
     t.datetime "completed_at"
     t.datetime "created_at", null: false
@@ -390,15 +393,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_25_100523) do
     t.string "status", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.uuid "workflow_id", null: false
-    t.index ["run_at"], name: "index_workflow_steps_on_run_at"
-    t.index ["status", "updated_at"], name: "index_workflow_steps_on_status_and_updated_at"
-    t.index ["status"], name: "index_workflow_steps_on_status"
-    t.index ["workflow_id", "name"], name: "index_workflow_steps_on_workflow_id_and_name"
-    t.index ["workflow_id", "status"], name: "index_workflow_steps_on_workflow_id_and_status"
-    t.index ["workflow_id"], name: "index_workflow_steps_on_workflow_id"
+    t.index ["run_at"], name: "index_solid_workflow_steps_on_run_at"
+    t.index ["status", "updated_at"], name: "index_solid_workflow_steps_on_status_and_updated_at"
+    t.index ["status"], name: "index_solid_workflow_steps_on_status"
+    t.index ["workflow_id", "name"], name: "index_solid_workflow_steps_on_workflow_id_and_name"
+    t.index ["workflow_id", "status"], name: "index_solid_workflow_steps_on_workflow_id_and_status"
+    t.index ["workflow_id"], name: "index_solid_workflow_steps_on_workflow_id"
   end
 
-  create_table "workflows", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "solid_workflow_workflows", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "cancellation_reason"
     t.string "cancelled_by"
     t.datetime "completed_at"
@@ -413,12 +416,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_25_100523) do
     t.datetime "updated_at", null: false
     t.string "workflow_class", null: false
     t.jsonb "workflow_config", default: {}
-    t.index ["created_at"], name: "index_workflows_on_created_at"
-    t.index ["state", "updated_at"], name: "index_workflows_on_state_and_updated_at"
-    t.index ["state"], name: "index_workflows_on_state"
+    t.index ["created_at"], name: "index_solid_workflow_workflows_on_created_at"
+    t.index ["state", "updated_at"], name: "index_solid_workflow_workflows_on_state_and_updated_at"
+    t.index ["state"], name: "index_solid_workflow_workflows_on_state"
     t.index ["subject_type", "subject_id", "state"], name: "index_workflows_on_subject_and_state"
     t.index ["subject_type", "subject_id"], name: "index_workflows_on_subject"
-    t.index ["workflow_class"], name: "index_workflows_on_workflow_class"
+    t.index ["workflow_class"], name: "index_solid_workflow_workflows_on_workflow_class"
+  end
+
+  create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "avatar_url"
+    t.datetime "created_at", null: false
+    t.string "email", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email"], name: "index_users_on_email", unique: true
   end
 
   create_table "workspace_memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -458,7 +470,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_25_100523) do
   end
 
   add_foreign_key "incident_action_updates", "incident_actions"
+  add_foreign_key "incident_action_updates", "incidents"
   add_foreign_key "incident_action_updates", "workspace_memberships", column: "actor_id"
+  add_foreign_key "incident_action_updates", "workspace_memberships", column: "assignee_id"
+  add_foreign_key "incident_action_updates", "workspace_memberships", column: "created_by_id"
   add_foreign_key "incident_actions", "incidents"
   add_foreign_key "incident_actions", "workspace_memberships", column: "assignee_id"
   add_foreign_key "incident_actions", "workspace_memberships", column: "created_by_id"
@@ -488,9 +503,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_25_100523) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
-  add_foreign_key "workflow_events", "workflow_steps"
-  add_foreign_key "workflow_events", "workflows"
-  add_foreign_key "workflow_steps", "workflows"
+  add_foreign_key "solid_workflow_events", "solid_workflow_steps", column: "step_id"
+  add_foreign_key "solid_workflow_events", "solid_workflow_workflows", column: "workflow_id"
+  add_foreign_key "solid_workflow_steps", "solid_workflow_workflows", column: "workflow_id"
   add_foreign_key "workspace_memberships", "users"
   add_foreign_key "workspace_memberships", "workspaces"
 end

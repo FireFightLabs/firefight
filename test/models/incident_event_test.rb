@@ -268,9 +268,14 @@ class IncidentEventTest < ActiveSupport::TestCase
 
     action_update = IncidentActionUpdate.create!(
       incident_action: action,
-      action_update_type: IncidentActionUpdate::CREATED,
+      incident: incident,
+      update_type: IncidentActionUpdate::CREATED,
       action_type: action.action_type,
-      actor: member
+      actor: member,
+      created_by: action.created_by,
+      assignee: action.assignee,
+      description: action.description,
+      status: action.status
     )
 
     incident.incident_events.create!(
@@ -280,6 +285,35 @@ class IncidentEventTest < ActiveSupport::TestCase
     )
 
     assert_equal 1, incident.incident_events.action_updates.count
+  end
+
+  test "changed_fields delegates to IncidentActionUpdate when eventable" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    action = incident_actions(:inc1_action_open)
+
+    action_update = IncidentActionUpdate.create!(
+      incident_action: action,
+      incident: incident,
+      update_type: IncidentActionUpdate::PICKED_UP,
+      action_type: action.action_type,
+      actor: member,
+      created_by: action.created_by,
+      assignee: member,
+      description: action.description,
+      status: IncidentAction::STATUS_IN_PROGRESS,
+      changed_fields: [ "assignee", "status" ]
+    )
+
+    event = incident.incident_events.create!(
+      event_type: IncidentEvent::ACTION_PICKED_UP,
+      user: member,
+      eventable: action_update
+    )
+
+    assert_equal [ "assignee", "status" ], event.changed_fields
+    assert event.changed?(:status)
+    assert_not event.changed?(:description)
   end
 
   test "changed_fields delegates to IncidentUpdate when eventable" do

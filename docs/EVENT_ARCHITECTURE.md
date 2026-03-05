@@ -6,7 +6,7 @@ Handlers and services currently create `IncidentEvent` records synchronously inl
 
 This document describes a two-phase architecture:
 - **Phase 1:** Keep sync event recording as-is + add a domain event bus that fires async after each event is created. External subscribers (webhooks, workflows, AI) react to events without touching the recording logic.
-- **Phase 2:** Evolve event storage to use delegated types (`IncidentUpdate`, `IncidentActionEvent`) for structured queryable data. Event bus and publish sites are unchanged.
+- **Phase 2:** Evolve event storage to use delegated types (`IncidentUpdate`, `IncidentActionUpdate`) for structured queryable data. Event bus and publish sites are unchanged.
 
 ---
 
@@ -192,13 +192,13 @@ References: [37signals Delegated Type Pattern](https://dev.37signals.com/the-rai
 incidents               = mutable current state (fast reads, all columns)
 incident_events         = universal timeline (ties all events together via delegated_type)
 incident_updates        = append-only incident snapshots (same columns as incidents + update fields)
-incident_action_events  = action/followup lifecycle events (created, picked up, completed)
+incident_action_updates = append-only action snapshots (same columns as incident_actions + update fields)
 ```
 
 ```
 incident_events (unified timeline)
   |-- eventable: IncidentUpdate        -> incident_updates table
-  |-- eventable: IncidentActionEvent   -> incident_action_events table
+  |-- eventable: IncidentActionUpdate  -> incident_action_updates table
   |-- eventable: nil                   (future simple events)
 ```
 
@@ -263,25 +263,33 @@ add_index :incident_updates, :update_type
 add_foreign_key :incident_updates, :workspaces
 ```
 
-#### New table: `incident_action_events`
+#### Expanded table: `incident_action_updates`
 
-Records each action/followup lifecycle event. Links to the `incident_actions` row for full detail (description, assignee, etc.).
+Each row is a complete snapshot of the action at a point in time, mirroring all `incident_actions` columns plus update-specific fields. This follows the same full-snapshot pattern as `incident_updates`.
 
 ```ruby
-create_table :incident_action_events, id: :uuid do |t|
+create_table :incident_action_updates, id: :uuid do |t|
   t.references :incident_action, type: :uuid, null: false, foreign_key: true
-  t.string :action_event_type, null: false   # "created", "picked_up", "completed"
-  t.string :action_type, null: false         # "action" or "followup" — denormalized for timeline rendering
+  t.references :incident, type: :uuid, null: false, foreign_key: true
+  t.string :update_type, null: false        # "created", "picked_up", "completed"
+  t.string :action_type, null: false        # "action" or "followup"
   t.references :actor, type: :uuid, null: false, foreign_key: { to_table: :workspace_memberships }
+
+  # Snapshot columns (mirrors incident_actions)
+  t.references :created_by, type: :uuid, null: false, foreign_key: { to_table: :workspace_memberships }
+  t.references :assignee, type: :uuid, null: true, foreign_key: { to_table: :workspace_memberships }
+  t.text :description, null: false
+  t.string :status, null: false
+  t.string :message_ts
+  t.jsonb :platform_data, default: {}, null: false
+  t.datetime :deleted_at
+
+  # Change tracking
+  t.jsonb :changed_fields, default: [], null: false
 
   t.timestamps
 end
-
-add_index :incident_action_events, [ :incident_action_id, :created_at ]
-add_index :incident_action_events, :action_event_type
 ```
-
-Why not duplicate all `incident_actions` columns? Unlike incidents (mutable state, need point-in-time snapshots), actions are simpler — description doesn't change, status is derivable from the event sequence. Linking via FK is sufficient. The denormalized `action_type` lets us render "Action created" vs "Followup created" without joining.
 
 ### Models
 
@@ -292,15 +300,15 @@ class IncidentEvent < ApplicationRecord
   belongs_to :incident
   belongs_to :user, class_name: "WorkspaceMembership", optional: true
 
-  delegated_type :eventable, types: %w[IncidentUpdate IncidentActionEvent], optional: true
+  delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate], optional: true
 
   scope :updates, -> { where(eventable_type: "IncidentUpdate") }
-  scope :action_events, -> { where(eventable_type: "IncidentActionEvent") }
+  scope :action_updates, -> { where(eventable_type: "IncidentActionUpdate") }
   scope :chronological, -> { order(created_at: :asc) }
   scope :recent, -> { order(created_at: :desc) }
 
   def changed_fields
-    if eventable.is_a?(IncidentUpdate)
+    if eventable.is_a?(IncidentUpdate) || eventable.is_a?(IncidentActionUpdate)
       eventable.changed_fields || []
     else
       metadata["changed_fields"] || []
@@ -355,25 +363,31 @@ class IncidentUpdate < ApplicationRecord
 end
 ```
 
-#### IncidentActionEvent (new)
+#### IncidentActionUpdate (expanded to full snapshot)
 
 ```ruby
-class IncidentActionEvent < ApplicationRecord
+class IncidentActionUpdate < ApplicationRecord
   has_one :incident_event, as: :eventable, touch: true
 
   belongs_to :incident_action
+  belongs_to :incident
   belongs_to :actor, class_name: "WorkspaceMembership"
+  belongs_to :created_by, class_name: "WorkspaceMembership"
+  belongs_to :assignee, class_name: "WorkspaceMembership", optional: true
 
   CREATED = "created"
   PICKED_UP = "picked_up"
   COMPLETED = "completed"
 
-  ACTION_EVENT_TYPES = [ CREATED, PICKED_UP, COMPLETED ].freeze
+  UPDATE_TYPES = [ CREATED, PICKED_UP, COMPLETED ].freeze
 
-  validates :action_event_type, presence: true, inclusion: { in: ACTION_EVENT_TYPES }
+  validates :update_type, presence: true, inclusion: { in: UPDATE_TYPES }
   validates :action_type, presence: true, inclusion: { in: IncidentAction::ACTION_TYPES }
+  validates :description, presence: true
+  validates :status, presence: true, inclusion: { in: IncidentAction::STATUSES }
 
   scope :ordered, -> { order(:created_at) }
+  scope :by_type, ->(type) { where(update_type: type) }
 end
 ```
 
@@ -402,11 +416,80 @@ end
 
 ```ruby
 class IncidentAction < ApplicationRecord
-  has_many :incident_action_events, dependent: :destroy
+  include IncidentAction::Snapshots
+
+  has_many :incident_action_updates, dependent: :destroy
 end
 ```
 
-### Core Implementation: `Incident::Snapshots` Concern (Phase 2)
+### Core Implementation: Snapshot Concerns (Phase 2)
+
+#### `IncidentAction::Snapshots` Concern
+
+Mirrors `Incident::Snapshots` for action lifecycle events.
+
+```ruby
+module IncidentAction::Snapshots
+  extend ActiveSupport::Concern
+
+  UPDATE_TYPE_MAP = {
+    IncidentEvent::ACTION_CREATED => IncidentActionUpdate::CREATED,
+    IncidentEvent::ACTION_PICKED_UP => IncidentActionUpdate::PICKED_UP,
+    IncidentEvent::ACTION_COMPLETED => IncidentActionUpdate::COMPLETED
+  }.freeze
+
+  def build_snapshot_attributes
+    {
+      incident_action: self, incident: incident, created_by: created_by,
+      assignee: assignee, action_type: action_type, description: description,
+      status: status, message_ts: message_ts, platform_data: platform_data,
+      deleted_at: deleted_at
+    }
+  end
+
+  def record_change!(event_type, actor:)
+    before_tracked = trackable_snapshot
+    yield
+    reload
+    after_tracked = trackable_snapshot
+    changed_fields = before_tracked.keys.select { |key| before_tracked[key] != after_tracked[key] }
+
+    update = IncidentActionUpdate.create!(
+      **build_snapshot_attributes,
+      update_type: UPDATE_TYPE_MAP.fetch(event_type),
+      actor: actor,
+      changed_fields: changed_fields.map(&:to_s)
+    )
+
+    incident.incident_events.create!(
+      event_type: event_type, user: actor, eventable: update
+    )
+  end
+
+  def create_initial_update!(actor:)
+    update = IncidentActionUpdate.create!(
+      **build_snapshot_attributes,
+      update_type: IncidentActionUpdate::CREATED,
+      actor: actor,
+      changed_fields: []
+    )
+
+    incident.incident_events.create!(
+      event_type: IncidentEvent::ACTION_CREATED,
+      user: actor,
+      eventable: update
+    )
+  end
+
+  private
+
+  def trackable_snapshot
+    { assignee: assignee_id, status: status, description: description, deleted_at: deleted_at }
+  end
+end
+```
+
+#### `Incident::Snapshots` Concern
 
 `record_change!` evolves to create both the `IncidentUpdate` snapshot and the `IncidentEvent` timeline entry with delegated type.
 
@@ -515,25 +598,28 @@ end
 ```ruby
 # IncidentActionService#create_action:
 action = incident.incident_actions.create!(...)
-
-action_event = IncidentActionEvent.create!(
-  incident_action: action,
-  action_event_type: IncidentActionEvent::CREATED,
-  action_type: action.action_type,
-  actor: created_by
-)
-
-incident.incident_events.create!(
-  event_type: IncidentEvent::ACTION_CREATED,
-  user: created_by,
-  eventable: action_event
-)
-# after_create_commit fires ProcessDomainEventJob for external subscribers
+action.create_initial_update!(actor: created_by)
+# Inside create_initial_update!:
+# 1. Creates IncidentActionUpdate (full snapshot, update_type: "created", empty changed_fields)
+# 2. Creates IncidentEvent (event_type: "action.created", eventable: action_update)
+# 3. after_create_commit fires ProcessDomainEventJob for external subscribers
 ```
 
 #### Action picked up / completed
 
-Same pattern — create `IncidentActionEvent`, link via `IncidentEvent`.
+```ruby
+# IncidentActionService#pick_up_action:
+action.record_change!(IncidentEvent::ACTION_PICKED_UP, actor: picked_up_by) do
+  action.update!(assignee: picked_up_by, status: IncidentAction::STATUS_IN_PROGRESS)
+end
+# Inside record_change!:
+# 1. Captures before snapshot (trackable_snapshot)
+# 2. Yields to perform the change
+# 3. Captures after snapshot (reload + trackable_snapshot)
+# 4. Detects changed fields (assignee, status)
+# 5. Creates IncidentActionUpdate (full snapshot, update_type: "picked_up")
+# 6. Creates IncidentEvent (event_type: "action.picked_up", eventable: action_update)
+```
 
 #### Timeline query
 
@@ -544,8 +630,8 @@ incident.incident_events.chronological
 # Only incident state changes
 incident.incident_events.updates
 
-# Only action events
-incident.incident_events.action_events
+# Only action updates
+incident.incident_events.action_updates
 
 # Eager load eventable for rendering
 incident.incident_events.includes(:eventable).chronological
@@ -556,7 +642,7 @@ incident.incident_events.includes(:eventable).chronological
 | Before | After |
 |---|---|
 | `incident_events.metadata` with JSONB before/after snapshots | `IncidentUpdate` rows with structured columns |
-| `incident_events.metadata` with `{ action_id, action_type }` | `IncidentActionEvent` rows with typed columns |
+| `incident_events.metadata` with `{ action_id, action_type }` | `IncidentActionUpdate` rows with full snapshot columns |
 | `Incident::Snapshots#snapshot` (JSONB hash) | `Incident::Snapshots#build_snapshot_attributes` (AR attributes) |
 | `incident_status_transitions` table (proposed) | Derive from consecutive IncidentUpdate rows |
 
@@ -616,7 +702,7 @@ GROUP BY incident_id
 | `SetLeadSelfHandler` | No change |
 | `UpdateSummaryHandler` | No change |
 | `IncidentCreationService` | Rename `create_incident_event` to `create_initial_update!` on incident |
-| `IncidentActionService` | Create `IncidentActionEvent` + delegated `IncidentEvent` |
+| `IncidentActionService` | Use `IncidentAction::Snapshots` concern (`create_initial_update!`, `record_change!`) |
 
 ### Future Delegated Types
 
@@ -625,7 +711,7 @@ As the system grows, add new eventable types to `incident_events`:
 ```ruby
 delegated_type :eventable, types: %w[
   IncidentUpdate          # state changes + communications (now)
-  IncidentActionEvent     # action/followup lifecycle (now)
+  IncidentActionUpdate    # action/followup lifecycle snapshots (now)
   IncidentRoleEvent       # role assigned/unassigned (future)
   IncidentTagEvent        # tag added/removed (future)
   IncidentRelationEvent   # incident linked/merged (future)
@@ -643,17 +729,18 @@ Each new type gets its own table with type-specific columns. The timeline (`inci
 
 1. Migration: add `eventable_type`/`eventable_id` to `incident_events`
 2. Migration: create `incident_updates` table
-3. Migration: create `incident_action_events` table
+3. Migration: expand `incident_action_updates` to full snapshot
 4. `IncidentUpdate` model
-5. `IncidentActionEvent` model
-6. Modify `IncidentEvent` — delegated type, scopes
-7. Modify `Incident` — `has_many :incident_updates`, convenience methods
-8. Modify `IncidentAction` — `has_many :incident_action_events`
-9. Rewrite `Incident::Snapshots` concern (`build_snapshot_attributes`, `record_change!`, `create_initial_update!`)
-10. Modify `IncidentUpdateHandler` — pass `message:`
-11. Modify `ReopenIncidentHandler` — pass `message:`
-12. Refactor `IncidentCreationService` — use `create_initial_update!`
-13. Refactor `IncidentActionService` — create `IncidentActionEvent` + delegated event
+5. `IncidentActionUpdate` model (expanded)
+6. `IncidentAction::Snapshots` concern
+7. Modify `IncidentEvent` — delegated type, scopes, `changed_fields` delegation
+8. Modify `Incident` — `has_many :incident_updates`, convenience methods
+9. Modify `IncidentAction` — `include IncidentAction::Snapshots`
+10. Rewrite `Incident::Snapshots` concern (`build_snapshot_attributes`, `record_change!`, `create_initial_update!`)
+11. Modify `IncidentUpdateHandler` — pass `message:`
+12. Modify `ReopenIncidentHandler` — pass `message:`
+13. Refactor `IncidentCreationService` — use `create_initial_update!`
+14. Refactor `IncidentActionService` — use `IncidentAction::Snapshots` concern
 14. Add fixtures + new tests
 15. Update existing tests
 16. `bin/ci`
@@ -662,7 +749,7 @@ Each new type gets its own table with type-specific columns. The timeline (`inci
 
 1. Create new tables and add delegated type columns
 2. Update handlers and services to create delegated types
-3. Backfill: create `IncidentUpdate`/`IncidentActionEvent` rows from existing JSONB metadata (separate task)
+3. Backfill: create `IncidentUpdate`/`IncidentActionUpdate` rows from existing JSONB metadata (separate task)
 4. Keep `metadata` column on `incident_events` for backward compatibility during transition
 
 ---
@@ -688,11 +775,11 @@ Each new type gets its own table with type-specific columns. The timeline (`inci
 4. Close incident -> `IncidentUpdate` with `update_type: "closed"`
 5. Reopen incident -> `IncidentUpdate` with `update_type: "reopened"`, reason as message
 6. Assign lead -> `IncidentUpdate` with `lead_id` set, `update_type: "lead_assigned"`
-7. Create action -> `IncidentActionEvent` with `action_event_type: "created"`, `action_type: "action"`
-8. Create followup -> `IncidentActionEvent` with `action_type: "followup"`
-9. Pick up action -> `IncidentActionEvent` with `action_event_type: "picked_up"`
-10. Complete action -> `IncidentActionEvent` with `action_event_type: "completed"`
+7. Create action -> `IncidentActionUpdate` with `update_type: "created"`, full snapshot, `action_type: "action"`
+8. Create followup -> `IncidentActionUpdate` with `action_type: "followup"`, full snapshot
+9. Pick up action -> `IncidentActionUpdate` with `update_type: "picked_up"`, changed_fields: ["assignee", "status"]
+10. Complete action -> `IncidentActionUpdate` with `update_type: "completed"`, changed_fields: ["status"]
 11. `incident.incident_events.chronological` returns unified timeline
 12. `incident.incident_events.updates` returns only IncidentUpdate events
-13. `incident.incident_events.action_events` returns only IncidentActionEvent events
+13. `incident.incident_events.action_updates` returns only IncidentActionUpdate events
 14. `event.eventable` returns the correct typed model

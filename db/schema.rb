@@ -10,22 +10,34 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_01_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_05_103923) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
 
   create_table "incident_action_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "action_type", null: false
-    t.string "action_update_type", null: false
     t.uuid "actor_id", null: false
+    t.uuid "assignee_id"
+    t.jsonb "changed_fields", default: [], null: false
     t.datetime "created_at", null: false
+    t.uuid "created_by_id", null: false
+    t.datetime "deleted_at"
+    t.text "description", null: false
     t.uuid "incident_action_id", null: false
+    t.uuid "incident_id", null: false
+    t.string "message_ts"
+    t.jsonb "platform_data", default: {}, null: false
+    t.string "status", null: false
+    t.string "update_type", null: false
     t.datetime "updated_at", null: false
-    t.index ["action_update_type"], name: "index_incident_action_updates_on_action_update_type"
     t.index ["actor_id"], name: "index_incident_action_updates_on_actor_id"
+    t.index ["assignee_id"], name: "index_incident_action_updates_on_assignee_id"
+    t.index ["created_by_id"], name: "index_incident_action_updates_on_created_by_id"
     t.index ["incident_action_id", "created_at"], name: "idx_on_incident_action_id_created_at_ce446d496c"
     t.index ["incident_action_id"], name: "index_incident_action_updates_on_incident_action_id"
+    t.index ["incident_id"], name: "index_incident_action_updates_on_incident_id"
+    t.index ["update_type"], name: "index_incident_action_updates_on_update_type"
   end
 
   create_table "incident_actions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -458,7 +470,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_01_000001) do
   end
 
   add_foreign_key "incident_action_updates", "incident_actions"
+  add_foreign_key "incident_action_updates", "incidents"
   add_foreign_key "incident_action_updates", "workspace_memberships", column: "actor_id"
+  add_foreign_key "incident_action_updates", "workspace_memberships", column: "assignee_id"
+  add_foreign_key "incident_action_updates", "workspace_memberships", column: "created_by_id"
   add_foreign_key "incident_actions", "incidents"
   add_foreign_key "incident_actions", "workspace_memberships", column: "assignee_id"
   add_foreign_key "incident_actions", "workspace_memberships", column: "created_by_id"
