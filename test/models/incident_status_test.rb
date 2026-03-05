@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentStatusTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_statuses
+  fixtures :workspaces, :incident_statuses, :incident_lifecycle_stages
 
   # ============================================================================
   # BASIC VALIDATIONS
@@ -10,8 +10,8 @@ class IncidentStatusTest < ActiveSupport::TestCase
   test "requires name" do
     status = IncidentStatus.new(
       workspace: workspaces(:slack_workspace_one),
+      incident_lifecycle_stage: incident_lifecycle_stages(:active),
       slug: "test",
-      category: "live",
       position: 1
     )
     assert_not status.valid?
@@ -21,15 +21,15 @@ class IncidentStatusTest < ActiveSupport::TestCase
   test "requires slug" do
     status = IncidentStatus.new(
       workspace: workspaces(:slack_workspace_one),
+      incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Test Status",
-      category: "live",
       position: 1
     )
     assert_not status.valid?
     assert_includes status.errors[:slug], "can't be blank"
   end
 
-  test "requires category" do
+  test "requires incident_lifecycle_stage" do
     status = IncidentStatus.new(
       workspace: workspaces(:slack_workspace_one),
       name: "Test Status",
@@ -37,51 +37,17 @@ class IncidentStatusTest < ActiveSupport::TestCase
       position: 1
     )
     assert_not status.valid?
-    assert status.errors[:category].present?
+    assert status.errors[:incident_lifecycle_stage].present?
   end
 
   test "requires position" do
     status = IncidentStatus.new(
       workspace: workspaces(:slack_workspace_one),
+      incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Test Status",
-      slug: "test",
-      category: "live"
+      slug: "test"
     )
     # position is required but has no presence validation, just numericality
-    assert status.valid?
-  end
-
-  test "category must be live or closed" do
-    status = IncidentStatus.new(
-      workspace: workspaces(:slack_workspace_one),
-      name: "Test Status",
-      slug: "test",
-      category: "invalid",
-      position: 1
-    )
-    assert_not status.valid?
-    assert_includes status.errors[:category], "is not included in the list"
-  end
-
-  test "accepts live category" do
-    status = IncidentStatus.new(
-      workspace: workspaces(:slack_workspace_one),
-      name: "Test Status",
-      slug: "test_unique",
-      category: "live",
-      position: 1
-    )
-    assert status.valid?
-  end
-
-  test "accepts closed category" do
-    status = IncidentStatus.new(
-      workspace: workspaces(:slack_workspace_one),
-      name: "Test Status",
-      slug: "test_unique",
-      category: "closed",
-      position: 1
-    )
     assert status.valid?
   end
 
@@ -93,9 +59,9 @@ class IncidentStatusTest < ActiveSupport::TestCase
     existing = incident_statuses(:investigating_ws1)
     duplicate = IncidentStatus.new(
       workspace: existing.workspace,
+      incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Different Name",
       slug: existing.slug,
-      category: "live",
       position: 99
     )
     assert_not duplicate.valid?
@@ -106,9 +72,9 @@ class IncidentStatusTest < ActiveSupport::TestCase
     ws1_status = incident_statuses(:investigating_ws1)
     ws2_status = IncidentStatus.new(
       workspace: workspaces(:slack_workspace_two),
+      incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Investigating",
-      slug: ws1_status.slug, # Same slug as workspace one
-      category: "live",
+      slug: ws1_status.slug,
       position: 1
     )
     assert ws2_status.valid?
@@ -120,9 +86,9 @@ class IncidentStatusTest < ActiveSupport::TestCase
 
     another_default = IncidentStatus.new(
       workspace: existing_default.workspace,
+      incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Another Default",
       slug: "another_default",
-      category: "live",
       position: 99,
       is_default: true
     )
@@ -133,17 +99,17 @@ class IncidentStatusTest < ActiveSupport::TestCase
   test "multiple non-default statuses allowed per workspace" do
     status1 = IncidentStatus.create!(
       workspace: workspaces(:slack_workspace_one),
+      incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Status 1",
       slug: "status_1",
-      category: "live",
       position: 98,
       is_default: false
     )
     status2 = IncidentStatus.create!(
       workspace: workspaces(:slack_workspace_one),
+      incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Status 2",
       slug: "status_2",
-      category: "live",
       position: 99,
       is_default: false
     )
@@ -170,6 +136,12 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert_equal workspaces(:slack_workspace_one), status.workspace
   end
 
+  test "belongs to incident_lifecycle_stage" do
+    status = incident_statuses(:investigating_ws1)
+    assert_instance_of IncidentLifecycleStage, status.incident_lifecycle_stage
+    assert_equal incident_lifecycle_stages(:active), status.incident_lifecycle_stage
+  end
+
   test "has many incidents" do
     status = incident_statuses(:investigating_ws1)
     assert_respond_to status, :incidents
@@ -187,21 +159,31 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert_includes active_statuses, incident_statuses(:investigating_ws1)
   end
 
-  test "live scope returns only live category statuses" do
+  test "live scope returns statuses in triage and active stages" do
     live_statuses = IncidentStatus.live
 
     assert_includes live_statuses, incident_statuses(:investigating_ws1)
     assert_includes live_statuses, incident_statuses(:identified_ws1)
     assert_includes live_statuses, incident_statuses(:monitoring_ws1)
     assert_not_includes live_statuses, incident_statuses(:resolved_ws1)
+    assert_not_includes live_statuses, incident_statuses(:canceled_ws1)
   end
 
-  test "closed scope returns only closed category statuses" do
+  test "closed scope returns only statuses in closed stage" do
     closed_statuses = IncidentStatus.closed
 
     assert_includes closed_statuses, incident_statuses(:resolved_ws1)
     assert_includes closed_statuses, incident_statuses(:closed_ws2)
     assert_not_includes closed_statuses, incident_statuses(:investigating_ws1)
+    assert_not_includes closed_statuses, incident_statuses(:canceled_ws1)
+  end
+
+  test "canceled scope returns only statuses in canceled stage" do
+    canceled_statuses = IncidentStatus.canceled
+
+    assert_includes canceled_statuses, incident_statuses(:canceled_ws1)
+    assert_not_includes canceled_statuses, incident_statuses(:resolved_ws1)
+    assert_not_includes canceled_statuses, incident_statuses(:investigating_ws1)
   end
 
   test "ordered scope sorts by position ascending" do
@@ -224,24 +206,37 @@ class IncidentStatusTest < ActiveSupport::TestCase
   # METHODS
   # ============================================================================
 
-  test "live? returns true for live category" do
+  test "live? returns true for active stage" do
     status = incident_statuses(:investigating_ws1)
     assert status.live?
   end
 
-  test "live? returns false for closed category" do
+  test "live? returns false for closed stage" do
     status = incident_statuses(:resolved_ws1)
     assert_not status.live?
   end
 
-  test "closed? returns true for closed category" do
+  test "live? returns false for canceled stage" do
+    status = incident_statuses(:canceled_ws1)
+    assert_not status.live?
+  end
+
+  test "closed? returns true for closed stage" do
     status = incident_statuses(:resolved_ws1)
     assert status.closed?
   end
 
-  test "closed? returns false for live category" do
+  test "closed? returns false for active stage" do
     status = incident_statuses(:investigating_ws1)
     assert_not status.closed?
+  end
+
+  test "active? returns true for active stage" do
+    assert incident_statuses(:investigating_ws1).active?
+  end
+
+  test "canceled? returns true for canceled stage" do
+    assert incident_statuses(:canceled_ws1).canceled?
   end
 
   # ============================================================================
@@ -272,7 +267,7 @@ class IncidentStatusTest < ActiveSupport::TestCase
     investigating = incident_statuses(:investigating_ws1)
     assert_equal "Investigating", investigating.name
     assert_equal "investigating", investigating.slug
-    assert_equal "live", investigating.category
+    assert_equal incident_lifecycle_stages(:active), investigating.incident_lifecycle_stage
     assert_equal 1, investigating.position
     assert investigating.is_default
     assert_equal "#FFA500", investigating.color
@@ -282,7 +277,7 @@ class IncidentStatusTest < ActiveSupport::TestCase
     triaging = incident_statuses(:triaging_ws2)
     assert_equal "Triaging", triaging.name
     assert_equal "triaging", triaging.slug
-    assert_equal "live", triaging.category
+    assert_equal incident_lifecycle_stages(:active), triaging.incident_lifecycle_stage
     assert triaging.is_default
   end
 end

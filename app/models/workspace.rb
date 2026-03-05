@@ -13,6 +13,7 @@ class Workspace < ApplicationRecord
   has_many :incident_statuses, dependent: :destroy
   has_many :incident_severities, dependent: :destroy
   has_many :incident_roles, dependent: :destroy
+  has_many :incident_types, dependent: :destroy
 
   # Encryptions - Rails 7+ native encryption
   encrypts :access_token, :refresh_token, deterministic: false

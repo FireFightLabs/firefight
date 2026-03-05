@@ -2,7 +2,7 @@ require "test_helper"
 
 class LeadAssignmentWorkflowTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incident_severities,
-           :incident_statuses, :incident_roles
+           :incident_lifecycle_stages, :incident_statuses, :incident_roles
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

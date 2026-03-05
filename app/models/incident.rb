@@ -10,6 +10,7 @@ class Incident < ApplicationRecord
   belongs_to :declared_by, class_name: "WorkspaceMembership"
   belongs_to :incident_status
   belongs_to :incident_severity
+  belongs_to :incident_type, optional: true
 
   has_many :incident_events, dependent: :destroy
   has_many :incident_updates, dependent: :destroy
@@ -17,6 +18,9 @@ class Incident < ApplicationRecord
   has_many :incident_role_assignments, dependent: :destroy
   has_many :incident_roles, through: :incident_role_assignments
   has_many :assigned_members, through: :incident_role_assignments, source: :workspace_membership
+  has_many :incident_relationships, dependent: :destroy
+  has_many :inverse_incident_relationships, class_name: "IncidentRelationship",
+           foreign_key: :related_incident_id, dependent: :destroy, inverse_of: :related_incident
 
   validates :sequence_number, presence: true, uniqueness: { scope: :workspace_id }
   validates :identifier, presence: true, uniqueness: { scope: :workspace_id }
@@ -25,6 +29,7 @@ class Incident < ApplicationRecord
   scope :in_channel, ->(channel_id) { where(channel_id: channel_id) }
   scope :active, -> { joins(:incident_status).merge(IncidentStatus.live) }
   scope :closed, -> { joins(:incident_status).merge(IncidentStatus.closed) }
+  scope :canceled, -> { joins(:incident_status).merge(IncidentStatus.canceled) }
   scope :by_severity, -> { joins(:incident_severity).order("incident_severities.rank DESC") }
   scope :recent, -> { order(declared_at: :desc) }
 
@@ -34,5 +39,27 @@ class Incident < ApplicationRecord
 
   def closed?
     incident_status.closed?
+  end
+
+  def canceled?
+    incident_status.canceled?
+  end
+
+  def related_incidents
+    ids = IncidentRelationship.related
+      .where(incident_id: id)
+      .or(IncidentRelationship.related.where(related_incident_id: id))
+      .pluck(:incident_id, :related_incident_id)
+      .flatten.uniq - [ id ]
+    workspace.incidents.where(id: ids)
+  end
+
+  def duplicate_of
+    rel = incident_relationships.duplicates.first
+    rel&.related_incident
+  end
+
+  def duplicates
+    inverse_incident_relationships.duplicates.map(&:incident)
   end
 end

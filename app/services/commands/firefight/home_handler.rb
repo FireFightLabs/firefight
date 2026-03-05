@@ -33,6 +33,8 @@ module Commands
           Commands::Firefight::ActionsHandler.execute(command)
         when "followup", "followups"
           Commands::Firefight::FollowupsHandler.execute(command)
+        when "link", "relate", "duplicate"
+          Commands::Firefight::LinkHandler.execute(command)
         when "close", "resolve"
           Commands::Firefight::CloseHandler.execute(command)
         when "reopen"

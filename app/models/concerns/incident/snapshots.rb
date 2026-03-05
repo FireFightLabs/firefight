@@ -8,7 +8,8 @@ module Incident::Snapshots
     IncidentEvent::INCIDENT_UPDATED => IncidentUpdate::UPDATED,
     IncidentEvent::INCIDENT_RESOLVED => IncidentUpdate::CLOSED,
     IncidentEvent::INCIDENT_REOPENED => IncidentUpdate::REOPENED,
-    IncidentEvent::LEAD_ASSIGNED => IncidentUpdate::LEAD_ASSIGNED
+    IncidentEvent::LEAD_ASSIGNED => IncidentUpdate::LEAD_ASSIGNED,
+    IncidentEvent::MERGED_INTO => IncidentUpdate::CLOSED
   }.freeze
 
   def build_snapshot_attributes
@@ -17,6 +18,7 @@ module Incident::Snapshots
       workspace_id: workspace_id,
       incident_status: incident_status,
       incident_severity: incident_severity,
+      incident_type: incident_type,
       declared_by: declared_by,
       lead: lead,
       sequence_number: sequence_number,
@@ -30,6 +32,7 @@ module Incident::Snapshots
       announcement_message_ts: announcement_message_ts,
       platform_data: platform_data,
       custom_fields: custom_fields,
+      detected_at: detected_at,
       declared_at: declared_at,
       resolved_at: resolved_at,
       channel_archived_at: channel_archived_at,
@@ -84,10 +87,12 @@ module Incident::Snapshots
     {
       status: incident_status_id,
       severity: incident_severity_id,
+      type: incident_type_id,
       lead: lead&.id,
       name: name,
       summary: summary,
       is_private: is_private,
+      detected_at: detected_at,
       declared_at: declared_at,
       resolved_at: resolved_at
     }

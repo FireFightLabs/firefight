@@ -1,7 +1,7 @@
 require "test_helper"
 
 class Interactions::CreateActionHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_statuses
+  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_lifecycle_stages, :incident_statuses
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -55,7 +55,7 @@ class Interactions::CreateActionHandlerTest < ActiveSupport::TestCase
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_CREATED)
     assert_equal @member, event.user
     assert_instance_of IncidentActionUpdate, event.eventable
-    assert_equal IncidentActionUpdate::CREATED, event.eventable.action_update_type
+    assert_equal IncidentActionUpdate::CREATED, event.eventable.update_type
   end
 
   test "stores platform_data from reaction source" do

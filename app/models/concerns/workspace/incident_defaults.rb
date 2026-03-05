@@ -15,15 +15,21 @@ module Workspace::IncidentDefaults
     { name: "Minor", slug: "minor", rank: 1, position: 3, is_default: true, color: "#FFA500", description: "Limited impact or workaround available" }
   ].freeze
 
-  # Default statuses (live vs closed categories)
+  # Default statuses keyed by lifecycle stage
   DEFAULT_STATUSES = [
-    # Live statuses (active incident work)
-    { name: "Investigating", slug: "investigating", category: IncidentStatus::CATEGORY_LIVE, position: 1, is_default: true, color: "#FFA500", description: "Initial triage and investigation" },
-    { name: "Identified", slug: "identified", category: IncidentStatus::CATEGORY_LIVE, position: 2, is_default: false, color: "#FF6B35", description: "Root cause identified" },
-    { name: "Monitoring", slug: "monitoring", category: IncidentStatus::CATEGORY_LIVE, position: 3, is_default: false, color: "#4169E1", description: "Fix deployed, monitoring for stability" },
+    { name: "Investigating", slug: "investigating", stage: IncidentLifecycleStage::ACTIVE, position: 1, is_default: true, color: "#FFA500", description: "Initial triage and investigation" },
+    { name: "Identified", slug: "identified", stage: IncidentLifecycleStage::ACTIVE, position: 2, is_default: false, color: "#FF6B35", description: "Root cause identified" },
+    { name: "Monitoring", slug: "monitoring", stage: IncidentLifecycleStage::ACTIVE, position: 3, is_default: false, color: "#4169E1", description: "Fix deployed, monitoring for stability" },
+    { name: "Resolved", slug: "resolved", stage: IncidentLifecycleStage::CLOSED, position: 4, is_default: false, color: "#32CD32", description: "Incident fully resolved" },
+    { name: "Canceled", slug: "canceled", stage: IncidentLifecycleStage::CANCELED, position: 5, is_default: false, color: "#999999", description: "False positive, duplicate, or invalid incident" }
+  ].freeze
 
-    # Closed statuses (post-incident learning)
-    { name: "Resolved", slug: "resolved", category: IncidentStatus::CATEGORY_CLOSED, position: 4, is_default: false, color: "#32CD32", description: "Incident fully resolved" }
+  # Default types
+  DEFAULT_TYPES = [
+    { name: "Service Outage", slug: "service_outage", position: 1, is_default: false, description: "Service or infrastructure is down or unreachable." },
+    { name: "Performance Degradation", slug: "performance_degradation", position: 2, is_default: false, description: "Elevated latency, errors, or capacity-related degradation." },
+    { name: "Security Incident", slug: "security_incident", position: 3, is_default: false, description: "Unauthorized access, vulnerability exploitation, or data exposure risk." },
+    { name: "Data Issue", slug: "data_issue", position: 4, is_default: false, description: "Data loss, corruption, integrity, or correctness issues." }
   ].freeze
 
   # Default roles (MVP: one role, extendable later)
@@ -35,6 +41,7 @@ module Workspace::IncidentDefaults
     transaction do
       create_default_severities!
       create_default_statuses!
+      create_default_types!
       create_default_roles!
     end
 
@@ -44,6 +51,7 @@ module Workspace::IncidentDefaults
       workspace_id: id,
       severities_count: DEFAULT_SEVERITIES.count,
       statuses_count: DEFAULT_STATUSES.count,
+      types_count: DEFAULT_TYPES.count,
       roles_count: DEFAULT_ROLES.count
     })
   end
@@ -58,7 +66,15 @@ module Workspace::IncidentDefaults
 
   def create_default_statuses!
     DEFAULT_STATUSES.each do |status_data|
-      incident_statuses.create!(status_data)
+      attrs = status_data.except(:stage)
+      stage = IncidentLifecycleStage.find_by!(key: status_data[:stage])
+      incident_statuses.create!(**attrs, incident_lifecycle_stage: stage)
+    end
+  end
+
+  def create_default_types!
+    DEFAULT_TYPES.each do |type_data|
+      incident_types.create!(type_data)
     end
   end
 

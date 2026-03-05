@@ -10,11 +10,15 @@ class IncidentEvent < ApplicationRecord
   INCIDENT_RESOLVED = "incident.resolved"
   INCIDENT_REOPENED = "incident.reopened"
   POSTMORTEM_GENERATED = "postmortem.generated"
+  RELATIONSHIP_CREATED = "relationship.created"
+  MARKED_DUPLICATE = "incident.marked_duplicate"
+  MERGED_INTO = "incident.merged_into"
 
   EVENT_TYPES = [
     INCIDENT_CREATED, INCIDENT_UPDATED, LEAD_ASSIGNED,
     ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED,
-    INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, POSTMORTEM_GENERATED
+    INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, POSTMORTEM_GENERATED,
+    RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO
   ].freeze
 
   EVENT_DESCRIPTIONS = {
@@ -27,7 +31,10 @@ class IncidentEvent < ApplicationRecord
     INCIDENT_ESCALATED => "Incident was escalated",
     INCIDENT_RESOLVED => "Incident was resolved",
     INCIDENT_REOPENED => "Incident was reopened",
-    POSTMORTEM_GENERATED => "Postmortem was generated"
+    POSTMORTEM_GENERATED => "Postmortem was generated",
+    RELATIONSHIP_CREATED => "Incident linked as related",
+    MARKED_DUPLICATE => "Incident marked as duplicate",
+    MERGED_INTO => "Incident merged into another"
   }.freeze
 
   # Associations
@@ -57,7 +64,7 @@ class IncidentEvent < ApplicationRecord
   end
 
   def changed_fields
-    if eventable.is_a?(IncidentUpdate)
+    if eventable.is_a?(IncidentUpdate) || eventable.is_a?(IncidentActionUpdate)
       eventable.changed_fields || []
     else
       metadata["changed_fields"] || []

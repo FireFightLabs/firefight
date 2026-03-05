@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentRoleAssignmentTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_statuses, :incident_severities, :incident_roles, :incidents, :incident_role_assignments
+  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles, :incidents, :incident_role_assignments
 
   # ============================================================================
   # ASSOCIATIONS

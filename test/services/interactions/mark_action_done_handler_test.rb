@@ -1,7 +1,7 @@
 require "test_helper"
 
 class Interactions::MarkActionDoneHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_statuses
+  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_lifecycle_stages, :incident_statuses
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -52,7 +52,7 @@ class Interactions::MarkActionDoneHandlerTest < ActiveSupport::TestCase
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_COMPLETED)
     assert_equal @bob, event.user
     assert_instance_of IncidentActionUpdate, event.eventable
-    assert_equal IncidentActionUpdate::COMPLETED, event.eventable.action_update_type
+    assert_equal IncidentActionUpdate::COMPLETED, event.eventable.update_type
   end
 
   test "ignores already done action" do
