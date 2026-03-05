@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentActionServiceTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_statuses
+  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_lifecycle_stages, :incident_statuses
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

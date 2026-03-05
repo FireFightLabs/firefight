@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentActionUpdateTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_statuses, :incident_severities, :incident_actions, :incidents
+  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_actions, :incidents
 
   setup do
     @incident = incidents(:active_critical_ws1)

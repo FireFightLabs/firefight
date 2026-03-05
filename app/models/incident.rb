@@ -25,6 +25,7 @@ class Incident < ApplicationRecord
   scope :in_channel, ->(channel_id) { where(channel_id: channel_id) }
   scope :active, -> { joins(:incident_status).merge(IncidentStatus.live) }
   scope :closed, -> { joins(:incident_status).merge(IncidentStatus.closed) }
+  scope :canceled, -> { joins(:incident_status).merge(IncidentStatus.canceled) }
   scope :by_severity, -> { joins(:incident_severity).order("incident_severities.rank DESC") }
   scope :recent, -> { order(declared_at: :desc) }
 
@@ -34,5 +35,9 @@ class Incident < ApplicationRecord
 
   def closed?
     incident_status.closed?
+  end
+
+  def canceled?
+    incident_status.canceled?
   end
 end

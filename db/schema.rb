@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_05_105844) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_05_110735) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -74,6 +74,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_05_105844) do
     t.index ["user_id"], name: "index_incident_events_on_user_id"
   end
 
+  create_table "incident_lifecycle_stages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description", null: false
+    t.string "key", null: false
+    t.string "name", null: false
+    t.integer "position", null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_incident_lifecycle_stages_on_key", unique: true
+    t.index ["position"], name: "index_incident_lifecycle_stages_on_position"
+  end
+
   create_table "incident_role_assignments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "assigned_at", null: false
     t.uuid "assigned_by_id"
@@ -125,11 +136,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_05_105844) do
   end
 
   create_table "incident_statuses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.string "category", null: false
     t.string "color"
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.text "description"
+    t.uuid "incident_lifecycle_stage_id", null: false
     t.boolean "is_default", default: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
@@ -137,7 +148,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_05_105844) do
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
     t.index ["deleted_at"], name: "index_incident_statuses_on_deleted_at"
-    t.index ["workspace_id", "category"], name: "index_incident_statuses_on_workspace_id_and_category"
+    t.index ["incident_lifecycle_stage_id"], name: "index_incident_statuses_on_incident_lifecycle_stage_id"
     t.index ["workspace_id", "is_default"], name: "index_incident_statuses_on_workspace_id_and_is_default"
     t.index ["workspace_id", "position"], name: "index_incident_statuses_on_workspace_id_and_position"
     t.index ["workspace_id", "slug"], name: "index_incident_statuses_on_workspace_id_and_slug", unique: true
@@ -488,6 +499,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_05_105844) do
   add_foreign_key "incident_role_assignments", "workspace_memberships", column: "assigned_by_id"
   add_foreign_key "incident_roles", "workspaces"
   add_foreign_key "incident_severities", "workspaces"
+  add_foreign_key "incident_statuses", "incident_lifecycle_stages"
   add_foreign_key "incident_statuses", "workspaces"
   add_foreign_key "incident_updates", "incident_severities"
   add_foreign_key "incident_updates", "incident_statuses"

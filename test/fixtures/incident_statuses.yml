@@ -1,72 +1,88 @@
 # Incident Statuses for testing
+# Lifecycle stage IDs reference incident_lifecycle_stages fixtures:
+#   triage:   aaaaaaaa-0000-0000-0000-000000000001
+#   active:   aaaaaaaa-0000-0000-0000-000000000002
+#   closed:   aaaaaaaa-0000-0000-0000-000000000003
+#   canceled: aaaaaaaa-0000-0000-0000-000000000004
+
 # Workspace One - Full lifecycle statuses
 investigating_ws1:
   workspace_id: 11111111-1111-1111-1111-111111111111
+  incident_lifecycle_stage_id: aaaaaaaa-0000-0000-0000-000000000002
   name: Investigating
   slug: investigating
   description: Team is investigating the root cause
-  category: live
   position: 1
   is_default: true
   color: "#FFA500"
 
 identified_ws1:
   workspace_id: 11111111-1111-1111-1111-111111111111
+  incident_lifecycle_stage_id: aaaaaaaa-0000-0000-0000-000000000002
   name: Identified
   slug: identified
   description: Root cause has been identified
-  category: live
   position: 2
   is_default: false
   color: "#FF6B35"
 
 monitoring_ws1:
   workspace_id: 11111111-1111-1111-1111-111111111111
+  incident_lifecycle_stage_id: aaaaaaaa-0000-0000-0000-000000000002
   name: Monitoring
   slug: monitoring
   description: Fix deployed, monitoring for issues
-  category: live
   position: 3
   is_default: false
   color: "#4169E1"
 
 resolved_ws1:
   workspace_id: 11111111-1111-1111-1111-111111111111
+  incident_lifecycle_stage_id: aaaaaaaa-0000-0000-0000-000000000003
   name: Resolved
   slug: resolved
   description: Incident fully resolved
-  category: closed
   position: 4
   is_default: false
   color: "#32CD32"
 
+canceled_ws1:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  incident_lifecycle_stage_id: aaaaaaaa-0000-0000-0000-000000000004
+  name: Canceled
+  slug: canceled
+  description: False positive or duplicate
+  position: 5
+  is_default: false
+  color: "#999999"
+
 # Workspace Two - Different naming convention
 triaging_ws2:
   workspace_id: 22222222-2222-2222-2222-222222222222
+  incident_lifecycle_stage_id: aaaaaaaa-0000-0000-0000-000000000002
   name: Triaging
   slug: triaging
   description: Initial triage in progress
-  category: live
   position: 1
   is_default: true
   color: "#FFA500"
 
 working_ws2:
   workspace_id: 22222222-2222-2222-2222-222222222222
+  incident_lifecycle_stage_id: aaaaaaaa-0000-0000-0000-000000000002
   name: Working
   slug: working
   description: Actively working on fix
-  category: live
   position: 2
   is_default: false
   color: "#FF6B35"
 
 closed_ws2:
   workspace_id: 22222222-2222-2222-2222-222222222222
+  incident_lifecycle_stage_id: aaaaaaaa-0000-0000-0000-000000000003
   name: Closed
   slug: closed
   description: Incident closed
-  category: closed
   position: 3
   is_default: false
   color: "#32CD32"
@@ -74,10 +90,10 @@ closed_ws2:
 # Deleted status for testing soft deletes
 deleted_status:
   workspace_id: 11111111-1111-1111-1111-111111111111
+  incident_lifecycle_stage_id: aaaaaaaa-0000-0000-0000-000000000002
   name: Archived Status
   slug: archived_status
   description: This status was deleted
-  category: live
   position: 99
   is_default: false
   color: "#999999"

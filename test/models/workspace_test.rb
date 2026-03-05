@@ -1,7 +1,7 @@
 require "test_helper"
 
 class WorkspaceTest < ActiveSupport::TestCase
-  fixtures :workspaces
+  fixtures :workspaces, :incident_lifecycle_stages
 
   test "the truth" do
     assert true
