@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_05_103923) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_05_105844) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -157,6 +157,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_05_103923) do
     t.datetime "declared_at", null: false
     t.uuid "declared_by_id", null: false
     t.datetime "deleted_at"
+    t.datetime "detected_at"
     t.string "identifier", null: false
     t.uuid "incident_id", null: false
     t.uuid "incident_severity_id", null: false
@@ -195,6 +196,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_05_103923) do
     t.datetime "declared_at", null: false
     t.uuid "declared_by_id", null: false
     t.datetime "deleted_at"
+    t.datetime "detected_at"
     t.string "identifier", null: false
     t.uuid "incident_severity_id", null: false
     t.uuid "incident_status_id", null: false
@@ -210,6 +212,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_05_103923) do
     t.uuid "workspace_id", null: false
     t.index ["declared_at"], name: "index_incidents_on_declared_at"
     t.index ["declared_by_id"], name: "index_incidents_on_declared_by_id"
+    t.index ["detected_at"], name: "index_incidents_on_detected_at"
     t.index ["incident_severity_id"], name: "index_incidents_on_incident_severity_id"
     t.index ["incident_status_id"], name: "index_incidents_on_incident_status_id"
     t.index ["workspace_id", "deleted_at"], name: "index_incidents_on_workspace_id_and_deleted_at"

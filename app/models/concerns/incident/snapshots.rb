@@ -30,6 +30,7 @@ module Incident::Snapshots
       announcement_message_ts: announcement_message_ts,
       platform_data: platform_data,
       custom_fields: custom_fields,
+      detected_at: detected_at,
       declared_at: declared_at,
       resolved_at: resolved_at,
       channel_archived_at: channel_archived_at,
@@ -88,6 +89,7 @@ module Incident::Snapshots
       name: name,
       summary: summary,
       is_private: is_private,
+      detected_at: detected_at,
       declared_at: declared_at,
       resolved_at: resolved_at
     }
