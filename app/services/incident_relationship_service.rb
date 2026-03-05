@@ -20,6 +20,9 @@ class IncidentRelationshipService
   end
 
   def mark_duplicate(source:, canonical:, created_by:)
+    canceled_status = @workspace.incident_statuses.canceled.first
+    raise ActiveRecord::RecordNotFound, "No canceled status configured for this workspace" unless canceled_status
+
     relationship = IncidentRelationship.create!(
       incident: source,
       related_incident: canonical,
@@ -27,7 +30,6 @@ class IncidentRelationshipService
       created_by: created_by
     )
 
-    canceled_status = @workspace.incident_statuses.canceled.first
     source.record_change!(IncidentEvent::MERGED_INTO, changed_by: created_by, details: {
       canonical_incident_id: canonical.id,
       canonical_identifier: canonical.identifier

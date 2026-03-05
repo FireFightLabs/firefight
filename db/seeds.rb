@@ -12,3 +12,18 @@
     stage.assign_attributes(attrs.except(:key))
   end
 end
+
+# Backfill: ensure all workspaces have a "Canceled" status
+canceled_stage = IncidentLifecycleStage.find_by(key: "canceled")
+if canceled_stage
+  Workspace.find_each do |workspace|
+    workspace.incident_statuses.find_or_create_by!(slug: "canceled") do |status|
+      status.name = "Canceled"
+      status.incident_lifecycle_stage = canceled_stage
+      status.position = workspace.incident_statuses.maximum(:position).to_i + 1
+      status.is_default = false
+      status.color = "#999999"
+      status.description = "False positive, duplicate, or invalid incident"
+    end
+  end
+end

@@ -49,7 +49,8 @@ module Slack
         type_name: incident.incident_type&.name,
         reporter_id: incident.declared_by.platform_user_id,
         lead_id: incident.lead&.platform_user_id,
-        channel_id: incident.channel_id
+        channel_id: incident.channel_id,
+        relationship_text: relationship_summary(incident)
       })
     end
 
@@ -76,6 +77,7 @@ module Slack
       blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: *Reporter:* <@#{data[:reporter_id]}>" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* <@#{data[:lead_id]}>" } } if data[:lead_id]
       blocks << { type: "section", text: { type: "mrkdwn", text: ":hash: *Channel:* <##{data[:channel_id]}>" } } if data[:channel_id]
+      blocks << { type: "section", text: { type: "mrkdwn", text: data[:relationship_text] } } if data[:relationship_text]
       blocks << { type: "divider" }
       blocks << {
         type: "actions",

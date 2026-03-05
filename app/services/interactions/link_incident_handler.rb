@@ -32,7 +32,12 @@ module Interactions
       nil
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.warn({ event: "interactions.link_incident.record_not_found", error: e.message })
-      { response_action: "errors", errors: { "target_incident_block" => "Something went wrong. Please close this modal and try again." } }
+      error_msg = if e.message.include?("canceled status")
+        "Your workspace doesn't have a canceled status configured. Please add one before marking duplicates."
+      else
+        "Something went wrong. Please close this modal and try again."
+      end
+      { response_action: "errors", errors: { "target_incident_block" => error_msg } }
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.warn({ event: "interactions.link_incident.invalid", error: e.message })
       { response_action: "errors", errors: { "target_incident_block" => e.record.errors.full_messages.join(", ") } }
