@@ -17,6 +17,7 @@ module Incident::Snapshots
       workspace_id: workspace_id,
       incident_status: incident_status,
       incident_severity: incident_severity,
+      incident_type: incident_type,
       declared_by: declared_by,
       lead: lead,
       sequence_number: sequence_number,
@@ -85,6 +86,7 @@ module Incident::Snapshots
     {
       status: incident_status_id,
       severity: incident_severity_id,
+      type: incident_type_id,
       lead: lead&.id,
       name: name,
       summary: summary,

@@ -56,6 +56,11 @@ class WorkspaceTest < ActiveSupport::TestCase
     assert membership.persisted?
     assert_equal workspace.id, membership.workspace_id
     assert_equal user.id, membership.user_id
+
+    # Verify default incident types
+    assert_equal 4, workspace.incident_types.count
+    assert_equal %w[data_issue performance_degradation security_incident service_outage],
+                 workspace.incident_types.pluck(:slug).sort
   end
 
   test "process_slack_installation returns existing workspace for reinstall" do

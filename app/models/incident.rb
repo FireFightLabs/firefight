@@ -10,6 +10,7 @@ class Incident < ApplicationRecord
   belongs_to :declared_by, class_name: "WorkspaceMembership"
   belongs_to :incident_status
   belongs_to :incident_severity
+  belongs_to :incident_type, optional: true
 
   has_many :incident_events, dependent: :destroy
   has_many :incident_updates, dependent: :destroy

@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles, :incidents
+  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_types, :incident_roles, :incidents
 
   # ============================================================================
   # BASIC VALIDATIONS
@@ -154,6 +154,14 @@ class IncidentTest < ActiveSupport::TestCase
   test "has many incident_actions" do
     incident = incidents(:active_critical_ws1)
     assert_respond_to incident, :incident_actions
+  end
+
+  test "belongs to incident_type optionally" do
+    incident = incidents(:active_critical_ws1)
+    assert_nil incident.incident_type
+
+    incident.update!(incident_type: incident_types(:service_outage_ws1))
+    assert_equal incident_types(:service_outage_ws1), incident.incident_type
   end
 
   test "has many incident_role_assignments" do

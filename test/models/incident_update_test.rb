@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentUpdateTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles
+  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_types, :incident_roles
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -66,6 +66,18 @@ class IncidentUpdateTest < ActiveSupport::TestCase
     update = create_update(update_type: IncidentUpdate::CREATED, created_by: nil)
     assert_nil update.created_by
     assert update.valid?
+  end
+
+  test "incident_type is optional" do
+    update = create_update(update_type: IncidentUpdate::CREATED, incident_type: nil)
+    assert_nil update.incident_type
+    assert update.valid?
+  end
+
+  test "belongs to incident_type when present" do
+    type = incident_types(:service_outage_ws1)
+    update = create_update(update_type: IncidentUpdate::CREATED, incident_type: type)
+    assert_equal type, update.incident_type
   end
 
   # ============================================================================

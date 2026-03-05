@@ -8,19 +8,23 @@ module Interactions
 
       status_slug = interaction.values.dig("status_block", "status_select", "selected_option", "value")
       severity_slug = interaction.values.dig("severity_block", "severity_select", "selected_option", "value")
+      type_slug = interaction.values.dig("type_block", "type_select", "selected_option", "value")
       message = interaction.values.dig("message_block", "message_input", "value")
       next_update_minutes = interaction.values.dig("next_update_block", "next_update_select", "selected_option", "value")
 
       new_status = workspace.incident_statuses.active.find_by!(slug: status_slug)
       new_severity = workspace.incident_severities.active.find_by!(slug: severity_slug)
+      new_type = type_slug.present? ? workspace.incident_types.active.find_by!(slug: type_slug) : nil
 
       previous_status_name = incident.incident_status.name
       previous_severity_name = incident.incident_severity.name
+      previous_type_name = incident.incident_type&.name
 
       incident.record_change!(IncidentEvent::INCIDENT_UPDATED, changed_by: member, message: message) do
         incident.update!(
           incident_status: new_status,
-          incident_severity: new_severity
+          incident_severity: new_severity,
+          incident_type: new_type
         )
       end
 
@@ -35,7 +39,8 @@ module Interactions
         updated_by_platform_user_id: interaction.user_id,
         message: message,
         previous_status_name: previous_status_name,
-        previous_severity_name: previous_severity_name
+        previous_severity_name: previous_severity_name,
+        previous_type_name: previous_type_name
       })
 
       delete_temp_message(workspace, metadata)

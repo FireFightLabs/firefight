@@ -380,24 +380,26 @@ module Slack
       )
     end
 
-    def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil)
+    def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
       blocks = Slack::IncidentMessageBuilder.status_update_blocks(
         incident,
         message: message,
         updated_by_platform_user_id: updated_by_platform_user_id,
         previous_status_name: previous_status_name,
-        previous_severity_name: previous_severity_name
+        previous_severity_name: previous_severity_name,
+        previous_type_name: previous_type_name
       )
       post_message(channel_id: channel_id, text: "Incident updated", blocks: blocks)
     end
 
-    def post_incident_update_announcement_thread(channel_id:, thread_ts:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil)
+    def post_incident_update_announcement_thread(channel_id:, thread_ts:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
       blocks = Slack::IncidentMessageBuilder.status_update_announcement_blocks(
         incident,
         message: message,
         updated_by_platform_user_id: updated_by_platform_user_id,
         previous_status_name: previous_status_name,
-        previous_severity_name: previous_severity_name
+        previous_severity_name: previous_severity_name,
+        previous_type_name: previous_type_name
       )
       post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident updated", blocks: blocks)
     end

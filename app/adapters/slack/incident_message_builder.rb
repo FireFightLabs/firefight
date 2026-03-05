@@ -22,6 +22,7 @@ module Slack
       blocks << { type: "divider" }
       blocks << { type: "section", text: { type: "mrkdwn", text: "#{severity_emoji(incident.incident_severity)} *Severity:* #{incident.incident_severity.name}" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":bar_chart: *Status:* #{incident.incident_status.name}" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":label: *Type:* #{incident.incident_type.name}" } } if incident.incident_type
       blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: *Declared by:* <@#{incident.declared_by.platform_user_id}>" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* <@#{incident.lead.platform_user_id}>" } } if incident.lead
 
@@ -42,6 +43,7 @@ module Slack
         severity_name: incident.incident_severity.name,
         severity_slug: incident.incident_severity.slug,
         status_name: incident.incident_status.name,
+        type_name: incident.incident_type&.name,
         reporter_id: incident.declared_by.platform_user_id,
         lead_id: incident.lead&.platform_user_id,
         channel_id: incident.channel_id
@@ -67,6 +69,7 @@ module Slack
       blocks << { type: "divider" }
       blocks << { type: "section", text: { type: "mrkdwn", text: "#{severity_emoji_for(data[:severity_slug])} *Severity:* #{data[:severity_name]}" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":bar_chart: *Status:* #{data[:status_name]}" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":label: *Type:* #{data[:type_name]}" } } if data[:type_name]
       blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: *Reporter:* <@#{data[:reporter_id]}>" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* <@#{data[:lead_id]}>" } } if data[:lead_id]
       blocks << { type: "section", text: { type: "mrkdwn", text: ":hash: *Channel:* <##{data[:channel_id]}>" } } if data[:channel_id]
@@ -114,15 +117,17 @@ module Slack
     end
 
     # Compact inline format for the incident channel
-    def self.status_update_blocks(incident, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil)
+    def self.status_update_blocks(incident, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
       severity_text = diff_text("Severity", previous_severity_name, incident.incident_severity.name)
       status_text = diff_text("Status", previous_status_name, incident.incident_status.name)
+      type_text = type_diff_text(previous_type_name, incident.incident_type&.name)
 
       context_parts = [
         "Updated by: *<@#{updated_by_platform_user_id}>*",
         severity_text,
         status_text
       ]
+      context_parts << type_text if type_text
 
       blocks = [
         {
@@ -148,9 +153,10 @@ module Slack
     end
 
     # Vertical format with divider for #incidents announcement thread
-    def self.status_update_announcement_blocks(incident, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil)
+    def self.status_update_announcement_blocks(incident, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
       severity_text = diff_text("Severity", previous_severity_name, incident.incident_severity.name)
       status_text = diff_text("Status", previous_status_name, incident.incident_status.name)
+      type_text = type_diff_text(previous_type_name, incident.incident_type&.name)
 
       blocks = [
         {
@@ -170,6 +176,7 @@ module Slack
       blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: Updated by: *<@#{updated_by_platform_user_id}>*" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":rotating_light: #{severity_text}" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":traffic_light: #{status_text}" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":label: #{type_text}" } } if type_text
 
       blocks
     end
@@ -438,6 +445,21 @@ module Slack
       end
     end
     private_class_method :format_duration
+
+    def self.type_diff_text(previous_name, current_name)
+      return nil if previous_name.nil? && current_name.nil?
+
+      if previous_name.nil?
+        "Type: *#{current_name}*"
+      elsif current_name.nil?
+        "Type: ~#{previous_name}~ → _none_"
+      elsif previous_name != current_name
+        "Type: ~#{previous_name}~ → *#{current_name}*"
+      else
+        "Type: *#{current_name}*"
+      end
+    end
+    private_class_method :type_diff_text
 
     def self.diff_text(label, previous_name, current_name)
       if previous_name.present? && previous_name != current_name

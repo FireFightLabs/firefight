@@ -24,6 +24,14 @@ module Workspace::IncidentDefaults
     { name: "Canceled", slug: "canceled", stage: IncidentLifecycleStage::CANCELED, position: 5, is_default: false, color: "#999999", description: "False positive, duplicate, or invalid incident" }
   ].freeze
 
+  # Default types
+  DEFAULT_TYPES = [
+    { name: "Service Outage", slug: "service_outage", position: 1, is_default: false, description: "Service or infrastructure is down or unreachable." },
+    { name: "Performance Degradation", slug: "performance_degradation", position: 2, is_default: false, description: "Elevated latency, errors, or capacity-related degradation." },
+    { name: "Security Incident", slug: "security_incident", position: 3, is_default: false, description: "Unauthorized access, vulnerability exploitation, or data exposure risk." },
+    { name: "Data Issue", slug: "data_issue", position: 4, is_default: false, description: "Data loss, corruption, integrity, or correctness issues." }
+  ].freeze
+
   # Default roles (MVP: one role, extendable later)
   DEFAULT_ROLES = [
     { name: "Incident Lead", slug: "incident_lead", position: 1, required: false, description: "Coordinates incident response and makes decisions" }
@@ -33,6 +41,7 @@ module Workspace::IncidentDefaults
     transaction do
       create_default_severities!
       create_default_statuses!
+      create_default_types!
       create_default_roles!
     end
 
@@ -42,6 +51,7 @@ module Workspace::IncidentDefaults
       workspace_id: id,
       severities_count: DEFAULT_SEVERITIES.count,
       statuses_count: DEFAULT_STATUSES.count,
+      types_count: DEFAULT_TYPES.count,
       roles_count: DEFAULT_ROLES.count
     })
   end
@@ -59,6 +69,12 @@ module Workspace::IncidentDefaults
       attrs = status_data.except(:stage)
       stage = IncidentLifecycleStage.find_by!(key: status_data[:stage])
       incident_statuses.create!(**attrs, incident_lifecycle_stage: stage)
+    end
+  end
+
+  def create_default_types!
+    DEFAULT_TYPES.each do |type_data|
+      incident_types.create!(type_data)
     end
   end
 
