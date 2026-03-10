@@ -45,8 +45,7 @@ module Commands
           # Phase 6.1
           ephemeral("Timeline command coming soon...")
         when "list"
-          # Phase 6.2
-          ephemeral("List command coming soon...")
+          Commands::Firefight::ListHandler.execute(command)
         else
           ephemeral("Unknown subcommand: `#{subcommand}`. Type `/ff` for available commands.")
         end

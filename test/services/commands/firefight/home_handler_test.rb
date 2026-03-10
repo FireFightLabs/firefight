@@ -107,7 +107,15 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     Commands::Firefight::HomeHandler.execute(command)
   end
 
-  %w[timeline list postmortem].each do |sub|
+  test "routes 'list' subcommand to ListHandler" do
+    command = build_command("list")
+
+    Commands::Firefight::ListHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
+  end
+
+  %w[timeline postmortem].each do |sub|
     test "handles '#{sub}' subcommand with placeholder" do
       command = build_command(sub)
       response = Commands::Firefight::HomeHandler.execute(command)
