@@ -13,12 +13,16 @@ class IncidentEvent < ApplicationRecord
   RELATIONSHIP_CREATED = "relationship.created"
   MARKED_DUPLICATE = "incident.marked_duplicate"
   MERGED_INTO = "incident.merged_into"
+  MESSAGE_PINNED = "message.pinned"
+  MESSAGE_UNPINNED = "message.unpinned"
+  MESSAGE_FILE_SHARED = "message.file_shared"
 
   EVENT_TYPES = [
     INCIDENT_CREATED, INCIDENT_UPDATED, LEAD_ASSIGNED,
     ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED,
     INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, POSTMORTEM_GENERATED,
-    RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO
+    RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
+    MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED
   ].freeze
 
   EVENT_DESCRIPTIONS = {
@@ -34,13 +38,17 @@ class IncidentEvent < ApplicationRecord
     POSTMORTEM_GENERATED => "Postmortem was generated",
     RELATIONSHIP_CREATED => "Incident linked as related",
     MARKED_DUPLICATE => "Incident marked as duplicate",
-    MERGED_INTO => "Incident merged into another"
+    MERGED_INTO => "Incident merged into another",
+    MESSAGE_PINNED => "Message was pinned",
+    MESSAGE_UNPINNED => "Message was unpinned",
+    MESSAGE_FILE_SHARED => "File was shared"
   }.freeze
 
   # Associations
   belongs_to :incident
   belongs_to :user, class_name: "WorkspaceMembership", optional: true
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate], optional: true
+  has_one_attached :artifact
 
   # Callbacks
   after_create_commit :publish_to_event_bus

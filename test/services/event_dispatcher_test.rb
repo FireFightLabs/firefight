@@ -12,9 +12,42 @@ class EventDispatcherTest < ActiveSupport::TestCase
     EventDispatcher.dispatch(Platforms::SLACK, payload)
   end
 
-  test "logs unhandled event types" do
+  test "routes message to MessageHandler" do
     payload = {
       "event" => { "type" => "message" },
+      "team_id" => "T12345"
+    }
+
+    Events::MessageHandler.expects(:execute).with(Platforms::SLACK, payload).once
+
+    EventDispatcher.dispatch(Platforms::SLACK, payload)
+  end
+
+  test "routes pin_added to PinAddedHandler" do
+    payload = {
+      "event" => { "type" => "pin_added" },
+      "team_id" => "T12345"
+    }
+
+    Events::PinAddedHandler.expects(:execute).with(Platforms::SLACK, payload).once
+
+    EventDispatcher.dispatch(Platforms::SLACK, payload)
+  end
+
+  test "routes pin_removed to PinRemovedHandler" do
+    payload = {
+      "event" => { "type" => "pin_removed" },
+      "team_id" => "T12345"
+    }
+
+    Events::PinRemovedHandler.expects(:execute).with(Platforms::SLACK, payload).once
+
+    EventDispatcher.dispatch(Platforms::SLACK, payload)
+  end
+
+  test "logs unhandled event types" do
+    payload = {
+      "event" => { "type" => "member_joined_channel" },
       "team_id" => "T12345"
     }
 

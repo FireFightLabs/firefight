@@ -42,8 +42,7 @@ module Commands
           # Phase 5.2
           ephemeral("Postmortem command coming soon...")
         when "timeline"
-          # Phase 6.1
-          ephemeral("Timeline command coming soon...")
+          Commands::Firefight::TimelineHandler.execute(command)
         when "list"
           Commands::Firefight::ListHandler.execute(command)
         else

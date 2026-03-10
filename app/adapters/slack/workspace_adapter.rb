@@ -570,6 +570,33 @@ module Slack
       end
     end
 
+    def archive_slack_file(incident_event:, slack_file:)
+      download_url = slack_file["url_private_download"] || slack_file["url_private"]
+      return { archived: false } if download_url.blank?
+
+      translate_errors do
+        payload = Slack::Client.download_file(workspace: @workspace, url: download_url)
+        filename = slack_file["name"].presence || "incident-file"
+        content_type = slack_file["mimetype"].presence || payload[:content_type]
+
+        incident_event.artifact.attach(
+          io: StringIO.new(payload[:body]),
+          filename: filename,
+          content_type: content_type
+        )
+
+        blob = incident_event.artifact.blob
+
+        {
+          archived: true,
+          object_key: blob.key,
+          blob_id: blob.id,
+          byte_size: blob.byte_size,
+          checksum: blob.checksum
+        }
+      end
+    end
+
     def post_action_from_reaction_prompt(channel_id:, user_id:, action_type:, message_text:, incident_id:, source_message_link:)
       blocks = Slack::IncidentMessageBuilder.action_from_reaction_blocks(
         action_type, message_text, incident_id, source_message_link

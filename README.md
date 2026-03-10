@@ -22,3 +22,14 @@ Things you may want to cover:
 * Deployment instructions
 
 * ...
+
+## Active Storage (Cloudflare R2)
+
+Set these environment variables to archive incident files to R2:
+
+- `ACTIVE_STORAGE_SERVICE=r2`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_ENDPOINT` (for example `https://<account-id>.r2.cloudflarestorage.com`)
+- `R2_BUCKET`
+- `R2_REGION` (use `auto` for R2)

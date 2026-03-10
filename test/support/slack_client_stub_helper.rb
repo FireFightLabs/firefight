@@ -113,6 +113,10 @@ module SlackClientStubHelper
     Slack::Client.stubs(:get_message).returns({ "text" => text, "user" => "U12345678", "ts" => "1234567890.123456" })
   end
 
+  def stub_download_file(body: "file-content", content_type: "application/octet-stream")
+    Slack::Client.stubs(:download_file).returns({ body: body, content_type: content_type })
+  end
+
   def stub_successful_slack_workflow
     stub_create_channel
     stub_set_channel_topic
