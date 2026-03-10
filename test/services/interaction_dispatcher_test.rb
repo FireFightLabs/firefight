@@ -18,6 +18,11 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::IncidentUpdateHandler, InteractionDispatcher.find(interaction)
   end
 
+  test "routes escalate_incident_modal to EscalateIncidentHandler" do
+    interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::ESCALATE_INCIDENT_MODAL)
+    assert_equal Interactions::EscalateIncidentHandler, InteractionDispatcher.find(interaction)
+  end
+
   test "routes unknown view_submission callback_id to UnknownHandler" do
     interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: "unknown_modal")
     assert_equal Interactions::UnknownHandler, InteractionDispatcher.find(interaction)
@@ -53,6 +58,11 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
   test "routes send_incident_update to SendIncidentUpdateButtonHandler" do
     interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::SEND_INCIDENT_UPDATE)
     assert_equal Interactions::SendIncidentUpdateButtonHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes escalate_incident to EscalateIncidentButtonHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::ESCALATE_INCIDENT)
+    assert_equal Interactions::EscalateIncidentButtonHandler, InteractionDispatcher.find(interaction)
   end
 
   test "routes pick_up_action to PickUpActionHandler" do

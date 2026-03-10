@@ -118,6 +118,13 @@ module Slack
         value: incident.id
       }
 
+      buttons << {
+        type: "button",
+        text: { type: "plain_text", text: ":rotating_light: Escalate", emoji: true },
+        action_id: Identifiers::ESCALATE_INCIDENT,
+        value: incident.id
+      }
+
       buttons
     end
 
@@ -293,6 +300,85 @@ module Slack
 
       blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: Reopened by: *<@#{reopened_by_platform_user_id}>*" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":bar_chart: Status: *#{incident.incident_status.name}*" } }
+
+      blocks
+    end
+
+    def self.escalation_blocks(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+      blocks = [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: ":rotating_light:  *Incident Escalated*" }
+        },
+        { type: "divider" },
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "Escalated to <@#{escalated_to_platform_user_id}>" }
+        }
+      ]
+
+      if reason.present?
+        blocks << {
+          type: "section",
+          text: { type: "mrkdwn", text: "> #{reason}" }
+        }
+      end
+
+      blocks << {
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: "Escalated by <@#{escalated_by_platform_user_id}>  |  Status: #{incident.incident_status.name}" }
+        ]
+      }
+
+      blocks
+    end
+
+    def self.escalation_announcement_thread_blocks(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+      blocks = [
+        {
+          type: "header",
+          text: { type: "plain_text", text: "Incident Escalated", emoji: true }
+        },
+        { type: "divider" },
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: ":bust_in_silhouette: Escalated to: *<@#{escalated_to_platform_user_id}>*" }
+        },
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: ":bust_in_silhouette: Escalated by: *<@#{escalated_by_platform_user_id}>*" }
+        }
+      ]
+
+      if reason.present?
+        blocks << { type: "section", text: { type: "mrkdwn", text: reason } }
+      end
+
+      blocks
+    end
+
+    def self.escalation_direct_message_blocks(incident, escalated_by_platform_user_id:, reason: nil)
+      blocks = [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: ":rotating_light: *#{incident.identifier}* has been escalated to you" }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "Escalated by <@#{escalated_by_platform_user_id}> in <##{incident.channel_id}>."
+          }
+        }
+      ]
+
+      if reason.present?
+        blocks << {
+          type: "section",
+          text: { type: "mrkdwn", text: "> #{reason}" }
+        }
+      end
 
       blocks
     end

@@ -14,6 +14,7 @@ module Identifiers
   CLOSE_INCIDENT_MODAL = "close_incident_modal"
   REOPEN_INCIDENT_MODAL = "reopen_incident_modal"
   LINK_INCIDENT_MODAL = "link_incident_modal"
+  ESCALATE_INCIDENT_MODAL = "escalate_incident_modal"
 
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"

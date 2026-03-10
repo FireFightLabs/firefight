@@ -27,8 +27,7 @@ module Commands
         when "severity"
           Commands::Firefight::SeverityHandler.execute(command)
         when "escalate"
-          # Phase 4.5
-          ephemeral("Escalate command coming soon...")
+          Commands::Firefight::EscalateHandler.execute(command)
         when "action", "actions"
           Commands::Firefight::ActionsHandler.execute(command)
         when "followup", "followups"

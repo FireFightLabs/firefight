@@ -459,6 +459,13 @@ module Slack
       )
     end
 
+    def open_escalate_incident_modal(trigger_id:, incident:, private_metadata: nil)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.escalate_modal(incident, private_metadata: private_metadata)
+      )
+    end
+
     def post_resolution_message(channel_id:, incident:, resolved_by_platform_user_id:)
       blocks = Slack::IncidentMessageBuilder.resolution_blocks(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
       post_message(channel_id: channel_id, text: "Incident resolved", blocks: blocks)
@@ -492,6 +499,35 @@ module Slack
     def post_reopen_announcement_thread(channel_id:, thread_ts:, incident:, reopened_by_platform_user_id:, reason: nil)
       blocks = Slack::IncidentMessageBuilder.reopen_announcement_thread_blocks(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
       post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident reopened", blocks: blocks)
+    end
+
+    def post_escalation_message(channel_id:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+      blocks = Slack::IncidentMessageBuilder.escalation_blocks(
+        incident,
+        escalated_by_platform_user_id: escalated_by_platform_user_id,
+        escalated_to_platform_user_id: escalated_to_platform_user_id,
+        reason: reason
+      )
+      post_message(channel_id: channel_id, text: "Incident escalated", blocks: blocks)
+    end
+
+    def post_escalation_announcement_thread(channel_id:, thread_ts:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+      blocks = Slack::IncidentMessageBuilder.escalation_announcement_thread_blocks(
+        incident,
+        escalated_by_platform_user_id: escalated_by_platform_user_id,
+        escalated_to_platform_user_id: escalated_to_platform_user_id,
+        reason: reason
+      )
+      post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident escalated", blocks: blocks)
+    end
+
+    def post_escalation_direct_message(user_id:, incident:, escalated_by_platform_user_id:, reason: nil)
+      blocks = Slack::IncidentMessageBuilder.escalation_direct_message_blocks(
+        incident,
+        escalated_by_platform_user_id: escalated_by_platform_user_id,
+        reason: reason
+      )
+      post_message(channel_id: user_id, text: "Incident escalated to you", blocks: blocks)
     end
 
     def post_action_message(channel_id:, action:)
