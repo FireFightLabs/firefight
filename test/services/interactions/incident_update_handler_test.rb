@@ -112,7 +112,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
       build_interaction(type_slug: "performance_degradation")
     )
 
-    workflow = SolidWorkflow::Workflow.last
+    workflow = SolidWorkflow::Workflow.find_by!(name: "incident.incident_update.v1", subject: @incident)
     assert_equal "Service Outage", workflow.context["previous_type_name"]
   end
 

@@ -11,8 +11,12 @@ class Interactions::SendIncidentUpdateButtonHandlerTest < ActiveSupport::TestCas
   end
 
   test "opens incident update modal" do
-    stub_post_message
-    stub_open_modal
+    IncidentUpdateModalOpener.expects(:open).with(
+      workspace: @workspace,
+      incident: @incident,
+      trigger_id: "12345.trigger",
+      user_id: @member.platform_user_id
+    ).once
 
     result = Interactions::SendIncidentUpdateButtonHandler.execute(
       build_interaction
@@ -22,9 +26,7 @@ class Interactions::SendIncidentUpdateButtonHandlerTest < ActiveSupport::TestCas
   end
 
   test "handles trigger expiration silently" do
-    stub_post_message
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
-    stub_delete_message
+    IncidentUpdateModalOpener.expects(:open).raises(AdapterError::TriggerExpired.new("expired"))
 
     result = Interactions::SendIncidentUpdateButtonHandler.execute(
       build_interaction
@@ -34,6 +36,8 @@ class Interactions::SendIncidentUpdateButtonHandlerTest < ActiveSupport::TestCas
   end
 
   test "handles missing incident silently" do
+    IncidentUpdateModalOpener.expects(:open).never
+
     interaction = Interaction.new(
       platform: Platforms::SLACK,
       type: Interaction::BLOCK_ACTIONS,

@@ -116,20 +116,9 @@ class SolidWorkflow::RunStepJobTest < ActiveSupport::TestCase
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
     step = workflow.steps.find_by(name: "fetch_numbers")
-
-    # Manually claim the step
-    step.update!(status: :running, attempts: 1)
-
-    # Cancel workflow
     workflow.cancel!(reason: "Test cancellation", by: "test")
 
-    # RunStepJob checks after claim
-    job = SolidWorkflow::RunStepJob.new
-
-    # Simulate the check after claim in perform method
-    if workflow.cancelled?
-    step.update!(status: :cancelled, completed_at: Time.current)
-    end
+    SolidWorkflow::RunStepJob.new.perform(step.id)
 
     step.reload
     assert step.cancelled?

@@ -9,7 +9,9 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
   end
 
   test "creates incident and starts workflow" do
-    IncidentCreationWorkflow.stubs(:start!)
+    IncidentCreationWorkflow.expects(:start!).with do |incident|
+      incident.name == "DB Down" && incident.workspace == @workspace
+    end.once
 
     assert_difference "Incident.count", 1 do
       result = Interactions::IncidentCreationHandler.execute(

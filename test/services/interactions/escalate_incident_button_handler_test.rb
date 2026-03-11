@@ -11,8 +11,12 @@ class Interactions::EscalateIncidentButtonHandlerTest < ActiveSupport::TestCase
   end
 
   test "opens escalate modal" do
-    stub_post_message
-    stub_open_modal
+    EscalateModalOpener.expects(:open).with(
+      workspace: @workspace,
+      incident: @incident,
+      trigger_id: "12345.trigger",
+      user_id: @member.platform_user_id
+    ).once
 
     result = Interactions::EscalateIncidentButtonHandler.execute(build_interaction)
 
@@ -20,9 +24,7 @@ class Interactions::EscalateIncidentButtonHandlerTest < ActiveSupport::TestCase
   end
 
   test "handles trigger expiration gracefully" do
-    stub_post_message
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
-    stub_delete_message
+    EscalateModalOpener.expects(:open).raises(AdapterError::TriggerExpired.new("expired"))
 
     result = Interactions::EscalateIncidentButtonHandler.execute(build_interaction)
 

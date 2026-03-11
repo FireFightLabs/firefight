@@ -8,6 +8,8 @@ class SlackArchiveIncidentChannelsRakeTest < ActiveSupport::TestCase
     Rails.application.load_tasks unless Rake::Task.task_defined?("slack:archive_incident_channels")
     @workspace = workspaces(:slack_workspace_one)
     @resolved_incident = incidents(:resolved_minor_ws1)
+    @adapter = mock("workspace_adapter")
+    Slack::WorkspaceAdapter.stubs(:new).with { |workspace| workspace.id == @workspace.id }.returns(@adapter)
     Rake::Task["slack:archive_incident_channels"].reenable
     stub_archive_channel
   end
@@ -118,9 +120,9 @@ class SlackArchiveIncidentChannelsRakeTest < ActiveSupport::TestCase
 
   def stub_archive_channel(raises: nil)
     if raises
-      Slack::WorkspaceAdapter.any_instance.stubs(:archive_channel).raises(raises)
+      @adapter.stubs(:archive_channel).raises(raises)
     else
-      Slack::WorkspaceAdapter.any_instance.stubs(:archive_channel).returns({ success: true })
+      @adapter.stubs(:archive_channel).returns({ success: true })
     end
   end
 end
