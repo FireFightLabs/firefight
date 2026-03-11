@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_11_115442) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_11_121424) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -393,7 +393,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_11_115442) do
     t.uuid "incident_id", null: false
     t.text "message", null: false
     t.string "slack_message_ts"
-    t.uuid "to_member_id", null: false
+    t.uuid "to_member_id"
     t.datetime "updated_at", null: false
     t.index ["incident_id"], name: "index_shoutouts_on_incident_id"
   end

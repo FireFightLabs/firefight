@@ -7,7 +7,7 @@ module Interactions
 
       from_member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
       recipient_user_id = interaction.values.dig("recipient_block", "recipient_select", "selected_user")
-      to_member = workspace.workspace_memberships.find_by!(platform_user_id: recipient_user_id)
+      to_member = workspace.workspace_memberships.find_by(platform_user_id: recipient_user_id)
       message = interaction.values.dig("message_block", "message_input", "value")
 
       shoutout = Shoutout.create!(

@@ -207,6 +207,7 @@ module Slack
         { text: { type: "plain_text", text: "Update status" }, value: "status", description: { type: "plain_text", text: "/ff status" } },
         { text: { type: "plain_text", text: "Change severity" }, value: "severity", description: { type: "plain_text", text: "/ff severity" } },
         { text: { type: "plain_text", text: "Escalate to someone" }, value: "escalate", description: { type: "plain_text", text: "/ff escalate" } },
+        { text: { type: "plain_text", text: "Invite responders" }, value: "invite", description: { type: "plain_text", text: "/ff invite" } },
         { text: { type: "plain_text", text: "Manage actions" }, value: "actions", description: { type: "plain_text", text: "/ff actions" } },
         { text: { type: "plain_text", text: "Close incident" }, value: "close", description: { type: "plain_text", text: "/ff close" } },
         { text: { type: "plain_text", text: "Generate postmortem" }, value: "postmortem", description: { type: "plain_text", text: "/ff postmortem" } },
@@ -842,6 +843,38 @@ module Slack
       }
     end
 
+    def self.invite_responders_modal(incident, selected_user_ids: [], private_metadata: nil)
+      metadata = private_metadata || incident.id
+
+      element = {
+        type: "multi_users_select",
+        action_id: "invite_users_select",
+        placeholder: { type: "plain_text", text: "Select people to invite" }
+      }
+      element[:initial_users] = selected_user_ids if selected_user_ids.present?
+
+      {
+        type: "modal",
+        callback_id: Identifiers::INVITE_RESPONDERS_MODAL,
+        private_metadata: metadata,
+        title: { type: "plain_text", text: "Invite responders" },
+        submit: { type: "plain_text", text: "Invite" },
+        close: { type: "plain_text", text: "Cancel" },
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "*#{incident.identifier}: #{incident.name || 'Untitled Incident'}*" }
+          },
+          {
+            type: "input",
+            block_id: "invite_users_block",
+            element: element,
+            label: { type: "plain_text", text: "Who should join this channel?" }
+          }
+        ]
+      }
+    end
+
     def self.action_items_blocks(items, empty_label:, button_label:, button_action_id:, incident_id:)
       blocks = []
 
@@ -992,6 +1025,7 @@ module Slack
       "status" => "*Update status*\n\nUsage: `/ff status`\nChange the incident status (e.g., Investigating, Identified, Monitoring).",
       "severity" => "*Change severity*\n\nUsage: `/ff severity [critical|major|minor]`\nEscalate or de-escalate the incident severity.",
       "escalate" => "*Escalate to someone*\n\nUsage: `/ff escalate`\nPage or notify someone about this incident.",
+      "invite" => "*Invite responders*\n\nUsage: `/ff invite @user1 @user2`\nInvites responders into the current incident channel. Run `/ff invite` without users to open a picker.",
       "actions" => "*Manage actions*\n\nUsage: `/ff actions`\nView, create, and complete incident action items.",
       "close" => "*Close incident*\n\nUsage: `/ff close` or `/ff resolve`\nMark the incident as resolved.",
       "postmortem" => "*Generate postmortem*\n\nUsage: `/ff postmortem`\nGenerate a postmortem document from the incident timeline.",
