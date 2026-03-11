@@ -28,6 +28,7 @@ class IncidentEscalationWorkflow < SolidWorkflow::Base
       workflow.subject,
       escalated_by_platform_user_id: workflow.context["escalated_by_platform_user_id"],
       escalated_to_platform_user_id: workflow.context["escalated_to_platform_user_id"],
+      escalation_event_id: workflow.context["escalation_event_id"],
       reason: workflow.context["reason"]
     )
   end

@@ -35,4 +35,5 @@ module Identifiers
   CREATE_ACTION_FROM_REACTION = "create_action_from_reaction"
   CREATE_FOLLOWUP_FROM_REACTION = "create_followup_from_reaction"
   LOAD_MORE_TIMELINE = "load_more_timeline"
+  ACKNOWLEDGE_ESCALATION = "acknowledge_escalation"
 end

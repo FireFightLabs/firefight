@@ -521,13 +521,33 @@ module Slack
       post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident escalated", blocks: blocks)
     end
 
-    def post_escalation_direct_message(user_id:, incident:, escalated_by_platform_user_id:, reason: nil)
+    def post_escalation_direct_message(user_id:, incident:, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
       blocks = Slack::IncidentMessageBuilder.escalation_direct_message_blocks(
         incident,
         escalated_by_platform_user_id: escalated_by_platform_user_id,
+        escalation_event_id: escalation_event_id,
         reason: reason
       )
       post_message(channel_id: user_id, text: "Incident escalated to you", blocks: blocks)
+    end
+
+    def post_escalation_acknowledged_message(channel_id:, incident:, acknowledged_by_platform_user_id:, escalated_to_platform_user_id:)
+      blocks = Slack::IncidentMessageBuilder.escalation_acknowledged_blocks(
+        incident,
+        acknowledged_by_platform_user_id: acknowledged_by_platform_user_id,
+        escalated_to_platform_user_id: escalated_to_platform_user_id
+      )
+      post_message(channel_id: channel_id, text: "Escalation acknowledged", blocks: blocks)
+    end
+
+    def post_escalation_nudge_direct_message(user_id:, incident:, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
+      blocks = Slack::IncidentMessageBuilder.escalation_nudge_direct_message_blocks(
+        incident,
+        escalated_by_platform_user_id: escalated_by_platform_user_id,
+        escalation_event_id: escalation_event_id,
+        reason: reason
+      )
+      post_message(channel_id: user_id, text: "Reminder to acknowledge escalation", blocks: blocks)
     end
 
     def post_action_message(channel_id:, action:)

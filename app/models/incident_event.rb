@@ -16,13 +16,16 @@ class IncidentEvent < ApplicationRecord
   MESSAGE_PINNED = "message.pinned"
   MESSAGE_UNPINNED = "message.unpinned"
   MESSAGE_FILE_SHARED = "message.file_shared"
+  ESCALATION_ACKNOWLEDGED = "incident.escalation_acknowledged"
+  ESCALATION_NUDGED = "incident.escalation_nudged"
 
   EVENT_TYPES = [
     INCIDENT_CREATED, INCIDENT_UPDATED, LEAD_ASSIGNED,
     ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED,
     INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, POSTMORTEM_GENERATED,
     RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
-    MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED
+    MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED,
+    ESCALATION_ACKNOWLEDGED, ESCALATION_NUDGED
   ].freeze
 
   EVENT_DESCRIPTIONS = {
@@ -41,7 +44,9 @@ class IncidentEvent < ApplicationRecord
     MERGED_INTO => "Incident merged into another",
     MESSAGE_PINNED => "Message was pinned",
     MESSAGE_UNPINNED => "Message was unpinned",
-    MESSAGE_FILE_SHARED => "File was shared"
+    MESSAGE_FILE_SHARED => "File was shared",
+    ESCALATION_ACKNOWLEDGED => "Escalation was acknowledged",
+    ESCALATION_NUDGED => "Escalation reminder was sent"
   }.freeze
 
   # Associations

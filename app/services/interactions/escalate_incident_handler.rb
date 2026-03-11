@@ -9,7 +9,7 @@ module Interactions
       escalated_to_user_id = interaction.values.dig("escalate_to_block", "escalate_to_select", "selected_user")
       reason = interaction.values.dig("reason_block", "reason_input", "value")
 
-      incident.incident_events.create!(
+      escalation_event = incident.incident_events.create!(
         event_type: IncidentEvent::INCIDENT_ESCALATED,
         user: member,
         metadata: {
@@ -23,8 +23,17 @@ module Interactions
       IncidentEscalationWorkflow.start!(incident, context: {
         escalated_by_platform_user_id: interaction.user_id,
         escalated_to_platform_user_id: escalated_to_user_id,
+        escalation_event_id: escalation_event.id,
         reason: reason
       })
+
+      EscalationAcknowledgementReminderJob.set(wait: 10.minutes).perform_later(
+        incident.id,
+        escalation_event.id,
+        interaction.user_id,
+        escalated_to_user_id,
+        reason
+      )
 
       delete_temp_message(workspace, metadata)
 

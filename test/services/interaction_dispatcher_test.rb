@@ -100,6 +100,11 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::LoadMoreTimelineHandler, InteractionDispatcher.find(interaction)
   end
 
+  test "routes acknowledge_escalation to AcknowledgeEscalationHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::ACKNOWLEDGE_ESCALATION)
+    assert_equal Interactions::AcknowledgeEscalationHandler, InteractionDispatcher.find(interaction)
+  end
+
   test "routes create_action_modal to CreateActionHandler" do
     interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::CREATE_ACTION_MODAL)
     assert_equal Interactions::CreateActionHandler, InteractionDispatcher.find(interaction)

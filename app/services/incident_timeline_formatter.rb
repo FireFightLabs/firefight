@@ -14,7 +14,9 @@ class IncidentTimelineFormatter
     IncidentEvent::ACTION_COMPLETED => { emoji: ":white_check_mark:", title: "Action completed" },
     IncidentEvent::MESSAGE_PINNED => { emoji: ":pushpin:", title: "Message pinned" },
     IncidentEvent::MESSAGE_UNPINNED => { emoji: ":round_pushpin:", title: "Message unpinned" },
-    IncidentEvent::MESSAGE_FILE_SHARED => { emoji: ":paperclip:", title: "File shared" }
+    IncidentEvent::MESSAGE_FILE_SHARED => { emoji: ":paperclip:", title: "File shared" },
+    IncidentEvent::ESCALATION_ACKNOWLEDGED => { emoji: ":white_check_mark:", title: "Escalation acknowledged" },
+    IncidentEvent::ESCALATION_NUDGED => { emoji: ":bell:", title: "Escalation reminder sent" }
   }.freeze
 
   def self.to_text(event)
@@ -95,6 +97,10 @@ class IncidentTimelineFormatter
       [ file_name, mime_type, (archived ? "archived" : nil), permalink ].compact.join(" | ")
     when IncidentEvent::INCIDENT_REOPENED
       details["reason"]
+    when IncidentEvent::ESCALATION_ACKNOWLEDGED
+      "by <@#{details['acknowledged_by_platform_user_id']}>"
+    when IncidentEvent::ESCALATION_NUDGED
+      "to <@#{details['escalated_to_platform_user_id']}>"
     else
       eventable = event.eventable
       message = if eventable&.respond_to?(:message)

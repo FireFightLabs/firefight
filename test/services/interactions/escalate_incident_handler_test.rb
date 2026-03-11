@@ -54,6 +54,16 @@ class Interactions::EscalateIncidentHandlerTest < ActiveSupport::TestCase
     assert_equal @member.platform_user_id, workflow.context["escalated_by_platform_user_id"]
     assert_equal @target.platform_user_id, workflow.context["escalated_to_platform_user_id"]
     assert_equal "Need backend support", workflow.context["reason"]
+    assert_not_nil workflow.context["escalation_event_id"]
+  end
+
+  test "enqueues acknowledgement reminder" do
+    stub_post_message
+    stub_delete_message
+
+    assert_enqueued_with(job: EscalationAcknowledgementReminderJob, queue: "events") do
+      Interactions::EscalateIncidentHandler.execute(build_interaction)
+    end
   end
 
   test "cleans up temp message on success" do
