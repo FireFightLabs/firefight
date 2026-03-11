@@ -23,10 +23,11 @@ class Interactions::AcknowledgeEscalationHandlerTest < ActiveSupport::TestCase
 
   test "acknowledges escalation and posts incident message" do
     stub_post_message
+    stub_update_message
 
     assert_difference "IncidentEvent.count", 1 do
       result = Interactions::AcknowledgeEscalationHandler.execute(build_interaction(@escalated_to.platform_user_id))
-      assert_equal "update", result[:response_action]
+      assert_nil result
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ESCALATION_ACKNOWLEDGED)
@@ -48,13 +49,19 @@ class Interactions::AcknowledgeEscalationHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       type: Interaction::BLOCK_ACTIONS,
       team_id: @workspace.platform_id,
-      channel_id: @incident.channel_id,
+      channel_id: user_id,
       user_id: user_id,
       action_id: Identifiers::ACKNOWLEDGE_ESCALATION,
       action_value: {
         incident_id: @incident.id,
         escalation_event_id: @escalation_event.id
-      }.to_json
+      }.to_json,
+      raw: {
+        "container" => {
+          "channel_id" => user_id,
+          "message_ts" => "1234567890.123456"
+        }
+      }
     )
   end
 end
