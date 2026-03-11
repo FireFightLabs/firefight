@@ -15,6 +15,8 @@ module Interactions
         incident.update!(incident_status: default_status)
       end
 
+      IncidentTranscriptCache.clear_expiry!(incident)
+
       IncidentReopenWorkflow.start!(incident, context: {
         reopened_by_platform_user_id: interaction.user_id,
         reason: reason

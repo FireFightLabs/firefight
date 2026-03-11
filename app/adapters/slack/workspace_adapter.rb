@@ -459,6 +459,13 @@ module Slack
       )
     end
 
+    def open_escalate_incident_modal(trigger_id:, incident:, private_metadata: nil)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.escalate_modal(incident, private_metadata: private_metadata)
+      )
+    end
+
     def post_resolution_message(channel_id:, incident:, resolved_by_platform_user_id:)
       blocks = Slack::IncidentMessageBuilder.resolution_blocks(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
       post_message(channel_id: channel_id, text: "Incident resolved", blocks: blocks)
@@ -492,6 +499,55 @@ module Slack
     def post_reopen_announcement_thread(channel_id:, thread_ts:, incident:, reopened_by_platform_user_id:, reason: nil)
       blocks = Slack::IncidentMessageBuilder.reopen_announcement_thread_blocks(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
       post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident reopened", blocks: blocks)
+    end
+
+    def post_escalation_message(channel_id:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+      blocks = Slack::IncidentMessageBuilder.escalation_blocks(
+        incident,
+        escalated_by_platform_user_id: escalated_by_platform_user_id,
+        escalated_to_platform_user_id: escalated_to_platform_user_id,
+        reason: reason
+      )
+      post_message(channel_id: channel_id, text: "Incident escalated", blocks: blocks)
+    end
+
+    def post_escalation_announcement_thread(channel_id:, thread_ts:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+      blocks = Slack::IncidentMessageBuilder.escalation_announcement_thread_blocks(
+        incident,
+        escalated_by_platform_user_id: escalated_by_platform_user_id,
+        escalated_to_platform_user_id: escalated_to_platform_user_id,
+        reason: reason
+      )
+      post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident escalated", blocks: blocks)
+    end
+
+    def post_escalation_direct_message(user_id:, incident:, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
+      blocks = Slack::IncidentMessageBuilder.escalation_direct_message_blocks(
+        incident,
+        escalated_by_platform_user_id: escalated_by_platform_user_id,
+        escalation_event_id: escalation_event_id,
+        reason: reason
+      )
+      post_message(channel_id: user_id, text: "Incident escalated to you", blocks: blocks)
+    end
+
+    def post_escalation_acknowledged_message(channel_id:, incident:, acknowledged_by_platform_user_id:, escalated_to_platform_user_id:)
+      blocks = Slack::IncidentMessageBuilder.escalation_acknowledged_blocks(
+        incident,
+        acknowledged_by_platform_user_id: acknowledged_by_platform_user_id,
+        escalated_to_platform_user_id: escalated_to_platform_user_id
+      )
+      post_message(channel_id: channel_id, text: "Escalation acknowledged", blocks: blocks)
+    end
+
+    def post_escalation_nudge_direct_message(user_id:, incident:, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
+      blocks = Slack::IncidentMessageBuilder.escalation_nudge_direct_message_blocks(
+        incident,
+        escalated_by_platform_user_id: escalated_by_platform_user_id,
+        escalation_event_id: escalation_event_id,
+        reason: reason
+      )
+      post_message(channel_id: user_id, text: "Reminder to acknowledge escalation", blocks: blocks)
     end
 
     def post_action_message(channel_id:, action:)
@@ -531,6 +587,33 @@ module Slack
           channel: channel_id,
           ts: ts
         )
+      end
+    end
+
+    def archive_slack_file(incident_event:, slack_file:)
+      download_url = slack_file["url_private_download"] || slack_file["url_private"]
+      return { archived: false } if download_url.blank?
+
+      translate_errors do
+        payload = Slack::Client.download_file(workspace: @workspace, url: download_url)
+        filename = slack_file["name"].presence || "incident-file"
+        content_type = slack_file["mimetype"].presence || payload[:content_type]
+
+        incident_event.artifact.attach(
+          io: StringIO.new(payload[:body]),
+          filename: filename,
+          content_type: content_type
+        )
+
+        blob = incident_event.artifact.blob
+
+        {
+          archived: true,
+          object_key: blob.key,
+          blob_id: blob.id,
+          byte_size: blob.byte_size,
+          checksum: blob.checksum
+        }
       end
     end
 

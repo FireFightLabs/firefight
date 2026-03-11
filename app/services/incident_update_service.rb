@@ -93,6 +93,63 @@ class IncidentUpdateService
     )
   end
 
+  def post_escalation_message(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_escalation_message(
+      channel_id: incident.channel_id,
+      incident: incident,
+      escalated_by_platform_user_id: escalated_by_platform_user_id,
+      escalated_to_platform_user_id: escalated_to_platform_user_id,
+      reason: reason
+    )
+  end
+
+  def post_escalation_announcement_thread(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+    return unless incident.announcement_message_ts
+
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_escalation_announcement_thread(
+      channel_id: @workspace.incidents_channel_id,
+      thread_ts: incident.announcement_message_ts,
+      incident: incident,
+      escalated_by_platform_user_id: escalated_by_platform_user_id,
+      escalated_to_platform_user_id: escalated_to_platform_user_id,
+      reason: reason
+    )
+  end
+
+  def post_escalation_direct_message(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, escalation_event_id:, reason: nil)
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_escalation_direct_message(
+      user_id: escalated_to_platform_user_id,
+      incident: incident,
+      escalated_by_platform_user_id: escalated_by_platform_user_id,
+      escalation_event_id: escalation_event_id,
+      reason: reason
+    )
+  end
+
+  def post_escalation_acknowledged_message(incident, acknowledged_by_platform_user_id:, escalated_to_platform_user_id:)
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_escalation_acknowledged_message(
+      channel_id: incident.channel_id,
+      incident: incident,
+      acknowledged_by_platform_user_id: acknowledged_by_platform_user_id,
+      escalated_to_platform_user_id: escalated_to_platform_user_id
+    )
+  end
+
+  def post_escalation_nudge_direct_message(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, escalation_event_id:, reason: nil)
+    adapter = WorkspaceAdapter.for(@workspace)
+    adapter.post_escalation_nudge_direct_message(
+      user_id: escalated_to_platform_user_id,
+      incident: incident,
+      escalated_by_platform_user_id: escalated_by_platform_user_id,
+      escalation_event_id: escalation_event_id,
+      reason: reason
+    )
+  end
+
   def post_incident_update_announcement_thread(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:, previous_type_name: nil)
     return unless incident.announcement_message_ts
 

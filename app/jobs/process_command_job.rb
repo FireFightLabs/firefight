@@ -63,7 +63,8 @@ class ProcessCommandJob < ApplicationJob
     adapter.post_ephemeral(
       channel_id: command.channel_id,
       user_id: command.user_id,
-      text: result[:text]
+      text: result[:text],
+      blocks: result[:blocks]
     )
   rescue StandardError => e
     Rails.logger.error({ event: "process_command_job.send_ephemeral_failed", error: e.message })
