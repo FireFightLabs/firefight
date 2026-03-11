@@ -28,9 +28,9 @@ module Events
       return if files.empty?
 
       member = workspace.workspace_memberships.find_by(platform_user_id: event["user"])
-      permalink = fetch_permalink(workspace, channel_id, message_ts)
-
       files.each do |file|
+        permalink = message_permalink_for(workspace, channel_id, message_ts, file)
+
         incident_event = incident.incident_events.create!(
           event_type: IncidentEvent::MESSAGE_FILE_SHARED,
           user: member,
@@ -91,5 +91,10 @@ module Events
       nil
     end
     private_class_method :fetch_permalink
+
+    def self.message_permalink_for(workspace, channel_id, message_ts, file)
+      fetch_permalink(workspace, channel_id, message_ts) || file["permalink"]
+    end
+    private_class_method :message_permalink_for
   end
 end

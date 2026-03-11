@@ -218,6 +218,36 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     assert_includes ephemeral_params[:text], "Not in incident channel"
   end
 
+  test "passes ephemeral blocks when provided" do
+    payload = {
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "timeline",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
+    }
+
+    ephemeral_params = nil
+
+    stub_class_method(CommandDispatcher, :dispatch, lambda { |_cmd|
+    {
+      response_type: "ephemeral",
+      text: "Timeline",
+      blocks: [ { type: "section", text: { type: "mrkdwn", text: "*Timeline*" } } ]
+    }
+    }) do
+    stub_class_method(Slack::Client, :post_ephemeral, lambda { |args|
+      ephemeral_params = args
+      { ok: true, ts: "123" }
+    }) do
+      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+      end
+    end
+
+    assert_not_nil ephemeral_params[:blocks]
+    assert_equal "section", ephemeral_params[:blocks].first[:type]
+  end
+
   test "does not send ephemeral when handler returns nil" do
     payload = {
     "team_id" => @workspace.platform_id,

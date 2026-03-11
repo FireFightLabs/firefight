@@ -83,7 +83,9 @@ class IncidentEvent < ApplicationRecord
     metadata["details"]
   end
 
-  def changed?(field)
+  def changed?(field = nil)
+    return super() if field.nil?
+
     changed_fields.include?(field.to_s)
   end
 

@@ -95,6 +95,11 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::CreateFollowupFromReactionHandler, InteractionDispatcher.find(interaction)
   end
 
+  test "routes load_more_timeline to LoadMoreTimelineHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::LOAD_MORE_TIMELINE)
+    assert_equal Interactions::LoadMoreTimelineHandler, InteractionDispatcher.find(interaction)
+  end
+
   test "routes create_action_modal to CreateActionHandler" do
     interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::CREATE_ACTION_MODAL)
     assert_equal Interactions::CreateActionHandler, InteractionDispatcher.find(interaction)

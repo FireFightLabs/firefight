@@ -33,3 +33,5 @@ Set these environment variables to archive incident files to R2:
 - `R2_ENDPOINT` (for example `https://<account-id>.r2.cloudflarestorage.com`)
 - `R2_BUCKET`
 - `R2_REGION` (use `auto` for R2)
+- `R2_REQUEST_CHECKSUM_CALCULATION` (recommended: `when_required`)
+- `R2_RESPONSE_CHECKSUM_VALIDATION` (recommended: `when_required`)

@@ -13,8 +13,24 @@ class Commands::Firefight::TimelineHandlerTest < ActiveSupport::TestCase
     response = Commands::Firefight::TimelineHandler.execute(build_command(channel_id: @incident.channel_id))
 
     assert_equal "ephemeral", response[:response_type]
-    assert_includes response[:text], "*Timeline for #{@incident.identifier}*"
-    assert_includes response[:text], "Incident declared"
+    assert_includes response[:text], "Timeline for #{@incident.identifier}"
+    assert_equal "header", response[:blocks].first[:type]
+    rendered = response[:blocks].filter_map { |block| block.dig(:text, :text) }
+    assert rendered.any? { |text| text.include?("Incident declared") }
+  end
+
+  test "includes load more button when more events are available" do
+    member = workspace_memberships(:alice_workspace_one)
+    20.times do
+      @incident.incident_events.create!(event_type: IncidentEvent::INCIDENT_UPDATED, user: member)
+    end
+
+    response = Commands::Firefight::TimelineHandler.build_response(@incident, limit: 1)
+
+    actions_block = response[:blocks].find { |block| block[:type] == "actions" }
+    refute_nil actions_block
+    button = actions_block[:elements].first
+    assert_equal Identifiers::LOAD_MORE_TIMELINE, button[:action_id]
   end
 
   test "returns error when command is outside incident channel" do
