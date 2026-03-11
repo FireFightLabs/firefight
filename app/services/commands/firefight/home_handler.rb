@@ -45,6 +45,8 @@ module Commands
           Commands::Firefight::TimelineHandler.execute(command)
         when "list"
           Commands::Firefight::ListHandler.execute(command)
+        when "shoutout"
+          Commands::Firefight::ShoutoutHandler.execute(command)
         else
           ephemeral("Unknown subcommand: `#{subcommand}`. Type `/ff` for available commands.")
         end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_10_120851) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_11_115442) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -387,6 +387,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_10_120851) do
     t.index ["workspace_id"], name: "index_services_on_workspace_id"
   end
 
+  create_table "shoutouts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "from_member_id", null: false
+    t.uuid "incident_id", null: false
+    t.text "message", null: false
+    t.string "slack_message_ts"
+    t.uuid "to_member_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["incident_id"], name: "index_shoutouts_on_incident_id"
+  end
+
   create_table "solid_cable_messages", force: :cascade do |t|
     t.binary "channel", null: false
     t.bigint "channel_hash", null: false
@@ -723,6 +734,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_10_120851) do
   add_foreign_key "service_product_areas", "product_areas"
   add_foreign_key "service_product_areas", "services"
   add_foreign_key "services", "workspaces"
+  add_foreign_key "shoutouts", "incidents"
+  add_foreign_key "shoutouts", "workspace_memberships", column: "from_member_id"
+  add_foreign_key "shoutouts", "workspace_memberships", column: "to_member_id"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
