@@ -617,6 +617,33 @@ module Slack
       end
     end
 
+    def open_shoutout_modal(trigger_id:, incident:)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.shoutout_modal(incident)
+      )
+    end
+
+    def post_shoutout_message(channel_id:, incident:, from_user_id:, recipient_user_id:, message:)
+      blocks = Slack::IncidentMessageBuilder.shoutout_blocks(
+        incident,
+        from_user_id: from_user_id,
+        recipient_user_id: recipient_user_id,
+        message: message
+      )
+      post_message(channel_id: channel_id, text: ":heart_on_fire: Shoutout in #{incident.identifier}", blocks: blocks)
+    end
+
+    def post_shoutout_from_reaction_prompt(channel_id:, user_id:, incident_id:)
+      blocks = Slack::IncidentMessageBuilder.shoutout_from_reaction_blocks(incident_id)
+      post_ephemeral(
+        channel_id: channel_id,
+        user_id: user_id,
+        text: "Give a shoutout?",
+        blocks: blocks
+      )
+    end
+
     def post_action_from_reaction_prompt(channel_id:, user_id:, action_type:, message_text:, incident_id:, source_message_link:)
       blocks = Slack::IncidentMessageBuilder.action_from_reaction_blocks(
         action_type, message_text, incident_id, source_message_link
