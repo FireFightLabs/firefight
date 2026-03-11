@@ -15,6 +15,7 @@ module Identifiers
   REOPEN_INCIDENT_MODAL = "reopen_incident_modal"
   LINK_INCIDENT_MODAL = "link_incident_modal"
   ESCALATE_INCIDENT_MODAL = "escalate_incident_modal"
+  INVITE_RESPONDERS_MODAL = "invite_responders_modal"
   SHOUTOUT_MODAL = "shoutout_modal"
 
   # Shortcut callback_ids

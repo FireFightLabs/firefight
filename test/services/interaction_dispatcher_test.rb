@@ -23,6 +23,11 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::EscalateIncidentHandler, InteractionDispatcher.find(interaction)
   end
 
+  test "routes invite_responders_modal to InviteRespondersHandler" do
+    interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::INVITE_RESPONDERS_MODAL)
+    assert_equal Interactions::InviteRespondersHandler, InteractionDispatcher.find(interaction)
+  end
+
   test "routes unknown view_submission callback_id to UnknownHandler" do
     interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: "unknown_modal")
     assert_equal Interactions::UnknownHandler, InteractionDispatcher.find(interaction)

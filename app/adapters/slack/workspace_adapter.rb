@@ -135,6 +135,18 @@ module Slack
       end
     end
 
+    def invite_users(channel_id:, user_ids:)
+      translate_errors do
+        Slack::Client.invite_to_channel(
+          workspace: @workspace,
+          channel: channel_id,
+          users: user_ids
+        )
+
+        { invited_users: user_ids }
+      end
+    end
+
     def post_welcome_message(channel_id:)
       translate_errors do
         message = Slack::InstallationMessageBuilder.welcome_message_blocks
@@ -463,6 +475,17 @@ module Slack
       open_modal(
         trigger_id: trigger_id,
         view: Slack::ModalBuilder.escalate_modal(incident, private_metadata: private_metadata)
+      )
+    end
+
+    def open_invite_responders_modal(trigger_id:, incident:, selected_user_ids: [], private_metadata: nil)
+      open_modal(
+        trigger_id: trigger_id,
+        view: Slack::ModalBuilder.invite_responders_modal(
+          incident,
+          selected_user_ids: selected_user_ids,
+          private_metadata: private_metadata
+        )
       )
     end
 

@@ -107,6 +107,14 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     Commands::Firefight::HomeHandler.execute(command)
   end
 
+  test "routes 'invite' subcommand to InviteHandler" do
+    command = build_command("invite")
+
+    Commands::Firefight::InviteHandler.expects(:execute).with(command).once
+
+    Commands::Firefight::HomeHandler.execute(command)
+  end
+
   test "routes 'list' subcommand to ListHandler" do
     command = build_command("list")
 
