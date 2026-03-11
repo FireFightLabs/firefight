@@ -12,7 +12,12 @@ class EventRouter
     IncidentEvent::POSTMORTEM_GENERATED => [],
     IncidentEvent::RELATIONSHIP_CREATED => [],
     IncidentEvent::MARKED_DUPLICATE => [],
-    IncidentEvent::MERGED_INTO => []
+    IncidentEvent::MERGED_INTO => [],
+    IncidentEvent::MESSAGE_PINNED => [],
+    IncidentEvent::MESSAGE_UNPINNED => [],
+    IncidentEvent::MESSAGE_FILE_SHARED => [],
+    IncidentEvent::ESCALATION_ACKNOWLEDGED => [],
+    IncidentEvent::ESCALATION_NUDGED => []
   }.freeze
 
   def self.route(event)

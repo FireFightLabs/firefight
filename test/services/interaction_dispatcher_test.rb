@@ -18,6 +18,11 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::IncidentUpdateHandler, InteractionDispatcher.find(interaction)
   end
 
+  test "routes escalate_incident_modal to EscalateIncidentHandler" do
+    interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::ESCALATE_INCIDENT_MODAL)
+    assert_equal Interactions::EscalateIncidentHandler, InteractionDispatcher.find(interaction)
+  end
+
   test "routes unknown view_submission callback_id to UnknownHandler" do
     interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: "unknown_modal")
     assert_equal Interactions::UnknownHandler, InteractionDispatcher.find(interaction)
@@ -55,6 +60,11 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::SendIncidentUpdateButtonHandler, InteractionDispatcher.find(interaction)
   end
 
+  test "routes escalate_incident to EscalateIncidentButtonHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::ESCALATE_INCIDENT)
+    assert_equal Interactions::EscalateIncidentButtonHandler, InteractionDispatcher.find(interaction)
+  end
+
   test "routes pick_up_action to PickUpActionHandler" do
     interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::PICK_UP_ACTION)
     assert_equal Interactions::PickUpActionHandler, InteractionDispatcher.find(interaction)
@@ -83,6 +93,16 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
   test "routes create_followup_from_reaction to CreateFollowupFromReactionHandler" do
     interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::CREATE_FOLLOWUP_FROM_REACTION)
     assert_equal Interactions::CreateFollowupFromReactionHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes load_more_timeline to LoadMoreTimelineHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::LOAD_MORE_TIMELINE)
+    assert_equal Interactions::LoadMoreTimelineHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes acknowledge_escalation to AcknowledgeEscalationHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::ACKNOWLEDGE_ESCALATION)
+    assert_equal Interactions::AcknowledgeEscalationHandler, InteractionDispatcher.find(interaction)
   end
 
   test "routes create_action_modal to CreateActionHandler" do

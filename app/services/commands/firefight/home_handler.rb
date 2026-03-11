@@ -27,8 +27,7 @@ module Commands
         when "severity"
           Commands::Firefight::SeverityHandler.execute(command)
         when "escalate"
-          # Phase 4.5
-          ephemeral("Escalate command coming soon...")
+          Commands::Firefight::EscalateHandler.execute(command)
         when "action", "actions"
           Commands::Firefight::ActionsHandler.execute(command)
         when "followup", "followups"
@@ -43,11 +42,9 @@ module Commands
           # Phase 5.2
           ephemeral("Postmortem command coming soon...")
         when "timeline"
-          # Phase 6.1
-          ephemeral("Timeline command coming soon...")
+          Commands::Firefight::TimelineHandler.execute(command)
         when "list"
-          # Phase 6.2
-          ephemeral("List command coming soon...")
+          Commands::Firefight::ListHandler.execute(command)
         else
           ephemeral("Unknown subcommand: `#{subcommand}`. Type `/ff` for available commands.")
         end

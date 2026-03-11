@@ -329,6 +329,24 @@ module Slack
       body[:messages]&.first
     end
 
+    def self.download_file(workspace:, url:)
+      response = HTTParty.get(
+        url,
+        headers: {
+          "Authorization" => "Bearer #{workspace.access_token}"
+        }
+      )
+
+      unless response.code.between?(200, 299)
+        raise ApiError, "Slack file download failed with status #{response.code}"
+      end
+
+      {
+        body: response.body,
+        content_type: response.headers["content-type"]
+      }
+    end
+
     private
 
     # Make a POST request to Slack API

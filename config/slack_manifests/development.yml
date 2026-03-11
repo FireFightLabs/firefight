@@ -43,14 +43,21 @@ oauth_config:
       - channels:read      # Read channel info (check if #incidents exists)
       - users:read         # Get user info for @mentions in messages
       - pins:write         # Pin key messages in incident channels
+      - pins:read          # Receive pin events for timeline updates
       - reactions:read     # Receive reaction_added events for action/followup creation
       - channels:history   # Fetch message text from incident channels (conversations.history)
+      - groups:history     # Read private incident channel messages/events
+      - files:read         # Download shared files for archival
 
 settings:
   event_subscriptions:
     request_url: https://ff.bugrewind.com/api/v1/events
     bot_events:
       - reaction_added
+      - message.channels
+      - message.groups
+      - pin_added
+      - pin_removed
   interactivity:
     is_enabled: true
     request_url: https://ff.bugrewind.com/api/v1/interactions

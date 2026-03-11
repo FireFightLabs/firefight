@@ -6,6 +6,12 @@ class EventDispatcher
     case event["type"]
     when "reaction_added"
       Events::ReactionAddedHandler.execute(platform, payload)
+    when "message"
+      Events::MessageHandler.execute(platform, payload)
+    when "pin_added"
+      Events::PinAddedHandler.execute(platform, payload)
+    when "pin_removed"
+      Events::PinRemovedHandler.execute(platform, payload)
     else
       Rails.logger.info({
         event: "event_dispatcher.unhandled_event",

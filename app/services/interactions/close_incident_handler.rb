@@ -28,6 +28,8 @@ module Interactions
         end
       end
 
+      IncidentTranscriptCache.expire_after_close!(incident)
+
       IncidentCloseWorkflow.start!(incident, context: {
         resolved_by_platform_user_id: interaction.user_id
       })
