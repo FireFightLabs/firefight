@@ -36,6 +36,7 @@ class IncidentInviteService
   end
 
   def already_in_channel_error?(error)
-    error.message.to_s.include?("already_in_channel")
+    message = error.message.to_s
+    message.include?("already_in_channel") || message.include?("cant_invite_self")
   end
 end

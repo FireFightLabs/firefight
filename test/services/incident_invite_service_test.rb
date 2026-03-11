@@ -30,6 +30,16 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
     assert_empty result[:failed_invites]
   end
 
+  test "treats cant_invite_self as non-fatal" do
+    Slack::Client.expects(:invite_to_channel).raises(Slack::Client::ApiError.new("cant_invite_self"))
+
+    result = @service.invite!(incident: @incident, user_ids: [ "U11111111" ])
+
+    assert_empty result[:invited_user_ids]
+    assert_equal [ "U11111111" ], result[:already_in_channel_user_ids]
+    assert_empty result[:failed_invites]
+  end
+
   test "collects other invite failures" do
     Slack::Client.expects(:invite_to_channel).raises(Slack::Client::ApiError.new("cant_invite"))
 
