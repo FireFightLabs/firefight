@@ -13,6 +13,7 @@ class InteractionDispatcher
     Identifiers::REOPEN_INCIDENT_MODAL => Interactions::ReopenIncidentHandler,
     Identifiers::LINK_INCIDENT_MODAL => Interactions::LinkIncidentHandler,
     Identifiers::ESCALATE_INCIDENT_MODAL => Interactions::EscalateIncidentHandler,
+    Identifiers::INVITE_RESPONDERS_MODAL => Interactions::InviteRespondersHandler,
     Identifiers::SHOUTOUT_MODAL => Interactions::ShoutoutHandler
   }.freeze
 

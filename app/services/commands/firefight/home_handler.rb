@@ -28,6 +28,8 @@ module Commands
           Commands::Firefight::SeverityHandler.execute(command)
         when "escalate"
           Commands::Firefight::EscalateHandler.execute(command)
+        when "invite"
+          Commands::Firefight::InviteHandler.execute(command)
         when "action", "actions"
           Commands::Firefight::ActionsHandler.execute(command)
         when "followup", "followups"
