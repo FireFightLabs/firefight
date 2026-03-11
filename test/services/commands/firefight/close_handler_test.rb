@@ -10,8 +10,12 @@ class Commands::Firefight::CloseHandlerTest < ActiveSupport::TestCase
   end
 
   test "opens close modal in incident channel" do
-    stub_post_message
-    stub_open_modal
+    CloseModalOpener.expects(:open).with(
+      workspace: @workspace,
+      incident: @incident,
+      trigger_id: "12345.trigger",
+      user_id: "U12345678"
+    ).once
 
     result = Commands::Firefight::CloseHandler.execute(
       build_command(channel_id: @incident.channel_id)
@@ -47,9 +51,7 @@ class Commands::Firefight::CloseHandlerTest < ActiveSupport::TestCase
   end
 
   test "handles trigger expiration" do
-    stub_post_message
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
-    stub_delete_message
+    CloseModalOpener.expects(:open).raises(AdapterError::TriggerExpired.new("expired"))
 
     result = Commands::Firefight::CloseHandler.execute(
       build_command(channel_id: @incident.channel_id)

@@ -202,9 +202,7 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     step_map = steps.index_by(&:name)
 
     calculate_sum = workflow.steps.find_by(name: "calculate_sum")
-
-    # Note: In real implementation, skipped steps should allow dependents to run
-    # For this test, we're just verifying the skip! method works
+    assert calculate_sum.ready_to_run?(step_map)
     assert fetch_numbers.skipped?
     assert_equal "Test skip", fetch_numbers.skip_reason
   end
