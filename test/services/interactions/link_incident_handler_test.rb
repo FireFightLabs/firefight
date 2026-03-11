@@ -22,7 +22,11 @@ class Interactions::LinkIncidentHandlerTest < ActiveSupport::TestCase
       )
     end
 
-    rel = IncidentRelationship.last
+    rel = IncidentRelationship.find_by!(
+      incident: @source,
+      related_incident: @target,
+      relationship_type: IncidentRelationship::RELATED
+    )
     assert_equal IncidentRelationship::RELATED, rel.relationship_type
   end
 

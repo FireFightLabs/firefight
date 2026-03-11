@@ -13,14 +13,18 @@ class Interactions::CreateIncidentShortcutHandlerTest < ActiveSupport::TestCase
   end
 
   test "opens incident creation modal" do
-    stub_open_modal
+    adapter = mock("workspace_adapter")
+    WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
+    adapter.expects(:open_incident_creation_modal).with(trigger_id: "12345.trigger").once
 
     result = Interactions::CreateIncidentShortcutHandler.execute(build_interaction)
     assert_nil result
   end
 
   test "handles trigger expiration" do
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
+    adapter = mock("workspace_adapter")
+    WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
+    adapter.expects(:open_incident_creation_modal).raises(AdapterError::TriggerExpired.new("expired"))
 
     result = Interactions::CreateIncidentShortcutHandler.execute(build_interaction)
     assert_equal "errors", result[:response_action]

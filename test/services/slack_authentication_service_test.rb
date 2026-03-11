@@ -58,27 +58,14 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
 
   test "process_oauth_callback triggers workflow for first install" do
     stub_successful_slack_workflow
-    # Track if workflow was started
-    workflow_started = false
-    captured_context = nil
-    original_start = SlackWorkspaceSetupWorkflow.method(:start!)
-
-    SlackWorkspaceSetupWorkflow.define_singleton_method(:start!) do |workspace, context:|
-      workflow_started = true
-      captured_context = context
-      # Return mock workflow result
-      OpenStruct.new(id: "workflow-123", status: "running")
-      end
+    SlackWorkspaceSetupWorkflow.expects(:start!).with do |workspace, context:|
+      workspace.platform_id == @auth_hash.extra.team_info["id"] &&
+        context[:installer_user_id] == "U12345678"
+    end.returns(OpenStruct.new(id: "workflow-123", status: "running"))
 
     result = @service.process_oauth_callback(@auth_hash)
 
-    assert_equal "U12345678", captured_context[:installer_user_id]
-
     assert result[:first_install]
-    assert workflow_started, "Workflow should have been started for first install"
-
-    # Restore original method
-    SlackWorkspaceSetupWorkflow.define_singleton_method(:start!, original_start)
   end
 
   test "process_oauth_callback does not trigger workflow for reinstall" do
@@ -93,13 +80,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     incidents_channel_id: "C12345678"
     )
 
-    workflow_started = false
-    original_start = SlackWorkspaceSetupWorkflow.method(:start!)
-
-    SlackWorkspaceSetupWorkflow.define_singleton_method(:start!) do |workspace, context:|
-    workflow_started = true
-    OpenStruct.new(id: "workflow-123", status: "running")
-    end
+    SlackWorkspaceSetupWorkflow.expects(:start!).never
 
     auth_hash = mock_slack_auth_hash(
     extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
@@ -108,10 +89,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     result = @service.process_oauth_callback(auth_hash)
 
     assert_not result[:first_install]
-    assert_not workflow_started, "Workflow should not start for reinstall"
-
-    # Restore original method
-    SlackWorkspaceSetupWorkflow.define_singleton_method(:start!, original_start)
   end
 
   test "process_oauth_callback treats workspace without incidents_channel_id as first install" do
@@ -127,13 +104,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     )
 
     stub_successful_slack_workflow
-    workflow_started = false
-    original_start = SlackWorkspaceSetupWorkflow.method(:start!)
-
-    SlackWorkspaceSetupWorkflow.define_singleton_method(:start!) do |workspace, context:|
-      workflow_started = true
-      OpenStruct.new(id: "workflow-123", status: "running")
-      end
+    SlackWorkspaceSetupWorkflow.expects(:start!).once.returns(OpenStruct.new(id: "workflow-123", status: "running"))
 
     auth_hash = mock_slack_auth_hash(
       extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
@@ -142,32 +113,23 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     result = @service.process_oauth_callback(auth_hash)
 
     assert result[:first_install]
-    assert workflow_started, "Workflow should start if incidents_channel_id is missing"
-
-    # Restore original method
-    SlackWorkspaceSetupWorkflow.define_singleton_method(:start!, original_start)
   end
 
   test "process_oauth_callback handles transaction rollback on error" do
-    # Stub workspace creation to raise error after user is created
-    original_create = Workspace.method(:find_or_create_from_slack!)
+    expected_platform_id = @auth_hash.extra.team_info["id"]
 
-    Workspace.define_singleton_method(:find_or_create_from_slack!) do |auth_hash|
-    workspace = Workspace.new
-    workspace.errors.add(:base, "Simulated error")
-    raise ActiveRecord::RecordInvalid.new(workspace)
+    Workspace.stubs(:find_or_create_from_slack!).raises(
+      ActiveRecord::RecordInvalid.new(Workspace.new)
+    )
+
+    assert_no_difference [ "Workspace.count", "User.count", "WorkspaceMembership.count" ] do
+      assert_raises(ActiveRecord::RecordInvalid) do
+        @service.process_oauth_callback(@auth_hash)
+      end
     end
 
-    assert_raises(ActiveRecord::RecordInvalid) do
-    @service.process_oauth_callback(@auth_hash)
-    end
-
-    # Verify no user or workspace was persisted due to transaction rollback
     assert_nil User.find_by(email: "test@example.com")
-    assert_nil Workspace.find_by(platform_id: "T#{SecureRandom.hex(8)}")
-
-    # Restore original method
-    Workspace.define_singleton_method(:find_or_create_from_slack!, original_create)
+    assert_nil Workspace.find_by(platform: "slack", platform_id: expected_platform_id)
   end
 
   test "process_oauth_callback updates existing user with new auth info" do
@@ -191,19 +153,19 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     logged_events = []
     original_logger = Rails.logger
 
-    # Capture log messages
-    Rails.logger = Logger.new(IO::NULL)
-    Rails.logger.define_singleton_method(:info) do |message|
-      logged_events << message if message.is_a?(Hash)
+    begin
+      Rails.logger = Logger.new(IO::NULL)
+      Rails.logger.define_singleton_method(:info) do |message|
+        logged_events << message if message.is_a?(Hash)
       end
 
-    @service.process_oauth_callback(@auth_hash)
+      @service.process_oauth_callback(@auth_hash)
 
-    # Verify workflow trigger was logged
-    workflow_log = logged_events.find { |e| e[:event] == "slack_authentication.workspace_setup_triggered" }
-    assert workflow_log.present?, "Should log workflow trigger event"
-    assert_equal "U12345678", workflow_log[:installer_user_id]
-
-    Rails.logger = original_logger
+      workflow_log = logged_events.find { |e| e[:event] == "slack_authentication.workspace_setup_triggered" }
+      assert workflow_log.present?, "Should log workflow trigger event"
+      assert_equal "U12345678", workflow_log[:installer_user_id]
+    ensure
+      Rails.logger = original_logger
+    end
   end
 end

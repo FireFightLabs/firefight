@@ -21,7 +21,11 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
       @service.link_related(source: @incident1, target: @incident2, created_by: @member)
     end
 
-    rel = IncidentRelationship.last
+    rel = IncidentRelationship.find_by!(
+      incident: @incident1,
+      related_incident: @incident2,
+      relationship_type: IncidentRelationship::RELATED
+    )
     assert_equal IncidentRelationship::RELATED, rel.relationship_type
     assert_equal @incident1, rel.incident
     assert_equal @incident2, rel.related_incident
@@ -65,7 +69,11 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
       @service.mark_duplicate(source: @incident1, canonical: @incident2, created_by: @member)
     end
 
-    rel = IncidentRelationship.last
+    rel = IncidentRelationship.find_by!(
+      incident: @incident1,
+      related_incident: @incident2,
+      relationship_type: IncidentRelationship::DUPLICATE
+    )
     assert_equal IncidentRelationship::DUPLICATE, rel.relationship_type
     assert_equal @incident1, rel.incident
     assert_equal @incident2, rel.related_incident

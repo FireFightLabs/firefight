@@ -30,7 +30,9 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
     text: "help"
     }
 
-    post api_v1_commands_url, params: params
+    assert_no_enqueued_jobs do
+      post api_v1_commands_url, params: params
+    end
 
     assert_response :unauthorized
     assert_equal "Unauthorized", JSON.parse(response.body)["error"]
@@ -42,9 +44,11 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
     # Tamper with signature
     request_data[:headers]["X-Slack-Signature"] = "v0=invalid_signature"
 
-    post api_v1_commands_url,
-       params: request_data[:body],
-       headers: request_data[:headers]
+    assert_no_enqueued_jobs do
+      post api_v1_commands_url,
+         params: request_data[:body],
+         headers: request_data[:headers]
+    end
 
     assert_response :unauthorized
   end
@@ -65,9 +69,11 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
     request_data[:headers]["X-Slack-Signature"] = signature
     request_data[:headers]["X-Slack-Request-Timestamp"] = old_timestamp.to_s
 
-    post api_v1_commands_url,
-       params: request_data[:body],
-       headers: request_data[:headers]
+    assert_no_enqueued_jobs do
+      post api_v1_commands_url,
+         params: request_data[:body],
+         headers: request_data[:headers]
+    end
 
     assert_response :unauthorized
   end
@@ -77,9 +83,11 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
     team_id: "TNONEXIST" # Non-existent workspace
     )
 
-    post api_v1_commands_url,
-       params: request_data[:body],
-       headers: request_data[:headers]
+    assert_no_enqueued_jobs do
+      post api_v1_commands_url,
+         params: request_data[:body],
+         headers: request_data[:headers]
+    end
 
     assert_response :not_found
     assert_equal "Not found", JSON.parse(response.body)["error"]
