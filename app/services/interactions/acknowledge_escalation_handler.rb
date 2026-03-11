@@ -45,17 +45,25 @@ module Interactions
         escalated_to_platform_user_id: escalated_to_platform_user_id
       )
 
-      {
-        response_action: "update",
-        text: "Escalation acknowledged",
-        replace_original: true,
-        blocks: [
-          {
-            type: "section",
-            text: { type: "mrkdwn", text: ":white_check_mark: You acknowledged this escalation. Thank you." }
-          }
-        ]
-      }
+      dm_channel_id = interaction.raw&.dig("container", "channel_id") || interaction.channel_id
+      dm_message_ts = interaction.raw&.dig("container", "message_ts")
+
+      if dm_channel_id && dm_message_ts
+        adapter = WorkspaceAdapter.for(workspace)
+        adapter.update_message(
+          channel_id: dm_channel_id,
+          ts: dm_message_ts,
+          text: "Escalation acknowledged",
+          blocks: [
+            {
+              type: "section",
+              text: { type: "mrkdwn", text: ":white_check_mark: You acknowledged this escalation. Thank you." }
+            }
+          ]
+        )
+      end
+
+      nil
     rescue JSON::ParserError, ActiveRecord::RecordNotFound
       nil
     end
