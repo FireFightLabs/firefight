@@ -149,6 +149,26 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     assert_equal [ "U11111111", "U22222222" ], result[:invited_users]
   end
 
+  test "resolve_user_ids_from_handles resolves by slack username" do
+    Slack::Client.expects(:list_users).with(workspace: @workspace).returns([
+      { id: "U11111111", name: "nina", deleted: false, is_bot: false, profile: { display_name: "Nina" } }
+    ])
+
+    result = @adapter.resolve_user_ids_from_handles(handles: [ "nina" ])
+
+    assert_equal [ "U11111111" ], result[:resolved_user_ids]
+    assert_empty result[:unresolved_handles]
+  end
+
+  test "resolve_user_ids_from_handles returns unresolved handles" do
+    Slack::Client.expects(:list_users).with(workspace: @workspace).returns([])
+
+    result = @adapter.resolve_user_ids_from_handles(handles: [ "nina" ])
+
+    assert_empty result[:resolved_user_ids]
+    assert_equal [ "nina" ], result[:unresolved_handles]
+  end
+
   # post_welcome_message tests
 
   test "post_welcome_message posts to channel" do
