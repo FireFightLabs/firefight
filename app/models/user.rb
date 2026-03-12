@@ -1,17 +1,13 @@
 class User < ApplicationRecord
-  # Associations
   has_many :workspace_memberships, dependent: :destroy
   has_many :workspaces, through: :workspace_memberships
 
-  # Validations
   validates :email, presence: true, uniqueness: true
   validates :name, presence: true
 
-  # Class Methods
   def self.find_or_create_from_omniauth!(auth_hash)
     user = find_or_initialize_by(email: auth_hash.info.email)
 
-    # Update attributes for both new and existing users
     user.assign_attributes(
       name: auth_hash.info.name,
       avatar_url: auth_hash.info.image
@@ -21,7 +17,6 @@ class User < ApplicationRecord
     user
   end
 
-  # Instance Methods
   def member_of?(workspace)
     workspaces.include?(workspace)
   end
