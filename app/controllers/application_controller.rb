@@ -4,6 +4,15 @@ class ApplicationController < ActionController::Base
 
   helper_method :current_user, :current_workspace, :user_signed_in?
 
+  before_action { Current.trace_id = request.request_id }
+
+  around_action do |_, action|
+    payload = {}
+    payload[:user_id] = current_user.id if current_user
+    payload[:workspace_id] = current_workspace.id if current_workspace
+    logger.tagged(payload) { action.call }
+  end
+
   private
 
   def current_user

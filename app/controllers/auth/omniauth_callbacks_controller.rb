@@ -14,8 +14,7 @@ module Auth
       notice = result[:first_install] ? "Setting up your FireFight workspace..." : "Successfully signed in with Slack!"
       redirect_to dashboard_path, notice: notice
     rescue => e
-      Rails.logger.error "Slack OAuth failed: #{e.message}"
-      Rails.logger.error e.backtrace.join("\n")
+      Rails.logger.error({ event: "auth.slack_oauth_failed", error: e.message, backtrace: e.backtrace })
       redirect_to login_path, alert: "Authentication failed. Please try again."
     end
 

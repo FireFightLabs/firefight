@@ -27,7 +27,4 @@ Rails.application.routes.draw do
 
   # Authenticated routes
   get "/dashboard", to: "dashboard#index", as: :dashboard
-
-  # Example route (can remove later)
-  get "inertia-example", to: "inertia_example#index"
 end

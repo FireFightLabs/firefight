@@ -84,4 +84,16 @@ end
 
 gem "inertia_rails", "~> 3.16"
 
+gem "rails_semantic_logger"
+
+gem "yabeda"
+gem "yabeda-rails"
+gem "yabeda-activejob"
+gem "yabeda-puma-plugin"
+gem "yabeda-gc"
+gem "yabeda-http_requests"
+gem "yabeda-prometheus-mmap"
+gem "prometheus-client-mmap", "~> 1.3"
+gem "webrick"
+
 gem "vite_rails", "~> 3.0"

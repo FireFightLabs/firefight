@@ -21,6 +21,20 @@ module Identifiers
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
 
+  # Home modal action values
+  HOME_ACTION_NEW        = "new"
+  HOME_ACTION_STATUS     = "status"
+  HOME_ACTION_SEVERITY   = "severity"
+  HOME_ACTION_SUMMARY    = "summary"
+  HOME_ACTION_ESCALATE   = "escalate"
+  HOME_ACTION_INVITE     = "invite"
+  HOME_ACTION_LEAD       = "lead"
+  HOME_ACTION_ACTIONS    = "actions"
+  HOME_ACTION_CLOSE      = "close"
+  HOME_ACTION_TIMELINE   = "timeline"
+  HOME_ACTION_LIST       = "list"
+  HOME_ACTION_POSTMORTEM = "postmortem"
+
   # Block action_ids
   HOME_ACTION_SELECT = "home_action_select"
   SHARE_INCIDENTS_CHANNEL = "share_incidents_channel"
