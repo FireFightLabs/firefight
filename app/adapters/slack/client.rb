@@ -351,6 +351,14 @@ module Slack
       body[:messages]&.first
     end
 
+    def self.get_user_info(workspace:, user_id:)
+      api_post(
+        workspace: workspace,
+        endpoint: "users.info",
+        payload: { user: user_id }
+      )
+    end
+
     def self.download_file(workspace:, url:)
       response = HTTParty.get(
         url,
