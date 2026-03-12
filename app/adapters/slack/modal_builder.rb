@@ -149,26 +149,24 @@ module Slack
         ]
       }
     end
-    def self.home_modal
+    def self.home_modal(channel_id:)
       {
         type: "modal",
         callback_id: Identifiers::INCIDENT_HOME_MODAL,
+        private_metadata: { channel_id: channel_id }.to_json,
         title: {
           type: "plain_text",
           text: "Incident Home"
+        },
+        submit: {
+          type: "plain_text",
+          text: "Continue"
         },
         close: {
           type: "plain_text",
           text: "Close"
         },
         blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "*I want to...*"
-            }
-          },
           {
             type: "input",
             dispatch_action: true,
@@ -178,13 +176,17 @@ module Slack
               action_id: Identifiers::HOME_ACTION_SELECT,
               placeholder: {
                 type: "plain_text",
-                text: "Select an action"
+                text: "Type a command or search..."
               },
-              options: home_modal_options
+              option_groups: home_modal_option_groups
             },
             label: {
               type: "plain_text",
               text: "Choose an action"
+            },
+            hint: {
+              type: "plain_text",
+              text: "Search and run any Firefight action from one place."
             }
           },
           {
@@ -192,27 +194,52 @@ module Slack
             block_id: "command_details_block",
             text: {
               type: "mrkdwn",
-              text: "_Select an action above to see how to use the command directly._"
+              text: "*For example:*\n\n:pencil2:  Update the current status or severity `/ff status`\n\n:rotating_light:  Escalate to someone who can help `/ff escalate`\n\n:dart:  Assign the incident lead role `/ff lead`\n\n:lock:  Close the incident when it's resolved `/ff close`"
             }
           }
         ]
       }
     end
 
-    def self.home_modal_options
+    def self.home_modal_option_groups
       [
-        { text: { type: "plain_text", text: "Create a new incident" }, value: "new", description: { type: "plain_text", text: "/ff new" } },
-        { text: { type: "plain_text", text: "Update incident summary" }, value: "summary", description: { type: "plain_text", text: "/ff summary" } },
-        { text: { type: "plain_text", text: "Set incident lead" }, value: "lead", description: { type: "plain_text", text: "/ff lead" } },
-        { text: { type: "plain_text", text: "Update status" }, value: "status", description: { type: "plain_text", text: "/ff status" } },
-        { text: { type: "plain_text", text: "Change severity" }, value: "severity", description: { type: "plain_text", text: "/ff severity" } },
-        { text: { type: "plain_text", text: "Escalate to someone" }, value: "escalate", description: { type: "plain_text", text: "/ff escalate" } },
-        { text: { type: "plain_text", text: "Invite responders" }, value: "invite", description: { type: "plain_text", text: "/ff invite" } },
-        { text: { type: "plain_text", text: "Manage actions" }, value: "actions", description: { type: "plain_text", text: "/ff actions" } },
-        { text: { type: "plain_text", text: "Close incident" }, value: "close", description: { type: "plain_text", text: "/ff close" } },
-        { text: { type: "plain_text", text: "Generate postmortem" }, value: "postmortem", description: { type: "plain_text", text: "/ff postmortem" } },
-        { text: { type: "plain_text", text: "View timeline" }, value: "timeline", description: { type: "plain_text", text: "/ff timeline" } },
-        { text: { type: "plain_text", text: "List active incidents" }, value: "list", description: { type: "plain_text", text: "/ff list" } }
+        {
+          label: { type: "plain_text", text: "Quick actions", emoji: true },
+          options: [
+            { text: { type: "plain_text", text: ":pencil2: Update status",           emoji: true }, value: Identifiers::HOME_ACTION_STATUS },
+            { text: { type: "plain_text", text: ":warning: Change severity",         emoji: true }, value: Identifiers::HOME_ACTION_SEVERITY },
+            { text: { type: "plain_text", text: ":memo: Update incident summary",    emoji: true }, value: Identifiers::HOME_ACTION_SUMMARY }
+          ]
+        },
+        {
+          label: { type: "plain_text", text: "Communicate", emoji: true },
+          options: [
+            { text: { type: "plain_text", text: ":rotating_light: Escalate to someone", emoji: true }, value: Identifiers::HOME_ACTION_ESCALATE },
+            { text: { type: "plain_text", text: ":busts_in_silhouette: Invite responders", emoji: true }, value: Identifiers::HOME_ACTION_INVITE }
+          ]
+        },
+        {
+          label: { type: "plain_text", text: "Coordinate", emoji: true },
+          options: [
+            { text: { type: "plain_text", text: ":dart: Set incident lead", emoji: true }, value: Identifiers::HOME_ACTION_LEAD },
+            { text: { type: "plain_text", text: ":ballot_box_with_check: Manage actions", emoji: true }, value: Identifiers::HOME_ACTION_ACTIONS },
+            { text: { type: "plain_text", text: ":lock: Close incident",    emoji: true }, value: Identifiers::HOME_ACTION_CLOSE }
+          ]
+        },
+        {
+          label: { type: "plain_text", text: "Review", emoji: true },
+          options: [
+            { text: { type: "plain_text", text: ":clock1: View timeline",              emoji: true }, value: Identifiers::HOME_ACTION_TIMELINE },
+            { text: { type: "plain_text", text: ":clipboard: List active incidents",   emoji: true }, value: Identifiers::HOME_ACTION_LIST },
+            { text: { type: "plain_text", text: ":page_facing_up: Generate postmortem", emoji: true }, value: Identifiers::HOME_ACTION_POSTMORTEM }
+          ]
+        },
+        {
+          label: { type: "plain_text", text: "New", emoji: true },
+          options: [
+            { text: { type: "plain_text", text: ":fire: Create a new incident", emoji: true }, value: Identifiers::HOME_ACTION_NEW }
+          ]
+        }
       ]
     end
 

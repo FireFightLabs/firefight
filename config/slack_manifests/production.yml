@@ -11,12 +11,12 @@ features:
     - command: /firefight
       url: https://firefight-production-32a5.up.railway.app/api/v1/commands
       description: "Manage incidents and coordinate response"
-      usage_hint: "[new|summary|lead|status|actions|close|timeline|list]"
+      usage_hint: ""
       should_escape: false
     - command: /ff
       url: https://firefight-production-32a5.up.railway.app/api/v1/commands
       description: "Manage incidents (short alias for /firefight)"
-      usage_hint: "[new|summary|lead|status|actions|close|timeline|list]"
+      usage_hint: ""
       should_escape: false
   shortcuts:
     - name: "Create an incident"

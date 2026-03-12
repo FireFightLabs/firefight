@@ -2,6 +2,7 @@
 # Platform-agnostic — works with any Interaction object
 class InteractionDispatcher
   VIEW_SUBMISSION_HANDLERS = {
+    Identifiers::INCIDENT_HOME_MODAL => Interactions::HomeContinueHandler,
     Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL => Interactions::ShareModalSubmissionHandler,
     Identifiers::INCIDENT_CREATION_MODAL => Interactions::IncidentCreationHandler,
     Identifiers::UPDATE_SUMMARY_MODAL => Interactions::UpdateSummaryHandler,
