@@ -97,3 +97,5 @@ gem "prometheus-client-mmap", "~> 1.3"
 gem "webrick"
 
 gem "vite_rails", "~> 3.0"
+
+gem "benchmark", "~> 0.5.0"
