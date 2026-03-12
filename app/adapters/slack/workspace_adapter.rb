@@ -671,6 +671,13 @@ module Slack
       end
     end
 
+
+    def get_user_info(user_id:)
+      translate_errors do
+        Slack::Client.get_user_info(workspace: @workspace, user_id: user_id)
+      end
+    end
+
     def open_shoutout_modal(trigger_id:, incident:)
       open_modal(
         trigger_id: trigger_id,
