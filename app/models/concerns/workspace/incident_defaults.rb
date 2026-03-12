@@ -8,7 +8,7 @@ module Workspace::IncidentDefaults
   ].freeze
 
   DEFAULT_STATUSES = [
-    { name: "Triaging", slug: "triaging", stage: IncidentLifecycleStage::Triaging, position: 0, is_default: false, color: "#9B59B6", description: "Investigating a potential issue to confirm it is a real incident"},
+    { name: "Triaging", slug: "triaging", stage: IncidentLifecycleStage::TRIAGE, position: 0, is_default: false, color: "#9B59B6", description: "Investigating a potential issue to confirm it is a real incident" },
     { name: "Investigating", slug: "investigating", stage: IncidentLifecycleStage::ACTIVE, position: 1, is_default: true, color: "#FFA500", description: "Root cause under active investigation" },
     { name: "Identified", slug: "identified", stage: IncidentLifecycleStage::ACTIVE, position: 2, is_default: false, color: "#FF6B35", description: "Root cause identified" },
     { name: "Monitoring", slug: "monitoring", stage: IncidentLifecycleStage::ACTIVE, position: 3, is_default: false, color: "#4169E1", description: "Fix deployed, monitoring for stability" },

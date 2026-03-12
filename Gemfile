@@ -84,4 +84,6 @@ end
 
 gem "inertia_rails", "~> 3.16"
 
+gem "rails_semantic_logger"
+
 gem "vite_rails", "~> 3.0"
