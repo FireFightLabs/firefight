@@ -7,6 +7,8 @@ Yabeda::Rails.config.ignore_actions = %w[Rails::HealthController#show]
 
 Yabeda::ActiveJob.install!
 
-SolidQueue.on_start do
-  Yabeda::Prometheus::Exporter.start_metrics_server!
+unless ENV["SOLID_QUEUE_IN_PUMA"]
+  SolidQueue.on_start do
+    Yabeda::Prometheus::Exporter.start_metrics_server!
+  end
 end
