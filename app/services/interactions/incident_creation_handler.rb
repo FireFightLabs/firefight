@@ -2,7 +2,17 @@ module Interactions
   class IncidentCreationHandler
     def self.execute(interaction)
       workspace = interaction.workspace
-      member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
+      adapter = WorkspaceAdapter.for(workspace)
+      member = WorkspaceMemberProvisioner.find_or_provision!(
+        workspace: workspace,
+        platform_user_id: interaction.user_id,
+        adapter: adapter
+      )
+
+      unless member
+        Rails.logger.error({ event: "incident.creation_error", error: "Could not resolve workspace member for #{interaction.user_id}" })
+        return { response_action: "errors", errors: { name_block: "Unable to verify your workspace membership. Please try again." } }
+      end
 
       values = interaction.values
       name = values.dig("name_block", "name_input", "value")
