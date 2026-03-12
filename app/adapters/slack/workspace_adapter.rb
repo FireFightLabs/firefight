@@ -288,17 +288,18 @@ module Slack
       { shared_count: succeeded, failed_count: failed }
     end
 
-    def open_incident_creation_modal(trigger_id:)
-      open_modal(
-        trigger_id: trigger_id,
-        view: Slack::ModalBuilder.incident_creation_form
-      )
+    def build_incident_creation_view
+      Slack::ModalBuilder.incident_creation_form
     end
 
-    def open_home_modal(trigger_id:)
+    def open_incident_creation_modal(trigger_id:)
+      open_modal(trigger_id: trigger_id, view: build_incident_creation_view)
+    end
+
+    def open_home_modal(trigger_id:, channel_id:)
       open_modal(
         trigger_id: trigger_id,
-        view: Slack::ModalBuilder.home_modal
+        view: Slack::ModalBuilder.home_modal(channel_id: channel_id)
       )
     end
 
@@ -320,7 +321,9 @@ module Slack
           view: {
             type: "modal",
             callback_id: Identifiers::INCIDENT_HOME_MODAL,
+            private_metadata: view["private_metadata"],
             title: view["title"],
+            submit: view["submit"],
             close: view["close"],
             blocks: updated_blocks
           }
@@ -376,18 +379,20 @@ module Slack
       end
     end
 
+    def build_summary_view(incident, private_metadata: nil)
+      Slack::ModalBuilder.summary_modal(incident, private_metadata: private_metadata)
+    end
+
     def open_summary_modal(trigger_id:, incident:, private_metadata: nil)
-      open_modal(
-        trigger_id: trigger_id,
-        view: Slack::ModalBuilder.summary_modal(incident, private_metadata: private_metadata)
-      )
+      open_modal(trigger_id: trigger_id, view: build_summary_view(incident, private_metadata: private_metadata))
+    end
+
+    def build_lead_view(incident)
+      Slack::ModalBuilder.lead_modal(incident)
     end
 
     def open_lead_modal(trigger_id:, incident:)
-      open_modal(
-        trigger_id: trigger_id,
-        view: Slack::ModalBuilder.lead_modal(incident)
-      )
+      open_modal(trigger_id: trigger_id, view: build_lead_view(incident))
     end
 
     def post_lead_expectations(channel_id:, user_id:)
@@ -416,11 +421,12 @@ module Slack
       )
     end
 
+    def build_incident_update_view(incident, private_metadata: nil)
+      Slack::ModalBuilder.incident_update_modal(incident, private_metadata: private_metadata)
+    end
+
     def open_incident_update_modal(trigger_id:, incident:, private_metadata: nil)
-      open_modal(
-        trigger_id: trigger_id,
-        view: Slack::ModalBuilder.incident_update_modal(incident, private_metadata: private_metadata)
-      )
+      open_modal(trigger_id: trigger_id, view: build_incident_update_view(incident, private_metadata: private_metadata))
     end
 
     def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
@@ -457,11 +463,12 @@ module Slack
       )
     end
 
+    def build_actions_list_view(incident)
+      Slack::ModalBuilder.actions_list_modal(incident)
+    end
+
     def open_actions_list_modal(trigger_id:, incident:)
-      open_modal(
-        trigger_id: trigger_id,
-        view: Slack::ModalBuilder.actions_list_modal(incident)
-      )
+      open_modal(trigger_id: trigger_id, view: build_actions_list_view(incident))
     end
 
     def open_followups_list_modal(trigger_id:, incident:)
@@ -481,11 +488,12 @@ module Slack
       push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
     end
 
+    def build_close_view(incident, private_metadata: nil)
+      Slack::ModalBuilder.close_modal(incident, private_metadata: private_metadata)
+    end
+
     def open_close_incident_modal(trigger_id:, incident:, private_metadata: nil)
-      open_modal(
-        trigger_id: trigger_id,
-        view: Slack::ModalBuilder.close_modal(incident, private_metadata: private_metadata)
-      )
+      open_modal(trigger_id: trigger_id, view: build_close_view(incident, private_metadata: private_metadata))
     end
 
     def open_link_incident_modal(trigger_id:, incident:, private_metadata: nil)
@@ -502,22 +510,24 @@ module Slack
       )
     end
 
+    def build_escalate_view(incident, private_metadata: nil)
+      Slack::ModalBuilder.escalate_modal(incident, private_metadata: private_metadata)
+    end
+
     def open_escalate_incident_modal(trigger_id:, incident:, private_metadata: nil)
-      open_modal(
-        trigger_id: trigger_id,
-        view: Slack::ModalBuilder.escalate_modal(incident, private_metadata: private_metadata)
+      open_modal(trigger_id: trigger_id, view: build_escalate_view(incident, private_metadata: private_metadata))
+    end
+
+    def build_invite_view(incident, selected_user_ids: [], private_metadata: nil)
+      Slack::ModalBuilder.invite_responders_modal(
+        incident,
+        selected_user_ids: selected_user_ids,
+        private_metadata: private_metadata
       )
     end
 
     def open_invite_responders_modal(trigger_id:, incident:, selected_user_ids: [], private_metadata: nil)
-      open_modal(
-        trigger_id: trigger_id,
-        view: Slack::ModalBuilder.invite_responders_modal(
-          incident,
-          selected_user_ids: selected_user_ids,
-          private_metadata: private_metadata
-        )
-      )
+      open_modal(trigger_id: trigger_id, view: build_invite_view(incident, selected_user_ids: selected_user_ids, private_metadata: private_metadata))
     end
 
     def post_resolution_message(channel_id:, incident:, resolved_by_platform_user_id:)
