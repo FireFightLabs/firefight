@@ -15,7 +15,7 @@ module Interactions
       adapter    = WorkspaceAdapter.for(workspace)
 
       if selected == Identifiers::HOME_ACTION_NEW
-        return { response_action: "push", view: adapter.build_incident_creation_view }
+        return { response_action: "update", view: adapter.build_incident_creation_view }
       end
 
       if selected == Identifiers::HOME_ACTION_LIST
@@ -32,19 +32,19 @@ module Interactions
 
       case selected
       when Identifiers::HOME_ACTION_STATUS, Identifiers::HOME_ACTION_SEVERITY
-        { response_action: "push", view: adapter.build_incident_update_view(incident, private_metadata: incident_metadata) }
+        { response_action: "update", view: adapter.build_incident_update_view(incident, private_metadata: incident_metadata) }
       when Identifiers::HOME_ACTION_SUMMARY
-        { response_action: "push", view: adapter.build_summary_view(incident, private_metadata: incident_metadata) }
+        { response_action: "update", view: adapter.build_summary_view(incident, private_metadata: incident_metadata) }
       when Identifiers::HOME_ACTION_ESCALATE
-        { response_action: "push", view: adapter.build_escalate_view(incident, private_metadata: incident_metadata) }
+        { response_action: "update", view: adapter.build_escalate_view(incident, private_metadata: incident_metadata) }
       when Identifiers::HOME_ACTION_INVITE
-        { response_action: "push", view: adapter.build_invite_view(incident, private_metadata: incident_metadata) }
+        { response_action: "update", view: adapter.build_invite_view(incident, private_metadata: incident_metadata) }
       when Identifiers::HOME_ACTION_LEAD
-        { response_action: "push", view: adapter.build_lead_view(incident) }
+        { response_action: "update", view: adapter.build_lead_view(incident) }
       when Identifiers::HOME_ACTION_ACTIONS
-        { response_action: "push", view: adapter.build_actions_list_view(incident) }
+        { response_action: "update", view: adapter.build_actions_list_view(incident) }
       when Identifiers::HOME_ACTION_CLOSE
-        { response_action: "push", view: adapter.build_close_view(incident, private_metadata: incident_metadata) }
+        { response_action: "update", view: adapter.build_close_view(incident, private_metadata: incident_metadata) }
       when Identifiers::HOME_ACTION_TIMELINE
         post_timeline(adapter, incident, channel_id, interaction.user_id)
         { response_action: "clear" }
