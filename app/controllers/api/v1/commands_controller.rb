@@ -1,12 +1,7 @@
 class Api::V1::CommandsController < Api::V1::BaseController
   # POST /api/v1/commands
   # Handles Slack slash commands (/firefight, /ff)
-  #
-  # Signature verification handled by BaseController before_action
   def create
-    # Find workspace by Slack team_id
-    # Raises ParameterMissing if team_id not present (handled by BaseController)
-    # Raises RecordNotFound if workspace not found (handled by BaseController)
     find_workspace!
 
     # Enqueue background job to process command

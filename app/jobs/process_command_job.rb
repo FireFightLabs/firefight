@@ -13,12 +13,10 @@ class ProcessCommandJob < ApplicationJob
   # @param platform [String] Platform identifier ('slack', 'teams', etc.)
   # @param payload [Hash] Platform-specific command payload
   def perform(platform, payload)
-    # Convert platform-specific payload to generic Command object
     command = parse_command(platform, payload)
 
-    # Validate command
     unless command.valid?
-      Rails.logger.error("Invalid command: #{command.errors.full_messages.join(", ")}")
+      Rails.logger.error({ event: "process_command_job.invalid_command", errors: command.errors.full_messages })
       return
     end
 
@@ -26,14 +24,9 @@ class ProcessCommandJob < ApplicationJob
     result = CommandDispatcher.dispatch(command)
     send_ephemeral(command, result)
   rescue ArgumentError, NotImplementedError
-    # Re-raise programming errors - these should fail fast
     raise
   rescue StandardError => e
-    # Log error
-    Rails.logger.error("Error processing command: #{e.message}")
-    Rails.logger.error(e.backtrace.join("\n"))
-
-    # Attempt to notify user of error
+    Rails.logger.error({ event: "process_command_job.failed", error: e.message, backtrace: e.backtrace })
     notify_error(command, e) if command
   end
 
@@ -45,7 +38,6 @@ class ProcessCommandJob < ApplicationJob
     when Platforms::SLACK
       Slack::CommandAdapter.parse(payload)
     when Platforms::TEAMS
-      # Teams::CommandAdapter.parse(payload)
       raise NotImplementedError, "Teams support coming soon"
     else
       raise ArgumentError, "Unknown platform: #{platform}"
@@ -82,6 +74,6 @@ class ProcessCommandJob < ApplicationJob
       text: "An error occurred: #{error.message}"
     )
   rescue StandardError => e
-    Rails.logger.error("Failed to notify user of error: #{e.message}")
+    Rails.logger.error({ event: "process_command_job.notify_error_failed", error: e.message })
   end
 end

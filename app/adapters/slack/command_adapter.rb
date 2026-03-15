@@ -1,5 +1,4 @@
 module Slack
-  # Adapts Slack slash command payloads to platform-agnostic Command objects
   class CommandAdapter < ::CommandAdapter
     # Parse Slack slash command payload into a Command object
     #
@@ -26,7 +25,6 @@ module Slack
 
     private
 
-    # Find workspace UUID from Slack team_id
     def self.find_workspace_id(team_id)
       workspace = Workspace.find_by(platform: Platforms::SLACK, platform_id: team_id)
       workspace&.id
