@@ -18,10 +18,10 @@ module Slack
           refresh_token: response["refresh_token"],
           token_expires_at: calculate_expiration(response["expires_in"])
         )
-        log_success("workspace", workspace.name, workspace.id)
+        log_success("workspace", workspace.platform_id, workspace.id)
         true
       else
-        log_error("workspace", workspace.name, response["error"])
+        log_error("workspace", workspace.platform_id, response["error"])
         false
       end
     rescue => e
@@ -44,10 +44,10 @@ module Slack
           refresh_token: response["refresh_token"],
           token_expires_at: calculate_expiration(response["expires_in"])
         )
-        log_success("membership", membership.user.email, membership.id)
+        log_success("membership", membership.workspace.platform_id, membership.id)
         true
       else
-        log_error("membership", membership.user.email, response["error"])
+        log_error("membership", "#{membership.workspace.platform_id}/#{membership.id}", response["error"])
         false
       end
     rescue => e
