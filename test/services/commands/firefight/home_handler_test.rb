@@ -53,7 +53,7 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     command = build_command("")
     response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "expired"
   end
 
@@ -136,7 +136,7 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
       command = build_command(sub)
       response = Commands::Firefight::HomeHandler.execute(command)
 
-      assert_equal "ephemeral", response[:response_type]
+      assert_equal Command::EPHEMERAL, response[:response_type]
       assert_includes response[:text], "coming soon"
     end
   end
@@ -205,7 +205,7 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     command = build_command("notacommand")
     response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "Unknown subcommand"
     assert_includes response[:text], "notacommand"
   end
@@ -246,7 +246,7 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
 
     response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "something went wrong"
   end
 

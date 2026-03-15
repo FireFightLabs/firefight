@@ -30,7 +30,7 @@ class Commands::Firefight::InviteHandlerTest < ActiveSupport::TestCase
 
     result = Commands::Firefight::InviteHandler.execute(build_command("invite <@U11111111> <@U22222222>"))
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "Invited 2 responders"
   end
 
@@ -45,7 +45,7 @@ class Commands::Firefight::InviteHandlerTest < ActiveSupport::TestCase
 
     result = Commands::Firefight::InviteHandler.execute(build_command("invite @alice"))
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "Invited 1 responder"
   end
 
@@ -59,7 +59,7 @@ class Commands::Firefight::InviteHandlerTest < ActiveSupport::TestCase
 
     result = Commands::Firefight::InviteHandler.execute(build_command("invite @nina"))
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "Couldn't resolve"
     assert_includes result[:text], "@nina"
   end
@@ -82,14 +82,14 @@ class Commands::Firefight::InviteHandlerTest < ActiveSupport::TestCase
 
     result = Commands::Firefight::InviteHandler.execute(build_command("invite @nina"))
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "Invited 1 responder"
   end
 
   test "returns error when not in incident channel" do
     result = Commands::Firefight::InviteHandler.execute(build_command("invite <@U11111111>", channel_id: "C_NOT_INCIDENT"))
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "incident channel"
   end
 
@@ -100,7 +100,7 @@ class Commands::Firefight::InviteHandlerTest < ActiveSupport::TestCase
 
     result = Commands::Firefight::InviteHandler.execute(build_command("invite"))
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "expired"
   end
 

@@ -66,7 +66,7 @@ module Commands
       private_class_method :load_more_button
 
       private_class_method def self.ephemeral(text, blocks: nil)
-        { response_type: "ephemeral", text: text, blocks: blocks }
+        { response_type: Command::EPHEMERAL, text: text, blocks: blocks }
       end
     end
   end

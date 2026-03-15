@@ -21,7 +21,7 @@ module Commands
       end
 
       private_class_method def self.ephemeral(text)
-        { response_type: "ephemeral", text: text }
+        { response_type: Command::EPHEMERAL, text: text }
       end
     end
   end

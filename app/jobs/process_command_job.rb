@@ -46,7 +46,7 @@ class ProcessCommandJob < ApplicationJob
 
   # Send ephemeral response to user when handler returns one
   def send_ephemeral(command, result)
-    return unless result.is_a?(Hash) && result[:response_type] == "ephemeral"
+    return unless result.is_a?(Hash) && result[:response_type] == Command::EPHEMERAL
 
     workspace = command.workspace
     return unless workspace

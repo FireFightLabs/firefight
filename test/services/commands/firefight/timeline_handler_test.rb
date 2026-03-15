@@ -12,7 +12,7 @@ class Commands::Firefight::TimelineHandlerTest < ActiveSupport::TestCase
   test "returns timeline from incident events" do
     response = Commands::Firefight::TimelineHandler.execute(build_command(channel_id: @incident.channel_id))
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "Timeline for #{@incident.identifier}"
     assert_equal "header", response[:blocks].first[:type]
     rendered = response[:blocks].filter_map { |block| block.dig(:text, :text) }
@@ -36,7 +36,7 @@ class Commands::Firefight::TimelineHandlerTest < ActiveSupport::TestCase
   test "returns error when command is outside incident channel" do
     response = Commands::Firefight::TimelineHandler.execute(build_command(channel_id: "C_NOT_INCIDENT"))
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "incident channel"
   end
 
@@ -52,7 +52,7 @@ class Commands::Firefight::TimelineHandlerTest < ActiveSupport::TestCase
 
     response = Commands::Firefight::TimelineHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "Workspace not found"
   end
 

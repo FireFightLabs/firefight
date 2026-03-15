@@ -29,7 +29,7 @@ class Commands::Firefight::CloseHandlerTest < ActiveSupport::TestCase
       build_command(channel_id: "C_NOT_INCIDENT")
     )
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "incident channel"
   end
 
@@ -46,7 +46,7 @@ class Commands::Firefight::CloseHandlerTest < ActiveSupport::TestCase
 
     result = Commands::Firefight::CloseHandler.execute(command)
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "Workspace not found"
   end
 
@@ -57,7 +57,7 @@ class Commands::Firefight::CloseHandlerTest < ActiveSupport::TestCase
       build_command(channel_id: @incident.channel_id)
     )
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "expired"
   end
 

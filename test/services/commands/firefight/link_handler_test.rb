@@ -24,7 +24,7 @@ class Commands::Firefight::LinkHandlerTest < ActiveSupport::TestCase
       build_command(channel_id: "C_NOT_INCIDENT")
     )
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "incident channel"
   end
 
@@ -35,7 +35,7 @@ class Commands::Firefight::LinkHandlerTest < ActiveSupport::TestCase
       build_command(channel_id: @incident.channel_id)
     )
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "expired"
   end
 

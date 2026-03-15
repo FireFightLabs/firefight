@@ -202,7 +202,7 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     ephemeral_params = nil
 
     stub_class_method(CommandDispatcher, :dispatch, lambda { |_cmd|
-    { response_type: "ephemeral", text: "Not in incident channel" }
+    { response_type: Command::EPHEMERAL, text: "Not in incident channel" }
     }) do
     stub_class_method(Slack::Client, :post_ephemeral, lambda { |args|
       ephemeral_params = args
@@ -231,7 +231,7 @@ class ProcessCommandJobTest < ActiveJob::TestCase
 
     stub_class_method(CommandDispatcher, :dispatch, lambda { |_cmd|
     {
-      response_type: "ephemeral",
+      response_type: Command::EPHEMERAL,
       text: "Timeline",
       blocks: [ { type: "section", text: { type: "mrkdwn", text: "*Timeline*" } } ]
     }

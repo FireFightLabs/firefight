@@ -14,7 +14,7 @@ class Commands::Firefight::ListHandlerTest < ActiveSupport::TestCase
 
     response = Commands::Firefight::ListHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "*Active incidents*"
     assert_order response[:text], "*INC-004*", "*INC-002*"
     assert_includes response[:text], "<#C12345678>"
@@ -27,7 +27,7 @@ class Commands::Firefight::ListHandlerTest < ActiveSupport::TestCase
 
     response = Commands::Firefight::ListHandler.execute(build_command)
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "no active incidents"
   end
 
@@ -50,7 +50,7 @@ class Commands::Firefight::ListHandlerTest < ActiveSupport::TestCase
 
     response = Commands::Firefight::ListHandler.execute(build_command)
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "Showing 10 of"
     assert_equal 10, response[:text].lines.count { |line| line.start_with?("> *INC-") }
   end
@@ -67,7 +67,7 @@ class Commands::Firefight::ListHandlerTest < ActiveSupport::TestCase
 
     response = Commands::Firefight::ListHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "Workspace not found"
   end
 

@@ -37,7 +37,7 @@ class Commands::Firefight::FollowupsHandlerTest < ActiveSupport::TestCase
       build_command(channel_id: "C_NOT_INCIDENT")
     )
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_match(/incident channel/, result[:text])
   end
 
