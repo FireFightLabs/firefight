@@ -82,6 +82,8 @@ group :test do
   gem "mocha"
 end
 
+gem "rack-attack"
+
 gem "inertia_rails", "~> 3.16"
 
 gem "rails_semantic_logger"

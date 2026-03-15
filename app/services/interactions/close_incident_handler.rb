@@ -45,9 +45,9 @@ module Interactions
 
     def self.parse_metadata(raw)
       parsed = JSON.parse(raw)
-      { incident_id: parsed["incident_id"], temp_message_ts: parsed["temp_message_ts"], channel_id: parsed["channel_id"] }
-    rescue JSON::ParserError
-      { incident_id: raw }
+      { incident_id: parsed.fetch("incident_id"), temp_message_ts: parsed["temp_message_ts"].to_s, channel_id: parsed["channel_id"].to_s }
+    rescue JSON::ParserError, KeyError => e
+      raise "Invalid modal metadata: #{e.message}"
     end
     private_class_method :parse_metadata
 
