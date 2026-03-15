@@ -9,8 +9,7 @@ module Interactions
 
       response = Commands::Firefight::TimelineHandler.build_response(incident, limit: limit)
 
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.post_ephemeral(
+      workspace.adapter.post_ephemeral(
         channel_id: interaction.channel_id || incident.channel_id,
         user_id: interaction.user_id,
         text: response[:text],

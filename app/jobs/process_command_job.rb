@@ -51,8 +51,7 @@ class ProcessCommandJob < ApplicationJob
     workspace = command.workspace
     return unless workspace
 
-    adapter = WorkspaceAdapter.for(workspace)
-    adapter.post_ephemeral(
+    workspace.adapter.post_ephemeral(
       channel_id: command.channel_id,
       user_id: command.user_id,
       text: result[:text],
@@ -67,8 +66,7 @@ class ProcessCommandJob < ApplicationJob
     workspace = command.workspace
     return unless workspace
 
-    adapter = WorkspaceAdapter.for(workspace)
-    adapter.post_ephemeral(
+    workspace.adapter.post_ephemeral(
       channel_id: command.channel_id,
       user_id: command.user_id,
       text: "An error occurred: #{error.message}"

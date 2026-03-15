@@ -68,7 +68,7 @@ module Commands
         workspace = command.workspace
         return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
 
-        adapter = WorkspaceAdapter.for(workspace)
+        adapter = workspace.adapter
         incident = workspace.incidents.active.in_channel(command.channel_id).first
 
         if incident

@@ -8,8 +8,7 @@ module Commands
         incident = workspace.incidents.active.in_channel(command.channel_id).first
         return ephemeral("This command can only be used in an active incident channel.") unless incident
 
-        adapter = WorkspaceAdapter.for(workspace)
-        adapter.open_link_incident_modal(trigger_id: command.trigger_id, incident: incident)
+        workspace.adapter.open_link_incident_modal(trigger_id: command.trigger_id, incident: incident)
 
         nil
       rescue AdapterError::TriggerExpired

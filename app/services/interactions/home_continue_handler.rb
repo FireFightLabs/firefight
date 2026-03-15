@@ -12,7 +12,7 @@ module Interactions
       metadata   = JSON.parse(interaction.private_metadata)
       channel_id = metadata["channel_id"]
       workspace  = interaction.workspace
-      adapter    = WorkspaceAdapter.for(workspace)
+      adapter    = workspace.adapter
 
       if selected == Identifiers::HOME_ACTION_NEW
         return { response_action: "update", view: adapter.build_incident_creation_view }

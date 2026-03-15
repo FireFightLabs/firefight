@@ -1,7 +1,7 @@
 class IncidentInviteService
   def initialize(workspace)
     @workspace = workspace
-    @adapter = WorkspaceAdapter.for(workspace)
+    @adapter = workspace.adapter
   end
 
   def invite!(incident:, user_ids:)

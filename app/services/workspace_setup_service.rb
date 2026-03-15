@@ -18,8 +18,7 @@ class WorkspaceSetupService
   # @param workspace [Workspace] The workspace to create channel in
   # @return [Hash] Result with :channel_id, :channel_name, :already_existed
   def create_incidents_channel(workspace)
-    adapter = WorkspaceAdapter.for(workspace)
-    result = adapter.create_incidents_channel
+    result = workspace.adapter.create_incidents_channel
 
     Rails.logger.info({
       event: "workspace_setup.channel_created",
@@ -40,8 +39,7 @@ class WorkspaceSetupService
   # @param channel_id [String] Channel ID
   # @return [Hash] Result with :success
   def set_channel_metadata(workspace, channel_id)
-    adapter = WorkspaceAdapter.for(workspace)
-    adapter.set_channel_metadata(
+    workspace.adapter.set_channel_metadata(
       channel_id: channel_id,
       topic: INCIDENTS_CHANNEL_DESCRIPTION,
       purpose: INCIDENTS_CHANNEL_DESCRIPTION
@@ -76,8 +74,7 @@ class WorkspaceSetupService
       return { skipped: true }
     end
 
-    adapter = WorkspaceAdapter.for(workspace)
-    adapter.invite_user(channel_id: channel_id, user_id: user_id)
+    workspace.adapter.invite_user(channel_id: channel_id, user_id: user_id)
 
     Rails.logger.info({
       event: "workspace_setup.user_invited",
@@ -96,8 +93,7 @@ class WorkspaceSetupService
   # @param channel_id [String] Channel ID
   # @return [Hash] Result with :message_ts
   def post_welcome_message(workspace, channel_id)
-    adapter = WorkspaceAdapter.for(workspace)
-    result = adapter.post_welcome_message(channel_id: channel_id)
+    result = workspace.adapter.post_welcome_message(channel_id: channel_id)
 
     Rails.logger.info({
       event: "workspace_setup.welcome_posted",

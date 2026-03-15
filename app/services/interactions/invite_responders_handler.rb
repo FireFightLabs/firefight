@@ -13,8 +13,7 @@ module Interactions
       end
 
       result = IncidentInviteService.new(workspace).invite!(incident: incident, user_ids: user_ids)
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.post_ephemeral(
+      workspace.adapter.post_ephemeral(
         channel_id: incident.channel_id,
         user_id: interaction.user_id,
         text: summary_message(result)

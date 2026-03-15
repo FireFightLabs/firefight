@@ -3,8 +3,7 @@ module Interactions
     def self.execute(interaction)
       workspace = interaction.workspace
 
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.open_share_modal(
+      workspace.adapter.open_share_modal(
         trigger_id: interaction.trigger_id,
         user_id: interaction.user_id,
         channel_id: workspace.incidents_channel_id

@@ -77,6 +77,6 @@ class IncidentLinkWorkflow < SolidWorkflow::Base
   end
 
   def adapter_for(workflow)
-    WorkspaceAdapter.for(workflow.subject.workspace)
+    workflow.subject.workspace.adapter
   end
 end

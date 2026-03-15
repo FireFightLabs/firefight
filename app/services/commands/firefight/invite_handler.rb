@@ -16,8 +16,7 @@ module Commands
             return ephemeral("Couldn't resolve #{unresolved.map { |h| "@#{h}" }.join(', ')}. Try `/ff invite` to pick responders from the modal.")
           end
 
-          adapter = WorkspaceAdapter.for(workspace)
-          adapter.open_invite_responders_modal(trigger_id: command.trigger_id, incident: incident)
+          workspace.adapter.open_invite_responders_modal(trigger_id: command.trigger_id, incident: incident)
           return nil
         end
 
@@ -65,8 +64,7 @@ module Commands
         end
 
         if unresolved.any?
-          adapter = WorkspaceAdapter.for(workspace)
-          fallback = adapter.resolve_user_ids_from_handles(handles: unresolved)
+          fallback = workspace.adapter.resolve_user_ids_from_handles(handles: unresolved)
           resolved_ids.concat(fallback[:resolved_user_ids])
           unresolved = fallback[:unresolved_handles]
         end

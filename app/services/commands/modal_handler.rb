@@ -6,8 +6,7 @@ module Commands
       workspace = command.workspace
       raise ArgumentError, "Workspace not found" unless workspace
 
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.open_incident_creation_modal(trigger_id: command.trigger_id)
+      workspace.adapter.open_incident_creation_modal(trigger_id: command.trigger_id)
     rescue AdapterError::TriggerExpired
       { response_type: Command::EPHEMERAL, text: "The command timed out. Please try again." }
     end
