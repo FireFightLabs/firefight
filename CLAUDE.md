@@ -98,6 +98,12 @@ Adapters return normalized hashes: `{ channel_id:, channel_name: }`, `{ message_
 
 **Platform boundary rule**: `Slack::Client` is only called from `Slack::WorkspaceAdapter`. No Slack-specific code outside `app/adapters/slack/`.
 
+### Domain Events
+
+`IncidentEvent` records are created via `incident.record_change!` or `incident.create_initial_update!` (defined in `Incident::Snapshots`). Both return the created `IncidentEvent`.
+
+Domain event publication (`ProcessDomainEventJob`) belongs in the **service layer**, not in model callbacks. Models must not enqueue jobs.
+
 ### Workflows
 
 Thin orchestrators using a `step` DSL with dependency declarations. Delegate all logic to services.
@@ -157,7 +163,7 @@ app/workflows/
 - Framework: Minitest + Mocha (mocking)
 - Tests run in parallel (14 processes)
 - **Never use `Model.last`** in tests — unreliable with parallel execution. Use `find_by!` with specific attributes or scoped queries like `@incident.incident_events.find_by!(event_type: ...)`
-- Fixtures require careful FK loading: `workspace_memberships` needs `:users`
+- Fixtures require complete FK loading — declare all dependencies up the chain. `incidents` needs `:workspaces, :users, :workspace_memberships, :incident_statuses, :incident_severities, :incident_lifecycle_stages`. Missing fixtures cause random FK violations under parallel execution.
 - Slack API stubs: `test/support/slack_client_stub_helper.rb` provides `stub_create_channel`, `stub_post_message`, `stub_successful_slack_workflow`, etc.
 - Mocha auto-unstubs after each test — thread-safe isolation
 - Handler tests build `Interaction.new(platform: Platforms::SLACK, ...)` or `Command` objects directly — never raw hashes
