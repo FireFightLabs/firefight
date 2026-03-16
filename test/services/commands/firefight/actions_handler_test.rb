@@ -59,7 +59,7 @@ class Commands::Firefight::ActionsHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: @member.platform_user_id,
-      text: "actions",
+      text: Identifiers::SUBCOMMAND_ACTIONS,
       trigger_id: "12345.trigger",
       channel_id: channel_id,
       metadata: { command: "/ff" }

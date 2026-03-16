@@ -60,7 +60,7 @@ class Commands::Firefight::ListHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: SecureRandom.uuid,
       user_id: "U12345678",
-      text: "list",
+      text: Identifiers::SUBCOMMAND_LIST,
       channel_id: "C12345678",
       metadata: { command: "/ff" }
     )
@@ -78,7 +78,7 @@ class Commands::Firefight::ListHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: @member.platform_user_id,
-      text: "list",
+      text: Identifiers::SUBCOMMAND_LIST,
       channel_id: "CRANDOM",
       metadata: { command: "/ff" }
     )

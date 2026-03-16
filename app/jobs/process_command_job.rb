@@ -20,7 +20,6 @@ class ProcessCommandJob < ApplicationJob
       return
     end
 
-    # Dispatch to appropriate handler
     result = CommandDispatcher.dispatch(command)
     send_ephemeral(command, result)
   rescue ArgumentError, NotImplementedError

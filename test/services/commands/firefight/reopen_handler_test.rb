@@ -50,7 +50,7 @@ class Commands::Firefight::ReopenHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: SecureRandom.uuid,
       user_id: @member.platform_user_id,
-      text: "reopen",
+      text: Identifiers::SUBCOMMAND_REOPEN,
       trigger_id: "12345.trigger",
       channel_id: @incident.channel_id,
       metadata: { command: "/ff" }
@@ -82,7 +82,7 @@ class Commands::Firefight::ReopenHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: @member.platform_user_id,
-      text: "reopen",
+      text: Identifiers::SUBCOMMAND_REOPEN,
       trigger_id: "12345.trigger",
       channel_id: channel_id,
       metadata: { command: "/ff" }

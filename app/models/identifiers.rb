@@ -21,6 +21,31 @@ module Identifiers
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
 
+  # Slash command subcommands
+  SUBCOMMAND_NEW        = "new"
+  SUBCOMMAND_HOME       = "home"
+  SUBCOMMAND_SUMMARY    = "summary"
+  SUBCOMMAND_LEAD       = "lead"
+  SUBCOMMAND_STATUS     = "status"
+  SUBCOMMAND_UPDATE     = "update"
+  SUBCOMMAND_SEVERITY   = "severity"
+  SUBCOMMAND_ESCALATE   = "escalate"
+  SUBCOMMAND_INVITE     = "invite"
+  SUBCOMMAND_ACTION     = "action"
+  SUBCOMMAND_ACTIONS    = "actions"
+  SUBCOMMAND_FOLLOWUP   = "followup"
+  SUBCOMMAND_FOLLOWUPS  = "followups"
+  SUBCOMMAND_LINK       = "link"
+  SUBCOMMAND_RELATE     = "relate"
+  SUBCOMMAND_DUPLICATE  = "duplicate"
+  SUBCOMMAND_CLOSE      = "close"
+  SUBCOMMAND_RESOLVE    = "resolve"
+  SUBCOMMAND_REOPEN     = "reopen"
+  SUBCOMMAND_POSTMORTEM = "postmortem"
+  SUBCOMMAND_TIMELINE   = "timeline"
+  SUBCOMMAND_LIST       = "list"
+  SUBCOMMAND_SHOUTOUT   = "shoutout"
+
   # Home modal action values
   HOME_ACTION_NEW        = "new"
   HOME_ACTION_STATUS     = "status"

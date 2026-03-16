@@ -38,7 +38,7 @@ class Commands::Firefight::CloseHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: SecureRandom.uuid,
       user_id: "U12345678",
-      text: "close",
+      text: Identifiers::SUBCOMMAND_CLOSE,
       trigger_id: "12345.trigger",
       channel_id: @incident.channel_id,
       metadata: { command: "/ff" }
@@ -68,7 +68,7 @@ class Commands::Firefight::CloseHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: "U12345678",
-      text: "close",
+      text: Identifiers::SUBCOMMAND_CLOSE,
       trigger_id: "12345.trigger",
       channel_id: channel_id,
       metadata: { command: "/ff" }

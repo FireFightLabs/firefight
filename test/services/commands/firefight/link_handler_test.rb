@@ -46,7 +46,7 @@ class Commands::Firefight::LinkHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: "U12345678",
-      text: "link",
+      text: Identifiers::SUBCOMMAND_LINK,
       trigger_id: "12345.trigger",
       channel_id: channel_id,
       metadata: { command: "/ff" }

@@ -49,7 +49,7 @@ class Commands::Firefight::SeverityHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: "U12345678",
-      text: "severity",
+      text: Identifiers::SUBCOMMAND_SEVERITY,
       trigger_id: "12345.trigger",
       channel_id: channel_id,
       metadata: { command: "/ff" }

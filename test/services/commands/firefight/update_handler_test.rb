@@ -49,7 +49,7 @@ class Commands::Firefight::UpdateHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: "U12345678",
-      text: "update",
+      text: Identifiers::SUBCOMMAND_UPDATE,
       trigger_id: "12345.trigger",
       channel_id: channel_id,
       metadata: { command: "/ff" }

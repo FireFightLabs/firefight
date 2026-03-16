@@ -45,7 +45,7 @@ class Commands::Firefight::TimelineHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: SecureRandom.uuid,
       user_id: "U12345678",
-      text: "timeline",
+      text: Identifiers::SUBCOMMAND_TIMELINE,
       channel_id: @incident.channel_id,
       metadata: { command: "/ff" }
     )
@@ -63,7 +63,7 @@ class Commands::Firefight::TimelineHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: "U12345678",
-      text: "timeline",
+      text: Identifiers::SUBCOMMAND_TIMELINE,
       channel_id: channel_id,
       metadata: { command: "/ff" }
     )

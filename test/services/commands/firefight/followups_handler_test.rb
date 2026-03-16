@@ -48,7 +48,7 @@ class Commands::Firefight::FollowupsHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: @member.platform_user_id,
-      text: "followups",
+      text: Identifiers::SUBCOMMAND_FOLLOWUPS,
       trigger_id: "12345.trigger",
       channel_id: channel_id,
       metadata: { command: "/ff" }

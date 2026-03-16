@@ -47,7 +47,7 @@ class Commands::Firefight::StatusHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: SecureRandom.uuid,
       user_id: "U12345678",
-      text: "status",
+      text: Identifiers::SUBCOMMAND_STATUS,
       trigger_id: "12345.trigger",
       channel_id: @incident.channel_id,
       metadata: { command: "/ff" }
@@ -66,7 +66,7 @@ class Commands::Firefight::StatusHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: "U12345678",
-      text: "status",
+      text: Identifiers::SUBCOMMAND_STATUS,
       trigger_id: "12345.trigger",
       channel_id: channel_id,
       metadata: { command: "/ff" }
