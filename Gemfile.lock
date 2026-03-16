@@ -1,6 +1,6 @@
 GIT
   remote: https://github.com/rails/rails.git
-  revision: e598b9427876ba44bd62c48390e6568476b3f8f0
+  revision: 7d8eeea98f1b2a1ad136b2281475404d7e9e2c1a
   branch: 8-1-stable
   specs:
     actioncable (8.1.2)
@@ -109,7 +109,7 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
-    action_text-trix (2.1.16)
+    action_text-trix (2.1.17)
       railties
     addressable (2.8.8)
       public_suffix (>= 2.0.2, < 8.0)
@@ -221,7 +221,7 @@ GEM
     js-routes (2.3.6)
       railties (>= 5)
       sorbet-runtime
-    json (2.18.1)
+    json (2.19.1)
     jwt (3.1.2)
       base64
     kamal (2.10.1)
@@ -440,7 +440,7 @@ GEM
     ruby2_keywords (0.0.5)
     rubyzip (3.2.2)
     securerandom (0.4.1)
-    selenium-webdriver (4.40.0)
+    selenium-webdriver (4.41.0)
       base64 (~> 0.2)
       logger (~> 1.4)
       rexml (~> 3.2, >= 3.2.5)
@@ -484,7 +484,7 @@ GEM
     thruster (0.1.18-aarch64-linux)
     thruster (0.1.18-arm64-darwin)
     thruster (0.1.18-x86_64-linux)
-    timeout (0.6.0)
+    timeout (0.6.1)
     tsort (0.2.0)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
