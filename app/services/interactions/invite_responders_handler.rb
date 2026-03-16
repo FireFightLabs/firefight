@@ -12,12 +12,12 @@ module Interactions
         }
       end
 
-      result = IncidentInviteService.new(workspace).invite!(incident: incident, user_ids: user_ids)
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.post_ephemeral(
+      service = IncidentInviteService.new(workspace)
+      result = service.invite!(incident: incident, user_ids: user_ids)
+      workspace.adapter.post_ephemeral(
         channel_id: incident.channel_id,
         user_id: interaction.user_id,
-        text: summary_message(result)
+        text: service.summary_message(result)
       )
 
       { response_action: "clear" }
@@ -26,20 +26,6 @@ module Interactions
         response_action: "errors",
         errors: { invite_users_block: "Incident not found. Please try again." }
       }
-    end
-
-    private_class_method def self.summary_message(result)
-      invited_count = result[:invited_user_ids].size
-      already_count = result[:already_in_channel_user_ids].size
-      failed_count = result[:failed_invites].size
-
-      parts = []
-      parts << "Invited #{invited_count} responder#{'s' unless invited_count == 1}." if invited_count.positive?
-      parts << "#{already_count} already in channel." if already_count.positive?
-      parts << "#{failed_count} failed." if failed_count.positive?
-      parts = [ "No responders were invited." ] if parts.empty?
-
-      parts.join(" ")
     end
   end
 end

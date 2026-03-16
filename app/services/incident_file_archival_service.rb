@@ -1,8 +1,7 @@
 class IncidentFileArchivalService
   def self.archive!(incident_event:, slack_file:)
     workspace = incident_event.incident.workspace
-    adapter = WorkspaceAdapter.for(workspace)
-    archive_metadata = adapter.archive_slack_file(incident_event: incident_event, slack_file: slack_file)
+    archive_metadata = workspace.adapter.archive_slack_file(incident_event: incident_event, slack_file: slack_file)
     return unless archive_metadata[:archived]
 
     metadata = incident_event.metadata.deep_stringify_keys

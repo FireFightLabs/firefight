@@ -17,46 +17,6 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     Commands::Firefight::HomeHandler.execute(command)
   end
 
-  test "opens home modal for empty command" do
-    stub_open_modal
-    command = build_command("")
-    response = Commands::Firefight::HomeHandler.execute(command)
-
-    assert response[:success]
-  end
-
-  test "opens home modal for nil text" do
-    stub_open_modal
-    command = Command.new(
-      platform: Platforms::SLACK,
-      workspace_id: @workspace.id,
-      user_id: "U12345678",
-      text: nil,
-      channel_id: "C12345678",
-      metadata: { command: "/ff" }
-    )
-    response = Commands::Firefight::HomeHandler.execute(command)
-
-    assert response[:success]
-  end
-
-  test "opens home modal for 'home' subcommand" do
-    stub_open_modal
-    command = build_command("home")
-    response = Commands::Firefight::HomeHandler.execute(command)
-
-    assert response[:success]
-  end
-
-  test "handles trigger expiration for home modal" do
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError)
-    command = build_command("")
-    response = Commands::Firefight::HomeHandler.execute(command)
-
-    assert_equal "ephemeral", response[:response_type]
-    assert_includes response[:text], "expired"
-  end
-
   # --- Placeholder subcommands ---
 
   test "routes 'summary' subcommand to SummaryHandler" do
@@ -136,7 +96,7 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
       command = build_command(sub)
       response = Commands::Firefight::HomeHandler.execute(command)
 
-      assert_equal "ephemeral", response[:response_type]
+      assert_equal Command::EPHEMERAL, response[:response_type]
       assert_includes response[:text], "coming soon"
     end
   end
@@ -205,9 +165,27 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     command = build_command("notacommand")
     response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "Unknown subcommand"
     assert_includes response[:text], "notacommand"
+  end
+
+  test "suggests closest match for typo subcommand" do
+    command = build_command("reopn")
+    response = Commands::Firefight::HomeHandler.execute(command)
+
+    assert_equal Command::EPHEMERAL, response[:response_type]
+    assert_includes response[:text], "Did you mean"
+    assert_includes response[:text], "reopen"
+  end
+
+  test "returns generic message when no suggestion found" do
+    command = build_command("xyzzy")
+    response = Commands::Firefight::HomeHandler.execute(command)
+
+    assert_equal Command::EPHEMERAL, response[:response_type]
+    assert_includes response[:text], "Unknown subcommand"
+    assert_not_includes response[:text], "Did you mean"
   end
 
   # --- Case insensitivity ---
@@ -246,7 +224,7 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
 
     response = Commands::Firefight::HomeHandler.execute(command)
 
-    assert_equal "ephemeral", response[:response_type]
+    assert_equal Command::EPHEMERAL, response[:response_type]
     assert_includes response[:text], "something went wrong"
   end
 

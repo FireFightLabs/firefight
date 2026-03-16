@@ -49,8 +49,7 @@ module Interactions
       dm_message_ts = interaction.raw&.dig("container", "message_ts")
 
       if dm_channel_id && dm_message_ts
-        adapter = WorkspaceAdapter.for(workspace)
-        adapter.update_message(
+        workspace.adapter.update_message(
           channel_id: dm_channel_id,
           ts: dm_message_ts,
           text: "Escalation acknowledged",

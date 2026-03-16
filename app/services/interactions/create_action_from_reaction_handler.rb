@@ -11,8 +11,7 @@ module Interactions
         source_message_link: metadata["source_message_link"]
       }.to_json
 
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.open_create_action_modal(
+      workspace.adapter.open_create_action_modal(
         trigger_id: interaction.trigger_id,
         incident: incident,
         private_metadata: private_metadata

@@ -15,8 +15,7 @@ class IncidentActionService
 
     action.create_initial_update!(actor: created_by)
 
-    adapter = WorkspaceAdapter.for(@workspace)
-    result = adapter.post_action_message(channel_id: incident.channel_id, action: action)
+    result = @workspace.adapter.post_action_message(channel_id: incident.channel_id, action: action)
     action.update!(message_ts: result[:message_ts])
 
     action
@@ -43,7 +42,7 @@ class IncidentActionService
   def update_action_message(action, update_type)
     return unless action.message_ts
 
-    adapter = WorkspaceAdapter.for(@workspace)
+    adapter = @workspace.adapter
     case update_type
     when :picked_up
       adapter.update_action_picked_up(

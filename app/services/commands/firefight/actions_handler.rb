@@ -2,21 +2,13 @@ module Commands
   module Firefight
     class ActionsHandler
       def self.execute(command)
-        workspace = command.workspace
-        return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
+        return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
+        return Command.ephemeral("This command must be run from an active incident channel.") unless command.incident
 
-        incident = workspace.incidents.active.in_channel(command.channel_id).first
-        return ephemeral("This command must be run from an active incident channel.") unless incident
-
-        adapter = WorkspaceAdapter.for(workspace)
-        adapter.open_actions_list_modal(trigger_id: command.trigger_id, incident: incident)
+        command.workspace.adapter.open_actions_list_modal(trigger_id: command.trigger_id, incident: command.incident)
         nil
       rescue AdapterError::TriggerExpired
-        ephemeral("This command has expired. Please try `/ff actions` again.")
-      end
-
-      private_class_method def self.ephemeral(text)
-        { response_type: "ephemeral", text: text }
+        Command.ephemeral("This command has expired. Please try `/ff actions` again.")
       end
     end
   end

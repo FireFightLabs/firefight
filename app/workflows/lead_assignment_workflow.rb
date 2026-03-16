@@ -20,16 +20,14 @@ class LeadAssignmentWorkflow < SolidWorkflow::Base
   end
 
   def post_lead_expectations(workflow:, step:, input:)
-    adapter = WorkspaceAdapter.for(workflow.subject.workspace)
-    adapter.post_lead_expectations(
+    workflow.subject.workspace.adapter.post_lead_expectations(
       channel_id: workflow.subject.channel_id,
       user_id: workflow.context["lead_platform_user_id"]
     )
   end
 
   def post_lead_announcement(workflow:, step:, input:)
-    adapter = WorkspaceAdapter.for(workflow.subject.workspace)
-    adapter.post_message(
+    workflow.subject.workspace.adapter.post_message(
       channel_id: workflow.subject.channel_id,
       text: ":firefighter: <@#{workflow.context["lead_platform_user_id"]}> is now the Incident Lead",
       blocks: nil

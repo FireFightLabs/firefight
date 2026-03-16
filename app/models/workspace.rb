@@ -21,6 +21,10 @@ class Workspace < ApplicationRecord
   scope :slack_platform, -> { where(platform: Platforms::SLACK) }
   scope :recent, -> { order(created_at: :desc) }
 
+  def adapter
+    WorkspaceAdapter.for(self)
+  end
+
   def self.find_or_create_from_slack!(auth_hash)
     team_info = auth_hash.extra.team_info
 

@@ -25,7 +25,7 @@ module Events
       incident = workspace.incidents.active.in_channel(channel_id).first
       return unless incident
 
-      adapter = WorkspaceAdapter.for(workspace)
+      adapter = workspace.adapter
 
       if action_type
         message_text = fetch_message_text(adapter, channel_id, message_ts)

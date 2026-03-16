@@ -2,12 +2,12 @@ require "test_helper"
 
 class CommandDispatcherTest < ActiveSupport::TestCase
   test "routes /firefight to Firefight::HomeHandler" do
-    command = build_command(command_name: "/firefight", text: "new")
+    command = build_command(command_name: "/firefight", text: Identifiers::SUBCOMMAND_NEW)
     assert_equal Commands::Firefight::HomeHandler, CommandDispatcher.find(command)
   end
 
   test "routes /ff to Firefight::HomeHandler" do
-    command = build_command(command_name: "/ff", text: "status")
+    command = build_command(command_name: "/ff", text: Identifiers::SUBCOMMAND_STATUS)
     assert_equal Commands::Firefight::HomeHandler, CommandDispatcher.find(command)
   end
 
@@ -34,7 +34,7 @@ class CommandDispatcherTest < ActiveSupport::TestCase
   end
 
   test "dispatch calls execute on the resolved handler" do
-    command = build_command(command_name: "/ff", text: "summary")
+    command = build_command(command_name: "/ff", text: Identifiers::SUBCOMMAND_SUMMARY)
 
     Commands::Firefight::HomeHandler.expects(:execute).with(command).once
 

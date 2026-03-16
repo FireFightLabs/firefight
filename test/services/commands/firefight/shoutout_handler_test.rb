@@ -24,7 +24,7 @@ class Commands::Firefight::ShoutoutHandlerTest < ActiveSupport::TestCase
       build_command(channel_id: "C_NOT_INCIDENT")
     )
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "No active incident"
   end
 
@@ -33,7 +33,7 @@ class Commands::Firefight::ShoutoutHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: SecureRandom.uuid,
       user_id: "U12345678",
-      text: "shoutout",
+      text: Identifiers::SUBCOMMAND_SHOUTOUT,
       trigger_id: "12345.trigger",
       channel_id: @incident.channel_id,
       metadata: { command: "/ff" }
@@ -41,7 +41,7 @@ class Commands::Firefight::ShoutoutHandlerTest < ActiveSupport::TestCase
 
     result = Commands::Firefight::ShoutoutHandler.execute(command)
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "Workspace not found"
   end
 
@@ -52,7 +52,7 @@ class Commands::Firefight::ShoutoutHandlerTest < ActiveSupport::TestCase
       build_command(channel_id: @incident.channel_id)
     )
 
-    assert_equal "ephemeral", result[:response_type]
+    assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "expired"
   end
 
@@ -63,7 +63,7 @@ class Commands::Firefight::ShoutoutHandlerTest < ActiveSupport::TestCase
       platform: Platforms::SLACK,
       workspace_id: @workspace.id,
       user_id: "U12345678",
-      text: "shoutout",
+      text: Identifiers::SUBCOMMAND_SHOUTOUT,
       trigger_id: "12345.trigger",
       channel_id: channel_id,
       metadata: { command: "/ff" }

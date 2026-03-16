@@ -12,8 +12,7 @@ module Interactions
       return unless metadata["temp_message_ts"] && metadata["channel_id"]
 
       workspace = interaction.workspace
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.delete_message(channel_id: metadata["channel_id"], ts: metadata["temp_message_ts"])
+      workspace.adapter.delete_message(channel_id: metadata["channel_id"], ts: metadata["temp_message_ts"])
     rescue JSON::ParserError, AdapterError => e
       Rails.logger.warn({ event: "interactions.view_closed.delete_temp_failed", error: e.message })
     end

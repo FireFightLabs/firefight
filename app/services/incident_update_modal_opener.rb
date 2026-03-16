@@ -1,6 +1,6 @@
 class IncidentUpdateModalOpener
   def self.open(workspace:, incident:, trigger_id:, user_id:)
-    adapter = WorkspaceAdapter.for(workspace)
+    adapter = workspace.adapter
 
     result = adapter.post_message(
       channel_id: incident.channel_id,

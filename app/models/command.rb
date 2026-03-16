@@ -5,6 +5,12 @@ class Command
   include ActiveModel::Model
   include ActiveModel::Validations
 
+  EPHEMERAL = "ephemeral"
+
+  def self.ephemeral(text, blocks: nil)
+    { response_type: EPHEMERAL, text: text, blocks: blocks }
+  end
+
   attr_accessor :platform,      # String: 'slack', 'teams', etc.
                 :workspace_id,   # UUID: Workspace ID in our database
                 :user_id,        # String: Platform-specific user ID
@@ -27,9 +33,12 @@ class Command
     text.blank?
   end
 
-  # Get workspace record
   def workspace
     @workspace ||= Workspace.find_by(id: workspace_id)
+  end
+
+  def incident
+    @incident ||= workspace&.incidents&.active&.in_channel(channel_id)&.first
   end
 
   # Check if command is from Slack

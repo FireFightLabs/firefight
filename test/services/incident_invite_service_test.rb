@@ -50,4 +50,92 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
     assert_equal 1, result[:failed_invites].size
     assert_equal "U11111111", result[:failed_invites].first[:user_id]
   end
+
+  test "resolve_invitees extracts slack mention ids" do
+    result = @service.resolve_invitees("invite <@U11111111> <@U22222222|alice>")
+
+    assert_equal [ "U11111111", "U22222222" ], result[:user_ids]
+    assert_empty result[:unresolved_handles]
+    assert result[:had_target_tokens]
+  end
+
+  test "resolve_invitees extracts raw user ids" do
+    result = @service.resolve_invitees("invite U11111111 U22222222")
+
+    assert_equal [ "U11111111", "U22222222" ], result[:user_ids]
+    assert result[:had_target_tokens]
+  end
+
+  test "resolve_invitees resolves @handle via local membership" do
+    result = @service.resolve_invitees("invite @alice")
+
+    assert_equal [ "U12345678" ], result[:user_ids]
+    assert_empty result[:unresolved_handles]
+    assert result[:had_target_tokens]
+  end
+
+  test "resolve_invitees falls back to adapter for unknown handles" do
+    adapter = mock("workspace_adapter")
+    WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
+    adapter.expects(:resolve_user_ids_from_handles).with(handles: [ "nina" ]).returns({
+      resolved_user_ids: [ "U99999999" ],
+      unresolved_handles: []
+    })
+
+    service = IncidentInviteService.new(@workspace)
+    result = service.resolve_invitees("invite @nina")
+
+    assert_equal [ "U99999999" ], result[:user_ids]
+    assert_empty result[:unresolved_handles]
+  end
+
+  test "resolve_invitees returns unresolved handles when adapter cannot resolve" do
+    adapter = mock("workspace_adapter")
+    WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
+    adapter.expects(:resolve_user_ids_from_handles).with(handles: [ "nina" ]).returns({
+      resolved_user_ids: [],
+      unresolved_handles: [ "nina" ]
+    })
+
+    service = IncidentInviteService.new(@workspace)
+    result = service.resolve_invitees("invite @nina")
+
+    assert_empty result[:user_ids]
+    assert_equal [ "nina" ], result[:unresolved_handles]
+    assert result[:had_target_tokens]
+  end
+
+  test "resolve_invitees returns empty result for bare subcommand with no targets" do
+    result = @service.resolve_invitees("invite")
+
+    assert_empty result[:user_ids]
+    assert_empty result[:unresolved_handles]
+    assert_not result[:had_target_tokens]
+  end
+
+  test "summary_message with all invited" do
+    result = { invited_user_ids: [ "U1", "U2" ], already_in_channel_user_ids: [], failed_invites: [] }
+
+    assert_equal "Invited 2 responders.", @service.summary_message(result)
+  end
+
+  test "summary_message with singular invited" do
+    result = { invited_user_ids: [ "U1" ], already_in_channel_user_ids: [], failed_invites: [] }
+
+    assert_equal "Invited 1 responder.", @service.summary_message(result)
+  end
+
+  test "summary_message with mixed results" do
+    result = { invited_user_ids: [ "U1" ], already_in_channel_user_ids: [ "U2" ], failed_invites: [ { user_id: "U3", error: "err" } ] }
+
+    assert_includes @service.summary_message(result), "Invited 1 responder."
+    assert_includes @service.summary_message(result), "1 already in channel."
+    assert_includes @service.summary_message(result), "1 failed."
+  end
+
+  test "summary_message with no invites" do
+    result = { invited_user_ids: [], already_in_channel_user_ids: [], failed_invites: [] }
+
+    assert_equal "No responders were invited.", @service.summary_message(result)
+  end
 end
