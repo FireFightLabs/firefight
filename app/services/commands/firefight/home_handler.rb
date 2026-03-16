@@ -1,17 +1,11 @@
 module Commands
   module Firefight
-    # Routes /firefight and /ff subcommands to appropriate handlers
-    # Platform-agnostic — works with any Command object
     class HomeHandler
       SUBCOMMANDS = Identifiers.constants
         .select { |c| c.to_s.start_with?("SUBCOMMAND_") }
         .map { |c| Identifiers.const_get(c) }
         .freeze
 
-      # Execute the appropriate subcommand
-      #
-      # @param command [Command] Platform-agnostic command object
-      # @return [Hash, void] Response hash or handler result
       def self.execute(command)
         subcommand = command.subcommand&.downcase
 
