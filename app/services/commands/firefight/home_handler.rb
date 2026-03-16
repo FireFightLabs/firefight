@@ -3,6 +3,11 @@ module Commands
     # Routes /firefight and /ff subcommands to appropriate handlers
     # Platform-agnostic — works with any Command object
     class HomeHandler
+      SUBCOMMANDS = Identifiers.constants
+        .select { |c| c.to_s.start_with?("SUBCOMMAND_") }
+        .map { |c| Identifiers.const_get(c) }
+        .freeze
+
       # Execute the appropriate subcommand
       #
       # @param command [Command] Platform-agnostic command object
@@ -48,7 +53,13 @@ module Commands
         when Identifiers::SUBCOMMAND_SHOUTOUT
           Commands::Firefight::ShoutoutHandler.execute(command)
         else
-          ephemeral("Unknown subcommand: `#{subcommand}`. Type `/ff` for available commands.")
+          suggestion = suggest_subcommand(subcommand)
+          msg = if suggestion
+            "Unknown subcommand `#{subcommand}`. Did you mean `#{suggestion}`?"
+          else
+            "Unknown subcommand `#{subcommand}`. Type `/ff` for available commands."
+          end
+          ephemeral(msg)
         end
       rescue => e
         Rails.logger.error({
@@ -66,16 +77,20 @@ module Commands
         workspace = command.workspace
         return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
 
-        adapter = workspace.adapter
         incident = workspace.incidents.active.in_channel(command.channel_id).first
 
         if incident
-          adapter.open_home_modal(trigger_id: command.trigger_id, channel_id: command.channel_id)
+          workspace.adapter.open_home_modal(trigger_id: command.trigger_id, channel_id: command.channel_id)
         else
-          adapter.open_incident_creation_modal(trigger_id: command.trigger_id)
+          workspace.adapter.open_incident_creation_modal(trigger_id: command.trigger_id)
         end
       rescue AdapterError::TriggerExpired
         ephemeral("This command has expired. Please try `/ff` again.")
+      end
+
+      private_class_method def self.suggest_subcommand(input)
+        checker = DidYouMean::SpellChecker.new(dictionary: SUBCOMMANDS)
+        checker.correct(input).first
       end
 
       private_class_method def self.ephemeral(text)

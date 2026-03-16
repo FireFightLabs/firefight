@@ -210,6 +210,24 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     assert_includes response[:text], "notacommand"
   end
 
+  test "suggests closest match for typo subcommand" do
+    command = build_command("reopn")
+    response = Commands::Firefight::HomeHandler.execute(command)
+
+    assert_equal Command::EPHEMERAL, response[:response_type]
+    assert_includes response[:text], "Did you mean"
+    assert_includes response[:text], "reopen"
+  end
+
+  test "returns generic message when no suggestion found" do
+    command = build_command("xyzzy")
+    response = Commands::Firefight::HomeHandler.execute(command)
+
+    assert_equal Command::EPHEMERAL, response[:response_type]
+    assert_includes response[:text], "Unknown subcommand"
+    assert_not_includes response[:text], "Did you mean"
+  end
+
   # --- Case insensitivity ---
 
   test "handles uppercase subcommands" do
