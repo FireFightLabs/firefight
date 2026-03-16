@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentTranscriptCacheTest < ActiveSupport::TestCase
-  fixtures :incidents
+  fixtures :incidents, :workspaces, :users, :workspace_memberships, :incident_statuses, :incident_severities, :incident_lifecycle_stages
 
   setup do
     @incident = incidents(:active_critical_ws1)

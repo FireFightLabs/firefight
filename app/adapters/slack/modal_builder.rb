@@ -1,9 +1,5 @@
 module Slack
-  # Builds Slack Block Kit modal views
   class ModalBuilder
-    # Build incident creation modal
-    #
-    # @return [Hash] Block Kit modal view JSON
     def self.incident_creation_form
       {
         type: "modal",
@@ -149,6 +145,7 @@ module Slack
         ]
       }
     end
+
     def self.home_modal(channel_id:)
       {
         type: "modal",

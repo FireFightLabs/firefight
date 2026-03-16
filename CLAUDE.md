@@ -47,6 +47,15 @@ Route to handlers using lookup tables. Fall back to `UnknownHandler`.
 
 Class methods with `self.execute(command)` or `self.execute(interaction)`. Stateless. Return response hashes or nil.
 
+Handlers are thin — only guards, routing, and delegation:
+- Guard clauses (`return ephemeral("...") unless command.workspace`)
+- Route to the right service or adapter method
+- Return the response hash
+
+Never put in a handler: DB queries beyond `command.workspace` / `command.incident`, business logic, platform-specific formatting (Block Kit, Slack mrkdwn), or response building. That belongs in services (business logic) or the adapter (platform-specific output).
+
+`command.workspace` and `command.incident` are memoized on `Command` — call them directly, no local variable needed.
+
 ### Normalizers
 
 Platform-specific payloads are normalized into platform-agnostic POJOs at the boundary (controllers/jobs) before reaching dispatchers and handlers.
@@ -89,6 +98,12 @@ Adapters return normalized hashes: `{ channel_id:, channel_name: }`, `{ message_
 
 **Platform boundary rule**: `Slack::Client` is only called from `Slack::WorkspaceAdapter`. No Slack-specific code outside `app/adapters/slack/`.
 
+### Domain Events
+
+`IncidentEvent` records are created via `incident.record_change!` or `incident.create_initial_update!` (defined in `Incident::Snapshots`). Both return the created `IncidentEvent`.
+
+Domain event publication (`ProcessDomainEventJob`) belongs in the **service layer**, not in model callbacks. Models must not enqueue jobs.
+
 ### Workflows
 
 Thin orchestrators using a `step` DSL with dependency declarations. Delegate all logic to services.
@@ -109,7 +124,7 @@ end
 
 ### Identifiers
 
-All callback_ids and action_ids are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, etc.
+All callback_ids, action_ids, and subcommand strings are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, `Identifiers::SUBCOMMAND_CLOSE`, etc.
 
 ## Key Files
 
@@ -148,7 +163,7 @@ app/workflows/
 - Framework: Minitest + Mocha (mocking)
 - Tests run in parallel (14 processes)
 - **Never use `Model.last`** in tests — unreliable with parallel execution. Use `find_by!` with specific attributes or scoped queries like `@incident.incident_events.find_by!(event_type: ...)`
-- Fixtures require careful FK loading: `workspace_memberships` needs `:users`
+- Fixtures require complete FK loading — declare all dependencies up the chain. `incidents` needs `:workspaces, :users, :workspace_memberships, :incident_statuses, :incident_severities, :incident_lifecycle_stages`. Missing fixtures cause random FK violations under parallel execution.
 - Slack API stubs: `test/support/slack_client_stub_helper.rb` provides `stub_create_channel`, `stub_post_message`, `stub_successful_slack_workflow`, etc.
 - Mocha auto-unstubs after each test — thread-safe isolation
 - Handler tests build `Interaction.new(platform: Platforms::SLACK, ...)` or `Command` objects directly — never raw hashes

@@ -3,8 +3,7 @@ module Interactions
     def self.execute(interaction)
       workspace = interaction.workspace
 
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.open_incident_creation_modal(trigger_id: interaction.trigger_id)
+      workspace.adapter.open_incident_creation_modal(trigger_id: interaction.trigger_id)
 
       Rails.logger.info({
         event: "shortcut.create_incident",

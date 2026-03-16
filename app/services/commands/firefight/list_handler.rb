@@ -4,10 +4,9 @@ module Commands
       MAX_RESULTS = 10
 
       def self.execute(command)
-        workspace = command.workspace
-        return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
+        return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
 
-        build_response(workspace)
+        build_response(command.workspace)
       end
 
       def self.build_response(workspace)
@@ -18,10 +17,10 @@ module Commands
           .recent
 
         total_count = active_incidents.count
-        return ephemeral("There are no active incidents right now.") if total_count.zero?
+        return Command.ephemeral("There are no active incidents right now.") if total_count.zero?
 
         incidents = active_incidents.limit(MAX_RESULTS)
-        lines = incidents.map { |incident| format_line(incident) }
+        lines = incidents.map { |incident| workspace.adapter.format_incident_list_line(incident) }
 
         text = [ "*Active incidents*", lines.join("\n\n") ]
 
@@ -30,27 +29,7 @@ module Commands
           text << ":information_source: *Showing #{incidents.size} of #{total_count} active incidents.*"
         end
 
-        ephemeral(text.join("\n"))
-      end
-
-      private_class_method def self.format_line(incident)
-        lead = incident.lead ? "<@#{incident.lead.platform_user_id}>" : "Unassigned"
-        channel = if incident.channel_id.present?
-          "<##{incident.channel_id}>"
-        elsif incident.is_private?
-          "Private channel"
-        else
-          "No channel"
-        end
-
-        [
-          "> *#{incident.identifier}* #{incident.name || 'Untitled Incident'}",
-          "> #{incident.incident_severity.name} | #{incident.incident_status.name} | Lead: #{lead} | #{channel}"
-        ].join("\n")
-      end
-
-      private_class_method def self.ephemeral(text)
-        { response_type: "ephemeral", text: text }
+        Command.ephemeral(text.join("\n"))
       end
     end
   end

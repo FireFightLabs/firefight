@@ -55,8 +55,7 @@ module Interactions
     def self.delete_temp_message(workspace, metadata)
       return unless metadata[:temp_message_ts] && metadata[:channel_id]
 
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.delete_message(channel_id: metadata[:channel_id], ts: metadata[:temp_message_ts])
+      workspace.adapter.delete_message(channel_id: metadata[:channel_id], ts: metadata[:temp_message_ts])
     rescue AdapterError => e
       Rails.logger.warn({ event: "interactions.escalate_incident.delete_temp_failed", error: e.message })
     end

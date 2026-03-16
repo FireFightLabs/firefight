@@ -1,6 +1,6 @@
 require "test_helper"
 
-class IncidentTimelineFormatterTest < ActiveSupport::TestCase
+class Slack::IncidentTimelineFormatterTest < ActiveSupport::TestCase
   fixtures :incident_events, :incidents, :incident_statuses, :incident_severities, :incident_lifecycle_stages, :workspace_memberships, :workspaces, :users
 
   test "renders archived flag for file shared events" do
@@ -18,7 +18,7 @@ class IncidentTimelineFormatterTest < ActiveSupport::TestCase
       }
     )
 
-    text = IncidentTimelineFormatter.to_text(event)
+    text = Slack::IncidentTimelineFormatter.to_text(event)
 
     assert_includes text, "File shared"
     assert_includes text, "archived"
@@ -30,7 +30,7 @@ class IncidentTimelineFormatterTest < ActiveSupport::TestCase
     event.update!(event_type: IncidentEvent::ACTION_CREATED, metadata: { details: {} })
     event.stubs(:eventable).returns(Struct.new(:description).new("Rollback task created"))
 
-    text = IncidentTimelineFormatter.to_text(event)
+    text = Slack::IncidentTimelineFormatter.to_text(event)
 
     assert_includes text, "Action created"
     assert_includes text, "Rollback task created"

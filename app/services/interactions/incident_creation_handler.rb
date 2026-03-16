@@ -2,7 +2,7 @@ module Interactions
   class IncidentCreationHandler
     def self.execute(interaction)
       workspace = interaction.workspace
-      adapter = WorkspaceAdapter.for(workspace)
+      adapter = workspace.adapter
       member = WorkspaceMemberProvisioner.find_or_provision!(
         workspace: workspace,
         platform_user_id: interaction.user_id,

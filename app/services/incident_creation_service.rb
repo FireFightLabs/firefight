@@ -4,7 +4,7 @@ class IncidentCreationService
   end
 
   def create_channel(incident)
-    adapter = WorkspaceAdapter.for(@workspace)
+    adapter = @workspace.adapter
     result = adapter.create_channel(name: incident.generated_channel_name, is_private: incident.is_private)
     incident.update!(channel_id: result[:channel_id], channel_name: result[:channel_name])
     result
@@ -16,14 +16,14 @@ class IncidentCreationService
   end
 
   def set_channel_metadata(incident)
-    adapter = WorkspaceAdapter.for(@workspace)
+    adapter = @workspace.adapter
     topic = "Severity: #{incident.incident_severity.name} | Status: #{incident.incident_status.name}"
     purpose = "Incident response channel for #{incident.identifier}"
     adapter.set_channel_metadata(channel_id: incident.channel_id, topic: topic, purpose: purpose)
   end
 
   def post_quick_actions_message(incident)
-    adapter = WorkspaceAdapter.for(@workspace)
+    adapter = @workspace.adapter
     message_ts = incident.initial_message_ts
 
     unless message_ts
@@ -49,8 +49,7 @@ class IncidentCreationService
 
     return { message_ts: incident.announcement_message_ts } if incident.announcement_message_ts
 
-    adapter = WorkspaceAdapter.for(@workspace)
-    result = adapter.post_incident_announcement(
+    result = @workspace.adapter.post_incident_announcement(
       channel_id: @workspace.incidents_channel_id,
       incident: incident
     )
@@ -59,8 +58,7 @@ class IncidentCreationService
   end
 
   def invite_declarer(incident)
-    adapter = WorkspaceAdapter.for(@workspace)
-    adapter.invite_user(channel_id: incident.channel_id, user_id: incident.declared_by.platform_user_id)
+    @workspace.adapter.invite_user(channel_id: incident.channel_id, user_id: incident.declared_by.platform_user_id)
   end
 
   def create_incident_event(incident)

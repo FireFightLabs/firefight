@@ -1,8 +1,7 @@
 module Interactions
   class HomeActionSelectHandler
     def self.execute(interaction)
-      adapter = WorkspaceAdapter.for(interaction.workspace)
-      adapter.update_home_modal(view: interaction.view, selected_command: interaction.selected_value)
+      interaction.workspace.adapter.update_home_modal(view: interaction.view, selected_command: interaction.selected_value)
 
       nil
     rescue => e

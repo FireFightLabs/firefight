@@ -3,6 +3,10 @@ module Slack
   class WorkspaceAdapter
     CHANNEL_DESCRIPTION = "FireFight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
 
+    TIMELINE_DEFAULT_LIMIT = 15
+    TIMELINE_PAGE_SIZE = 15
+    TIMELINE_MAX_EVENTS = 45
+
     def initialize(workspace)
       @workspace = workspace
     end
@@ -463,6 +467,50 @@ module Slack
       )
     end
 
+    def format_incident_list_line(incident)
+      lead = incident.lead ? "<@#{incident.lead.platform_user_id}>" : "Unassigned"
+      channel = if incident.channel_id.present?
+        "<##{incident.channel_id}>"
+      elsif incident.is_private?
+        "Private channel"
+      else
+        "No channel"
+      end
+
+      [
+        "> *#{incident.identifier}* #{incident.name || 'Untitled Incident'}",
+        "> #{incident.incident_severity.name} | #{incident.incident_status.name} | Lead: #{lead} | #{channel}"
+      ].join("\n")
+    end
+
+    def build_timeline_response(incident, limit: TIMELINE_DEFAULT_LIMIT)
+      capped_limit = [ [ limit.to_i, TIMELINE_DEFAULT_LIMIT ].max, TIMELINE_MAX_EVENTS ].min
+      events = incident.incident_events.includes(:eventable).recent.limit(capped_limit).reverse
+      return nil if events.empty?
+
+      blocks = [
+        { type: "header", text: { type: "plain_text", text: "#{incident.identifier} Timeline", emoji: true } },
+        { type: "divider" }
+      ]
+      blocks.concat(IncidentTimelineFormatter.to_blocks(events))
+
+      total_events = incident.incident_events.count
+      if total_events > capped_limit
+        blocks << { type: "actions", elements: [ timeline_load_more_button(incident.id, capped_limit) ] }
+        blocks << {
+          type: "context",
+          elements: [ { type: "mrkdwn", text: ":information_source: Showing latest #{capped_limit} of #{total_events} events." } ]
+        }
+      elsif total_events > TIMELINE_DEFAULT_LIMIT
+        blocks << {
+          type: "context",
+          elements: [ { type: "mrkdwn", text: ":information_source: Showing latest #{total_events} events." } ]
+        }
+      end
+
+      { text: "Timeline for #{incident.identifier}", blocks: blocks }
+    end
+
     def build_actions_list_view(incident)
       Slack::ModalBuilder.actions_list_modal(incident)
     end
@@ -757,6 +805,18 @@ module Slack
     end
 
     private
+
+    def timeline_load_more_button(incident_id, current_limit)
+      {
+        type: "button",
+        text: { type: "plain_text", text: "Load more", emoji: true },
+        action_id: Identifiers::LOAD_MORE_TIMELINE,
+        value: {
+          incident_id: incident_id,
+          limit: [ current_limit + TIMELINE_PAGE_SIZE, TIMELINE_MAX_EVENTS ].min
+        }.to_json
+      }
+    end
 
     def normalize_handle(handle)
       handle.to_s.downcase.strip.delete_prefix("@")

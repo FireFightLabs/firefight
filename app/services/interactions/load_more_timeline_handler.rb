@@ -7,10 +7,10 @@ module Interactions
       limit = payload["limit"].to_i
       limit = Commands::Firefight::TimelineHandler::DEFAULT_LIMIT if limit <= 0
 
-      response = Commands::Firefight::TimelineHandler.build_response(incident, limit: limit)
+      response = workspace.adapter.build_timeline_response(incident, limit: limit)
+      return nil unless response
 
-      adapter = WorkspaceAdapter.for(workspace)
-      adapter.post_ephemeral(
+      workspace.adapter.post_ephemeral(
         channel_id: interaction.channel_id || incident.channel_id,
         user_id: interaction.user_id,
         text: response[:text],

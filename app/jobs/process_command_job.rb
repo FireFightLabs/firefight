@@ -13,27 +13,19 @@ class ProcessCommandJob < ApplicationJob
   # @param platform [String] Platform identifier ('slack', 'teams', etc.)
   # @param payload [Hash] Platform-specific command payload
   def perform(platform, payload)
-    # Convert platform-specific payload to generic Command object
     command = parse_command(platform, payload)
 
-    # Validate command
     unless command.valid?
-      Rails.logger.error("Invalid command: #{command.errors.full_messages.join(", ")}")
+      Rails.logger.error({ event: "process_command_job.invalid_command", errors: command.errors.full_messages })
       return
     end
 
-    # Dispatch to appropriate handler
     result = CommandDispatcher.dispatch(command)
     send_ephemeral(command, result)
   rescue ArgumentError, NotImplementedError
-    # Re-raise programming errors - these should fail fast
     raise
   rescue StandardError => e
-    # Log error
-    Rails.logger.error("Error processing command: #{e.message}")
-    Rails.logger.error(e.backtrace.join("\n"))
-
-    # Attempt to notify user of error
+    Rails.logger.error({ event: "process_command_job.failed", workspace_id: command&.workspace&.id, error: e.message, backtrace: e.backtrace&.first(5) })
     notify_error(command, e) if command
   end
 
@@ -45,7 +37,6 @@ class ProcessCommandJob < ApplicationJob
     when Platforms::SLACK
       Slack::CommandAdapter.parse(payload)
     when Platforms::TEAMS
-      # Teams::CommandAdapter.parse(payload)
       raise NotImplementedError, "Teams support coming soon"
     else
       raise ArgumentError, "Unknown platform: #{platform}"
@@ -54,13 +45,12 @@ class ProcessCommandJob < ApplicationJob
 
   # Send ephemeral response to user when handler returns one
   def send_ephemeral(command, result)
-    return unless result.is_a?(Hash) && result[:response_type] == "ephemeral"
+    return unless result.is_a?(Hash) && result[:response_type] == Command::EPHEMERAL
 
     workspace = command.workspace
     return unless workspace
 
-    adapter = WorkspaceAdapter.for(workspace)
-    adapter.post_ephemeral(
+    workspace.adapter.post_ephemeral(
       channel_id: command.channel_id,
       user_id: command.user_id,
       text: result[:text],
@@ -75,13 +65,12 @@ class ProcessCommandJob < ApplicationJob
     workspace = command.workspace
     return unless workspace
 
-    adapter = WorkspaceAdapter.for(workspace)
-    adapter.post_ephemeral(
+    workspace.adapter.post_ephemeral(
       channel_id: command.channel_id,
       user_id: command.user_id,
-      text: "An error occurred: #{error.message}"
+      text: "Sorry, something went wrong. Please try again."
     )
   rescue StandardError => e
-    Rails.logger.error("Failed to notify user of error: #{e.message}")
+    Rails.logger.error({ event: "process_command_job.notify_error_failed", error: e.message })
   end
 end

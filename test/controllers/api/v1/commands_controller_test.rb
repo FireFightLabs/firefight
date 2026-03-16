@@ -111,7 +111,7 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
   test "should handle command with text" do
     request_data = slack_command_request(
     team_id: @workspace.platform_id,
-    text: "status"
+    text: Identifiers::SUBCOMMAND_STATUS
     )
 
     assert_enqueued_with(job: ProcessCommandJob) do

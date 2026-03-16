@@ -17,8 +17,7 @@ module Interactions
         message: message
       )
 
-      adapter = WorkspaceAdapter.for(workspace)
-      result = adapter.post_shoutout_message(
+      result = workspace.adapter.post_shoutout_message(
         channel_id: incident.channel_id,
         incident: incident,
         from_user_id: interaction.user_id,

@@ -12,7 +12,7 @@ module Interactions
       metadata   = JSON.parse(interaction.private_metadata)
       channel_id = metadata["channel_id"]
       workspace  = interaction.workspace
-      adapter    = WorkspaceAdapter.for(workspace)
+      adapter    = workspace.adapter
 
       if selected == Identifiers::HOME_ACTION_NEW
         return { response_action: "update", view: adapter.build_incident_creation_view }
@@ -57,7 +57,9 @@ module Interactions
     end
 
     def self.post_timeline(adapter, incident, channel_id, user_id)
-      response = Commands::Firefight::TimelineHandler.build_response(incident)
+      response = adapter.build_timeline_response(incident, limit: Commands::Firefight::TimelineHandler::DEFAULT_LIMIT)
+      return unless response
+
       adapter.post_ephemeral(
         channel_id: channel_id,
         user_id: user_id,

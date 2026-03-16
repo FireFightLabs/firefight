@@ -8,8 +8,7 @@ class IncidentUpdateReminderJob < ApplicationJob
     return unless incident.next_update_at&.iso8601 == expected_next_update_at
 
     target_member = incident.lead || incident.declared_by
-    adapter = WorkspaceAdapter.for(incident.workspace)
-    adapter.post_incident_update_reminder(
+    incident.workspace.adapter.post_incident_update_reminder(
       channel_id: incident.channel_id,
       user_id: target_member.platform_user_id,
       incident: incident
