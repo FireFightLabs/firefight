@@ -47,6 +47,15 @@ Route to handlers using lookup tables. Fall back to `UnknownHandler`.
 
 Class methods with `self.execute(command)` or `self.execute(interaction)`. Stateless. Return response hashes or nil.
 
+Handlers are thin — only guards, routing, and delegation:
+- Guard clauses (`return ephemeral("...") unless command.workspace`)
+- Route to the right service or adapter method
+- Return the response hash
+
+Never put in a handler: DB queries beyond `command.workspace` / `command.incident`, business logic, platform-specific formatting (Block Kit, Slack mrkdwn), or response building. That belongs in services (business logic) or the adapter (platform-specific output).
+
+`command.workspace` and `command.incident` are memoized on `Command` — call them directly, no local variable needed.
+
 ### Normalizers
 
 Platform-specific payloads are normalized into platform-agnostic POJOs at the boundary (controllers/jobs) before reaching dispatchers and handlers.
@@ -109,7 +118,7 @@ end
 
 ### Identifiers
 
-All callback_ids and action_ids are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, etc.
+All callback_ids, action_ids, and subcommand strings are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, `Identifiers::SUBCOMMAND_CLOSE`, etc.
 
 ## Key Files
 

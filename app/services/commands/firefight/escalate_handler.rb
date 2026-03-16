@@ -2,8 +2,8 @@ module Commands
   module Firefight
     class EscalateHandler
       def self.execute(command)
-        return ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
-        return ephemeral("This command must be run from an active incident channel.") unless command.incident
+        return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
+        return Command.ephemeral("This command must be run from an active incident channel.") unless command.incident
 
         EscalateModalOpener.open(
           workspace: command.workspace,
@@ -14,11 +14,7 @@ module Commands
 
         nil
       rescue AdapterError::TriggerExpired
-        ephemeral("This command has expired. Please try `/ff escalate` again.")
-      end
-
-      private_class_method def self.ephemeral(text)
-        { response_type: Command::EPHEMERAL, text: text }
+        Command.ephemeral("This command has expired. Please try `/ff escalate` again.")
       end
     end
   end

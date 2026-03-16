@@ -4,7 +4,7 @@ module Commands
       MAX_RESULTS = 10
 
       def self.execute(command)
-        return ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
+        return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
 
         build_response(command.workspace)
       end
@@ -17,7 +17,7 @@ module Commands
           .recent
 
         total_count = active_incidents.count
-        return ephemeral("There are no active incidents right now.") if total_count.zero?
+        return Command.ephemeral("There are no active incidents right now.") if total_count.zero?
 
         incidents = active_incidents.limit(MAX_RESULTS)
         lines = incidents.map { |incident| workspace.adapter.format_incident_list_line(incident) }
@@ -29,11 +29,7 @@ module Commands
           text << ":information_source: *Showing #{incidents.size} of #{total_count} active incidents.*"
         end
 
-        ephemeral(text.join("\n"))
-      end
-
-      private_class_method def self.ephemeral(text)
-        { response_type: Command::EPHEMERAL, text: text }
+        Command.ephemeral(text.join("\n"))
       end
     end
   end

@@ -4,19 +4,15 @@ module Commands
       DEFAULT_LIMIT = 15
 
       def self.execute(command)
-        return ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
+        return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
 
         incident = command.workspace.incidents.in_channel(command.channel_id).recent.first
-        return ephemeral("This command must be run from an incident channel.") unless incident
+        return Command.ephemeral("This command must be run from an incident channel.") unless incident
 
         response = command.workspace.adapter.build_timeline_response(incident, limit: DEFAULT_LIMIT)
-        return ephemeral("No timeline events found for this incident yet.") unless response
+        return Command.ephemeral("No timeline events found for this incident yet.") unless response
 
-        ephemeral(response[:text], blocks: response[:blocks])
-      end
-
-      private_class_method def self.ephemeral(text, blocks: nil)
-        { response_type: Command::EPHEMERAL, text: text, blocks: blocks }
+        Command.ephemeral(response[:text], blocks: response[:blocks])
       end
     end
   end

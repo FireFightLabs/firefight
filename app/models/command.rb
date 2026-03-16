@@ -7,6 +7,10 @@ class Command
 
   EPHEMERAL = "ephemeral"
 
+  def self.ephemeral(text, blocks: nil)
+    { response_type: EPHEMERAL, text: text, blocks: blocks }
+  end
+
   attr_accessor :platform,      # String: 'slack', 'teams', etc.
                 :workspace_id,   # UUID: Workspace ID in our database
                 :user_id,        # String: Platform-specific user ID

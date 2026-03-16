@@ -39,7 +39,7 @@ module Commands
         when Identifiers::SUBCOMMAND_REOPEN
           Commands::Firefight::ReopenHandler.execute(command)
         when Identifiers::SUBCOMMAND_POSTMORTEM
-          ephemeral("Postmortem command coming soon...")
+          Command.ephemeral("Postmortem command coming soon...")
         when Identifiers::SUBCOMMAND_TIMELINE
           Commands::Firefight::TimelineHandler.execute(command)
         when Identifiers::SUBCOMMAND_LIST
@@ -53,7 +53,7 @@ module Commands
           else
             "Unknown subcommand `#{subcommand}`. Type `/ff` for available commands."
           end
-          ephemeral(msg)
+          Command.ephemeral(msg)
         end
       rescue => e
         Rails.logger.error({
@@ -64,16 +64,12 @@ module Commands
           backtrace: e.backtrace&.first(5)
         }.to_json)
 
-        ephemeral("Sorry, something went wrong. Please try again.")
+        Command.ephemeral("Sorry, something went wrong. Please try again.")
       end
 
       private_class_method def self.suggest_subcommand(input)
         checker = DidYouMean::SpellChecker.new(dictionary: SUBCOMMANDS)
         checker.correct(input).first
-      end
-
-      private_class_method def self.ephemeral(text)
-        { response_type: Command::EPHEMERAL, text: text }
       end
     end
   end
