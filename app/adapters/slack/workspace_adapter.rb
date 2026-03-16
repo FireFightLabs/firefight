@@ -463,6 +463,22 @@ module Slack
       )
     end
 
+    def format_incident_list_line(incident)
+      lead = incident.lead ? "<@#{incident.lead.platform_user_id}>" : "Unassigned"
+      channel = if incident.channel_id.present?
+        "<##{incident.channel_id}>"
+      elsif incident.is_private?
+        "Private channel"
+      else
+        "No channel"
+      end
+
+      [
+        "> *#{incident.identifier}* #{incident.name || 'Untitled Incident'}",
+        "> #{incident.incident_severity.name} | #{incident.incident_status.name} | Lead: #{lead} | #{channel}"
+      ].join("\n")
+    end
+
     def build_actions_list_view(incident)
       Slack::ModalBuilder.actions_list_modal(incident)
     end
