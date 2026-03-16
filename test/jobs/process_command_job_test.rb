@@ -187,7 +187,7 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     assert_equal @workspace, notification_params[:workspace]
     assert_equal "C12345678", notification_params[:channel]
     assert_equal "U12345678", notification_params[:user]
-    assert_includes notification_params[:text], "Test error"
+    assert_equal "Sorry, something went wrong. Please try again.", notification_params[:text]
   end
 
   test "sends ephemeral response when handler returns one" do

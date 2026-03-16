@@ -25,7 +25,7 @@ class ProcessCommandJob < ApplicationJob
   rescue ArgumentError, NotImplementedError
     raise
   rescue StandardError => e
-    Rails.logger.error({ event: "process_command_job.failed", error: e.message, backtrace: e.backtrace })
+    Rails.logger.error({ event: "process_command_job.failed", workspace_id: command&.workspace&.id, error: e.message, backtrace: e.backtrace&.first(5) })
     notify_error(command, e) if command
   end
 
@@ -68,7 +68,7 @@ class ProcessCommandJob < ApplicationJob
     workspace.adapter.post_ephemeral(
       channel_id: command.channel_id,
       user_id: command.user_id,
-      text: "An error occurred: #{error.message}"
+      text: "Sorry, something went wrong. Please try again."
     )
   rescue StandardError => e
     Rails.logger.error({ event: "process_command_job.notify_error_failed", error: e.message })
