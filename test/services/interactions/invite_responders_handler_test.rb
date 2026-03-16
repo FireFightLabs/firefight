@@ -25,6 +25,7 @@ class Interactions::InviteRespondersHandlerTest < ActiveSupport::TestCase
       already_in_channel_user_ids: [],
       failed_invites: []
     })
+    service.expects(:summary_message).returns("Invited 2 responders.")
 
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)

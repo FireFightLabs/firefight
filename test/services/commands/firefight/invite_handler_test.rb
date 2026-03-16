@@ -10,6 +10,12 @@ class Commands::Firefight::InviteHandlerTest < ActiveSupport::TestCase
   end
 
   test "opens invite modal when no users are provided" do
+    service = mock("incident_invite_service")
+    IncidentInviteService.expects(:new).with(@workspace).returns(service)
+    service.expects(:resolve_invitees).with("invite").returns({
+      user_ids: [], had_target_tokens: false, unresolved_handles: []
+    })
+
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
     adapter.expects(:open_invite_responders_modal).with(trigger_id: "12345.trigger", incident: @incident).once
@@ -22,39 +28,27 @@ class Commands::Firefight::InviteHandlerTest < ActiveSupport::TestCase
   test "invites mentioned users immediately" do
     service = mock("incident_invite_service")
     IncidentInviteService.expects(:new).with(@workspace).returns(service)
+    service.expects(:resolve_invitees).with("invite <@U11111111> <@U22222222>").returns({
+      user_ids: [ "U11111111", "U22222222" ], had_target_tokens: true, unresolved_handles: []
+    })
     service.expects(:invite!).with(incident: @incident, user_ids: [ "U11111111", "U22222222" ]).returns({
       invited_user_ids: [ "U11111111", "U22222222" ],
       already_in_channel_user_ids: [],
       failed_invites: []
     })
+    service.expects(:summary_message).returns("Invited 2 responders.")
 
     result = Commands::Firefight::InviteHandler.execute(build_command("invite <@U11111111> <@U22222222>"))
 
     assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "Invited 2 responders"
-  end
-
-  test "resolves @username handles to workspace members" do
-    service = mock("incident_invite_service")
-    IncidentInviteService.expects(:new).with(@workspace).returns(service)
-    service.expects(:invite!).with(incident: @incident, user_ids: [ "U12345678" ]).returns({
-      invited_user_ids: [ "U12345678" ],
-      already_in_channel_user_ids: [],
-      failed_invites: []
-    })
-
-    result = Commands::Firefight::InviteHandler.execute(build_command("invite @alice"))
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "Invited 1 responder"
+    assert_equal "Invited 2 responders.", result[:text]
   end
 
   test "returns guidance when handle cannot be resolved" do
-    adapter = mock("workspace_adapter")
-    WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
-    adapter.expects(:resolve_user_ids_from_handles).with(handles: [ "nina" ]).returns({
-      resolved_user_ids: [],
-      unresolved_handles: [ "nina" ]
+    service = mock("incident_invite_service")
+    IncidentInviteService.expects(:new).with(@workspace).returns(service)
+    service.expects(:resolve_invitees).with("invite @nina").returns({
+      user_ids: [], had_target_tokens: true, unresolved_handles: [ "nina" ]
     })
 
     result = Commands::Firefight::InviteHandler.execute(build_command("invite @nina"))
@@ -62,28 +56,6 @@ class Commands::Firefight::InviteHandlerTest < ActiveSupport::TestCase
     assert_equal Command::EPHEMERAL, result[:response_type]
     assert_includes result[:text], "Couldn't resolve"
     assert_includes result[:text], "@nina"
-  end
-
-  test "resolves handles through adapter when not in local memberships" do
-    adapter = mock("workspace_adapter")
-    WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
-    adapter.expects(:resolve_user_ids_from_handles).with(handles: [ "nina" ]).returns({
-      resolved_user_ids: [ "U99999999" ],
-      unresolved_handles: []
-    })
-
-    service = mock("incident_invite_service")
-    IncidentInviteService.expects(:new).with(@workspace).returns(service)
-    service.expects(:invite!).with(incident: @incident, user_ids: [ "U99999999" ]).returns({
-      invited_user_ids: [ "U99999999" ],
-      already_in_channel_user_ids: [],
-      failed_invites: []
-    })
-
-    result = Commands::Firefight::InviteHandler.execute(build_command("invite @nina"))
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "Invited 1 responder"
   end
 
   test "returns error when not in incident channel" do
@@ -94,6 +66,12 @@ class Commands::Firefight::InviteHandlerTest < ActiveSupport::TestCase
   end
 
   test "handles trigger expiration when opening modal" do
+    service = mock("incident_invite_service")
+    IncidentInviteService.expects(:new).with(@workspace).returns(service)
+    service.expects(:resolve_invitees).with("invite").returns({
+      user_ids: [], had_target_tokens: false, unresolved_handles: []
+    })
+
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
     adapter.expects(:open_invite_responders_modal).raises(AdapterError::TriggerExpired.new("expired"))
