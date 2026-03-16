@@ -84,7 +84,7 @@ end
 
 gem "rack-attack"
 
-gem "inertia_rails", "~> 3.16"
+gem "inertia_rails", "~> 3.18"
 
 gem "rails_semantic_logger"
 
