@@ -2,14 +2,13 @@ module Commands
   module Firefight
     class ReopenHandler
       def self.execute(command)
-        workspace = command.workspace
-        return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
+        return ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
 
-        incident = workspace.incidents.closed.in_channel(command.channel_id).first
+        incident = command.workspace.incidents.closed.in_channel(command.channel_id).first
         return ephemeral("This command must be run from a closed incident channel.") unless incident
 
         ReopenModalOpener.open(
-          workspace: workspace,
+          workspace: command.workspace,
           incident: incident,
           trigger_id: command.trigger_id,
           user_id: command.user_id

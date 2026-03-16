@@ -2,13 +2,10 @@ module Commands
   module Firefight
     class LinkHandler
       def self.execute(command)
-        workspace = command.workspace
-        return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
+        return ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
+        return ephemeral("This command can only be used in an active incident channel.") unless command.incident
 
-        incident = workspace.incidents.active.in_channel(command.channel_id).first
-        return ephemeral("This command can only be used in an active incident channel.") unless incident
-
-        workspace.adapter.open_link_incident_modal(trigger_id: command.trigger_id, incident: incident)
+        command.workspace.adapter.open_link_incident_modal(trigger_id: command.trigger_id, incident: command.incident)
 
         nil
       rescue AdapterError::TriggerExpired

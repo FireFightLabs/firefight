@@ -29,9 +29,12 @@ class Command
     text.blank?
   end
 
-  # Get workspace record
   def workspace
     @workspace ||= Workspace.find_by(id: workspace_id)
+  end
+
+  def incident
+    @incident ||= workspace&.incidents&.active&.in_channel(channel_id)&.first
   end
 
   # Check if command is from Slack

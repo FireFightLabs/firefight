@@ -2,15 +2,12 @@ module Commands
   module Firefight
     class SeverityHandler
       def self.execute(command)
-        workspace = command.workspace
-        return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
-
-        incident = workspace.incidents.active.in_channel(command.channel_id).first
-        return ephemeral("This command must be run from an active incident channel.") unless incident
+        return ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
+        return ephemeral("This command must be run from an active incident channel.") unless command.incident
 
         IncidentUpdateModalOpener.open(
-          workspace: workspace,
-          incident: incident,
+          workspace: command.workspace,
+          incident: command.incident,
           trigger_id: command.trigger_id,
           user_id: command.user_id
         )

@@ -6,10 +6,9 @@ module Commands
       MAX_EVENTS = 45
 
       def self.execute(command)
-        workspace = command.workspace
-        return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
+        return ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
 
-        incident = workspace.incidents.in_channel(command.channel_id).recent.first
+        incident = command.workspace.incidents.in_channel(command.channel_id).recent.first
         return ephemeral("This command must be run from an incident channel.") unless incident
 
         build_response(incident, limit: DEFAULT_LIMIT)
