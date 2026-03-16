@@ -136,6 +136,16 @@ class IncidentUpdateService
       escalation_event_id: escalation_event_id,
       reason: reason
     )
+
+    incident.incident_events.create!(
+      event_type: IncidentEvent::ESCALATION_NUDGED,
+      metadata: {
+        details: {
+          escalation_event_id: escalation_event_id,
+          escalated_to_platform_user_id: escalated_to_platform_user_id
+        }
+      }
+    )
   end
 
   def post_incident_update_announcement_thread(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:, previous_type_name: nil)

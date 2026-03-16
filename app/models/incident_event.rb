@@ -55,9 +55,6 @@ class IncidentEvent < ApplicationRecord
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate], optional: true
   has_one_attached :artifact
 
-  # Callbacks
-  after_create_commit :publish_to_event_bus
-
   # Validations
   validates :event_type, presence: true, inclusion: { in: EVENT_TYPES }
 
@@ -96,17 +93,5 @@ class IncidentEvent < ApplicationRecord
 
   def description
     EVENT_DESCRIPTIONS[event_type]
-  end
-
-  private
-
-  def publish_to_event_bus
-    ProcessDomainEventJob.perform_later(
-      "event_type" => event_type,
-      "incident_id" => incident_id,
-      "user_id" => user_id,
-      "data" => metadata,
-      "occurred_at" => created_at.iso8601(6)
-    )
   end
 end

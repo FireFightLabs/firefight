@@ -18,15 +18,5 @@ class EscalationAcknowledgementReminderJob < ApplicationJob
       escalation_event_id: escalation_event.id,
       reason: reason
     )
-
-    incident.incident_events.create!(
-      event_type: IncidentEvent::ESCALATION_NUDGED,
-      metadata: {
-        details: {
-          escalation_event_id: escalation_event.id,
-          escalated_to_platform_user_id: escalated_to_platform_user_id
-        }
-      }
-    )
   end
 end

@@ -181,48 +181,6 @@ class IncidentEventTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
-  # DOMAIN EVENT BUS
-  # ============================================================================
-
-  test "enqueues ProcessDomainEventJob after create" do
-    incident = incidents(:active_critical_ws1)
-    member = workspace_memberships(:alice_workspace_one)
-
-    ProcessDomainEventJob.expects(:perform_later).with { |hash|
-      hash["event_type"] == IncidentEvent::INCIDENT_UPDATED &&
-        hash["incident_id"] == incident.id &&
-        hash["user_id"] == member.id
-    }
-
-    IncidentEvent.create!(
-      incident: incident,
-      event_type: IncidentEvent::INCIDENT_UPDATED,
-      user: member,
-      metadata: { "changed_fields" => [ "summary" ] }
-    )
-  end
-
-  test "enqueued job receives correct event data" do
-    incident = incidents(:active_critical_ws1)
-    member = workspace_memberships(:alice_workspace_one)
-
-    ProcessDomainEventJob.expects(:perform_later).with { |hash|
-      hash["event_type"] == IncidentEvent::ACTION_CREATED &&
-        hash["incident_id"] == incident.id &&
-        hash["user_id"] == member.id &&
-        hash["data"] == { "action_id" => "test-123" } &&
-        hash["occurred_at"].present?
-    }
-
-    IncidentEvent.create!(
-      incident: incident,
-      event_type: IncidentEvent::ACTION_CREATED,
-      user: member,
-      metadata: { "action_id" => "test-123" }
-    )
-  end
-
-  # ============================================================================
   # DELEGATED TYPES
   # ============================================================================
 
