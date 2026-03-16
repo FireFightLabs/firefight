@@ -57,7 +57,9 @@ module Interactions
     end
 
     def self.post_timeline(adapter, incident, channel_id, user_id)
-      response = Commands::Firefight::TimelineHandler.build_response(incident)
+      response = adapter.build_timeline_response(incident, limit: Commands::Firefight::TimelineHandler::DEFAULT_LIMIT)
+      return unless response
+
       adapter.post_ephemeral(
         channel_id: channel_id,
         user_id: user_id,

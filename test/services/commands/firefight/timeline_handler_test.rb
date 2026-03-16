@@ -25,7 +25,7 @@ class Commands::Firefight::TimelineHandlerTest < ActiveSupport::TestCase
       @incident.incident_events.create!(event_type: IncidentEvent::INCIDENT_UPDATED, user: member)
     end
 
-    response = Commands::Firefight::TimelineHandler.build_response(@incident, limit: 1)
+    response = @workspace.adapter.build_timeline_response(@incident, limit: 1)
 
     actions_block = response[:blocks].find { |block| block[:type] == "actions" }
     refute_nil actions_block
