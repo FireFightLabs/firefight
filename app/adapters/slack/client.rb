@@ -301,6 +301,28 @@ module Slack
       body[:channels] || []
     end
 
+    def self.list_users(workspace:)
+      users = []
+      cursor = nil
+
+      loop do
+        payload = { limit: 200 }
+        payload[:cursor] = cursor if cursor.present?
+
+        body = api_post(
+          workspace: workspace,
+          endpoint: "users.list",
+          payload: payload
+        )
+
+        users.concat(body[:members] || [])
+        cursor = body.dig(:response_metadata, :next_cursor)
+        break if cursor.blank?
+      end
+
+      users
+    end
+
     def self.get_permalink(workspace:, channel:, message_ts:)
       body = api_post(
         workspace: workspace,
@@ -327,6 +349,14 @@ module Slack
       )
 
       body[:messages]&.first
+    end
+
+    def self.get_user_info(workspace:, user_id:)
+      api_post(
+        workspace: workspace,
+        endpoint: "users.info",
+        payload: { user: user_id }
+      )
     end
 
     def self.download_file(workspace:, url:)

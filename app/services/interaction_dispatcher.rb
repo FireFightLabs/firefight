@@ -2,6 +2,7 @@
 # Platform-agnostic — works with any Interaction object
 class InteractionDispatcher
   VIEW_SUBMISSION_HANDLERS = {
+    Identifiers::INCIDENT_HOME_MODAL => Interactions::HomeContinueHandler,
     Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL => Interactions::ShareModalSubmissionHandler,
     Identifiers::INCIDENT_CREATION_MODAL => Interactions::IncidentCreationHandler,
     Identifiers::UPDATE_SUMMARY_MODAL => Interactions::UpdateSummaryHandler,
@@ -12,7 +13,9 @@ class InteractionDispatcher
     Identifiers::CLOSE_INCIDENT_MODAL => Interactions::CloseIncidentHandler,
     Identifiers::REOPEN_INCIDENT_MODAL => Interactions::ReopenIncidentHandler,
     Identifiers::LINK_INCIDENT_MODAL => Interactions::LinkIncidentHandler,
-    Identifiers::ESCALATE_INCIDENT_MODAL => Interactions::EscalateIncidentHandler
+    Identifiers::ESCALATE_INCIDENT_MODAL => Interactions::EscalateIncidentHandler,
+    Identifiers::INVITE_RESPONDERS_MODAL => Interactions::InviteRespondersHandler,
+    Identifiers::SHOUTOUT_MODAL => Interactions::ShoutoutHandler
   }.freeze
 
   BLOCK_ACTION_HANDLERS = {
@@ -32,7 +35,8 @@ class InteractionDispatcher
     Identifiers::CREATE_ACTION_FROM_REACTION => Interactions::CreateActionFromReactionHandler,
     Identifiers::CREATE_FOLLOWUP_FROM_REACTION => Interactions::CreateFollowupFromReactionHandler,
     Identifiers::LOAD_MORE_TIMELINE => Interactions::LoadMoreTimelineHandler,
-    Identifiers::ACKNOWLEDGE_ESCALATION => Interactions::AcknowledgeEscalationHandler
+    Identifiers::ACKNOWLEDGE_ESCALATION => Interactions::AcknowledgeEscalationHandler,
+    Identifiers::SHOUTOUT_FROM_REACTION => Interactions::ShoutoutFromReactionHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {

@@ -15,9 +15,25 @@ module Identifiers
   REOPEN_INCIDENT_MODAL = "reopen_incident_modal"
   LINK_INCIDENT_MODAL = "link_incident_modal"
   ESCALATE_INCIDENT_MODAL = "escalate_incident_modal"
+  INVITE_RESPONDERS_MODAL = "invite_responders_modal"
+  SHOUTOUT_MODAL = "shoutout_modal"
 
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
+
+  # Home modal action values
+  HOME_ACTION_NEW        = "new"
+  HOME_ACTION_STATUS     = "status"
+  HOME_ACTION_SEVERITY   = "severity"
+  HOME_ACTION_SUMMARY    = "summary"
+  HOME_ACTION_ESCALATE   = "escalate"
+  HOME_ACTION_INVITE     = "invite"
+  HOME_ACTION_LEAD       = "lead"
+  HOME_ACTION_ACTIONS    = "actions"
+  HOME_ACTION_CLOSE      = "close"
+  HOME_ACTION_TIMELINE   = "timeline"
+  HOME_ACTION_LIST       = "list"
+  HOME_ACTION_POSTMORTEM = "postmortem"
 
   # Block action_ids
   HOME_ACTION_SELECT = "home_action_select"
@@ -36,4 +52,5 @@ module Identifiers
   CREATE_FOLLOWUP_FROM_REACTION = "create_followup_from_reaction"
   LOAD_MORE_TIMELINE = "load_more_timeline"
   ACKNOWLEDGE_ESCALATION = "acknowledge_escalation"
+  SHOUTOUT_FROM_REACTION = "shoutout_from_reaction"
 end

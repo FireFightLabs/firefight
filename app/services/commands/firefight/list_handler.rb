@@ -7,6 +7,10 @@ module Commands
         workspace = command.workspace
         return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
 
+        build_response(workspace)
+      end
+
+      def self.build_response(workspace)
         active_incidents = workspace.incidents
           .active
           .includes(:incident_status, :incident_severity)

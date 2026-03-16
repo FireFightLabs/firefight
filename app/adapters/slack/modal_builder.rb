@@ -149,26 +149,24 @@ module Slack
         ]
       }
     end
-    def self.home_modal
+    def self.home_modal(channel_id:)
       {
         type: "modal",
         callback_id: Identifiers::INCIDENT_HOME_MODAL,
+        private_metadata: { channel_id: channel_id }.to_json,
         title: {
           type: "plain_text",
           text: "Incident Home"
+        },
+        submit: {
+          type: "plain_text",
+          text: "Continue"
         },
         close: {
           type: "plain_text",
           text: "Close"
         },
         blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "*I want to...*"
-            }
-          },
           {
             type: "input",
             dispatch_action: true,
@@ -178,13 +176,17 @@ module Slack
               action_id: Identifiers::HOME_ACTION_SELECT,
               placeholder: {
                 type: "plain_text",
-                text: "Select an action"
+                text: "Type a command or search..."
               },
-              options: home_modal_options
+              option_groups: home_modal_option_groups
             },
             label: {
               type: "plain_text",
               text: "Choose an action"
+            },
+            hint: {
+              type: "plain_text",
+              text: "Search and run any Firefight action from one place."
             }
           },
           {
@@ -192,26 +194,52 @@ module Slack
             block_id: "command_details_block",
             text: {
               type: "mrkdwn",
-              text: "_Select an action above to see how to use the command directly._"
+              text: "*For example:*\n\n:pencil2:  Update the current status or severity `/ff status`\n\n:rotating_light:  Escalate to someone who can help `/ff escalate`\n\n:dart:  Assign the incident lead role `/ff lead`\n\n:lock:  Close the incident when it's resolved `/ff close`"
             }
           }
         ]
       }
     end
 
-    def self.home_modal_options
+    def self.home_modal_option_groups
       [
-        { text: { type: "plain_text", text: "Create a new incident" }, value: "new", description: { type: "plain_text", text: "/ff new" } },
-        { text: { type: "plain_text", text: "Update incident summary" }, value: "summary", description: { type: "plain_text", text: "/ff summary" } },
-        { text: { type: "plain_text", text: "Set incident lead" }, value: "lead", description: { type: "plain_text", text: "/ff lead" } },
-        { text: { type: "plain_text", text: "Update status" }, value: "status", description: { type: "plain_text", text: "/ff status" } },
-        { text: { type: "plain_text", text: "Change severity" }, value: "severity", description: { type: "plain_text", text: "/ff severity" } },
-        { text: { type: "plain_text", text: "Escalate to someone" }, value: "escalate", description: { type: "plain_text", text: "/ff escalate" } },
-        { text: { type: "plain_text", text: "Manage actions" }, value: "actions", description: { type: "plain_text", text: "/ff actions" } },
-        { text: { type: "plain_text", text: "Close incident" }, value: "close", description: { type: "plain_text", text: "/ff close" } },
-        { text: { type: "plain_text", text: "Generate postmortem" }, value: "postmortem", description: { type: "plain_text", text: "/ff postmortem" } },
-        { text: { type: "plain_text", text: "View timeline" }, value: "timeline", description: { type: "plain_text", text: "/ff timeline" } },
-        { text: { type: "plain_text", text: "List active incidents" }, value: "list", description: { type: "plain_text", text: "/ff list" } }
+        {
+          label: { type: "plain_text", text: "Quick actions", emoji: true },
+          options: [
+            { text: { type: "plain_text", text: ":pencil2: Update status",           emoji: true }, value: Identifiers::HOME_ACTION_STATUS },
+            { text: { type: "plain_text", text: ":warning: Change severity",         emoji: true }, value: Identifiers::HOME_ACTION_SEVERITY },
+            { text: { type: "plain_text", text: ":memo: Update incident summary",    emoji: true }, value: Identifiers::HOME_ACTION_SUMMARY }
+          ]
+        },
+        {
+          label: { type: "plain_text", text: "Communicate", emoji: true },
+          options: [
+            { text: { type: "plain_text", text: ":rotating_light: Escalate to someone", emoji: true }, value: Identifiers::HOME_ACTION_ESCALATE },
+            { text: { type: "plain_text", text: ":busts_in_silhouette: Invite responders", emoji: true }, value: Identifiers::HOME_ACTION_INVITE }
+          ]
+        },
+        {
+          label: { type: "plain_text", text: "Coordinate", emoji: true },
+          options: [
+            { text: { type: "plain_text", text: ":dart: Set incident lead", emoji: true }, value: Identifiers::HOME_ACTION_LEAD },
+            { text: { type: "plain_text", text: ":ballot_box_with_check: Manage actions", emoji: true }, value: Identifiers::HOME_ACTION_ACTIONS },
+            { text: { type: "plain_text", text: ":lock: Close incident",    emoji: true }, value: Identifiers::HOME_ACTION_CLOSE }
+          ]
+        },
+        {
+          label: { type: "plain_text", text: "Review", emoji: true },
+          options: [
+            { text: { type: "plain_text", text: ":clock1: View timeline",              emoji: true }, value: Identifiers::HOME_ACTION_TIMELINE },
+            { text: { type: "plain_text", text: ":clipboard: List active incidents",   emoji: true }, value: Identifiers::HOME_ACTION_LIST },
+            { text: { type: "plain_text", text: ":page_facing_up: Generate postmortem", emoji: true }, value: Identifiers::HOME_ACTION_POSTMORTEM }
+          ]
+        },
+        {
+          label: { type: "plain_text", text: "New", emoji: true },
+          options: [
+            { text: { type: "plain_text", text: ":fire: Create a new incident", emoji: true }, value: Identifiers::HOME_ACTION_NEW }
+          ]
+        }
       ]
     end
 
@@ -842,6 +870,38 @@ module Slack
       }
     end
 
+    def self.invite_responders_modal(incident, selected_user_ids: [], private_metadata: nil)
+      metadata = private_metadata || incident.id
+
+      element = {
+        type: "multi_users_select",
+        action_id: "invite_users_select",
+        placeholder: { type: "plain_text", text: "Select people to invite" }
+      }
+      element[:initial_users] = selected_user_ids if selected_user_ids.present?
+
+      {
+        type: "modal",
+        callback_id: Identifiers::INVITE_RESPONDERS_MODAL,
+        private_metadata: metadata,
+        title: { type: "plain_text", text: "Invite responders" },
+        submit: { type: "plain_text", text: "Invite" },
+        close: { type: "plain_text", text: "Cancel" },
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "*#{incident.identifier}: #{incident.name || 'Untitled Incident'}*" }
+          },
+          {
+            type: "input",
+            block_id: "invite_users_block",
+            element: element,
+            label: { type: "plain_text", text: "Who should join this channel?" }
+          }
+        ]
+      }
+    end
+
     def self.action_items_blocks(items, empty_label:, button_label:, button_action_id:, incident_id:)
       blocks = []
 
@@ -925,6 +985,62 @@ module Slack
     end
     private_class_method :action_list_item_blocks
 
+    def self.shoutout_modal(incident)
+      {
+        type: "modal",
+        callback_id: Identifiers::SHOUTOUT_MODAL,
+        private_metadata: { incident_id: incident.id }.to_json,
+        title: {
+          type: "plain_text",
+          text: "Give a shoutout"
+        },
+        submit: {
+          type: "plain_text",
+          text: "Send"
+        },
+        close: {
+          type: "plain_text",
+          text: "Cancel"
+        },
+        blocks: [
+          {
+            type: "input",
+            block_id: "recipient_block",
+            element: {
+              type: "users_select",
+              action_id: "recipient_select",
+              placeholder: {
+                type: "plain_text",
+                text: "Who deserves recognition?"
+              }
+            },
+            label: {
+              type: "plain_text",
+              text: "Shoutout to"
+            }
+          },
+          {
+            type: "input",
+            block_id: "message_block",
+            element: {
+              type: "plain_text_input",
+              action_id: "message_input",
+              multiline: true,
+              placeholder: {
+                type: "plain_text",
+                text: "What did they do that was awesome?"
+              },
+              max_length: 500
+            },
+            label: {
+              type: "plain_text",
+              text: "Message"
+            }
+          }
+        ]
+      }
+    end
+
     def self.home_command_help(command)
       COMMAND_HELP[command] || "_Select an action above to see how to use the command directly._"
     end
@@ -936,6 +1052,7 @@ module Slack
       "status" => "*Update status*\n\nUsage: `/ff status`\nChange the incident status (e.g., Investigating, Identified, Monitoring).",
       "severity" => "*Change severity*\n\nUsage: `/ff severity [critical|major|minor]`\nEscalate or de-escalate the incident severity.",
       "escalate" => "*Escalate to someone*\n\nUsage: `/ff escalate`\nPage or notify someone about this incident.",
+      "invite" => "*Invite responders*\n\nUsage: `/ff invite @user1 @user2`\nInvites responders into the current incident channel. Run `/ff invite` without users to open a picker.",
       "actions" => "*Manage actions*\n\nUsage: `/ff actions`\nView, create, and complete incident action items.",
       "close" => "*Close incident*\n\nUsage: `/ff close` or `/ff resolve`\nMark the incident as resolved.",
       "postmortem" => "*Generate postmortem*\n\nUsage: `/ff postmortem`\nGenerate a postmortem document from the incident timeline.",

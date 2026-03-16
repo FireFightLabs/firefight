@@ -28,6 +28,8 @@ module Commands
           Commands::Firefight::SeverityHandler.execute(command)
         when "escalate"
           Commands::Firefight::EscalateHandler.execute(command)
+        when "invite"
+          Commands::Firefight::InviteHandler.execute(command)
         when "action", "actions"
           Commands::Firefight::ActionsHandler.execute(command)
         when "followup", "followups"
@@ -45,6 +47,8 @@ module Commands
           Commands::Firefight::TimelineHandler.execute(command)
         when "list"
           Commands::Firefight::ListHandler.execute(command)
+        when "shoutout"
+          Commands::Firefight::ShoutoutHandler.execute(command)
         else
           ephemeral("Unknown subcommand: `#{subcommand}`. Type `/ff` for available commands.")
         end
@@ -65,7 +69,13 @@ module Commands
         return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
 
         adapter = WorkspaceAdapter.for(workspace)
-        adapter.open_home_modal(trigger_id: command.trigger_id)
+        incident = workspace.incidents.active.in_channel(command.channel_id).first
+
+        if incident
+          adapter.open_home_modal(trigger_id: command.trigger_id, channel_id: command.channel_id)
+        else
+          adapter.open_incident_creation_modal(trigger_id: command.trigger_id)
+        end
       rescue AdapterError::TriggerExpired
         ephemeral("This command has expired. Please try `/ff` again.")
       end

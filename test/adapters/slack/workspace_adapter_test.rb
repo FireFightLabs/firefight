@@ -137,6 +137,38 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     end
   end
 
+  test "invite_users invites multiple users" do
+    Slack::Client.expects(:invite_to_channel).with(
+      workspace: @workspace,
+      channel: "C12345678",
+      users: [ "U11111111", "U22222222" ]
+    ).returns({ ok: true })
+
+    result = @adapter.invite_users(channel_id: "C12345678", user_ids: [ "U11111111", "U22222222" ])
+
+    assert_equal [ "U11111111", "U22222222" ], result[:invited_users]
+  end
+
+  test "resolve_user_ids_from_handles resolves by slack username" do
+    Slack::Client.expects(:list_users).with(workspace: @workspace).returns([
+      { id: "U11111111", name: "nina", deleted: false, is_bot: false, profile: { display_name: "Nina" } }
+    ])
+
+    result = @adapter.resolve_user_ids_from_handles(handles: [ "nina" ])
+
+    assert_equal [ "U11111111" ], result[:resolved_user_ids]
+    assert_empty result[:unresolved_handles]
+  end
+
+  test "resolve_user_ids_from_handles returns unresolved handles" do
+    Slack::Client.expects(:list_users).with(workspace: @workspace).returns([])
+
+    result = @adapter.resolve_user_ids_from_handles(handles: [ "nina" ])
+
+    assert_empty result[:resolved_user_ids]
+    assert_equal [ "nina" ], result[:unresolved_handles]
+  end
+
   # post_welcome_message tests
 
   test "post_welcome_message posts to channel" do
@@ -188,6 +220,29 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
       trigger_id: "12345.trigger",
       user_id: "U12345678",
       channel_id: "C12345678"
+    )
+
+    assert result[:success]
+  end
+
+  test "open_invite_responders_modal opens modal with incident" do
+    incident = mock("incident")
+    Slack::ModalBuilder.expects(:invite_responders_modal).with(
+      incident,
+      selected_user_ids: [ "U11111111" ],
+      private_metadata: nil
+    ).returns({ type: "modal", callback_id: Identifiers::INVITE_RESPONDERS_MODAL })
+
+    Slack::Client.expects(:open_modal).with do |**args|
+      args[:workspace] == @workspace &&
+        args[:trigger_id] == "12345.trigger" &&
+        args[:view][:callback_id] == Identifiers::INVITE_RESPONDERS_MODAL
+    end.returns({ ok: true })
+
+    result = @adapter.open_invite_responders_modal(
+      trigger_id: "12345.trigger",
+      incident: incident,
+      selected_user_ids: [ "U11111111" ]
     )
 
     assert result[:success]

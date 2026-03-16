@@ -1,6 +1,6 @@
 GIT
   remote: https://github.com/rails/rails.git
-  revision: e598b9427876ba44bd62c48390e6568476b3f8f0
+  revision: 7d8eeea98f1b2a1ad136b2281475404d7e9e2c1a
   branch: 8-1-stable
   specs:
     actioncable (8.1.2)
@@ -109,10 +109,12 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
-    action_text-trix (2.1.16)
+    action_text-trix (2.1.17)
       railties
     addressable (2.8.8)
       public_suffix (>= 2.0.2, < 8.0)
+    anyway_config (2.8.0)
+      ruby-next-core (~> 1.0)
     ast (2.4.3)
     aws-eventstream (1.4.0)
     aws-partitions (1.1223.0)
@@ -135,6 +137,7 @@ GEM
       aws-eventstream (~> 1, >= 1.0.2)
     base64 (0.3.0)
     bcrypt_pbkdf (1.1.2)
+    benchmark (0.5.0)
     bigdecimal (4.0.1)
     bindex (0.8.1)
     bootsnap (1.23.0)
@@ -168,6 +171,7 @@ GEM
       railties (>= 6.1)
     drb (2.2.3)
     dry-cli (1.3.0)
+    dry-initializer (3.2.0)
     ed25519 (1.4.0)
     erb (6.0.2)
     erubi (1.13.1)
@@ -217,7 +221,7 @@ GEM
     js-routes (2.3.6)
       railties (>= 5)
       sorbet-runtime
-    json (2.18.1)
+    json (2.19.1)
     jwt (3.1.2)
       base64
     kamal (2.10.1)
@@ -322,6 +326,36 @@ GEM
       prettyprint
     prettyprint (0.2.0)
     prism (1.9.0)
+    prometheus-client-mmap (1.5.0)
+      base64
+      bigdecimal
+      logger
+      rb_sys (~> 0.9.124)
+    prometheus-client-mmap (1.5.0-aarch64-linux-gnu)
+      base64
+      bigdecimal
+      logger
+      rb_sys (~> 0.9.124)
+    prometheus-client-mmap (1.5.0-aarch64-linux-musl)
+      base64
+      bigdecimal
+      logger
+      rb_sys (~> 0.9.124)
+    prometheus-client-mmap (1.5.0-arm64-darwin)
+      base64
+      bigdecimal
+      logger
+      rb_sys (~> 0.9.124)
+    prometheus-client-mmap (1.5.0-x86_64-linux-gnu)
+      base64
+      bigdecimal
+      logger
+      rb_sys (~> 0.9.124)
+    prometheus-client-mmap (1.5.0-x86_64-linux-musl)
+      base64
+      bigdecimal
+      logger
+      rb_sys (~> 0.9.124)
     psych (5.3.1)
       date
       stringio
@@ -331,6 +365,8 @@ GEM
     raabro (1.4.0)
     racc (1.8.1)
     rack (3.2.5)
+    rack-attack (6.8.0)
+      rack (>= 1.0, < 4)
     rack-protection (4.2.1)
       base64 (>= 0.1.0)
       logger (>= 1.6.0)
@@ -351,8 +387,15 @@ GEM
     rails-html-sanitizer (1.7.0)
       loofah (~> 2.25)
       nokogiri (>= 1.15.7, != 1.16.7, != 1.16.6, != 1.16.5, != 1.16.4, != 1.16.3, != 1.16.2, != 1.16.1, != 1.16.0.rc1, != 1.16.0)
+    rails_semantic_logger (4.19.0)
+      rack
+      railties (>= 5.1)
+      semantic_logger (~> 4.16)
     rainbow (3.1.1)
     rake (13.3.1)
+    rake-compiler-dock (1.11.0)
+    rb_sys (0.9.124)
+      rake-compiler-dock (= 1.11.0)
     rdoc (7.2.0)
       erb
       psych (>= 4.0.0)
@@ -389,6 +432,7 @@ GEM
       rubocop (>= 1.72)
       rubocop-performance (>= 1.24)
       rubocop-rails (>= 2.30)
+    ruby-next-core (1.2.0)
     ruby-progressbar (1.13.0)
     ruby-vips (2.3.0)
       ffi (~> 1.12)
@@ -396,15 +440,20 @@ GEM
     ruby2_keywords (0.0.5)
     rubyzip (3.2.2)
     securerandom (0.4.1)
-    selenium-webdriver (4.40.0)
+    selenium-webdriver (4.41.0)
       base64 (~> 0.2)
       logger (~> 1.4)
       rexml (~> 3.2, >= 3.2.5)
       rubyzip (>= 1.2.2, < 4.0)
       websocket (~> 1.0)
+    semantic_logger (4.17.0)
+      concurrent-ruby (~> 1.0)
     snaky_hash (2.0.3)
       hashie (>= 0.1.0, < 6)
       version_gem (>= 1.1.8, < 3)
+    sniffer (0.5.0)
+      anyway_config (>= 1.0)
+      dry-initializer (~> 3)
     solid_cable (3.0.12)
       actioncable (>= 7.2)
       activejob (>= 7.2)
@@ -435,7 +484,7 @@ GEM
     thruster (0.1.19-aarch64-linux)
     thruster (0.1.19-arm64-darwin)
     thruster (0.1.19-x86_64-linux)
-    timeout (0.6.0)
+    timeout (0.6.1)
     tsort (0.2.0)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
@@ -458,6 +507,7 @@ GEM
       actionview (>= 8.0.0)
       bindex (>= 0.4.0)
       railties (>= 8.0.0)
+    webrick (1.9.2)
     websocket (1.2.11)
     websocket-driver (0.8.0)
       base64
@@ -465,6 +515,31 @@ GEM
     websocket-extensions (0.1.5)
     xpath (3.2.0)
       nokogiri (~> 1.8)
+    yabeda (0.16.0)
+      anyway_config (>= 1.0, < 3)
+      concurrent-ruby
+      dry-initializer
+    yabeda-activejob (0.6.0)
+      rails (>= 6.1)
+      yabeda (~> 0.6)
+    yabeda-gc (0.4.0)
+      yabeda (~> 0.6)
+    yabeda-http_requests (0.3.0)
+      anyway_config (>= 1.3, < 3.0)
+      sniffer
+      yabeda
+    yabeda-prometheus-mmap (0.4.0)
+      prometheus-client-mmap
+      yabeda (~> 0.10)
+    yabeda-puma-plugin (0.9.0)
+      json
+      puma
+      yabeda (~> 0.5)
+    yabeda-rails (0.11.0)
+      activesupport
+      anyway_config (>= 1.3, < 3)
+      railties
+      yabeda (~> 0.8)
     zeitwerk (2.7.5)
 
 PLATFORMS
@@ -480,6 +555,7 @@ PLATFORMS
 
 DEPENDENCIES
   aws-sdk-s3
+  benchmark (~> 0.5.0)
   bootsnap
   brakeman
   bundler-audit
@@ -498,8 +574,11 @@ DEPENDENCIES
   omniauth-oauth2
   omniauth-rails_csrf_protection
   pg (~> 1.6)
+  prometheus-client-mmap (~> 1.3)
   puma (>= 5.0)
+  rack-attack
   rails!
+  rails_semantic_logger
   rubocop-rails-omakase
   selenium-webdriver
   solid_cable
@@ -510,6 +589,14 @@ DEPENDENCIES
   tzinfo-data
   vite_rails (~> 3.0)
   web-console
+  webrick
+  yabeda
+  yabeda-activejob
+  yabeda-gc
+  yabeda-http_requests
+  yabeda-prometheus-mmap
+  yabeda-puma-plugin
+  yabeda-rails
 
 BUNDLED WITH
    2.6.9

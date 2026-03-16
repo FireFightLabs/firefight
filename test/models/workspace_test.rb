@@ -3,10 +3,6 @@ require "test_helper"
 class WorkspaceTest < ActiveSupport::TestCase
   fixtures :workspaces, :incident_lifecycle_stages
 
-  test "the truth" do
-    assert true
-  end
-
   test "slack workspace fixture loads correctly" do
     workspace = workspaces(:slack_workspace_one)
     assert_equal "slack", workspace.platform
@@ -110,24 +106,19 @@ class WorkspaceTest < ActiveSupport::TestCase
 
   test "process_slack_installation wraps everything in transaction" do
     auth_hash = mock_slack_auth_hash
+    expected_platform_id = auth_hash.extra.team_info["id"]
 
-    # Stub User.find_or_create_from_omniauth! to raise error
-    original_method = User.method(:find_or_create_from_omniauth!)
-    User.define_singleton_method(:find_or_create_from_omniauth!) do |*args|
-    user = User.new
-    user.errors.add(:base, "Simulated error")
-    raise ActiveRecord::RecordInvalid.new(user)
+    User.stubs(:find_or_create_from_omniauth!).raises(
+      ActiveRecord::RecordInvalid.new(User.new)
+    )
+
+    assert_no_difference [ "Workspace.count", "User.count", "WorkspaceMembership.count" ] do
+      assert_raises(ActiveRecord::RecordInvalid) do
+        Workspace.process_slack_installation(auth_hash)
+      end
     end
 
-    assert_raises(ActiveRecord::RecordInvalid) do
-    Workspace.process_slack_installation(auth_hash)
-    end
-
-    # Verify no workspace was persisted due to transaction rollback
-    assert_nil Workspace.find_by(platform_id: "T#{SecureRandom.hex(8)}")
-
-    # Restore original method
-    User.define_singleton_method(:find_or_create_from_omniauth!, original_method)
+    assert_nil Workspace.find_by(platform: "slack", platform_id: expected_platform_id)
   end
 
   test "process_slack_installation updates existing user and workspace" do

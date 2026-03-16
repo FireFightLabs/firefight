@@ -1,30 +1,21 @@
-# frozen_string_literal: true
-
-# Workspace::IncidentDefaults - Default incident configuration
-#
-# Provides default statuses, severities, and roles seeded on workspace creation.
-# These can be customized per workspace after initial setup.
-#
 module Workspace::IncidentDefaults
   extend ActiveSupport::Concern
 
-  # Default severities (customize per workspace later)
   DEFAULT_SEVERITIES = [
     { name: "Critical", slug: "critical", rank: 5, position: 1, is_default: false, color: "#DC143C", description: "Service-wide outage or data loss" },
     { name: "Major", slug: "major", rank: 3, position: 2, is_default: false, color: "#FF6B35", description: "Significant feature degradation" },
     { name: "Minor", slug: "minor", rank: 1, position: 3, is_default: true, color: "#FFA500", description: "Limited impact or workaround available" }
   ].freeze
 
-  # Default statuses keyed by lifecycle stage
   DEFAULT_STATUSES = [
-    { name: "Investigating", slug: "investigating", stage: IncidentLifecycleStage::ACTIVE, position: 1, is_default: true, color: "#FFA500", description: "Initial triage and investigation" },
+    { name: "Triaging", slug: "triaging", stage: IncidentLifecycleStage::TRIAGE, position: 0, is_default: false, color: "#9B59B6", description: "Investigating a potential issue to confirm it is a real incident" },
+    { name: "Investigating", slug: "investigating", stage: IncidentLifecycleStage::ACTIVE, position: 1, is_default: true, color: "#FFA500", description: "Root cause under active investigation" },
     { name: "Identified", slug: "identified", stage: IncidentLifecycleStage::ACTIVE, position: 2, is_default: false, color: "#FF6B35", description: "Root cause identified" },
     { name: "Monitoring", slug: "monitoring", stage: IncidentLifecycleStage::ACTIVE, position: 3, is_default: false, color: "#4169E1", description: "Fix deployed, monitoring for stability" },
     { name: "Resolved", slug: "resolved", stage: IncidentLifecycleStage::CLOSED, position: 4, is_default: false, color: "#32CD32", description: "Incident fully resolved" },
     { name: "Canceled", slug: "canceled", stage: IncidentLifecycleStage::CANCELED, position: 5, is_default: false, color: "#999999", description: "False positive, duplicate, or invalid incident" }
   ].freeze
 
-  # Default types
   DEFAULT_TYPES = [
     { name: "Service Outage", slug: "service_outage", position: 1, is_default: false, description: "Service or infrastructure is down or unreachable." },
     { name: "Performance Degradation", slug: "performance_degradation", position: 2, is_default: false, description: "Elevated latency, errors, or capacity-related degradation." },
@@ -32,7 +23,6 @@ module Workspace::IncidentDefaults
     { name: "Data Issue", slug: "data_issue", position: 4, is_default: false, description: "Data loss, corruption, integrity, or correctness issues." }
   ].freeze
 
-  # Default roles (MVP: one role, extendable later)
   DEFAULT_ROLES = [
     { name: "Incident Lead", slug: "incident_lead", position: 1, required: false, description: "Coordinates incident response and makes decisions" }
   ].freeze
