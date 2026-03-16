@@ -19,7 +19,7 @@ module Commands
         when Identifiers::SUBCOMMAND_NEW
           Commands::ModalHandler.execute(command)
         when Identifiers::SUBCOMMAND_HOME, nil
-          open_home_modal(command)
+          Commands::Firefight::HomeModalHandler.execute(command)
         when Identifiers::SUBCOMMAND_SUMMARY
           Commands::Firefight::SummaryHandler.execute(command)
         when Identifiers::SUBCOMMAND_LEAD
@@ -71,21 +71,6 @@ module Commands
         }.to_json)
 
         ephemeral("Sorry, something went wrong. Please try again.")
-      end
-
-      private_class_method def self.open_home_modal(command)
-        workspace = command.workspace
-        return ephemeral("Workspace not found. Please reinstall Firefight.") unless workspace
-
-        incident = workspace.incidents.active.in_channel(command.channel_id).first
-
-        if incident
-          workspace.adapter.open_home_modal(trigger_id: command.trigger_id, channel_id: command.channel_id)
-        else
-          workspace.adapter.open_incident_creation_modal(trigger_id: command.trigger_id)
-        end
-      rescue AdapterError::TriggerExpired
-        ephemeral("This command has expired. Please try `/ff` again.")
       end
 
       private_class_method def self.suggest_subcommand(input)

@@ -17,46 +17,6 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     Commands::Firefight::HomeHandler.execute(command)
   end
 
-  test "opens home modal for empty command" do
-    stub_open_modal
-    command = build_command("")
-    response = Commands::Firefight::HomeHandler.execute(command)
-
-    assert response[:success]
-  end
-
-  test "opens home modal for nil text" do
-    stub_open_modal
-    command = Command.new(
-      platform: Platforms::SLACK,
-      workspace_id: @workspace.id,
-      user_id: "U12345678",
-      text: nil,
-      channel_id: "C12345678",
-      metadata: { command: "/ff" }
-    )
-    response = Commands::Firefight::HomeHandler.execute(command)
-
-    assert response[:success]
-  end
-
-  test "opens home modal for 'home' subcommand" do
-    stub_open_modal
-    command = build_command("home")
-    response = Commands::Firefight::HomeHandler.execute(command)
-
-    assert response[:success]
-  end
-
-  test "handles trigger expiration for home modal" do
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError)
-    command = build_command("")
-    response = Commands::Firefight::HomeHandler.execute(command)
-
-    assert_equal Command::EPHEMERAL, response[:response_type]
-    assert_includes response[:text], "expired"
-  end
-
   # --- Placeholder subcommands ---
 
   test "routes 'summary' subcommand to SummaryHandler" do
