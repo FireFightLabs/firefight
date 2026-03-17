@@ -44,9 +44,10 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
       build_interaction(name: "Link Test")
     )
 
-    button = result[:view][:blocks].first[:accessory]
+    actions = result[:view][:blocks].find { |b| b[:type] == "actions" }
+    button = actions[:elements].first
     assert_equal "slack://channel?team=#{@workspace.platform_id}&id=C12345678", button[:url]
-    assert_equal "Join incident channel", button[:text][:text]
+    assert_includes button[:text][:text], "Join incident channel"
   end
 
   test "sets is_private when visibility is private" do

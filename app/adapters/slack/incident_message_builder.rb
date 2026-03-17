@@ -7,7 +7,8 @@ module Slack
           type: "header",
           text: {
             type: "plain_text",
-            text: "#{incident.identifier}: #{incident.name || 'Untitled Incident'}"
+            text: ":rotating_light: #{incident.identifier} \u00B7 #{incident.name || 'Untitled Incident'}",
+            emoji: true
           }
         }
       ]
@@ -15,16 +16,15 @@ module Slack
       if incident.summary.present?
         blocks << {
           type: "section",
-          text: { type: "mrkdwn", text: incident.summary }
+          text: { type: "mrkdwn", text: "_#{incident.summary}_" }
         }
       end
 
       blocks << { type: "divider" }
-      blocks << { type: "section", text: { type: "mrkdwn", text: "#{severity_emoji(incident.incident_severity)} *Severity:* #{incident.incident_severity.name}" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":bar_chart: *Status:* #{incident.incident_status.name}" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":label: *Type:* #{incident.incident_type.name}" } } if incident.incident_type
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: *Declared by:* <@#{incident.declared_by.platform_user_id}>" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":fire: *Severity:* #{incident.incident_severity.name}" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":construction: *Status:* #{incident.incident_status.name}" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* <@#{incident.lead.platform_user_id}>" } } if incident.lead
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":mega: *Declared by:* <@#{incident.declared_by.platform_user_id}>" } }
 
       relationship_text = relationship_summary(incident)
       blocks << { type: "section", text: { type: "mrkdwn", text: relationship_text } } if relationship_text
@@ -41,10 +41,9 @@ module Slack
     # Announcement posted to #incidents channel
     def self.announcement_blocks(incident)
       announcement_blocks_for({
-        title: "#{incident.identifier}: #{incident.name || 'Untitled Incident'}",
+        title: "#{incident.identifier} \u00B7 #{incident.name || 'Untitled Incident'}",
         summary: incident.summary,
         severity_name: incident.incident_severity.name,
-        severity_slug: incident.incident_severity.slug,
         status_name: incident.incident_status.name,
         type_name: incident.incident_type&.name,
         reporter_id: incident.declared_by.platform_user_id,
@@ -59,24 +58,23 @@ module Slack
       blocks = [
         {
           type: "header",
-          text: { type: "plain_text", text: data[:title], emoji: true }
+          text: { type: "plain_text", text: ":rotating_light: #{data[:title]}", emoji: true }
         }
       ]
 
       if data[:summary].present?
         blocks << {
           type: "section",
-          text: { type: "mrkdwn", text: data[:summary] }
+          text: { type: "mrkdwn", text: "_#{data[:summary]}_" }
         }
       end
 
       blocks << { type: "divider" }
-      blocks << { type: "section", text: { type: "mrkdwn", text: "#{severity_emoji_for(data[:severity_slug])} *Severity:* #{data[:severity_name]}" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":bar_chart: *Status:* #{data[:status_name]}" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":label: *Type:* #{data[:type_name]}" } } if data[:type_name]
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: *Reporter:* <@#{data[:reporter_id]}>" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":fire: *Severity:* #{data[:severity_name]}" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":construction: *Status:* #{data[:status_name]}" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* <@#{data[:lead_id]}>" } } if data[:lead_id]
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":hash: *Channel:* <##{data[:channel_id]}>" } } if data[:channel_id]
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":mega: *Reporter:* <@#{data[:reporter_id]}>" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":speech_balloon: *Channel:* <##{data[:channel_id]}>" } } if data[:channel_id]
       blocks << { type: "section", text: { type: "mrkdwn", text: data[:relationship_text] } } if data[:relationship_text]
       blocks << { type: "divider" }
       blocks << {
@@ -85,12 +83,11 @@ module Slack
           {
             type: "button",
             text: { type: "plain_text", text: ":globe_with_meridians: Incident homepage", emoji: true },
-            action_id: Identifiers::PREVIEW_HOMEPAGE_DISABLED,
-            style: "primary"
+            action_id: Identifiers::PREVIEW_HOMEPAGE_DISABLED
           },
           {
             type: "button",
-            text: { type: "plain_text", text: ":pushpin: Subscribe", emoji: true },
+            text: { type: "plain_text", text: ":bell: Subscribe", emoji: true },
             action_id: Identifiers::PREVIEW_SUBSCRIBE_DISABLED
           }
         ]
@@ -120,7 +117,7 @@ module Slack
 
       buttons << {
         type: "button",
-        text: { type: "plain_text", text: ":rotating_light: Escalate", emoji: true },
+        text: { type: "plain_text", text: ":fire_engine: Escalate", emoji: true },
         action_id: Identifiers::ESCALATE_INCIDENT,
         value: incident.id
       }
@@ -186,8 +183,8 @@ module Slack
       end
 
       blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: Updated by: *<@#{updated_by_platform_user_id}>*" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":rotating_light: #{severity_text}" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":traffic_light: #{status_text}" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":fire: #{severity_text}" } }
+      blocks << { type: "section", text: { type: "mrkdwn", text: ":construction: #{status_text}" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":label: #{type_text}" } } if type_text
 
       blocks
@@ -764,16 +761,11 @@ module Slack
     private_class_method :relationship_summary
 
     def self.severity_emoji(severity)
-      severity_emoji_for(severity.slug)
+      ":fire:"
     end
 
     def self.severity_emoji_for(slug)
-      case slug
-      when "critical" then ":red_circle:"
-      when "major" then ":large_yellow_circle:"
-      when "minor" then ":fire:"
-      else ":white_circle:"
-      end
+      ":fire:"
     end
   end
 end

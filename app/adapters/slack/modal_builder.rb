@@ -158,16 +158,21 @@ module Slack
             text: {
               type: "mrkdwn",
               text: "We've created <##{incident.channel_id}> as a dedicated space to respond to this incident with your team."
-            },
-            accessory: {
-              type: "button",
-              text: {
-                type: "plain_text",
-                text: "Join incident channel"
-              },
-              url: channel_link,
-              style: "primary"
             }
+          },
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: ":slack: Join incident channel",
+                  emoji: true
+                },
+                url: channel_link
+              }
+            ]
           }
         ]
       }
