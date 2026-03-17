@@ -32,7 +32,6 @@ class ProcessCommandJob < ApplicationJob
 
   private
 
-  # Parse platform-specific payload into Command object
   def parse_command(platform, payload)
     case platform
     when Platforms::SLACK
