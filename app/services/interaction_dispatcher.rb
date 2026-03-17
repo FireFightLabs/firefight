@@ -36,7 +36,8 @@ class InteractionDispatcher
     Identifiers::CREATE_FOLLOWUP_FROM_REACTION => Interactions::CreateFollowupFromReactionHandler,
     Identifiers::LOAD_MORE_TIMELINE => Interactions::LoadMoreTimelineHandler,
     Identifiers::ACKNOWLEDGE_ESCALATION => Interactions::AcknowledgeEscalationHandler,
-    Identifiers::SHOUTOUT_FROM_REACTION => Interactions::ShoutoutFromReactionHandler
+    Identifiers::SHOUTOUT_FROM_REACTION => Interactions::ShoutoutFromReactionHandler,
+    Identifiers::INCIDENT_CREATION_SEVERITY_SELECT => Interactions::IncidentCreationSeveritySelectHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {

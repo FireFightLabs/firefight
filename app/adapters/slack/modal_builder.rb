@@ -1,6 +1,26 @@
 module Slack
   class ModalBuilder
-    def self.incident_creation_form
+    def self.incident_creation_form(workspace:, selected_severity_slug: nil)
+      severities = workspace.incident_severities.active.ordered
+      default_severity = severities.find(&:is_default?) || severities.last
+      selected_severity = if selected_severity_slug
+        severities.find { |s| s.slug == selected_severity_slug } || default_severity
+      else
+        default_severity
+      end
+
+      severity_options = severities.map do |severity|
+        {
+          text: { type: "plain_text", text: severity.name },
+          value: severity.slug
+        }
+      end
+
+      initial_option = {
+        text: { type: "plain_text", text: selected_severity.name },
+        value: selected_severity.slug
+      }
+
       {
         type: "modal",
         callback_id: Identifiers::INCIDENT_CREATION_MODAL,
@@ -42,53 +62,26 @@ module Slack
           {
             type: "input",
             block_id: "severity_block",
+            dispatch_action: true,
             element: {
               type: "static_select",
-              action_id: "severity_select",
+              action_id: Identifiers::INCIDENT_CREATION_SEVERITY_SELECT,
               placeholder: {
                 type: "plain_text",
                 text: "Select severity"
               },
-              options: [
-                {
-                  text: {
-                    type: "plain_text",
-                    text: "Critical"
-                  },
-                  value: "critical"
-                },
-                {
-                  text: {
-                    type: "plain_text",
-                    text: "Major"
-                  },
-                  value: "major"
-                },
-                {
-                  text: {
-                    type: "plain_text",
-                    text: "Minor"
-                  },
-                  value: "minor"
-                }
-              ],
-              initial_option: {
-                text: {
-                  type: "plain_text",
-                  text: "Minor"
-                },
-                value: "minor"
-              }
+              options: severity_options,
+              initial_option: initial_option
             },
             label: {
               type: "plain_text",
               text: "Severity"
-            },
-            hint: {
-              type: "plain_text",
-              text: "Issues with low impact, which can usually be handled within working hours. Most customers are unlikely to notice any problems. Examples include a slight drop in application performance."
             }
-          },
+          }.tap do |block|
+            if selected_severity.description.present?
+              block[:hint] = { type: "plain_text", text: selected_severity.description }
+            end
+          end,
           {
             type: "input",
             block_id: "summary_block",
@@ -141,6 +134,45 @@ module Slack
               type: "plain_text",
               text: "Public incidents are visible to everyone in the workspace. Private incidents are only accessible to invited members."
             }
+          }
+        ]
+      }
+    end
+
+    def self.incident_created_confirmation(incident, team_id:)
+      channel_link = "slack://channel?team=#{team_id}&id=#{incident.channel_id}"
+
+      {
+        type: "modal",
+        title: {
+          type: "plain_text",
+          text: "Incident declared"
+        },
+        close: {
+          type: "plain_text",
+          text: "Close"
+        },
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "We've created <##{incident.channel_id}> as a dedicated space to respond to this incident with your team."
+            }
+          },
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: ":slack: Join incident channel",
+                  emoji: true
+                },
+                url: channel_link
+              }
+            ]
           }
         ]
       }

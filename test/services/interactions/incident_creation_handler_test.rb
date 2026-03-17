@@ -8,17 +8,22 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     @member = workspace_memberships(:alice_workspace_one)
   end
 
-  test "creates incident and starts workflow" do
+  test "creates incident and returns confirmation modal" do
+    stub_create_channel
+
     IncidentCreationWorkflow.expects(:start!).with do |incident|
       incident.name == "DB Down" && incident.workspace == @workspace
     end.once
 
+    result = nil
     assert_difference "Incident.count", 1 do
       result = Interactions::IncidentCreationHandler.execute(
         build_interaction(severity: "critical", name: "DB Down", summary: "Primary DB offline", visibility: "public")
       )
-      assert_nil result
     end
+
+    assert_equal "update", result[:response_action]
+    assert_equal "Incident declared", result[:view][:title][:text]
 
     incident = Incident.find_by!(name: "DB Down")
     assert_equal @workspace, incident.workspace
@@ -27,9 +32,27 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     assert_equal "investigating", incident.incident_status.slug
     assert_equal "Primary DB offline", incident.summary
     assert_equal false, incident.is_private
+    assert_equal "C12345678", incident.channel_id
+  end
+
+  test "confirmation modal contains channel deep link" do
+    stub_create_channel
+
+    IncidentCreationWorkflow.stubs(:start!)
+
+    result = Interactions::IncidentCreationHandler.execute(
+      build_interaction(name: "Link Test")
+    )
+
+    actions = result[:view][:blocks].find { |b| b[:type] == "actions" }
+    button = actions[:elements].first
+    assert_equal "slack://channel?team=#{@workspace.platform_id}&id=C12345678", button[:url]
+    assert_includes button[:text][:text], "Join incident channel"
   end
 
   test "sets is_private when visibility is private" do
+    stub_create_channel
+
     IncidentCreationWorkflow.stubs(:start!)
 
     Interactions::IncidentCreationHandler.execute(
@@ -68,7 +91,7 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
       callback_id: Identifiers::INCIDENT_CREATION_MODAL,
       values: {
         "name_block" => { "name_input" => { "value" => name } },
-        "severity_block" => { "severity_select" => { "selected_option" => { "value" => severity } } },
+        "severity_block" => { Identifiers::INCIDENT_CREATION_SEVERITY_SELECT => { "selected_option" => { "value" => severity } } },
         "summary_block" => { "summary_input" => { "value" => summary } },
         "visibility_block" => { "visibility_select" => { "selected_option" => { "value" => visibility } } }
       }
