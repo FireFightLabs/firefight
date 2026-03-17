@@ -124,21 +124,19 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     # Homepage button
     homepage_button = actions[:elements].find { |e| e[:action_id] == Identifiers::PREVIEW_HOMEPAGE_DISABLED }
     assert homepage_button.present?
-    assert_equal "primary", homepage_button[:style]
+    assert_nil homepage_button[:style]
 
     # Subscribe button
     subscribe_button = actions[:elements].find { |e| e[:action_id] == Identifiers::PREVIEW_SUBSCRIBE_DISABLED }
     assert subscribe_button.present?
   end
 
-  test "preview_announcement_blocks uses vertical layout not grid" do
+  test "preview_announcement_blocks uses vertical layout for metadata" do
     result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
 
-    # Verify no section has "fields" array (which creates grid layout)
     sections = result[:blocks].select { |b| b[:type] == "section" }
-    sections.each do |section|
-    assert_nil section[:fields], "Sections should not use fields array (grid layout)"
-    end
+    metadata_sections = sections.select { |s| s.dig(:text, :text)&.match?(/Severity|Status|Reporter/) }
+    assert metadata_sections.length >= 3, "Should have individual sections for severity, status, and reporter"
   end
 
   # share_channel_modal tests

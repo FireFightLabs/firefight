@@ -49,16 +49,18 @@ module Interactions
       dm_message_ts = interaction.raw&.dig("container", "message_ts")
 
       if dm_channel_id && dm_message_ts
+        original_blocks = interaction.raw&.dig("message", "blocks") || []
+        updated_blocks = original_blocks.reject { |b| b["type"] == "actions" }
+        updated_blocks << {
+          type: "section",
+          text: { type: "mrkdwn", text: ":white_check_mark: *You acknowledged this escalation*" }
+        }
+
         workspace.adapter.update_message(
           channel_id: dm_channel_id,
           ts: dm_message_ts,
           text: "Escalation acknowledged",
-          blocks: [
-            {
-              type: "section",
-              text: { type: "mrkdwn", text: ":white_check_mark: You acknowledged this escalation. Thank you." }
-            }
-          ]
+          blocks: updated_blocks
         )
       end
 

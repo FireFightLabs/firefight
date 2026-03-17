@@ -6,7 +6,7 @@ module Interactions
 
       values = interaction.values
       name = values.dig("name_block", "name_input", "value")
-      severity_slug = values.dig("severity_block", "severity_select", "selected_option", "value")
+      severity_slug = values.dig("severity_block", Identifiers::INCIDENT_CREATION_SEVERITY_SELECT, "selected_option", "value")
       summary = values.dig("summary_block", "summary_input", "value")
       visibility = values.dig("visibility_block", "visibility_select", "selected_option", "value")
 
@@ -23,6 +23,7 @@ module Interactions
         is_private: visibility == "private"
       )
 
+      IncidentCreationService.new(workspace).create_channel(incident)
       IncidentCreationWorkflow.start!(incident)
 
       Rails.logger.info({
@@ -33,7 +34,8 @@ module Interactions
         severity: severity_slug
       })
 
-      nil
+      adapter = workspace.adapter
+      { response_action: "update", view: adapter.build_incident_created_view(incident) }
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.error({ event: "incident.creation_error", error: e.message })
 
