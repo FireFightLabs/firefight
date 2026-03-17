@@ -271,6 +271,46 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     assert_equal false, ephemeral_called, "ephemeral should not be sent when handler returns nil"
   end
 
+  test "provisions member before dispatching command" do
+    stub_get_user_info
+
+    payload = {
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U_NEW_USER",
+    "text" => "",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
+    }
+
+    stub_class_method(CommandDispatcher, :dispatch, ->(_cmd) { nil }) do
+      assert_difference "WorkspaceMembership.count", 1 do
+        ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+      end
+    end
+
+    membership = @workspace.workspace_memberships.find_by!(platform_user_id: "U_NEW_USER")
+    assert_equal "member", membership.role
+  end
+
+  test "continues dispatching when provisioning fails" do
+    payload = {
+    "team_id" => @workspace.platform_id,
+    "user_id" => "U12345678",
+    "text" => "",
+    "trigger_id" => "123456.789.abc123",
+    "channel_id" => "C12345678"
+    }
+
+    WorkspaceMemberProvisioner.stubs(:find_or_provision!).raises(StandardError.new("API down"))
+
+    dispatch_called = false
+    stub_class_method(CommandDispatcher, :dispatch, ->(_cmd) { dispatch_called = true }) do
+      ProcessCommandJob.perform_now(Platforms::SLACK, payload)
+    end
+
+    assert dispatch_called, "dispatch should still be called after provisioning failure"
+  end
+
   test "should handle error notification failure gracefully" do
     payload = {
     "team_id" => @workspace.platform_id,

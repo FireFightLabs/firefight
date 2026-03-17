@@ -117,6 +117,24 @@ module SlackClientStubHelper
     Slack::Client.stubs(:download_file).returns({ body: body, content_type: content_type })
   end
 
+  def stub_get_user_info(raises: nil)
+    if raises
+      Slack::Client.stubs(:get_user_info).raises(raises)
+    else
+      Slack::Client.stubs(:get_user_info).returns({
+        user: {
+          id: "U_NEW_USER",
+          name: "newuser",
+          profile: {
+            real_name: "New User",
+            display_name: "newuser",
+            email: "newuser@example.com"
+          }
+        }
+      })
+    end
+  end
+
   def stub_successful_slack_workflow
     stub_create_channel
     stub_set_channel_topic
