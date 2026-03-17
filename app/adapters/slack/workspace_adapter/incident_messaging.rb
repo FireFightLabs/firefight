@@ -26,11 +26,25 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_lead_expectations(channel_id:, user_id:)
-    text = "*You're now the Incident Lead.* Here's what's expected:\n" \
-           "- Make sure it's clear who is doing what\n" \
-           "- Ensure everybody has what they need\n" \
-           "- Provide regular, clear updates"
-    post_ephemeral(channel_id: channel_id, user_id: user_id, text: text)
+    blocks = [
+      {
+        type: "header",
+        text: { type: "plain_text", text: ":firefighter: You are now the Incident Lead", emoji: true }
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: "*Here's what's expected:*" }
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: "\u2022 Own the incident and drive resolution\n\u2022 Keep communication clear and frequent\n\u2022 Make sure everyone knows what to do" }
+      },
+      {
+        type: "context",
+        elements: [ { type: "mrkdwn", text: "You've got this :muscle:" } ]
+      }
+    ]
+    post_ephemeral(channel_id: channel_id, user_id: user_id, text: "You are now the Incident Lead", blocks: blocks)
   end
 
   def post_incident_quick_actions(channel_id:, incident:)
