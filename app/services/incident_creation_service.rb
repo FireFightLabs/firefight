@@ -4,6 +4,8 @@ class IncidentCreationService
   end
 
   def create_channel(incident)
+    return if incident.channel_id.present?
+
     adapter = @workspace.adapter
     result = adapter.create_channel(name: incident.generated_channel_name, is_private: incident.is_private)
     incident.update!(channel_id: result[:channel_id], channel_name: result[:channel_name])

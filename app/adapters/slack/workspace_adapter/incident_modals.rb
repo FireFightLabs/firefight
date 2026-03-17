@@ -5,6 +5,10 @@ module Slack::WorkspaceAdapter::IncidentModals
     Slack::ModalBuilder.incident_creation_form(workspace: @workspace, selected_severity_slug: selected_severity_slug)
   end
 
+  def build_incident_created_view(incident)
+    Slack::ModalBuilder.incident_created_confirmation(incident, team_id: @workspace.platform_id)
+  end
+
   def open_incident_creation_modal(trigger_id:)
     open_modal(trigger_id: trigger_id, view: build_incident_creation_view)
   end
