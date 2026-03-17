@@ -31,7 +31,7 @@ module Slack
             },
             label: {
               type: "plain_text",
-              text: "Incident name (optional)"
+              text: "Incident name"
             },
             hint: {
               type: "plain_text",
@@ -104,7 +104,7 @@ module Slack
             },
             label: {
               type: "plain_text",
-              text: "Summary (optional)"
+              text: "Summary"
             },
             hint: {
               type: "plain_text",
@@ -438,7 +438,7 @@ module Slack
           },
           options: next_update_options
         },
-        label: { type: "plain_text", text: "When will you provide the next update? (optional)" },
+        label: { type: "plain_text", text: "When will you provide the next update?" },
         optional: true
       }
 
@@ -857,7 +857,7 @@ module Slack
               type: "plain_text_input",
               action_id: "reason_input",
               multiline: true,
-              placeholder: { type: "plain_text", text: "Add context for the escalation (optional)" },
+              placeholder: { type: "plain_text", text: "Add context for the escalation" },
               max_length: 3000
             },
             label: { type: "plain_text", text: "Reason" },
