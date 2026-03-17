@@ -164,4 +164,43 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     result = InteractionDispatcher.dispatch(interaction)
     assert_equal "clear", result[:response_action]
   end
+
+  # member provisioning
+
+  test "dispatch provisions member before calling handler" do
+    workspace = Workspace.create!(
+      platform: "slack",
+      platform_id: "T#{SecureRandom.hex(8)}",
+      name: "Test Workspace",
+      access_token: "xoxb-test-token",
+      installed_at: Time.current,
+      incidents_channel_id: "C12345678"
+    )
+
+    stub_get_user_info
+
+    interaction = Interaction.new(
+      type: Interaction::VIEW_CLOSED,
+      platform: Platforms::SLACK,
+      team_id: workspace.platform_id,
+      user_id: "U_NEW_USER"
+    )
+
+    assert_difference "WorkspaceMembership.count", 1 do
+      InteractionDispatcher.dispatch(interaction)
+    end
+
+    membership = workspace.workspace_memberships.find_by!(platform_user_id: "U_NEW_USER")
+    assert_equal "member", membership.role
+  end
+
+  test "dispatch continues when provisioning fails" do
+    interaction = Interaction.new(type: Interaction::VIEW_CLOSED)
+
+    WorkspaceMemberProvisioner.stubs(:find_or_provision!).raises(StandardError.new("API down"))
+
+    assert_nothing_raised do
+      InteractionDispatcher.dispatch(interaction)
+    end
+  end
 end

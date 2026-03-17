@@ -45,9 +45,20 @@ class EventDispatcherTest < ActiveSupport::TestCase
     EventDispatcher.dispatch(Platforms::SLACK, payload)
   end
 
-  test "logs unhandled event types" do
+  test "routes member_joined_channel to MemberJoinedChannelHandler" do
     payload = {
       "event" => { "type" => "member_joined_channel" },
+      "team_id" => "T12345"
+    }
+
+    Events::MemberJoinedChannelHandler.expects(:execute).with(Platforms::SLACK, payload).once
+
+    EventDispatcher.dispatch(Platforms::SLACK, payload)
+  end
+
+  test "logs unhandled event types" do
+    payload = {
+      "event" => { "type" => "app_mention" },
       "team_id" => "T12345"
     }
 

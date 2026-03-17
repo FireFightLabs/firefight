@@ -44,9 +44,26 @@ class InteractionDispatcher
   }.freeze
 
   def self.dispatch(interaction)
+    ensure_member_provisioned(interaction)
     handler = find(interaction)
     handler.execute(interaction)
   end
+
+  def self.ensure_member_provisioned(interaction)
+    workspace = interaction.workspace
+    WorkspaceMemberProvisioner.find_or_provision!(
+      workspace: workspace,
+      platform_user_id: interaction.user_id,
+      adapter: workspace.adapter
+    )
+  rescue StandardError => e
+    Rails.logger.warn({
+      event: "interaction_dispatcher.provisioning_failed",
+      user_id: interaction.user_id,
+      error: e.message
+    })
+  end
+  private_class_method :ensure_member_provisioned
 
   def self.find(interaction)
     case interaction.type

@@ -12,6 +12,8 @@ class EventDispatcher
       Events::PinAddedHandler.execute(platform, payload)
     when "pin_removed"
       Events::PinRemovedHandler.execute(platform, payload)
+    when "member_joined_channel"
+      Events::MemberJoinedChannelHandler.execute(platform, payload)
     else
       Rails.logger.info({
         event: "event_dispatcher.unhandled_event",

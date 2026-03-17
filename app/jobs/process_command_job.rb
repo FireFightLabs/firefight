@@ -20,6 +20,7 @@ class ProcessCommandJob < ApplicationJob
       return
     end
 
+    ensure_member_provisioned(command)
     result = CommandDispatcher.dispatch(command)
     send_ephemeral(command, result)
   rescue ArgumentError, NotImplementedError
@@ -31,7 +32,6 @@ class ProcessCommandJob < ApplicationJob
 
   private
 
-  # Parse platform-specific payload into Command object
   def parse_command(platform, payload)
     case platform
     when Platforms::SLACK
@@ -41,6 +41,23 @@ class ProcessCommandJob < ApplicationJob
     else
       raise ArgumentError, "Unknown platform: #{platform}"
     end
+  end
+
+  def ensure_member_provisioned(command)
+    workspace = command.workspace
+    return unless workspace
+
+    WorkspaceMemberProvisioner.find_or_provision!(
+      workspace: workspace,
+      platform_user_id: command.user_id,
+      adapter: workspace.adapter
+    )
+  rescue StandardError => e
+    Rails.logger.warn({
+      event: "process_command_job.provisioning_failed",
+      user_id: command.user_id,
+      error: e.message
+    })
   end
 
   # Send ephemeral response to user when handler returns one
