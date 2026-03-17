@@ -55,6 +55,7 @@ settings:
       - message.groups
       - pin_added
       - pin_removed
+      - member_joined_channel
   interactivity:
     is_enabled: true
     request_url: https://firefight-production-32a5.up.railway.app/api/v1/interactions
