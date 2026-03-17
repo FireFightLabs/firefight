@@ -56,6 +56,7 @@ settings:
       - message.groups
       - pin_added
       - pin_removed
+      - member_joined_channel
   interactivity:
     is_enabled: true
     request_url: https://ff.bugrewind.com/api/v1/interactions
