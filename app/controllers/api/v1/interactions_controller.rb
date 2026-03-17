@@ -29,7 +29,7 @@ class Api::V1::InteractionsController < Api::V1::BaseController
 
     JSON.parse(payload_json)
   rescue JSON::ParserError => e
-    Rails.logger.error({ event: "interactions_controller.failed_to_parse_payload", errors: command.errors.full_messages })
+    Rails.logger.error({ event: "interactions_controller.failed_to_parse_payload", error: e.message })
     render json: { error: "Invalid payload" }, status: :bad_request
     nil
   end
