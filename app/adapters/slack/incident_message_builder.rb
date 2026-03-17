@@ -304,14 +304,12 @@ module Slack
     def self.escalation_blocks(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
       blocks = [
         {
-          type: "section",
-          text: { type: "mrkdwn", text: ":rotating_light:  *Incident Escalated*" }
+          type: "header",
+          text: { type: "plain_text", text: ":rotating_light: Incident Escalated", emoji: true }
         },
         { type: "divider" },
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: "Escalated to <@#{escalated_to_platform_user_id}>" }
-        }
+        { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Escalated to:* <@#{escalated_to_platform_user_id}>" } },
+        { type: "section", text: { type: "mrkdwn", text: ":mega: *Escalated by:* <@#{escalated_by_platform_user_id}>" } }
       ]
 
       if reason.present?
@@ -321,13 +319,6 @@ module Slack
         }
       end
 
-      blocks << {
-        type: "context",
-        elements: [
-          { type: "mrkdwn", text: "Escalated by <@#{escalated_by_platform_user_id}>  |  Status: #{incident.incident_status.name}" }
-        ]
-      }
-
       blocks
     end
 
@@ -335,21 +326,15 @@ module Slack
       blocks = [
         {
           type: "header",
-          text: { type: "plain_text", text: "Incident Escalated", emoji: true }
+          text: { type: "plain_text", text: ":rotating_light: Incident Escalated", emoji: true }
         },
         { type: "divider" },
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: ":bust_in_silhouette: Escalated to: *<@#{escalated_to_platform_user_id}>*" }
-        },
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: ":bust_in_silhouette: Escalated by: *<@#{escalated_by_platform_user_id}>*" }
-        }
+        { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Escalated to:* <@#{escalated_to_platform_user_id}>" } },
+        { type: "section", text: { type: "mrkdwn", text: ":mega: *Escalated by:* <@#{escalated_by_platform_user_id}>" } }
       ]
 
       if reason.present?
-        blocks << { type: "section", text: { type: "mrkdwn", text: reason } }
+        blocks << { type: "section", text: { type: "mrkdwn", text: "> #{reason}" } }
       end
 
       blocks
@@ -358,16 +343,15 @@ module Slack
     def self.escalation_direct_message_blocks(incident, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
       blocks = [
         {
-          type: "section",
-          text: { type: "mrkdwn", text: ":rotating_light: *#{incident.identifier}* has been escalated to you" }
+          type: "header",
+          text: { type: "plain_text", text: ":rotating_light: #{incident.identifier} \u00B7 Escalation", emoji: true }
         },
         {
           type: "section",
-          text: {
-            type: "mrkdwn",
-            text: "Escalated by <@#{escalated_by_platform_user_id}> in <##{incident.channel_id}>."
-          }
-        }
+          text: { type: "mrkdwn", text: "*You've been pulled into this incident*" }
+        },
+        { type: "section", text: { type: "mrkdwn", text: ":mega: *Escalated by:* <@#{escalated_by_platform_user_id}>" } },
+        { type: "section", text: { type: "mrkdwn", text: ":speech_balloon: *Channel:* <##{incident.channel_id}>" } }
       ]
 
       if reason.present?
@@ -384,7 +368,6 @@ module Slack
             type: "button",
             text: { type: "plain_text", text: ":white_check_mark: Acknowledge", emoji: true },
             action_id: Identifiers::ACKNOWLEDGE_ESCALATION,
-            style: "primary",
             value: {
               incident_id: incident.id,
               escalation_event_id: escalation_event_id
@@ -405,7 +388,7 @@ module Slack
         {
           type: "context",
           elements: [
-            { type: "mrkdwn", text: "<@#{acknowledged_by_platform_user_id}> acknowledged escalation to <@#{escalated_to_platform_user_id}> for *#{incident.identifier}*." }
+            { type: "mrkdwn", text: ":firefighter: <@#{escalated_to_platform_user_id}> joined the incident" }
           ]
         }
       ]
@@ -414,13 +397,15 @@ module Slack
     def self.escalation_nudge_direct_message_blocks(incident, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
       blocks = [
         {
-          type: "section",
-          text: { type: "mrkdwn", text: ":bell: Reminder: *#{incident.identifier}* is waiting for your response." }
+          type: "header",
+          text: { type: "plain_text", text: ":bell: #{incident.identifier} \u00B7 Escalation Reminder", emoji: true }
         },
         {
           type: "section",
-          text: { type: "mrkdwn", text: "Escalated by <@#{escalated_by_platform_user_id}> in <##{incident.channel_id}>." }
-        }
+          text: { type: "mrkdwn", text: "*This incident is still waiting for your response*" }
+        },
+        { type: "section", text: { type: "mrkdwn", text: ":mega: *Escalated by:* <@#{escalated_by_platform_user_id}>" } },
+        { type: "section", text: { type: "mrkdwn", text: ":speech_balloon: *Channel:* <##{incident.channel_id}>" } }
       ]
 
       if reason.present?
@@ -434,7 +419,6 @@ module Slack
             type: "button",
             text: { type: "plain_text", text: ":white_check_mark: Acknowledge", emoji: true },
             action_id: Identifiers::ACKNOWLEDGE_ESCALATION,
-            style: "primary",
             value: {
               incident_id: incident.id,
               escalation_event_id: escalation_event_id
