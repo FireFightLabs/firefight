@@ -289,6 +289,22 @@ module Slack
       end
     end
 
+    def self.unarchive_channel(workspace:, channel:)
+      api_post(
+        workspace: workspace,
+        endpoint: "conversations.unarchive",
+        payload: {
+          channel: channel
+        }
+      )
+    rescue ApiError => e
+      if e.message.include?("not_archived")
+        { ok: true }
+      else
+        raise
+      end
+    end
+
     # List all channels in the workspace
     #
     # @param workspace [Workspace] The workspace to use for authentication

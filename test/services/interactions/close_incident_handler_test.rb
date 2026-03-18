@@ -125,6 +125,24 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
     assert_equal @member.platform_user_id, workflow.context["resolved_by_platform_user_id"]
   end
 
+  test "enqueues channel archival job" do
+    stub_all_side_effects
+
+    Interactions::CloseIncidentHandler.execute(build_interaction)
+
+    @incident.reload
+    assert_enqueued_with(job: ChannelArchivalJob, args: [ @incident.id, @incident.resolved_at.iso8601 ])
+  end
+
+  test "skips channel archival when disabled" do
+    @workspace.update!(archive_channel_enabled: false)
+    stub_all_side_effects
+
+    Interactions::CloseIncidentHandler.execute(build_interaction)
+
+    assert_no_enqueued_jobs(only: ChannelArchivalJob)
+  end
+
   test "returns error when incident already closed" do
     @incident.update!(incident_status: @resolved_status, resolved_at: Time.current)
     stub_all_side_effects

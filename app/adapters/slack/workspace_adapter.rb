@@ -38,6 +38,13 @@ module Slack
       end
     end
 
+    def unarchive_channel(channel_id:)
+      translate_errors do
+        Slack::Client.unarchive_channel(workspace: @workspace, channel: channel_id)
+        { success: true }
+      end
+    end
+
     def set_channel_topic(channel_id:, topic:)
       translate_errors do
         Slack::Client.set_channel_topic(
