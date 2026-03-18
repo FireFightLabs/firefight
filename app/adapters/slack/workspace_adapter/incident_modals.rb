@@ -121,8 +121,8 @@ module Slack::WorkspaceAdapter::IncidentModals
     open_modal(trigger_id: trigger_id, view: build_close_view(incident, private_metadata: private_metadata))
   end
 
-  def open_link_incident_modal(trigger_id:, incident:, private_metadata: nil)
-    view = Slack::ModalBuilder.link_incident_modal(incident, private_metadata: private_metadata)
+  def open_link_incident_modal(trigger_id:, incident:, private_metadata: nil, default_type: IncidentRelationship::RELATED)
+    view = Slack::ModalBuilder.link_incident_modal(incident, private_metadata: private_metadata, default_type: default_type)
     return unless view
 
     open_modal(trigger_id: trigger_id, view: view)

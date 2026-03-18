@@ -752,7 +752,7 @@ module Slack
       }
     end
 
-    def self.link_incident_modal(incident, private_metadata: nil)
+    def self.link_incident_modal(incident, private_metadata: nil, default_type: IncidentRelationship::RELATED)
       metadata = private_metadata || incident.id
       workspace = incident.workspace
 
@@ -800,7 +800,11 @@ module Slack
                   description: { type: "plain_text", text: "Mark this incident as a duplicate and cancel it" }
                 }
               ],
-              initial_option: {
+              initial_option: default_type == IncidentRelationship::DUPLICATE ? {
+                text: { type: "plain_text", text: "Duplicate (merge into target)" },
+                value: IncidentRelationship::DUPLICATE,
+                description: { type: "plain_text", text: "Mark this incident as a duplicate and cancel it" }
+              } : {
                 text: { type: "plain_text", text: "Related" },
                 value: IncidentRelationship::RELATED,
                 description: { type: "plain_text", text: "Link as contextually related incidents" }

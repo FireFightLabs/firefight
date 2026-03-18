@@ -170,31 +170,46 @@ module Slack
       blocks
     end
 
-    # Vertical format with divider for #incidents announcement thread
     def self.status_update_announcement_blocks(incident, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
       severity_text = diff_text("Severity", previous_severity_name, incident.incident_severity.name)
       status_text = diff_text("Status", previous_status_name, incident.incident_status.name)
       type_text = type_diff_text(previous_type_name, incident.incident_type&.name)
 
+      field_lines = [ severity_text, status_text ]
+      field_lines << type_text if type_text
+
       blocks = [
         {
-          type: "header",
-          text: { type: "plain_text", text: "Incident updated", emoji: true }
-        },
-        { type: "divider" }
+          type: "section",
+          text: { type: "mrkdwn", text: ":memo: *Incident updated*" }
+        }
       ]
 
       if message.present?
         blocks << {
           type: "section",
-          text: { type: "mrkdwn", text: message }
+          text: { type: "mrkdwn", text: "> #{message}" }
         }
       end
 
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: Updated by: *<@#{updated_by_platform_user_id}>*" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":fire: #{severity_text}" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":construction: #{status_text}" } }
-      blocks << { type: "section", text: { type: "mrkdwn", text: ":label: #{type_text}" } } if type_text
+      blocks << {
+        type: "section",
+        text: { type: "mrkdwn", text: field_lines.join("  ·  ") }
+      }
+
+      context_parts = [ "Updated by <@#{updated_by_platform_user_id}>" ]
+      if incident.next_update_at.present?
+        unix_ts = incident.next_update_at.to_i
+        fallback = incident.next_update_at.in_time_zone.strftime("%H:%M")
+        context_parts << "Next update <!date^#{unix_ts}^{date_short_pretty} at {time}|#{fallback}>"
+      end
+
+      blocks << {
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: context_parts.join("  ·  ") }
+        ]
+      }
 
       blocks
     end
@@ -440,14 +455,17 @@ module Slack
     end
 
     def self.related_link_blocks(source, target, linked_by_platform_user_id:)
+      channel_ref = target.channel_id ? "  ·  <##{target.channel_id}>" : ""
+      target_detail = "#{target.incident_severity.name}  ·  #{target.incident_status.name}#{channel_ref}"
+
       [
         {
           type: "section",
-          text: { type: "mrkdwn", text: ":link: *Incident linked*" }
+          text: { type: "mrkdwn", text: ":link: *Related incident linked*\n*#{target.identifier}* — #{target.name || 'Untitled Incident'}" }
         },
         {
           type: "section",
-          text: { type: "mrkdwn", text: "Linked as related to *#{target.identifier}*: #{target.name || 'Untitled Incident'}#{target.channel_id ? " (<##{target.channel_id}>)" : ""}" }
+          text: { type: "mrkdwn", text: target_detail }
         },
         {
           type: "context",
@@ -459,37 +477,48 @@ module Slack
     end
 
     def self.duplicate_source_blocks(source, canonical, linked_by_platform_user_id:)
-      [
+      blocks = [
         {
           type: "section",
-          text: { type: "mrkdwn", text: ":no_entry_sign: *Incident merged*" }
+          text: { type: "mrkdwn", text: ":repeat: *This incident has been marked as a duplicate*" }
         },
+        { type: "divider" },
         {
           type: "section",
-          text: { type: "mrkdwn", text: "This incident has been marked as a duplicate and merged into *#{canonical.identifier}*: #{canonical.name || 'Untitled Incident'}#{canonical.channel_id ? " (<##{canonical.channel_id}>)" : ""}" }
-        },
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: ":point_right: Please continue in <##{canonical.channel_id}>" }
-        },
-        {
-          type: "context",
-          elements: [
-            { type: "mrkdwn", text: "Merged by <@#{linked_by_platform_user_id}>" }
-          ]
+          text: { type: "mrkdwn", text: "Merged into *#{canonical.identifier}* — #{canonical.name || 'Untitled Incident'}\n#{canonical.incident_severity.name}  ·  #{canonical.incident_status.name}" }
         }
       ]
+
+      if canonical.channel_id
+        blocks << {
+          type: "section",
+          text: { type: "mrkdwn", text: ":point_right: Continue in <##{canonical.channel_id}>" }
+        }
+      end
+
+      blocks << {
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: "Merged by <@#{linked_by_platform_user_id}>" }
+        ]
+      }
+
+      blocks
     end
 
     def self.duplicate_canonical_blocks(source, canonical, linked_by_platform_user_id:)
+      detail = "#{source.incident_severity.name}  ·  #{source.incident_status.name}"
+      detail += "  ·  <##{source.channel_id}>" if source.channel_id
+
       [
         {
           type: "section",
-          text: { type: "mrkdwn", text: ":incoming_envelope: *Duplicate merged in*" }
+          text: { type: "mrkdwn", text: ":repeat: *Duplicate incident merged in*" }
         },
+        { type: "divider" },
         {
           type: "section",
-          text: { type: "mrkdwn", text: "*#{source.identifier}*: #{source.name || 'Untitled Incident'}#{source.channel_id ? " (<##{source.channel_id}>)" : ""} has been marked as a duplicate of this incident." }
+          text: { type: "mrkdwn", text: "*#{source.identifier}* — #{source.name || 'Untitled Incident'}\n#{detail}" }
         },
         {
           type: "context",
@@ -735,21 +764,21 @@ module Slack
       related = incident.related_incidents.to_a
       if related.any?
         links = related.map { |i| "#{i.identifier}#{i.channel_id ? " (<##{i.channel_id}>)" : ""}" }
-        parts << ":link: *Related:* #{links.join(', ')}"
+        parts << ":link:  *Related:* #{links.join(', ')}"
       end
 
       dupes = incident.duplicates
       if dupes.any?
         links = dupes.map { |i| "#{i.identifier}#{i.channel_id ? " (<##{i.channel_id}>)" : ""}" }
-        parts << ":incoming_envelope: *Duplicates:* #{links.join(', ')}"
+        parts << ":repeat:  *Duplicates:* #{links.join(', ')}"
       end
 
       canonical = incident.duplicate_of
       if canonical
-        parts << ":no_entry_sign: *Duplicate of:* #{canonical.identifier}#{canonical.channel_id ? " (<##{canonical.channel_id}>)" : ""}"
+        parts << ":repeat:  *Duplicate of:* #{canonical.identifier}#{canonical.channel_id ? " (<##{canonical.channel_id}>)" : ""}"
       end
 
-      parts.any? ? parts.join("\n") : nil
+      parts.any? ? parts.join("\n\n") : nil
     end
     private_class_method :relationship_summary
 
