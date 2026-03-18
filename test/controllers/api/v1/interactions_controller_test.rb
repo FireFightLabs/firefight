@@ -157,31 +157,6 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Invalid payload", JSON.parse(response.body)["error"]
   end
 
-  test "should verify workspace exists via team_id in payload" do
-    skip "Pending workspace verification security fix in InteractionsController"
-
-    # Note: Currently InteractionsController doesn't verify workspace
-    # This test documents the expected behavior once security fix is implemented
-    payload = {
-    type: "view_submission",
-    team: { id: "T99999999" }, # Non-existent workspace
-    user: { id: "U12345678" },
-    view: { callback_id: Identifiers::INCIDENT_CREATION_MODAL, state: { values: {} } }
-    }
-
-    request_data = slack_interaction_request(payload)
-
-    post api_v1_interactions_url,
-       params: request_data[:body],
-       headers: request_data[:headers]
-
-    # Currently returns :success, but should return :not_found after security fix
-    assert_response :success
-    # TODO: Once workspace verification is added to InteractionsController:
-    # assert_response :not_found
-    # assert_equal "Not found", JSON.parse(response.body)["error"]
-  end
-
   test "should extract form values from view_submission" do
     payload = {
     type: "view_submission",
@@ -242,40 +217,6 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
        headers: request_data[:headers]
 
     assert_response :success
-  end
-
-  test "should detect workspace_id mismatch in private_metadata" do
-    skip "Pending workspace/private_metadata consistency check in InteractionsController"
-
-    # This test documents the security concern about private_metadata
-    different_workspace = workspaces(:slack_workspace_two)
-
-    metadata = {
-    workspace_id: different_workspace.id # Attacker tries to use different workspace
-    }
-
-    payload = {
-    type: "view_submission",
-    team: { id: @workspace.platform_id }, # But request comes from workspace_one
-    user: { id: "U12345678" },
-    view: {
-      callback_id: Identifiers::INCIDENT_CREATION_MODAL,
-      private_metadata: metadata.to_json,
-      state: { values: {} }
-    }
-    }
-
-    request_data = slack_interaction_request(payload)
-
-    post api_v1_interactions_url,
-       params: request_data[:body],
-       headers: request_data[:headers]
-
-    # Currently returns :success, but should detect the mismatch
-    assert_response :success
-    # TODO: Once workspace verification is added to InteractionsController:
-    # assert_response :forbidden
-    # The workspace_id from team.id should not match workspace_id in private_metadata
   end
 
   # Phase 7 Interactive Component Tests
@@ -476,29 +417,4 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "should raise error if workspace not found for preview" do
-    skip "Pending workspace verification security fix in InteractionsController"
-
-    payload = {
-    type: "block_actions",
-    team: { id: "T_NONEXISTENT" },
-    user: { id: "U12345678" },
-    channel: { id: "C12345678" },
-    actions: [
-      { action_id: Identifiers::PREVIEW_ANNOUNCEMENT, type: "button" }
-    ]
-    }
-
-    request_data = slack_interaction_request(payload)
-
-    post api_v1_interactions_url,
-       params: request_data[:body],
-       headers: request_data[:headers]
-
-    # Currently doesn't validate workspace, but test documents expected behavior
-    # TODO: Should return :not_found after security fix
-    assert_response :not_found
-  rescue ActiveRecord::RecordNotFound
-    # Expected behavior - service raises error, controller should catch
-  end
 end
