@@ -115,32 +115,28 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     ].join("\n")
   end
 
-  def build_timeline_response(incident, limit: TIMELINE_DEFAULT_LIMIT)
-    capped_limit = [ [ limit.to_i, TIMELINE_DEFAULT_LIMIT ].max, TIMELINE_MAX_EVENTS ].min
-    events = incident.incident_events.includes(:eventable).recent.limit(capped_limit).reverse
-    return nil if events.empty?
+  def open_timeline_modal(trigger_id:, incident:, limit: TIMELINE_DEFAULT_LIMIT)
+    view = build_timeline_view(incident, limit: limit)
+    return unless view
 
-    blocks = [
-      { type: "header", text: { type: "plain_text", text: "#{incident.identifier} Timeline", emoji: true } },
-      { type: "divider" }
-    ]
-    blocks.concat(Slack::IncidentTimelineFormatter.to_blocks(events))
+    open_modal(trigger_id: trigger_id, view: view)
+  end
 
-    total_events = incident.incident_events.count
-    if total_events > capped_limit
-      blocks << { type: "actions", elements: [ timeline_load_more_button(incident.id, capped_limit) ] }
-      blocks << {
-        type: "context",
-        elements: [ { type: "mrkdwn", text: ":information_source: Showing latest #{capped_limit} of #{total_events} events." } ]
-      }
-    elsif total_events > TIMELINE_DEFAULT_LIMIT
-      blocks << {
-        type: "context",
-        elements: [ { type: "mrkdwn", text: ":information_source: Showing latest #{total_events} events." } ]
-      }
+  def push_timeline_modal(trigger_id:, incident:, limit: TIMELINE_DEFAULT_LIMIT)
+    view = build_timeline_view(incident, limit: limit)
+    return unless view
+
+    push_modal(trigger_id: trigger_id, view: view)
+  end
+
+  def update_timeline_modal(view_id:, incident:, limit: TIMELINE_DEFAULT_LIMIT)
+    view = build_timeline_view(incident, limit: limit)
+    return unless view
+
+    translate_errors do
+      Slack::Client.update_modal(workspace: @workspace, view_id: view_id, view: view)
+      { success: true }
     end
-
-    { text: "Timeline for #{incident.identifier}", blocks: blocks }
   end
 
   def post_resolution_message(channel_id:, incident:, resolved_by_platform_user_id:)
@@ -276,6 +272,45 @@ module Slack::WorkspaceAdapter::IncidentMessaging
       text: "Create #{type_label} from this message?",
       blocks: blocks
     )
+  end
+
+  def build_timeline_view(incident, limit: TIMELINE_DEFAULT_LIMIT)
+    capped_limit = [ [ limit.to_i, TIMELINE_DEFAULT_LIMIT ].max, TIMELINE_MAX_EVENTS ].min
+    events = incident.incident_events.includes(:eventable).recent.limit(capped_limit).reverse
+    return nil if events.empty?
+
+    lead_text = incident.lead ? "<@#{incident.lead.platform_user_id}>" : "Unassigned"
+    detail_lines = [
+      "*#{incident.identifier}* · #{incident.name}",
+      "#{incident.incident_severity.name} · #{incident.incident_status.name} · Lead: #{lead_text}"
+    ]
+    detail_lines << "_#{incident.summary}_" if incident.summary.present?
+
+    blocks = [
+      { type: "section", text: { type: "mrkdwn", text: detail_lines.join("\n") } },
+      { type: "divider" }
+    ]
+    blocks.concat(Slack::IncidentTimelineFormatter.to_blocks(events))
+
+    total_events = incident.incident_events.count
+    if total_events > capped_limit
+      blocks << { type: "actions", elements: [ timeline_load_more_button(incident.id, capped_limit) ] }
+      blocks << {
+        type: "context",
+        elements: [ { type: "mrkdwn", text: "Showing latest #{capped_limit} of #{total_events} events" } ]
+      }
+    end
+
+    title = "#{incident.identifier} Timeline"
+    title = title[0, 24] if title.length > 24
+
+    {
+      type: "modal",
+      callback_id: Identifiers::TIMELINE_MODAL,
+      title: { type: "plain_text", text: title, emoji: true },
+      close: { type: "plain_text", text: "Close", emoji: true },
+      blocks: blocks
+    }
   end
 
   private
