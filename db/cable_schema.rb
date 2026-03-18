@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_11_121424) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_18_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -556,6 +556,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_11_121424) do
 
   create_table "solid_workflow_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "attempts", default: 0, null: false
+    t.jsonb "checkpoint"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.string "depends_on", default: [], array: true

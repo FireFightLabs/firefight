@@ -30,8 +30,10 @@ class SlackWorkspaceSetupWorkflow < SolidWorkflow::Base
   end
 
   def post_welcome_message(workflow:, step:, input:)
-    channel_id = input["create_incidents_channel"]["channel_id"]
-    setup_service(workflow).post_welcome_message(workflow.subject, channel_id)
+    checkpointed(step) do
+      channel_id = input["create_incidents_channel"]["channel_id"]
+      setup_service(workflow).post_welcome_message(workflow.subject, channel_id)
+    end
   end
 
   def store_channel_id(workflow:, step:, input:)

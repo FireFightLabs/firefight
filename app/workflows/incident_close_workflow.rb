@@ -20,17 +20,21 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
   end
 
   def post_resolution_message(workflow:, step:, input:)
-    service(workflow).post_resolution_message(
-      workflow.subject,
-      resolved_by_platform_user_id: workflow.context["resolved_by_platform_user_id"]
-    )
+    checkpointed(step) do
+      service(workflow).post_resolution_message(
+        workflow.subject,
+        resolved_by_platform_user_id: workflow.context["resolved_by_platform_user_id"]
+      )
+    end
   end
 
   def post_resolution_announcement_thread(workflow:, step:, input:)
-    service(workflow).post_resolution_announcement_thread(
-      workflow.subject,
-      resolved_by_platform_user_id: workflow.context["resolved_by_platform_user_id"]
-    )
+    checkpointed(step) do
+      service(workflow).post_resolution_announcement_thread(
+        workflow.subject,
+        resolved_by_platform_user_id: workflow.context["resolved_by_platform_user_id"]
+      )
+    end
   end
 
   private

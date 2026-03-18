@@ -1,5 +1,7 @@
 module SolidWorkflow
   class Base
+    include SolidWorkflow::IdempotentSteps
+
     class << self
       def registry
         @registry ||= {}

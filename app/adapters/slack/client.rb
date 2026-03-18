@@ -8,6 +8,7 @@ module Slack
     class ChannelExistsError < ApiError; end
     class ChannelNotFoundError < ApiError; end
     class AlreadyArchivedError < ApiError; end
+    class AlreadyInChannelError < ApiError; end
 
     # Open a modal in Slack
     #
@@ -181,6 +182,12 @@ module Slack
           users: users_str
         }
       )
+    rescue ApiError => e
+      if e.message.include?("already_in_channel")
+        raise AlreadyInChannelError, "User(s) already in channel '#{channel}'"
+      else
+        raise
+      end
     end
 
     # Pin a message in a channel

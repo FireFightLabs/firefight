@@ -3,8 +3,8 @@ module SolidWorkflow
     isolate_namespace SolidWorkflow
 
     initializer "solid_workflow.load_base" do
-      require "solid_workflow/base"
       require "solid_workflow/idempotent_steps"
+      require "solid_workflow/base"
     end
 
     initializer "solid_workflow.eager_load_workflows" do
