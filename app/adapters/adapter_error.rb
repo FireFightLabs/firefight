@@ -3,4 +3,5 @@ class AdapterError < StandardError
   class ChannelExists < AdapterError; end
   class AlreadyArchived < AdapterError; end
   class NotFound < AdapterError; end
+  class AlreadyInChannel < AdapterError; end
 end

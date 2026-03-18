@@ -183,7 +183,7 @@ module Slack
         }
       )
     rescue ApiError => e
-      if e.message.include?("already_in_channel")
+      if e.message.include?("already_in_channel") || e.message.include?("cant_invite_self")
         raise AlreadyInChannelError, "User(s) already in channel '#{channel}'"
       else
         raise

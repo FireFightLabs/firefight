@@ -103,8 +103,6 @@ module Slack
 
         { invited_user: user_id }
       end
-    rescue Slack::Client::AlreadyInChannelError
-      { invited_user: user_id, already_in_channel: true }
     end
 
     def invite_users(channel_id:, user_ids:)
@@ -117,8 +115,6 @@ module Slack
 
         { invited_users: user_ids }
       end
-    rescue Slack::Client::AlreadyInChannelError
-      { invited_users: user_ids, already_in_channel: true }
     end
 
     def open_modal(trigger_id:, view:)
@@ -239,6 +235,8 @@ module Slack
       raise AdapterError::AlreadyArchived, "Channel is already archived"
     rescue Slack::Client::ChannelNotFoundError
       raise AdapterError::NotFound, "Channel not found"
+    rescue Slack::Client::AlreadyInChannelError
+      raise AdapterError::AlreadyInChannel, "User already in channel"
     rescue Slack::Client::ApiError => e
       raise AdapterError, e.message
     end

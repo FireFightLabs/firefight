@@ -21,7 +21,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
   end
 
   test "treats already_in_channel as non-fatal" do
-    Slack::Client.expects(:invite_to_channel).raises(Slack::Client::ApiError.new("already_in_channel"))
+    Slack::Client.expects(:invite_to_channel).raises(Slack::Client::AlreadyInChannelError.new("already_in_channel"))
 
     result = @service.invite!(incident: @incident, user_ids: [ "U11111111" ])
 
@@ -31,7 +31,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
   end
 
   test "treats cant_invite_self as non-fatal" do
-    Slack::Client.expects(:invite_to_channel).raises(Slack::Client::ApiError.new("cant_invite_self"))
+    Slack::Client.expects(:invite_to_channel).raises(Slack::Client::AlreadyInChannelError.new("cant_invite_self"))
 
     result = @service.invite!(incident: @incident, user_ids: [ "U11111111" ])
 
@@ -129,7 +129,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
     result = { invited_user_ids: [ "U1" ], already_in_channel_user_ids: [ "U2" ], failed_invites: [ { user_id: "U3", error: "err" } ] }
 
     assert_includes @service.summary_message(result), "Invited 1 responder."
-    assert_includes @service.summary_message(result), "1 already in channel."
+    assert_includes @service.summary_message(result), "<@U2> is already in this channel."
     assert_includes @service.summary_message(result), "1 failed."
   end
 
