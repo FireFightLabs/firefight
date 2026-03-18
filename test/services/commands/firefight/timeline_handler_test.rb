@@ -9,14 +9,17 @@ class Commands::Firefight::TimelineHandlerTest < ActiveSupport::TestCase
     @incident = incidents(:active_critical_ws1)
   end
 
-  test "returns timeline from incident events" do
-    response = Commands::Firefight::TimelineHandler.execute(build_command(channel_id: @incident.channel_id))
+  test "opens timeline modal from incident channel" do
+    Slack::Client.expects(:open_modal).with do |args|
+      view = args[:view]
+      view[:type] == "modal" &&
+        view[:callback_id] == Identifiers::TIMELINE_MODAL &&
+        view[:blocks].any? { |b| b.dig(:text, :text)&.include?("Incident declared") }
+    end.returns({ ok: true })
 
-    assert_equal Command::EPHEMERAL, response[:response_type]
-    assert_includes response[:text], "Timeline for #{@incident.identifier}"
-    assert_equal "header", response[:blocks].first[:type]
-    rendered = response[:blocks].filter_map { |block| block.dig(:text, :text) }
-    assert rendered.any? { |text| text.include?("Incident declared") }
+    result = Commands::Firefight::TimelineHandler.execute(build_command(channel_id: @incident.channel_id))
+
+    assert_nil result
   end
 
   test "includes load more button when more events are available" do
@@ -25,9 +28,9 @@ class Commands::Firefight::TimelineHandlerTest < ActiveSupport::TestCase
       @incident.incident_events.create!(event_type: IncidentEvent::INCIDENT_UPDATED, user: member)
     end
 
-    response = @workspace.adapter.build_timeline_response(@incident, limit: 1)
+    view = @workspace.adapter.build_timeline_view(@incident, limit: 15)
 
-    actions_block = response[:blocks].find { |block| block[:type] == "actions" }
+    actions_block = view[:blocks].find { |block| block[:type] == "actions" }
     refute_nil actions_block
     button = actions_block[:elements].first
     assert_equal Identifiers::LOAD_MORE_TIMELINE, button[:action_id]
@@ -65,6 +68,7 @@ class Commands::Firefight::TimelineHandlerTest < ActiveSupport::TestCase
       user_id: "U12345678",
       text: Identifiers::SUBCOMMAND_TIMELINE,
       channel_id: channel_id,
+      trigger_id: "trigger_123",
       metadata: { command: "/ff" }
     )
   end

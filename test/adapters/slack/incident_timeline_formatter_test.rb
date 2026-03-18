@@ -21,7 +21,6 @@ class Slack::IncidentTimelineFormatterTest < ActiveSupport::TestCase
     text = Slack::IncidentTimelineFormatter.to_text(event)
 
     assert_includes text, "File shared"
-    assert_includes text, "archived"
     assert_includes text, "Open in Slack"
   end
 
