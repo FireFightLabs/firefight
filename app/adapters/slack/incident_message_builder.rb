@@ -131,32 +131,41 @@ module Slack
       status_text = diff_text("Status", previous_status_name, incident.incident_status.name)
       type_text = type_diff_text(previous_type_name, incident.incident_type&.name)
 
-      context_parts = [
-        "Updated by: *<@#{updated_by_platform_user_id}>*",
-        severity_text,
-        status_text
-      ]
-      context_parts << type_text if type_text
+      field_lines = [ severity_text, status_text ]
+      field_lines << type_text if type_text
 
       blocks = [
         {
-          type: "header",
-          text: { type: "plain_text", text: "Incident updated", emoji: true }
-        },
-        {
-          type: "context",
-          elements: [
-            { type: "mrkdwn", text: context_parts.join("  |  ") }
-          ]
+          type: "section",
+          text: { type: "mrkdwn", text: ":memo: *#{incident.identifier} — Incident updated*" }
         }
       ]
 
       if message.present?
-        blocks.insert(1, {
+        blocks << {
           type: "section",
-          text: { type: "mrkdwn", text: message }
-        })
+          text: { type: "mrkdwn", text: "> #{message}" }
+        }
       end
+
+      blocks << {
+        type: "section",
+        text: { type: "mrkdwn", text: field_lines.join("  ·  ") }
+      }
+
+      context_parts = [ "Updated by <@#{updated_by_platform_user_id}>" ]
+      if incident.next_update_at.present?
+        unix_ts = incident.next_update_at.to_i
+        fallback = incident.next_update_at.in_time_zone.strftime("%H:%M")
+        context_parts << "Next update <!date^#{unix_ts}^{date_short_pretty} at {time}|#{fallback}>"
+      end
+
+      blocks << {
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: context_parts.join("  ·  ") }
+        ]
+      }
 
       blocks
     end
