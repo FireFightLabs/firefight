@@ -235,6 +235,8 @@ module Slack
       raise AdapterError::AlreadyArchived, "Channel is already archived"
     rescue Slack::Client::ChannelNotFoundError
       raise AdapterError::NotFound, "Channel not found"
+    rescue Slack::Client::AlreadyInChannelError
+      raise AdapterError::AlreadyInChannel, "User already in channel"
     rescue Slack::Client::ApiError => e
       raise AdapterError, e.message
     end

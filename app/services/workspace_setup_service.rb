@@ -85,6 +85,8 @@ class WorkspaceSetupService
     })
 
     { invited_user: user_id }
+  rescue AdapterError::AlreadyInChannel
+    { invited_user: user_id, already_in_channel: true }
   end
 
   # Post welcome message to incidents channel

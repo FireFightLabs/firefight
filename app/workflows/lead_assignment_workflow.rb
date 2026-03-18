@@ -20,29 +20,33 @@ class LeadAssignmentWorkflow < SolidWorkflow::Base
   end
 
   def post_lead_expectations(workflow:, step:, input:)
-    workflow.subject.workspace.adapter.post_lead_expectations(
-      channel_id: workflow.subject.channel_id,
-      user_id: workflow.context["lead_platform_user_id"]
-    )
+    checkpointed(step) do
+      workflow.subject.workspace.adapter.post_lead_expectations(
+        channel_id: workflow.subject.channel_id,
+        user_id: workflow.context["lead_platform_user_id"]
+      )
+    end
   end
 
   def post_lead_announcement(workflow:, step:, input:)
-    lead_id = workflow.context["lead_platform_user_id"]
-    blocks = [
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: ":firefighter: <@#{lead_id}> is now the *Incident Lead*" }
-      },
-      {
-        type: "context",
-        elements: [ { type: "mrkdwn", text: "Responsible for coordinating the response and updates" } ]
-      }
-    ]
-    workflow.subject.workspace.adapter.post_message(
-      channel_id: workflow.subject.channel_id,
-      text: "<@#{lead_id}> is now the Incident Lead",
-      blocks: blocks
-    )
+    checkpointed(step) do
+      lead_id = workflow.context["lead_platform_user_id"]
+      blocks = [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: ":firefighter: <@#{lead_id}> is now the *Incident Lead*" }
+        },
+        {
+          type: "context",
+          elements: [ { type: "mrkdwn", text: "Responsible for coordinating the response and updates" } ]
+        }
+      ]
+      workflow.subject.workspace.adapter.post_message(
+        channel_id: workflow.subject.channel_id,
+        text: "<@#{lead_id}> is now the Incident Lead",
+        blocks: blocks
+      )
+    end
   end
 
   private

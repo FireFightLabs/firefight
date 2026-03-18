@@ -20,19 +20,23 @@ class IncidentReopenWorkflow < SolidWorkflow::Base
   end
 
   def post_reopen_message(workflow:, step:, input:)
-    service(workflow).post_reopen_message(
-      workflow.subject,
-      reopened_by_platform_user_id: workflow.context["reopened_by_platform_user_id"],
-      reason: workflow.context["reason"]
-    )
+    checkpointed(step) do
+      service(workflow).post_reopen_message(
+        workflow.subject,
+        reopened_by_platform_user_id: workflow.context["reopened_by_platform_user_id"],
+        reason: workflow.context["reason"]
+      )
+    end
   end
 
   def post_reopen_announcement_thread(workflow:, step:, input:)
-    service(workflow).post_reopen_announcement_thread(
-      workflow.subject,
-      reopened_by_platform_user_id: workflow.context["reopened_by_platform_user_id"],
-      reason: workflow.context["reason"]
-    )
+    checkpointed(step) do
+      service(workflow).post_reopen_announcement_thread(
+        workflow.subject,
+        reopened_by_platform_user_id: workflow.context["reopened_by_platform_user_id"],
+        reason: workflow.context["reason"]
+      )
+    end
   end
 
   private

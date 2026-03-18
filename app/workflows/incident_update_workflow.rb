@@ -20,17 +20,21 @@ class IncidentUpdateWorkflow < SolidWorkflow::Base
   end
 
   def post_update_message(workflow:, step:, input:)
-    service(workflow).post_incident_update_message(
-      workflow.subject,
-      **update_params(workflow)
-    )
+    checkpointed(step) do
+      service(workflow).post_incident_update_message(
+        workflow.subject,
+        **update_params(workflow)
+      )
+    end
   end
 
   def post_announcement_thread(workflow:, step:, input:)
-    service(workflow).post_incident_update_announcement_thread(
-      workflow.subject,
-      **update_params(workflow)
-    )
+    checkpointed(step) do
+      service(workflow).post_incident_update_announcement_thread(
+        workflow.subject,
+        **update_params(workflow)
+      )
+    end
   end
 
   private

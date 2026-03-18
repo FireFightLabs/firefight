@@ -47,6 +47,16 @@ module SolidWorkflow
       block.call
     end
 
+    def checkpointed(step, key = :result, &block)
+      cached = step.checkpoint&.dig(key.to_s)
+      return cached if cached.present?
+
+      result = yield
+      merged = (step.checkpoint || {}).merge(key.to_s => result)
+      step.update_column(:checkpoint, merged)
+      result
+    end
+
     def with_retry(max_attempts: 3, backoff_base: 2, rescue_classes: [ StandardError ], &block)
       attempt = 0
 
