@@ -7,52 +7,56 @@ class IncidentLinkWorkflow < SolidWorkflow::Base
   step :update_target_context
 
   def post_source_message(workflow:, step:, input:)
-    source = workflow.subject
-    target = target_incident(workflow)
-    adapter = adapter_for(workflow)
+    return unless workflow.subject.channel_id
 
-    return unless source.channel_id
+    checkpointed(step) do
+      source = workflow.subject
+      target = target_incident(workflow)
+      adapter = adapter_for(workflow)
 
-    case workflow.context["relationship_type"]
-    when IncidentRelationship::RELATED
-      adapter.post_related_link_message(
-        channel_id: source.channel_id,
-        source: source,
-        target: target,
-        linked_by_platform_user_id: workflow.context["linked_by_platform_user_id"]
-      )
-    when IncidentRelationship::DUPLICATE
-      adapter.post_duplicate_source_message(
-        channel_id: source.channel_id,
-        source: source,
-        canonical: target,
-        linked_by_platform_user_id: workflow.context["linked_by_platform_user_id"]
-      )
+      case workflow.context["relationship_type"]
+      when IncidentRelationship::RELATED
+        adapter.post_related_link_message(
+          channel_id: source.channel_id,
+          source: source,
+          target: target,
+          linked_by_platform_user_id: workflow.context["linked_by_platform_user_id"]
+        )
+      when IncidentRelationship::DUPLICATE
+        adapter.post_duplicate_source_message(
+          channel_id: source.channel_id,
+          source: source,
+          canonical: target,
+          linked_by_platform_user_id: workflow.context["linked_by_platform_user_id"]
+        )
+      end
     end
   end
 
   def post_target_message(workflow:, step:, input:)
-    source = workflow.subject
-    target = target_incident(workflow)
-    adapter = adapter_for(workflow)
+    return unless target_incident(workflow).channel_id
 
-    return unless target.channel_id
+    checkpointed(step) do
+      source = workflow.subject
+      target = target_incident(workflow)
+      adapter = adapter_for(workflow)
 
-    case workflow.context["relationship_type"]
-    when IncidentRelationship::RELATED
-      adapter.post_related_link_message(
-        channel_id: target.channel_id,
-        source: target,
-        target: source,
-        linked_by_platform_user_id: workflow.context["linked_by_platform_user_id"]
-      )
-    when IncidentRelationship::DUPLICATE
-      adapter.post_duplicate_canonical_message(
-        channel_id: target.channel_id,
-        source: source,
-        canonical: target,
-        linked_by_platform_user_id: workflow.context["linked_by_platform_user_id"]
-      )
+      case workflow.context["relationship_type"]
+      when IncidentRelationship::RELATED
+        adapter.post_related_link_message(
+          channel_id: target.channel_id,
+          source: target,
+          target: source,
+          linked_by_platform_user_id: workflow.context["linked_by_platform_user_id"]
+        )
+      when IncidentRelationship::DUPLICATE
+        adapter.post_duplicate_canonical_message(
+          channel_id: target.channel_id,
+          source: source,
+          canonical: target,
+          linked_by_platform_user_id: workflow.context["linked_by_platform_user_id"]
+        )
+      end
     end
   end
 

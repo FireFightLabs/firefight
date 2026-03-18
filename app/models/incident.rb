@@ -1,4 +1,7 @@
 class Incident < ApplicationRecord
+  VISIBILITY_PUBLIC = "public"
+  VISIBILITY_PRIVATE = "private"
+
   include Incident::Sequencing
   include Incident::Snapshots
   include Incident::RoleManagement

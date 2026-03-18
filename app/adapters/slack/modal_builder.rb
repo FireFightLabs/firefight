@@ -114,16 +114,16 @@ module Slack
               options: [
                 {
                   text: { type: "plain_text", text: "Everyone (public)" },
-                  value: "public"
+                  value: Incident::VISIBILITY_PUBLIC
                 },
                 {
                   text: { type: "plain_text", text: "Private" },
-                  value: "private"
+                  value: Incident::VISIBILITY_PRIVATE
                 }
               ],
               initial_option: {
                 text: { type: "plain_text", text: "Everyone (public)" },
-                value: "public"
+                value: Incident::VISIBILITY_PUBLIC
               }
             },
             label: {

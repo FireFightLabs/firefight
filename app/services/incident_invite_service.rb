@@ -29,12 +29,10 @@ class IncidentInviteService
       begin
         @adapter.invite_user(channel_id: incident.channel_id, user_id: user_id)
         invited_user_ids << user_id
+      rescue AdapterError::AlreadyInChannel
+        already_in_channel_user_ids << user_id
       rescue AdapterError => e
-        if already_in_channel_error?(e)
-          already_in_channel_user_ids << user_id
-        else
-          failed_invites << { user_id: user_id, error: e.message }
-        end
+        failed_invites << { user_id: user_id, error: e.message }
       end
     end
 
@@ -52,7 +50,11 @@ class IncidentInviteService
 
     parts = []
     parts << "Invited #{invited_count} responder#{'s' unless invited_count == 1}." if invited_count.positive?
-    parts << "#{already_count} already in channel." if already_count.positive?
+    if already_count.positive?
+      mentions = result[:already_in_channel_user_ids].map { |id| "<@#{id}>" }.join(", ")
+      verb = already_count == 1 ? "is" : "are"
+      parts << "#{mentions} #{verb} already in this channel."
+    end
     parts << "#{failed_count} failed." if failed_count.positive?
     parts = [ "No responders were invited." ] if parts.empty?
 
@@ -63,11 +65,6 @@ class IncidentInviteService
 
   def normalized_user_ids(user_ids)
     Array(user_ids).compact.map(&:to_s).uniq
-  end
-
-  def already_in_channel_error?(error)
-    message = error.message.to_s
-    message.include?("already_in_channel") || message.include?("cant_invite_self")
   end
 
   def resolve_handles(handles)

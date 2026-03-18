@@ -61,9 +61,13 @@ class IncidentCreationService
 
   def invite_declarer(incident)
     @workspace.adapter.invite_user(channel_id: incident.channel_id, user_id: incident.declared_by.platform_user_id)
+  rescue AdapterError::AlreadyInChannel
+    { invited_user: incident.declared_by.platform_user_id, already_in_channel: true }
   end
 
   def create_incident_event(incident)
+    return { ok: true } if incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_CREATED)
+
     incident.create_initial_update!(created_by: incident.declared_by)
     { ok: true }
   end
