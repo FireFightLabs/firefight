@@ -51,32 +51,33 @@ module Slack
     private_class_method :actor_mention_for
 
     def self.to_block(event)
-      payload = to_h(event)
-      details = payload[:details]
+      details = details_for(event)
       actor = actor_mention_for(event)
 
-      text = "#{emoji_for(event)} *#{payload[:label]}*"
-      text += "\n#{details}" if details.present?
-      text += "\n_#{payload[:timestamp]} | #{actor}_"
+      section_text = "#{emoji_for(event)} *#{label_for(event)}*"
+      section_text += "\n#{details}" if details.present?
+
+      unix_ts = event.created_at.to_i
+      fallback = event.created_at.in_time_zone.strftime("%Y-%m-%d %H:%M")
+      context_text = "<!date^#{unix_ts}^{date_short_pretty} at {time}|#{fallback}> · #{actor}"
 
       {
         section: {
           type: "section",
-          text: { type: "mrkdwn", text: text }
+          text: { type: "mrkdwn", text: section_text }
         },
-        context: nil
+        context: {
+          type: "context",
+          elements: [ { type: "mrkdwn", text: context_text } ]
+        }
       }
     end
 
     def self.to_blocks(events)
-      blocks = []
-
-      events.each do |event|
+      events.flat_map do |event|
         block = to_block(event)
-        blocks << block[:section]
+        [ block[:section], block[:context] ]
       end
-
-      blocks
     end
 
     def self.details_for(event)
@@ -89,13 +90,11 @@ module Slack
         detail = target.present? ? "to <@#{target}>" : nil
         [ detail, reason ].compact.join(" | ")
       when IncidentEvent::MESSAGE_PINNED, IncidentEvent::MESSAGE_UNPINNED
-        details["permalink"].presence || details["message_ts"]
+        details["permalink"].presence
       when IncidentEvent::MESSAGE_FILE_SHARED
         file_name = details["file_name"]
-        mime_type = details["mime_type"]
-        archived = details["blob_id"].present? || details["object_key"].present?
         permalink = details["permalink"].present? ? "<#{details['permalink']}|Open in Slack>" : nil
-        [ file_name, mime_type, (archived ? "archived" : nil), permalink ].compact.join(" | ")
+        [ file_name, permalink ].compact.join(" · ")
       when IncidentEvent::INCIDENT_REOPENED
         details["reason"]
       when IncidentEvent::ESCALATION_ACKNOWLEDGED

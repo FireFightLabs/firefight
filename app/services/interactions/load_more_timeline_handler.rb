@@ -7,16 +7,10 @@ module Interactions
       limit = payload["limit"].to_i
       limit = Commands::Firefight::TimelineHandler::DEFAULT_LIMIT if limit <= 0
 
-      response = workspace.adapter.build_timeline_response(incident, limit: limit)
-      return nil unless response
+      view_id = interaction.view&.dig("id")
+      return nil unless view_id
 
-      workspace.adapter.post_ephemeral(
-        channel_id: interaction.channel_id || incident.channel_id,
-        user_id: interaction.user_id,
-        text: response[:text],
-        blocks: response[:blocks]
-      )
-
+      workspace.adapter.update_timeline_modal(view_id: view_id, incident: incident, limit: limit)
       nil
     rescue JSON::ParserError, ActiveRecord::RecordNotFound
       nil

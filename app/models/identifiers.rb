@@ -17,6 +17,7 @@ module Identifiers
   ESCALATE_INCIDENT_MODAL = "escalate_incident_modal"
   INVITE_RESPONDERS_MODAL = "invite_responders_modal"
   SHOUTOUT_MODAL = "shoutout_modal"
+  TIMELINE_MODAL = "timeline_modal"
 
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"

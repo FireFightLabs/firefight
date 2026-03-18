@@ -46,8 +46,9 @@ module Interactions
       when Identifiers::HOME_ACTION_CLOSE
         { response_action: "update", view: adapter.build_close_view(incident, private_metadata: incident_metadata) }
       when Identifiers::HOME_ACTION_TIMELINE
-        post_timeline(adapter, incident, channel_id, interaction.user_id)
-        { response_action: "clear" }
+        view = adapter.build_timeline_view(incident)
+        return { response_action: "clear" } unless view
+        { response_action: "push", view: view }
       when Identifiers::HOME_ACTION_POSTMORTEM
         { response_action: "errors", errors: { "action_select_block" => "Postmortem generation is not yet available." } }
       end
@@ -55,21 +56,6 @@ module Interactions
       Rails.logger.warn({ event: "interactions.home_continue.error", error: e.message })
       nil
     end
-
-    def self.post_timeline(adapter, incident, channel_id, user_id)
-      response = adapter.build_timeline_response(incident, limit: Commands::Firefight::TimelineHandler::DEFAULT_LIMIT)
-      return unless response
-
-      adapter.post_ephemeral(
-        channel_id: channel_id,
-        user_id: user_id,
-        text: response[:text],
-        blocks: response[:blocks]
-      )
-    rescue AdapterError => e
-      Rails.logger.warn({ event: "interactions.home_continue.post_timeline_failed", error: e.message })
-    end
-    private_class_method :post_timeline
 
     def self.post_list(workspace, adapter, channel_id, user_id)
       response = Commands::Firefight::ListHandler.build_response(workspace)
