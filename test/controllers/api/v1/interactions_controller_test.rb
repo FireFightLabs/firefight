@@ -416,5 +416,4 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     # Should log but not crash
     assert_response :success
   end
-
 end
