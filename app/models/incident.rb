@@ -22,6 +22,7 @@ class Incident < ApplicationRecord
   has_many :incident_roles, through: :incident_role_assignments
   has_many :assigned_members, through: :incident_role_assignments, source: :workspace_membership
   has_many :shoutouts, dependent: :destroy
+  has_one :postmortem, dependent: :destroy
   has_many :incident_relationships, dependent: :destroy
   has_many :inverse_incident_relationships, class_name: "IncidentRelationship",
            foreign_key: :related_incident_id, dependent: :destroy, inverse_of: :related_incident

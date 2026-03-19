@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_18_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_19_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -311,6 +311,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_18_100001) do
     t.index ["workspace_id", "incident_status_id"], name: "index_incidents_on_workspace_id_and_incident_status_id"
     t.index ["workspace_id", "sequence_number"], name: "index_incidents_on_workspace_id_and_sequence_number", unique: true
     t.index ["workspace_id"], name: "index_incidents_on_workspace_id"
+  end
+
+  create_table "postmortem_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "changed_sections", default: [], null: false
+    t.jsonb "content", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.uuid "edited_by_id", null: false
+    t.uuid "incident_id", null: false
+    t.string "model_id"
+    t.uuid "postmortem_id", null: false
+    t.string "status", null: false
+    t.text "summary"
+    t.string "title", null: false
+    t.string "update_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["postmortem_id", "created_at"], name: "index_postmortem_updates_on_postmortem_id_and_created_at"
+  end
+
+  create_table "postmortems", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "content", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.uuid "generated_by_id", null: false
+    t.uuid "incident_id", null: false
+    t.string "message_ts"
+    t.string "model_id"
+    t.string "status", default: "draft", null: false
+    t.text "summary"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["incident_id"], name: "index_postmortems_on_incident_id", unique: true
   end
 
   create_table "product_areas", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -729,6 +759,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_18_100001) do
   add_foreign_key "incidents", "incident_types"
   add_foreign_key "incidents", "workspace_memberships", column: "declared_by_id"
   add_foreign_key "incidents", "workspaces"
+  add_foreign_key "postmortem_updates", "incidents"
+  add_foreign_key "postmortem_updates", "postmortems"
+  add_foreign_key "postmortem_updates", "workspace_memberships", column: "edited_by_id"
+  add_foreign_key "postmortems", "incidents"
+  add_foreign_key "postmortems", "workspace_memberships", column: "generated_by_id"
   add_foreign_key "product_areas", "workspaces"
   add_foreign_key "service_dependencies", "services"
   add_foreign_key "service_dependencies", "services", column: "dependency_id"
