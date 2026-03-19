@@ -120,13 +120,13 @@ class ProcessCommandJobTest < ActiveJob::TestCase
     assert_equal "status", dispatched_command.subcommand
   end
 
-  test "should raise NotImplementedError for teams platform" do
+  test "should raise ArgumentError for unsupported platform" do
     payload = {
     "team_id" => "some-teams-id",
     "user_id" => "some-user-id"
     }
 
-    assert_raises(NotImplementedError) do
+    assert_raises(ArgumentError) do
     ProcessCommandJob.perform_now(Platforms::TEAMS, payload)
     end
   end

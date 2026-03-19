@@ -34,6 +34,11 @@ module Interactions
         resolved_by_platform_user_id: interaction.user_id
       })
 
+      if workspace.archive_channel_enabled && incident.channel_id.present?
+        ChannelArchivalJob.set(wait: workspace.archive_channel_delay_minutes.minutes)
+          .perform_later(incident.id, incident.resolved_at.iso8601)
+      end
+
       delete_temp_message(workspace, metadata)
 
       nil

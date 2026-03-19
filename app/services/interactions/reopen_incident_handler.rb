@@ -17,6 +17,11 @@ module Interactions
 
       IncidentTranscriptCache.clear_expiry!(incident)
 
+      if incident.channel_archived_at.present?
+        workspace.adapter.unarchive_channel(channel_id: incident.channel_id)
+        incident.update!(channel_archived_at: nil, channel_archived_by: nil)
+      end
+
       IncidentReopenWorkflow.start!(incident, context: {
         reopened_by_platform_user_id: interaction.user_id,
         reason: reason
