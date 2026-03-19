@@ -36,10 +36,8 @@ class ProcessCommandJob < ApplicationJob
     case platform
     when Platforms::SLACK
       Slack::CommandAdapter.parse(payload)
-    when Platforms::TEAMS
-      raise NotImplementedError, "Teams support coming soon"
     else
-      raise ArgumentError, "Unknown platform: #{platform}"
+      raise ArgumentError, "Unsupported platform: #{platform}"
     end
   end
 

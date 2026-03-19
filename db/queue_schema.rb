@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_18_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_18_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -673,6 +673,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_18_000001) do
 
   create_table "workspaces", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "access_token"
+    t.integer "archive_channel_delay_minutes", default: 60, null: false
+    t.boolean "archive_channel_enabled", default: true, null: false
     t.string "avatar_url"
     t.datetime "created_at", null: false
     t.string "incidents_channel_id"
