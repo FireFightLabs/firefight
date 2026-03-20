@@ -1,0 +1,21 @@
+postmortem_resolved_ws1:
+  incident: resolved_minor_ws1
+  generated_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  title: "INC-003 Postmortem: Image upload broken"
+  summary: "Users were unable to upload profile images for approximately 4 hours."
+  content:
+    sections:
+      - key: summary
+        heading: Summary
+        body: "**Problem**: Image uploads returning 500 errors."
+      - key: introduction
+        heading: Introduction
+        body: "On the morning of the incident, users reported issues."
+      - key: contributing_factors
+        heading: Key contributing factors
+        body: "- S3 bucket policy changed without review"
+      - key: what_went_well
+        heading: What went well
+        body: "- Quick detection via user reports"
+  status: draft
+  model_id: claude-sonnet-4-6-20250514

@@ -33,12 +33,11 @@ oauth_config:
       - team:read # Get workspace info (name, domain) during installation
       - commands # Enable slash commands (/firefight, /ff)
       - chat:write # Post messages to channels (welcome, incident announcements)
-      - chat:write.public # Post to public channels without being a member (for sharing)
       - im:write # Send DMs to users (for sharing via DM)
       - channels:manage # Create public channels on installation
       - channels:join # Bot can join channels it creates
       - channels:read # Read channel info (check if #incidents exists)
-      - groups:write  # Create and manage private incident channels
+      - groups:write # Create and manage private incident channels
       - users:read # Get user info for @mentions in messages
       - pins:write # Pin key messages in incident channels
       - pins:read # Receive pin events for timeline updates

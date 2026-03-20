@@ -52,7 +52,7 @@ class IncidentEvent < ApplicationRecord
   # Associations
   belongs_to :incident
   belongs_to :user, class_name: "WorkspaceMembership", optional: true
-  delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate], optional: true
+  delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate PostmortemUpdate], optional: true
   has_one_attached :artifact
 
   # Validations
@@ -63,6 +63,7 @@ class IncidentEvent < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
   scope :updates, -> { where(eventable_type: "IncidentUpdate") }
   scope :action_updates, -> { where(eventable_type: "IncidentActionUpdate") }
+  scope :postmortem_updates, -> { where(eventable_type: "PostmortemUpdate") }
 
   # Helper methods
   def before_snapshot

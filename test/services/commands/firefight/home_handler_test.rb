@@ -91,14 +91,12 @@ class Commands::Firefight::HomeHandlerTest < ActiveSupport::TestCase
     Commands::Firefight::HomeHandler.execute(command)
   end
 
-  %w[postmortem].each do |sub|
-    test "handles '#{sub}' subcommand with placeholder" do
-      command = build_command(sub)
-      response = Commands::Firefight::HomeHandler.execute(command)
+  test "handles 'postmortem' subcommand" do
+    command = build_command("postmortem")
+    response = Commands::Firefight::HomeHandler.execute(command)
 
-      assert_equal Command::EPHEMERAL, response[:response_type]
-      assert_includes response[:text], "coming soon"
-    end
+    assert_equal Command::EPHEMERAL, response[:response_type]
+    assert_includes response[:text], "closed incident channel"
   end
 
   # --- Aliases ---

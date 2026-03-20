@@ -46,6 +46,9 @@ gem "js-routes", "~> 2.3"
 # HTTP client for API requests
 gem "httparty"
 
+# LLM integration for AI-powered features
+gem "ruby_llm"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
