@@ -1,7 +1,7 @@
 require "ruby_llm/schema"
 
 class PostmortemGenerationService
-  DEFAULT_MODEL = "claude-sonnet-4-6-20250514"
+  DEFAULT_MODEL = "claude-sonnet-4-6"
   MAX_TRANSCRIPT_MESSAGES = 100
 
   def initialize(workspace)

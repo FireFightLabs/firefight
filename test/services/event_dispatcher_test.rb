@@ -58,7 +58,7 @@ class EventDispatcherTest < ActiveSupport::TestCase
 
   test "logs unhandled event types" do
     payload = {
-      "event" => { "type" => "app_mention" },
+      "event" => { "type" => "channel_created" },
       "team_id" => "T12345"
     }
 

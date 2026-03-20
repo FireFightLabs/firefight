@@ -30,6 +30,37 @@ class IncidentTranscriptCache
     write_payload(incident, payload)
   end
 
+  def self.grouped_messages(incident, workspace:)
+    raw = entries(incident)
+    return [] if raw.blank?
+
+    members = workspace.workspace_memberships.index_by(&:platform_user_id)
+
+    top_level = []
+    threads = Hash.new { |h, k| h[k] = [] }
+
+    raw.each do |entry|
+      resolved_name = members[entry["user_id"]]&.user&.name || entry["user_id"]
+      formatted = {
+        at: entry["created_at"],
+        by: resolved_name,
+        text: entry["text"],
+        ts: entry["ts"]
+      }
+
+      if entry["is_thread_reply"]
+        threads[entry["parent_ts"]] << formatted
+      else
+        top_level << formatted
+      end
+    end
+
+    top_level.map do |msg|
+      replies = threads[msg[:ts]]
+      replies.any? ? msg.merge(replies: replies) : msg
+    end
+  end
+
   def self.clear!(incident)
     Rails.cache.delete(cache_key(incident))
   end

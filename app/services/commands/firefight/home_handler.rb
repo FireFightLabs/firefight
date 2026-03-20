@@ -40,6 +40,8 @@ module Commands
           Commands::Firefight::ReopenHandler.execute(command)
         when Identifiers::SUBCOMMAND_POSTMORTEM
           Commands::Firefight::PostmortemHandler.execute(command)
+        when Identifiers::SUBCOMMAND_CATCHUP
+          Commands::Firefight::CatchupHandler.execute(command)
         when Identifiers::SUBCOMMAND_TIMELINE
           Commands::Firefight::TimelineHandler.execute(command)
         when Identifiers::SUBCOMMAND_LIST

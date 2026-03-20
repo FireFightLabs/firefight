@@ -1090,7 +1090,8 @@ module Slack
       "close" => "*Close incident*\n\nUsage: `/ff close` or `/ff resolve`\nMark the incident as resolved.",
       "postmortem" => "*Generate postmortem*\n\nUsage: `/ff postmortem`\nGenerate a postmortem document from the incident timeline.",
       "timeline" => "*View timeline*\n\nUsage: `/ff timeline`\nSee the full history of incident events.",
-      "list" => "*List active incidents*\n\nUsage: `/ff list`\nShow all currently open incidents."
+      "list" => "*List active incidents*\n\nUsage: `/ff list`\nShow all currently open incidents.",
+      "catchup" => "*AI incident catchup*\n\nUsage: `/ff catchup`\nGet an AI-generated summary of the current incident."
     }.freeze
   end
 end
