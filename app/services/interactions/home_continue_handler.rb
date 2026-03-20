@@ -23,6 +23,10 @@ module Interactions
         return { response_action: "clear" }
       end
 
+      if selected == Identifiers::HOME_ACTION_POSTMORTEM
+        return handle_postmortem(workspace, channel_id, interaction.user_id)
+      end
+
       incident = workspace.incidents.active.in_channel(channel_id).first
       unless incident
         return { response_action: "errors", errors: { "action_select_block" => "No active incident found in this channel." } }
@@ -49,13 +53,27 @@ module Interactions
         view = adapter.build_timeline_view(incident)
         return { response_action: "clear" } unless view
         { response_action: "push", view: view }
-      when Identifiers::HOME_ACTION_POSTMORTEM
-        { response_action: "errors", errors: { "action_select_block" => "Postmortem generation is not yet available." } }
       end
     rescue JSON::ParserError, ActiveRecord::RecordNotFound => e
       Rails.logger.warn({ event: "interactions.home_continue.error", error: e.message })
       nil
     end
+
+    def self.handle_postmortem(workspace, channel_id, user_id)
+      incident = workspace.incidents.closed.in_channel(channel_id).first
+      unless incident
+        return { response_action: "errors", errors: { "action_select_block" => "No closed incident found in this channel." } }
+      end
+
+      if incident.postmortem.present?
+        return { response_action: "errors", errors: { "action_select_block" => "A postmortem has already been generated for #{incident.identifier}." } }
+      end
+
+      member = workspace.workspace_memberships.find_by(platform_user_id: user_id)
+      PostmortemGenerationJob.perform_later(incident.id, member.id) if member
+      { response_action: "clear" }
+    end
+    private_class_method :handle_postmortem
 
     def self.post_list(workspace, adapter, channel_id, user_id)
       response = Commands::Firefight::ListHandler.build_response(workspace)

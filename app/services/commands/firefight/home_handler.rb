@@ -39,7 +39,7 @@ module Commands
         when Identifiers::SUBCOMMAND_REOPEN
           Commands::Firefight::ReopenHandler.execute(command)
         when Identifiers::SUBCOMMAND_POSTMORTEM
-          Command.ephemeral("Postmortem command coming soon...")
+          Commands::Firefight::PostmortemHandler.execute(command)
         when Identifiers::SUBCOMMAND_TIMELINE
           Commands::Firefight::TimelineHandler.execute(command)
         when Identifiers::SUBCOMMAND_LIST

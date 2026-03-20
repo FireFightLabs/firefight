@@ -274,6 +274,15 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
+  def post_postmortem_message(channel_id:, incident:, postmortem:)
+    blocks = Slack::IncidentMessageBuilder.postmortem_blocks(incident, postmortem)
+    post_message(
+      channel_id: channel_id,
+      text: "Postmortem generated for #{incident.identifier}",
+      blocks: blocks
+    )
+  end
+
   def build_timeline_view(incident, limit: TIMELINE_DEFAULT_LIMIT)
     capped_limit = [ [ limit.to_i, TIMELINE_DEFAULT_LIMIT ].max, TIMELINE_MAX_EVENTS ].min
     events = incident.incident_events.includes(:eventable).recent.limit(capped_limit).reverse
