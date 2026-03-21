@@ -95,4 +95,8 @@ class IncidentEvent < ApplicationRecord
   def description
     EVENT_DESCRIPTIONS[event_type]
   end
+
+  def to_context_hash
+    { type: event_type, at: created_at.iso8601, by: user&.user&.name, description: description }
+  end
 end

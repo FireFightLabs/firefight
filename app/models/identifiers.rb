@@ -43,6 +43,7 @@ module Identifiers
   SUBCOMMAND_RESOLVE    = "resolve"
   SUBCOMMAND_REOPEN     = "reopen"
   SUBCOMMAND_POSTMORTEM = "postmortem"
+  SUBCOMMAND_CATCHUP    = "catchup"
   SUBCOMMAND_TIMELINE   = "timeline"
   SUBCOMMAND_LIST       = "list"
   SUBCOMMAND_SHOUTOUT   = "shoutout"

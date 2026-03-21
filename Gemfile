@@ -46,8 +46,8 @@ gem "js-routes", "~> 2.3"
 # HTTP client for API requests
 gem "httparty"
 
-# LLM integration for AI-powered features
-gem "ruby_llm"
+# AI intelligence layer (postmortem generation, incident Q&A, integrations)
+gem "firefight_ai", path: "engines/firefight_ai"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

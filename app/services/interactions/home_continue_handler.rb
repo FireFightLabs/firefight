@@ -69,8 +69,12 @@ module Interactions
         return { response_action: "errors", errors: { "action_select_block" => "A postmortem has already been generated for #{incident.identifier}." } }
       end
 
+      unless defined?(FirefightAi)
+        return { response_action: "errors", errors: { "action_select_block" => "AI features are not available." } }
+      end
+
       member = workspace.workspace_memberships.find_by(platform_user_id: user_id)
-      PostmortemGenerationJob.perform_later(incident.id, member.id) if member
+      FirefightAi::PostmortemGenerationJob.perform_later(incident.id, member.id) if member
       { response_action: "clear" }
     end
     private_class_method :handle_postmortem

@@ -8,6 +8,7 @@ class Incident < ApplicationRecord
   include Incident::Lifecycle
   include Incident::Metrics
   include Incident::ChannelNaming
+  include Incident::Serialization
 
   belongs_to :workspace
   belongs_to :declared_by, class_name: "WorkspaceMembership"
