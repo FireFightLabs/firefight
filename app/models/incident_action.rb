@@ -37,4 +37,8 @@ class IncidentAction < ApplicationRecord
   def assigned?
     assignee_id.present?
   end
+
+  def to_context_hash
+    { type: action_type, description:, status:, assignee: assignee&.user&.name }
+  end
 end

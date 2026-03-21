@@ -6,4 +6,8 @@ class Shoutout < ApplicationRecord
   validates :message, presence: true
 
   scope :recent, -> { order(created_at: :desc) }
+
+  def to_context_hash
+    { from: from_member.user.name, to: to_member&.user&.name, message: }
+  end
 end

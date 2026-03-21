@@ -100,6 +100,13 @@ GIT
       zeitwerk (~> 2.6)
 
 PATH
+  remote: engines/firefight_ai
+  specs:
+    firefight_ai (0.1.0)
+      rails (>= 8.0)
+      ruby_llm
+
+PATH
   remote: engines/solid_workflow
   specs:
     solid_workflow (0.1.0)
@@ -579,6 +586,7 @@ DEPENDENCIES
   capybara
   debug
   dotenv-rails
+  firefight_ai!
   httparty
   image_processing (~> 1.2)
   inertia_rails (~> 3.18)
@@ -597,7 +605,6 @@ DEPENDENCIES
   rails!
   rails_semantic_logger
   rubocop-rails-omakase
-  ruby_llm
   selenium-webdriver
   solid_cable
   solid_cache

@@ -1,19 +1,19 @@
 require "test_helper"
 
-class IncidentAiServiceTest < ActiveSupport::TestCase
+class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incidents,
            :incident_lifecycle_stages, :incident_statuses, :incident_severities
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
-    @service = IncidentAiService.new(@workspace)
+    @responder = FirefightAi::IncidentResponder.new(@workspace)
   end
 
   test "answer_question returns AI response text" do
     stub_ruby_llm_response("The incident is about a database connection pool issue.")
 
-    answer = @service.answer_question(@incident, question: "what's going on?")
+    answer = @responder.answer_question(@incident, question: "what's going on?")
     assert_equal "The incident is about a database connection pool issue.", answer
   end
 
@@ -28,7 +28,7 @@ class IncidentAiServiceTest < ActiveSupport::TestCase
     mock_chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(mock_response)
     RubyLLM.stubs(:chat).returns(mock_chat)
 
-    @service.answer_question(@incident, question: "what happened?")
+    @responder.answer_question(@incident, question: "what happened?")
 
     assert_includes captured_prompt, @incident.identifier
     assert_includes captured_prompt, @incident.name
@@ -36,13 +36,10 @@ class IncidentAiServiceTest < ActiveSupport::TestCase
   end
 
   test "answer_question includes transcript with thread structure" do
-    alice = workspace_memberships(:alice_workspace_one)
-    bob = workspace_memberships(:bob_workspace_one)
-
     grouped = [
-      { at: "2026-03-20T10:00:00Z", by: alice.user.name, text: "Top level message", ts: "1000.000",
+      { at: "2026-03-20T10:00:00Z", by: "Alice", text: "Top level message", ts: "1000.000",
         replies: [
-          { at: "2026-03-20T10:01:00Z", by: bob.user.name, text: "Thread reply", ts: "1001.000" }
+          { at: "2026-03-20T10:01:00Z", by: "Bob", text: "Thread reply", ts: "1001.000" }
         ] }
     ]
     IncidentTranscriptCache.stubs(:grouped_messages).returns(grouped)
@@ -55,7 +52,7 @@ class IncidentAiServiceTest < ActiveSupport::TestCase
     mock_chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(mock_response)
     RubyLLM.stubs(:chat).returns(mock_chat)
 
-    @service.answer_question(@incident, question: "summarize")
+    @responder.answer_question(@incident, question: "summarize")
 
     assert_includes captured_prompt, "Top level message"
     assert_includes captured_prompt, "(thread reply): Thread reply"

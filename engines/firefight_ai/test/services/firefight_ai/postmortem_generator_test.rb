@@ -1,6 +1,6 @@
 require "test_helper"
 
-class PostmortemGenerationServiceTest < ActiveSupport::TestCase
+class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incidents,
            :incident_lifecycle_stages, :incident_statuses, :incident_severities
 
@@ -17,14 +17,14 @@ class PostmortemGenerationServiceTest < ActiveSupport::TestCase
       channel_id: "C_PM_TEST",
       resolved_at: 1.hour.ago
     )
-    @service = PostmortemGenerationService.new(@workspace)
+    @generator = FirefightAi::PostmortemGenerator.new(@workspace)
   end
 
   test "generate creates postmortem record" do
     stub_ruby_llm_response
 
     assert_difference "Postmortem.count", 1 do
-      @service.generate(@incident, generated_by: @member)
+      @generator.generate(@incident, generated_by: @member)
     end
 
     postmortem = @incident.reload.postmortem
@@ -38,7 +38,7 @@ class PostmortemGenerationServiceTest < ActiveSupport::TestCase
     stub_ruby_llm_response
 
     assert_difference "PostmortemUpdate.count", 1 do
-      @service.generate(@incident, generated_by: @member)
+      @generator.generate(@incident, generated_by: @member)
     end
 
     update = @incident.postmortem.postmortem_updates.first
@@ -52,7 +52,7 @@ class PostmortemGenerationServiceTest < ActiveSupport::TestCase
     stub_ruby_llm_response
 
     assert_difference "IncidentEvent.count", 1 do
-      @service.generate(@incident, generated_by: @member)
+      @generator.generate(@incident, generated_by: @member)
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::POSTMORTEM_GENERATED)
@@ -62,19 +62,19 @@ class PostmortemGenerationServiceTest < ActiveSupport::TestCase
 
   test "post_message posts and pins message" do
     stub_ruby_llm_response
-    @service.generate(@incident, generated_by: @member)
+    @generator.generate(@incident, generated_by: @member)
 
     stub_post_message
     stub_pin_message
 
-    result = @service.post_message(@incident)
+    result = @generator.post_message(@incident)
 
     assert_equal "1234567890.123456", result[:message_ts]
     assert_equal "1234567890.123456", @incident.postmortem.reload.message_ts
   end
 
   test "post_message returns nil when no postmortem exists" do
-    assert_nil @service.post_message(@incident)
+    assert_nil @generator.post_message(@incident)
   end
 
   private

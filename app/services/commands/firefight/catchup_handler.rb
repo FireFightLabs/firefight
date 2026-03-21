@@ -5,9 +5,10 @@ module Commands
 
       def self.execute(command)
         return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
+        return Command.ephemeral("AI features are not available.") unless defined?(FirefightAi)
         return Command.ephemeral("This command must be run from an active incident channel.") unless command.incident
 
-        IncidentAiResponseJob.perform_later(
+        FirefightAi::IncidentResponseJob.perform_later(
           command.incident.id,
           command.channel_id,
           nil,

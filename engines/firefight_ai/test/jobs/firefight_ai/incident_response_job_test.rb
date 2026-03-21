@@ -1,6 +1,6 @@
 require "test_helper"
 
-class IncidentAiResponseJobTest < ActiveSupport::TestCase
+class FirefightAi::IncidentResponseJobTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incidents,
            :incident_lifecycle_stages, :incident_statuses, :incident_severities
 
@@ -9,31 +9,31 @@ class IncidentAiResponseJobTest < ActiveSupport::TestCase
   end
 
   test "posts threaded reply when thread_ts is present" do
-    IncidentAiService.any_instance.stubs(:answer_question).returns("Here's what's happening...")
+    FirefightAi::IncidentResponder.any_instance.stubs(:answer_question).returns("Here's what's happening...")
     Slack::Client.expects(:post_message).with(
       has_entries(thread_ts: "1234567890.123456")
     ).returns({ ok: true, ts: "9999.9999" })
 
-    IncidentAiResponseJob.perform_now(
+    FirefightAi::IncidentResponseJob.perform_now(
       @incident.id, @incident.channel_id, "1234567890.123456", "what's going on?"
     )
   end
 
   test "posts channel message when thread_ts is nil" do
-    IncidentAiService.any_instance.stubs(:answer_question).returns("Here's the catchup...")
+    FirefightAi::IncidentResponder.any_instance.stubs(:answer_question).returns("Here's the catchup...")
     Slack::Client.expects(:post_message).with(
       Not(has_key(:thread_ts)) & has_entry(:text, "Here's the catchup...")
     ).returns({ ok: true, ts: "9999.9999" })
 
-    IncidentAiResponseJob.perform_now(
+    FirefightAi::IncidentResponseJob.perform_now(
       @incident.id, @incident.channel_id, nil, "Give me a catchup"
     )
   end
 
   test "discards on record not found" do
-    IncidentAiService.expects(:new).never
+    FirefightAi::IncidentResponder.expects(:new).never
     assert_nothing_raised do
-      IncidentAiResponseJob.perform_now(SecureRandom.uuid, "C123", nil, "test")
+      FirefightAi::IncidentResponseJob.perform_now(SecureRandom.uuid, "C123", nil, "test")
     end
   end
 end

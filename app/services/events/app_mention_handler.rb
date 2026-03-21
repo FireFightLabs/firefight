@@ -14,10 +14,11 @@ module Events
 
       user_text = strip_mention(event["text"])
       return if user_text.blank?
+      return unless defined?(FirefightAi)
 
       acknowledge(workspace, channel_id, event["ts"])
 
-      IncidentAiResponseJob.perform_later(
+      FirefightAi::IncidentResponseJob.perform_later(
         incident.id,
         channel_id,
         event["ts"],
