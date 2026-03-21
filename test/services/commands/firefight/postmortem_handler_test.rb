@@ -25,7 +25,7 @@ class Commands::Firefight::PostmortemHandlerTest < ActiveSupport::TestCase
   end
 
   test "enqueues postmortem generation for closed incident" do
-    assert_enqueued_with(job: PostmortemGenerationJob) do
+    assert_enqueued_with(job: FirefightAi::PostmortemGenerationJob) do
       result = Commands::Firefight::PostmortemHandler.execute(
         build_command(channel_id: @incident.channel_id)
       )

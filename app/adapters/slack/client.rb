@@ -197,6 +197,18 @@ module Slack
     # @param timestamp [String] Message timestamp to pin
     # @return [Hash] Slack API response
     # @raise [ApiError] if Slack API returns an error
+    def self.add_reaction(workspace:, channel:, timestamp:, name:)
+      api_post(
+        workspace: workspace,
+        endpoint: "reactions.add",
+        payload: {
+          channel: channel,
+          timestamp: timestamp,
+          name: name
+        }
+      )
+    end
+
     def self.pin_message(workspace:, channel:, timestamp:)
       api_post(
         workspace: workspace,

@@ -18,4 +18,4 @@ postmortem_resolved_ws1:
         heading: What went well
         body: "- Quick detection via user reports"
   status: draft
-  model_id: claude-sonnet-4-6-20250514
+  model_id: claude-sonnet-4-6

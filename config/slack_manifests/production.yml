@@ -42,14 +42,17 @@ oauth_config:
       - pins:write # Pin key messages in incident channels
       - pins:read # Receive pin events for timeline updates
       - reactions:read # Receive reaction_added events for action/followup creation
+      - reactions:write # Add emoji reactions to messages (AI acknowledgment)
       - channels:history # Fetch message text from incident channels (conversations.history)
       - groups:history # Read private incident channel messages/events
       - files:read # Download shared files for archival
+      - app_mentions:read # Receive app_mention events when @Firefight is mentioned
 
 settings:
   event_subscriptions:
     request_url: https://firefight-production-32a5.up.railway.app/api/v1/events
     bot_events:
+      - app_mention
       - reaction_added
       - message.channels
       - message.groups

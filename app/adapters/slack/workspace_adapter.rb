@@ -88,6 +88,19 @@ module Slack
       end
     end
 
+    def add_reaction(channel_id:, timestamp:, name:)
+      translate_errors do
+        Slack::Client.add_reaction(
+          workspace: @workspace,
+          channel: channel_id,
+          timestamp: timestamp,
+          name: name
+        )
+
+        { success: true }
+      end
+    end
+
     def pin_message(channel_id:, timestamp:)
       translate_errors do
         Slack::Client.pin_message(
