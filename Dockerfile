@@ -38,6 +38,7 @@ RUN apt-get update -qq && \
 # Install application gems
 COPY Gemfile Gemfile.lock vendor ./
 COPY engines/solid_workflow engines/solid_workflow
+COPY engines/firefight_ai engines/firefight_ai
 
 RUN bundle install && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
