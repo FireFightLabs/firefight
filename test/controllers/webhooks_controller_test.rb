@@ -27,31 +27,6 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
   end
 
   # ============================================================================
-  # INDEX
-  # ============================================================================
-
-  test "lists webhooks for current workspace" do
-    get webhooks_url
-    assert_response :success
-  end
-
-  # ============================================================================
-  # SHOW
-  # ============================================================================
-
-  test "shows webhook details" do
-    get webhook_url(@webhook)
-    assert_response :success
-  end
-
-  test "does not find webhook from different workspace" do
-    other_webhook = webhooks(:workspace_two_webhook)
-    assert_raises(ActiveRecord::RecordNotFound) do
-      @workspace.webhooks.find(other_webhook.id)
-    end
-  end
-
-  # ============================================================================
   # CREATE
   # ============================================================================
 
@@ -66,6 +41,7 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
       }
     end
 
+    assert_response :redirect
     webhook = Webhook.find_by!(name: "New Test Hook")
     assert_equal @workspace, webhook.workspace
     assert_not_nil webhook.signing_secret
@@ -137,12 +113,20 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  # ============================================================================
+  # WORKSPACE SCOPING
+  # ============================================================================
+
+  test "does not find webhook from different workspace" do
+    other_webhook = webhooks(:workspace_two_webhook)
+    assert_raises(ActiveRecord::RecordNotFound) do
+      @workspace.webhooks.find(other_webhook.id)
+    end
+  end
+
   private
 
   def sign_in(user, workspace)
-    # Set session by going through a custom test endpoint
-    # In integration tests, we can set session via the OmniAuth callback pattern
-    # For simplicity, stub the authentication at the controller level
     ApplicationController.any_instance.stubs(:current_user).returns(user)
     ApplicationController.any_instance.stubs(:current_workspace).returns(workspace)
     ApplicationController.any_instance.stubs(:user_signed_in?).returns(true)

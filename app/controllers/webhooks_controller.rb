@@ -21,7 +21,7 @@ class WebhooksController < InertiaController
     webhook = current_workspace.webhooks.new(webhook_params)
 
     if webhook.save
-      render inertia: "webhooks/show", props: { webhook: webhook_json(webhook), deliveries: [] }
+      redirect_to webhook_path(webhook)
     else
       redirect_back fallback_location: webhooks_path, inertia: { errors: webhook.errors.to_hash }
     end
