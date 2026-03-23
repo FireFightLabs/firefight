@@ -1,0 +1,150 @@
+require "test_helper"
+
+class WebhooksControllerTest < ActionDispatch::IntegrationTest
+  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
+           :incident_statuses, :incident_severities, :incidents, :incident_events,
+           :webhooks, :webhook_delinquency_trackers, :webhook_deliveries
+
+  setup do
+    @workspace = workspaces(:slack_workspace_one)
+    @user = users(:alice)
+    @webhook = webhooks(:active_webhook)
+
+    sign_in(@user, @workspace)
+  end
+
+  # ============================================================================
+  # AUTHENTICATION
+  # ============================================================================
+
+  test "redirects to login when not authenticated" do
+    ApplicationController.any_instance.unstub(:current_user)
+    ApplicationController.any_instance.unstub(:current_workspace)
+    ApplicationController.any_instance.unstub(:user_signed_in?)
+    get webhooks_url
+    assert_response :redirect
+    assert_redirected_to login_path
+  end
+
+  # ============================================================================
+  # INDEX
+  # ============================================================================
+
+  test "lists webhooks for current workspace" do
+    get webhooks_url
+    assert_response :success
+  end
+
+  # ============================================================================
+  # SHOW
+  # ============================================================================
+
+  test "shows webhook details" do
+    get webhook_url(@webhook)
+    assert_response :success
+  end
+
+  test "does not find webhook from different workspace" do
+    other_webhook = webhooks(:workspace_two_webhook)
+    assert_raises(ActiveRecord::RecordNotFound) do
+      @workspace.webhooks.find(other_webhook.id)
+    end
+  end
+
+  # ============================================================================
+  # CREATE
+  # ============================================================================
+
+  test "creates a new webhook" do
+    assert_difference -> { Webhook.count }, 1 do
+      post webhooks_url, params: {
+        webhook: {
+          name: "New Test Hook",
+          url: "https://example.com/new-hook",
+          subscribed_events: [ "incident.created", "incident.resolved" ]
+        }
+      }
+    end
+
+    webhook = Webhook.find_by!(name: "New Test Hook")
+    assert_equal @workspace, webhook.workspace
+    assert_not_nil webhook.signing_secret
+    assert webhook.active?
+  end
+
+  # ============================================================================
+  # UPDATE
+  # ============================================================================
+
+  test "updates webhook name" do
+    patch webhook_url(@webhook), params: {
+      webhook: { name: "Updated Name" }
+    }
+    assert_response :redirect
+    assert_equal "Updated Name", @webhook.reload.name
+  end
+
+  # ============================================================================
+  # DESTROY
+  # ============================================================================
+
+  test "destroys webhook" do
+    assert_difference -> { Webhook.count }, -1 do
+      delete webhook_url(@webhook)
+    end
+    assert_response :redirect
+  end
+
+  # ============================================================================
+  # ACTIVATE / DEACTIVATE
+  # ============================================================================
+
+  test "activates an inactive webhook" do
+    inactive = webhooks(:inactive_webhook)
+    post activate_webhook_url(inactive)
+    assert_response :redirect
+    assert inactive.reload.active?
+  end
+
+  test "deactivates an active webhook" do
+    post deactivate_webhook_url(@webhook)
+    assert_response :redirect
+    assert_not @webhook.reload.active?
+  end
+
+  # ============================================================================
+  # TEST DELIVERY
+  # ============================================================================
+
+  test "sends test delivery" do
+    assert_difference -> { WebhookDelivery.count }, 1 do
+      post test_webhook_url(@webhook)
+    end
+    assert_response :redirect
+  end
+
+  # ============================================================================
+  # SAMPLE PAYLOAD
+  # ============================================================================
+
+  test "returns sample payload info for valid event type" do
+    get sample_payload_webhooks_url, params: { event_type: "incident.created" }
+    assert_response :success
+  end
+
+  test "returns error for invalid event type" do
+    get sample_payload_webhooks_url, params: { event_type: "invalid.event" }
+    assert_response :unprocessable_entity
+  end
+
+  private
+
+  def sign_in(user, workspace)
+    # Set session by going through a custom test endpoint
+    # In integration tests, we can set session via the OmniAuth callback pattern
+    # For simplicity, stub the authentication at the controller level
+    ApplicationController.any_instance.stubs(:current_user).returns(user)
+    ApplicationController.any_instance.stubs(:current_workspace).returns(workspace)
+    ApplicationController.any_instance.stubs(:user_signed_in?).returns(true)
+  end
+end

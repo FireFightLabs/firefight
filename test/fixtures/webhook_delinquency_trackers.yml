@@ -1,0 +1,14 @@
+active_webhook_tracker:
+  webhook: active_webhook
+  consecutive_failures_count: 0
+  first_failure_at:
+
+inactive_webhook_tracker:
+  webhook: inactive_webhook
+  consecutive_failures_count: 0
+  first_failure_at:
+
+workspace_two_webhook_tracker:
+  webhook: workspace_two_webhook
+  consecutive_failures_count: 0
+  first_failure_at:

@@ -27,4 +27,14 @@ Rails.application.routes.draw do
 
   # Authenticated routes
   get "/dashboard", to: "dashboard#index", as: :dashboard
+
+  resources :webhooks, except: [ :edit ] do
+    member do
+      post :test
+      post :activate
+      post :deactivate
+    end
+    get :sample_payload, on: :collection
+    resources :deliveries, only: [ :index, :show ], controller: "webhook_deliveries"
+  end
 end

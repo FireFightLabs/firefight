@@ -11,6 +11,7 @@ class Workspace < ApplicationRecord
   has_many :incident_severities, dependent: :destroy
   has_many :incident_roles, dependent: :destroy
   has_many :incident_types, dependent: :destroy
+  has_many :webhooks, dependent: :destroy
 
   encrypts :access_token, :refresh_token, deterministic: false
 
