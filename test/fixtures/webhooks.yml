@@ -1,0 +1,23 @@
+active_webhook:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Production Alerts
+  url: https://example.com/webhooks/receive
+  signing_secret: test_signing_secret_abc123def456
+  subscribed_events: <%= ["incident.created", "incident.resolved", "incident.updated"].to_json %>
+  active: true
+
+inactive_webhook:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Inactive Hook
+  url: https://example.com/webhooks/inactive
+  signing_secret: test_signing_secret_inactive_789
+  subscribed_events: <%= ["incident.created"].to_json %>
+  active: false
+
+workspace_two_webhook:
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  name: Other Workspace Hook
+  url: https://other.example.com/hooks
+  signing_secret: test_signing_secret_other_ws_456
+  subscribed_events: <%= ["incident.created", "lead.assigned"].to_json %>
+  active: true

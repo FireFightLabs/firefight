@@ -1,6 +1,8 @@
 require "test_helper"
 
 class EventRouterTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @event = DomainEvent.new(
       event_type: IncidentEvent::INCIDENT_CREATED,
@@ -11,10 +13,9 @@ class EventRouterTest < ActiveSupport::TestCase
     )
   end
 
-  test "routes known event type without error" do
-    assert_nothing_raised do
-      EventRouter.route(@event)
-    end
+  test "routes known event type to subscribers" do
+    Webhooks::EventSubscriber.expects(:handle).with(@event)
+    EventRouter.route(@event)
   end
 
   test "logs warning for unknown event type" do
@@ -40,9 +41,18 @@ class EventRouterTest < ActiveSupport::TestCase
     end
   end
 
-  test "subscribers arrays are empty in phase 1" do
-    EventRouter::SUBSCRIBERS.each do |event_type, subscribers|
-      assert_equal [], subscribers, "#{event_type} should have no subscribers in phase 1"
+  test "subscribable events have webhook subscriber" do
+    Webhook::SUBSCRIBABLE_EVENTS.each do |event_type|
+      assert_includes EventRouter::SUBSCRIBERS[event_type], Webhooks::EventSubscriber,
+        "#{event_type} should have Webhooks::EventSubscriber"
+    end
+  end
+
+  test "non-subscribable events have no subscribers" do
+    non_subscribable = IncidentEvent::EVENT_TYPES - Webhook::SUBSCRIBABLE_EVENTS
+    non_subscribable.each do |event_type|
+      assert_equal [], EventRouter::SUBSCRIBERS[event_type],
+        "#{event_type} should have no subscribers"
     end
   end
 end
