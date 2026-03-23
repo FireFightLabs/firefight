@@ -7,7 +7,7 @@
     "vite-plugin-ruby": "^5.1.1"
   },
   "dependencies": {
-    "@inertiajs/react": "^2.2.18",
+    "@inertiajs/react": "^2.3.18",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-separator": "^1.1.8",

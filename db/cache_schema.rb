@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_19_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_23_105332) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -683,6 +683,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_19_000001) do
     t.index ["email"], name: "index_users_on_email", unique: true
   end
 
+  create_table "webhook_delinquency_trackers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "consecutive_failures_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "first_failure_at"
+    t.datetime "updated_at", null: false
+    t.uuid "webhook_id", null: false
+    t.index ["webhook_id"], name: "index_webhook_delinquency_trackers_on_webhook_id", unique: true
+  end
+
+  create_table "webhook_deliveries", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "delivered_at"
+    t.text "error_message"
+    t.string "event_type", null: false
+    t.uuid "incident_event_id", null: false
+    t.jsonb "request_body", default: {}
+    t.jsonb "request_headers", default: {}
+    t.integer "response_code"
+    t.string "state", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "webhook_id", null: false
+    t.index ["created_at"], name: "index_webhook_deliveries_on_created_at"
+    t.index ["incident_event_id"], name: "index_webhook_deliveries_on_incident_event_id"
+    t.index ["webhook_id", "created_at"], name: "index_webhook_deliveries_on_webhook_id_and_created_at"
+    t.index ["webhook_id"], name: "index_webhook_deliveries_on_webhook_id"
+  end
+
+  create_table "webhooks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.string "signing_secret", null: false
+    t.jsonb "subscribed_events", default: [], null: false
+    t.datetime "updated_at", null: false
+    t.text "url", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["workspace_id", "active"], name: "index_webhooks_on_workspace_id_and_active"
+    t.index ["workspace_id"], name: "index_webhooks_on_workspace_id"
+  end
+
   create_table "workspace_memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "access_token"
     t.datetime "created_at", null: false
@@ -789,6 +829,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_19_000001) do
   add_foreign_key "team_services", "services"
   add_foreign_key "team_services", "teams"
   add_foreign_key "teams", "workspaces"
+  add_foreign_key "webhook_delinquency_trackers", "webhooks"
+  add_foreign_key "webhook_deliveries", "incident_events"
+  add_foreign_key "webhook_deliveries", "webhooks"
+  add_foreign_key "webhooks", "workspaces"
   add_foreign_key "workspace_memberships", "users"
   add_foreign_key "workspace_memberships", "workspaces"
 end
