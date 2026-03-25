@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_23_105332) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_25_091617) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -43,6 +43,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_23_105332) do
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
 
+  create_table "api_keys", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.uuid "created_by_id", null: false
+    t.datetime "deleted_at"
+    t.datetime "expires_at"
+    t.datetime "last_used_at"
+    t.string "name", null: false
+    t.jsonb "permissions", default: {}, null: false
+    t.string "token_digest", null: false
+    t.string "token_prefix", limit: 12, null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["created_by_id"], name: "index_api_keys_on_created_by_id"
+    t.index ["token_digest"], name: "index_api_keys_on_token_digest", unique: true
+    t.index ["workspace_id", "deleted_at"], name: "index_api_keys_on_workspace_id_and_deleted_at"
+    t.index ["workspace_id"], name: "index_api_keys_on_workspace_id"
+  end
+
   create_table "environments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "color"
     t.datetime "created_at", null: false
@@ -57,6 +76,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_23_105332) do
     t.index ["workspace_id", "position"], name: "index_environments_on_workspace_id_and_position"
     t.index ["workspace_id", "slug"], name: "index_environments_on_workspace_id_and_slug", unique: true
     t.index ["workspace_id"], name: "index_environments_on_workspace_id"
+  end
+
+  create_table "idempotency_keys", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "key", null: false
+    t.uuid "resource_id", null: false
+    t.string "resource_type", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["created_at"], name: "index_idempotency_keys_on_created_at"
+    t.index ["workspace_id", "key"], name: "index_idempotency_keys_on_workspace_id_and_key", unique: true
+    t.index ["workspace_id"], name: "index_idempotency_keys_on_workspace_id"
   end
 
   create_table "incident_action_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -763,7 +793,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_23_105332) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "api_keys", "workspace_memberships", column: "created_by_id"
+  add_foreign_key "api_keys", "workspaces"
   add_foreign_key "environments", "workspaces"
+  add_foreign_key "idempotency_keys", "workspaces"
   add_foreign_key "incident_action_updates", "incident_actions"
   add_foreign_key "incident_action_updates", "incidents"
   add_foreign_key "incident_action_updates", "workspace_memberships", column: "actor_id"

@@ -13,6 +13,12 @@ Rails.application.routes.draw do
       post "commands", to: "commands#create"
       post "interactions", to: "interactions#create"
       post "events", to: "events#create"
+
+      # Public API (Bearer token auth)
+      resources :incidents, only: [ :index, :show, :create, :update ]
+      resources :severities, only: [ :index ]
+      resources :statuses, only: [ :index ]
+      resources :incident_types, only: [ :index ]
     end
   end
 

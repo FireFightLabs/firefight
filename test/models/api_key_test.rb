@@ -1,0 +1,137 @@
+require "test_helper"
+
+class ApiKeyTest < ActiveSupport::TestCase
+  fixtures :workspaces, :users, :workspace_memberships, :api_keys
+
+  # ============================================================================
+  # TOKEN GENERATION
+  # ============================================================================
+
+  test "generate_token produces token with ff_ prefix" do
+    token = ApiKey.generate_token
+    assert token.start_with?("ff_")
+    assert_equal 39, token.length  # "ff_" + 36 chars
+  end
+
+  test "create_with_token! returns api_key and raw token" do
+    api_key, raw_token = ApiKey.create_with_token!(
+      workspace: workspaces(:slack_workspace_one),
+      created_by: workspace_memberships(:alice_workspace_one),
+      name: "Test Key",
+      permissions: { "incidents" => [ "read" ] }
+    )
+
+    assert api_key.persisted?
+    assert raw_token.start_with?("ff_")
+    assert_equal raw_token.first(12), api_key.token_prefix
+    assert_equal Digest::SHA256.hexdigest(raw_token), api_key.token_digest
+  end
+
+  # ============================================================================
+  # AUTHENTICATION
+  # ============================================================================
+
+  test "authenticate returns api_key for valid token" do
+    api_key = ApiKey.authenticate("ff_test_full_access_token_123456")
+    assert_not_nil api_key
+    assert_equal api_keys(:full_access_key), api_key
+  end
+
+  test "authenticate returns nil for invalid token" do
+    assert_nil ApiKey.authenticate("ff_invalid_token")
+  end
+
+  test "authenticate returns nil for blank token" do
+    assert_nil ApiKey.authenticate("")
+    assert_nil ApiKey.authenticate(nil)
+  end
+
+  test "authenticate returns nil for inactive key" do
+    assert_nil ApiKey.authenticate("ff_test_inactive_token_123456789")
+  end
+
+  test "authenticate returns nil for expired key" do
+    assert_nil ApiKey.authenticate("ff_test_expired_token_1234567890")
+  end
+
+  test "authenticate returns nil for soft-deleted key" do
+    assert_nil ApiKey.authenticate("ff_test_deleted_token_1234567890")
+  end
+
+  # ============================================================================
+  # PERMISSIONS
+  # ============================================================================
+
+  test "has_permission? returns true for granted permission" do
+    key = api_keys(:full_access_key)
+    assert key.has_permission?("incidents", "read")
+    assert key.has_permission?("incidents", "create")
+    assert key.has_permission?("incidents", "update")
+    assert key.has_permission?("severities", "read")
+  end
+
+  test "has_permission? returns false for denied permission" do
+    key = api_keys(:read_only_key)
+    assert_not key.has_permission?("incidents", "create")
+    assert_not key.has_permission?("incidents", "update")
+    assert_not key.has_permission?("incidents", "delete")
+  end
+
+  test "has_permission? returns false for unknown resource" do
+    key = api_keys(:full_access_key)
+    assert_not key.has_permission?("unknown", "read")
+  end
+
+  # ============================================================================
+  # SOFT DELETE
+  # ============================================================================
+
+  test "soft_delete! sets deleted_at" do
+    key = api_keys(:full_access_key)
+    key.soft_delete!
+    assert key.deleted?
+    assert_not_nil key.deleted_at
+  end
+
+  test "soft-deleted key excluded from active scope" do
+    key = api_keys(:deleted_key)
+    assert_not_includes ApiKey.active, key
+  end
+
+  # ============================================================================
+  # EXPIRATION
+  # ============================================================================
+
+  test "expired? returns true for expired key" do
+    assert api_keys(:expired_key).expired?
+  end
+
+  test "expired? returns false for non-expired key" do
+    assert_not api_keys(:full_access_key).expired?
+  end
+
+  test "expired? returns false when expires_at is nil" do
+    assert_not api_keys(:read_only_key).expired?
+  end
+
+  # ============================================================================
+  # LAST USED TRACKING
+  # ============================================================================
+
+  test "touch_last_used! updates last_used_at" do
+    key = api_keys(:full_access_key)
+    assert_nil key.last_used_at
+
+    key.touch_last_used!
+    assert_not_nil key.reload.last_used_at
+  end
+
+  test "touch_last_used! is debounced within 1 minute" do
+    key = api_keys(:full_access_key)
+    key.update_column(:last_used_at, 30.seconds.ago)
+    original = key.last_used_at
+
+    key.touch_last_used!
+    assert_equal original.to_i, key.reload.last_used_at.to_i
+  end
+end
