@@ -33,7 +33,8 @@ class Events::MemberJoinedChannelHandlerTest < ActiveSupport::TestCase
       incident_severity: @severity,
       name: "Test incident",
       is_private: false,
-      channel_id: "C_INCIDENT_CHANNEL"
+      channel_id: "C_INCIDENT_CHANNEL",
+      source: Incident::SOURCE_SLACK
     )
 
     stub_get_user_info

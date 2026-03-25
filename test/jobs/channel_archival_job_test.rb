@@ -18,7 +18,8 @@ class ChannelArchivalJobTest < ActiveSupport::TestCase
       name: "Test incident",
       is_private: false,
       channel_id: "C_TEST",
-      resolved_at: Time.current
+      resolved_at: Time.current,
+      source: Incident::SOURCE_SLACK
     )
   end
 

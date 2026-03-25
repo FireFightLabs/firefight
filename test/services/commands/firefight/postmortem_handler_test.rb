@@ -20,7 +20,8 @@ class Commands::Firefight::PostmortemHandlerTest < ActiveSupport::TestCase
       name: "Test incident",
       is_private: false,
       channel_id: "C_CLOSED_INCIDENT",
-      resolved_at: 1.hour.ago
+      resolved_at: 1.hour.ago,
+      source: Incident::SOURCE_SLACK
     )
   end
 

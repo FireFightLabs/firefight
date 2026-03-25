@@ -2,6 +2,8 @@ class Incident < ApplicationRecord
   VISIBILITY_PUBLIC = "public"
   VISIBILITY_PRIVATE = "private"
 
+  SOURCE_SLACK = "slack"
+
   include Incident::Sequencing
   include Incident::Snapshots
   include Incident::RoleManagement
@@ -11,7 +13,8 @@ class Incident < ApplicationRecord
   include Incident::Serialization
 
   belongs_to :workspace
-  belongs_to :declared_by, class_name: "WorkspaceMembership"
+  belongs_to :declared_by, class_name: "WorkspaceMembership", optional: true
+  belongs_to :source_api_key, class_name: "ApiKey", optional: true
   belongs_to :incident_status
   belongs_to :incident_severity
   belongs_to :incident_type, optional: true
@@ -33,6 +36,7 @@ class Incident < ApplicationRecord
   validates :sequence_number, presence: true, uniqueness: { scope: :workspace_id }
   validates :identifier, presence: true, uniqueness: { scope: :workspace_id }
   validates :declared_at, presence: true
+  validates :source, presence: true
 
   scope :in_channel, ->(channel_id) { where(channel_id: channel_id) }
   scope :active, -> { joins(:incident_status).merge(IncidentStatus.live) }

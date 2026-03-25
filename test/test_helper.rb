@@ -28,6 +28,7 @@ module ActiveSupport
     include SlackSignatureHelper
     include OmniauthTestHelper
     include SlackClientStubHelper
+    include ApiTestHelper
 
     # Add more helper methods to be used by all tests here...
   end

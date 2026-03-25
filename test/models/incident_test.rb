@@ -80,14 +80,13 @@ class IncidentTest < ActiveSupport::TestCase
       incident_status: incident_statuses(:triaging_ws2),
       incident_severity: incident_severities(:p0_ws2),
       sequence_number: ws1_incident.sequence_number,
-      identifier: "INC-005", # Same identifier format
-      declared_at: Time.current
+      identifier: "INC-005",
+      declared_at: Time.current,
+      source: Incident::SOURCE_SLACK
     )
-    # Skip callbacks to keep our manually set values
     ws2_incident.define_singleton_method(:assign_sequence_number) { }
     ws2_incident.define_singleton_method(:generate_identifier) { }
     ws2_incident.define_singleton_method(:set_declared_at) { }
-    # Should be valid - same sequence_number is OK across workspaces
     assert ws2_incident.valid?, "Expected incident to be valid but got errors: #{ws2_incident.errors.full_messages}"
   end
 
@@ -115,7 +114,8 @@ class IncidentTest < ActiveSupport::TestCase
       incident_status: incident_statuses(:triaging_ws2),
       incident_severity: incident_severities(:p0_ws2),
       sequence_number: 999,
-      identifier: ws1_incident.identifier # Same identifier INC-001
+      identifier: ws1_incident.identifier,
+      source: Incident::SOURCE_SLACK
     )
     assert ws2_incident.valid?
   end
@@ -306,7 +306,8 @@ class IncidentTest < ActiveSupport::TestCase
       declared_by: workspace_memberships(:alice_workspace_one),
       incident_status: incident_statuses(:investigating_ws1),
       incident_severity: incident_severities(:minor_ws1),
-      name: "Test incident"
+      name: "Test incident",
+      source: Incident::SOURCE_SLACK
     )
 
     assert_not_nil incident.sequence_number
@@ -322,7 +323,8 @@ class IncidentTest < ActiveSupport::TestCase
       declared_by: workspace_memberships(:alice_workspace_one),
       incident_status: incident_statuses(:investigating_ws1),
       incident_severity: incident_severities(:minor_ws1),
-      name: "New incident"
+      name: "New incident",
+      source: Incident::SOURCE_SLACK
     )
 
     assert_equal max_seq + 1, incident.sequence_number
@@ -360,7 +362,8 @@ class IncidentTest < ActiveSupport::TestCase
       declared_by: workspace_memberships(:alice_workspace_one),
       incident_status: status,
       incident_severity: severity,
-      name: "First incident"
+      name: "First incident",
+      source: Incident::SOURCE_SLACK
     )
 
     assert_equal 1, incident.sequence_number
@@ -372,7 +375,8 @@ class IncidentTest < ActiveSupport::TestCase
       declared_by: workspace_memberships(:alice_workspace_one),
       incident_status: incident_statuses(:investigating_ws1),
       incident_severity: incident_severities(:minor_ws1),
-      name: "Test incident"
+      name: "Test incident",
+      source: Incident::SOURCE_SLACK
     )
 
     expected_identifier = "INC-#{incident.sequence_number.to_s.rjust(3, '0')}"
@@ -394,7 +398,8 @@ class IncidentTest < ActiveSupport::TestCase
       declared_by: workspace_memberships(:alice_workspace_one),
       incident_status: incident_statuses(:investigating_ws1),
       incident_severity: incident_severities(:minor_ws1),
-      name: "Test incident"
+      name: "Test incident",
+      source: Incident::SOURCE_SLACK
     )
 
     assert_nil incident.declared_at
@@ -411,7 +416,8 @@ class IncidentTest < ActiveSupport::TestCase
       incident_status: incident_statuses(:investigating_ws1),
       incident_severity: incident_severities(:minor_ws1),
       name: "Test incident",
-      declared_at: custom_time
+      declared_at: custom_time,
+      source: Incident::SOURCE_SLACK
     )
 
     assert_equal custom_time.to_i, incident.declared_at.to_i

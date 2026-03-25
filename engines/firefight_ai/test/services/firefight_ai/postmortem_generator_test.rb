@@ -15,7 +15,8 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
       name: "Test postmortem incident",
       is_private: false,
       channel_id: "C_PM_TEST",
-      resolved_at: 1.hour.ago
+      resolved_at: 1.hour.ago,
+      source: Incident::SOURCE_SLACK
     )
     @generator = FirefightAi::PostmortemGenerator.new(@workspace)
   end

@@ -16,7 +16,8 @@ class Interactions::ShoutoutHandlerTest < ActiveSupport::TestCase
       incident_severity: incident_severities(:critical_ws1),
       name: "Test incident",
       is_private: false,
-      channel_id: "C_TEST_INCIDENT"
+      channel_id: "C_TEST_INCIDENT",
+      source: Incident::SOURCE_SLACK
     )
   end
 

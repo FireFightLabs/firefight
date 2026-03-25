@@ -14,6 +14,7 @@ Run `bin/ci` to validate changes. It runs rubocop, bundler-audit, brakeman, rail
 - No direct `Rails.logger` helper wrappers — call `Rails.logger.info(...)` inline where needed
 - Keep it simple, avoid over-engineering
 - Rubocop enforced: `[ {...} ]` not `[{...}]` (SpaceInsideArrayLiteralBrackets)
+- Never use raw strings for identifiers, resource names, action names, or event types — always use constants (e.g., `ApiKey::RESOURCE_INCIDENTS` not `"incidents"`, `IncidentEvent::INCIDENT_CREATED` not `"incident.created"`, `Identifiers::INCIDENT_CREATION_MODAL` not the string)
 
 ## Architecture
 
@@ -24,6 +25,63 @@ Controller → Job → Dispatcher → Handler → Service → Adapter → Slack:
 ```
 
 Each layer has a single responsibility. Never skip layers.
+
+### Entry Points (Boundary Layers)
+
+Slack and the Public API are **entry points** into the same system. They are thin boundary layers that normalize platform-specific input and call shared services. All business logic and side effects live in shared services — never in entry points.
+
+```
+Slack:  Controller → Dispatcher → Handler → IncidentLifecycleService → Workflows
+API:    Controller                        → IncidentLifecycleService → Workflows
+Teams:  (future)   → ...                  → IncidentLifecycleService → Workflows
+```
+
+#### What entry points do (boundary concerns only)
+1. **Normalize input** — parse platform-specific payload into resolved records (Slack: dig into interaction values, resolve slugs; API: parse JSON params, resolve UUIDs)
+2. **Call shared service** — `IncidentLifecycleService.new(workspace).create(...)` / `.update(...)` / `.close(...)` etc.
+3. **Platform-specific response** — Slack: return modal hash, delete temp messages; API: render JSON
+4. **Platform-specific extras** — only when the platform requires it (e.g., Slack handler creates channel synchronously before the workflow so the confirmation modal can include a channel link)
+
+#### What entry points must NOT do
+- Business logic (event type determination, transcript cache management, channel archival)
+- Workflow orchestration (deciding which workflow to start)
+- Side effects (these belong in the service)
+- Duplicate logic that exists in another entry point
+
+#### Adding a new entry point (e.g., Teams, Discord, new API endpoint)
+1. Create a controller/handler that normalizes input
+2. Call `IncidentLifecycleService` — same methods, same interface
+3. Return platform-specific response
+4. Never duplicate the service logic — if the service doesn't support what you need, extend the service
+
+### IncidentLifecycleService
+
+All incident write operations go through `IncidentLifecycleService` (`app/services/incident_lifecycle_service.rb`). This is the single source of truth for what happens when an incident is created, updated, closed, reopened, or has a lead assigned.
+
+```ruby
+service = IncidentLifecycleService.new(workspace)
+
+# Create — creates incident record, starts IncidentCreationWorkflow (channel, announcements, etc.)
+incident = service.create(declared_by:, incident_status:, incident_severity:, name:, source:, ...)
+
+# Update — records change event, starts IncidentUpdateWorkflow (channel topic, announcement update)
+service.update(incident, { summary: "New info" }, changed_by: member, message: "Status update")
+
+# Close — records change, expires transcript cache, starts IncidentCloseWorkflow, schedules channel archival
+service.close(incident, { incident_status: resolved_status }, changed_by: member)
+
+# Reopen — records change, clears transcript cache, unarchives channel, starts IncidentReopenWorkflow
+service.reopen(incident, { incident_status: active_status }, changed_by: member, reason: "False alarm")
+
+# Assign lead — records change, starts LeadAssignmentWorkflow (channel topic, lead DM, announcement)
+service.assign_lead(incident, lead_member, changed_by: member)
+```
+
+The service:
+- Takes `changed_by` as a `WorkspaceMembership` (works for both Slack users and API key creators)
+- Derives workflow context (e.g., `platform_user_id`) from the membership — no platform-specific IDs passed by callers
+- Handles all side effects: transcript cache, channel archival, workflow start
+- Is independently testable (`test/services/incident_lifecycle_service_test.rb`)
 
 ### Thin Controllers
 
@@ -69,8 +127,9 @@ Dispatchers and handlers only receive normalized objects — never raw payloads.
 
 Encapsulate business logic. Each method is independently callable (from workflows, console, or controllers). Use adapters for platform operations.
 
+- `IncidentLifecycleService` — **shared write operations for all entry points** (create, update, close, reopen, assign lead). Both Slack handlers and API controller call this. See [IncidentLifecycleService](#incidentlifecycleservice) above.
+- `IncidentCreationService` — incident creation flow details (channel, metadata, announcements). Called by `IncidentCreationWorkflow`.
 - `WorkspaceSetupService` — workspace setup flow
-- `IncidentCreationService` — incident creation flow
 
 Pattern:
 ```ruby
@@ -185,6 +244,33 @@ engines/solid_workflow/
 
 All callback_ids, action_ids, and subcommand strings are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, `Identifiers::SUBCOMMAND_CLOSE`, etc.
 
+### Public API
+
+REST API at `/api/v1/` with Bearer token authentication via `ApiKey` model. API controllers inherit from `Api::V1::ApiController` (NOT from `Api::V1::BaseController` which does Slack signature verification).
+
+**Authentication**: `ApiAuthentication` concern extracts Bearer token, looks up `ApiKey` by SHA256 digest (cached 24h, busted on key update), sets `Current.workspace` and `Current.api_key`.
+
+**Authorization**: `authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)` — raises `ApiAuthentication::ForbiddenError` if the key lacks permission. Permissions stored as jsonb on `ApiKey`: `{ "incidents" => ["read", "create", "update"] }`.
+
+**Idempotency**: `POST /api/v1/incidents` requires `idempotency_key`. Duplicate key returns existing incident (200) instead of creating new (201). Keys expire after 24h via `CleanupIdempotencyKeysJob`.
+
+**Source tracking**: Incidents have a `source` field (free-form string) and optional `source_api_key_id` FK. API callers specify source (e.g., "datadog", "pagerduty"). Slack-created incidents use `Incident::SOURCE_SLACK`.
+
+**Serialization**: Jbuilder templates in `app/views/api/v1/` — external contract decoupled from internal models.
+
+**Key files**:
+```
+app/controllers/concerns/api_authentication.rb  # Bearer token auth + permission checking
+app/controllers/api/v1/api_controller.rb        # Base controller (error handling, pagination)
+app/controllers/api/v1/incidents_controller.rb   # Incident CRUD
+app/controllers/api/v1/severities_controller.rb  # Read-only
+app/controllers/api/v1/statuses_controller.rb    # Read-only
+app/controllers/api/v1/incident_types_controller.rb # Read-only
+app/models/api_key.rb                            # Token auth, permissions, caching
+app/models/idempotency_key.rb                    # Deduplication
+app/views/api/v1/                                # Jbuilder response templates
+```
+
 ## Key Files
 
 ```
@@ -206,10 +292,15 @@ app/models/
   incident.rb                         # AR model with concerns (Sequencing, ChannelNaming, etc.)
 
 app/services/
+  incident_lifecycle_service.rb       # Shared write operations (create, update, close, reopen, lead)
   command_dispatcher.rb               # Routes commands → handlers
   interaction_dispatcher.rb           # Routes interactions → handlers
+  incident_creation_service.rb        # Incident creation details (channel, metadata, announcements)
   workspace_setup_service.rb          # Workspace setup business logic
-  incident_creation_service.rb        # Incident creation business logic
+
+app/views/shared/
+  _incident.json.jbuilder             # Shared incident serialization (used by API + webhooks)
+  _actor.json.jbuilder                # Shared actor serialization (used by API + webhooks)
 
 app/workflows/
   base.rb                             # Workflow engine with step DSL
