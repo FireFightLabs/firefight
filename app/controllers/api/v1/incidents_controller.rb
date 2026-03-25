@@ -2,7 +2,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
   before_action :set_incident, only: [ :show, :update ]
 
   def index
-    authorize!("incidents", "read")
+    authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ)
 
     scope = current_workspace.incidents
       .includes(:incident_status, :incident_severity, :incident_type, :declared_by)
@@ -14,11 +14,11 @@ class Api::V1::IncidentsController < Api::V1::ApiController
   end
 
   def show
-    authorize!("incidents", "read")
+    authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ)
   end
 
   def create
-    authorize!("incidents", "create")
+    authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)
 
     idempotency_key = params.require(:idempotency_key)
 
@@ -46,7 +46,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
       Current.api_key.created_by
     end
 
-    visibility = params.fetch(:visibility, "public")
+    visibility = params.fetch(:visibility, Incident::VISIBILITY_PUBLIC)
 
     @incident = Incident.create!(
       workspace: current_workspace,
@@ -72,7 +72,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
   end
 
   def update
-    authorize!("incidents", "update")
+    authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE)
 
     event_type = determine_event_type
     @incident.record_change!(event_type, changed_by: Current.api_key.created_by) do

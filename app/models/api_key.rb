@@ -4,8 +4,23 @@ class ApiKey < ApplicationRecord
   CACHE_TTL = 24.hours
   CACHE_PREFIX = "api_key/auth/"
 
-  RESOURCES = %w[incidents severities statuses incident_types].freeze
-  ACTIONS = %w[read create update delete].freeze
+  # Resources
+  RESOURCE_INCIDENTS = "incidents"
+  RESOURCE_SEVERITIES = "severities"
+  RESOURCE_STATUSES = "statuses"
+  RESOURCE_INCIDENT_TYPES = "incident_types"
+
+  RESOURCES = [
+    RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES
+  ].freeze
+
+  # Actions
+  ACTION_READ = "read"
+  ACTION_CREATE = "create"
+  ACTION_UPDATE = "update"
+  ACTION_DELETE = "delete"
+
+  ACTIONS = [ ACTION_READ, ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE ].freeze
 
   belongs_to :workspace
   belongs_to :created_by, class_name: "WorkspaceMembership"
