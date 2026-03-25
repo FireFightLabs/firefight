@@ -16,28 +16,16 @@ module Interactions
       resolved_status = workspace.incident_statuses.closed.first
       new_severity = workspace.incident_severities.active.find_by!(slug: severity_slug)
 
-      incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, changed_by: member) do
-        attrs = { incident_status: resolved_status, incident_severity: new_severity }
-        attrs[:name] = new_name if new_name.present?
-        attrs[:summary] = new_summary if new_summary.present?
-        incident.update!(attrs)
+      attrs = { incident_status: resolved_status, incident_severity: new_severity }
+      attrs[:name] = new_name if new_name.present?
+      attrs[:summary] = new_summary if new_summary.present?
 
-        if lead_user_id.present?
-          lead_member = workspace.workspace_memberships.find_by!(platform_user_id: lead_user_id)
-          incident.lead = lead_member
-        end
+      if lead_user_id.present?
+        lead_member = workspace.workspace_memberships.find_by!(platform_user_id: lead_user_id)
+        attrs[:lead] = lead_member
       end
 
-      IncidentTranscriptCache.expire_after_close!(incident)
-
-      IncidentCloseWorkflow.start!(incident, context: {
-        resolved_by_platform_user_id: interaction.user_id
-      })
-
-      if workspace.archive_channel_enabled && incident.channel_id.present?
-        ChannelArchivalJob.set(wait: workspace.archive_channel_delay_minutes.minutes)
-          .perform_later(incident.id, incident.resolved_at.iso8601)
-      end
+      IncidentLifecycleService.new(workspace).close(incident, attrs, changed_by: member)
 
       delete_temp_message(workspace, metadata)
 

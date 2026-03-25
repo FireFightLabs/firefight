@@ -5,13 +5,7 @@ module Interactions
       incident = workspace.incidents.find(interaction.action_value)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
-      incident.record_change!(IncidentEvent::LEAD_ASSIGNED, changed_by: member) do
-        incident.lead = member
-      end
-
-      LeadAssignmentWorkflow.start!(incident, context: {
-        lead_platform_user_id: interaction.user_id
-      })
+      IncidentLifecycleService.new(workspace).assign_lead(incident, member, changed_by: member)
 
       nil
     end

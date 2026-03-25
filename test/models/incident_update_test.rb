@@ -15,7 +15,8 @@ class IncidentUpdateTest < ActiveSupport::TestCase
       incident_status: @status,
       incident_severity: @severity,
       name: "Test incident",
-      is_private: false
+      is_private: false,
+      source: Incident::SOURCE_SLACK
     )
   end
 

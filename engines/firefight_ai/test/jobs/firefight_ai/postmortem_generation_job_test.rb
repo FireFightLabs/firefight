@@ -15,7 +15,8 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
       name: "Job test incident",
       is_private: false,
       channel_id: "C_JOB_TEST",
-      resolved_at: 1.hour.ago
+      resolved_at: 1.hour.ago,
+      source: Incident::SOURCE_SLACK
     )
   end
 
@@ -37,7 +38,8 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
       name: "Another incident",
       is_private: false,
       channel_id: "C_WITH_POSTMORTEM",
-      resolved_at: 1.hour.ago
+      resolved_at: 1.hour.ago,
+      source: Incident::SOURCE_SLACK
     )
     Postmortem.create!(
       incident: incident,
