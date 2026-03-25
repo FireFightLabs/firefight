@@ -44,7 +44,8 @@ class Commands::Firefight::ListHandlerTest < ActiveSupport::TestCase
         declared_at: (index + 1).minutes.ago,
         is_private: false,
         platform_data: {},
-        custom_fields: {}
+        custom_fields: {},
+        source: Incident::SOURCE_SLACK
       )
     end
 

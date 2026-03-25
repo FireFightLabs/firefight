@@ -17,7 +17,8 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
       incident_severity: @severity,
       name: "Database outage",
       summary: "Primary DB not responding",
-      is_private: false
+      is_private: false,
+      source: Incident::SOURCE_SLACK
     )
 
     @service = IncidentCreationService.new(@workspace)

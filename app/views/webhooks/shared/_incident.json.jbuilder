@@ -27,8 +27,14 @@ else
   json.lead nil
 end
 
-json.declared_by do
-  json.partial! "webhooks/shared/actor", actor: incident.declared_by
+json.source incident.source
+
+if incident.declared_by
+  json.declared_by do
+    json.partial! "webhooks/shared/actor", actor: incident.declared_by
+  end
+else
+  json.declared_by nil
 end
 
 json.custom_fields incident.custom_fields

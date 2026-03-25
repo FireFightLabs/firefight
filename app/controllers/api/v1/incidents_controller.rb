@@ -9,7 +9,6 @@ class Api::V1::IncidentsController < Api::V1::ApiController
       .recent
 
     scope = apply_filters(scope)
-
     @incidents, @pagination = paginate(scope)
   end
 
@@ -30,23 +29,9 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     end
 
     severity = current_workspace.incident_severities.active.find(params.require(:severity_id))
-    status = if params[:status_id].present?
-      current_workspace.incident_statuses.active.find(params[:status_id])
-    else
-      current_workspace.incident_statuses.default_status
-    end
-
-    incident_type = if params[:incident_type_id].present?
-      current_workspace.incident_types.active.find(params[:incident_type_id])
-    end
-
-    declared_by = if params[:declared_by_id].present?
-      current_workspace.workspace_memberships.find(params[:declared_by_id])
-    else
-      Current.api_key.created_by
-    end
-
-    visibility = params.fetch(:visibility, Incident::VISIBILITY_PUBLIC)
+    status = params[:status_id].present? ? current_workspace.incident_statuses.active.find(params[:status_id]) : current_workspace.incident_statuses.default_status
+    incident_type = current_workspace.incident_types.active.find(params[:incident_type_id]) if params[:incident_type_id].present?
+    declared_by = current_workspace.workspace_memberships.find(params[:declared_by_id]) if params[:declared_by_id].present?
 
     @incident = Incident.create!(
       workspace: current_workspace,
@@ -56,15 +41,12 @@ class Api::V1::IncidentsController < Api::V1::ApiController
       incident_type: incident_type,
       name: params.require(:name),
       summary: params[:summary],
-      is_private: visibility == Incident::VISIBILITY_PRIVATE
+      is_private: params.fetch(:visibility, Incident::VISIBILITY_PUBLIC) == Incident::VISIBILITY_PRIVATE,
+      source: params.fetch(:source, Current.api_key.name),
+      source_api_key: Current.api_key
     )
 
-    IdempotencyKey.create!(
-      workspace: current_workspace,
-      key: idempotency_key,
-      resource_type: "Incident",
-      resource_id: @incident.id
-    )
+    IdempotencyKey.create!(workspace: current_workspace, key: idempotency_key, resource_type: "Incident", resource_id: @incident.id)
 
     IncidentCreationWorkflow.start!(@incident)
 
@@ -75,12 +57,18 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE)
 
     event_type = determine_event_type
+
     @incident.record_change!(event_type, changed_by: Current.api_key.created_by) do
-      @incident.assign_attributes(update_params)
-      resolve_associations
+      @incident.name = params[:name] if params.key?(:name)
+      @incident.summary = params[:summary] if params.key?(:summary)
+      @incident.incident_severity = current_workspace.incident_severities.active.find(params[:severity_id]) if params[:severity_id].present?
+      @incident.incident_status = current_workspace.incident_statuses.active.find(params[:status_id]) if params[:status_id].present?
+      @incident.incident_type = current_workspace.incident_types.active.find(params[:incident_type_id]) if params[:incident_type_id].present?
+      @incident.lead = params[:lead_id].present? ? current_workspace.workspace_memberships.find(params[:lead_id]) : nil if params.key?(:lead_id)
       @incident.save!
     end
 
+    @incident.reload
     render :show, status: :ok
   end
 
@@ -102,28 +90,6 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     end
 
     scope
-  end
-
-  def update_params
-    params.permit(:name, :summary)
-  end
-
-  def resolve_associations
-    if params[:severity_id].present?
-      @incident.incident_severity = current_workspace.incident_severities.active.find(params[:severity_id])
-    end
-
-    if params[:status_id].present?
-      @incident.incident_status = current_workspace.incident_statuses.active.find(params[:status_id])
-    end
-
-    if params[:incident_type_id].present?
-      @incident.incident_type = current_workspace.incident_types.active.find(params[:incident_type_id])
-    end
-
-    if params.key?(:lead_id)
-      @incident.lead = params[:lead_id].present? ? current_workspace.workspace_memberships.find(params[:lead_id]) : nil
-    end
   end
 
   def determine_event_type

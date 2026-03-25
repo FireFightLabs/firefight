@@ -25,7 +25,8 @@ class Interactions::ReopenIncidentHandlerTest < ActiveSupport::TestCase
       channel_id: "C_TEST_INCIDENT",
       initial_message_ts: "1234567890.111111",
       announcement_message_ts: "1234567890.222222",
-      resolved_at: 1.hour.ago
+      resolved_at: 1.hour.ago,
+      source: Incident::SOURCE_SLACK
     )
   end
 

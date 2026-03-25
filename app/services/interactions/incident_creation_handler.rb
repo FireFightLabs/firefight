@@ -20,7 +20,8 @@ module Interactions
         incident_severity: severity,
         name: name,
         summary: summary,
-        is_private: visibility == Incident::VISIBILITY_PRIVATE
+        is_private: visibility == Incident::VISIBILITY_PRIVATE,
+        source: Incident::SOURCE_SLACK
       )
 
       IncidentCreationService.new(workspace).create_channel(incident)

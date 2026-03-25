@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_25_091617) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_25_101148) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -313,7 +313,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_091617) do
     t.datetime "created_at", null: false
     t.jsonb "custom_fields", default: {}
     t.datetime "declared_at", null: false
-    t.uuid "declared_by_id", null: false
+    t.uuid "declared_by_id"
     t.datetime "deleted_at"
     t.datetime "detected_at"
     t.string "identifier", null: false
@@ -327,6 +327,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_091617) do
     t.jsonb "platform_data", default: {}
     t.datetime "resolved_at"
     t.integer "sequence_number", null: false
+    t.string "source", null: false
+    t.uuid "source_api_key_id"
     t.text "summary"
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
@@ -336,6 +338,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_091617) do
     t.index ["incident_severity_id"], name: "index_incidents_on_incident_severity_id"
     t.index ["incident_status_id"], name: "index_incidents_on_incident_status_id"
     t.index ["incident_type_id"], name: "index_incidents_on_incident_type_id"
+    t.index ["source"], name: "index_incidents_on_source"
     t.index ["workspace_id", "deleted_at"], name: "index_incidents_on_workspace_id_and_deleted_at"
     t.index ["workspace_id", "identifier"], name: "index_incidents_on_workspace_id_and_identifier", unique: true
     t.index ["workspace_id", "incident_status_id"], name: "index_incidents_on_workspace_id_and_incident_status_id"
@@ -827,6 +830,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_091617) do
   add_foreign_key "incident_updates", "workspace_memberships", column: "declared_by_id"
   add_foreign_key "incident_updates", "workspace_memberships", column: "lead_id"
   add_foreign_key "incident_updates", "workspaces"
+  add_foreign_key "incidents", "api_keys", column: "source_api_key_id"
   add_foreign_key "incidents", "incident_severities"
   add_foreign_key "incidents", "incident_statuses"
   add_foreign_key "incidents", "incident_types"

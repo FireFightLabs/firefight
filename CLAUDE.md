@@ -26,6 +26,17 @@ Controller → Job → Dispatcher → Handler → Service → Adapter → Slack:
 
 Each layer has a single responsibility. Never skip layers.
 
+### Entry Points (Boundary Layers)
+
+Slack and the Public API are **entry points** into the same system. They normalize platform-specific input and call the same model methods + workflows. Never create platform-specific service layers that duplicate shared logic.
+
+```
+Slack:  Controller → Dispatcher → Handler → Incident.create! → IncidentCreationWorkflow.start!
+API:    Controller                         → Incident.create! → IncidentCreationWorkflow.start!
+```
+
+The only difference is how input arrives and how output is returned. The core operations are identical — same `Incident.create!`, same `record_change!`, same workflows. When adding a new entry point (Teams, Discord, etc.), follow the same pattern: normalize input, call model methods directly, start workflows.
+
 ### Thin Controllers
 
 Controllers validate requests, enqueue jobs, and respond immediately. No business logic. Slack requires response within 3 seconds (trigger_id expiration).
@@ -185,6 +196,33 @@ engines/solid_workflow/
 ### Identifiers
 
 All callback_ids, action_ids, and subcommand strings are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, `Identifiers::SUBCOMMAND_CLOSE`, etc.
+
+### Public API
+
+REST API at `/api/v1/` with Bearer token authentication via `ApiKey` model. API controllers inherit from `Api::V1::ApiController` (NOT from `Api::V1::BaseController` which does Slack signature verification).
+
+**Authentication**: `ApiAuthentication` concern extracts Bearer token, looks up `ApiKey` by SHA256 digest (cached 24h, busted on key update), sets `Current.workspace` and `Current.api_key`.
+
+**Authorization**: `authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)` — raises `ApiAuthentication::ForbiddenError` if the key lacks permission. Permissions stored as jsonb on `ApiKey`: `{ "incidents" => ["read", "create", "update"] }`.
+
+**Idempotency**: `POST /api/v1/incidents` requires `idempotency_key`. Duplicate key returns existing incident (200) instead of creating new (201). Keys expire after 24h via `CleanupIdempotencyKeysJob`.
+
+**Source tracking**: Incidents have a `source` field (free-form string) and optional `source_api_key_id` FK. API callers specify source (e.g., "datadog", "pagerduty"). Slack-created incidents use `Incident::SOURCE_SLACK`.
+
+**Serialization**: Jbuilder templates in `app/views/api/v1/` — external contract decoupled from internal models.
+
+**Key files**:
+```
+app/controllers/concerns/api_authentication.rb  # Bearer token auth + permission checking
+app/controllers/api/v1/api_controller.rb        # Base controller (error handling, pagination)
+app/controllers/api/v1/incidents_controller.rb   # Incident CRUD
+app/controllers/api/v1/severities_controller.rb  # Read-only
+app/controllers/api/v1/statuses_controller.rb    # Read-only
+app/controllers/api/v1/incident_types_controller.rb # Read-only
+app/models/api_key.rb                            # Token auth, permissions, caching
+app/models/idempotency_key.rb                    # Deduplication
+app/views/api/v1/                                # Jbuilder response templates
+```
 
 ## Key Files
 

@@ -12,7 +12,8 @@ class ProcessDomainEventJobTest < ActiveJob::TestCase
       incident_status: incident_statuses(:investigating_ws1),
       incident_severity: incident_severities(:critical_ws1),
       name: "Test incident",
-      is_private: false
+      is_private: false,
+      source: Incident::SOURCE_SLACK
     )
   end
 

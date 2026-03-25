@@ -21,7 +21,8 @@ class IncidentCloseWorkflowTest < ActiveSupport::TestCase
       channel_id: "C_INCIDENT",
       initial_message_ts: "1234567890.111111",
       announcement_message_ts: "1234567890.222222",
-      resolved_at: Time.current
+      resolved_at: Time.current,
+      source: Incident::SOURCE_SLACK
     )
   end
 

@@ -16,7 +16,8 @@ class Commands::Firefight::ActionsHandlerTest < ActiveSupport::TestCase
       incident_severity: @severity,
       name: "Test incident",
       is_private: false,
-      channel_id: "C_TEST_INCIDENT"
+      channel_id: "C_TEST_INCIDENT",
+      source: Incident::SOURCE_SLACK
     )
   end
 

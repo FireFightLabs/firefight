@@ -28,10 +28,16 @@ else
   json.lead nil
 end
 
-json.declared_by do
-  json.id incident.declared_by.id
-  json.name incident.declared_by.user.name
-  json.email incident.declared_by.user.email
+json.source incident.source
+
+if incident.declared_by
+  json.declared_by do
+    json.id incident.declared_by.id
+    json.name incident.declared_by.user.name
+    json.email incident.declared_by.user.email
+  end
+else
+  json.declared_by nil
 end
 
 json.declared_at incident.declared_at&.utc&.iso8601
