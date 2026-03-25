@@ -14,7 +14,7 @@ class IncidentUpdate < ApplicationRecord
   belongs_to :incident_status
   belongs_to :incident_severity
   belongs_to :incident_type, optional: true
-  belongs_to :declared_by, class_name: "WorkspaceMembership"
+  belongs_to :declared_by, class_name: "WorkspaceMembership", optional: true
   belongs_to :lead, class_name: "WorkspaceMembership", optional: true
   belongs_to :created_by, class_name: "WorkspaceMembership", optional: true
 

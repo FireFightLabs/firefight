@@ -11,21 +11,12 @@ module Interactions
       reason = interaction.values.dig("reason_block", "reason_input", "value")
       default_status = workspace.incident_statuses.live.find_by(is_default: true) || workspace.incident_statuses.live.first
 
-      incident.record_change!(IncidentEvent::INCIDENT_REOPENED, changed_by: member, message: reason, details: { reason: reason }) do
-        incident.update!(incident_status: default_status)
-      end
-
-      IncidentTranscriptCache.clear_expiry!(incident)
-
-      if incident.channel_archived_at.present?
-        workspace.adapter.unarchive_channel(channel_id: incident.channel_id)
-        incident.update!(channel_archived_at: nil, channel_archived_by: nil)
-      end
-
-      IncidentReopenWorkflow.start!(incident, context: {
-        reopened_by_platform_user_id: interaction.user_id,
+      IncidentLifecycleService.new(workspace).reopen(
+        incident,
+        { incident_status: default_status },
+        changed_by: member,
         reason: reason
-      })
+      )
 
       delete_temp_message(workspace, metadata)
 

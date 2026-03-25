@@ -253,6 +253,45 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "update triggers IncidentUpdateWorkflow" do
+    incident = incidents(:active_critical_ws1)
+    stub_successful_slack_workflow
+
+    assert_enqueued_with(job: SolidWorkflow::RunStepJob) do
+      patch api_v1_incident_url(incident),
+        params: { summary: "Updated via API" }.to_json,
+        headers: api_headers
+    end
+  end
+
+  test "closing via status triggers IncidentCloseWorkflow" do
+    incident = incidents(:active_critical_ws1)
+    resolved_status = @workspace.incident_statuses.closed.first
+    stub_successful_slack_workflow
+
+    assert_enqueued_with(job: SolidWorkflow::RunStepJob) do
+      patch api_v1_incident_url(incident),
+        params: { status_id: resolved_status.id }.to_json,
+        headers: api_headers
+    end
+
+    assert incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_RESOLVED)
+  end
+
+  test "assigning lead triggers LeadAssignmentWorkflow" do
+    incident = incidents(:active_critical_ws1)
+    lead = workspace_memberships(:bob_workspace_one)
+    stub_successful_slack_workflow
+
+    assert_enqueued_with(job: SolidWorkflow::RunStepJob) do
+      patch api_v1_incident_url(incident),
+        params: { lead_id: lead.id }.to_json,
+        headers: api_headers
+    end
+
+    assert incident.incident_events.exists?(event_type: IncidentEvent::LEAD_ASSIGNED)
+  end
+
   test "returns 404 when updating incident from different workspace" do
     ws2_incident = incidents(:active_p0_ws2)
     patch api_v1_incident_url(ws2_incident),

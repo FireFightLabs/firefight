@@ -16,17 +16,12 @@ module Interactions
       new_severity = workspace.incident_severities.active.find_by!(slug: severity_slug)
       new_type = type_slug.present? ? workspace.incident_types.active.find_by!(slug: type_slug) : nil
 
-      previous_status_name = incident.incident_status.name
-      previous_severity_name = incident.incident_severity.name
-      previous_type_name = incident.incident_type&.name
-
-      incident.record_change!(IncidentEvent::INCIDENT_UPDATED, changed_by: member, message: message) do
-        incident.update!(
-          incident_status: new_status,
-          incident_severity: new_severity,
-          incident_type: new_type
-        )
-      end
+      IncidentLifecycleService.new(workspace).update(
+        incident,
+        { incident_status: new_status, incident_severity: new_severity, incident_type: new_type },
+        changed_by: member,
+        message: message
+      )
 
       if next_update_minutes.present?
         incident.update!(next_update_at: Time.current + next_update_minutes.to_i.minutes)
@@ -34,14 +29,6 @@ module Interactions
       else
         incident.update!(next_update_at: nil)
       end
-
-      IncidentUpdateWorkflow.start!(incident, context: {
-        updated_by_platform_user_id: interaction.user_id,
-        message: message,
-        previous_status_name: previous_status_name,
-        previous_severity_name: previous_severity_name,
-        previous_type_name: previous_type_name
-      })
 
       delete_temp_message(workspace, metadata)
 

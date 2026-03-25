@@ -28,14 +28,22 @@ Each layer has a single responsibility. Never skip layers.
 
 ### Entry Points (Boundary Layers)
 
-Slack and the Public API are **entry points** into the same system. They normalize platform-specific input and call the same model methods + workflows. Never create platform-specific service layers that duplicate shared logic.
+Slack and the Public API are **entry points** into the same system. They normalize platform-specific input and call shared services. Never create platform-specific service layers that duplicate shared logic.
 
 ```
-Slack:  Controller → Dispatcher → Handler → Incident.create! → IncidentCreationWorkflow.start!
-API:    Controller                         → Incident.create! → IncidentCreationWorkflow.start!
+Slack:  Controller → Dispatcher → Handler → IncidentLifecycleService → Workflows
+API:    Controller                        → IncidentLifecycleService → Workflows
 ```
 
-The only difference is how input arrives and how output is returned. The core operations are identical — same `Incident.create!`, same `record_change!`, same workflows. When adding a new entry point (Teams, Discord, etc.), follow the same pattern: normalize input, call model methods directly, start workflows.
+The only difference is how input arrives and how output is returned. The core operations are identical. When adding a new entry point (Teams, Discord, etc.), follow the same pattern: normalize input, call `IncidentLifecycleService`, return platform-specific response.
+
+**Shared write operations** live in `IncidentLifecycleService` (`app/services/incident_lifecycle_service.rb`):
+- `update(incident, attrs, changed_by:)` — records change, starts `IncidentUpdateWorkflow`
+- `close(incident, attrs, changed_by:)` — records change, expires transcript cache, starts `IncidentCloseWorkflow`, schedules channel archival
+- `reopen(incident, attrs, changed_by:, reason:)` — records change, clears transcript cache, unarchives channel, starts `IncidentReopenWorkflow`
+- `assign_lead(incident, lead, changed_by:)` — records change, starts `LeadAssignmentWorkflow`
+
+All entry points (Slack handlers, API controller) call these methods. The service derives workflow context (like `platform_user_id`) from the passed `changed_by` WorkspaceMembership.
 
 ### Thin Controllers
 
@@ -82,7 +90,8 @@ Dispatchers and handlers only receive normalized objects — never raw payloads.
 Encapsulate business logic. Each method is independently callable (from workflows, console, or controllers). Use adapters for platform operations.
 
 - `WorkspaceSetupService` — workspace setup flow
-- `IncidentCreationService` — incident creation flow
+- `IncidentCreationService` — incident creation flow (channel, metadata, announcements)
+- `IncidentLifecycleService` — shared write operations (update, close, reopen, assign lead) used by both Slack handlers and API controller
 
 Pattern:
 ```ruby

@@ -4,25 +4,35 @@ class IdempotencyKeyTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
            :incident_statuses, :incident_severities, :incidents, :idempotency_keys
 
-  test "enforces uniqueness of key per workspace" do
-    duplicate = IdempotencyKey.new(
+  test "enforces uniqueness of key per workspace and resource_type at DB level" do
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      IdempotencyKey.create!(
+        workspace: workspaces(:slack_workspace_one),
+        key: "existing-idempotency-key-123",
+        resource_type: "Incident",
+        resource_id: SecureRandom.uuid
+      )
+    end
+  end
+
+  test "allows same key for different resource_type" do
+    key = IdempotencyKey.create!(
       workspace: workspaces(:slack_workspace_one),
       key: "existing-idempotency-key-123",
-      resource_type: "Incident",
+      resource_type: "OtherResource",
       resource_id: SecureRandom.uuid
     )
-    assert_not duplicate.valid?
-    assert_includes duplicate.errors[:key], "has already been taken"
+    assert key.persisted?
   end
 
   test "allows same key in different workspaces" do
-    key = IdempotencyKey.new(
+    key = IdempotencyKey.create!(
       workspace: workspaces(:slack_workspace_two),
       key: "existing-idempotency-key-123",
       resource_type: "Incident",
       resource_id: SecureRandom.uuid
     )
-    assert key.valid?
+    assert key.persisted?
   end
 
   test "stale scope finds keys older than expiry" do

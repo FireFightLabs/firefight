@@ -3,7 +3,7 @@ class IdempotencyKey < ApplicationRecord
 
   belongs_to :workspace
 
-  validates :key, presence: true, uniqueness: { scope: :workspace_id }
+  validates :key, presence: true
   validates :resource_type, presence: true
   validates :resource_id, presence: true
 

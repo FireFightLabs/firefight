@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_25_101148) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_25_140346) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -85,7 +85,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_101148) do
     t.string "resource_type", null: false
     t.uuid "workspace_id", null: false
     t.index ["created_at"], name: "index_idempotency_keys_on_created_at"
-    t.index ["workspace_id", "key"], name: "index_idempotency_keys_on_workspace_id_and_key", unique: true
+    t.index ["workspace_id", "resource_type", "key"], name: "idx_on_workspace_id_resource_type_key_0235259f51", unique: true
     t.index ["workspace_id"], name: "index_idempotency_keys_on_workspace_id"
   end
 
@@ -272,7 +272,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_101148) do
     t.uuid "created_by_id"
     t.jsonb "custom_fields", default: {}, null: false
     t.datetime "declared_at", null: false
-    t.uuid "declared_by_id", null: false
+    t.uuid "declared_by_id"
     t.datetime "deleted_at"
     t.datetime "detected_at"
     t.string "identifier", null: false
