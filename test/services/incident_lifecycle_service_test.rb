@@ -16,6 +16,46 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
+  # CREATE
+  # ============================================================================
+
+  test "create creates incident and starts workflow" do
+    severity = @workspace.incident_severities.active.first
+    status = @workspace.incident_statuses.default_status
+
+    incident = nil
+    assert_difference -> { Incident.count }, 1 do
+      incident = @service.create(
+        declared_by: @member,
+        incident_status: status,
+        incident_severity: severity,
+        name: "Service create test",
+        source: Incident::SOURCE_SLACK
+      )
+    end
+
+    assert incident.persisted?
+    assert_equal "Service create test", incident.name
+    assert_equal @workspace, incident.workspace
+    assert_not_nil incident.identifier
+  end
+
+  test "create starts IncidentCreationWorkflow" do
+    severity = @workspace.incident_severities.active.first
+    status = @workspace.incident_statuses.default_status
+
+    assert_enqueued_with(job: SolidWorkflow::RunStepJob) do
+      @service.create(
+        declared_by: @member,
+        incident_status: status,
+        incident_severity: severity,
+        name: "Workflow test",
+        source: Incident::SOURCE_SLACK
+      )
+    end
+  end
+
+  # ============================================================================
   # UPDATE
   # ============================================================================
 

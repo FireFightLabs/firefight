@@ -5,6 +5,12 @@ class IncidentLifecycleService
     @workspace = workspace
   end
 
+  def create(attrs)
+    incident = Incident.create!(**attrs, workspace: workspace)
+    IncidentCreationWorkflow.start!(incident)
+    incident
+  end
+
   def update(incident, attrs, changed_by:, message: nil)
     previous_status_name = incident.incident_status.name
     previous_severity_name = incident.incident_severity.name

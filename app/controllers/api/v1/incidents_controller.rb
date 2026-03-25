@@ -26,8 +26,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     declared_by = current_workspace.workspace_memberships.find(params[:declared_by_id]) if params[:declared_by_id].present?
 
     ActiveRecord::Base.transaction do
-      @incident = Incident.create!(
-        workspace: current_workspace,
+      @incident = lifecycle_service.create(
         declared_by: declared_by,
         incident_status: status,
         incident_severity: severity,
@@ -46,8 +45,6 @@ class Api::V1::IncidentsController < Api::V1::ApiController
         resource_id: @incident.id
       )
     end
-
-    IncidentCreationWorkflow.start!(@incident)
 
     render :show, status: :created
   rescue ActiveRecord::RecordNotUnique

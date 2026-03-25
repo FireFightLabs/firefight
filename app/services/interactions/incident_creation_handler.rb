@@ -13,8 +13,7 @@ module Interactions
       severity = workspace.incident_severities.active.find_by!(slug: severity_slug)
       status = workspace.incident_statuses.default_status
 
-      incident = Incident.create!(
-        workspace: workspace,
+      incident = IncidentLifecycleService.new(workspace).create(
         declared_by: member,
         incident_status: status,
         incident_severity: severity,
@@ -24,8 +23,9 @@ module Interactions
         source: Incident::SOURCE_SLACK
       )
 
+      # Sync channel creation so the confirmation modal can include the channel link.
+      # The workflow's create_slack_channel step is idempotent and will skip if already created.
       IncidentCreationService.new(workspace).create_channel(incident)
-      IncidentCreationWorkflow.start!(incident)
 
       Rails.logger.info({
         event: "incident.creation_started",
