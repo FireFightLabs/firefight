@@ -1,0 +1,115 @@
+import {
+  IconBold,
+  IconCode,
+  IconItalic,
+  IconStrikethrough,
+  IconUnderline,
+} from "@tabler/icons-react"
+import { useEditor, EditorContent } from "@tiptap/react"
+import { BubbleMenu } from "@tiptap/react/menus"
+import StarterKit from "@tiptap/starter-kit"
+import Placeholder from "@tiptap/extension-placeholder"
+import TaskList from "@tiptap/extension-task-list"
+import TaskItem from "@tiptap/extension-task-item"
+import UnderlineExt from "@tiptap/extension-underline"
+import Typography from "@tiptap/extension-typography"
+
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+
+interface PostmortemEditorProps {
+  content?: string
+  onUpdate?: (html: string) => void
+}
+
+export function PostmortemEditor({ content, onUpdate }: PostmortemEditorProps) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+      }),
+      Placeholder.configure({
+        placeholder: ({ node }) => {
+          if (node.type.name === "heading") {
+            return "Heading"
+          }
+          return "Start writing, or press '/' for commands..."
+        },
+      }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      UnderlineExt,
+      Typography,
+    ],
+    content: content || "",
+    editorProps: {
+      attributes: {
+        class: "postmortem-content focus:outline-none",
+      },
+    },
+    onUpdate: ({ editor }) => {
+      onUpdate?.(editor.getHTML())
+    },
+  })
+
+  if (!editor) return null
+
+  return (
+    <div className="relative">
+      <BubbleMenu
+        editor={editor}
+        tippyOptions={{ duration: 150 }}
+        className="flex items-center gap-0.5 rounded-lg border bg-popover p-1 shadow-md"
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`size-7 ${editor.isActive("bold") ? "bg-accent" : ""}`}
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          type="button"
+        >
+          <IconBold className="size-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`size-7 ${editor.isActive("italic") ? "bg-accent" : ""}`}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          type="button"
+        >
+          <IconItalic className="size-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`size-7 ${editor.isActive("underline") ? "bg-accent" : ""}`}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          type="button"
+        >
+          <IconUnderline className="size-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`size-7 ${editor.isActive("strike") ? "bg-accent" : ""}`}
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          type="button"
+        >
+          <IconStrikethrough className="size-3.5" />
+        </Button>
+        <Separator orientation="vertical" className="mx-0.5 h-4" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`size-7 ${editor.isActive("code") ? "bg-accent" : ""}`}
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          type="button"
+        >
+          <IconCode className="size-3.5" />
+        </Button>
+      </BubbleMenu>
+
+      <EditorContent editor={editor} />
+    </div>
+  )
+}

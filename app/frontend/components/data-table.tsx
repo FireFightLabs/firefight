@@ -11,6 +11,7 @@ import {
   IconSearch,
   IconUrgent,
 } from "@tabler/icons-react"
+import { Link } from "@inertiajs/react"
 import {
   flexRender,
   getCoreRowModel,
@@ -24,6 +25,7 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table"
 
+import { incidentPath } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -117,7 +119,12 @@ const columns: ColumnDef<Incident>[] = [
     accessorKey: "name",
     header: "Name",
     cell: ({ row }) => (
-      <span className="font-medium">{row.original.name}</span>
+      <Link
+        href={incidentPath(row.original.id)}
+        className="font-medium text-foreground hover:underline"
+      >
+        {row.original.name}
+      </Link>
     ),
     enableHiding: false,
   },
