@@ -33,6 +33,7 @@ Rails.application.routes.draw do
 
   # Authenticated routes
   get "/dashboard", to: "dashboard#index", as: :dashboard
+  get "/settings", to: "settings#index", as: :settings
 
   resources :webhooks, except: [ :edit ] do
     member do

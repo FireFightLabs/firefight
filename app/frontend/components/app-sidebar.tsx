@@ -18,7 +18,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { SharedProps } from "@/types"
-import { dashboardPath } from "@/lib/routes"
+import { dashboardPath, settingsPath } from "@/lib/routes"
 
 const navItems = [
   {
@@ -33,7 +33,7 @@ const navItems = [
   },
   {
     title: "Settings",
-    url: "#",
+    url: settingsPath(),
     icon: IconSettings,
   },
 ]
