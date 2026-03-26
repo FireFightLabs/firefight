@@ -71,22 +71,28 @@ export default function IncidentShow() {
 
         <IncidentHeader incident={incident} />
 
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-5">
-              <h2 className="text-base font-semibold">Timeline</h2>
-              <span className="text-xs text-muted-foreground">
-                {timelineEvents.length} events
-              </span>
-            </div>
-            <IncidentTimeline events={timelineEvents} />
-          </div>
+        {/* Visual break — full-bleed muted band for activity section */}
+        <div className="-mx-4 lg:-mx-6 mt-2 border-t bg-muted/30">
+          <div className="mx-auto w-full max-w-6xl px-4 lg:px-6 py-6">
+            <div className="flex flex-col lg:flex-row gap-6">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="h-5 w-1 rounded-full bg-primary" />
+                  <h2 className="text-base font-semibold">Timeline</h2>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                    {timelineEvents.length}
+                  </span>
+                </div>
+                <IncidentTimeline events={timelineEvents} />
+              </div>
 
-          <div className="w-full lg:w-[340px] shrink-0">
-            <div className="lg:sticky lg:top-[calc(var(--header-height)+1.5rem)]">
-              <IncidentActionsSidebar actions={mockActions} />
-              <div className="mt-4">
-                <IncidentPostmortemCard incidentId={incident.id} hasPostmortem={true} />
+              <div className="w-full lg:w-[340px] shrink-0">
+                <div className="lg:sticky lg:top-[calc(var(--header-height)+1.5rem)]">
+                  <div className="mb-4">
+                    <IncidentPostmortemCard incidentId={incident.id} hasPostmortem={true} />
+                  </div>
+                  <IncidentActionsSidebar actions={mockActions} />
+                </div>
               </div>
             </div>
           </div>

@@ -142,9 +142,9 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
           </div>
         </div>
         <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Identifier</span>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Source</span>
           <div className="mt-1">
-            <span className="text-sm font-mono font-semibold">{incident.identifier}</span>
+            <span className="text-sm font-medium capitalize">{incident.source}</span>
           </div>
         </div>
       </div>
