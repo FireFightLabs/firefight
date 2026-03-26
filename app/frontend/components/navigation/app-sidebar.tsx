@@ -19,7 +19,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { SharedProps } from "@/types"
-import { dashboardPath, settingsPath } from "@/lib/routes"
+import { cataloguePath, dashboardPath, settingsPath } from "@/lib/routes"
 
 const navSections = [
   {
@@ -31,7 +31,7 @@ const navSections = [
   {
     label: "Configure",
     items: [
-      { title: "Catalogue", url: "#", icon: IconBook2 },
+      { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
       { title: "Integrations", url: "#", icon: IconPlug },
       { title: "Settings", url: settingsPath(), icon: IconSettings },
     ],
