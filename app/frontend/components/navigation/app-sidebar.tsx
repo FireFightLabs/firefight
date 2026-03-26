@@ -6,8 +6,8 @@ import {
 } from "@tabler/icons-react"
 import { usePage } from "@inertiajs/react"
 
-import { NavMain } from "@/components/nav-main"
-import { NavUser } from "@/components/nav-user"
+import { NavMain } from "@/components/navigation/nav-main"
+import { NavUser } from "@/components/navigation/nav-user"
 import {
   Sidebar,
   SidebarContent,
@@ -28,7 +28,7 @@ const navItems = [
   },
   {
     title: "Incidents",
-    url: "#",
+    url: dashboardPath(),
     icon: IconUrgent,
   },
   {
@@ -39,7 +39,7 @@ const navItems = [
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { currentUser, currentWorkspace } = usePage<SharedProps>().props
+  const { currentUser } = usePage<SharedProps>().props
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>

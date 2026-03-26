@@ -41,6 +41,17 @@ export interface Incident {
   isPrivate: boolean
 }
 
+export interface IncidentListItem {
+  id: string
+  identifier: string
+  name: string
+  severity: { name: string; rank: number }
+  status: { name: string; lifecycleStage: string }
+  lead: string | null
+  declaredAt: string
+  resolvedAt: string | null
+}
+
 export interface IncidentAction {
   id: string
   description: string
