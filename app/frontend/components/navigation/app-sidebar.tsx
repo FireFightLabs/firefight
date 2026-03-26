@@ -2,7 +2,6 @@ import {
   IconDashboard,
   IconFlame,
   IconSettings,
-  IconUrgent,
 } from "@tabler/icons-react"
 import { usePage } from "@inertiajs/react"
 
@@ -25,11 +24,6 @@ const navItems = [
     title: "Dashboard",
     url: dashboardPath(),
     icon: IconDashboard,
-  },
-  {
-    title: "Incidents",
-    url: dashboardPath(),
-    icon: IconUrgent,
   },
   {
     title: "Settings",

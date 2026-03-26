@@ -3,7 +3,6 @@ import { flexRender } from "@tanstack/react-table"
 import type { IncidentListItem } from "@/modules/incidents/types"
 import { useIncidentsTable } from "@/modules/dashboard/hooks/use-incidents-table"
 import { incidentsTableColumns } from "@/modules/dashboard/lib/incidents-table-columns"
-import { mockIncidents } from "@/modules/dashboard/lib/mock-data"
 import { IncidentsTableToolbar } from "./incidents-table-toolbar"
 import { IncidentsTablePagination } from "./incidents-table-pagination"
 import {
@@ -16,10 +15,10 @@ import {
 } from "@/components/ui/table"
 
 interface IncidentsTableProps {
-  incidents?: IncidentListItem[]
+  incidents: IncidentListItem[]
 }
 
-export function IncidentsTable({ incidents = mockIncidents }: IncidentsTableProps) {
+export function IncidentsTable({ incidents }: IncidentsTableProps) {
   const {
     table,
     globalFilter,

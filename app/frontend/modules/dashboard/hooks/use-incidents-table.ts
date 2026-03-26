@@ -25,17 +25,20 @@ export function useIncidentsTable(
   const [selectedStatuses, setSelectedStatuses] = React.useState<Set<string>>(new Set())
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 })
 
-  const toggleFilter = (
-    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
-    value: string
-  ) => {
-    setter((prev) => {
-      const next = new Set(prev)
-      if (next.has(value)) next.delete(value)
-      else next.add(value)
-      return next
-    })
-  }
+  const toggleFilter = React.useCallback(
+    (
+      setter: React.Dispatch<React.SetStateAction<Set<string>>>,
+      value: string
+    ) => {
+      setter((prev) => {
+        const next = new Set(prev)
+        if (next.has(value)) next.delete(value)
+        else next.add(value)
+        return next
+      })
+    },
+    []
+  )
 
   const filteredData = React.useMemo(() => {
     return data.filter((incident) => {
@@ -47,6 +50,7 @@ export function useIncidentsTable(
     })
   }, [data, selectedSeverities, selectedStatuses])
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet
   const table = useReactTable({
     data: filteredData,
     columns,

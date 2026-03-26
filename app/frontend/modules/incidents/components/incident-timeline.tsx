@@ -13,7 +13,6 @@ import {
 } from "@tabler/icons-react"
 
 import type { TimelineEvent } from "@/modules/incidents/types"
-import { Badge } from "@/components/ui/badge"
 
 const eventIcons: Record<string, typeof IconFlame> = {
   "incident.created": IconFlame,
@@ -84,8 +83,6 @@ function ActorAvatar({ name }: { name: string }) {
 }
 
 export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
-  let lastDate = ""
-
   return (
     <div className="relative">
       {events.map((event, i) => {
@@ -94,11 +91,11 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
           eventDotColors[event.eventType] ||
           "bg-muted text-muted-foreground ring-border"
         const eventDate = formatDate(event.createdAt)
-        const showDate = eventDate !== lastDate
+        const prevDate = i > 0 ? formatDate(events[i - 1].createdAt) : null
+        const showDate = eventDate !== prevDate
         const highlight = isHighlightEvent(event.eventType)
         const hasContent =
           (event.changes && event.changes.length > 0) || event.details
-        lastDate = eventDate
 
         return (
           <div key={event.id}>

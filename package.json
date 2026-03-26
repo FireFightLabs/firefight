@@ -55,8 +55,8 @@
   },
   "scripts": {
     "check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
-    "lint": "eslint app/frontend/",
-    "lint:fix": "eslint app/frontend/ --fix",
+    "lint": "eslint 'app/frontend/**/*.{ts,tsx}'",
+    "lint:fix": "eslint 'app/frontend/**/*.{ts,tsx}' --fix",
     "typecheck": "tsc --noEmit"
   }
 }

@@ -45,8 +45,8 @@ export interface IncidentListItem {
   id: string
   identifier: string
   name: string
-  severity: { name: string; rank: number }
-  status: { name: string; lifecycleStage: string }
+  severity: Pick<IncidentSeverity, "name" | "rank">
+  status: Pick<IncidentStatus, "name" | "lifecycleStage">
   lead: string | null
   declaredAt: string
   resolvedAt: string | null

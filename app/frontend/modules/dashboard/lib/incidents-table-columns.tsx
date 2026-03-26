@@ -1,9 +1,3 @@
-import {
-  IconCircleCheckFilled,
-  IconCircleDashedCheck,
-  IconLoader,
-  IconUrgent,
-} from "@tabler/icons-react"
 import { Link } from "@inertiajs/react"
 import { type ColumnDef } from "@tanstack/react-table"
 
@@ -12,6 +6,7 @@ import { incidentPath } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { severityVariant, statusVariant } from "./constants"
 import { formatDate, formatDuration } from "./formatters"
+import { getStatusIcon } from "./status-display"
 
 export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
   {
@@ -53,15 +48,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
       const { name, lifecycleStage } = row.original.status
       return (
         <Badge variant={statusVariant(lifecycleStage)}>
-          {lifecycleStage === "closed" ? (
-            <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
-          ) : name === "Triage" ? (
-            <IconUrgent className="size-3.5" />
-          ) : name === "Monitoring" ? (
-            <IconCircleDashedCheck className="size-3.5" />
-          ) : (
-            <IconLoader className="size-3.5" />
-          )}
+          {getStatusIcon(name, lifecycleStage)}
           {name}
         </Badge>
       )

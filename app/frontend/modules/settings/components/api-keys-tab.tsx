@@ -245,6 +245,21 @@ function ApiKeyEditSheet({
   )
 }
 
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+}
+
+function formatRelative(d: string | null, now: number) {
+  if (!d) return "Never"
+  const diff = now - new Date(d).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
 export function ApiKeysTab() {
   const [createdToken, setCreatedToken] = React.useState<string | null>(null)
   const [copied, setCopied] = React.useState(false)
@@ -274,19 +289,8 @@ export function ApiKeysTab() {
     }
   }
 
-  const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-
-  const formatRelative = (d: string | null) => {
-    if (!d) return "Never"
-    const diff = Date.now() - new Date(d).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 60) return `${mins}m ago`
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return `${hours}h ago`
-    const days = Math.floor(hours / 24)
-    return `${days}d ago`
-  }
+  // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally captured once at mount
+  const now = React.useMemo(() => Date.now(), [])
 
   return (
     <div className="flex flex-col gap-6">
@@ -382,9 +386,6 @@ export function ApiKeysTab() {
             </TableHeader>
             <TableBody>
               {mockApiKeys.map((apiKey) => {
-                const permCount = Object.values(apiKey.permissions).reduce(
-                  (sum, actions) => sum + actions.length, 0
-                )
                 return (
                   <TableRow key={apiKey.id}>
                     <TableCell>
@@ -411,7 +412,7 @@ export function ApiKeysTab() {
                       </div>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                      {formatRelative(apiKey.lastUsedAt)}
+                      {formatRelative(apiKey.lastUsedAt, now)}
                       {apiKey.expiresAt && (
                         <span className="block text-xs">
                           Expires {formatDate(apiKey.expiresAt)}

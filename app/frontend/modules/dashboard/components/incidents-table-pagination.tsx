@@ -16,15 +16,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-interface IncidentsTablePaginationProps {
-  table: Table<unknown>
+interface IncidentsTablePaginationProps<T> {
+  table: Table<T>
   totalLabel?: string
 }
 
-export function IncidentsTablePagination({
+export function IncidentsTablePagination<T>({
   table,
   totalLabel = "incident(s) total",
-}: IncidentsTablePaginationProps) {
+}: IncidentsTablePaginationProps<T>) {
   return (
     <div className="flex items-center justify-between px-4 lg:px-6">
       <div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
