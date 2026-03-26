@@ -33,6 +33,11 @@ Rails.application.routes.draw do
 
   # Authenticated routes
   get "/dashboard", to: "dashboard#index", as: :dashboard
+  get "/settings", to: "settings#index", as: :settings
+  get "/incidents/:id", to: "incidents#show", as: :incident
+  get "/incidents/:incident_id/postmortem", to: "incidents#postmortem", as: :incident_postmortem
+  get "/catalogue", to: "catalogue#index", as: :catalogue
+  get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
 
   resources :webhooks, except: [ :edit ] do
     member do
