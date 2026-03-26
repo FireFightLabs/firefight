@@ -297,7 +297,7 @@ const statusLabels: Record<string, string> = {
   closed: "Closed",
 }
 
-export function DataTable() {
+export function IncidentsTable() {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})

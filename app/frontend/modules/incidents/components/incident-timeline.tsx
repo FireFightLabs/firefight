@@ -12,17 +12,8 @@ import {
   IconUserCheck,
 } from "@tabler/icons-react"
 
+import type { TimelineEvent } from "@/modules/incidents/types"
 import { Badge } from "@/components/ui/badge"
-
-interface TimelineEvent {
-  id: string
-  eventType: string
-  actor: string
-  createdAt: string
-  description: string
-  changes?: { field: string; before: string; after: string }[]
-  details?: string
-}
 
 const eventIcons: Record<string, typeof IconFlame> = {
   "incident.created": IconFlame,
@@ -186,5 +177,3 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
     </div>
   )
 }
-
-export type { TimelineEvent }

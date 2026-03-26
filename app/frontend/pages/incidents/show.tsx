@@ -1,65 +1,19 @@
 import { Head, Link } from "@inertiajs/react"
-import {
-  IconArrowLeft,
-  IconArrowRight,
-  IconBrandSlack,
-  IconCheckbox,
-  IconChecks,
-  IconCircleCheck,
-  IconCircleDashed,
-  IconClock,
-  IconDotsVertical,
-  IconExternalLink,
-  IconFileText,
-  IconFlame,
-  IconLoader,
-  IconPlus,
-  IconPointFilled,
-  IconUser,
-} from "@tabler/icons-react"
-import * as React from "react"
+import { IconArrowRight } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import {
+  IncidentHeader,
   IncidentTimeline,
-  type TimelineEvent,
-} from "@/components/incident-timeline"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { Textarea } from "@/components/ui/textarea"
-import { dashboardPath, incidentPostmortemPath } from "@/lib/routes"
+  IncidentActionsSidebar,
+  IncidentPostmortemCard,
+} from "@/modules/incidents/components"
+import type { Incident, IncidentAction, TimelineEvent } from "@/modules/incidents/types"
+import { dashboardPath } from "@/lib/routes"
 
-// -- Mock Data --
+// -- Mock Data (will be replaced by backend props) --
 
-const incident = {
+const incident: Incident = {
   id: "1",
   identifier: "INC-042",
   name: "Payment processing failures in EU region",
@@ -91,15 +45,6 @@ const timelineEvents: TimelineEvent[] = [
   { id: "t10", eventType: "action.created", actor: "Sarah Chen", createdAt: "2026-03-25T09:35:00Z", description: 'created follow-up: "Add rate limit validation to CI pipeline"' },
 ]
 
-interface IncidentAction {
-  id: string
-  description: string
-  actionType: "action" | "followup"
-  status: "open" | "in_progress" | "done"
-  assignee: string | null
-  createdBy: string
-}
-
 const mockActions: IncidentAction[] = [
   { id: "a1", description: "Check Stripe dashboard for error rates", actionType: "action", status: "done", assignee: "James Wilson", createdBy: "Sarah Chen" },
   { id: "a2", description: "Review payment proxy rate limit config", actionType: "action", status: "done", assignee: "James Wilson", createdBy: "Sarah Chen" },
@@ -109,239 +54,24 @@ const mockActions: IncidentAction[] = [
   { id: "a6", description: "Create runbook for payment proxy configuration changes", actionType: "followup", status: "open", assignee: null, createdBy: "Sarah Chen" },
 ]
 
-// -- Helpers --
-
-const statusIcons: Record<string, typeof IconCircleDashed> = {
-  open: IconCircleDashed,
-  in_progress: IconLoader,
-  done: IconCircleCheck,
-}
-
-const statusStyles: Record<string, string> = {
-  open: "text-muted-foreground",
-  in_progress: "text-amber-500",
-  done: "text-emerald-500",
-}
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
-function formatDuration(start: string, end: string | null): string {
-  const s = new Date(start)
-  const e = end ? new Date(end) : new Date()
-  const mins = Math.floor((e.getTime() - s.getTime()) / 60000)
-  if (mins < 60) return `${mins}m`
-  const hours = Math.floor(mins / 60)
-  const rem = mins % 60
-  if (hours < 24) return `${hours}h ${rem}m`
-  const days = Math.floor(hours / 24)
-  return `${days}d ${hours % 24}h`
-}
-
-function ActionItem({ action }: { action: IncidentAction }) {
-  const StatusIcon = statusIcons[action.status]
-  const statusColor = statusStyles[action.status]
-  const isDone = action.status === "done"
-
-  return (
-    <div className="group flex items-start gap-3 rounded-md px-3 py-3 transition-colors hover:bg-muted/40 -mx-3">
-      <div className={`mt-0.5 ${statusColor}`}>
-        <StatusIcon className="size-[18px]" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm leading-snug ${isDone ? "line-through text-muted-foreground" : ""}`}>
-          {action.description}
-        </p>
-        {action.assignee ? (
-          <span className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <IconUser className="size-3" />
-            {action.assignee}
-          </span>
-        ) : (
-          <span className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground/50 italic">
-            Unassigned
-          </span>
-        )}
-      </div>
-      <Badge
-        variant="outline"
-        className={`text-[11px] capitalize shrink-0 ${statusColor} opacity-80`}
-      >
-        {action.status.replace("_", " ")}
-      </Badge>
-    </div>
-  )
-}
-
-function ProgressBar({ done, total }: { done: number; total: number }) {
-  const pct = total > 0 ? (done / total) * 100 : 0
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
-        <div
-          className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="text-[11px] font-mono tabular-nums text-muted-foreground">
-        {done}/{total}
-      </span>
-    </div>
-  )
-}
-
-// -- Main Page --
+// -- Page Component --
 
 export default function IncidentShow() {
-  const actions = mockActions.filter((a) => a.actionType === "action")
-  const followups = mockActions.filter((a) => a.actionType === "followup")
-  const hasPostmortem = true
-  const isActive = incident.status.lifecycleStage === "active"
-
   return (
     <AuthenticatedLayout title={incident.identifier}>
       <Head title={`${incident.identifier} — ${incident.name}`} />
       <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
-        {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-sm text-muted-foreground mb-6">
-          <Link
-            href={dashboardPath()}
-            className="hover:text-foreground transition-colors"
-          >
+          <Link href={dashboardPath()} className="hover:text-foreground transition-colors">
             Incidents
           </Link>
           <IconArrowRight className="size-3 text-muted-foreground/40" />
           <span className="font-medium text-foreground">{incident.identifier}</span>
         </nav>
 
-        {/* ===== HEADER (full width) ===== */}
-        <header className="mb-8">
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
-            {isActive && (
-              <span className="relative flex size-2.5">
-                <span
-                  className="absolute inline-flex size-full animate-ping rounded-full opacity-75"
-                  style={{ backgroundColor: incident.status.color }}
-                />
-                <span
-                  className="relative inline-flex size-2.5 rounded-full"
-                  style={{ backgroundColor: incident.status.color }}
-                />
-              </span>
-            )}
-            <Badge
-              variant="secondary"
-              className="gap-1 font-medium"
-              style={{
-                backgroundColor: `${incident.severity.color}15`,
-                color: incident.severity.color,
-                borderColor: `${incident.severity.color}30`,
-              }}
-            >
-              {incident.severity.name}
-            </Badge>
-            <Badge
-              variant="secondary"
-              className="gap-1"
-              style={{
-                backgroundColor: `${incident.status.color}15`,
-                color: incident.status.color,
-                borderColor: `${incident.status.color}30`,
-              }}
-            >
-              {incident.status.name}
-            </Badge>
-            {incident.type && (
-              <Badge variant="outline" className="text-xs text-muted-foreground">
-                {incident.type.name}
-              </Badge>
-            )}
-            <div className="ml-auto flex items-center gap-2">
-              {incident.source === "slack" && (
-                <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
-                  <IconBrandSlack className="size-3.5" />
-                  <span className="hidden sm:inline">#{incident.channelName}</span>
-                  <IconExternalLink className="size-3" />
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="size-8">
-                    <IconDotsVertical className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>Edit Incident</DropdownMenuItem>
-                  <DropdownMenuItem>Change Status</DropdownMenuItem>
-                  <DropdownMenuItem>Assign Lead</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>Close Incident</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+        <IncidentHeader incident={incident} />
 
-          <h1 className="text-2xl font-bold tracking-tight mb-3">
-            {incident.name}
-          </h1>
-
-          {incident.summary && (
-            <p className="text-[15px] text-muted-foreground leading-relaxed mb-4 max-w-3xl">
-              {incident.summary}
-            </p>
-          )}
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Lead</span>
-              <div className="mt-1 flex items-center gap-2">
-                <Avatar className="size-5">
-                  <AvatarFallback className="text-[10px] font-medium">
-                    {incident.lead?.initials ?? "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm font-medium truncate">{incident.lead?.name ?? "Unassigned"}</span>
-              </div>
-            </div>
-            <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Declared</span>
-              <div className="mt-1 flex items-center gap-1.5">
-                <IconClock className="size-3.5 text-muted-foreground" />
-                <span className="text-sm font-medium tabular-nums">
-                  {new Date(incident.declaredAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(incident.declaredAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                </span>
-              </div>
-            </div>
-            <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Duration</span>
-              <div className="mt-1">
-                <span className="text-sm font-semibold font-mono tabular-nums">
-                  {formatDuration(incident.declaredAt, incident.resolvedAt)}
-                </span>
-              </div>
-            </div>
-            <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Identifier</span>
-              <div className="mt-1">
-                <span className="text-sm font-mono font-semibold">{incident.identifier}</span>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* ===== TWO-COLUMN LAYOUT ===== */}
         <div className="flex flex-col lg:flex-row gap-6">
-          {/* LEFT: Timeline (scrolls naturally) */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-5">
               <h2 className="text-base font-semibold">Timeline</h2>
@@ -352,131 +82,11 @@ export default function IncidentShow() {
             <IncidentTimeline events={timelineEvents} />
           </div>
 
-          {/* RIGHT: Sticky sidebar with actions + postmortem */}
           <div className="w-full lg:w-[340px] shrink-0">
             <div className="lg:sticky lg:top-[calc(var(--header-height)+1.5rem)]">
-              <div className="flex flex-col gap-4">
-                {/* Actions */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <IconCheckbox className="size-4 text-muted-foreground" />
-                        <CardTitle className="text-sm">Actions</CardTitle>
-                      </div>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="size-7 text-muted-foreground">
-                            <IconPlus className="size-3.5" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Add Action Item</DialogTitle>
-                            <DialogDescription>Create a new action item for this incident.</DialogDescription>
-                          </DialogHeader>
-                          <div className="flex flex-col gap-4 py-2">
-                            <div className="flex flex-col gap-2">
-                              <Label htmlFor="action-desc">Description</Label>
-                              <Textarea id="action-desc" placeholder="What needs to be done?" rows={2} />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                              <Label htmlFor="action-assignee">Assignee</Label>
-                              <Input id="action-assignee" placeholder="e.g. Sarah Chen" />
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                            <Button>Create</Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                    <div className="mt-2">
-                      <ProgressBar
-                        done={actions.filter((a) => a.status === "done").length}
-                        total={actions.length}
-                      />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    {actions.map((action) => (
-                      <ActionItem key={action.id} action={action} />
-                    ))}
-                  </CardContent>
-                </Card>
-
-                {/* Follow-ups */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <IconChecks className="size-4 text-muted-foreground" />
-                        <CardTitle className="text-sm">Follow-ups</CardTitle>
-                      </div>
-                      <Button variant="ghost" size="icon" className="size-7 text-muted-foreground">
-                        <IconPlus className="size-3.5" />
-                      </Button>
-                    </div>
-                    <div className="mt-2">
-                      <ProgressBar
-                        done={followups.filter((a) => a.status === "done").length}
-                        total={followups.length}
-                      />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    {followups.map((action) => (
-                      <ActionItem key={action.id} action={action} />
-                    ))}
-                  </CardContent>
-                </Card>
-
-                {/* Postmortem */}
-                {hasPostmortem ? (
-                  <Link href={incidentPostmortemPath(incident.id)}>
-                    <Card className="group cursor-pointer border-primary/20 bg-gradient-to-b from-primary/[0.04] to-transparent transition-all hover:border-primary/40">
-                      <CardContent className="flex items-center gap-3 py-4">
-                        <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-                          <IconFileText className="size-4 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold">Postmortem</span>
-                            <Badge
-                              variant="secondary"
-                              className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                            >
-                              In progress
-                            </Badge>
-                          </div>
-                          <p className="mt-0.5 text-xs text-muted-foreground truncate">
-                            Root cause analysis and actions
-                          </p>
-                        </div>
-                        <IconArrowRight className="size-4 text-muted-foreground/30 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ) : (
-                  <Card className="border-dashed">
-                    <CardContent className="flex flex-col items-center justify-center py-8 gap-3">
-                      <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-                        <IconFileText className="size-5 text-muted-foreground" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-semibold">No postmortem</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          Document what happened and prevent recurrence.
-                        </p>
-                      </div>
-                      <Button size="sm">
-                        <IconFlame className="size-4" />
-                        Generate
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
+              <IncidentActionsSidebar actions={mockActions} />
+              <div className="mt-4">
+                <IncidentPostmortemCard incidentId={incident.id} hasPostmortem={true} />
               </div>
             </div>
           </div>

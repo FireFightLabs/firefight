@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { SlackAuthButton } from '@/components/auth/slack-auth-button'
+import { SlackAuthButton } from '@/modules/auth/components/slack-auth-button'
 
 export default function Login() {
   return (

@@ -6,7 +6,7 @@ import {
   IconSparkles,
 } from "@tabler/icons-react"
 
-import { PostmortemEditor } from "@/components/postmortem-editor"
+import { PostmortemEditor } from "@/modules/incidents/components/postmortem-editor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
