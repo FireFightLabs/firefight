@@ -308,6 +308,126 @@ app/workflows/
   slack_workspace_setup_workflow.rb   # Thin delegates to WorkspaceSetupService
 ```
 
+## Frontend Architecture
+
+### Stack
+
+React 19 + TypeScript + Inertia.js (server-driven routing) + Vite + Tailwind CSS 4. UI primitives from shadcn/ui (Radix-based). Icons from `@tabler/icons-react`. Rich text editing with Tiptap.
+
+### Directory Structure
+
+```
+app/frontend/
+  components/              # Shared reusable components
+    layout/                # App shell (authenticated-layout, theme-toggle)
+    navigation/            # Sidebar, nav items, site header
+    ui/                    # shadcn/ui primitives — NEVER modify directly
+  modules/                 # Feature-specific code
+    dashboard/
+      components/          # UI components (incidents-table, stat-cards, toolbar, pagination)
+      hooks/               # Feature hooks (use-incidents-table)
+      lib/                 # Helpers, constants, columns, mock data
+      types.ts             # Feature-specific types
+    incidents/
+      components/          # incident-header, incident-timeline, incident-actions, etc.
+      types.ts             # Incident, IncidentListItem, IncidentAction, TimelineEvent
+    settings/
+      components/          # Tab components (roles-tab, webhooks-tab, api-keys-tab, etc.)
+      types.ts             # Settings-specific types
+    catalogue/
+      components/          # type-card, entry-table, entry-detail-sheet, form dialogs
+      lib/                 # icon-map, mock-data, constants
+      types.ts             # CatalogType, AttributeDefinition, CatalogEntry
+    auth/
+      components/          # slack-auth-button
+  pages/                   # Thin routing shells ONLY — no business logic
+    dashboard/index.tsx
+    incidents/show.tsx
+    incidents/postmortem.tsx
+    settings/index.tsx
+    catalogue/index.tsx
+    catalogue/show.tsx
+    auth/login.tsx
+  types/                   # Shared app-level types (SharedProps, User, Workspace)
+  hooks/                   # Shared hooks (use-mobile)
+  lib/                     # Shared utilities (routes, utils)
+  entrypoints/             # Vite entrypoints (inertia.tsx, application.css)
+```
+
+### Rules
+
+**Pages are thin routing shells:**
+- Pages compose module components, receive props via `usePage<>()`, and set `<Head>` title
+- No business logic, no mock data defaults, no complex markup in pages
+- Mock data fallbacks use `??` at the page level, never default props inside components
+
+**Module isolation:**
+- Feature-specific code lives in `modules/<feature>/`
+- Each module owns its `components/`, `hooks/`, `lib/`, and `types.ts`
+- No cross-module imports between features (dashboard must not import from settings)
+- Shared domain types (e.g., `IncidentListItem`) live in the owning module's `types.ts` and are imported directly
+
+**shadcn/ui components are untouched:**
+- Never modify files in `components/ui/` — they may be updated by `npx shadcn` later
+- Wrap or compose shadcn components if you need custom behavior
+- ESLint ignores `components/ui/` for this reason
+
+**Type discipline:**
+- No `Record<string, string>` when a tighter type exists — use typed keys from const arrays
+- Flexible schemas (catalogue attributes) key by stable `key`/`slug`, never by mutable display `name`
+- Attribute keys are immutable once set — auto-generate from name only for new attributes (empty key), never overwrite existing keys during edit
+- Reference fields store entry IDs, not display labels — resolve at render time via `resolveReference()` or equivalent
+- Use `Pick<>` from shared types instead of redefining inline shapes
+- Page props are typed via `usePage<InterfaceName>()`
+
+**Dependency direction:**
+- Pages import from modules — never the reverse
+- Module components receive data as props — never import mock data or lookup functions directly
+- Lookup helpers (e.g., `getTypeById`, `resolveReference`) are acceptable in leaf display components but all available options (e.g., list of types for a dropdown) must be passed as props from the page level
+- Search/filter logic in components should resolve references before matching (users search by display name, not stored IDs)
+
+**Data flow:**
+- Controllers send typed Inertia props → pages receive via `usePage<>()` → pass to module components
+- Components receive data as required props — no internal mock fallbacks
+- Mock data lives in `modules/<feature>/lib/mock-data.ts` and is only imported at the page level
+- Lookup/resolver functions (e.g., `resolveReference()`) are called at render time, not stored in data
+
+**Component patterns:**
+- Dynamic icon selection uses a `<ComponentName>` component, not a function returning a component (React compiler requirement)
+- `useCallback` for functions passed to memoized children or returned from hooks
+- `useMemo` for derived/filtered data
+- Impure functions (`Date.now()`) captured in `useMemo` with eslint-disable comment if needed
+
+**Naming conventions:**
+- Components: `PascalCase` (`IncidentsTable`, `StatCards`)
+- Files: `kebab-case` (`incidents-table.tsx`, `stat-cards.tsx`)
+- Types: `PascalCase` (`IncidentListItem`, `DashboardStat`)
+- Constants: `UPPER_SNAKE_CASE` (`SEVERITY_OPTIONS`, `STATUS_LABELS`)
+- Hooks: `camelCase` with `use` prefix (`useIncidentsTable`)
+- Module directories: `kebab-case` (`dashboard`, `incidents`, `catalogue`)
+
+**Navigation:**
+- Sidebar sections: "Respond" (Incidents), "Configure" (Catalogue, Integrations, Settings)
+- Active page determined by URL match
+- Inertia `<Link>` for SPA navigation, `<a>` only for external links
+- Route helpers from generated `@/lib/routes` (e.g., `dashboardPath()`, `incidentPath(id)`)
+
+### Tooling
+
+- `npm run typecheck` — TypeScript strict check (`tsc --noEmit`)
+- `npm run lint` — ESLint with TypeScript + React Hooks plugins
+- `npm run lint:fix` — auto-fix lint issues
+- Both must pass clean before any PR
+- ESLint config: `eslint.config.js` (flat config, ignores `components/ui/` and generated routes)
+
+### Theme
+
+Dark navy theme with cyan primary accent. Colors defined as CSS custom properties in `application.css` using oklch. Both light and dark themes supported via `.dark` class toggle.
+
+- Background hue: 255 (navy blue tint, not pure gray)
+- Primary: hue 195 (cyan/teal)
+- Chroma on dark backgrounds: 0.035 (visibly blue, not grayish)
+
 ## Testing
 
 - Framework: Minitest + Mocha (mocking)
