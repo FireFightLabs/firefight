@@ -14,8 +14,8 @@ export default function Dashboard() {
   }>().props
 
   return (
-    <AuthenticatedLayout title="Dashboard">
-      <Head title="Dashboard" />
+    <AuthenticatedLayout title="Incidents">
+      <Head title="Incidents" />
       <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
         <StatCards stats={stats ?? mockStats} />
         <IncidentsTable incidents={incidents ?? mockIncidents} />

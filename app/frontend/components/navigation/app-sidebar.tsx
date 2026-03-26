@@ -1,7 +1,9 @@
 import {
-  IconDashboard,
+  IconBook2,
   IconFlame,
+  IconPlug,
   IconSettings,
+  IconUrgent,
 } from "@tabler/icons-react"
 import { usePage } from "@inertiajs/react"
 
@@ -19,16 +21,20 @@ import {
 import { SharedProps } from "@/types"
 import { dashboardPath, settingsPath } from "@/lib/routes"
 
-const navItems = [
+const navSections = [
   {
-    title: "Dashboard",
-    url: dashboardPath(),
-    icon: IconDashboard,
+    label: "Respond",
+    items: [
+      { title: "Incidents", url: dashboardPath(), icon: IconUrgent },
+    ],
   },
   {
-    title: "Settings",
-    url: settingsPath(),
-    icon: IconSettings,
+    label: "Configure",
+    items: [
+      { title: "Catalogue", url: "#", icon: IconBook2 },
+      { title: "Integrations", url: "#", icon: IconPlug },
+      { title: "Settings", url: settingsPath(), icon: IconSettings },
+    ],
   },
 ]
 
@@ -53,7 +59,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navItems} />
+        <NavMain sections={navSections} />
       </SidebarContent>
       <SidebarFooter>
         {currentUser && (
