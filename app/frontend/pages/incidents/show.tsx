@@ -208,7 +208,7 @@ export default function IncidentShow() {
   return (
     <AuthenticatedLayout title={incident.identifier}>
       <Head title={`${incident.identifier} — ${incident.name}`} />
-      <div className="mx-auto w-full max-w-4xl px-4 py-6 lg:px-6">
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-sm text-muted-foreground mb-6">
           <Link
@@ -221,9 +221,8 @@ export default function IncidentShow() {
           <span className="font-medium text-foreground">{incident.identifier}</span>
         </nav>
 
-        {/* ===== HEADER ===== */}
+        {/* ===== HEADER (full width) ===== */}
         <header className="mb-8">
-          {/* Badges row */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             {isActive && (
               <span className="relative flex size-2.5">
@@ -268,7 +267,7 @@ export default function IncidentShow() {
               {incident.source === "slack" && (
                 <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
                   <IconBrandSlack className="size-3.5" />
-                  #{incident.channelName}
+                  <span className="hidden sm:inline">#{incident.channelName}</span>
                   <IconExternalLink className="size-3" />
                 </Button>
               )}
@@ -289,59 +288,42 @@ export default function IncidentShow() {
             </div>
           </div>
 
-          {/* Title */}
           <h1 className="text-2xl font-bold tracking-tight mb-3">
             {incident.name}
           </h1>
 
-          {/* Summary */}
           {incident.summary && (
-            <p className="text-[15px] text-muted-foreground leading-relaxed mb-4">
+            <p className="text-[15px] text-muted-foreground leading-relaxed mb-4 max-w-3xl">
               {incident.summary}
             </p>
           )}
 
-          {/* Metadata grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Lead
-              </span>
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Lead</span>
               <div className="mt-1 flex items-center gap-2">
                 <Avatar className="size-5">
                   <AvatarFallback className="text-[10px] font-medium">
                     {incident.lead?.initials ?? "?"}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-sm font-medium truncate">
-                  {incident.lead?.name ?? "Unassigned"}
-                </span>
+                <span className="text-sm font-medium truncate">{incident.lead?.name ?? "Unassigned"}</span>
               </div>
             </div>
             <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Declared
-              </span>
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Declared</span>
               <div className="mt-1 flex items-center gap-1.5">
                 <IconClock className="size-3.5 text-muted-foreground" />
                 <span className="text-sm font-medium tabular-nums">
-                  {new Date(incident.declaredAt).toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {new Date(incident.declaredAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(incident.declaredAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  {new Date(incident.declaredAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
               </div>
             </div>
             <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Duration
-              </span>
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Duration</span>
               <div className="mt-1">
                 <span className="text-sm font-semibold font-mono tabular-nums">
                   {formatDuration(incident.declaredAt, incident.resolvedAt)}
@@ -349,168 +331,156 @@ export default function IncidentShow() {
               </div>
             </div>
             <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Identifier
-              </span>
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Identifier</span>
               <div className="mt-1">
-                <span className="text-sm font-mono font-semibold">
-                  {incident.identifier}
-                </span>
+                <span className="text-sm font-mono font-semibold">{incident.identifier}</span>
               </div>
             </div>
           </div>
         </header>
 
-        {/* ===== TIMELINE ===== */}
-        <section className="mb-10">
-          <div className="flex items-center gap-2 mb-5">
-            <h2 className="text-base font-semibold">Timeline</h2>
-            <span className="text-xs text-muted-foreground">
-              {timelineEvents.length} events
-            </span>
-          </div>
-          <IncidentTimeline events={timelineEvents} />
-        </section>
-
-        <Separator className="mb-8" />
-
-        {/* ===== ACTIONS ===== */}
-        <section className="mb-10">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold">Action Items</h2>
+        {/* ===== TWO-COLUMN LAYOUT ===== */}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* LEFT: Timeline (scrolls naturally) */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-5">
+              <h2 className="text-base font-semibold">Timeline</h2>
               <span className="text-xs text-muted-foreground">
-                {mockActions.filter((a) => a.status === "done").length} of {mockActions.length} completed
+                {timelineEvents.length} events
               </span>
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <IconPlus className="size-4" />
-                  Add
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Action Item</DialogTitle>
-                  <DialogDescription>
-                    Create a new action or follow-up item for this incident.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col gap-4 py-2">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="action-desc">Description</Label>
-                    <Textarea id="action-desc" placeholder="What needs to be done?" rows={2} />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="action-assignee">Assignee</Label>
-                    <Input id="action-assignee" placeholder="e.g. Sarah Chen" />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                  </DialogClose>
-                  <Button>Create</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <IncidentTimeline events={timelineEvents} />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Actions card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <IconCheckbox className="size-4 text-muted-foreground" />
-                  <CardTitle className="text-sm">Actions</CardTitle>
-                </div>
-                <div className="mt-2">
-                  <ProgressBar
-                    done={actions.filter((a) => a.status === "done").length}
-                    total={actions.length}
-                  />
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {actions.map((action) => (
-                  <ActionItem key={action.id} action={action} />
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Follow-ups card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <IconChecks className="size-4 text-muted-foreground" />
-                  <CardTitle className="text-sm">Follow-ups</CardTitle>
-                </div>
-                <div className="mt-2">
-                  <ProgressBar
-                    done={followups.filter((a) => a.status === "done").length}
-                    total={followups.length}
-                  />
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {followups.map((action) => (
-                  <ActionItem key={action.id} action={action} />
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-
-        <Separator className="mb-8" />
-
-        {/* ===== POSTMORTEM ===== */}
-        <section className="mb-10">
-          {hasPostmortem ? (
-            <Link href={incidentPostmortemPath(incident.id)}>
-              <Card className="group cursor-pointer border-primary/20 bg-gradient-to-r from-primary/[0.03] to-transparent transition-all hover:border-primary/40 hover:shadow-sm">
-                <CardContent className="flex items-center gap-4 py-5">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-                    <IconFileText className="size-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">Postmortem</span>
-                      <Badge
-                        variant="secondary"
-                        className="text-[11px] bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                      >
-                        In progress
-                      </Badge>
+          {/* RIGHT: Sticky sidebar with actions + postmortem */}
+          <div className="w-full lg:w-[340px] shrink-0">
+            <div className="lg:sticky lg:top-[calc(var(--header-height)+1.5rem)]">
+              <div className="flex flex-col gap-4">
+                {/* Actions */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <IconCheckbox className="size-4 text-muted-foreground" />
+                        <CardTitle className="text-sm">Actions</CardTitle>
+                      </div>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="size-7 text-muted-foreground">
+                            <IconPlus className="size-3.5" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add Action Item</DialogTitle>
+                            <DialogDescription>Create a new action item for this incident.</DialogDescription>
+                          </DialogHeader>
+                          <div className="flex flex-col gap-4 py-2">
+                            <div className="flex flex-col gap-2">
+                              <Label htmlFor="action-desc">Description</Label>
+                              <Textarea id="action-desc" placeholder="What needs to be done?" rows={2} />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Label htmlFor="action-assignee">Assignee</Label>
+                              <Input id="action-assignee" placeholder="e.g. Sarah Chen" />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                            <Button>Create</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
                     </div>
-                    <p className="mt-0.5 text-sm text-muted-foreground truncate">
-                      Root cause analysis and action items for payment processing failures
-                    </p>
-                  </div>
-                  <IconArrowRight className="size-4 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                </CardContent>
-              </Card>
-            </Link>
-          ) : (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
-                <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-                  <IconFileText className="size-6 text-muted-foreground" />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold">No postmortem yet</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Generate a postmortem to document what happened and prevent recurrence.
-                  </p>
-                </div>
-                <Button size="sm">
-                  <IconFlame className="size-4" />
-                  Generate Postmortem
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </section>
+                    <div className="mt-2">
+                      <ProgressBar
+                        done={actions.filter((a) => a.status === "done").length}
+                        total={actions.length}
+                      />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {actions.map((action) => (
+                      <ActionItem key={action.id} action={action} />
+                    ))}
+                  </CardContent>
+                </Card>
+
+                {/* Follow-ups */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <IconChecks className="size-4 text-muted-foreground" />
+                        <CardTitle className="text-sm">Follow-ups</CardTitle>
+                      </div>
+                      <Button variant="ghost" size="icon" className="size-7 text-muted-foreground">
+                        <IconPlus className="size-3.5" />
+                      </Button>
+                    </div>
+                    <div className="mt-2">
+                      <ProgressBar
+                        done={followups.filter((a) => a.status === "done").length}
+                        total={followups.length}
+                      />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {followups.map((action) => (
+                      <ActionItem key={action.id} action={action} />
+                    ))}
+                  </CardContent>
+                </Card>
+
+                {/* Postmortem */}
+                {hasPostmortem ? (
+                  <Link href={incidentPostmortemPath(incident.id)}>
+                    <Card className="group cursor-pointer border-primary/20 bg-gradient-to-b from-primary/[0.04] to-transparent transition-all hover:border-primary/40">
+                      <CardContent className="flex items-center gap-3 py-4">
+                        <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+                          <IconFileText className="size-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">Postmortem</span>
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                            >
+                              In progress
+                            </Badge>
+                          </div>
+                          <p className="mt-0.5 text-xs text-muted-foreground truncate">
+                            Root cause analysis and actions
+                          </p>
+                        </div>
+                        <IconArrowRight className="size-4 text-muted-foreground/30 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ) : (
+                  <Card className="border-dashed">
+                    <CardContent className="flex flex-col items-center justify-center py-8 gap-3">
+                      <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+                        <IconFileText className="size-5 text-muted-foreground" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold">No postmortem</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Document what happened and prevent recurrence.
+                        </p>
+                      </div>
+                      <Button size="sm">
+                        <IconFlame className="size-4" />
+                        Generate
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </AuthenticatedLayout>
   )
