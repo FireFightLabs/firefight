@@ -17,6 +17,7 @@ interface IncidentShowProps {
   timelineEvents?: TimelineEvent[]
   actions?: IncidentAction[]
   hasPostmortem: boolean
+  postmortemStatus?: string
 }
 
 function TimelineSkeleton() {
@@ -51,7 +52,7 @@ function ActionsSkeleton() {
 }
 
 export default function IncidentShow() {
-  const { incident, timelineEvents, actions, hasPostmortem } = usePage<IncidentShowProps>().props
+  const { incident, timelineEvents, actions, hasPostmortem, postmortemStatus } = usePage<IncidentShowProps>().props
 
   return (
     <AuthenticatedLayout title={incident.identifier}>
@@ -86,7 +87,7 @@ export default function IncidentShow() {
               <div className="w-full lg:w-[340px] shrink-0">
                 <div className="lg:sticky lg:top-[calc(var(--header-height)+1.5rem)]">
                   <div className="mb-4">
-                    <IncidentPostmortemCard incidentId={incident.id} hasPostmortem={hasPostmortem} />
+                    <IncidentPostmortemCard incidentId={incident.id} hasPostmortem={hasPostmortem} postmortemStatus={postmortemStatus} />
                   </div>
                   <Deferred data="actions" fallback={<ActionsSkeleton />}>
                     <IncidentActionsSidebar actions={actions ?? []} />

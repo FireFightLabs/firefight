@@ -18,11 +18,27 @@ class IncidentsController < InertiaController
           incident.incident_actions.active.includes(assignee: :user, created_by: :user)
         )
       },
-      hasPostmortem: incident.postmortem.present?
+      hasPostmortem: incident.postmortem.present?,
+      postmortemStatus: incident.postmortem&.status
     }
   end
 
   def postmortem
-    render inertia: "incidents/postmortem"
+    incident = current_workspace.incidents.find(params[:incident_id])
+    postmortem = incident.postmortem
+
+    render inertia: "incidents/postmortem", props: {
+      incident: {
+        id: incident.id,
+        identifier: incident.identifier,
+        name: incident.name
+      },
+      postmortem: postmortem ? PostmortemSerializer.one(postmortem) : nil,
+      updates: InertiaRails.defer {
+        postmortem ? PostmortemUpdateSerializer.many(
+          postmortem.postmortem_updates.ordered.includes(edited_by: :user)
+        ) : []
+      }
+    }
   end
 end
