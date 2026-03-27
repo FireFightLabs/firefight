@@ -21,13 +21,14 @@ class DashboardStatsTest < ActiveSupport::TestCase
     assert_equal expected_count.to_s, stats[0][:value]
   end
 
-  test "mttr returns N/A when no incidents resolved this month" do
-    workspace = workspaces(:slack_workspace_two)
+  test "mttr returns N/A when no incidents have been resolved" do
+    workspace = Workspace.create!(
+      platform: "slack", platform_id: "T#{SecureRandom.hex(8)}",
+      name: "Empty Workspace", access_token: "xoxb-test", installed_at: Time.current
+    )
 
-    travel_to Time.zone.local(2099, 1, 15) do
-      stats = DashboardStats.new(workspace).to_a
-      assert_equal "N/A", stats[1][:value]
-    end
+    stats = DashboardStats.new(workspace).to_a
+    assert_equal "N/A", stats[1][:value]
   end
 
   test "mttr computes average for resolved incidents this month" do

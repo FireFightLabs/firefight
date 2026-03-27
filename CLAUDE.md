@@ -94,7 +94,53 @@ Api::V1::InteractionsController → Slack::InteractionNormalizer.call → Intera
 
 Controllers are the platform-specific boundary — they normalize payloads into platform-agnostic objects before passing to dispatchers.
 
-**Inertia controllers** follow the same thin pattern. Query filtering belongs in model scopes (chainable, independently testable). Serialization belongs in model concerns (e.g., `Incident::Serialization#to_list_item`). Aggregations and computed metrics belong in POROs (e.g., `DashboardStats`). The controller parses params, chains scopes, paginates, and renders — no inline SQL, no serialization loops, no metric calculations.
+**Inertia controllers** follow the same thin pattern. Query filtering belongs in model scopes (chainable, independently testable). Serialization belongs in serializer classes (`app/serializers/`). Aggregations and computed metrics belong in POROs (e.g., `DashboardStats`). The controller parses params, chains scopes, paginates, and renders — no inline SQL, no serialization loops, no metric calculations.
+
+### Dashboard
+
+The incidents dashboard demonstrates the full Inertia data flow pattern. Use it as a reference when building new dashboard-style pages.
+
+**Data flow:**
+```
+Controller → Incident.filtered_list(filters:, page:, per_page:) → IncidentListItemSerializer.many(...)
+           → DashboardStats.new(workspace).to_a (deferred)
+           → SeverityOptionSerializer.many(...)
+           ↓
+Inertia props → usePage<DashboardPageProps>()
+           ↓
+Frontend    → useIncidentsTable(data, columns, filters, pagination) → router.get() on filter change
+```
+
+**Server-side filtering + pagination** (`Incident.filtered_list`):
+- Accepts `filters: { search:, severities:, lifecycle_stages: }` hash (extensible) + `page:` + `per_page:`
+- Chains model scopes: `search`, `by_severity_slugs`, `by_lifecycle_stage_keys`
+- Returns `{ incidents:, pagination: { page, perPage, totalCount, totalPages } }`
+- Eager-loads associations via `with_list_associations` scope to prevent N+1
+
+**Deferred stats** (`DashboardStats` PORO):
+- Wrapped in `InertiaRails.defer { ... }` — loads after initial page render so the table appears instantly
+- Frontend uses `<Deferred data="stats" fallback={<StatCardsSkeleton />}>` for loading state
+- Filter navigations use `only: ["incidents", "pagination", "filters"]` to skip re-fetching stats
+- MTTR cached per workspace for 24h via `Rails.cache` (key: `dashboard_stats/{workspace_id}/mttr`)
+
+**Frontend filter navigation** (`useIncidentsTable` hook):
+- Filter/pagination changes call `router.get(dashboardPath(), params, { preserveState: true, preserveScroll: true, only: [...] })`
+- Search input debounced 300ms before triggering navigation
+- Severity/status toggles and page changes navigate immediately
+- Column visibility and sorting remain client-side (within the current page)
+
+**Key files:**
+```
+app/controllers/dashboard_controller.rb           # Thin — parses params, calls filtered_list, renders
+app/models/incident.rb                            # filtered_list class method + filter scopes
+app/models/dashboard_stats.rb                     # PORO for stat card metrics
+app/serializers/incident_list_item_serializer.rb  # Serializes incidents → auto-generates TS type
+app/serializers/severity_option_serializer.rb     # Serializes severity options → auto-generates TS type
+app/frontend/modules/dashboard/hooks/             # useIncidentsTable — server-side filter navigation
+app/frontend/modules/dashboard/components/        # Table, toolbar, pagination, stat cards + skeleton
+app/frontend/types/serializers/                   # Auto-generated TS types (never edit manually)
+app/frontend/modules/dashboard/types.ts           # Manual TS types (Pagination, DashboardFilters, DashboardStat)
+```
 
 ### Dispatchers
 
