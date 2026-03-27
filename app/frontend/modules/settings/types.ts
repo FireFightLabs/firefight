@@ -1,18 +1,7 @@
-export interface LifecycleStage {
-  key: string
-  name: string
-  description: string
-}
+import type { IncidentStatusSettings, LifecycleStage } from "@/types/serializers"
 
-export interface Status {
-  id: string
-  name: string
-  slug: string
-  description: string
-  color: string
-  position: number
-  isDefault: boolean
-  lifecycleStageKey: string
+export interface LifecycleStageWithStatuses extends LifecycleStage {
+  statuses: IncidentStatusSettings[]
 }
 
 export interface Severity {

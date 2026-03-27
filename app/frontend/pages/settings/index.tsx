@@ -9,6 +9,7 @@ import { SeveritiesTab } from "@/modules/settings/components/severities-tab"
 import { WebhooksTab } from "@/modules/settings/components/webhooks-tab"
 import { ApiKeysTab } from "@/modules/settings/components/api-keys-tab"
 import type { IncidentRole } from "@/types/serializers"
+import type { LifecycleStageWithStatuses } from "@/modules/settings/types"
 
 const validTabs = ["roles", "statuses", "severities", "webhooks", "api-keys"] as const
 
@@ -49,10 +50,11 @@ function useUrlState() {
 
 interface SettingsPageProps {
   roles: IncidentRole[]
+  lifecycleStages: LifecycleStageWithStatuses[]
 }
 
 export default function Settings() {
-  const { roles } = usePage<SettingsPageProps>().props
+  const { roles, lifecycleStages } = usePage<SettingsPageProps>().props
   const { tab, setTab, webhookId, setWebhookId } = useUrlState()
 
   return (
@@ -69,7 +71,7 @@ export default function Settings() {
           </TabsList>
           <div className="mt-6">
             <TabsContent value="roles"><RolesTab roles={roles} /></TabsContent>
-            <TabsContent value="statuses"><StatusesTab /></TabsContent>
+            <TabsContent value="statuses"><StatusesTab lifecycleStages={lifecycleStages} /></TabsContent>
             <TabsContent value="severities"><SeveritiesTab /></TabsContent>
             <TabsContent value="webhooks">
               <WebhooksTab activeWebhookId={webhookId} onWebhookSelect={setWebhookId} />
