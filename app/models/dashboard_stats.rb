@@ -25,19 +25,20 @@ class DashboardStats
   end
 
   def mttr_stat
-    avg = workspace.incidents
-      .where(deleted_at: nil)
-      .where("resolved_at >= ?", beginning_of_month)
-      .where.not(resolved_at: nil)
-      .pluck(:declared_at, :resolved_at)
-      .map { |declared, resolved| ((resolved - declared) / 60.0).round }
-      .then { |times| times.any? ? (times.sum / times.size) : nil }
+    avg = Rails.cache.fetch("dashboard_stats/#{workspace.id}/mttr", expires_in: 24.hours) do
+      workspace.incidents
+        .where(deleted_at: nil)
+        .where.not(resolved_at: nil)
+        .pluck(:declared_at, :resolved_at)
+        .map { |declared, resolved| ((resolved - declared) / 60.0).round }
+        .then { |times| times.any? ? (times.sum / times.size) : nil }
+    end
 
     {
       label: "MTTR",
       value: avg ? "#{avg} min" : "N/A",
       trendDescription: "Mean time to resolve",
-      detail: "For incidents resolved this month"
+      detail: "Across all resolved incidents"
     }
   end
 

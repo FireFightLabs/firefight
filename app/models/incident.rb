@@ -63,16 +63,16 @@ class Incident < ApplicationRecord
     )
   }
 
-  def self.filtered_list(filters: {}, page: 1, per_page: 20)
+  def self.filtered_list(filters: {}, page: nil, per_page: nil)
     scope = all.where(deleted_at: nil).with_list_associations.recent
     scope = scope.search(filters[:search]) if filters[:search].present?
     scope = scope.by_severity_slugs(filters[:severities]) if filters[:severities]&.any?
     scope = scope.by_lifecycle_stage_keys(filters[:lifecycle_stages]) if filters[:lifecycle_stages]&.any?
 
     total_count = scope.count
-    per_page = per_page.to_i.clamp(1, 50)
+    per_page = (per_page || 20).to_i.clamp(1, 50)
     total_pages = [ (total_count.to_f / per_page).ceil, 1 ].max
-    page = page.to_i.clamp(1, total_pages)
+    page = (page || 1).to_i.clamp(1, total_pages)
 
     {
       incidents: scope.offset((page - 1) * per_page).limit(per_page),
