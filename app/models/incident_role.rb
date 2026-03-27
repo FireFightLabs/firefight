@@ -9,6 +9,5 @@ class IncidentRole < ApplicationRecord
 
   scope :active, -> { where(deleted_at: nil) }
   scope :ordered, -> { order(:position) }
-  scope :required_roles, -> { where(required: true) }
   scope :incident_lead, -> { where(slug: "incident_lead") }
 end

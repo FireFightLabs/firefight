@@ -34,6 +34,12 @@ Rails.application.routes.draw do
   # Authenticated routes
   get "/dashboard", to: "dashboard#index", as: :dashboard
   get "/settings", to: "settings#index", as: :settings
+  resources :incident_roles, only: [ :create, :destroy ], path: "settings/roles" do
+    member do
+      patch :disable
+      patch :enable
+    end
+  end
   get "/incidents/:id", to: "incidents#show", as: :incident
   get "/incidents/:incident_id/postmortem", to: "incidents#postmortem", as: :incident_postmortem
   get "/catalogue", to: "catalogue#index", as: :catalogue

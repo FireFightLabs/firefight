@@ -1,12 +1,3 @@
-export interface Role {
-  id: string
-  name: string
-  slug: string
-  description: string
-  position: number
-  required: boolean
-}
-
 export interface LifecycleStage {
   key: string
   name: string
