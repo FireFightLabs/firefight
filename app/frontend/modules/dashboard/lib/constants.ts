@@ -1,6 +1,3 @@
-export const SEVERITY_OPTIONS = ["Critical", "High", "Medium", "Low"] as const
-export type SeverityOption = (typeof SEVERITY_OPTIONS)[number]
-
 export const STATUS_OPTIONS = ["active", "closed"] as const
 export type StatusOption = (typeof STATUS_OPTIONS)[number]
 

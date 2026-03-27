@@ -1,0 +1,69 @@
+require "test_helper"
+
+class DashboardStatsTest < ActiveSupport::TestCase
+  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incidents
+
+  test "to_a returns four stat hashes" do
+    stats = DashboardStats.new(workspaces(:slack_workspace_one)).to_a
+
+    assert_equal 4, stats.length
+    assert_equal "Active Incidents", stats[0][:label]
+    assert_equal "MTTR", stats[1][:label]
+    assert_equal "Total Incidents", stats[2][:label]
+    assert_equal "Critical Incidents", stats[3][:label]
+  end
+
+  test "active incidents counts live incidents" do
+    workspace = workspaces(:slack_workspace_one)
+    stats = DashboardStats.new(workspace).to_a
+
+    expected_count = workspace.incidents.active.where(deleted_at: nil).count
+    assert_equal expected_count.to_s, stats[0][:value]
+  end
+
+  test "mttr returns N/A when no incidents resolved this month" do
+    workspace = workspaces(:slack_workspace_two)
+
+    travel_to Time.zone.local(2099, 1, 15) do
+      stats = DashboardStats.new(workspace).to_a
+      assert_equal "N/A", stats[1][:value]
+    end
+  end
+
+  test "mttr computes average for resolved incidents this month" do
+    workspace = workspaces(:slack_workspace_one)
+    stats = DashboardStats.new(workspace).to_a
+
+    resolved_this_month = workspace.incidents
+      .where(deleted_at: nil)
+      .where("resolved_at >= ?", Time.current.beginning_of_month)
+      .where.not(resolved_at: nil)
+
+    if resolved_this_month.any?
+      avg = resolved_this_month.pluck(:declared_at, :resolved_at)
+        .map { |d, r| ((r - d) / 60.0).round }
+        .then { |times| times.sum / times.size }
+      assert_equal "#{avg} min", stats[1][:value]
+    else
+      assert_equal "N/A", stats[1][:value]
+    end
+  end
+
+  test "critical incidents returns 0 when no critical severity exists" do
+    workspace = workspaces(:slack_workspace_two)
+    stats = DashboardStats.new(workspace).to_a
+
+    assert_equal "0", stats[3][:value]
+  end
+
+  test "each stat hash has required keys" do
+    stats = DashboardStats.new(workspaces(:slack_workspace_one)).to_a
+
+    stats.each do |stat|
+      assert stat.key?(:label), "Missing :label"
+      assert stat.key?(:value), "Missing :value"
+      assert stat.key?(:trendDescription), "Missing :trendDescription"
+      assert stat.key?(:detail), "Missing :detail"
+    end
+  end
+end

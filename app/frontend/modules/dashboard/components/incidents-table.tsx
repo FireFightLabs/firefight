@@ -1,6 +1,7 @@
 import { flexRender } from "@tanstack/react-table"
 
-import type { IncidentListItem } from "@/modules/incidents/types"
+import type { IncidentListItem, SeverityOption } from "@/types/serializers"
+import type { DashboardFilters, Pagination } from "@/modules/dashboard/types"
 import { useIncidentsTable } from "@/modules/dashboard/hooks/use-incidents-table"
 import { incidentsTableColumns } from "@/modules/dashboard/lib/incidents-table-columns"
 import { IncidentsTableToolbar } from "./incidents-table-toolbar"
@@ -16,19 +17,23 @@ import {
 
 interface IncidentsTableProps {
   incidents: IncidentListItem[]
+  pagination: Pagination
+  filters: DashboardFilters
+  severityOptions: SeverityOption[]
 }
 
-export function IncidentsTable({ incidents }: IncidentsTableProps) {
+export function IncidentsTable({ incidents, pagination, filters, severityOptions }: IncidentsTableProps) {
   const {
     table,
-    globalFilter,
-    setGlobalFilter,
+    searchInput,
+    handleSearchChange,
     selectedSeverities,
-    setSelectedSeverities,
+    toggleSeverity,
     selectedStatuses,
-    setSelectedStatuses,
-    toggleFilter,
-  } = useIncidentsTable(incidents, incidentsTableColumns)
+    toggleStatus,
+    setPage,
+    setPerPage,
+  } = useIncidentsTable(incidents, incidentsTableColumns, filters, pagination)
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -38,12 +43,13 @@ export function IncidentsTable({ incidents }: IncidentsTableProps) {
 
       <IncidentsTableToolbar
         table={table}
-        globalFilter={globalFilter}
-        onGlobalFilterChange={setGlobalFilter}
+        searchInput={searchInput}
+        onSearchChange={handleSearchChange}
         selectedSeverities={selectedSeverities}
-        onToggleSeverity={(v) => toggleFilter(setSelectedSeverities, v)}
+        onToggleSeverity={toggleSeverity}
         selectedStatuses={selectedStatuses}
-        onToggleStatus={(v) => toggleFilter(setSelectedStatuses, v)}
+        onToggleStatus={toggleStatus}
+        severityOptions={severityOptions}
       />
 
       <div className="overflow-hidden rounded-lg border mx-4 lg:mx-6">
@@ -86,7 +92,11 @@ export function IncidentsTable({ incidents }: IncidentsTableProps) {
         </Table>
       </div>
 
-      <IncidentsTablePagination table={table} />
+      <IncidentsTablePagination
+        pagination={pagination}
+        onPageChange={setPage}
+        onPerPageChange={setPerPage}
+      />
     </div>
   )
 }

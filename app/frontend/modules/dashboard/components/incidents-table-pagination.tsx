@@ -4,8 +4,8 @@ import {
   IconChevronsLeft,
   IconChevronsRight,
 } from "@tabler/icons-react"
-import { type Table } from "@tanstack/react-table"
 
+import type { Pagination } from "@/modules/dashboard/types"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
@@ -16,19 +16,25 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-interface IncidentsTablePaginationProps<T> {
-  table: Table<T>
-  totalLabel?: string
+interface IncidentsTablePaginationProps {
+  pagination: Pagination
+  onPageChange: (page: number) => void
+  onPerPageChange: (perPage: number) => void
 }
 
-export function IncidentsTablePagination<T>({
-  table,
-  totalLabel = "incident(s) total",
-}: IncidentsTablePaginationProps<T>) {
+export function IncidentsTablePagination({
+  pagination,
+  onPageChange,
+  onPerPageChange,
+}: IncidentsTablePaginationProps) {
+  const { page, perPage, totalCount, totalPages } = pagination
+  const canPreviousPage = page > 1
+  const canNextPage = page < totalPages
+
   return (
     <div className="flex items-center justify-between px-4 lg:px-6">
       <div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
-        {table.getFilteredRowModel().rows.length} {totalLabel}
+        {totalCount} incident(s) total
       </div>
       <div className="flex w-full items-center gap-8 lg:w-fit">
         <div className="hidden items-center gap-2 lg:flex">
@@ -36,30 +42,30 @@ export function IncidentsTablePagination<T>({
             Rows per page
           </Label>
           <Select
-            value={`${table.getState().pagination.pageSize}`}
-            onValueChange={(value) => table.setPageSize(Number(value))}
+            value={`${perPage}`}
+            onValueChange={(value) => onPerPageChange(Number(value))}
           >
             <SelectTrigger size="sm" className="w-20" id="rows-per-page">
-              <SelectValue placeholder={table.getState().pagination.pageSize} />
+              <SelectValue placeholder={perPage} />
             </SelectTrigger>
             <SelectContent side="top">
-              {[10, 20, 30, 40, 50].map((pageSize) => (
-                <SelectItem key={pageSize} value={`${pageSize}`}>
-                  {pageSize}
+              {[10, 20, 30, 40, 50].map((size) => (
+                <SelectItem key={size} value={`${size}`}>
+                  {size}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="flex w-fit items-center justify-center text-sm font-medium">
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+          Page {page} of {totalPages}
         </div>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
           <Button
             variant="outline"
             className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
+            onClick={() => onPageChange(1)}
+            disabled={!canPreviousPage}
           >
             <span className="sr-only">Go to first page</span>
             <IconChevronsLeft />
@@ -68,8 +74,8 @@ export function IncidentsTablePagination<T>({
             variant="outline"
             className="size-8"
             size="icon"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            onClick={() => onPageChange(page - 1)}
+            disabled={!canPreviousPage}
           >
             <span className="sr-only">Go to previous page</span>
             <IconChevronLeft />
@@ -78,8 +84,8 @@ export function IncidentsTablePagination<T>({
             variant="outline"
             className="size-8"
             size="icon"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={() => onPageChange(page + 1)}
+            disabled={!canNextPage}
           >
             <span className="sr-only">Go to next page</span>
             <IconChevronRight />
@@ -88,8 +94,8 @@ export function IncidentsTablePagination<T>({
             variant="outline"
             className="hidden size-8 lg:flex"
             size="icon"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={!table.getCanNextPage()}
+            onClick={() => onPageChange(totalPages)}
+            disabled={!canNextPage}
           >
             <span className="sr-only">Go to last page</span>
             <IconChevronsRight />

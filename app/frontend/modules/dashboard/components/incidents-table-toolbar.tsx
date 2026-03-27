@@ -1,8 +1,8 @@
 import { IconChevronDown, IconLayoutColumns, IconSearch } from "@tabler/icons-react"
 import { type Table } from "@tanstack/react-table"
 
-import type { IncidentListItem } from "@/modules/incidents/types"
-import { SEVERITY_OPTIONS, STATUS_OPTIONS, STATUS_LABELS } from "@/modules/dashboard/lib/constants"
+import type { IncidentListItem, SeverityOption } from "@/types/serializers"
+import { STATUS_OPTIONS, STATUS_LABELS } from "@/modules/dashboard/lib/constants"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,22 +15,24 @@ import { Input } from "@/components/ui/input"
 
 interface IncidentsTableToolbarProps {
   table: Table<IncidentListItem>
-  globalFilter: string
-  onGlobalFilterChange: (value: string) => void
+  searchInput: string
+  onSearchChange: (value: string) => void
   selectedSeverities: Set<string>
-  onToggleSeverity: (value: string) => void
+  onToggleSeverity: (slug: string) => void
   selectedStatuses: Set<string>
-  onToggleStatus: (value: string) => void
+  onToggleStatus: (key: string) => void
+  severityOptions: SeverityOption[]
 }
 
 export function IncidentsTableToolbar({
   table,
-  globalFilter,
-  onGlobalFilterChange,
+  searchInput,
+  onSearchChange,
   selectedSeverities,
   onToggleSeverity,
   selectedStatuses,
   onToggleStatus,
+  severityOptions,
 }: IncidentsTableToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 px-4 lg:px-6">
@@ -38,8 +40,8 @@ export function IncidentsTableToolbar({
         <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search incidents..."
-          value={globalFilter}
-          onChange={(e) => onGlobalFilterChange(e.target.value)}
+          value={searchInput}
+          onChange={(e) => onSearchChange(e.target.value)}
           className="pl-9 h-9"
         />
       </div>
@@ -57,14 +59,14 @@ export function IncidentsTableToolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-40">
-          {SEVERITY_OPTIONS.map((severity) => (
+          {severityOptions.map((severity) => (
             <DropdownMenuCheckboxItem
-              key={severity}
-              checked={selectedSeverities.has(severity)}
-              onCheckedChange={() => onToggleSeverity(severity)}
+              key={severity.slug}
+              checked={selectedSeverities.has(severity.slug)}
+              onCheckedChange={() => onToggleSeverity(severity.slug)}
               onSelect={(e) => e.preventDefault()}
             >
-              {severity}
+              {severity.name}
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuContent>

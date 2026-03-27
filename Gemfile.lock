@@ -249,6 +249,10 @@ GEM
       zeitwerk (>= 2.6.18, < 3.0)
     language_server-protocol (3.17.0.5)
     lint_roller (1.1.0)
+    listen (3.10.0)
+      logger
+      rb-fsevent (~> 0.10, >= 0.10.3)
+      rb-inotify (~> 0.9, >= 0.9.10)
     logger (1.7.0)
     loofah (2.25.1)
       crass (~> 1.0.2)
@@ -313,6 +317,11 @@ GEM
       rack (>= 1.2, < 4)
       snaky_hash (~> 2.0, >= 2.0.3)
       version_gem (~> 1.1, >= 1.1.9)
+    oj (3.16.16)
+      bigdecimal (>= 3.0)
+      ostruct (>= 0.2)
+    oj_serializers (2.1.0)
+      oj (>= 3.14.0)
     omniauth (2.1.4)
       hashie (>= 3.4.6)
       logger
@@ -407,6 +416,9 @@ GEM
     rainbow (3.1.1)
     rake (13.3.1)
     rake-compiler-dock (1.11.0)
+    rb-fsevent (0.11.2)
+    rb-inotify (0.11.1)
+      ffi (~> 1.0)
     rb_sys (0.9.124)
       rake-compiler-dock (= 1.11.0)
     rdoc (7.2.0)
@@ -510,6 +522,10 @@ GEM
     thruster (0.1.19-x86_64-linux)
     timeout (0.6.1)
     tsort (0.2.0)
+    types_from_serializers (2.5.0)
+      listen (~> 3.2)
+      oj_serializers (~> 2.0, >= 2.0.2)
+      railties (>= 5.1)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
     unicode-display_width (3.2.0)
@@ -595,6 +611,7 @@ DEPENDENCIES
   kamal
   minitest (~> 6.0)
   mocha
+  oj_serializers
   omniauth (~> 2.1)
   omniauth-oauth2
   omniauth-rails_csrf_protection
@@ -611,6 +628,7 @@ DEPENDENCIES
   solid_queue
   solid_workflow!
   thruster
+  types_from_serializers
   tzinfo-data
   vite_rails (~> 3.0)
   web-console

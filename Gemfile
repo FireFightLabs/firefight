@@ -103,4 +103,7 @@ gem "webrick"
 
 gem "vite_rails", "~> 3.0"
 
+gem "oj_serializers"
+gem "types_from_serializers"
+
 gem "benchmark", "~> 0.5.0"

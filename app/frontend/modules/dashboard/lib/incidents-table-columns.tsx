@@ -1,7 +1,7 @@
 import { Link } from "@inertiajs/react"
 import { type ColumnDef } from "@tanstack/react-table"
 
-import type { IncidentListItem } from "@/modules/incidents/types"
+import type { IncidentListItem } from "@/types/serializers"
 import { incidentPath } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { severityVariant, statusVariant } from "./constants"

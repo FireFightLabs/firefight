@@ -94,6 +94,8 @@ Api::V1::InteractionsController → Slack::InteractionNormalizer.call → Intera
 
 Controllers are the platform-specific boundary — they normalize payloads into platform-agnostic objects before passing to dispatchers.
 
+**Inertia controllers** follow the same thin pattern. Query filtering belongs in model scopes (chainable, independently testable). Serialization belongs in model concerns (e.g., `Incident::Serialization#to_list_item`). Aggregations and computed metrics belong in POROs (e.g., `DashboardStats`). The controller parses params, chains scopes, paginates, and renders — no inline SQL, no serialization loops, no metric calculations.
+
 ### Dispatchers
 
 Route to handlers using lookup tables. Fall back to `UnknownHandler`.
@@ -136,6 +138,38 @@ Pattern:
 adapter = WorkspaceAdapter.for(workspace)
 adapter.create_channel(name: ..., is_private: ...)
 ```
+
+### Serializers
+
+`oj_serializers` serialize data for Inertia props (and eventually API responses). `types_from_serializers` auto-generates TypeScript interfaces from serializer definitions — no manual type maintenance.
+
+```
+app/serializers/
+  base_serializer.rb              # Oj::Serializer + TypesFromSerializers::DSL, transform_keys :camelize
+  incident_list_item_serializer.rb  # Incident → dashboard list view
+  severity_compact_serializer.rb    # IncidentSeverity → {name, rank}
+  status_compact_serializer.rb      # IncidentStatus → {name, lifecycleStage}
+  severity_option_serializer.rb     # IncidentSeverity → {name, slug}
+```
+
+**Generated TypeScript** lives in `app/frontend/types/serializers/` — auto-generated, never edit manually. Regenerate with `bundle exec rake types_from_serializers:generate`. In development, types regenerate automatically on serializer file changes.
+
+**Usage in controllers:**
+```ruby
+IncidentListItemSerializer.many(incidents)   # Array of hashes
+SeverityOptionSerializer.many(severities)    # Array of hashes
+```
+
+**Adding a new serializer:**
+1. Create `app/serializers/foo_serializer.rb` extending `BaseSerializer`
+2. Use `attributes(name: {type: :string})` for pass-through fields with explicit types, or `type :string` + method definition for computed fields
+3. Use `has_one`/`has_many` with `serializer:` for nested objects
+4. Run `bundle exec rake types_from_serializers:generate` (or let dev mode auto-regenerate)
+5. Import the generated type from `@/types/serializers` in frontend code
+
+**When to use serializers vs raw hashes:**
+- Model-backed data flowing to the frontend → serializer (auto-generates TS types)
+- Simple computed value objects (pagination metadata, filter echo) → raw hash + manual TS types in module `types.ts`
 
 ### Adapters
 
@@ -290,6 +324,13 @@ app/models/
   interaction.rb                      # Platform-agnostic interaction (PORO, has platform attr)
   identifiers.rb                      # Platform-agnostic callback_ids/action_ids
   incident.rb                         # AR model with concerns (Sequencing, ChannelNaming, etc.)
+
+app/serializers/
+  base_serializer.rb                  # Oj::Serializer base with camelCase keys + TS generation
+  incident_list_item_serializer.rb    # Incident → dashboard list props (auto-generates TS)
+  severity_compact_serializer.rb      # IncidentSeverity → {name, rank}
+  status_compact_serializer.rb        # IncidentStatus → {name, lifecycleStage}
+  severity_option_serializer.rb       # IncidentSeverity → {name, slug}
 
 app/services/
   incident_lifecycle_service.rb       # Shared write operations (create, update, close, reopen, lead)

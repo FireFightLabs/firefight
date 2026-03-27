@@ -1,4 +1,4 @@
-import type { IncidentListItem } from "@/modules/incidents/types"
+import type { IncidentListItem } from "@/types/serializers"
 import type { DashboardStat } from "@/modules/dashboard/types"
 
 export const mockIncidents: IncidentListItem[] = [
