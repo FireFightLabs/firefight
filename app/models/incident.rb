@@ -62,6 +62,16 @@ class Incident < ApplicationRecord
       incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
     )
   }
+  scope :with_detail_associations, -> {
+    includes(
+      { incident_status: :incident_lifecycle_stage },
+      :incident_severity,
+      :incident_type,
+      { declared_by: :user },
+      :postmortem,
+      incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
+    )
+  }
 
   def self.filtered_list(filters: {}, page: nil, per_page: nil)
     scope = all.where(deleted_at: nil).with_list_associations.recent
