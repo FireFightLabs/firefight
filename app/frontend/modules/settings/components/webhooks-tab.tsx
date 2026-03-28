@@ -5,7 +5,16 @@ import {
   IconWebhook,
 } from "@tabler/icons-react"
 import * as React from "react"
+import { router, useForm } from "@inertiajs/react"
 
+import type { Webhook } from "@/types/serializers"
+import {
+  webhooksPath,
+  webhookPath,
+  activateWebhookPath,
+  deactivateWebhookPath,
+  testWebhookPath,
+} from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,8 +53,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
-import type { Webhook } from "@/modules/settings/types"
 import { RowActions } from "./shared"
 
 const subscribableEvents = [
@@ -64,47 +71,144 @@ const subscribableEvents = [
   { value: "incident.merged_into", label: "Incident merged into" },
 ] as const
 
-const mockWebhooks: Webhook[] = [
-  {
-    id: "1",
-    name: "PagerDuty Sync",
-    url: "https://events.pagerduty.com/webhooks/firefight",
-    active: true,
-    signingSecret: "whsec_RHqtWsrCGAkGGNK53ff4qsJP",
-    subscribedEvents: ["incident.created", "incident.resolved", "incident.escalated"],
-    createdAt: "2026-02-15T10:00:00Z",
-    deliveries: [
-      { id: "d1", eventType: "incident.created", state: "completed", responseCode: 200, errorMessage: null, deliveredAt: "2026-03-25T08:15:02Z" },
-      { id: "d2", eventType: "incident.resolved", state: "completed", responseCode: 200, errorMessage: null, deliveredAt: "2026-03-24T15:45:05Z" },
-      { id: "d3", eventType: "incident.created", state: "completed", responseCode: 200, errorMessage: null, deliveredAt: "2026-03-24T14:20:01Z" },
-      { id: "d4", eventType: "incident.escalated", state: "errored", responseCode: 503, errorMessage: "Service unavailable", deliveredAt: "2026-03-23T11:00:03Z" },
-      { id: "d5", eventType: "incident.created", state: "completed", responseCode: 200, errorMessage: null, deliveredAt: "2026-03-22T19:30:01Z" },
-    ],
-  },
-  {
-    id: "2",
-    name: "Datadog Events",
-    url: "https://api.datadoghq.com/api/v1/events",
-    active: true,
-    signingSecret: "whsec_9xMkPqB7vTnWjL2sYhR6dE4f",
-    subscribedEvents: ["incident.created", "incident.updated", "incident.resolved", "lead.assigned"],
-    createdAt: "2026-03-01T14:30:00Z",
-    deliveries: [
-      { id: "d6", eventType: "incident.updated", state: "completed", responseCode: 202, errorMessage: null, deliveredAt: "2026-03-25T09:00:01Z" },
-      { id: "d7", eventType: "incident.created", state: "completed", responseCode: 202, errorMessage: null, deliveredAt: "2026-03-25T08:15:01Z" },
-    ],
-  },
-  {
-    id: "3",
-    name: "Internal Analytics",
-    url: "https://analytics.internal.io/hooks/incidents",
-    active: false,
-    signingSecret: "whsec_Lm3nKp8vQwXy5Zt2Aj7BcD9f",
-    subscribedEvents: ["incident.created", "incident.resolved", "postmortem.generated"],
-    createdAt: "2026-01-20T09:00:00Z",
-    deliveries: [],
-  },
-]
+const eventLabel = (value: string) =>
+  subscribableEvents.find((e) => e.value === value)?.label ?? value
+
+function AddWebhookDialog() {
+  const [open, setOpen] = React.useState(false)
+  const [selectedEvents, setSelectedEvents] = React.useState<Set<string>>(new Set())
+  const form = useForm<{ name: string; url: string; subscribed_events: string[] }>({
+    name: "",
+    url: "",
+    subscribed_events: [],
+  })
+
+  const toggleEvent = (event: string) => {
+    setSelectedEvents((prev) => {
+      const next = new Set(prev)
+      if (next.has(event)) next.delete(event)
+      else next.add(event)
+      return next
+    })
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    form.transform(() => ({
+      webhook: { name: form.data.name, url: form.data.url, subscribed_events: [...selectedEvents] },
+    }))
+    form.post(webhooksPath(), {
+      onSuccess: () => {
+        setOpen(false)
+        form.reset()
+        setSelectedEvents(new Set())
+      },
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <IconPlus className="size-4" />
+          Add Webhook
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Add Webhook</DialogTitle>
+            <DialogDescription>
+              Configure a new webhook endpoint for your workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="wh-name">Name</Label>
+              <Input
+                id="wh-name"
+                placeholder="e.g. PagerDuty Sync"
+                value={form.data.name}
+                onChange={(e) => form.setData("name", e.target.value)}
+              />
+              {form.errors.name && (
+                <p className="text-xs text-destructive">{form.errors.name}</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="wh-url">Payload URL</Label>
+              <Input
+                id="wh-url"
+                type="url"
+                placeholder="https://example.com/webhooks"
+                value={form.data.url}
+                onChange={(e) => form.setData("url", e.target.value)}
+              />
+              {form.errors.url && (
+                <p className="text-xs text-destructive">{form.errors.url}</p>
+              )}
+            </div>
+            <Separator />
+            <div className="flex flex-col gap-3">
+              <div>
+                <Label className="text-sm font-medium">Events</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Trigger a call to the payload URL when:
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Button
+                  variant="link"
+                  size="sm"
+                  type="button"
+                  className="h-auto p-0 text-xs"
+                  onClick={() => setSelectedEvents(new Set(subscribableEvents.map((e) => e.value)))}
+                >
+                  Enable all
+                </Button>
+                <span className="text-muted-foreground">·</span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  type="button"
+                  className="h-auto p-0 text-xs"
+                  onClick={() => setSelectedEvents(new Set())}
+                >
+                  Disable all
+                </Button>
+              </div>
+              <div className="grid gap-2 max-h-64 overflow-y-auto rounded-lg border p-3">
+                {subscribableEvents.map((event) => (
+                  <div key={event.value} className="flex items-center gap-3">
+                    <Switch
+                      id={`event-${event.value}`}
+                      checked={selectedEvents.has(event.value)}
+                      onCheckedChange={() => toggleEvent(event.value)}
+                    />
+                    <Label
+                      htmlFor={`event-${event.value}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {event.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" type="button">Cancel</Button>
+            </DialogClose>
+            <Button type="submit" disabled={form.processing}>
+              Create Webhook
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function WebhookDetailSheet({
   webhook,
@@ -117,10 +221,11 @@ function WebhookDetailSheet({
 }) {
   const [secretVisible, setSecretVisible] = React.useState(false)
 
-  if (!webhook) return null
+  React.useEffect(() => {
+    if (!open) setSecretVisible(false)
+  }, [open])
 
-  const eventLabel = (value: string) =>
-    subscribableEvents.find((e) => e.value === value)?.label ?? value
+  if (!webhook) return null
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -145,6 +250,33 @@ function WebhookDetailSheet({
           </SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-6 px-6 pb-6">
+          <div className="flex items-center gap-2">
+            {webhook.active ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.post(deactivateWebhookPath(webhook.id))}
+              >
+                Deactivate
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.post(activateWebhookPath(webhook.id))}
+              >
+                Activate
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.post(testWebhookPath(webhook.id))}
+            >
+              Send Test
+            </Button>
+          </div>
+
           <div className="flex flex-col gap-2">
             <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Signing Secret
@@ -161,10 +293,6 @@ function WebhookDetailSheet({
                 {secretVisible ? "Hide" : "Reveal"}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              We send a <code className="text-xs">X-Webhook-Signature</code> header with each request.
-              Generate a HMAC using SHA256 of the request body with this secret to verify authenticity.
-            </p>
           </div>
 
           <Separator />
@@ -207,6 +335,7 @@ function WebhookDetailSheet({
                       const succeeded =
                         delivery.state === "completed" &&
                         delivery.responseCode !== null &&
+                        delivery.responseCode !== undefined &&
                         delivery.responseCode >= 200 &&
                         delivery.responseCode < 300
                       return (
@@ -255,32 +384,20 @@ function WebhookDetailSheet({
 }
 
 export function WebhooksTab({
+  webhooks,
   activeWebhookId,
   onWebhookSelect,
 }: {
+  webhooks: Webhook[]
   activeWebhookId: string | null
   onWebhookSelect: (id: string | null) => void
 }) {
-  const [selectedEvents, setSelectedEvents] = React.useState<Set<string>>(new Set())
   const detailWebhook = activeWebhookId
-    ? mockWebhooks.find((w) => w.id === activeWebhookId) ?? null
+    ? webhooks.find((w) => w.id === activeWebhookId) ?? null
     : null
 
-  const toggleEvent = (event: string) => {
-    setSelectedEvents((prev) => {
-      const next = new Set(prev)
-      if (next.has(event)) next.delete(event)
-      else next.add(event)
-      return next
-    })
-  }
-
-  const enableAll = () => {
-    setSelectedEvents(new Set(subscribableEvents.map((e) => e.value)))
-  }
-
-  const disableAll = () => {
-    setSelectedEvents(new Set())
+  function handleDelete(webhook: Webhook) {
+    router.delete(webhookPath(webhook.id))
   }
 
   return (
@@ -294,139 +411,68 @@ export function WebhooksTab({
                 Send real-time notifications to external services when incident events occur.
               </CardDescription>
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <IconPlus className="size-4" />
-                  Add Webhook
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Add Webhook</DialogTitle>
-                  <DialogDescription>
-                    Configure a new webhook endpoint for your workspace.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col gap-4 py-2">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="wh-name">Name</Label>
-                    <Input id="wh-name" placeholder="e.g. PagerDuty Sync" />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="wh-url">Payload URL</Label>
-                    <Input id="wh-url" type="url" placeholder="https://example.com/webhooks" />
-                    <p className="text-xs text-muted-foreground">
-                      The URL that will receive webhook POST requests.
-                    </p>
-                  </div>
-                  <Separator />
-                  <div className="flex flex-col gap-3">
-                    <div>
-                      <Label className="text-sm font-medium">Events</Label>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Trigger a call to the payload URL when:
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-xs"
-                        onClick={enableAll}
-                      >
-                        Enable all
-                      </Button>
-                      <span className="text-muted-foreground">·</span>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-xs"
-                        onClick={disableAll}
-                      >
-                        Disable all
-                      </Button>
-                    </div>
-                    <div className="grid gap-2 max-h-64 overflow-y-auto rounded-lg border p-3">
-                      {subscribableEvents.map((event) => (
-                        <div key={event.value} className="flex items-center gap-3">
-                          <Switch
-                            id={`event-${event.value}`}
-                            checked={selectedEvents.has(event.value)}
-                            onCheckedChange={() => toggleEvent(event.value)}
-                          />
-                          <Label
-                            htmlFor={`event-${event.value}`}
-                            className="text-sm font-normal cursor-pointer"
-                          >
-                            {event.label}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                  </DialogClose>
-                  <Button>Create Webhook</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <AddWebhookDialog />
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Webhook</TableHead>
-                <TableHead className="hidden md:table-cell">URL</TableHead>
-                <TableHead className="w-24 text-center">Events</TableHead>
-                <TableHead className="w-24 text-center">Status</TableHead>
-                <TableHead className="w-12" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockWebhooks.map((webhook) => (
-                <TableRow key={webhook.id} className="cursor-pointer" onClick={() => onWebhookSelect(webhook.id)}>
-                  <TableCell>
-                    <div className="flex items-center gap-2.5">
-                      <IconWebhook className="size-4 text-muted-foreground" />
-                      <span className="font-medium">{webhook.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <span className="font-mono text-xs text-muted-foreground truncate block max-w-xs">
-                      {webhook.url}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="outline" className="tabular-nums">
-                      {webhook.subscribedEvents.length}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {webhook.active ? (
-                      <Badge variant="secondary" className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                        <IconCircleCheck className="size-3" />
-                        Active
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="gap-1">
-                        <IconCircleX className="size-3" />
-                        Inactive
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <RowActions onEdit={() => {}} onDelete={() => {}} />
-                  </TableCell>
+        {webhooks.length > 0 ? (
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Webhook</TableHead>
+                  <TableHead className="hidden md:table-cell">URL</TableHead>
+                  <TableHead className="w-24 text-center">Events</TableHead>
+                  <TableHead className="w-24 text-center">Status</TableHead>
+                  <TableHead className="w-12" />
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
+              </TableHeader>
+              <TableBody>
+                {webhooks.map((webhook) => (
+                  <TableRow key={webhook.id} className="cursor-pointer" onClick={() => onWebhookSelect(webhook.id)}>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <IconWebhook className="size-4 text-muted-foreground" />
+                        <span className="font-medium">{webhook.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="font-mono text-xs text-muted-foreground truncate block max-w-xs">
+                        {webhook.url}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="outline" className="tabular-nums">
+                        {webhook.subscribedEvents.length}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {webhook.active ? (
+                        <Badge variant="secondary" className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                          <IconCircleCheck className="size-3" />
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="gap-1">
+                          <IconCircleX className="size-3" />
+                          Inactive
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <RowActions onEdit={() => onWebhookSelect(webhook.id)} onDelete={() => handleDelete(webhook)} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        ) : (
+          <CardContent>
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No webhooks configured yet.
+            </p>
+          </CardContent>
+        )}
       </Card>
       <WebhookDetailSheet
         webhook={detailWebhook}

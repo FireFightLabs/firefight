@@ -57,13 +57,12 @@ Rails.application.routes.draw do
   get "/catalogue", to: "catalogue#index", as: :catalogue
   get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
 
-  resources :webhooks, except: [ :edit ] do
+  resources :webhooks, only: [ :create, :update, :destroy ] do
     member do
       post :test
       post :activate
       post :deactivate
     end
     get :sample_payload, on: :collection
-    resources :deliveries, only: [ :index, :show ], controller: "webhook_deliveries"
   end
 end

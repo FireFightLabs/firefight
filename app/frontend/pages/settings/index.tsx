@@ -8,7 +8,7 @@ import { StatusesTab } from "@/modules/settings/components/statuses-tab"
 import { SeveritiesTab } from "@/modules/settings/components/severities-tab"
 import { WebhooksTab } from "@/modules/settings/components/webhooks-tab"
 import { ApiKeysTab } from "@/modules/settings/components/api-keys-tab"
-import type { IncidentRole, IncidentSeveritySettings } from "@/types/serializers"
+import type { IncidentRole, IncidentSeveritySettings, Webhook } from "@/types/serializers"
 import type { LifecycleStageWithStatuses } from "@/modules/settings/types"
 
 const validTabs = ["roles", "statuses", "severities", "webhooks", "api-keys"] as const
@@ -52,10 +52,11 @@ interface SettingsPageProps {
   roles: IncidentRole[]
   lifecycleStages: LifecycleStageWithStatuses[]
   severities: IncidentSeveritySettings[]
+  webhooks: Webhook[]
 }
 
 export default function Settings() {
-  const { roles, lifecycleStages, severities } = usePage<SettingsPageProps>().props
+  const { roles, lifecycleStages, severities, webhooks } = usePage<SettingsPageProps>().props
   const { tab, setTab, webhookId, setWebhookId } = useUrlState()
 
   return (
@@ -75,7 +76,7 @@ export default function Settings() {
             <TabsContent value="statuses"><StatusesTab lifecycleStages={lifecycleStages} /></TabsContent>
             <TabsContent value="severities"><SeveritiesTab severities={severities} /></TabsContent>
             <TabsContent value="webhooks">
-              <WebhooksTab activeWebhookId={webhookId} onWebhookSelect={setWebhookId} />
+              <WebhooksTab webhooks={webhooks} activeWebhookId={webhookId} onWebhookSelect={setWebhookId} />
             </TabsContent>
             <TabsContent value="api-keys"><ApiKeysTab /></TabsContent>
           </div>

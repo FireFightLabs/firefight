@@ -9,6 +9,9 @@ class SettingsController < InertiaController
       lifecycleStages: build_lifecycle_stages,
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.ordered
+      ),
+      webhooks: WebhookSerializer.many(
+        current_workspace.webhooks.ordered
       )
     }
   end
