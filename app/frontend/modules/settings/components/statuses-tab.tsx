@@ -2,6 +2,8 @@ import * as React from "react"
 import { router, useForm } from "@inertiajs/react"
 import { IconGripVertical, IconPlus } from "@tabler/icons-react"
 
+import { toast } from "sonner"
+
 import type { IncidentStatusSettings } from "@/types/serializers"
 import type { LifecycleStageWithStatuses } from "@/modules/settings/types"
 import {
@@ -219,6 +221,10 @@ export function StatusesTab({ lifecycleStages }: StatusesTabProps) {
   }
 
   function handleDelete(status: IncidentStatusSettings) {
+    if (!status.deletable) {
+      toast.error("This status is used by incidents and cannot be deleted. You can disable it instead.")
+      return
+    }
     router.delete(incidentStatusPath(status.id))
   }
 
@@ -287,7 +293,7 @@ export function StatusesTab({ lifecycleStages }: StatusesTabProps) {
                       <TableCell>
                         <RowActions
                           onEdit={() => setEditingStatus(status)}
-                          onDelete={() => status.deletable && handleDelete(status)}
+                          onDelete={() => handleDelete(status)}
                         />
                       </TableCell>
                     </TableRow>

@@ -6,7 +6,10 @@ class SettingsController < InertiaController
       roles: IncidentRoleSerializer.many(
         current_workspace.incident_roles.ordered
       ),
-      lifecycleStages: build_lifecycle_stages
+      lifecycleStages: build_lifecycle_stages,
+      severities: IncidentSeveritySettingsSerializer.many(
+        current_workspace.incident_severities.ordered
+      )
     }
   end
 

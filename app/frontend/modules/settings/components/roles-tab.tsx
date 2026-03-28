@@ -2,6 +2,8 @@ import * as React from "react"
 import { router, useForm } from "@inertiajs/react"
 import { IconGripVertical, IconPlus, IconShieldCheck } from "@tabler/icons-react"
 
+import { toast } from "sonner"
+
 import type { IncidentRole } from "@/types/serializers"
 import {
   incidentRolesPath,
@@ -65,6 +67,10 @@ export function RolesTab({ roles }: RolesTabProps) {
   }
 
   function handleDelete(role: IncidentRole) {
+    if (!role.deletable) {
+      toast.error("This role is used by incidents and cannot be deleted. You can disable it instead.")
+      return
+    }
     router.delete(incidentRolePath(role.id))
   }
 
@@ -171,7 +177,7 @@ export function RolesTab({ roles }: RolesTabProps) {
                   />
                 </TableCell>
                 <TableCell>
-                  {role.deletable && (
+                  {!role.system && (
                     <RowActions onEdit={() => {}} onDelete={() => handleDelete(role)} />
                   )}
                 </TableCell>
