@@ -12,6 +12,9 @@ class SettingsController < InertiaController
       ),
       webhooks: WebhookSerializer.many(
         current_workspace.webhooks.ordered
+      ),
+      apiKeys: ApiKeySerializer.many(
+        current_workspace.api_keys.where(deleted_at: nil).ordered.includes(created_by: :user)
       )
     }
   end

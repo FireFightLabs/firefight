@@ -34,6 +34,7 @@ Rails.application.routes.draw do
   # Authenticated routes
   get "/dashboard", to: "dashboard#index", as: :dashboard
   get "/settings", to: "settings#index", as: :settings
+  resources :api_keys, only: [ :create, :update, :destroy ], path: "settings/api-keys"
   resources :incident_severities, only: [ :create, :update, :destroy ], path: "settings/severities" do
     member do
       patch :disable
