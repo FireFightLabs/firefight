@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Head, Link, useHttp, usePage } from "@inertiajs/react"
+import { Head, Link, router, useHttp, usePage } from "@inertiajs/react"
 import {
   IconArrowLeft,
   IconCheck,
@@ -10,6 +10,7 @@ import {
 } from "@tabler/icons-react"
 
 import HtmlDiff from "htmldiff-js"
+import TurndownService from "turndown"
 
 import type { Postmortem, PostmortemUpdate } from "@/types/serializers"
 import { PostmortemEditor } from "@/modules/incidents/components/postmortem-editor"
@@ -31,7 +32,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
-import { incidentPath, incidentPostmortemPath, incidentPostmortemRevisionsPath } from "@/lib/routes"
+import { incidentPath, incidentPostmortemPath, incidentPostmortemRevisionsPath, incidentPostmortemStatusPath } from "@/lib/routes"
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",
@@ -249,6 +250,19 @@ export default function PostmortemPage() {
     patch(incidentPostmortemPath(incident.id))
   }, [incident.id, setData, patch])
 
+  const handleExportMarkdown = React.useCallback(() => {
+    const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" })
+    const title = `# ${postmortem.title}\n\n> ${incident.identifier} — ${incident.name}\n\n`
+    const markdown = title + turndown.turndown(editorContentRef.current || "")
+    const blob = new Blob([markdown], { type: "text/markdown" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${incident.identifier}-postmortem.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [incident, postmortem.title])
+
   React.useEffect(() => {
     return () => clearTimeout(saveTimerRef.current)
   }, [])
@@ -257,7 +271,7 @@ export default function PostmortemPage() {
     <>
       <Head title={`Postmortem — ${incident.identifier}`} />
       <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 print:hidden">
           <div className="mx-auto flex h-12 max-w-4xl items-center gap-3 px-4 lg:px-6">
             <Link href={incidentPath(incident.id)} className="text-muted-foreground hover:text-foreground">
               <IconArrowLeft className="size-4" />
@@ -300,22 +314,34 @@ export default function PostmortemPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>Export as PDF</DropdownMenuItem>
-                  <DropdownMenuItem>Export as Markdown</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.print()}>Export as PDF</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportMarkdown}>Export as Markdown</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
                     <IconSparkles className="size-4" />
                     AI Rewrite
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>Mark as Completed</DropdownMenuItem>
+                  {postmortem.status !== "completed" ? (
+                    <DropdownMenuItem onClick={() => router.patch(incidentPostmortemStatusPath(incident.id), { status: "completed" })}>
+                      Mark as Completed
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={() => router.patch(incidentPostmortemStatusPath(incident.id), { status: "draft" })}>
+                      Reopen as Draft
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
         </header>
 
-        <main className="mx-auto max-w-3xl px-4 py-12 lg:px-6">
+        <main className="mx-auto max-w-3xl px-4 py-12 lg:px-6 print:px-0 print:py-0 print:max-w-none">
+          <div className="hidden print:block mb-8">
+            <h1 className="text-2xl font-bold">{postmortem.title}</h1>
+            <p className="text-sm text-muted-foreground mt-1">{incident.identifier} — {incident.name}</p>
+          </div>
           <PostmortemEditor
             key={editorKey}
             content={editorContentRef.current || undefined}

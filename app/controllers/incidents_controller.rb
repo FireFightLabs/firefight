@@ -49,6 +49,18 @@ class IncidentsController < InertiaController
     head :ok
   end
 
+  def update_postmortem_status
+    incident = current_workspace.incidents.find(params[:incident_id])
+    postmortem = incident.postmortem or raise ActiveRecord::RecordNotFound
+    member = current_workspace.workspace_memberships.find_by!(user: current_user)
+
+    postmortem.record_change!(IncidentEvent::POSTMORTEM_EDITED, edited_by: member) do
+      postmortem.update!(status: params.require(:status))
+    end
+
+    redirect_to incident_postmortem_path(incident)
+  end
+
   def postmortem_revisions
     incident = current_workspace.incidents.find(params[:incident_id])
     postmortem = incident.postmortem or raise ActiveRecord::RecordNotFound
