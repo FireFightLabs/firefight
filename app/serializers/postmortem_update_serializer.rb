@@ -24,4 +24,22 @@ class PostmortemUpdateSerializer < BaseSerializer
   def created_at
     update.created_at.utc.iso8601
   end
+
+  type :string, optional: true
+  def html_content
+    update.content&.dig("html") || render_sections(update.content)
+  end
+
+  private
+
+  def render_sections(content)
+    sections = content&.dig("sections")
+    return nil if sections.blank?
+
+    sections.map do |section|
+      heading = Postmortem::SECTION_HEADINGS[section["key"]] || section["key"]
+      body = ::Commonmarker.to_html(section["body"] || "", options: { parse: { smart: true }, render: { unsafe: true } })
+      "<h2>#{heading}</h2>\n#{body}"
+    end.join("\n")
+  end
 end

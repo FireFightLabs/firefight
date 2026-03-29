@@ -33,12 +33,7 @@ class IncidentsController < InertiaController
         identifier: incident.identifier,
         name: incident.name
       },
-      postmortem: postmortem ? PostmortemSerializer.one(postmortem) : nil,
-      updates: InertiaRails.defer {
-        postmortem ? PostmortemUpdateSerializer.many(
-          postmortem.postmortem_updates.ordered.includes(edited_by: :user)
-        ) : []
-      }
+      postmortem: postmortem ? PostmortemSerializer.one(postmortem) : nil
     }
   end
 
@@ -47,7 +42,7 @@ class IncidentsController < InertiaController
     postmortem = incident.postmortem or raise ActiveRecord::RecordNotFound
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
 
-    postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, edited_by: member) do
+    postmortem.record_change!(IncidentEvent::POSTMORTEM_EDITED, edited_by: member) do
       postmortem.update!(content: postmortem.content.merge("html" => params[:html_content]))
     end
 

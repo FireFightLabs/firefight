@@ -2,7 +2,8 @@ module Postmortem::Snapshots
   extend ActiveSupport::Concern
 
   UPDATE_TYPE_MAP = {
-    IncidentEvent::POSTMORTEM_GENERATED => PostmortemUpdate::GENERATED
+    IncidentEvent::POSTMORTEM_GENERATED => PostmortemUpdate::GENERATED,
+    IncidentEvent::POSTMORTEM_EDITED => PostmortemUpdate::EDITED
   }.freeze
 
   def build_snapshot_attributes
