@@ -23,7 +23,7 @@ class IncidentDetailSerializer < BaseSerializer
 
   type :IncidentLead, optional: true
   def lead
-    member = incident.incident_role_assignments.detect { |a| a.incident_role.slug == "incident_lead" }&.workspace_membership
+    member = incident.incident_role_assignments.detect { |a| a.incident_role.slug == IncidentRole::SLUG_INCIDENT_LEAD }&.workspace_membership
     return nil unless member
 
     IncidentLeadSerializer.one(member)

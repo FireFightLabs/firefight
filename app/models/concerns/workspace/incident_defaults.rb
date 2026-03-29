@@ -24,7 +24,7 @@ module Workspace::IncidentDefaults
   ].freeze
 
   DEFAULT_ROLES = [
-    { name: "Incident Lead", slug: "incident_lead", position: 1, required: false, description: "Coordinates incident response and makes decisions" }
+    { name: "Incident Lead", slug: IncidentRole::SLUG_INCIDENT_LEAD, position: 1, required: false, description: "Coordinates incident response and makes decisions" }
   ].freeze
 
   def setup_incident_configuration!

@@ -20,7 +20,7 @@ class IncidentRolesController < InertiaController
   end
 
   def disable
-    return redirect_to settings_path(tab: "roles") if @role.slug == "incident_lead"
+    return redirect_to settings_path(tab: "roles") if @role.slug == IncidentRole::SLUG_INCIDENT_LEAD
 
     @role.update!(deleted_at: Time.current)
     redirect_to settings_path(tab: "roles")
@@ -32,7 +32,7 @@ class IncidentRolesController < InertiaController
   end
 
   def destroy
-    return redirect_to settings_path(tab: "roles") if @role.slug == "incident_lead"
+    return redirect_to settings_path(tab: "roles") if @role.slug == IncidentRole::SLUG_INCIDENT_LEAD
     return redirect_to settings_path(tab: "roles") if @role.incident_role_assignments.exists?
 
     @role.destroy!

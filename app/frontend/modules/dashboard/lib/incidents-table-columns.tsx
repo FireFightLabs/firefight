@@ -6,7 +6,7 @@ import { incidentPath } from "@/lib/routes"
 import { severityVariant, statusVariant } from "@/lib/constants"
 import { formatDateTime, formatDuration } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
-import { getStatusIcon } from "./status-display"
+import { StatusIcon } from "../components/status-icon"
 
 export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
   {
@@ -48,7 +48,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
       const { name, lifecycleStage } = row.original.status
       return (
         <Badge variant={statusVariant(lifecycleStage)}>
-          {getStatusIcon(name, lifecycleStage)}
+          <StatusIcon statusName={name} lifecycleStage={lifecycleStage} />
           {name}
         </Badge>
       )

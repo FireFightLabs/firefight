@@ -1,21 +1,12 @@
 import * as React from "react"
-import { IconChevronDown, IconLayoutColumns, IconSearch } from "@tabler/icons-react"
-import { type Table } from "@tanstack/react-table"
+import { IconSearch } from "@tabler/icons-react"
 
-import type { IncidentListItem, SeverityOption } from "@/types/serializers"
+import type { SeverityOption } from "@/types/serializers"
 import { STATUS_OPTIONS, STATUS_LABELS } from "@/modules/dashboard/lib/constants"
 import { FilterDropdown } from "@/components/filter-dropdown"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 
 interface IncidentsTableToolbarProps {
-  table: Table<IncidentListItem>
   searchInput: string
   onSearchChange: (value: string) => void
   selectedSeverities: Set<string>
@@ -26,7 +17,6 @@ interface IncidentsTableToolbarProps {
 }
 
 export function IncidentsTableToolbar({
-  table,
   searchInput,
   onSearchChange,
   selectedSeverities,
@@ -69,36 +59,6 @@ export function IncidentsTableToolbar({
         selected={selectedStatuses}
         onToggle={onToggleStatus}
       />
-
-      <div className="ml-auto flex items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <IconLayoutColumns />
-              <span className="hidden lg:inline">Customize Columns</span>
-              <span className="lg:hidden">Columns</span>
-              <IconChevronDown />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            {table
-              .getAllColumns()
-              .filter(
-                (column) =>
-                  typeof column.accessorFn !== "undefined" && column.getCanHide()
-              )
-              .map((column) => (
-                <DropdownMenuCheckboxItem
-                  key={column.id}
-                  checked={column.getIsVisible()}
-                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                >
-                  {typeof column.columnDef.header === "string" ? column.columnDef.header : column.id}
-                </DropdownMenuCheckboxItem>
-              ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
     </div>
   )
 }

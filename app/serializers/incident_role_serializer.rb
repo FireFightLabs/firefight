@@ -20,11 +20,11 @@ class IncidentRoleSerializer < BaseSerializer
 
   type :boolean
   def deletable
-    role.slug != "incident_lead" && !role.incident_role_assignments.exists?
+    role.slug != IncidentRole::SLUG_INCIDENT_LEAD && !role.incident_role_assignments.exists?
   end
 
   type :boolean
   def system
-    role.slug == "incident_lead"
+    role.slug == IncidentRole::SLUG_INCIDENT_LEAD
   end
 end

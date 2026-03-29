@@ -12,7 +12,7 @@ import {
 import type { IncidentListItem } from "@/types/serializers"
 import type { Pagination } from "@/types"
 import type { DashboardFilters } from "@/modules/dashboard/types"
-import { DEFAULT_PER_PAGE } from "@/modules/dashboard/lib/constants"
+import { DEFAULT_PER_PAGE, SEARCH_DEBOUNCE_MS } from "@/modules/dashboard/lib/constants"
 import { dashboardPath } from "@/lib/routes"
 
 function navigateDashboard(filters: DashboardFilters, pagination: { page: number; perPage: number }) {
@@ -73,7 +73,7 @@ export function useIncidentsTable(
         { ...filtersRef.current, search: value },
         { ...paginationRef.current, page: 1 },
       )
-    }, 300)
+    }, SEARCH_DEBOUNCE_MS)
   }, [])
 
   const toggleSeverity = React.useCallback((slug: string) => {
@@ -117,7 +117,6 @@ export function useIncidentsTable(
     selectedStatuses,
     toggleSeverity,
     toggleStatus,
-    pagination,
     setPage,
     setPerPage,
   }

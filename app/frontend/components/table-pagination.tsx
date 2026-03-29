@@ -69,7 +69,8 @@ export function TablePagination({
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
           <Button
             variant="outline"
-            className="hidden h-8 w-8 p-0 lg:flex"
+            className="hidden size-8 lg:flex"
+            size="icon"
             onClick={() => onPageChange(1)}
             disabled={!canPreviousPage}
           >
