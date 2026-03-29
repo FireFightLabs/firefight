@@ -27,12 +27,13 @@ class PostmortemUpdateSerializer < BaseSerializer
 
   type :string, optional: true
   def html_content
-    update.content&.dig("html") || render_sections(update.content)
+    update.content&.dig("html").presence || legacy_sections_html(update.content)
   end
 
   private
 
-  def render_sections(content)
+  # Fallback for revision snapshots created before HTML storage
+  def legacy_sections_html(content)
     sections = content&.dig("sections")
     return nil if sections.blank?
 
