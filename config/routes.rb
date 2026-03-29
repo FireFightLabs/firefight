@@ -55,6 +55,7 @@ Rails.application.routes.draw do
   end
   get "/incidents/:id", to: "incidents#show", as: :incident
   get "/incidents/:incident_id/postmortem", to: "incidents#postmortem", as: :incident_postmortem
+  patch "/incidents/:incident_id/postmortem", to: "incidents#update_postmortem"
   get "/catalogue", to: "catalogue#index", as: :catalogue
   get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
 

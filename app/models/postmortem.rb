@@ -38,4 +38,20 @@ class Postmortem < ApplicationRecord
   def section(key)
     sections.find { |s| s["key"] == key.to_s }
   end
+
+  def html_content
+    content["html"] || sections_to_html
+  end
+
+  private
+
+  def sections_to_html
+    return nil if sections.blank?
+
+    sections.map do |section|
+      heading = SECTION_HEADINGS[section["key"]] || section["key"]
+      body = Commonmarker.to_html(section["body"] || "", options: { parse: { smart: true }, render: { unsafe: true } })
+      "<h2>#{heading}</h2>\n#{body}"
+    end.join("\n")
+  end
 end

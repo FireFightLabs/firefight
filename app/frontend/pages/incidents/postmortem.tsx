@@ -1,6 +1,8 @@
-import { Deferred, Head, Link, usePage } from "@inertiajs/react"
+import * as React from "react"
+import { Deferred, Head, Link, useHttp, usePage } from "@inertiajs/react"
 import {
   IconArrowLeft,
+  IconCheck,
   IconDotsVertical,
   IconFlame,
   IconSparkles,
@@ -19,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
-import { incidentPath } from "@/lib/routes"
+import { incidentPath, incidentPostmortemPath } from "@/lib/routes"
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",
@@ -76,6 +78,21 @@ export default function PostmortemPage() {
     )
   }
 
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout>>()
+  const { setData, patch, processing, recentlySuccessful } = useHttp({ html_content: "" })
+
+  const handleContentUpdate = React.useCallback((html: string) => {
+    clearTimeout(saveTimerRef.current)
+    setData("html_content", html)
+    saveTimerRef.current = setTimeout(() => {
+      patch(incidentPostmortemPath(incident.id))
+    }, 1500)
+  }, [incident.id, setData, patch])
+
+  React.useEffect(() => {
+    return () => clearTimeout(saveTimerRef.current)
+  }, [])
+
   return (
     <>
       <Head title={`Postmortem — ${incident.identifier}`} />
@@ -97,6 +114,15 @@ export default function PostmortemPage() {
               </span>
             </nav>
             <div className="ml-auto flex items-center gap-2">
+              {recentlySuccessful && (
+                <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                  <IconCheck className="size-3" />
+                  Saved
+                </span>
+              )}
+              {processing && (
+                <span className="text-xs text-muted-foreground">Saving...</span>
+              )}
               <Badge
                 variant="secondary"
                 className={`text-xs ${statusStyles[postmortem.status]}`}
@@ -129,7 +155,7 @@ export default function PostmortemPage() {
         </header>
 
         <main className="mx-auto max-w-3xl px-4 py-12 lg:px-6">
-          <PostmortemEditor content={postmortem.htmlContent ?? undefined} />
+          <PostmortemEditor content={postmortem.htmlContent ?? undefined} onUpdate={handleContentUpdate} />
 
           <Deferred data="updates" fallback={<UpdatesSkeleton />}>
             {(updates ?? []).length > 0 && (
