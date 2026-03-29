@@ -16,11 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50]
+
 interface TablePaginationProps {
   pagination: Pagination
   onPageChange: (page: number) => void
   onPerPageChange: (perPage: number) => void
   totalLabel?: string
+  pageSizeOptions?: number[]
 }
 
 export function TablePagination({
@@ -28,6 +31,7 @@ export function TablePagination({
   onPageChange,
   onPerPageChange,
   totalLabel = "row(s) total",
+  pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
 }: TablePaginationProps) {
   const { page, perPage, totalCount, totalPages } = pagination
   const canPreviousPage = page > 1
@@ -51,7 +55,7 @@ export function TablePagination({
               <SelectValue placeholder={perPage} />
             </SelectTrigger>
             <SelectContent side="top">
-              {[10, 20, 30, 40, 50].map((size) => (
+              {pageSizeOptions.map((size) => (
                 <SelectItem key={size} value={`${size}`}>
                   {size}
                 </SelectItem>

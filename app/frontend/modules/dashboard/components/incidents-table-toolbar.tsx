@@ -1,3 +1,4 @@
+import * as React from "react"
 import { IconChevronDown, IconLayoutColumns, IconSearch } from "@tabler/icons-react"
 import { type Table } from "@tanstack/react-table"
 
@@ -34,8 +35,14 @@ export function IncidentsTableToolbar({
   onToggleStatus,
   severityOptions,
 }: IncidentsTableToolbarProps) {
-  const severityFilterOptions = severityOptions.map((s) => ({ value: s.slug, label: s.name }))
-  const statusFilterOptions = STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_LABELS[s] }))
+  const severityFilterOptions = React.useMemo(
+    () => severityOptions.map((s) => ({ value: s.slug, label: s.name })),
+    [severityOptions],
+  )
+  const statusFilterOptions = React.useMemo(
+    () => STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
+    [],
+  )
 
   return (
     <div className="flex flex-wrap items-center gap-2 px-4 lg:px-6">
@@ -83,11 +90,10 @@ export function IncidentsTableToolbar({
               .map((column) => (
                 <DropdownMenuCheckboxItem
                   key={column.id}
-                  className="capitalize"
                   checked={column.getIsVisible()}
                   onCheckedChange={(value) => column.toggleVisibility(!!value)}
                 >
-                  {column.id}
+                  {typeof column.columnDef.header === "string" ? column.columnDef.header : column.id}
                 </DropdownMenuCheckboxItem>
               ))}
           </DropdownMenuContent>

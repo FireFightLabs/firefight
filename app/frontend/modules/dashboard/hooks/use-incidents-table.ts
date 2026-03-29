@@ -12,6 +12,7 @@ import {
 import type { IncidentListItem } from "@/types/serializers"
 import type { Pagination } from "@/types"
 import type { DashboardFilters } from "@/modules/dashboard/types"
+import { DEFAULT_PER_PAGE } from "@/modules/dashboard/lib/constants"
 import { dashboardPath } from "@/lib/routes"
 
 function navigateDashboard(filters: DashboardFilters, pagination: { page: number; perPage: number }) {
@@ -20,7 +21,7 @@ function navigateDashboard(filters: DashboardFilters, pagination: { page: number
   if (filters.severities.length > 0) params.severities = filters.severities
   if (filters.statuses.length > 0) params.statuses = filters.statuses
   if (pagination.page > 1) params.page = pagination.page
-  if (pagination.perPage !== 20) params.per_page = pagination.perPage
+  if (pagination.perPage !== DEFAULT_PER_PAGE) params.per_page = pagination.perPage
 
   router.get(dashboardPath(), params, {
     preserveState: true,
