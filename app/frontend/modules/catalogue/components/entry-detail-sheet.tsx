@@ -12,6 +12,7 @@ import {
 import type { CatalogEntry, CatalogType, AttributeDefinition } from "@/modules/catalogue/types"
 import { getTypeById, resolveReference } from "@/modules/catalogue/lib/mock-data"
 import { CatalogIcon } from "@/modules/catalogue/lib/icon-map"
+import { formatDate } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,14 +28,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
-}
 
 function AttributeValue({
   attr,

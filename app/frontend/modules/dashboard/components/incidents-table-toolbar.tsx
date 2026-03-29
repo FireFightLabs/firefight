@@ -3,7 +3,7 @@ import { type Table } from "@tanstack/react-table"
 
 import type { IncidentListItem, SeverityOption } from "@/types/serializers"
 import { STATUS_OPTIONS, STATUS_LABELS } from "@/modules/dashboard/lib/constants"
-import { Badge } from "@/components/ui/badge"
+import { FilterDropdown } from "@/components/filter-dropdown"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -34,6 +34,9 @@ export function IncidentsTableToolbar({
   onToggleStatus,
   severityOptions,
 }: IncidentsTableToolbarProps) {
+  const severityFilterOptions = severityOptions.map((s) => ({ value: s.slug, label: s.name }))
+  const statusFilterOptions = STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_LABELS[s] }))
+
   return (
     <div className="flex flex-wrap items-center gap-2 px-4 lg:px-6">
       <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -46,57 +49,19 @@ export function IncidentsTableToolbar({
         />
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9">
-            Severity
-            {selectedSeverities.size > 0 && (
-              <Badge variant="secondary" className="ml-1 rounded-sm px-1">
-                {selectedSeverities.size}
-              </Badge>
-            )}
-            <IconChevronDown />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-40">
-          {severityOptions.map((severity) => (
-            <DropdownMenuCheckboxItem
-              key={severity.slug}
-              checked={selectedSeverities.has(severity.slug)}
-              onCheckedChange={() => onToggleSeverity(severity.slug)}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {severity.name}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <FilterDropdown
+        label="Severity"
+        options={severityFilterOptions}
+        selected={selectedSeverities}
+        onToggle={onToggleSeverity}
+      />
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9">
-            Status
-            {selectedStatuses.size > 0 && (
-              <Badge variant="secondary" className="ml-1 rounded-sm px-1">
-                {selectedStatuses.size}
-              </Badge>
-            )}
-            <IconChevronDown />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-40">
-          {STATUS_OPTIONS.map((status) => (
-            <DropdownMenuCheckboxItem
-              key={status}
-              checked={selectedStatuses.has(status)}
-              onCheckedChange={() => onToggleStatus(status)}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {STATUS_LABELS[status]}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <FilterDropdown
+        label="Status"
+        options={statusFilterOptions}
+        selected={selectedStatuses}
+        onToggle={onToggleStatus}
+      />
 
       <div className="ml-auto flex items-center gap-2">
         <DropdownMenu>

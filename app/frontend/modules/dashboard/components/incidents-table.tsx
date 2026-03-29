@@ -1,19 +1,11 @@
-import { flexRender } from "@tanstack/react-table"
-
 import type { IncidentListItem, SeverityOption } from "@/types/serializers"
-import type { DashboardFilters, Pagination } from "@/modules/dashboard/types"
+import type { Pagination } from "@/types"
+import type { DashboardFilters } from "@/modules/dashboard/types"
 import { useIncidentsTable } from "@/modules/dashboard/hooks/use-incidents-table"
 import { incidentsTableColumns } from "@/modules/dashboard/lib/incidents-table-columns"
+import { DataTable } from "@/components/data-table"
+import { TablePagination } from "@/components/table-pagination"
 import { IncidentsTableToolbar } from "./incidents-table-toolbar"
-import { IncidentsTablePagination } from "./incidents-table-pagination"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 
 interface IncidentsTableProps {
   incidents: IncidentListItem[]
@@ -52,50 +44,15 @@ export function IncidentsTable({ incidents, pagination, filters, severityOptions
         severityOptions={severityOptions}
       />
 
-      <div className="overflow-hidden rounded-lg border mx-4 lg:mx-6">
-        <Table>
-          <TableHeader className="sticky top-0 z-10 bg-muted">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} colSpan={header.colSpan}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={incidentsTableColumns.length}
-                  className="h-24 text-center"
-                >
-                  No incidents found.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+      <div className="mx-4 lg:mx-6">
+        <DataTable table={table} emptyMessage="No incidents found." />
       </div>
 
-      <IncidentsTablePagination
+      <TablePagination
         pagination={pagination}
         onPageChange={setPage}
         onPerPageChange={setPerPage}
+        totalLabel="incident(s) total"
       />
     </div>
   )

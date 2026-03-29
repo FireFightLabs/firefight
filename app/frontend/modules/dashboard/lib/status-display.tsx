@@ -5,8 +5,10 @@ import {
   IconUrgent,
 } from "@tabler/icons-react"
 
+import { LIFECYCLE_STAGES } from "@/lib/constants"
+
 export function getStatusIcon(statusName: string, lifecycleStage: string) {
-  if (lifecycleStage === "closed") {
+  if (lifecycleStage === LIFECYCLE_STAGES.CLOSED) {
     return <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
   }
 

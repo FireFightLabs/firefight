@@ -10,6 +10,7 @@ import { router, useForm, usePage } from "@inertiajs/react"
 
 import type { ApiKey as ApiKeyType } from "@/types/serializers"
 import { apiKeysPath, apiKeyPath } from "@/lib/routes"
+import { formatDate } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -305,9 +306,6 @@ function ApiKeyEditSheet({
   )
 }
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-}
 
 function formatRelative(d: string | null | undefined, now: number) {
   if (!d) return "Never"

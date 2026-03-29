@@ -7,13 +7,6 @@ export interface DashboardStat {
   detail: string
 }
 
-export interface Pagination {
-  page: number
-  perPage: number
-  totalCount: number
-  totalPages: number
-}
-
 export interface DashboardFilters {
   search: string
   severities: string[]

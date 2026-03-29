@@ -3,9 +3,9 @@ import { type ColumnDef } from "@tanstack/react-table"
 
 import type { IncidentListItem } from "@/types/serializers"
 import { incidentPath } from "@/lib/routes"
+import { severityVariant, statusVariant } from "@/lib/constants"
+import { formatDateTime, formatDuration } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
-import { severityVariant, statusVariant } from "./constants"
-import { formatDate, formatDuration } from "./formatters"
 import { getStatusIcon } from "./status-display"
 
 export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
@@ -68,7 +68,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     header: "Declared",
     cell: ({ row }) => (
       <span className="text-muted-foreground">
-        {formatDate(row.original.declaredAt)}
+        {formatDateTime(row.original.declaredAt)}
       </span>
     ),
   },

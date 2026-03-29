@@ -10,7 +10,8 @@ import {
 } from "@tanstack/react-table"
 
 import type { IncidentListItem } from "@/types/serializers"
-import type { DashboardFilters, Pagination } from "@/modules/dashboard/types"
+import type { Pagination } from "@/types"
+import type { DashboardFilters } from "@/modules/dashboard/types"
 import { dashboardPath } from "@/lib/routes"
 
 function navigateDashboard(filters: DashboardFilters, pagination: { page: number; perPage: number }) {
@@ -104,12 +105,15 @@ export function useIncidentsTable(
     navigateDashboard(filtersRef.current, { page: 1, perPage })
   }, [])
 
+  const selectedSeverities = React.useMemo(() => new Set(filters.severities), [filters.severities])
+  const selectedStatuses = React.useMemo(() => new Set(filters.statuses), [filters.statuses])
+
   return {
     table,
     searchInput,
     handleSearchChange,
-    selectedSeverities: new Set(filters.severities),
-    selectedStatuses: new Set(filters.statuses),
+    selectedSeverities,
+    selectedStatuses,
     toggleSeverity,
     toggleStatus,
     pagination,

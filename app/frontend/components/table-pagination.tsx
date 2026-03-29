@@ -5,7 +5,7 @@ import {
   IconChevronsRight,
 } from "@tabler/icons-react"
 
-import type { Pagination } from "@/modules/dashboard/types"
+import type { Pagination } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
@@ -16,17 +16,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-interface IncidentsTablePaginationProps {
+interface TablePaginationProps {
   pagination: Pagination
   onPageChange: (page: number) => void
   onPerPageChange: (perPage: number) => void
+  totalLabel?: string
 }
 
-export function IncidentsTablePagination({
+export function TablePagination({
   pagination,
   onPageChange,
   onPerPageChange,
-}: IncidentsTablePaginationProps) {
+  totalLabel = "row(s) total",
+}: TablePaginationProps) {
   const { page, perPage, totalCount, totalPages } = pagination
   const canPreviousPage = page > 1
   const canNextPage = page < totalPages
@@ -34,7 +36,7 @@ export function IncidentsTablePagination({
   return (
     <div className="flex items-center justify-between px-4 lg:px-6">
       <div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
-        {totalCount} incident(s) total
+        {totalCount} {totalLabel}
       </div>
       <div className="flex w-full items-center gap-8 lg:w-fit">
         <div className="hidden items-center gap-2 lg:flex">
