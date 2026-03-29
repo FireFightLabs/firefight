@@ -48,4 +48,12 @@ class IncidentsController < InertiaController
 
     head :ok
   end
+
+  def postmortem_revisions
+    incident = current_workspace.incidents.find(params[:incident_id])
+    postmortem = incident.postmortem or raise ActiveRecord::RecordNotFound
+
+    revisions = postmortem.postmortem_updates.order(created_at: :desc).includes(edited_by: :user)
+    render json: PostmortemUpdateSerializer.many(revisions)
+  end
 end

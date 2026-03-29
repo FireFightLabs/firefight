@@ -40,7 +40,7 @@ class Postmortem < ApplicationRecord
   end
 
   def html_content
-    content["html"] || sections_to_html
+    content["html"].presence || sections_to_html
   end
 
   private
