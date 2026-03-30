@@ -21,7 +21,7 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     ApplicationController.any_instance.unstub(:current_user)
     ApplicationController.any_instance.unstub(:current_workspace)
     ApplicationController.any_instance.unstub(:user_signed_in?)
-    get webhooks_url
+    post webhooks_url, params: { webhook: { name: "Test", url: "https://example.com" } }
     assert_response :redirect
     assert_redirected_to login_path
   end

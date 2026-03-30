@@ -6,7 +6,11 @@ import {
   IconPlus,
 } from "@tabler/icons-react"
 import * as React from "react"
+import { router, useForm, usePage } from "@inertiajs/react"
 
+import type { ApiKey as ApiKeyType } from "@/types/serializers"
+import { apiKeysPath, apiKeyPath } from "@/lib/routes"
+import { formatDate } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -45,8 +49,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
-import type { ApiKey } from "@/modules/settings/types"
 import { RowActions } from "./shared"
 
 const apiResources = [
@@ -57,54 +59,6 @@ const apiResources = [
 ] as const
 
 const apiActions = ["read", "create", "update", "delete"] as const
-
-const mockApiKeys: ApiKey[] = [
-  {
-    id: "1",
-    name: "Production Integration",
-    tokenPrefix: "ff_3KHy8mQ7pX",
-    active: true,
-    permissions: {
-      incidents: ["read", "create", "update"],
-      severities: ["read"],
-      statuses: ["read"],
-      incident_types: ["read"],
-    },
-    createdBy: "Uros Nikolic",
-    createdAt: "2026-02-10T09:00:00Z",
-    lastUsedAt: "2026-03-25T08:15:00Z",
-    expiresAt: null,
-  },
-  {
-    id: "2",
-    name: "Monitoring Read-Only",
-    tokenPrefix: "ff_9xMkPqB7vT",
-    active: true,
-    permissions: {
-      incidents: ["read"],
-      severities: ["read"],
-      statuses: ["read"],
-      incident_types: ["read"],
-    },
-    createdBy: "Sarah Chen",
-    createdAt: "2026-03-05T14:30:00Z",
-    lastUsedAt: "2026-03-24T22:00:00Z",
-    expiresAt: "2026-06-05T14:30:00Z",
-  },
-  {
-    id: "3",
-    name: "Deprecated CI Token",
-    tokenPrefix: "ff_Lm3nKp8vQw",
-    active: false,
-    permissions: {
-      incidents: ["read", "create"],
-    },
-    createdBy: "James Wilson",
-    createdAt: "2026-01-15T10:00:00Z",
-    lastUsedAt: "2026-02-20T16:45:00Z",
-    expiresAt: null,
-  },
-]
 
 function PermissionsMatrix({
   perms,
@@ -146,26 +100,132 @@ function PermissionsMatrix({
   )
 }
 
+function permsToHash(perms: Record<string, Set<string>>): Record<string, string[]> {
+  const result: Record<string, string[]> = {}
+  for (const [resource, actions] of Object.entries(perms)) {
+    if (actions.size > 0) result[resource] = [...actions]
+  }
+  return result
+}
+
+function CreateKeyDialog() {
+  const [open, setOpen] = React.useState(false)
+  const [perms, setPerms] = React.useState<Record<string, Set<string>>>({})
+  const form = useForm({ name: "", expires_at: "", permissions: {} as Record<string, string[]> })
+
+  const togglePerm = (resource: string, action: string) => {
+    setPerms((prev) => {
+      const next = { ...prev }
+      const current = new Set(prev[resource] || [])
+      if (current.has(action)) current.delete(action)
+      else current.add(action)
+      next[resource] = current
+      return next
+    })
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    form.transform(() => ({
+      name: form.data.name,
+      expires_at: form.data.expires_at || undefined,
+      permissions: permsToHash(perms),
+    }))
+    form.post(apiKeysPath(), {
+      onSuccess: () => {
+        setOpen(false)
+        form.reset()
+        setPerms({})
+      },
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <IconPlus className="size-4" />
+          Create Key
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Create API Key</DialogTitle>
+            <DialogDescription>
+              Generate a new API key with specific permissions.
+              The token will only be shown once after creation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="key-name">Name</Label>
+              <Input
+                id="key-name"
+                placeholder="e.g. Production Integration"
+                value={form.data.name}
+                onChange={(e) => form.setData("name", e.target.value)}
+              />
+              {form.errors.name && (
+                <p className="text-xs text-destructive">{form.errors.name}</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="key-expires">Expiration (optional)</Label>
+              <Input
+                id="key-expires"
+                type="date"
+                value={form.data.expires_at}
+                onChange={(e) => form.setData("expires_at", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave empty for a non-expiring key.
+              </p>
+            </div>
+            <Separator />
+            <div className="flex flex-col gap-3">
+              <Label className="text-sm font-medium">Permissions</Label>
+              <PermissionsMatrix perms={perms} onToggle={togglePerm} />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" type="button">Cancel</Button>
+            </DialogClose>
+            <Button type="submit" disabled={form.processing}>
+              Create Key
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function ApiKeyEditSheet({
   apiKey,
   open,
   onOpenChange,
 }: {
-  apiKey: ApiKey | null
+  apiKey: ApiKeyType | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const [editPerms, setEditPerms] = React.useState<Record<string, Set<string>>>({})
+  const [name, setName] = React.useState("")
+  const [active, setActive] = React.useState(true)
 
   React.useEffect(() => {
-    if (apiKey) {
+    if (apiKey && open) {
+      setName(apiKey.name)
+      setActive(apiKey.active)
       const perms: Record<string, Set<string>> = {}
       for (const [resource, actions] of Object.entries(apiKey.permissions)) {
         perms[resource] = new Set(actions)
       }
       setEditPerms(perms)
     }
-  }, [apiKey])
+  }, [apiKey, open])
 
   if (!apiKey) return null
 
@@ -177,6 +237,16 @@ function ApiKeyEditSheet({
       else current.add(action)
       next[resource] = current
       return next
+    })
+  }
+
+  function handleSave() {
+    router.patch(apiKeyPath(apiKey.id), {
+      name,
+      active,
+      permissions: permsToHash(editPerms),
+    }, {
+      onSuccess: () => onOpenChange(false),
     })
   }
 
@@ -192,7 +262,7 @@ function ApiKeyEditSheet({
         <div className="flex flex-col gap-6 px-6 pb-6">
           <div className="flex flex-col gap-2">
             <Label htmlFor="edit-key-name">Name</Label>
-            <Input id="edit-key-name" defaultValue={apiKey.name} />
+            <Input id="edit-key-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
 
           <div className="flex flex-col gap-2">
@@ -205,15 +275,6 @@ function ApiKeyEditSheet({
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="edit-key-expires">Expiration</Label>
-            <Input
-              id="edit-key-expires"
-              type="date"
-              defaultValue={apiKey.expiresAt ? new Date(apiKey.expiresAt).toISOString().split("T")[0] : ""}
-            />
-          </div>
-
           <div className="flex items-center justify-between rounded-lg border p-3">
             <div>
               <Label htmlFor="edit-key-active" className="text-sm font-medium">Active</Label>
@@ -221,7 +282,7 @@ function ApiKeyEditSheet({
                 Inactive keys cannot authenticate API requests
               </p>
             </div>
-            <Switch id="edit-key-active" defaultChecked={apiKey.active} />
+            <Switch id="edit-key-active" checked={active} onCheckedChange={setActive} />
           </div>
 
           <Separator />
@@ -235,7 +296,7 @@ function ApiKeyEditSheet({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={() => onOpenChange(false)}>
+            <Button onClick={handleSave}>
               Save Changes
             </Button>
           </div>
@@ -245,11 +306,8 @@ function ApiKeyEditSheet({
   )
 }
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-}
 
-function formatRelative(d: string | null, now: number) {
+function formatRelative(d: string | null | undefined, now: number) {
   if (!d) return "Never"
   const diff = now - new Date(d).getTime()
   const mins = Math.floor(diff / 60000)
@@ -260,26 +318,16 @@ function formatRelative(d: string | null, now: number) {
   return `${days}d ago`
 }
 
-export function ApiKeysTab() {
-  const [createdToken, setCreatedToken] = React.useState<string | null>(null)
+interface ApiKeysTabProps {
+  apiKeys: ApiKeyType[]
+}
+
+export function ApiKeysTab({ apiKeys }: ApiKeysTabProps) {
+  const { flash } = usePage<{ flash: { api_key_token?: string } }>().props
   const [copied, setCopied] = React.useState(false)
-  const [newKeyPerms, setNewKeyPerms] = React.useState<Record<string, Set<string>>>({})
-  const [editingKey, setEditingKey] = React.useState<ApiKey | null>(null)
+  const [editingKey, setEditingKey] = React.useState<ApiKeyType | null>(null)
 
-  const togglePerm = (resource: string, action: string) => {
-    setNewKeyPerms((prev) => {
-      const next = { ...prev }
-      const current = new Set(prev[resource] || [])
-      if (current.has(action)) current.delete(action)
-      else current.add(action)
-      next[resource] = current
-      return next
-    })
-  }
-
-  const handleCreate = () => {
-    setCreatedToken("ff_3KHy8mQ7pXvN2JqWz9L4R5sT8uV1bZ6cD")
-  }
+  const createdToken = flash.api_key_token ?? null
 
   const handleCopy = () => {
     if (createdToken) {
@@ -287,6 +335,10 @@ export function ApiKeysTab() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
+  }
+
+  function handleDelete(apiKey: ApiKeyType) {
+    router.delete(apiKeyPath(apiKey.id))
   }
 
   // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally captured once at mount
@@ -327,66 +379,24 @@ export function ApiKeysTab() {
                 Manage API keys for programmatic access. Keys use Bearer token authentication.
               </CardDescription>
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <IconPlus className="size-4" />
-                  Create Key
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Create API Key</DialogTitle>
-                  <DialogDescription>
-                    Generate a new API key with specific permissions.
-                    The token will only be shown once after creation.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col gap-4 py-2">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="key-name">Name</Label>
-                    <Input id="key-name" placeholder="e.g. Production Integration" />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="key-expires">Expiration (optional)</Label>
-                    <Input id="key-expires" type="date" />
-                    <p className="text-xs text-muted-foreground">
-                      Leave empty for a non-expiring key.
-                    </p>
-                  </div>
-                  <Separator />
-                  <div className="flex flex-col gap-3">
-                    <Label className="text-sm font-medium">Permissions</Label>
-                    <PermissionsMatrix perms={newKeyPerms} onToggle={togglePerm} />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                  </DialogClose>
-                  <DialogClose asChild>
-                    <Button onClick={handleCreate}>Create Key</Button>
-                  </DialogClose>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <CreateKeyDialog />
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Name</TableHead>
-                <TableHead>Token</TableHead>
-                <TableHead className="hidden md:table-cell">Permissions</TableHead>
-                <TableHead className="hidden lg:table-cell">Last Used</TableHead>
-                <TableHead className="w-24 text-center">Status</TableHead>
-                <TableHead className="w-12" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockApiKeys.map((apiKey) => {
-                return (
+        {apiKeys.length > 0 ? (
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Name</TableHead>
+                  <TableHead>Token</TableHead>
+                  <TableHead className="hidden md:table-cell">Permissions</TableHead>
+                  <TableHead className="hidden lg:table-cell">Last Used</TableHead>
+                  <TableHead className="w-24 text-center">Status</TableHead>
+                  <TableHead className="w-12" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {apiKeys.map((apiKey) => (
                   <TableRow key={apiKey.id}>
                     <TableCell>
                       <div className="flex flex-col gap-0.5">
@@ -433,14 +443,20 @@ export function ApiKeysTab() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <RowActions onEdit={() => setEditingKey(apiKey)} onDelete={() => {}} />
+                      <RowActions onEdit={() => setEditingKey(apiKey)} onDelete={() => handleDelete(apiKey)} />
                     </TableCell>
                   </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        ) : (
+          <CardContent>
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No API keys created yet.
+            </p>
+          </CardContent>
+        )}
       </Card>
       <ApiKeyEditSheet
         apiKey={editingKey}

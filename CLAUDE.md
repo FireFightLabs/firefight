@@ -94,6 +94,54 @@ Api::V1::InteractionsController → Slack::InteractionNormalizer.call → Intera
 
 Controllers are the platform-specific boundary — they normalize payloads into platform-agnostic objects before passing to dispatchers.
 
+**Inertia controllers** follow the same thin pattern. Query filtering belongs in model scopes (chainable, independently testable). Serialization belongs in serializer classes (`app/serializers/`). Aggregations and computed metrics belong in POROs (e.g., `DashboardStats`). The controller parses params, chains scopes, paginates, and renders — no inline SQL, no serialization loops, no metric calculations.
+
+### Dashboard
+
+The incidents dashboard demonstrates the full Inertia data flow pattern. Use it as a reference when building new dashboard-style pages.
+
+**Data flow:**
+```
+Controller → Incident.filtered_list(filters:, page:, per_page:) → IncidentListItemSerializer.many(...)
+           → DashboardStats.new(workspace).to_a (deferred)
+           → SeverityOptionSerializer.many(...)
+           ↓
+Inertia props → usePage<DashboardPageProps>()
+           ↓
+Frontend    → useIncidentsTable(data, columns, filters, pagination) → router.get() on filter change
+```
+
+**Server-side filtering + pagination** (`Incident.filtered_list`):
+- Accepts `filters: { search:, severities:, lifecycle_stages: }` hash (extensible) + `page:` + `per_page:`
+- Chains model scopes: `search`, `by_severity_slugs`, `by_lifecycle_stage_keys`
+- Returns `{ incidents:, pagination: { page, perPage, totalCount, totalPages } }`
+- Eager-loads associations via `with_list_associations` scope to prevent N+1
+
+**Deferred stats** (`DashboardStats` PORO):
+- Wrapped in `InertiaRails.defer { ... }` — loads after initial page render so the table appears instantly
+- Frontend uses `<Deferred data="stats" fallback={<StatCardsSkeleton />}>` for loading state
+- Filter navigations use `only: ["incidents", "pagination", "filters"]` to skip re-fetching stats
+- MTTR cached per workspace for 24h via `Rails.cache` (key: `dashboard_stats/{workspace_id}/mttr`)
+
+**Frontend filter navigation** (`useIncidentsTable` hook):
+- Filter/pagination changes call `router.get(dashboardPath(), params, { preserveState: true, preserveScroll: true, only: [...] })`
+- Search input debounced 300ms before triggering navigation
+- Severity/status toggles and page changes navigate immediately
+- Column visibility and sorting remain client-side (within the current page)
+
+**Key files:**
+```
+app/controllers/dashboard_controller.rb           # Thin — parses params, calls filtered_list, renders
+app/models/incident.rb                            # filtered_list class method + filter scopes
+app/models/dashboard_stats.rb                     # PORO for stat card metrics
+app/serializers/incident_list_item_serializer.rb  # Serializes incidents → auto-generates TS type
+app/serializers/severity_option_serializer.rb     # Serializes severity options → auto-generates TS type
+app/frontend/modules/dashboard/hooks/             # useIncidentsTable — server-side filter navigation
+app/frontend/modules/dashboard/components/        # Table, toolbar, pagination, stat cards + skeleton
+app/frontend/types/serializers/                   # Auto-generated TS types (never edit manually)
+app/frontend/modules/dashboard/types.ts           # Manual TS types (Pagination, DashboardFilters, DashboardStat)
+```
+
 ### Dispatchers
 
 Route to handlers using lookup tables. Fall back to `UnknownHandler`.
@@ -136,6 +184,47 @@ Pattern:
 adapter = WorkspaceAdapter.for(workspace)
 adapter.create_channel(name: ..., is_private: ...)
 ```
+
+**Why services exist here — platform-agnostic coordination:**
+Services are not a generic "service layer." They exist because Firefight bridges to external platforms (Slack now, Teams later). The business logic (record event, start workflow, set metadata) is identical regardless of platform, but the operations (create channel, post announcement) are platform-specific. Services own the shared "what happens," adapters own the platform-specific "how." Without multi-platform coordination, most services could live on models.
+
+**When to use a service vs. model methods:**
+- **Service** — orchestrates across platform boundaries or multiple systems: model writes + workflow starts, cache expiry, channel archival, job scheduling (e.g., `IncidentLifecycleService#close` updates the incident, expires transcript cache, starts a workflow, and schedules channel archival)
+- **Model** — manages its own state and records its own events. If the logic is just "update my fields and record the change," it belongs on the model or a concern (e.g., `Postmortem#update_content!` wraps `record_change!` + `update!` — no service needed)
+
+Don't create a service class that wraps a single model call. That's unnecessary indirection, not architecture.
+
+### Serializers
+
+`oj_serializers` serialize data for Inertia props (and eventually API responses). `types_from_serializers` auto-generates TypeScript interfaces from serializer definitions — no manual type maintenance.
+
+```
+app/serializers/
+  base_serializer.rb              # Oj::Serializer + TypesFromSerializers::DSL, transform_keys :camelize
+  incident_list_item_serializer.rb  # Incident → dashboard list view
+  severity_compact_serializer.rb    # IncidentSeverity → {name, rank}
+  status_compact_serializer.rb      # IncidentStatus → {name, lifecycleStage}
+  severity_option_serializer.rb     # IncidentSeverity → {name, slug}
+```
+
+**Generated TypeScript** lives in `app/frontend/types/serializers/` — auto-generated, never edit manually. Regenerate with `bundle exec rake types_from_serializers:generate`. In development, types regenerate automatically on serializer file changes.
+
+**Usage in controllers:**
+```ruby
+IncidentListItemSerializer.many(incidents)   # Array of hashes
+SeverityOptionSerializer.many(severities)    # Array of hashes
+```
+
+**Adding a new serializer:**
+1. Create `app/serializers/foo_serializer.rb` extending `BaseSerializer`
+2. Use `attributes(name: {type: :string})` for pass-through fields with explicit types, or `type :string` + method definition for computed fields
+3. Use `has_one`/`has_many` with `serializer:` for nested objects
+4. Run `bundle exec rake types_from_serializers:generate` (or let dev mode auto-regenerate)
+5. Import the generated type from `@/types/serializers` in frontend code
+
+**When to use serializers vs raw hashes:**
+- Model-backed data flowing to the frontend → serializer (auto-generates TS types)
+- Simple computed value objects (pagination metadata, filter echo) → raw hash + manual TS types in module `types.ts`
 
 ### Adapters
 
@@ -290,6 +379,13 @@ app/models/
   interaction.rb                      # Platform-agnostic interaction (PORO, has platform attr)
   identifiers.rb                      # Platform-agnostic callback_ids/action_ids
   incident.rb                         # AR model with concerns (Sequencing, ChannelNaming, etc.)
+
+app/serializers/
+  base_serializer.rb                  # Oj::Serializer base with camelCase keys + TS generation
+  incident_list_item_serializer.rb    # Incident → dashboard list props (auto-generates TS)
+  severity_compact_serializer.rb      # IncidentSeverity → {name, rank}
+  status_compact_serializer.rb        # IncidentStatus → {name, lifecycleStage}
+  severity_option_serializer.rb       # IncidentSeverity → {name, slug}
 
 app/services/
   incident_lifecycle_service.rb       # Shared write operations (create, update, close, reopen, lead)

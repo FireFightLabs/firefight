@@ -1,5 +1,16 @@
+import * as React from "react"
+import { router, useForm } from "@inertiajs/react"
 import { IconGripVertical, IconPlus, IconShieldCheck } from "@tabler/icons-react"
 
+import { toast } from "sonner"
+
+import type { IncidentRole } from "@/types/serializers"
+import {
+  incidentRolesPath,
+  incidentRolePath,
+  disableIncidentRolePath,
+  enableIncidentRolePath,
+} from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,46 +42,38 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-
-import type { Role } from "@/modules/settings/types"
 import { RowActions } from "./shared"
 
-const mockRoles: Role[] = [
-  {
-    id: "1",
-    name: "Incident Lead",
-    slug: "incident_lead",
-    description: "Primary person responsible for driving the incident to resolution",
-    position: 1,
-    required: true,
-  },
-  {
-    id: "2",
-    name: "Communications Lead",
-    slug: "communications_lead",
-    description: "Responsible for internal and external communications during the incident",
-    position: 2,
-    required: false,
-  },
-  {
-    id: "3",
-    name: "Scribe",
-    slug: "scribe",
-    description: "Documents the timeline, decisions, and actions taken during the incident",
-    position: 3,
-    required: false,
-  },
-  {
-    id: "4",
-    name: "Subject Matter Expert",
-    slug: "subject_matter_expert",
-    description: "Technical expert brought in for domain-specific knowledge",
-    position: 4,
-    required: false,
-  },
-]
+interface RolesTabProps {
+  roles: IncidentRole[]
+}
 
-export function RolesTab() {
+export function RolesTab({ roles }: RolesTabProps) {
+  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const form = useForm({ name: "", description: "" })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    form.post(incidentRolesPath(), {
+      onSuccess: () => {
+        setDialogOpen(false)
+        form.reset()
+      },
+    })
+  }
+
+  function handleToggleEnabled(role: IncidentRole) {
+    router.patch(role.enabled ? disableIncidentRolePath(role.id) : enableIncidentRolePath(role.id))
+  }
+
+  function handleDelete(role: IncidentRole) {
+    if (!role.deletable) {
+      toast.error("This role is used by incidents and cannot be deleted. You can disable it instead.")
+      return
+    }
+    router.delete(incidentRolePath(role.id))
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -81,7 +84,7 @@ export function RolesTab() {
               Define the roles that can be assigned to team members during an incident.
             </CardDescription>
           </div>
-          <Dialog>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm">
                 <IconPlus className="size-4" />
@@ -89,41 +92,46 @@ export function RolesTab() {
               </Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Role</DialogTitle>
-                <DialogDescription>
-                  Create a new incident role for your workspace.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex flex-col gap-4 py-2">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="role-name">Name</Label>
-                  <Input id="role-name" placeholder="e.g. Operations Lead" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="role-desc">Description</Label>
-                  <Textarea
-                    id="role-desc"
-                    placeholder="What is this role responsible for?"
-                    rows={3}
-                  />
-                </div>
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <Label htmlFor="role-required" className="text-sm font-medium">Required</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Must be assigned before an incident can be closed
-                    </p>
+              <form onSubmit={handleSubmit}>
+                <DialogHeader>
+                  <DialogTitle>Add Role</DialogTitle>
+                  <DialogDescription>
+                    Create a new incident role for your workspace.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col gap-4 py-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="role-name">Name</Label>
+                    <Input
+                      id="role-name"
+                      placeholder="e.g. Operations Lead"
+                      value={form.data.name}
+                      onChange={(e) => form.setData("name", e.target.value)}
+                    />
+                    {form.errors.name && (
+                      <p className="text-xs text-destructive">{form.errors.name}</p>
+                    )}
                   </div>
-                  <Switch id="role-required" />
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="role-desc">Description</Label>
+                    <Textarea
+                      id="role-desc"
+                      placeholder="What is this role responsible for?"
+                      rows={3}
+                      value={form.data.description}
+                      onChange={(e) => form.setData("description", e.target.value)}
+                    />
+                  </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button>Create Role</Button>
-              </DialogFooter>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline" type="button">Cancel</Button>
+                  </DialogClose>
+                  <Button type="submit" disabled={form.processing}>
+                    Create Role
+                  </Button>
+                </DialogFooter>
+              </form>
             </DialogContent>
           </Dialog>
         </div>
@@ -135,20 +143,22 @@ export function RolesTab() {
               <TableHead className="w-8" />
               <TableHead>Name</TableHead>
               <TableHead className="hidden md:table-cell">Description</TableHead>
-              <TableHead className="w-24 text-center">Required</TableHead>
+              <TableHead className="w-24 text-center">Enabled</TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockRoles.map((role) => (
-              <TableRow key={role.id}>
+            {roles.map((role) => (
+              <TableRow key={role.id} className={!role.enabled ? "opacity-50" : undefined}>
                 <TableCell>
-                  <IconGripVertical className="size-4 text-muted-foreground/50 cursor-grab" />
+                  {!role.system && role.enabled && (
+                    <IconGripVertical className="size-4 text-muted-foreground/50 cursor-grab" />
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{role.name}</span>
-                    {role.slug === "incident_lead" && (
+                    {role.system && (
                       <Badge variant="outline" className="text-xs gap-1">
                         <IconShieldCheck className="size-3" />
                         System
@@ -160,10 +170,16 @@ export function RolesTab() {
                   {role.description}
                 </TableCell>
                 <TableCell className="text-center">
-                  <Switch checked={role.required} />
+                  <Switch
+                    checked={role.enabled}
+                    disabled={role.system}
+                    onCheckedChange={() => handleToggleEnabled(role)}
+                  />
                 </TableCell>
                 <TableCell>
-                  <RowActions onEdit={() => {}} onDelete={() => {}} />
+                  {!role.system && (
+                    <RowActions onEdit={() => {}} onDelete={() => handleDelete(role)} />
+                  )}
                 </TableCell>
               </TableRow>
             ))}

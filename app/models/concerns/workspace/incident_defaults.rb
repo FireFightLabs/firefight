@@ -2,7 +2,7 @@ module Workspace::IncidentDefaults
   extend ActiveSupport::Concern
 
   DEFAULT_SEVERITIES = [
-    { name: "Critical", slug: "critical", rank: 5, position: 1, is_default: false, color: "#DC143C", description: "Service-wide outage or data loss" },
+    { name: "Critical", slug: IncidentSeverity::SLUG_CRITICAL, rank: 5, position: 1, is_default: false, color: "#DC143C", description: "Service-wide outage or data loss" },
     { name: "Major", slug: "major", rank: 3, position: 2, is_default: false, color: "#FF6B35", description: "Significant feature degradation" },
     { name: "Minor", slug: "minor", rank: 1, position: 3, is_default: true, color: "#FFA500", description: "Limited impact or workaround available" }
   ].freeze
@@ -24,7 +24,7 @@ module Workspace::IncidentDefaults
   ].freeze
 
   DEFAULT_ROLES = [
-    { name: "Incident Lead", slug: "incident_lead", position: 1, required: false, description: "Coordinates incident response and makes decisions" }
+    { name: "Incident Lead", slug: IncidentRole::SLUG_INCIDENT_LEAD, position: 1, required: false, description: "Coordinates incident response and makes decisions" }
   ].freeze
 
   def setup_incident_configuration!

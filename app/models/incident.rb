@@ -4,6 +4,9 @@ class Incident < ApplicationRecord
 
   SOURCE_SLACK = "slack"
 
+  DEFAULT_PER_PAGE = 20
+  MAX_PER_PAGE = 50
+
   include Incident::Sequencing
   include Incident::Snapshots
   include Incident::RoleManagement
@@ -44,6 +47,51 @@ class Incident < ApplicationRecord
   scope :canceled, -> { joins(:incident_status).merge(IncidentStatus.canceled) }
   scope :by_severity, -> { joins(:incident_severity).order("incident_severities.rank DESC") }
   scope :recent, -> { order(declared_at: :desc) }
+  scope :search, ->(query) {
+    where("incidents.name ILIKE :q OR incidents.identifier ILIKE :q",
+      q: "%#{sanitize_sql_like(query)}%")
+  }
+  scope :by_severity_slugs, ->(slugs) {
+    where(incident_severity_id: IncidentSeverity.where(slug: slugs).select(:id))
+  }
+  scope :by_lifecycle_stage_keys, ->(keys) {
+    where(incident_status_id: IncidentStatus.joins(:incident_lifecycle_stage)
+      .where(incident_lifecycle_stages: { key: keys }).select(:id))
+  }
+  scope :with_list_associations, -> {
+    includes(
+      { incident_status: :incident_lifecycle_stage },
+      :incident_severity,
+      incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
+    )
+  }
+  scope :with_detail_associations, -> {
+    includes(
+      { incident_status: :incident_lifecycle_stage },
+      :incident_severity,
+      :incident_type,
+      { declared_by: :user },
+      :postmortem,
+      incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
+    )
+  }
+
+  def self.filtered_list(filters: {}, page: nil, per_page: nil)
+    scope = all.where(deleted_at: nil).with_list_associations.recent
+    scope = scope.search(filters[:search]) if filters[:search].present?
+    scope = scope.by_severity_slugs(filters[:severities]) if filters[:severities]&.any?
+    scope = scope.by_lifecycle_stage_keys(filters[:lifecycle_stages]) if filters[:lifecycle_stages]&.any?
+
+    total_count = scope.count
+    per_page = (per_page || DEFAULT_PER_PAGE).to_i.clamp(1, MAX_PER_PAGE)
+    total_pages = [ (total_count.to_f / per_page).ceil, 1 ].max
+    page = (page || 1).to_i.clamp(1, total_pages)
+
+    {
+      incidents: scope.offset((page - 1) * per_page).limit(per_page),
+      pagination: { page:, perPage: per_page, totalCount: total_count, totalPages: total_pages }
+    }
+  end
 
   def active?
     incident_status.live?

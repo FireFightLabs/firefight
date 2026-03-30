@@ -25,6 +25,7 @@ const eventIcons: Record<string, typeof IconFlame> = {
   "action.picked_up": IconHandGrab,
   "action.completed": IconCircleCheck,
   "postmortem.generated": IconFileText,
+  "postmortem.edited": IconFileText,
   "relationship.created": IconLink,
   "incident.marked_duplicate": IconCopy,
 }
@@ -40,6 +41,7 @@ const eventDotColors: Record<string, string> = {
   "action.picked_up": "bg-muted text-muted-foreground ring-border",
   "action.completed": "bg-emerald-500 text-white ring-emerald-500/20",
   "postmortem.generated": "bg-violet-500 text-white ring-violet-500/20",
+  "postmortem.edited": "bg-violet-500 text-white ring-violet-500/20",
   "relationship.created": "bg-muted text-muted-foreground ring-border",
   "incident.marked_duplicate": "bg-muted text-muted-foreground ring-border",
 }

@@ -1,4 +1,6 @@
 class IncidentSeverity < ApplicationRecord
+  SLUG_CRITICAL = "critical"
+
   belongs_to :workspace
   has_many :incidents, dependent: :restrict_with_error
 

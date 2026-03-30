@@ -1,43 +1,28 @@
 class WebhooksController < InertiaController
   before_action :require_authentication
-  before_action :set_webhook, only: [ :show, :update, :destroy, :test, :activate, :deactivate ]
-
-  def index
-    webhooks = current_workspace.webhooks.ordered
-    render inertia: "webhooks/index", props: {
-      webhooks: webhooks.as_json(only: [ :id, :name, :url, :active, :subscribed_events, :created_at ])
-    }
-  end
-
-  def show
-    deliveries = @webhook.webhook_deliveries.ordered.limit(10)
-    render inertia: "webhooks/show", props: {
-      webhook: webhook_json(@webhook),
-      deliveries: deliveries.as_json(only: [ :id, :event_type, :state, :response_code, :error_message, :delivered_at, :created_at ])
-    }
-  end
+  before_action :set_webhook, only: [ :update, :destroy, :test, :activate, :deactivate ]
 
   def create
     webhook = current_workspace.webhooks.new(webhook_params)
 
     if webhook.save
-      redirect_to webhook_path(webhook)
+      redirect_to settings_path(tab: "webhooks")
     else
-      redirect_back fallback_location: webhooks_path, inertia: { errors: webhook.errors.to_hash }
+      redirect_back fallback_location: settings_path(tab: "webhooks"), inertia: { errors: webhook.errors.to_hash }
     end
   end
 
   def update
     if @webhook.update(webhook_params)
-      redirect_to webhook_path(@webhook)
+      redirect_to settings_path(tab: "webhooks")
     else
-      redirect_back fallback_location: webhook_path(@webhook), inertia: { errors: @webhook.errors.to_hash }
+      redirect_back fallback_location: settings_path(tab: "webhooks"), inertia: { errors: @webhook.errors.to_hash }
     end
   end
 
   def destroy
     @webhook.destroy!
-    redirect_to webhooks_path
+    redirect_to settings_path(tab: "webhooks")
   end
 
   def test
@@ -54,20 +39,20 @@ class WebhooksController < InertiaController
         incident_event: event,
         event_type: event.event_type
       )
-      redirect_to webhook_path(@webhook), notice: "Test delivery queued"
+      redirect_to settings_path(tab: "webhooks"), notice: "Test delivery queued"
     else
-      redirect_to webhook_path(@webhook), alert: "No matching events found to test with"
+      redirect_to settings_path(tab: "webhooks"), alert: "No matching events found to test with"
     end
   end
 
   def activate
     @webhook.activate!
-    redirect_to webhook_path(@webhook)
+    redirect_to settings_path(tab: "webhooks")
   end
 
   def deactivate
     @webhook.deactivate!
-    redirect_to webhook_path(@webhook)
+    redirect_to settings_path(tab: "webhooks")
   end
 
   def sample_payload
@@ -90,9 +75,5 @@ class WebhooksController < InertiaController
 
   def webhook_params
     params.expect(webhook: [ :name, :url, subscribed_events: [] ])
-  end
-
-  def webhook_json(webhook)
-    webhook.as_json(only: [ :id, :name, :url, :active, :subscribed_events, :signing_secret, :created_at, :updated_at ])
   end
 end

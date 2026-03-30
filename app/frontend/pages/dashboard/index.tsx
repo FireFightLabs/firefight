@@ -1,24 +1,36 @@
-import { Head, usePage } from "@inertiajs/react"
+import { Deferred, Head, usePage } from "@inertiajs/react"
 
+import type { Pagination } from "@/types"
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { StatCards } from "@/modules/dashboard/components/stat-cards"
+import { StatCards, StatCardsSkeleton } from "@/modules/dashboard/components/stat-cards"
 import { IncidentsTable } from "@/modules/dashboard/components/incidents-table"
-import type { DashboardStat } from "@/modules/dashboard/types"
-import type { IncidentListItem } from "@/modules/incidents/types"
-import { mockStats, mockIncidents } from "@/modules/dashboard/lib/mock-data"
+import type { DashboardStat, DashboardFilters } from "@/modules/dashboard/types"
+import type { IncidentListItem, SeverityOption } from "@/types/serializers"
+
+interface DashboardPageProps {
+  stats?: DashboardStat[]
+  incidents: IncidentListItem[]
+  pagination: Pagination
+  filters: DashboardFilters
+  severityOptions: SeverityOption[]
+}
 
 export default function Dashboard() {
-  const { stats, incidents } = usePage<{
-    stats?: DashboardStat[]
-    incidents?: IncidentListItem[]
-  }>().props
+  const { stats, incidents, pagination, filters, severityOptions } = usePage<DashboardPageProps>().props
 
   return (
     <AuthenticatedLayout title="Incidents">
       <Head title="Incidents" />
       <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-        <StatCards stats={stats ?? mockStats} />
-        <IncidentsTable incidents={incidents ?? mockIncidents} />
+        <Deferred data="stats" fallback={<StatCardsSkeleton />}>
+          <StatCards stats={stats ?? []} />
+        </Deferred>
+        <IncidentsTable
+          incidents={incidents}
+          pagination={pagination}
+          filters={filters}
+          severityOptions={severityOptions}
+        />
       </div>
     </AuthenticatedLayout>
   )

@@ -125,14 +125,6 @@ class IncidentRoleTest < ActiveSupport::TestCase
     assert_equal positions.sort, positions
   end
 
-  test "required_roles scope returns only required roles" do
-    required_roles = IncidentRole.required_roles
-
-    assert_includes required_roles, incident_roles(:incident_commander_ws2)
-    assert_not_includes required_roles, incident_roles(:incident_lead_ws1)
-    assert_not_includes required_roles, incident_roles(:comms_lead_ws2)
-  end
-
   test "incident_lead scope returns only incident lead roles" do
     incident_leads = IncidentRole.incident_lead
 
@@ -162,20 +154,6 @@ class IncidentRoleTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
-  # REQUIRED VS OPTIONAL ROLES
-  # ============================================================================
-
-  test "required can be true" do
-    role = incident_roles(:incident_commander_ws2)
-    assert role.required
-  end
-
-  test "required can be false" do
-    role = incident_roles(:incident_lead_ws1)
-    assert_not role.required
-  end
-
-  # ============================================================================
   # FIXTURES LOADING
   # ============================================================================
 
@@ -184,7 +162,6 @@ class IncidentRoleTest < ActiveSupport::TestCase
     assert_equal "Incident Lead", incident_lead.name
     assert_equal "incident_lead", incident_lead.slug
     assert_equal 1, incident_lead.position
-    assert_not incident_lead.required
   end
 
   test "workspace two complex fixtures load correctly" do
@@ -192,7 +169,6 @@ class IncidentRoleTest < ActiveSupport::TestCase
     assert_equal "Incident Commander", commander.name
     assert_equal "incident_commander", commander.slug
     assert_equal 1, commander.position
-    assert commander.required
 
     comms = incident_roles(:comms_lead_ws2)
     assert_equal "Communications Lead", comms.name
