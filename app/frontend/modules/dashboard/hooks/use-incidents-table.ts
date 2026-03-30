@@ -40,6 +40,7 @@ export function useIncidentsTable(
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [searchInput, setSearchInput] = React.useState(filters.search)
   const searchTimerRef = React.useRef<ReturnType<typeof setTimeout>>()
+  const searchInputRef = React.useRef(filters.search)
   const filtersRef = React.useRef(filters)
   filtersRef.current = filters
   const paginationRef = React.useRef(pagination)
@@ -47,6 +48,7 @@ export function useIncidentsTable(
 
   React.useEffect(() => {
     setSearchInput(filters.search)
+    searchInputRef.current = filters.search
   }, [filters.search])
 
   React.useEffect(() => {
@@ -67,6 +69,7 @@ export function useIncidentsTable(
 
   const handleSearchChange = React.useCallback((value: string) => {
     setSearchInput(value)
+    searchInputRef.current = value
     clearTimeout(searchTimerRef.current)
     searchTimerRef.current = setTimeout(() => {
       navigateDashboard(
@@ -81,8 +84,9 @@ export function useIncidentsTable(
     const idx = current.indexOf(slug)
     if (idx >= 0) current.splice(idx, 1)
     else current.push(slug)
+    clearTimeout(searchTimerRef.current)
     navigateDashboard(
-      { ...filtersRef.current, severities: current },
+      { ...filtersRef.current, severities: current, search: searchInputRef.current },
       { ...paginationRef.current, page: 1 },
     )
   }, [])
@@ -92,8 +96,9 @@ export function useIncidentsTable(
     const idx = current.indexOf(key)
     if (idx >= 0) current.splice(idx, 1)
     else current.push(key)
+    clearTimeout(searchTimerRef.current)
     navigateDashboard(
-      { ...filtersRef.current, statuses: current },
+      { ...filtersRef.current, statuses: current, search: searchInputRef.current },
       { ...paginationRef.current, page: 1 },
     )
   }, [])

@@ -239,6 +239,7 @@ export default function PostmortemPage() {
     clearTimeout(saveTimerRef.current)
     setData("html_content", html)
     saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = undefined
       patch(incidentPostmortemPath(incident.id))
     }, 1500)
   }, [incident.id, setData, patch])
@@ -264,8 +265,29 @@ export default function PostmortemPage() {
   }, [incident, postmortem.title])
 
   React.useEffect(() => {
-    return () => clearTimeout(saveTimerRef.current)
-  }, [])
+    const flushPendingSave = () => {
+      if (!saveTimerRef.current) return
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = undefined
+
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+      fetch(incidentPostmortemPath(incident.id), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        },
+        body: JSON.stringify({ html_content: editorContentRef.current }),
+        keepalive: true,
+      })
+    }
+
+    const removeListener = router.on('before', flushPendingSave)
+    return () => {
+      removeListener()
+      flushPendingSave()
+    }
+  }, [incident.id])
 
   return (
     <>
