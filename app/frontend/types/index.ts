@@ -10,3 +10,10 @@ export type SharedProps = {
   currentUser?: User
   currentWorkspace?: Workspace
 }
+
+export interface Pagination {
+  page: number
+  perPage: number
+  totalCount: number
+  totalPages: number
+}

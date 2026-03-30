@@ -43,28 +43,15 @@ class PostmortemTest < ActiveSupport::TestCase
     assert_not postmortem.valid?
   end
 
-  test "sections returns content sections array" do
+  test "html_content returns stored html" do
     postmortem = postmortems(:postmortem_resolved_ws1)
-    assert_kind_of Array, postmortem.sections
-    assert postmortem.sections.any?
+    postmortem.content = { "html" => "<h2>Test</h2>" }
+    assert_equal "<h2>Test</h2>", postmortem.html_content
   end
 
-  test "sections returns empty array when content has no sections" do
+  test "html_content falls back to legacy sections" do
     postmortem = postmortems(:postmortem_resolved_ws1)
-    postmortem.content = {}
-    assert_equal [], postmortem.sections
-  end
-
-  test "section finds by key" do
-    postmortem = postmortems(:postmortem_resolved_ws1)
-    section = postmortem.section(:summary)
-    assert_equal "summary", section["key"]
-    assert_equal "Summary", section["heading"]
-  end
-
-  test "section returns nil for unknown key" do
-    postmortem = postmortems(:postmortem_resolved_ws1)
-    assert_nil postmortem.section(:nonexistent)
+    assert_not_nil postmortem.html_content
   end
 
   test "incident can only have one postmortem" do

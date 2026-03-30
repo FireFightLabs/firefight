@@ -1,5 +1,16 @@
+import * as React from "react"
+import { router, useForm } from "@inertiajs/react"
 import { IconGripVertical, IconPlus } from "@tabler/icons-react"
 
+import { toast } from "sonner"
+
+import type { IncidentSeveritySettings } from "@/types/serializers"
+import {
+  incidentSeveritiesPath,
+  incidentSeverityPath,
+  disableIncidentSeverityPath,
+  enableIncidentSeverityPath,
+} from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +32,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -30,17 +42,202 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-
-import type { Severity } from "@/modules/settings/types"
 import { ColorDot, RowActions } from "./shared"
 
-const mockSeverities: Severity[] = [
-  { id: "1", name: "Critical", slug: "critical", description: "Complete service outage or data loss affecting all users", color: "#DC143C", rank: 5, position: 1, isDefault: false },
-  { id: "2", name: "Major", slug: "major", description: "Significant impact with degraded functionality for many users", color: "#FF6B35", rank: 3, position: 2, isDefault: false },
-  { id: "3", name: "Minor", slug: "minor", description: "Limited impact, workaround available", color: "#FFA500", rank: 1, position: 3, isDefault: true },
-]
+interface SeveritiesTabProps {
+  severities: IncidentSeveritySettings[]
+}
 
-export function SeveritiesTab() {
+function AddSeverityDialog() {
+  const [open, setOpen] = React.useState(false)
+  const form = useForm({ name: "", description: "", rank: "1", color: "#FF6B35" })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    form.post(incidentSeveritiesPath(), {
+      onSuccess: () => {
+        setOpen(false)
+        form.reset()
+      },
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <IconPlus className="size-4" />
+          Add Severity
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Add Severity</DialogTitle>
+            <DialogDescription>
+              Create a new severity level for your workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="sev-name">Name</Label>
+              <Input
+                id="sev-name"
+                placeholder="e.g. Moderate"
+                value={form.data.name}
+                onChange={(e) => form.setData("name", e.target.value)}
+              />
+              {form.errors.name && (
+                <p className="text-xs text-destructive">{form.errors.name}</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="sev-desc">Description</Label>
+              <Textarea
+                id="sev-desc"
+                placeholder="When should this severity be assigned?"
+                rows={2}
+                value={form.data.description}
+                onChange={(e) => form.setData("description", e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="sev-rank">Rank</Label>
+                <Input
+                  id="sev-rank"
+                  type="number"
+                  min={1}
+                  value={form.data.rank}
+                  onChange={(e) => form.setData("rank", e.target.value)}
+                />
+                {form.errors.rank && (
+                  <p className="text-xs text-destructive">{form.errors.rank}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Higher rank = more severe
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="sev-color">Color</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="sev-color"
+                    type="color"
+                    value={form.data.color}
+                    onChange={(e) => form.setData("color", e.target.value)}
+                    className="h-9 w-12 cursor-pointer p-1"
+                  />
+                  <Input
+                    value={form.data.color}
+                    onChange={(e) => form.setData("color", e.target.value)}
+                    className="flex-1 font-mono text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" type="button">Cancel</Button>
+            </DialogClose>
+            <Button type="submit" disabled={form.processing}>
+              Create Severity
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function EditSeverityDialog({
+  severity,
+  open,
+  onOpenChange,
+}: {
+  severity: IncidentSeveritySettings
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const form = useForm({ name: severity.name, description: severity.description ?? "" })
+
+  React.useEffect(() => {
+    if (open) {
+      form.setData({ name: severity.name, description: severity.description ?? "" })
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    form.patch(incidentSeverityPath(severity.id), {
+      onSuccess: () => onOpenChange(false),
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Edit Severity</DialogTitle>
+            <DialogDescription>
+              Update the name and description for this severity level.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`edit-sev-name-${severity.id}`}>Name</Label>
+              <Input
+                id={`edit-sev-name-${severity.id}`}
+                value={form.data.name}
+                onChange={(e) => form.setData("name", e.target.value)}
+              />
+              {form.errors.name && (
+                <p className="text-xs text-destructive">{form.errors.name}</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`edit-sev-desc-${severity.id}`}>Description</Label>
+              <Textarea
+                id={`edit-sev-desc-${severity.id}`}
+                rows={2}
+                value={form.data.description}
+                onChange={(e) => form.setData("description", e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" type="button">Cancel</Button>
+            </DialogClose>
+            <Button type="submit" disabled={form.processing}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export function SeveritiesTab({ severities }: SeveritiesTabProps) {
+  const [editingSeverity, setEditingSeverity] = React.useState<IncidentSeveritySettings | null>(null)
+
+  function handleToggleEnabled(severity: IncidentSeveritySettings) {
+    router.patch(
+      severity.enabled ? disableIncidentSeverityPath(severity.id) : enableIncidentSeverityPath(severity.id)
+    )
+  }
+
+  function handleDelete(severity: IncidentSeveritySettings) {
+    if (!severity.deletable) {
+      toast.error("This severity is used by incidents and cannot be deleted. You can disable it instead.")
+      return
+    }
+    router.delete(incidentSeverityPath(severity.id))
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -51,72 +248,7 @@ export function SeveritiesTab() {
               Define severity levels for classifying incident impact. Higher rank means more severe.
             </CardDescription>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <IconPlus className="size-4" />
-                Add Severity
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Severity</DialogTitle>
-                <DialogDescription>
-                  Create a new severity level for your workspace.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex flex-col gap-4 py-2">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="sev-name">Name</Label>
-                  <Input id="sev-name" placeholder="e.g. Moderate" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="sev-desc">Description</Label>
-                  <Textarea
-                    id="sev-desc"
-                    placeholder="When should this severity be assigned?"
-                    rows={2}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="sev-rank">Rank</Label>
-                    <Input
-                      id="sev-rank"
-                      type="number"
-                      min={1}
-                      placeholder="1"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Higher rank = more severe
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="sev-color">Color</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="sev-color"
-                        type="color"
-                        defaultValue="#FF6B35"
-                        className="h-9 w-12 cursor-pointer p-1"
-                      />
-                      <Input
-                        defaultValue="#FF6B35"
-                        className="flex-1 font-mono text-sm"
-                        placeholder="#FF6B35"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button>Create Severity</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <AddSeverityDialog />
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -128,14 +260,17 @@ export function SeveritiesTab() {
               <TableHead className="hidden md:table-cell">Description</TableHead>
               <TableHead className="w-20 text-center">Rank</TableHead>
               <TableHead className="w-24 text-center">Default</TableHead>
+              <TableHead className="w-24 text-center">Enabled</TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockSeverities.map((severity) => (
-              <TableRow key={severity.id}>
+            {severities.map((severity) => (
+              <TableRow key={severity.id} className={!severity.enabled ? "opacity-50" : undefined}>
                 <TableCell>
-                  <IconGripVertical className="size-4 text-muted-foreground/50 cursor-grab" />
+                  {severity.enabled && (
+                    <IconGripVertical className="size-4 text-muted-foreground/50 cursor-grab" />
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2.5">
@@ -158,14 +293,32 @@ export function SeveritiesTab() {
                     </Badge>
                   )}
                 </TableCell>
+                <TableCell className="text-center">
+                  <Switch
+                    checked={severity.enabled}
+                    disabled={severity.isDefault}
+                    onCheckedChange={() => handleToggleEnabled(severity)}
+                  />
+                </TableCell>
                 <TableCell>
-                  <RowActions onEdit={() => {}} onDelete={() => {}} />
+                  <RowActions
+                    onEdit={() => setEditingSeverity(severity)}
+                    onDelete={() => handleDelete(severity)}
+                  />
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </CardContent>
+
+      {editingSeverity && (
+        <EditSeverityDialog
+          severity={editingSeverity}
+          open={!!editingSeverity}
+          onOpenChange={(open) => { if (!open) setEditingSeverity(null) }}
+        />
+      )}
     </Card>
   )
 }

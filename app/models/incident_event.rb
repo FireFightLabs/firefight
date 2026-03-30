@@ -10,6 +10,7 @@ class IncidentEvent < ApplicationRecord
   INCIDENT_RESOLVED = "incident.resolved"
   INCIDENT_REOPENED = "incident.reopened"
   POSTMORTEM_GENERATED = "postmortem.generated"
+  POSTMORTEM_EDITED = "postmortem.edited"
   RELATIONSHIP_CREATED = "relationship.created"
   MARKED_DUPLICATE = "incident.marked_duplicate"
   MERGED_INTO = "incident.merged_into"
@@ -22,7 +23,7 @@ class IncidentEvent < ApplicationRecord
   EVENT_TYPES = [
     INCIDENT_CREATED, INCIDENT_UPDATED, LEAD_ASSIGNED,
     ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED,
-    INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, POSTMORTEM_GENERATED,
+    INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, POSTMORTEM_GENERATED, POSTMORTEM_EDITED,
     RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
     MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED,
     ESCALATION_ACKNOWLEDGED, ESCALATION_NUDGED
@@ -39,6 +40,7 @@ class IncidentEvent < ApplicationRecord
     INCIDENT_RESOLVED => "Incident was resolved",
     INCIDENT_REOPENED => "Incident was reopened",
     POSTMORTEM_GENERATED => "Postmortem was generated",
+    POSTMORTEM_EDITED => "Postmortem was edited",
     RELATIONSHIP_CREATED => "Incident linked as related",
     MARKED_DUPLICATE => "Incident marked as duplicate",
     MERGED_INTO => "Incident merged into another",

@@ -87,7 +87,7 @@ end
 
 gem "rack-attack"
 
-gem "inertia_rails", "~> 3.18"
+gem "inertia_rails", "~> 3.19"
 
 gem "rails_semantic_logger"
 
@@ -103,4 +103,9 @@ gem "webrick"
 
 gem "vite_rails", "~> 3.0"
 
+gem "oj_serializers"
+gem "types_from_serializers"
+
 gem "benchmark", "~> 0.5.0"
+
+gem "commonmarker", "~> 2.7"

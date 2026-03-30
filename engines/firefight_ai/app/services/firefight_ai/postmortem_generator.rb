@@ -39,12 +39,14 @@ module FirefightAi
     end
 
     def create_postmortem(incident, ai_result, generated_by:)
-      sections = Postmortem::SECTION_KEYS.filter_map do |key|
+      html = Postmortem::SECTION_KEYS.filter_map do |key|
         body = ai_result[key.to_s] || ai_result[key.to_sym]
         next if body.blank?
 
-        { "key" => key, "heading" => Postmortem::SECTION_HEADINGS[key], "body" => body }
-      end
+        heading = Postmortem::SECTION_HEADINGS[key]
+        rendered = Commonmarker.to_html(body, options: { parse: { smart: true }, render: { unsafe: true } })
+        "<h2>#{heading}</h2>\n#{rendered}"
+      end.join("\n")
 
       Postmortem.create!(
         incident: incident,
@@ -53,7 +55,7 @@ module FirefightAi
         summary: ai_result["summary"] || ai_result[:summary],
         status: Postmortem::STATUS_DRAFT,
         model_id: ai_model,
-        content: { "sections" => sections }
+        content: { "html" => html }
       )
     end
 

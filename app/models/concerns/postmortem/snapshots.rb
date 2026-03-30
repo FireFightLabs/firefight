@@ -2,7 +2,8 @@ module Postmortem::Snapshots
   extend ActiveSupport::Concern
 
   UPDATE_TYPE_MAP = {
-    IncidentEvent::POSTMORTEM_GENERATED => PostmortemUpdate::GENERATED
+    IncidentEvent::POSTMORTEM_GENERATED => PostmortemUpdate::GENERATED,
+    IncidentEvent::POSTMORTEM_EDITED => PostmortemUpdate::EDITED
   }.freeze
 
   def build_snapshot_attributes
@@ -30,6 +31,18 @@ module Postmortem::Snapshots
       user: edited_by,
       eventable: update
     )
+  end
+
+  def update_content!(html_content, edited_by:)
+    record_change!(IncidentEvent::POSTMORTEM_EDITED, edited_by: edited_by) do
+      update!(content: content.merge("html" => html_content))
+    end
+  end
+
+  def update_status!(new_status, edited_by:)
+    record_change!(IncidentEvent::POSTMORTEM_EDITED, edited_by: edited_by) do
+      update!(status: new_status)
+    end
   end
 
   def record_change!(event_type, edited_by:)

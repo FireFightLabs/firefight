@@ -43,11 +43,6 @@ void createInertiaApp({
     form: {
       forceIndicesArrayFormatInFormData: true,
     },
-    future: {
-      useDataInertiaHeadAttribute: true,
-      useDialogForErrorModal: true,
-      preserveEqualProps: true,
-    },
   },
 }).catch((error) => {
   // This ensures this entrypoint is only loaded on Inertia pages

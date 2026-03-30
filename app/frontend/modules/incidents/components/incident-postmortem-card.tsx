@@ -6,14 +6,31 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { incidentPostmortemPath } from "@/lib/routes"
 
+const statusLabels: Record<string, string> = {
+  draft: "Draft",
+  in_progress: "In progress",
+  in_review: "In review",
+  completed: "Completed",
+}
+
+const statusStyles: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground",
+  in_progress: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  in_review: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  completed: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+}
+
 export function IncidentPostmortemCard({
   incidentId,
   hasPostmortem,
+  postmortemStatus,
 }: {
   incidentId: string
   hasPostmortem: boolean
+  postmortemStatus?: string
 }) {
   if (hasPostmortem) {
+    const status = postmortemStatus ?? "draft"
     return (
       <Link href={incidentPostmortemPath(incidentId)}>
         <Card className="group cursor-pointer border-primary/20 bg-gradient-to-b from-primary/[0.04] to-transparent transition-all hover:border-primary/40">
@@ -26,9 +43,9 @@ export function IncidentPostmortemCard({
                 <span className="text-sm font-semibold">Postmortem</span>
                 <Badge
                   variant="secondary"
-                  className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                  className={`text-[10px] ${statusStyles[status]}`}
                 >
-                  In progress
+                  {statusLabels[status]}
                 </Badge>
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground truncate">

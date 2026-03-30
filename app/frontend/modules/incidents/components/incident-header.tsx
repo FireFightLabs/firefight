@@ -6,6 +6,8 @@ import {
 } from "@tabler/icons-react"
 
 import type { Incident } from "@/modules/incidents/types"
+import { LIFECYCLE_STAGES } from "@/lib/constants"
+import { formatDuration } from "@/lib/formatters"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,20 +19,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-function formatDuration(start: string, end: string | null): string {
-  const s = new Date(start)
-  const e = end ? new Date(end) : new Date()
-  const mins = Math.floor((e.getTime() - s.getTime()) / 60000)
-  if (mins < 60) return `${mins}m`
-  const hours = Math.floor(mins / 60)
-  const rem = mins % 60
-  if (hours < 24) return `${hours}h ${rem}m`
-  const days = Math.floor(hours / 24)
-  return `${days}d ${hours % 24}h`
-}
-
 export function IncidentHeader({ incident }: { incident: Incident }) {
-  const isActive = incident.status.lifecycleStage === "active"
+  const isActive = incident.status.lifecycleStage === LIFECYCLE_STAGES.ACTIVE
 
   return (
     <header className="mb-8">

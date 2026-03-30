@@ -5,7 +5,7 @@ import {
   IconSettings,
   IconUrgent,
 } from "@tabler/icons-react"
-import { usePage } from "@inertiajs/react"
+import { Link, usePage } from "@inertiajs/react"
 
 import { NavMain } from "@/components/navigation/nav-main"
 import { NavUser } from "@/components/navigation/nav-user"
@@ -50,10 +50,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
-              <a href={dashboardPath()}>
+              <Link href={dashboardPath()}>
                 <IconFlame className="size-5!" />
                 <span className="text-base font-semibold">Firefight</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

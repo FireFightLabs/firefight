@@ -272,6 +272,105 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal declared_times.sort.reverse, declared_times
   end
 
+  test "search scope matches incident name case-insensitively" do
+    workspace = workspaces(:slack_workspace_one)
+    results = workspace.incidents.search("database")
+
+    assert_includes results, incidents(:active_critical_ws1)
+    assert_not_includes results, incidents(:active_major_ws1)
+  end
+
+  test "search scope matches incident identifier" do
+    workspace = workspaces(:slack_workspace_one)
+    results = workspace.incidents.search("INC-002")
+
+    assert_includes results, incidents(:active_major_ws1)
+    assert_not_includes results, incidents(:active_critical_ws1)
+  end
+
+  test "search scope returns empty for no match" do
+    workspace = workspaces(:slack_workspace_one)
+    results = workspace.incidents.search("nonexistent")
+
+    assert_empty results
+  end
+
+  test "by_severity_slugs filters to matching severities" do
+    workspace = workspaces(:slack_workspace_one)
+    results = workspace.incidents.by_severity_slugs([ "critical" ])
+
+    assert_includes results, incidents(:active_critical_ws1)
+    assert_includes results, incidents(:private_incident_ws1)
+    assert_not_includes results, incidents(:active_major_ws1)
+    assert_not_includes results, incidents(:resolved_minor_ws1)
+  end
+
+  test "by_severity_slugs supports multiple slugs" do
+    workspace = workspaces(:slack_workspace_one)
+    results = workspace.incidents.by_severity_slugs([ "critical", "minor" ])
+
+    assert_includes results, incidents(:active_critical_ws1)
+    assert_includes results, incidents(:resolved_minor_ws1)
+    assert_not_includes results, incidents(:active_major_ws1)
+  end
+
+  test "by_lifecycle_stage_keys filters by lifecycle stage" do
+    workspace = workspaces(:slack_workspace_one)
+    active_results = workspace.incidents.by_lifecycle_stage_keys([ IncidentLifecycleStage::ACTIVE ])
+    closed_results = workspace.incidents.by_lifecycle_stage_keys([ IncidentLifecycleStage::CLOSED ])
+
+    assert_includes active_results, incidents(:active_critical_ws1)
+    assert_not_includes active_results, incidents(:resolved_minor_ws1)
+
+    assert_includes closed_results, incidents(:resolved_minor_ws1)
+    assert_not_includes closed_results, incidents(:active_critical_ws1)
+  end
+
+  test "by_lifecycle_stage_keys supports multiple keys" do
+    workspace = workspaces(:slack_workspace_one)
+    results = workspace.incidents.by_lifecycle_stage_keys([ IncidentLifecycleStage::ACTIVE, IncidentLifecycleStage::CLOSED ])
+
+    assert_includes results, incidents(:active_critical_ws1)
+    assert_includes results, incidents(:resolved_minor_ws1)
+  end
+
+  test "filtered_list returns incidents and pagination" do
+    workspace = workspaces(:slack_workspace_one)
+    result = workspace.incidents.filtered_list
+
+    assert result.key?(:incidents)
+    assert result.key?(:pagination)
+    assert_equal 1, result[:pagination][:page]
+    assert_equal 20, result[:pagination][:perPage]
+    assert result[:pagination][:totalCount] > 0
+  end
+
+  test "filtered_list applies search filter" do
+    workspace = workspaces(:slack_workspace_one)
+    result = workspace.incidents.filtered_list(filters: { search: "database" })
+
+    assert_includes result[:incidents], incidents(:active_critical_ws1)
+    assert_equal 1, result[:pagination][:totalCount]
+  end
+
+  test "filtered_list applies severity filter" do
+    workspace = workspaces(:slack_workspace_one)
+    result = workspace.incidents.filtered_list(filters: { severities: [ "critical" ] })
+
+    result[:incidents].each do |inc|
+      assert_equal "critical", inc.incident_severity.slug
+    end
+  end
+
+  test "filtered_list applies pagination" do
+    workspace = workspaces(:slack_workspace_one)
+    result = workspace.incidents.filtered_list(per_page: 2, page: 1)
+
+    assert_equal 2, result[:incidents].size
+    assert_equal 1, result[:pagination][:page]
+    assert_equal 2, result[:pagination][:perPage]
+  end
+
   # ============================================================================
   # METHODS
   # ============================================================================
@@ -294,6 +393,34 @@ class IncidentTest < ActiveSupport::TestCase
   test "closed? returns false for incidents with live status" do
     incident = incidents(:active_critical_ws1)
     assert_not incident.closed?
+  end
+
+  test "IncidentListItemSerializer returns camelCase hash with expected keys" do
+    incident = workspaces(:slack_workspace_one).incidents
+      .with_list_associations
+      .find_by!(identifier: "INC-001")
+
+    item = IncidentListItemSerializer.one(incident)
+
+    assert_equal incident.id, item[:id]
+    assert_equal "INC-001", item[:identifier]
+    assert_equal "Database connection pool exhausted", item[:name]
+    assert_equal "Critical", item[:severity][:name]
+    assert_equal 5, item[:severity][:rank]
+    assert_equal "Investigating", item[:status][:name]
+    assert_equal "active", item[:status][:lifecycleStage]
+    assert_equal incident.declared_at.utc.iso8601, item[:declaredAt]
+    assert_nil item[:resolvedAt]
+  end
+
+  test "IncidentListItemSerializer returns resolvedAt when incident is resolved" do
+    incident = workspaces(:slack_workspace_one).incidents
+      .with_list_associations
+      .find_by!(identifier: "INC-003")
+
+    item = IncidentListItemSerializer.one(incident)
+
+    assert_equal incident.resolved_at.utc.iso8601, item[:resolvedAt]
   end
 
   # ============================================================================
