@@ -23,10 +23,6 @@ module Interactions
         source: Incident::SOURCE_SLACK
       )
 
-      # Sync channel creation so the confirmation modal can include the channel link.
-      # The workflow's create_slack_channel step is idempotent and will skip if already created.
-      IncidentCreationService.new(workspace).create_channel(incident)
-
       Rails.logger.info({
         event: "incident.creation_started",
         incident_id: incident.id,

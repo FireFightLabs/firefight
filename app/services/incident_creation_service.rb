@@ -4,12 +4,6 @@ class IncidentCreationService
   end
 
   def create_channel(incident)
-    # Reload to get fresh channel_id — the Slack handler creates the channel sync
-    # (for the confirmation modal) before the workflow runs this step async.
-    # Without reload, the workflow's copy has stale data and creates a duplicate channel.
-    # TODO: fix the Slack entrypoint to create the channel before starting the workflow
-    # so this reload is no longer needed.
-    incident.reload if incident.persisted?
     return if incident.channel_id.present?
 
     adapter = @workspace.adapter

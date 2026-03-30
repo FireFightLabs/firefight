@@ -55,6 +55,37 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "create with Slack source creates channel synchronously" do
+    severity = @workspace.incident_severities.active.first
+    status = @workspace.incident_statuses.default_status
+
+    incident = @service.create(
+      declared_by: @member,
+      incident_status: status,
+      incident_severity: severity,
+      name: "Slack sync channel test",
+      source: Incident::SOURCE_SLACK
+    )
+
+    assert_equal "C12345678", incident.channel_id
+    assert_equal "incidents", incident.channel_name
+  end
+
+  test "create with non-Slack source does not create channel synchronously" do
+    severity = @workspace.incident_severities.active.first
+    status = @workspace.incident_statuses.default_status
+
+    incident = @service.create(
+      declared_by: @member,
+      incident_status: status,
+      incident_severity: severity,
+      name: "API creation test",
+      source: "datadog"
+    )
+
+    assert_nil incident.channel_id
+  end
+
   # ============================================================================
   # UPDATE
   # ============================================================================
