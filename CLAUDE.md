@@ -185,6 +185,12 @@ adapter = WorkspaceAdapter.for(workspace)
 adapter.create_channel(name: ..., is_private: ...)
 ```
 
+**When to use a service vs. model methods:**
+- **Service** — orchestrates across multiple systems: model writes + workflow starts, cache expiry, channel archival, job scheduling (e.g., `IncidentLifecycleService#close` updates the incident, expires transcript cache, starts a workflow, and schedules channel archival)
+- **Model** — manages its own state and records its own events. If the logic is just "update my fields and record the change," it belongs on the model or a concern (e.g., `Postmortem#update_content!` wraps `record_change!` + `update!` — no service needed)
+
+Don't create a service class that wraps a single model call. That's unnecessary indirection, not architecture.
+
 ### Serializers
 
 `oj_serializers` serialize data for Inertia props (and eventually API responses). `types_from_serializers` auto-generates TypeScript interfaces from serializer definitions — no manual type maintenance.

@@ -33,6 +33,18 @@ module Postmortem::Snapshots
     )
   end
 
+  def update_content!(html_content, edited_by:)
+    record_change!(IncidentEvent::POSTMORTEM_EDITED, edited_by: edited_by) do
+      update!(content: content.merge("html" => html_content))
+    end
+  end
+
+  def update_status!(new_status, edited_by:)
+    record_change!(IncidentEvent::POSTMORTEM_EDITED, edited_by: edited_by) do
+      update!(status: new_status)
+    end
+  end
+
   def record_change!(event_type, edited_by:)
     before_tracked = trackable_snapshot
     yield
