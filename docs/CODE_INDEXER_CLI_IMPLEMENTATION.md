@@ -57,6 +57,19 @@ Use Go as a CLI instead of a long-running service because it:
 
 Do not move product logic into Go.
 
+## Implementation Posture
+
+Start monolith-first.
+
+That means:
+
+- Rails remains the initial ingress and orchestration boundary
+- CPU-heavy parsing and extraction are pushed into the Go CLI and background jobs
+- any heavy follow-on work should run asynchronously, never in request-response paths
+- internal boundaries should be clean enough that extraction into a separate service remains straightforward later
+
+Do not introduce a separate always-on code intelligence service until scale or operational pressure makes that worthwhile.
+
 ---
 
 ## Responsibilities
@@ -122,6 +135,17 @@ Rails remains the orchestration layer and the workspace-wide intelligence layer.
 - quota enforcement
 - indexing state
 - error tracking and observability
+
+### Rails request handling rule
+
+If code intelligence or telemetry-related requests arrive through Rails:
+
+- controllers should stay thin
+- acknowledge quickly
+- enqueue background work
+- avoid expensive parsing, retrieval, or reasoning in web processes
+
+This keeps the monolith viable now without closing the door on future service extraction.
 
 ---
 

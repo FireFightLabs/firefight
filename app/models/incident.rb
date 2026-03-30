@@ -4,6 +4,9 @@ class Incident < ApplicationRecord
 
   SOURCE_SLACK = "slack"
 
+  DEFAULT_PER_PAGE = 20
+  MAX_PER_PAGE = 50
+
   include Incident::Sequencing
   include Incident::Snapshots
   include Incident::RoleManagement
@@ -80,7 +83,7 @@ class Incident < ApplicationRecord
     scope = scope.by_lifecycle_stage_keys(filters[:lifecycle_stages]) if filters[:lifecycle_stages]&.any?
 
     total_count = scope.count
-    per_page = (per_page || 20).to_i.clamp(1, 50)
+    per_page = (per_page || DEFAULT_PER_PAGE).to_i.clamp(1, MAX_PER_PAGE)
     total_pages = [ (total_count.to_f / per_page).ceil, 1 ].max
     page = (page || 1).to_i.clamp(1, total_pages)
 

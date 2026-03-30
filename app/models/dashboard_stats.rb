@@ -57,7 +57,7 @@ class DashboardStats
   end
 
   def critical_incidents_stat
-    critical_severity = workspace.incident_severities.find_by(slug: "critical")
+    critical_severity = workspace.incident_severities.find_by(slug: IncidentSeverity::SLUG_CRITICAL)
     count = if critical_severity
       workspace.incidents
         .where(incident_severity: critical_severity, deleted_at: nil)

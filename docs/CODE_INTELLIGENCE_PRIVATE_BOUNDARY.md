@@ -204,6 +204,17 @@ Why this is preferable:
 - cleaner ownership of indexing, retrieval, and reasoning
 - easier to evolve independently from the public Firefight app
 
+This is the long-term boundary recommendation, not an immediate deployment requirement.
+
+Implementation should remain monolith-first until scale or operational pressure justifies extraction.
+
+That means the practical starting posture is:
+
+- keep Firefight as the initial ingress layer
+- keep heavy intelligence work asynchronous
+- keep code intelligence internals encapsulated behind dedicated boundaries
+- treat service extraction as a later scaling and ownership decision
+
 ---
 
 ## Why Not Only A Private Go CLI
@@ -227,6 +238,14 @@ The parser alone is not the whole differentiator.
 ## Interface Between Public App And Private Engine
 
 The public app should talk to the private engine through a narrow client boundary.
+
+Before a private engine exists, Firefight should still preserve that same boundary internally through a dedicated client or service facade.
+
+In other words:
+
+- use the same encapsulation shape now
+- keep the implementation in-process for speed of delivery
+- swap the implementation to an external service later if needed
 
 ### Suggested responsibilities of `CodeIntelligenceClient`
 
@@ -288,6 +307,8 @@ This is usually the best choice.
 - Slack/UI/API workflows
 - invoking private intelligence operations
 - rendering/storing user-facing analysis summaries
+
+In the monolith-first phase, the public app may also host the intelligence implementation internally, but that implementation should still sit behind a dedicated boundary instead of leaking throughout the app.
 
 ### Private Code Intelligence engine
 

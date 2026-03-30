@@ -126,6 +126,15 @@ Recommended fields:
 
 ## Architecture Direction
 
+Implementation posture:
+
+- start inside the Rails application
+- keep ingress thin and async
+- isolate code intelligence behind dedicated service boundaries
+- extract into a separate service later only if load, ownership, or privacy requirements justify it
+
+This keeps product velocity high now while preserving a clean path to a dedicated service in the future.
+
 ### Core Flow
 
 ```text

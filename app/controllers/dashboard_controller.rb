@@ -29,7 +29,7 @@ class DashboardController < InertiaController
 
   def lifecycle_keys
     @lifecycle_keys ||= Array(params[:statuses]).compact_blank.flat_map { |k|
-      k == "active" ? [ IncidentLifecycleStage::TRIAGE, IncidentLifecycleStage::ACTIVE ] : k
+      k == IncidentLifecycleStage::ACTIVE ? [ IncidentLifecycleStage::TRIAGE, IncidentLifecycleStage::ACTIVE ] : k
     }
   end
 end
