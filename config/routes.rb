@@ -61,6 +61,12 @@ Rails.application.routes.draw do
     get "/incidents/:incident_id/postmortem/revisions", to: "incidents#postmortem_revisions", as: :incident_postmortem_revisions
     get "/catalogue", to: "catalogue#index", as: :catalogue
     get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
+    post "/catalogue/types", to: "catalogue#create_type"
+    patch "/catalogue/types/:id", to: "catalogue#update_type"
+    delete "/catalogue/types/:id", to: "catalogue#destroy_type"
+    post "/catalogue/:type_slug/entries", to: "catalogue#create_entry"
+    patch "/catalogue/entries/:id", to: "catalogue#update_entry"
+    delete "/catalogue/entries/:id", to: "catalogue#destroy_entry"
 
     resources :webhooks, only: [ :create, :update, :destroy ] do
       member do

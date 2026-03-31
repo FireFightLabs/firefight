@@ -1,7 +1,7 @@
+import { router } from "@inertiajs/react"
 import * as React from "react"
 
-import type { AttributeDefinition, CatalogEntry, CatalogType } from "@/modules/catalogue/types"
-import { getTypeById, getEntriesByType } from "@/modules/catalogue/lib/mock-data"
+import type { AttributeDefinition, CatalogEntry, CatalogType, ReferenceEntry } from "@/modules/catalogue/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -29,12 +29,16 @@ function AttributeField({
   attr,
   value,
   onChange,
+  allTypes,
+  referenceEntries,
 }: {
   attr: AttributeDefinition
   value: unknown
   onChange: (value: unknown) => void
+  allTypes: CatalogType[]
+  referenceEntries: ReferenceEntry[]
 }) {
-  switch (attr.type) {
+  switch (attr.attributeType) {
     case "text": {
       const isLong = attr.name.toLowerCase() === "description"
       return isLong ? (
@@ -97,8 +101,10 @@ function AttributeField({
       )
 
     case "reference": {
-      const refType = attr.referenceTypeId ? getTypeById(attr.referenceTypeId) : null
-      const refEntries = attr.referenceTypeId ? getEntriesByType(attr.referenceTypeId) : []
+      const refType = attr.referenceTypeId ? allTypes.find(t => t.id === attr.referenceTypeId) : null
+      const refEntries = attr.referenceTypeId
+        ? referenceEntries.filter(e => e.typeId === attr.referenceTypeId)
+        : []
       return (
         <Select
           value={String(value ?? "")}
@@ -147,6 +153,8 @@ function AttributeField({
 interface EntryFormDialogProps {
   type: CatalogType
   entry?: CatalogEntry | null
+  allTypes: CatalogType[]
+  referenceEntries: ReferenceEntry[]
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -154,6 +162,8 @@ interface EntryFormDialogProps {
 export function EntryFormDialog({
   type,
   entry,
+  allTypes,
+  referenceEntries,
   open,
   onOpenChange,
 }: EntryFormDialogProps) {
@@ -162,6 +172,7 @@ export function EntryFormDialog({
   const [attributes, setAttributes] = React.useState<Record<string, unknown>>(
     entry?.attributes ?? {}
   )
+  const [processing, setProcessing] = React.useState(false)
 
   React.useEffect(() => {
     setName(entry?.name ?? "")
@@ -170,6 +181,23 @@ export function EntryFormDialog({
 
   const updateAttribute = (attrKey: string, value: unknown) => {
     setAttributes((prev) => ({ ...prev, [attrKey]: value }))
+  }
+
+  const handleSubmit = () => {
+    setProcessing(true)
+    const data = { name, attributes }
+
+    if (isEdit && entry) {
+      router.patch(`/app/catalogue/entries/${entry.id}`, data, {
+        onSuccess: () => onOpenChange(false),
+        onFinish: () => setProcessing(false),
+      })
+    } else {
+      router.post(`/app/catalogue/${type.slug}/entries`, data, {
+        onSuccess: () => onOpenChange(false),
+        onFinish: () => setProcessing(false),
+      })
+    }
   }
 
   return (
@@ -204,9 +232,9 @@ export function EntryFormDialog({
               <Label htmlFor={`attr-field-${attr.id}`}>
                 {attr.name}
                 {attr.required && <span className="text-red-500 ml-0.5">*</span>}
-                {attr.type === "reference" && attr.referenceTypeId && (
+                {attr.attributeType === "reference" && attr.referenceTypeId && (
                   <Badge variant="outline" className="ml-2 text-[10px]">
-                    {getTypeById(attr.referenceTypeId)?.name ?? "ref"}
+                    {allTypes.find(t => t.id === attr.referenceTypeId)?.name ?? "ref"}
                   </Badge>
                 )}
               </Label>
@@ -214,6 +242,8 @@ export function EntryFormDialog({
                 attr={attr}
                 value={attributes[attr.key]}
                 onChange={(v) => updateAttribute(attr.key, v)}
+                allTypes={allTypes}
+                referenceEntries={referenceEntries}
               />
             </div>
           ))}
@@ -222,7 +252,7 @@ export function EntryFormDialog({
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
-          <Button onClick={() => onOpenChange(false)}>
+          <Button onClick={handleSubmit} disabled={processing}>
             {isEdit ? "Save Changes" : `Create ${type.name}`}
           </Button>
         </DialogFooter>

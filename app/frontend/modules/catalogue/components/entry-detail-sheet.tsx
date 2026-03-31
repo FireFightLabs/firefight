@@ -1,3 +1,4 @@
+import { router } from "@inertiajs/react"
 import {
   IconBrandSlack,
   IconBrandGithub,
@@ -9,8 +10,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react"
 
-import type { CatalogEntry, CatalogType, AttributeDefinition } from "@/modules/catalogue/types"
-import { getTypeById, resolveReference } from "@/modules/catalogue/lib/mock-data"
+import type { CatalogEntry, CatalogType, AttributeDefinition, ReferenceEntry } from "@/modules/catalogue/types"
 import { CatalogIcon } from "@/modules/catalogue/lib/icon-map"
 import { formatDate } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
@@ -32,15 +32,19 @@ import {
 function AttributeValue({
   attr,
   value,
+  allTypes,
+  referenceEntries,
 }: {
   attr: AttributeDefinition
   value: unknown
+  allTypes: CatalogType[]
+  referenceEntries: ReferenceEntry[]
 }) {
   if (value === null || value === undefined || value === "") {
     return <span className="text-sm text-muted-foreground/40 italic">Not set</span>
   }
 
-  if (attr.type === "boolean") {
+  if (attr.attributeType === "boolean") {
     return value ? (
       <div className="flex items-center gap-1.5">
         <IconCircleCheck className="size-4 text-emerald-500" />
@@ -54,13 +58,13 @@ function AttributeValue({
     )
   }
 
-  if (attr.type === "select") {
+  if (attr.attributeType === "select") {
     return <Badge variant="outline" className="text-xs font-medium">{String(value)}</Badge>
   }
 
-  if (attr.type === "reference") {
-    const refType = attr.referenceTypeId ? getTypeById(attr.referenceTypeId) : null
-    const displayName = resolveReference(String(value))
+  if (attr.attributeType === "reference") {
+    const refType = attr.referenceTypeId ? allTypes.find(t => t.id === attr.referenceTypeId) : null
+    const displayName = referenceEntries.find(e => e.id === String(value))?.name ?? String(value)
     return (
       <Badge
         variant="secondary"
@@ -76,7 +80,7 @@ function AttributeValue({
     )
   }
 
-  if (attr.type === "list" && Array.isArray(value)) {
+  if (attr.attributeType === "list" && Array.isArray(value)) {
     return (
       <div className="flex flex-wrap gap-1.5">
         {value.map((item, i) => (
@@ -114,12 +118,16 @@ function AttributeValue({
 export function EntryDetailSheet({
   entry,
   type,
+  allTypes,
+  referenceEntries,
   open,
   onOpenChange,
   onEdit,
 }: {
   entry: CatalogEntry | null
   type: CatalogType
+  allTypes: CatalogType[]
+  referenceEntries: ReferenceEntry[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onEdit?: (entry: CatalogEntry) => void
@@ -129,6 +137,12 @@ export function EntryDetailSheet({
   const descAttr = type.attributeDefinitions.find((a) => a.key === "description")
   const descValue = descAttr ? entry.attributes[descAttr.key] : null
   const otherAttrs = type.attributeDefinitions.filter((a) => a.key !== "description")
+
+  const handleDelete = () => {
+    router.delete(`/app/catalogue/entries/${entry.id}`, {
+      onSuccess: () => onOpenChange(false),
+    })
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -174,7 +188,7 @@ export function EntryDetailSheet({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem variant="destructive">
+              <DropdownMenuItem variant="destructive" onClick={handleDelete}>
                 <IconTrash className="size-4" />
                 Delete
               </DropdownMenuItem>
@@ -203,7 +217,12 @@ export function EntryDetailSheet({
                     {attr.name}
                   </span>
                   <div className="text-right">
-                    <AttributeValue attr={attr} value={value} />
+                    <AttributeValue
+                      attr={attr}
+                      value={value}
+                      allTypes={allTypes}
+                      referenceEntries={referenceEntries}
+                    />
                   </div>
                 </div>
               )

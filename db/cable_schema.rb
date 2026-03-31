@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_25_140346) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_31_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -60,6 +60,73 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_140346) do
     t.index ["token_digest"], name: "index_api_keys_on_token_digest", unique: true
     t.index ["workspace_id", "deleted_at"], name: "index_api_keys_on_workspace_id_and_deleted_at"
     t.index ["workspace_id"], name: "index_api_keys_on_workspace_id"
+  end
+
+  create_table "catalog_attribute_definitions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "attribute_type", null: false
+    t.uuid "catalog_type_id", null: false
+    t.jsonb "config", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.string "key", null: false
+    t.string "name", null: false
+    t.integer "position", null: false
+    t.boolean "required", default: false, null: false
+    t.datetime "updated_at", null: false
+    t.index ["catalog_type_id", "key"], name: "index_catalog_attr_defs_on_type_and_key", unique: true
+    t.index ["catalog_type_id"], name: "index_catalog_attribute_definitions_on_catalog_type_id"
+  end
+
+  create_table "catalog_entries", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "attributes", default: {}, null: false
+    t.uuid "catalog_type_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.string "external_id"
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.string "source"
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["catalog_type_id", "slug"], name: "index_catalog_entries_on_catalog_type_id_and_slug", unique: true
+    t.index ["catalog_type_id"], name: "index_catalog_entries_on_catalog_type_id"
+    t.index ["workspace_id", "catalog_type_id"], name: "index_catalog_entries_on_workspace_id_and_catalog_type_id"
+    t.index ["workspace_id", "source", "external_id"], name: "index_catalog_entries_external_identity", unique: true, where: "((source IS NOT NULL) AND (external_id IS NOT NULL))"
+    t.index ["workspace_id"], name: "index_catalog_entries_on_workspace_id"
+  end
+
+  create_table "catalog_entry_relationships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "catalog_attribute_definition_id"
+    t.datetime "created_at", null: false
+    t.integer "position"
+    t.string "relationship_key", null: false
+    t.uuid "source_entry_id", null: false
+    t.uuid "target_entry_id", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["catalog_attribute_definition_id"], name: "idx_on_catalog_attribute_definition_id_77676cd157"
+    t.index ["source_entry_id", "catalog_attribute_definition_id"], name: "index_catalog_relationships_single_ref", unique: true, where: "(catalog_attribute_definition_id IS NOT NULL)"
+    t.index ["source_entry_id", "target_entry_id", "relationship_key"], name: "index_catalog_relationships_uniqueness", unique: true
+    t.index ["source_entry_id"], name: "index_catalog_entry_relationships_on_source_entry_id"
+    t.index ["target_entry_id"], name: "index_catalog_entry_relationships_on_target_entry_id"
+    t.index ["workspace_id"], name: "index_catalog_entry_relationships_on_workspace_id"
+  end
+
+  create_table "catalog_types", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "color"
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.text "description"
+    t.string "icon"
+    t.string "kind", null: false
+    t.string "name", null: false
+    t.integer "position", null: false
+    t.string "slug", null: false
+    t.string "system_key"
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["workspace_id", "slug"], name: "index_catalog_types_on_workspace_id_and_slug", unique: true
+    t.index ["workspace_id", "system_key"], name: "index_catalog_types_on_workspace_id_and_system_key", unique: true, where: "(system_key IS NOT NULL)"
+    t.index ["workspace_id"], name: "index_catalog_types_on_workspace_id"
   end
 
   create_table "environments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -798,6 +865,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_140346) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "api_keys", "workspace_memberships", column: "created_by_id"
   add_foreign_key "api_keys", "workspaces"
+  add_foreign_key "catalog_attribute_definitions", "catalog_types"
+  add_foreign_key "catalog_entries", "catalog_types"
+  add_foreign_key "catalog_entries", "workspaces"
+  add_foreign_key "catalog_entry_relationships", "catalog_attribute_definitions"
+  add_foreign_key "catalog_entry_relationships", "catalog_entries", column: "source_entry_id"
+  add_foreign_key "catalog_entry_relationships", "catalog_entries", column: "target_entry_id"
+  add_foreign_key "catalog_entry_relationships", "workspaces"
+  add_foreign_key "catalog_types", "workspaces"
   add_foreign_key "environments", "workspaces"
   add_foreign_key "idempotency_keys", "workspaces"
   add_foreign_key "incident_action_updates", "incident_actions"
