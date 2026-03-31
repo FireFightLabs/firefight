@@ -33,7 +33,8 @@ class CatalogueController < InertiaController
   end
 
   def create_type
-    type = type_service.create(
+    type = CatalogType.create_custom!(
+      workspace: current_workspace,
       name: params[:name], description: params[:description],
       icon: params[:icon], color: params[:color],
       attribute_definitions: parse_attribute_definitions
@@ -45,8 +46,8 @@ class CatalogueController < InertiaController
 
   def update_type
     type = current_workspace.catalog_types.active.find(params[:id])
-    type_service.update(type,
-      attrs: { name: params[:name], description: params[:description], icon: params[:icon], color: params[:color] },
+    type.update_with_definitions!(
+      { name: params[:name], description: params[:description], icon: params[:icon], color: params[:color] },
       attribute_definitions: parse_attribute_definitions
     )
     redirect_to catalogue_type_path(type.slug)
@@ -56,7 +57,7 @@ class CatalogueController < InertiaController
 
   def destroy_type
     type = current_workspace.catalog_types.active.find(params[:id])
-    type_service.delete(type)
+    type.soft_delete!
     redirect_to catalogue_path
   rescue ActiveRecord::RecordNotDestroyed => e
     redirect_back fallback_location: catalogue_path, inertia: { errors: { base: [ e.message ] } }
@@ -85,10 +86,6 @@ class CatalogueController < InertiaController
   end
 
   private
-
-  def type_service
-    @type_service ||= Catalogue::TypeService.new(current_workspace)
-  end
 
   def entry_service
     @entry_service ||= Catalogue::EntryService.new(current_workspace)
