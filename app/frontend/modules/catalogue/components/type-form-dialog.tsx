@@ -1,3 +1,4 @@
+import { router } from "@inertiajs/react"
 import {
   IconGripVertical,
   IconPlus,
@@ -54,6 +55,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
   const [attributes, setAttributes] = React.useState<AttributeDefinition[]>(
     type?.attributeDefinitions ?? []
   )
+  const [processing, setProcessing] = React.useState(false)
 
   React.useEffect(() => {
     setName(type?.name ?? "")
@@ -69,8 +71,9 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
         id: `new-${Date.now()}`,
         key: "",
         name: "",
-        type: "text" as AttributeType,
+        attributeType: "text" as AttributeType,
         required: false,
+        position: prev.length,
       },
     ])
   }
@@ -80,7 +83,6 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
       prev.map((a) => {
         if (a.id !== id) return a
         const merged = { ...a, ...updates }
-        // Only auto-generate key for new attributes (no existing key yet)
         if (updates.name !== undefined && !a.key) {
           merged.key = generateKey(updates.name)
         }
@@ -91,6 +93,34 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
 
   const removeAttribute = (id: string) => {
     setAttributes((prev) => prev.filter((a) => a.id !== id))
+  }
+
+  const handleSubmit = () => {
+    setProcessing(true)
+    const attributeDefinitions = attributes.map((attr, index) => ({
+      id: attr.id.startsWith("new-") ? undefined : attr.id,
+      key: attr.key,
+      name: attr.name,
+      attributeType: attr.attributeType,
+      required: attr.required,
+      position: index,
+      referenceTypeId: attr.attributeType === "reference" ? attr.referenceTypeId : undefined,
+      options: attr.attributeType === "select" ? attr.options : undefined,
+    }))
+
+    const data = { name, description, color, icon: isEdit ? type?.icon ?? "box" : "box", attribute_definitions: attributeDefinitions }
+
+    if (isEdit && type) {
+      router.patch(`/app/catalogue/types/${type.id}`, data, {
+        onSuccess: () => onOpenChange(false),
+        onFinish: () => setProcessing(false),
+      })
+    } else {
+      router.post("/app/catalogue/types", data, {
+        onSuccess: () => onOpenChange(false),
+        onFinish: () => setProcessing(false),
+      })
+    }
   }
 
   return (
@@ -182,10 +212,10 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                         className="h-8 text-sm flex-1"
                       />
                       <Select
-                        value={attr.type}
+                        value={attr.attributeType}
                         onValueChange={(v) =>
                           updateAttribute(attr.id, {
-                            type: v as AttributeType,
+                            attributeType: v as AttributeType,
                             referenceTypeId: v === "reference" ? "" : undefined,
                             options: v === "select" ? ["Option 1"] : undefined,
                           })
@@ -221,7 +251,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                       </Button>
                     </div>
 
-                    {attr.type === "reference" && (
+                    {attr.attributeType === "reference" && (
                       <div className="mt-2 ml-6 flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">References</span>
                         <Select
@@ -242,7 +272,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                       </div>
                     )}
 
-                    {attr.type === "select" && (
+                    {attr.attributeType === "select" && (
                       <div className="mt-2 ml-6 flex items-center gap-2">
                         <span className="text-xs text-muted-foreground shrink-0">Options</span>
                         <Input
@@ -271,7 +301,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
-          <Button onClick={() => onOpenChange(false)}>
+          <Button onClick={handleSubmit} disabled={processing}>
             {isEdit ? "Save Changes" : "Create Type"}
           </Button>
         </DialogFooter>

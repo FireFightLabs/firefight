@@ -1,5 +1,6 @@
 class Workspace < ApplicationRecord
   include Workspace::IncidentDefaults
+  include Workspace::CatalogueDefaults
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
@@ -13,6 +14,8 @@ class Workspace < ApplicationRecord
   has_many :incident_types, dependent: :destroy
   has_many :webhooks, dependent: :destroy
   has_many :api_keys, dependent: :destroy
+  has_many :catalog_types
+  has_many :catalog_entries
 
   encrypts :access_token, :refresh_token, deterministic: false
 
@@ -59,7 +62,10 @@ class Workspace < ApplicationRecord
       user = User.find_or_create_from_omniauth!(auth_hash)
       membership = WorkspaceMembership.find_or_create_from_omniauth!(user, workspace, auth_hash)
 
-      workspace.setup_incident_configuration! if workspace.previously_new_record?
+      if workspace.previously_new_record?
+        workspace.setup_incident_configuration!
+        workspace.setup_catalogue!
+      end
 
       {
         workspace: workspace,

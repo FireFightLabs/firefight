@@ -1,3 +1,4 @@
+import { router } from "@inertiajs/react"
 import {
   IconBrandSlack,
   IconBrandGithub,
@@ -9,8 +10,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react"
 
-import type { CatalogEntry, CatalogType, AttributeDefinition } from "@/modules/catalogue/types"
-import { getTypeById, resolveReference } from "@/modules/catalogue/lib/mock-data"
+import type { CatalogEntry, CatalogType, AttributeDefinition, ReferenceEntry, WorkspaceMember } from "@/modules/catalogue/types"
 import { CatalogIcon } from "@/modules/catalogue/lib/icon-map"
 import { formatDate } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
@@ -32,15 +32,21 @@ import {
 function AttributeValue({
   attr,
   value,
+  allTypes,
+  referenceEntries,
+  workspaceMembers,
 }: {
   attr: AttributeDefinition
   value: unknown
+  allTypes: CatalogType[]
+  referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
 }) {
   if (value === null || value === undefined || value === "") {
     return <span className="text-sm text-muted-foreground/40 italic">Not set</span>
   }
 
-  if (attr.type === "boolean") {
+  if (attr.attributeType === "boolean") {
     return value ? (
       <div className="flex items-center gap-1.5">
         <IconCircleCheck className="size-4 text-emerald-500" />
@@ -54,13 +60,13 @@ function AttributeValue({
     )
   }
 
-  if (attr.type === "select") {
+  if (attr.attributeType === "select") {
     return <Badge variant="outline" className="text-xs font-medium">{String(value)}</Badge>
   }
 
-  if (attr.type === "reference") {
-    const refType = attr.referenceTypeId ? getTypeById(attr.referenceTypeId) : null
-    const displayName = resolveReference(String(value))
+  if (attr.attributeType === "reference") {
+    const refType = attr.referenceTypeId ? allTypes.find(t => t.id === attr.referenceTypeId) : null
+    const displayName = referenceEntries.find(e => e.id === String(value))?.name ?? String(value)
     return (
       <Badge
         variant="secondary"
@@ -76,12 +82,54 @@ function AttributeValue({
     )
   }
 
-  if (attr.type === "list" && Array.isArray(value)) {
+  if (attr.attributeType === "list" && Array.isArray(value)) {
     return (
       <div className="flex flex-wrap gap-1.5">
         {value.map((item, i) => (
           <Badge key={i} variant="secondary" className="text-xs">
             {String(item)}
+          </Badge>
+        ))}
+      </div>
+    )
+  }
+
+  if (attr.attributeType === "slack_channel") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <IconBrandSlack className="size-3.5 text-muted-foreground" />
+        <span className="text-sm font-mono">#{String(value)}</span>
+      </div>
+    )
+  }
+
+  if (attr.attributeType === "workspace_member") {
+    const member = workspaceMembers.find((m) => m.id === String(value))
+    if (!member) return <span className="text-sm text-muted-foreground/40 italic">Not set</span>
+    return (
+      <div className="flex items-center gap-1.5">
+        {member.avatarUrl ? (
+          <img src={member.avatarUrl} alt="" className="size-5 rounded-full" />
+        ) : (
+          <div className="size-5 rounded-full bg-muted" />
+        )}
+        <span className="text-sm">{member.name}</span>
+      </div>
+    )
+  }
+
+  if (attr.attributeType === "workspace_members" && Array.isArray(value)) {
+    const resolvedMembers = (value as string[])
+      .map((id) => workspaceMembers.find((m) => m.id === id))
+      .filter(Boolean)
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {resolvedMembers.map((member) => (
+          <Badge key={member!.id} variant="secondary" className="text-xs gap-1">
+            {member!.avatarUrl ? (
+              <img src={member!.avatarUrl} alt="" className="size-4 rounded-full" />
+            ) : null}
+            {member!.name}
           </Badge>
         ))}
       </div>
@@ -114,12 +162,18 @@ function AttributeValue({
 export function EntryDetailSheet({
   entry,
   type,
+  allTypes,
+  referenceEntries,
+  workspaceMembers,
   open,
   onOpenChange,
   onEdit,
 }: {
   entry: CatalogEntry | null
   type: CatalogType
+  allTypes: CatalogType[]
+  referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onEdit?: (entry: CatalogEntry) => void
@@ -129,6 +183,12 @@ export function EntryDetailSheet({
   const descAttr = type.attributeDefinitions.find((a) => a.key === "description")
   const descValue = descAttr ? entry.attributes[descAttr.key] : null
   const otherAttrs = type.attributeDefinitions.filter((a) => a.key !== "description")
+
+  const handleDelete = () => {
+    router.delete(`/app/catalogue/entries/${entry.id}`, {
+      onSuccess: () => onOpenChange(false),
+    })
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -174,7 +234,7 @@ export function EntryDetailSheet({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem variant="destructive">
+              <DropdownMenuItem variant="destructive" onClick={handleDelete}>
                 <IconTrash className="size-4" />
                 Delete
               </DropdownMenuItem>
@@ -203,7 +263,13 @@ export function EntryDetailSheet({
                     {attr.name}
                   </span>
                   <div className="text-right">
-                    <AttributeValue attr={attr} value={value} />
+                    <AttributeValue
+                      attr={attr}
+                      value={value}
+                      allTypes={allTypes}
+                      referenceEntries={referenceEntries}
+                      workspaceMembers={workspaceMembers}
+                    />
                   </div>
                 </div>
               )

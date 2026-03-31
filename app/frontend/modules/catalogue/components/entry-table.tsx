@@ -1,8 +1,7 @@
 import { IconCircleCheck, IconCircleX, IconSearch } from "@tabler/icons-react"
 import * as React from "react"
 
-import type { CatalogEntry, CatalogType, AttributeDefinition } from "@/modules/catalogue/types"
-import { getTypeById, resolveReference } from "@/modules/catalogue/lib/mock-data"
+import type { CatalogEntry, CatalogType, AttributeDefinition, ReferenceEntry, WorkspaceMember } from "@/modules/catalogue/types"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
@@ -19,15 +18,21 @@ import { EntryFormDialog } from "./entry-form-dialog"
 function CellValue({
   value,
   attr,
+  allTypes,
+  referenceEntries,
+  workspaceMembers,
 }: {
   value: unknown
   attr: AttributeDefinition
+  allTypes: CatalogType[]
+  referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
 }) {
   if (value === null || value === undefined || value === "") {
     return <span className="text-muted-foreground/40">—</span>
   }
 
-  if (attr.type === "boolean") {
+  if (attr.attributeType === "boolean") {
     return value ? (
       <IconCircleCheck className="size-4 text-emerald-500" />
     ) : (
@@ -35,7 +40,7 @@ function CellValue({
     )
   }
 
-  if (attr.type === "select") {
+  if (attr.attributeType === "select") {
     return (
       <Badge variant="outline" className="text-xs">
         {String(value)}
@@ -43,9 +48,9 @@ function CellValue({
     )
   }
 
-  if (attr.type === "reference") {
-    const refType = attr.referenceTypeId ? getTypeById(attr.referenceTypeId) : null
-    const displayName = resolveReference(String(value))
+  if (attr.attributeType === "reference") {
+    const refType = attr.referenceTypeId ? allTypes.find(t => t.id === attr.referenceTypeId) : null
+    const displayName = referenceEntries.find(e => e.id === String(value))?.name ?? String(value)
     return (
       <Badge
         variant="secondary"
@@ -61,11 +66,43 @@ function CellValue({
     )
   }
 
-  if (attr.type === "list" && Array.isArray(value)) {
+  if (attr.attributeType === "list" && Array.isArray(value)) {
     return (
       <span className="text-sm text-muted-foreground">
         {value.length} items
       </span>
+    )
+  }
+
+  if (attr.attributeType === "slack_channel") {
+    return (
+      <span className="text-sm font-mono">
+        #{String(value)}
+      </span>
+    )
+  }
+
+  if (attr.attributeType === "workspace_member") {
+    const member = workspaceMembers.find((m) => m.id === String(value))
+    if (!member) return <span className="text-sm text-muted-foreground/40">—</span>
+    return (
+      <div className="flex items-center gap-1.5">
+        {member.avatarUrl ? (
+          <img src={member.avatarUrl} alt="" className="size-5 rounded-full" />
+        ) : (
+          <div className="size-5 rounded-full bg-muted" />
+        )}
+        <span className="text-sm">{member.name}</span>
+      </div>
+    )
+  }
+
+  if (attr.attributeType === "workspace_members" && Array.isArray(value)) {
+    const count = value.length
+    return (
+      <Badge variant="secondary" className="text-xs">
+        {count} {count === 1 ? "member" : "members"}
+      </Badge>
     )
   }
 
@@ -79,9 +116,15 @@ function CellValue({
 export function EntryTable({
   type,
   entries,
+  allTypes,
+  referenceEntries,
+  workspaceMembers,
 }: {
   type: CatalogType
   entries: CatalogEntry[]
+  allTypes: CatalogType[]
+  referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
 }) {
   const [search, setSearch] = React.useState("")
   const [selectedEntry, setSelectedEntry] = React.useState<CatalogEntry | null>(null)
@@ -97,13 +140,14 @@ export function EntryTable({
       return type.attributeDefinitions.some((attr) => {
         const v = e.attributes[attr.key]
         if (typeof v !== "string") return false
-        if (attr.type === "reference") {
-          return resolveReference(v).toLowerCase().includes(q)
+        if (attr.attributeType === "reference") {
+          const resolved = referenceEntries.find(re => re.id === v)?.name ?? v
+          return resolved.toLowerCase().includes(q)
         }
         return v.toLowerCase().includes(q)
       })
     })
-  }, [entries, search, type.attributeDefinitions])
+  }, [entries, search, type.attributeDefinitions, referenceEntries])
 
   return (
     <>
@@ -144,7 +188,13 @@ export function EntryTable({
                   </TableCell>
                   {visibleAttributes.map((attr) => (
                     <TableCell key={attr.id}>
-                      <CellValue value={entry.attributes[attr.key]} attr={attr} />
+                      <CellValue
+                        value={entry.attributes[attr.key]}
+                        attr={attr}
+                        allTypes={allTypes}
+                        referenceEntries={referenceEntries}
+                        workspaceMembers={workspaceMembers}
+                      />
                     </TableCell>
                   ))}
                 </TableRow>
@@ -170,6 +220,9 @@ export function EntryTable({
       <EntryDetailSheet
         entry={selectedEntry}
         type={type}
+        allTypes={allTypes}
+        referenceEntries={referenceEntries}
+        workspaceMembers={workspaceMembers}
         open={selectedEntry !== null}
         onOpenChange={(open) => { if (!open) setSelectedEntry(null) }}
         onEdit={(entry) => setEditingEntry(entry)}
@@ -177,6 +230,9 @@ export function EntryTable({
       <EntryFormDialog
         type={type}
         entry={editingEntry}
+        allTypes={allTypes}
+        referenceEntries={referenceEntries}
+        workspaceMembers={workspaceMembers}
         open={editingEntry !== null}
         onOpenChange={(open) => { if (!open) setEditingEntry(null) }}
       />
