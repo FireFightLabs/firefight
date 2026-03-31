@@ -13,16 +13,14 @@ class CatalogueController < InertiaController
   def show
     type = current_workspace.catalog_types.active.find_by!(slug: params[:type_slug])
     entries = type.catalog_entries.active.ordered.with_relationships
-
-    all_types = current_workspace.catalog_types.active.ordered
-      .includes(:catalog_attribute_definitions)
+    all_types = current_workspace.catalog_types.active.ordered.includes(:catalog_attribute_definitions)
 
     render inertia: "catalogue/show", props: {
       type: CatalogTypeSerializer.one(type),
       entries: CatalogEntrySerializer.many(entries),
       allTypes: CatalogTypeSerializer.many(all_types),
       referenceEntries: type.reference_entry_options,
-      workspaceMembers: member_service.resolve_for_entries(entries, type)
+      workspaceMembers: member_resolution_service.resolve_for_entries(entries, type)
     }
   end
 
@@ -35,102 +33,86 @@ class CatalogueController < InertiaController
   end
 
   def create_type
-    next_position = current_workspace.catalog_types.maximum(:position).to_i + 1
-    slug = generate_slug(params[:name])
-
-    type = current_workspace.catalog_types.create!(
-      name: params[:name],
-      slug: slug,
-      kind: CatalogType::KIND_CUSTOM,
-      description: params[:description],
-      icon: params[:icon],
-      color: params[:color],
-      position: next_position
+    type = type_service.create(
+      name: params[:name], description: params[:description],
+      icon: params[:icon], color: params[:color],
+      attribute_definitions: parse_attribute_definitions
     )
-
-    type.sync_attribute_definitions!(parse_attribute_definitions) if params[:attribute_definitions].present?
-
     redirect_to catalogue_type_path(type.slug)
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: catalogue_path,
-      inertia: { errors: e.record.errors.to_hash }
+    redirect_back fallback_location: catalogue_path, inertia: { errors: e.record.errors.to_hash }
   end
 
   def update_type
     type = current_workspace.catalog_types.active.find(params[:id])
-
-    type.update!(name: params[:name], description: params[:description], icon: params[:icon], color: params[:color])
-    type.sync_attribute_definitions!(parse_attribute_definitions) if params[:attribute_definitions].present?
-
+    type_service.update(type,
+      attrs: { name: params[:name], description: params[:description], icon: params[:icon], color: params[:color] },
+      attribute_definitions: parse_attribute_definitions
+    )
     redirect_to catalogue_type_path(type.slug)
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
-    redirect_back fallback_location: catalogue_path,
-      inertia: { errors: { base: [ e.message ] } }
+    redirect_back fallback_location: catalogue_path, inertia: { errors: { base: [ e.message ] } }
   end
 
   def destroy_type
     type = current_workspace.catalog_types.active.find(params[:id])
-    type.soft_delete!
+    type_service.delete(type)
     redirect_to catalogue_path
   rescue ActiveRecord::RecordNotDestroyed => e
-    redirect_back fallback_location: catalogue_path,
-      inertia: { errors: { base: [ e.message ] } }
+    redirect_back fallback_location: catalogue_path, inertia: { errors: { base: [ e.message ] } }
   end
 
   def create_entry
     type = current_workspace.catalog_types.active.find_by!(slug: params[:type_slug])
-    raw_attrs = member_service.provision_member_attributes(type, params[:attributes]&.to_unsafe_h || {})
-
-    entry = type.catalog_entries.new(workspace: current_workspace, name: params[:name], slug: generate_slug(params[:name]))
-    _scalar_attrs, reference_attrs = entry.assign_validated_attributes!(raw_attrs)
-    entry.save!
-    entry.sync_references!(reference_attrs)
-
+    entry_service.create(type: type, name: params[:name], raw_attributes: params[:attributes]&.to_unsafe_h || {})
     redirect_to catalogue_type_path(type.slug)
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: catalogue_type_path(params[:type_slug]),
-      inertia: { errors: { base: [ e.message ] } }
+    redirect_back fallback_location: catalogue_type_path(params[:type_slug]), inertia: { errors: { base: [ e.message ] } }
   end
 
   def update_entry
     entry = current_workspace.catalog_entries.where(deleted_at: nil).find(params[:id])
-    raw_attrs = member_service.provision_member_attributes(entry.catalog_type, params[:attributes]&.to_unsafe_h || {})
-
-    entry.name = params[:name] if params[:name].present?
-    _scalar_attrs, reference_attrs = entry.assign_validated_attributes!(raw_attrs)
-    entry.save!
-    entry.sync_references!(reference_attrs)
-
+    entry_service.update(entry, name: params[:name], raw_attributes: params[:attributes]&.to_unsafe_h || {})
     redirect_to catalogue_type_path(entry.catalog_type.slug)
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: catalogue_path,
-      inertia: { errors: { base: [ e.message ] } }
+    redirect_back fallback_location: catalogue_path, inertia: { errors: { base: [ e.message ] } }
   end
 
   def destroy_entry
     entry = current_workspace.catalog_entries.where(deleted_at: nil).find(params[:id])
-    entry.soft_delete!
+    entry_service.delete(entry)
     redirect_to catalogue_type_path(entry.catalog_type.slug)
   end
 
   private
 
-  def member_service
-    @member_service ||= Catalogue::MemberResolutionService.new(current_workspace)
+  def type_service
+    @type_service ||= Catalogue::TypeService.new(current_workspace)
   end
 
-  def generate_slug(name)
-    name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
+  def entry_service
+    @entry_service ||= Catalogue::EntryService.new(current_workspace)
+  end
+
+  def member_resolution_service
+    @member_resolution_service ||= Catalogue::MemberResolutionService.new(current_workspace)
   end
 
   def parse_attribute_definitions
+    return [] unless params[:attribute_definitions].present?
+
     params[:attribute_definitions].map do |d|
+      config = d[:config]&.to_unsafe_h || {}
+      config["options"] = Array(d[:options]) if d[:options].present?
+      ref_id = d[:referenceTypeId] || d[:reference_type_id]
+      config["reference_type_id"] = ref_id if ref_id.present?
+
       {
         id: d[:id],
         name: d[:name],
         attribute_type: d[:attribute_type] || d[:attributeType],
         required: ActiveModel::Type::Boolean.new.cast(d[:required]),
-        config: d[:config]&.to_unsafe_h || {}
+        config: config
       }
     end
   end

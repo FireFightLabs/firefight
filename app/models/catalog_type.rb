@@ -42,6 +42,10 @@ class CatalogType < ApplicationRecord
   def system? = kind == KIND_SYSTEM
   def custom? = kind == KIND_CUSTOM
 
+  def self.generate_slug(name)
+    name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
+  end
+
   def entry_count
     read_attribute("entry_count") || catalog_entries.where(deleted_at: nil).count
   end

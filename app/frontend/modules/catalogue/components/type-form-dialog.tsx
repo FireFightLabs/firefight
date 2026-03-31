@@ -108,7 +108,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
       options: attr.attributeType === "select" ? attr.options : undefined,
     }))
 
-    const data = { name, description, color, attribute_definitions: attributeDefinitions }
+    const data = { name, description, color, icon: isEdit ? type?.icon ?? "box" : "box", attribute_definitions: attributeDefinitions }
 
     if (isEdit && type) {
       router.patch(`/app/catalogue/types/${type.id}`, data, {

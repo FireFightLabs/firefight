@@ -346,4 +346,42 @@ class CatalogTypeTest < ActiveSupport::TestCase
     deleted_entry_ids = options.map { |o| o[:id] }
     assert_not_includes deleted_entry_ids, catalog_entries(:deleted_entry).id
   end
+
+  # ============================================================================
+  # SCHEMA EVOLUTION GUARDS
+  # ============================================================================
+
+  test "reference_type_id cannot be changed on existing reference attribute" do
+    service_type = catalog_types(:service_ws1)
+    owner_attr = catalog_attribute_definitions(:service_owner_team)
+    environment_type = catalog_types(:environment_ws1)
+
+    error = assert_raises(ActiveRecord::RecordNotDestroyed) do
+      service_type.sync_attribute_definitions!([
+        { id: catalog_attribute_definitions(:service_description).id, name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT },
+        { id: owner_attr.id, name: "Owner Team", attribute_type: CatalogAttributeDefinition::TYPE_REFERENCE,
+          config: { "reference_type_id" => environment_type.id } },
+        { id: catalog_attribute_definitions(:service_tier).id, name: "Tier", attribute_type: CatalogAttributeDefinition::TYPE_SELECT,
+          config: { "options" => [ "Critical", "Standard", "Internal" ] } }
+      ])
+    end
+
+    assert_match(/Cannot change reference target type/, error.message)
+  end
+
+  test "system types can gain new custom attributes" do
+    team_type = catalog_types(:team_ws1)
+    initial_count = team_type.catalog_attribute_definitions.count
+
+    team_type.sync_attribute_definitions!([
+      { id: catalog_attribute_definitions(:team_description).id, name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT },
+      { id: catalog_attribute_definitions(:team_slack_channel).id, name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_TEXT },
+      { name: "On-Call Rotation", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, required: false }
+    ])
+
+    assert_equal initial_count + 1, team_type.catalog_attribute_definitions.reload.count
+    new_attr = team_type.catalog_attribute_definitions.find_by!(key: "oncall_rotation")
+    assert_equal "On-Call Rotation", new_attr.name
+    assert_equal CatalogAttributeDefinition::TYPE_TEXT, new_attr.attribute_type
+  end
 end

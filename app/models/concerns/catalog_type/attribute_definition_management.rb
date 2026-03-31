@@ -63,6 +63,16 @@ module CatalogType::AttributeDefinitionManagement
   end
 
   def validate_config_update!(attr_def, new_config)
+    if attr_def.reference?
+      old_ref = attr_def.config["reference_type_id"]
+      new_ref = new_config["reference_type_id"]
+      if old_ref.present? && new_ref.present? && old_ref != new_ref
+        raise ActiveRecord::RecordNotDestroyed,
+          "Cannot change reference target type for '#{attr_def.name}'"
+      end
+      return
+    end
+
     return unless attr_def.select?
 
     old_options = attr_def.config["options"] || []

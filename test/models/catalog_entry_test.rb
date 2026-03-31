@@ -324,4 +324,75 @@ class CatalogEntryTest < ActiveSupport::TestCase
     platform_team.soft_delete!
     assert_not platform_team.incoming_relationships.exists?
   end
+
+  # ============================================================================
+  # SLUG IMMUTABILITY
+  # ============================================================================
+
+  test "slug cannot be changed after creation" do
+    entry = catalog_entries(:platform_team)
+    entry.slug = "renamed_slug"
+    assert_not entry.valid?
+    assert_includes entry.errors[:slug], "cannot be changed after creation"
+  end
+
+  # ============================================================================
+  # SEARCH SCOPE
+  # ============================================================================
+
+  test "search scope filters by name" do
+    results = CatalogEntry.search("auth")
+    assert_includes results, catalog_entries(:auth_service)
+    assert_not_includes results, catalog_entries(:platform_team)
+  end
+
+  # ============================================================================
+  # EXTERNAL IDENTITY VALIDATIONS
+  # ============================================================================
+
+  test "external identity valid when both external_id and source present" do
+    entry = CatalogEntry.new(
+      workspace: workspaces(:slack_workspace_one),
+      catalog_type: catalog_types(:team_ws1),
+      name: "Full External Entry",
+      slug: "full_external_entry",
+      external_id: "ext-456",
+      source: "pagerduty"
+    )
+    assert entry.valid?
+  end
+
+  test "external identity valid when neither external_id nor source present" do
+    entry = CatalogEntry.new(
+      workspace: workspaces(:slack_workspace_one),
+      catalog_type: catalog_types(:team_ws1),
+      name: "No External",
+      slug: "no_external"
+    )
+    assert entry.valid?
+  end
+
+  test "external_id without source is invalid" do
+    entry = CatalogEntry.new(
+      workspace: workspaces(:slack_workspace_one),
+      catalog_type: catalog_types(:team_ws1),
+      name: "Bad External",
+      slug: "bad_external",
+      external_id: "ext-123"
+    )
+    assert_not entry.valid?
+    assert_includes entry.errors[:source], "is required when external_id is set"
+  end
+
+  test "source without external_id is invalid" do
+    entry = CatalogEntry.new(
+      workspace: workspaces(:slack_workspace_one),
+      catalog_type: catalog_types(:team_ws1),
+      name: "Bad Source",
+      slug: "bad_source",
+      source: "github"
+    )
+    assert_not entry.valid?
+    assert_includes entry.errors[:external_id], "is required when source is set"
+  end
 end
