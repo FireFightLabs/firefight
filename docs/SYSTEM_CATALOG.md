@@ -1,5 +1,9 @@
 # System Catalog — Teams, Services, Features, Environments
 
+> Superseded for backend implementation planning by `docs/CATALOGUE_BACKEND_IMPLEMENTATION.md`.
+>
+> This document captures an earlier direction with separate top-level tables per entity type. The current direction is a shared catalogue backend with reserved system types plus custom workspace-defined types.
+
 ## Context
 
 Firefight has no way to record what's affected by an incident — no services, features, environments, or team ownership. Both incident.io and Rootly/FireHydrant treat this as core infrastructure for routing, analytics, and ownership.

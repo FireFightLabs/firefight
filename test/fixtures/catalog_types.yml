@@ -1,0 +1,70 @@
+team_ws1:
+  id: aa000001-0000-0000-0000-000000000001
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Team
+  slug: team
+  kind: system
+  system_key: team
+  icon: users
+  color: "#8B5CF6"
+  description: Teams that own and operate services
+  position: 1
+
+service_ws1:
+  id: aa000001-0000-0000-0000-000000000002
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Service
+  slug: service
+  kind: system
+  system_key: service
+  icon: server
+  color: "#3B82F6"
+  description: Services and applications in your infrastructure
+  position: 2
+
+environment_ws1:
+  id: aa000001-0000-0000-0000-000000000003
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Environment
+  slug: environment
+  kind: system
+  system_key: environment
+  icon: cloud
+  color: "#10B981"
+  description: Deployment environments
+  position: 3
+
+functionality_ws1:
+  id: aa000001-0000-0000-0000-000000000004
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Functionality
+  slug: functionality
+  kind: system
+  system_key: functionality
+  icon: puzzle
+  color: "#F59E0B"
+  description: Business capabilities and product features
+  position: 4
+
+custom_vendor_ws1:
+  id: aa000001-0000-0000-0000-000000000005
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Vendor
+  slug: vendor
+  kind: custom
+  icon: building
+  color: "#EC4899"
+  description: External vendors
+  position: 5
+
+team_ws2:
+  id: aa000002-0000-0000-0000-000000000001
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  name: Team
+  slug: team
+  kind: system
+  system_key: team
+  icon: users
+  color: "#8B5CF6"
+  description: Teams
+  position: 1

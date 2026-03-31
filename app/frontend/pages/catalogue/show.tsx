@@ -9,39 +9,21 @@ import { EntryTable } from "@/modules/catalogue/components/entry-table"
 import { EntryFormDialog } from "@/modules/catalogue/components/entry-form-dialog"
 import { TypeFormDialog } from "@/modules/catalogue/components/type-form-dialog"
 import { CatalogIcon } from "@/modules/catalogue/lib/icon-map"
-import { mockTypes, getTypeBySlug, getEntriesByType } from "@/modules/catalogue/lib/mock-data"
-import type { CatalogType, CatalogEntry } from "@/modules/catalogue/types"
+import type { CatalogType, CatalogEntry, ReferenceEntry, WorkspaceMember } from "@/modules/catalogue/types"
 import { cataloguePath } from "@/lib/routes"
 
 interface CatalogueShowProps {
-  typeSlug?: string
-  catalogType?: CatalogType
-  entries?: CatalogEntry[]
+  type: CatalogType
+  entries: CatalogEntry[]
+  allTypes: CatalogType[]
+  referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
 }
 
 export default function CatalogueShow() {
-  const props = usePage<CatalogueShowProps>().props
+  const { type, entries, allTypes, referenceEntries, workspaceMembers } = usePage<CatalogueShowProps>().props
   const [addEntryOpen, setAddEntryOpen] = React.useState(false)
   const [editTypeOpen, setEditTypeOpen] = React.useState(false)
-
-  const slug = props.typeSlug ?? ""
-  const type = props.catalogType ?? getTypeBySlug(slug)
-  const entries = props.entries ?? (type ? getEntriesByType(type.id) : [])
-  const allTypes = mockTypes
-
-  if (!type) {
-    return (
-      <AuthenticatedLayout title="Catalogue">
-        <Head title="Not Found" />
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-          <p>Type not found.</p>
-          <Link href={cataloguePath()} className="mt-2 text-sm text-primary hover:underline">
-            Back to Catalogue
-          </Link>
-        </div>
-      </AuthenticatedLayout>
-    )
-  }
 
   return (
     <AuthenticatedLayout title={type.name}>
@@ -87,11 +69,20 @@ export default function CatalogueShow() {
           </div>
         </div>
 
-        <EntryTable type={type} entries={entries} />
+        <EntryTable
+          type={type}
+          entries={entries}
+          allTypes={allTypes}
+          referenceEntries={referenceEntries}
+          workspaceMembers={workspaceMembers}
+        />
       </div>
 
       <EntryFormDialog
         type={type}
+        allTypes={allTypes}
+        referenceEntries={referenceEntries}
+        workspaceMembers={workspaceMembers}
         open={addEntryOpen}
         onOpenChange={setAddEntryOpen}
       />

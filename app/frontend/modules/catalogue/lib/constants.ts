@@ -7,6 +7,9 @@ export const ATTRIBUTE_TYPE_LABELS: Record<AttributeType, string> = {
   select: "Select",
   reference: "Reference",
   list: "List",
+  slack_channel: "Slack Channel",
+  workspace_member: "Member",
+  workspace_members: "Members",
 }
 
 export const ATTRIBUTE_TYPES: AttributeType[] = [
@@ -16,4 +19,7 @@ export const ATTRIBUTE_TYPES: AttributeType[] = [
   "select",
   "reference",
   "list",
+  "slack_channel",
+  "workspace_member",
+  "workspace_members",
 ]
