@@ -18,7 +18,7 @@ class CatalogType < ApplicationRecord
   has_many :catalog_entries
 
   validates :name, presence: true
-  validates :slug, presence: true, uniqueness: { scope: :workspace_id }
+  validates :slug, presence: true, uniqueness: { scope: :workspace_id, conditions: -> { where(deleted_at: nil) } }
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :position, presence: true
   validates :system_key, inclusion: { in: SYSTEM_KEYS, allow_nil: true },

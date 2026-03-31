@@ -1,4 +1,4 @@
-export type AttributeType = "text" | "number" | "boolean" | "select" | "reference" | "list"
+export type AttributeType = "text" | "number" | "boolean" | "select" | "reference" | "list" | "slack_channel" | "workspace_member" | "workspace_members"
 
 export interface AttributeDefinition {
   id: string
@@ -41,4 +41,21 @@ export interface ReferenceEntry {
   id: string
   name: string
   typeId: string
+}
+
+export interface SlackMember {
+  id: string
+  name: string
+  avatarUrl?: string
+}
+
+export interface SlackChannel {
+  id: string
+  name: string
+}
+
+export interface WorkspaceMember {
+  id: string
+  name: string
+  avatarUrl?: string
 }

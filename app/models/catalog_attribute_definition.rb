@@ -5,7 +5,13 @@ class CatalogAttributeDefinition < ApplicationRecord
   TYPE_SELECT = "select"
   TYPE_LIST = "list"
   TYPE_REFERENCE = "reference"
-  ATTRIBUTE_TYPES = [ TYPE_TEXT, TYPE_NUMBER, TYPE_BOOLEAN, TYPE_SELECT, TYPE_LIST, TYPE_REFERENCE ].freeze
+  TYPE_SLACK_CHANNEL = "slack_channel"
+  TYPE_WORKSPACE_MEMBER = "workspace_member"
+  TYPE_WORKSPACE_MEMBERS = "workspace_members"
+  ATTRIBUTE_TYPES = [
+    TYPE_TEXT, TYPE_NUMBER, TYPE_BOOLEAN, TYPE_SELECT, TYPE_LIST, TYPE_REFERENCE,
+    TYPE_SLACK_CHANNEL, TYPE_WORKSPACE_MEMBER, TYPE_WORKSPACE_MEMBERS
+  ].freeze
 
   belongs_to :catalog_type
   has_many :catalog_entry_relationships

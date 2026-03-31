@@ -1,7 +1,9 @@
 import { router } from "@inertiajs/react"
 import * as React from "react"
 
-import type { AttributeDefinition, CatalogEntry, CatalogType, ReferenceEntry } from "@/modules/catalogue/types"
+import type { AttributeDefinition, CatalogEntry, CatalogType, ReferenceEntry, SlackChannel, SlackMember, WorkspaceMember } from "@/modules/catalogue/types"
+import { SearchableSelect } from "@/components/searchable-select"
+import { SearchableMultiSelect } from "@/components/searchable-multi-select"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -24,6 +26,25 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { useSlackData } from "@/modules/catalogue/hooks/use-slack-data"
+
+function avatarIcon(url?: string, size = "size-5") {
+  return url
+    ? <img src={url} alt="" className={`${size} rounded-full`} />
+    : <div className={`${size} rounded-full bg-muted`} />
+}
+
+function toMemberOptions(members: SlackMember[], resolvedMembers: WorkspaceMember[]) {
+  const allSources = [ ...resolvedMembers, ...members ]
+  const seen = new Set<string>()
+  return allSources.reduce<{ value: string; label: string; icon: React.ReactNode }[]>((acc, m) => {
+    if (!seen.has(m.id)) {
+      seen.add(m.id)
+      acc.push({ value: m.id, label: m.name, icon: avatarIcon(m.avatarUrl) })
+    }
+    return acc
+  }, [])
+}
 
 function AttributeField({
   attr,
@@ -31,12 +52,22 @@ function AttributeField({
   onChange,
   allTypes,
   referenceEntries,
+  slackMembers,
+  slackChannels,
+  loadMembers,
+  loadChannels,
+  resolvedMembers,
 }: {
   attr: AttributeDefinition
   value: unknown
   onChange: (value: unknown) => void
   allTypes: CatalogType[]
   referenceEntries: ReferenceEntry[]
+  slackMembers: SlackMember[]
+  slackChannels: SlackChannel[]
+  loadMembers: () => Promise<void>
+  loadChannels: () => Promise<void>
+  resolvedMembers: WorkspaceMember[]
 }) {
   switch (attr.attributeType) {
     case "text": {
@@ -140,6 +171,49 @@ function AttributeField({
         />
       )
 
+    case "slack_channel":
+      return (
+        <SearchableSelect
+          value={typeof value === "string" ? value : null}
+          onValueChange={(v) => onChange(v)}
+          options={slackChannels.map((c) => ({ value: c.name, label: `#${c.name}` }))}
+          placeholder={`Search ${attr.name.toLowerCase()}...`}
+          searchPlaceholder="Search channels..."
+          emptyText="No channels found"
+          onOpen={() => void loadChannels()}
+        />
+      )
+
+    case "workspace_member": {
+      const memberOptions = toMemberOptions(slackMembers, resolvedMembers)
+      return (
+        <SearchableSelect
+          value={typeof value === "string" ? value : null}
+          onValueChange={(v) => onChange(v)}
+          options={memberOptions}
+          placeholder={`Search ${attr.name.toLowerCase()}...`}
+          searchPlaceholder="Search members..."
+          emptyText="No members found"
+          onOpen={() => void loadMembers()}
+        />
+      )
+    }
+
+    case "workspace_members": {
+      const membersOptions = toMemberOptions(slackMembers, resolvedMembers)
+      return (
+        <SearchableMultiSelect
+          value={Array.isArray(value) ? (value as string[]) : []}
+          onValueChange={(v) => onChange(v)}
+          options={membersOptions}
+          placeholder={`Select ${attr.name.toLowerCase()}...`}
+          searchPlaceholder="Search members..."
+          emptyText="No members found"
+          onOpen={() => void loadMembers()}
+        />
+      )
+    }
+
     default:
       return (
         <Input
@@ -155,6 +229,7 @@ interface EntryFormDialogProps {
   entry?: CatalogEntry | null
   allTypes: CatalogType[]
   referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -164,6 +239,7 @@ export function EntryFormDialog({
   entry,
   allTypes,
   referenceEntries,
+  workspaceMembers,
   open,
   onOpenChange,
 }: EntryFormDialogProps) {
@@ -173,6 +249,7 @@ export function EntryFormDialog({
     entry?.attributes ?? {}
   )
   const [processing, setProcessing] = React.useState(false)
+  const { members: slackMembers, channels: slackChannels, loadMembers, loadChannels } = useSlackData()
 
   React.useEffect(() => {
     setName(entry?.name ?? "")
@@ -244,6 +321,11 @@ export function EntryFormDialog({
                 onChange={(v) => updateAttribute(attr.key, v)}
                 allTypes={allTypes}
                 referenceEntries={referenceEntries}
+                slackMembers={slackMembers}
+                slackChannels={slackChannels}
+                loadMembers={loadMembers}
+                loadChannels={loadChannels}
+                resolvedMembers={workspaceMembers}
               />
             </div>
           ))}

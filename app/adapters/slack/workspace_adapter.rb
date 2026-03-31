@@ -243,6 +243,33 @@ module Slack
       end
     end
 
+    def list_members
+      translate_errors do
+        raw_users = Slack::Client.list_users(workspace: @workspace)
+
+        raw_users
+          .reject { |u| u[:is_bot] || u[:deleted] || u[:id] == "USLACKBOT" }
+          .map do |u|
+            profile = u[:profile] || {}
+            {
+              id: u[:id],
+              name: profile[:real_name].presence || profile[:display_name].presence || u[:name],
+              avatarUrl: profile[:image_48]
+            }
+          end
+      end
+    end
+
+    def list_channels
+      translate_errors do
+        raw_channels = Slack::Client.list_conversations(workspace: @workspace)
+
+        raw_channels.map do |c|
+          { id: c[:id], name: c[:name] }
+        end
+      end
+    end
+
     private
 
     def translate_errors

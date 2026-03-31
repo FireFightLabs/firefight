@@ -1,7 +1,7 @@
 import { IconCircleCheck, IconCircleX, IconSearch } from "@tabler/icons-react"
 import * as React from "react"
 
-import type { CatalogEntry, CatalogType, AttributeDefinition, ReferenceEntry } from "@/modules/catalogue/types"
+import type { CatalogEntry, CatalogType, AttributeDefinition, ReferenceEntry, WorkspaceMember } from "@/modules/catalogue/types"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
@@ -20,11 +20,13 @@ function CellValue({
   attr,
   allTypes,
   referenceEntries,
+  workspaceMembers,
 }: {
   value: unknown
   attr: AttributeDefinition
   allTypes: CatalogType[]
   referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
 }) {
   if (value === null || value === undefined || value === "") {
     return <span className="text-muted-foreground/40">—</span>
@@ -72,6 +74,38 @@ function CellValue({
     )
   }
 
+  if (attr.attributeType === "slack_channel") {
+    return (
+      <span className="text-sm font-mono">
+        #{String(value)}
+      </span>
+    )
+  }
+
+  if (attr.attributeType === "workspace_member") {
+    const member = workspaceMembers.find((m) => m.id === String(value))
+    if (!member) return <span className="text-sm text-muted-foreground/40">—</span>
+    return (
+      <div className="flex items-center gap-1.5">
+        {member.avatarUrl ? (
+          <img src={member.avatarUrl} alt="" className="size-5 rounded-full" />
+        ) : (
+          <div className="size-5 rounded-full bg-muted" />
+        )}
+        <span className="text-sm">{member.name}</span>
+      </div>
+    )
+  }
+
+  if (attr.attributeType === "workspace_members" && Array.isArray(value)) {
+    const count = value.length
+    return (
+      <Badge variant="secondary" className="text-xs">
+        {count} {count === 1 ? "member" : "members"}
+      </Badge>
+    )
+  }
+
   return (
     <span className="text-sm truncate max-w-[200px] block">
       {String(value)}
@@ -84,11 +118,13 @@ export function EntryTable({
   entries,
   allTypes,
   referenceEntries,
+  workspaceMembers,
 }: {
   type: CatalogType
   entries: CatalogEntry[]
   allTypes: CatalogType[]
   referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
 }) {
   const [search, setSearch] = React.useState("")
   const [selectedEntry, setSelectedEntry] = React.useState<CatalogEntry | null>(null)
@@ -157,6 +193,7 @@ export function EntryTable({
                         attr={attr}
                         allTypes={allTypes}
                         referenceEntries={referenceEntries}
+                        workspaceMembers={workspaceMembers}
                       />
                     </TableCell>
                   ))}
@@ -185,6 +222,7 @@ export function EntryTable({
         type={type}
         allTypes={allTypes}
         referenceEntries={referenceEntries}
+        workspaceMembers={workspaceMembers}
         open={selectedEntry !== null}
         onOpenChange={(open) => { if (!open) setSelectedEntry(null) }}
         onEdit={(entry) => setEditingEntry(entry)}
@@ -194,6 +232,7 @@ export function EntryTable({
         entry={editingEntry}
         allTypes={allTypes}
         referenceEntries={referenceEntries}
+        workspaceMembers={workspaceMembers}
         open={editingEntry !== null}
         onOpenChange={(open) => { if (!open) setEditingEntry(null) }}
       />

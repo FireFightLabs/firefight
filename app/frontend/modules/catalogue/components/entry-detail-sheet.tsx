@@ -10,7 +10,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react"
 
-import type { CatalogEntry, CatalogType, AttributeDefinition, ReferenceEntry } from "@/modules/catalogue/types"
+import type { CatalogEntry, CatalogType, AttributeDefinition, ReferenceEntry, WorkspaceMember } from "@/modules/catalogue/types"
 import { CatalogIcon } from "@/modules/catalogue/lib/icon-map"
 import { formatDate } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
@@ -34,11 +34,13 @@ function AttributeValue({
   value,
   allTypes,
   referenceEntries,
+  workspaceMembers,
 }: {
   attr: AttributeDefinition
   value: unknown
   allTypes: CatalogType[]
   referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
 }) {
   if (value === null || value === undefined || value === "") {
     return <span className="text-sm text-muted-foreground/40 italic">Not set</span>
@@ -92,6 +94,48 @@ function AttributeValue({
     )
   }
 
+  if (attr.attributeType === "slack_channel") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <IconBrandSlack className="size-3.5 text-muted-foreground" />
+        <span className="text-sm font-mono">#{String(value)}</span>
+      </div>
+    )
+  }
+
+  if (attr.attributeType === "workspace_member") {
+    const member = workspaceMembers.find((m) => m.id === String(value))
+    if (!member) return <span className="text-sm text-muted-foreground/40 italic">Not set</span>
+    return (
+      <div className="flex items-center gap-1.5">
+        {member.avatarUrl ? (
+          <img src={member.avatarUrl} alt="" className="size-5 rounded-full" />
+        ) : (
+          <div className="size-5 rounded-full bg-muted" />
+        )}
+        <span className="text-sm">{member.name}</span>
+      </div>
+    )
+  }
+
+  if (attr.attributeType === "workspace_members" && Array.isArray(value)) {
+    const resolvedMembers = (value as string[])
+      .map((id) => workspaceMembers.find((m) => m.id === id))
+      .filter(Boolean)
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {resolvedMembers.map((member) => (
+          <Badge key={member!.id} variant="secondary" className="text-xs gap-1">
+            {member!.avatarUrl ? (
+              <img src={member!.avatarUrl} alt="" className="size-4 rounded-full" />
+            ) : null}
+            {member!.name}
+          </Badge>
+        ))}
+      </div>
+    )
+  }
+
   const strValue = String(value)
 
   if (strValue.startsWith("#")) {
@@ -120,6 +164,7 @@ export function EntryDetailSheet({
   type,
   allTypes,
   referenceEntries,
+  workspaceMembers,
   open,
   onOpenChange,
   onEdit,
@@ -128,6 +173,7 @@ export function EntryDetailSheet({
   type: CatalogType
   allTypes: CatalogType[]
   referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onEdit?: (entry: CatalogEntry) => void
@@ -222,6 +268,7 @@ export function EntryDetailSheet({
                       value={value}
                       allTypes={allTypes}
                       referenceEntries={referenceEntries}
+                      workspaceMembers={workspaceMembers}
                     />
                   </div>
                 </div>

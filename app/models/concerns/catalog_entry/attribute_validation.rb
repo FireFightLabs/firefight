@@ -70,6 +70,15 @@ module CatalogEntry::AttributeValidation
         unless value.is_a?(Array) && value.all? { |v| v.is_a?(String) }
           errors << "#{attr_def.name} must be an array of strings"
         end
+      when CatalogAttributeDefinition::TYPE_SLACK_CHANNEL,
+           CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER
+        unless value.is_a?(String) && value.present?
+          errors << "#{attr_def.name} must be a string"
+        end
+      when CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS
+        unless value.is_a?(Array) && value.all? { |v| v.is_a?(String) }
+          errors << "#{attr_def.name} must be an array of strings"
+        end
       end
     end
 

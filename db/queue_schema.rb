@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_31_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_31_100003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -87,7 +87,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_31_100001) do
     t.string "source"
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
-    t.index ["catalog_type_id", "slug"], name: "index_catalog_entries_on_catalog_type_id_and_slug", unique: true
+    t.index ["catalog_type_id", "slug"], name: "index_catalog_entries_on_type_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["catalog_type_id"], name: "index_catalog_entries_on_catalog_type_id"
     t.index ["workspace_id", "catalog_type_id"], name: "index_catalog_entries_on_workspace_id_and_catalog_type_id"
     t.index ["workspace_id", "source", "external_id"], name: "index_catalog_entries_external_identity", unique: true, where: "((source IS NOT NULL) AND (external_id IS NOT NULL))"
@@ -124,7 +124,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_31_100001) do
     t.string "system_key"
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
-    t.index ["workspace_id", "slug"], name: "index_catalog_types_on_workspace_id_and_slug", unique: true
+    t.index ["workspace_id", "slug"], name: "index_catalog_types_on_workspace_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id", "system_key"], name: "index_catalog_types_on_workspace_id_and_system_key", unique: true, where: "(system_key IS NOT NULL)"
     t.index ["workspace_id"], name: "index_catalog_types_on_workspace_id"
   end

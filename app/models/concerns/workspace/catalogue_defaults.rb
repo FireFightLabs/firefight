@@ -13,9 +13,9 @@ module Workspace::CatalogueDefaults
       position: 1,
       attributes: [
         { key: "description", name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 1 },
-        { key: "slack_channel", name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 2 },
-        { key: "manager", name: "Manager", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 3 },
-        { key: "members", name: "Members", attribute_type: CatalogAttributeDefinition::TYPE_LIST, position: 4 }
+        { key: "slack_channel", name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_SLACK_CHANNEL, position: 2 },
+        { key: "manager", name: "Manager", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER, position: 3 },
+        { key: "members", name: "Members", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS, position: 4 }
       ]
     },
     {
@@ -32,7 +32,7 @@ module Workspace::CatalogueDefaults
         { key: "owner_team", name: "Owner Team", attribute_type: CatalogAttributeDefinition::TYPE_REFERENCE, position: 2, reference_system_key: CatalogType::SYSTEM_KEY_TEAM },
         { key: "tier", name: "Tier", attribute_type: CatalogAttributeDefinition::TYPE_SELECT, position: 3, config: { "options" => [ "Critical", "Standard", "Internal" ] } },
         { key: "repository", name: "Repository", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 4 },
-        { key: "slack_channel", name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 5 }
+        { key: "slack_channel", name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_SLACK_CHANNEL, position: 5 }
       ]
     },
     {

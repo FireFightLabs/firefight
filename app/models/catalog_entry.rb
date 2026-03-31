@@ -17,7 +17,7 @@ class CatalogEntry < ApplicationRecord
   has_many :incoming_relationships, class_name: "CatalogEntryRelationship", foreign_key: :target_entry_id
 
   validates :name, presence: true
-  validates :slug, presence: true, uniqueness: { scope: :catalog_type_id }
+  validates :slug, presence: true, uniqueness: { scope: :catalog_type_id, conditions: -> { where(deleted_at: nil) } }
 
   validate :workspace_matches_type
 

@@ -21,8 +21,17 @@ class CatalogueController < InertiaController
       type: CatalogTypeSerializer.one(type),
       entries: CatalogEntrySerializer.many(entries),
       allTypes: CatalogTypeSerializer.many(all_types),
-      referenceEntries: type.reference_entry_options
+      referenceEntries: type.reference_entry_options,
+      workspaceMembers: member_service.resolve_for_entries(entries, type)
     }
+  end
+
+  def search_members
+    render json: current_workspace.adapter.list_members
+  end
+
+  def search_channels
+    render json: current_workspace.adapter.list_channels
   end
 
   def create_type
@@ -39,9 +48,7 @@ class CatalogueController < InertiaController
       position: next_position
     )
 
-    if params[:attribute_definitions].present?
-      type.sync_attribute_definitions!(parse_attribute_definitions)
-    end
+    type.sync_attribute_definitions!(parse_attribute_definitions) if params[:attribute_definitions].present?
 
     redirect_to catalogue_type_path(type.slug)
   rescue ActiveRecord::RecordInvalid => e
@@ -52,16 +59,8 @@ class CatalogueController < InertiaController
   def update_type
     type = current_workspace.catalog_types.active.find(params[:id])
 
-    type.update!(
-      name: params[:name],
-      description: params[:description],
-      icon: params[:icon],
-      color: params[:color]
-    )
-
-    if params[:attribute_definitions].present?
-      type.sync_attribute_definitions!(parse_attribute_definitions)
-    end
+    type.update!(name: params[:name], description: params[:description], icon: params[:icon], color: params[:color])
+    type.sync_attribute_definitions!(parse_attribute_definitions) if params[:attribute_definitions].present?
 
     redirect_to catalogue_type_path(type.slug)
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
@@ -80,15 +79,9 @@ class CatalogueController < InertiaController
 
   def create_entry
     type = current_workspace.catalog_types.active.find_by!(slug: params[:type_slug])
-    slug = generate_slug(params[:name])
+    raw_attrs = member_service.provision_member_attributes(type, params[:attributes]&.to_unsafe_h || {})
 
-    entry = type.catalog_entries.new(
-      workspace: current_workspace,
-      name: params[:name],
-      slug: slug
-    )
-
-    raw_attrs = params[:attributes]&.to_unsafe_h || {}
+    entry = type.catalog_entries.new(workspace: current_workspace, name: params[:name], slug: generate_slug(params[:name]))
     _scalar_attrs, reference_attrs = entry.assign_validated_attributes!(raw_attrs)
     entry.save!
     entry.sync_references!(reference_attrs)
@@ -101,10 +94,9 @@ class CatalogueController < InertiaController
 
   def update_entry
     entry = current_workspace.catalog_entries.where(deleted_at: nil).find(params[:id])
+    raw_attrs = member_service.provision_member_attributes(entry.catalog_type, params[:attributes]&.to_unsafe_h || {})
 
     entry.name = params[:name] if params[:name].present?
-
-    raw_attrs = params[:attributes]&.to_unsafe_h || {}
     _scalar_attrs, reference_attrs = entry.assign_validated_attributes!(raw_attrs)
     entry.save!
     entry.sync_references!(reference_attrs)
@@ -122,6 +114,10 @@ class CatalogueController < InertiaController
   end
 
   private
+
+  def member_service
+    @member_service ||= Catalogue::MemberResolutionService.new(current_workspace)
+  end
 
   def generate_slug(name)
     name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")

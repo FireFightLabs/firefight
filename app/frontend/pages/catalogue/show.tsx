@@ -9,7 +9,7 @@ import { EntryTable } from "@/modules/catalogue/components/entry-table"
 import { EntryFormDialog } from "@/modules/catalogue/components/entry-form-dialog"
 import { TypeFormDialog } from "@/modules/catalogue/components/type-form-dialog"
 import { CatalogIcon } from "@/modules/catalogue/lib/icon-map"
-import type { CatalogType, CatalogEntry, ReferenceEntry } from "@/modules/catalogue/types"
+import type { CatalogType, CatalogEntry, ReferenceEntry, WorkspaceMember } from "@/modules/catalogue/types"
 import { cataloguePath } from "@/lib/routes"
 
 interface CatalogueShowProps {
@@ -17,10 +17,11 @@ interface CatalogueShowProps {
   entries: CatalogEntry[]
   allTypes: CatalogType[]
   referenceEntries: ReferenceEntry[]
+  workspaceMembers: WorkspaceMember[]
 }
 
 export default function CatalogueShow() {
-  const { type, entries, allTypes, referenceEntries } = usePage<CatalogueShowProps>().props
+  const { type, entries, allTypes, referenceEntries, workspaceMembers } = usePage<CatalogueShowProps>().props
   const [addEntryOpen, setAddEntryOpen] = React.useState(false)
   const [editTypeOpen, setEditTypeOpen] = React.useState(false)
 
@@ -73,6 +74,7 @@ export default function CatalogueShow() {
           entries={entries}
           allTypes={allTypes}
           referenceEntries={referenceEntries}
+          workspaceMembers={workspaceMembers}
         />
       </div>
 
@@ -80,6 +82,7 @@ export default function CatalogueShow() {
         type={type}
         allTypes={allTypes}
         referenceEntries={referenceEntries}
+        workspaceMembers={workspaceMembers}
         open={addEntryOpen}
         onOpenChange={setAddEntryOpen}
       />
