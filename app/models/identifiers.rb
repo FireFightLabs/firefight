@@ -68,6 +68,7 @@ module Identifiers
   PREVIEW_ANNOUNCEMENT = "preview_announcement"
   PREVIEW_HOMEPAGE_DISABLED = "preview_homepage_disabled"
   PREVIEW_SUBSCRIBE_DISABLED = "preview_subscribe_disabled"
+  ACCEPT_INCIDENT = "accept_incident"
   SET_INCIDENT_LEAD_SELF = "set_incident_lead_self"
   UPDATE_INCIDENT_SUMMARY = "update_incident_summary"
   ESCALATE_INCIDENT = "escalate_incident"

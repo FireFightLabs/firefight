@@ -144,7 +144,7 @@ class IncidentEventTest < ActiveSupport::TestCase
 
   test "EVENT_TYPES constant contains all event types" do
     expected_types = [
-      "incident.created", "incident.updated", "lead.assigned",
+      "incident.created", "incident.updated", "incident.accepted", "lead.assigned",
       "action.created", "action.picked_up", "action.completed",
       "incident.escalated", "incident.resolved", "incident.reopened", "postmortem.generated", "postmortem.edited",
       "relationship.created", "incident.marked_duplicate", "incident.merged_into",

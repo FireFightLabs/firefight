@@ -104,6 +104,16 @@ module Slack
     def self.quick_action_buttons(incident)
       buttons = []
 
+      if incident.incident_status.triage?
+        buttons << {
+          type: "button",
+          text: { type: "plain_text", text: ":white_check_mark: Accept incident", emoji: true },
+          action_id: Identifiers::ACCEPT_INCIDENT,
+          value: incident.id,
+          style: "primary"
+        }
+      end
+
       unless incident.lead
         buttons << {
           type: "button",

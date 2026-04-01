@@ -4,8 +4,9 @@ class IncidentUpdate < ApplicationRecord
   CLOSED = "closed"
   REOPENED = "reopened"
   LEAD_ASSIGNED = "lead_assigned"
+  ACCEPTED = "accepted"
 
-  UPDATE_TYPES = [ CREATED, UPDATED, CLOSED, REOPENED, LEAD_ASSIGNED ].freeze
+  UPDATE_TYPES = [ CREATED, UPDATED, CLOSED, REOPENED, LEAD_ASSIGNED, ACCEPTED ].freeze
 
   has_one :incident_event, as: :eventable, touch: true
 

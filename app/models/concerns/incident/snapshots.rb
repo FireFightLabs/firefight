@@ -8,6 +8,7 @@ module Incident::Snapshots
     IncidentEvent::INCIDENT_UPDATED => IncidentUpdate::UPDATED,
     IncidentEvent::INCIDENT_RESOLVED => IncidentUpdate::CLOSED,
     IncidentEvent::INCIDENT_REOPENED => IncidentUpdate::REOPENED,
+    IncidentEvent::INCIDENT_ACCEPTED => IncidentUpdate::ACCEPTED,
     IncidentEvent::LEAD_ASSIGNED => IncidentUpdate::LEAD_ASSIGNED,
     IncidentEvent::MERGED_INTO => IncidentUpdate::CLOSED
   }.freeze
