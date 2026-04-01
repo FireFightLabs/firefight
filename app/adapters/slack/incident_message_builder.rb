@@ -26,6 +26,9 @@ module Slack
       blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* <@#{incident.lead.platform_user_id}>" } } if incident.lead
       blocks << { type: "section", text: { type: "mrkdwn", text: ":mega: *Declared by:* <@#{incident.declared_by.platform_user_id}>" } }
 
+      custom_fields_text = custom_fields_summary(incident)
+      blocks << { type: "section", text: { type: "mrkdwn", text: custom_fields_text } } if custom_fields_text
+
       relationship_text = relationship_summary(incident)
       blocks << { type: "section", text: { type: "mrkdwn", text: relationship_text } } if relationship_text
 
@@ -49,7 +52,8 @@ module Slack
         reporter_id: incident.declared_by.platform_user_id,
         lead_id: incident.lead&.platform_user_id,
         channel_id: incident.channel_id,
-        relationship_text: relationship_summary(incident)
+        relationship_text: relationship_summary(incident),
+        custom_fields_text: custom_fields_summary(incident)
       })
     end
 
@@ -75,6 +79,7 @@ module Slack
       blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* <@#{data[:lead_id]}>" } } if data[:lead_id]
       blocks << { type: "section", text: { type: "mrkdwn", text: ":mega: *Reporter:* <@#{data[:reporter_id]}>" } }
       blocks << { type: "section", text: { type: "mrkdwn", text: ":speech_balloon: *Channel:* <##{data[:channel_id]}>" } } if data[:channel_id]
+      blocks << { type: "section", text: { type: "mrkdwn", text: data[:custom_fields_text] } } if data[:custom_fields_text]
       blocks << { type: "section", text: { type: "mrkdwn", text: data[:relationship_text] } } if data[:relationship_text]
       blocks << { type: "divider" }
       blocks << {
@@ -830,6 +835,61 @@ module Slack
       parts.any? ? parts.join("\n\n") : nil
     end
     private_class_method :relationship_summary
+
+    def self.custom_fields_summary(incident)
+      fields = incident.custom_fields
+      return nil if fields.blank?
+
+      workspace = incident.workspace
+      definitions = workspace.incident_field_definitions.active.index_by(&:key)
+
+      lines = fields.filter_map do |key, value|
+        next if value.blank?
+
+        defn = definitions[key]
+        label = defn&.name || key.humanize
+        formatted = format_custom_field_value(defn, value, workspace)
+        ":label: *#{label}:* #{formatted}"
+      end
+
+      lines.any? ? lines.join("\n") : nil
+    end
+    private_class_method :custom_fields_summary
+
+    def self.format_custom_field_value(defn, value, workspace)
+      return value.to_s unless defn
+
+      if defn.catalog_options?
+        return format_catalog_value(defn, value, workspace)
+      end
+
+      case defn.field_type
+      when IncidentFieldDefinition::TYPE_MULTI_SELECT
+        value.is_a?(Array) ? value.join(", ") : value.to_s
+      else
+        value.to_s
+      end
+    end
+    private_class_method :format_custom_field_value
+
+    def self.format_catalog_value(defn, value, workspace)
+      if value.is_a?(Array)
+        names = value.filter_map { |id| resolve_catalog_entry_name(id, defn, workspace) }
+        names.any? ? names.join(", ") : value.join(", ")
+      else
+        resolve_catalog_entry_name(value, defn, workspace) || value.to_s
+      end
+    end
+    private_class_method :format_catalog_value
+
+    def self.resolve_catalog_entry_name(entry_id, defn, workspace)
+      return nil if entry_id.blank? || defn.catalog_type_id.blank?
+
+      workspace.catalog_entries.active
+        .where(catalog_type_id: defn.catalog_type_id, id: entry_id)
+        .pick(:name)
+    end
+    private_class_method :resolve_catalog_entry_name
 
     def self.severity_emoji(severity)
       ":fire:"

@@ -25,11 +25,74 @@ declare_affected_services_field_ws1:
   visibility_mode: visible
   required_mode: optional
 
-resolve_status_field_ws1:
-  id: dd000001-0000-0000-0000-000000000004
-  incident_form_id: cc000001-0000-0000-0000-000000000002
+update_status_field_ws1:
+  id: dd000001-0000-0000-0000-000000000010
+  incident_form_id: cc000001-0000-0000-0000-000000000003
   field_source_kind: system
   system_field_key: status
   position: 1
   visibility_mode: visible
   required_mode: fixed_required
+
+update_severity_field_ws1:
+  id: dd000001-0000-0000-0000-000000000011
+  incident_form_id: cc000001-0000-0000-0000-000000000003
+  field_source_kind: system
+  system_field_key: severity
+  position: 2
+  visibility_mode: visible
+  required_mode: fixed_required
+
+update_incident_type_field_ws1:
+  id: dd000001-0000-0000-0000-000000000012
+  incident_form_id: cc000001-0000-0000-0000-000000000003
+  field_source_kind: system
+  system_field_key: incident_type
+  position: 3
+  visibility_mode: visible
+  required_mode: optional
+
+update_customer_tier_field_ws1:
+  id: dd000001-0000-0000-0000-000000000013
+  incident_form_id: cc000001-0000-0000-0000-000000000003
+  field_source_kind: custom
+  incident_field_definition_id: bb000001-0000-0000-0000-000000000002
+  position: 4
+  visibility_mode: visible
+  required_mode: optional
+
+resolve_name_field_ws1:
+  id: dd000001-0000-0000-0000-000000000005
+  incident_form_id: cc000001-0000-0000-0000-000000000002
+  field_source_kind: system
+  system_field_key: name
+  position: 1
+  visibility_mode: visible
+  required_mode: optional
+
+resolve_summary_field_ws1:
+  id: dd000001-0000-0000-0000-000000000006
+  incident_form_id: cc000001-0000-0000-0000-000000000002
+  field_source_kind: system
+  system_field_key: summary
+  position: 2
+  visibility_mode: visible
+  required_mode: optional
+
+resolve_severity_field_ws1:
+  id: dd000001-0000-0000-0000-000000000007
+  incident_form_id: cc000001-0000-0000-0000-000000000002
+  field_source_kind: system
+  system_field_key: severity
+  position: 3
+  visibility_mode: visible
+  required_mode: fixed_required
+
+resolve_customer_tier_field_ws1:
+  id: dd000001-0000-0000-0000-000000000008
+  incident_form_id: cc000001-0000-0000-0000-000000000002
+  field_source_kind: custom
+  incident_field_definition_id: bb000001-0000-0000-0000-000000000002
+  position: 4
+  visibility_mode: visible
+  required_mode: optional

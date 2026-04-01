@@ -10,14 +10,14 @@ class IncidentFormServiceTest < ActiveSupport::TestCase
 
   test "add_custom_field appends field to form" do
     form = incident_forms(:resolve_form_ws1)
-    field_definition = incident_field_definitions(:customer_tier_ws1)
+    field_definition = incident_field_definitions(:affected_services_ws1)
 
     assert_difference -> { form.incident_form_fields.count }, 1 do
       @service.add_custom_field(form, field_definition)
     end
 
     added_field = form.incident_form_fields.find_by!(incident_field_definition: field_definition)
-    assert_equal 2, added_field.position
+    assert_equal 5, added_field.position
     assert_equal IncidentFormField::FIELD_SOURCE_KIND_CUSTOM, added_field.field_source_kind
   end
 

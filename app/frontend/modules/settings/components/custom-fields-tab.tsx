@@ -104,7 +104,7 @@ function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDialogPro
     description: field?.description ?? "",
     field_type: field?.fieldType ?? "text",
     option_source: field?.optionSource ?? "none",
-    options_text: field?.options.join("\n") ?? "",
+    options_text: field?.options?.join("\n") ?? "",
     catalog_type_id: field?.catalogTypeId ?? "",
   })
 
@@ -115,7 +115,7 @@ function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDialogPro
       description: field?.description ?? "",
       field_type: field?.fieldType ?? "text",
       option_source: field?.optionSource ?? "none",
-      options_text: field?.options.join("\n") ?? "",
+      options_text: field?.options?.join("\n") ?? "",
       catalog_type_id: field?.catalogTypeId ?? "",
     })
   }, [field?.id])

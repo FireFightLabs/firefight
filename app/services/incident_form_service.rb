@@ -12,6 +12,7 @@ class IncidentFormService
         visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
         required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL
       )
+      bust_cache(form)
     end
   end
 
@@ -20,6 +21,7 @@ class IncidentFormService
       attrs = { visibility_mode: visibility_mode }
       attrs[:required_mode] = required_mode unless form_field.locked_required?
       form_field.update!(attrs)
+      bust_cache(form_field.incident_form)
       form_field
     end
   end
@@ -33,6 +35,7 @@ class IncidentFormService
       form = form_field.incident_form
       form_field.destroy!
       normalize_positions!(form)
+      bust_cache(form)
     end
   end
 
@@ -52,10 +55,15 @@ class IncidentFormService
         next unless field
         field.update!(position: index + 1) unless field.position == index + 1
       end
+      bust_cache(form)
     end
   end
 
   private
+
+  def bust_cache(form)
+    IncidentFormResolver.bust_cache(form)
+  end
 
   def next_position(form)
     form.incident_form_fields.maximum(:position).to_i + 1
@@ -74,6 +82,7 @@ class IncidentFormService
         field.update!(position: index + 1)
       end
 
+      bust_cache(form)
       form_field.reload
     end
   end

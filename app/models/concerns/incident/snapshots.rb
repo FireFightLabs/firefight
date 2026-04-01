@@ -92,6 +92,7 @@ module Incident::Snapshots
       name: name,
       summary: summary,
       is_private: is_private,
+      custom_fields: custom_fields,
       detected_at: detected_at,
       declared_at: declared_at,
       resolved_at: resolved_at
