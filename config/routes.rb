@@ -35,6 +35,13 @@ Rails.application.routes.draw do
   scope :app do
     get "/", to: "dashboard#index", as: :dashboard
     get "/settings", to: "settings#index", as: :settings
+    get "/settings/roles", to: "settings#roles", as: :settings_roles
+    get "/settings/statuses", to: "settings#statuses", as: :settings_statuses
+    get "/settings/severities", to: "settings#severities", as: :settings_severities
+    get "/settings/custom-fields", to: "settings#custom_fields", as: :settings_custom_fields
+    get "/settings/forms", to: "settings#forms", as: :settings_forms
+    get "/settings/webhooks", to: "settings#webhooks", as: :settings_webhooks
+    get "/settings/api-keys", to: "settings#api_keys", as: :settings_api_keys
     resources :api_keys, only: [ :create, :update, :destroy ], path: "settings/api-keys"
     resources :incident_severities, only: [ :create, :update, :destroy ], path: "settings/severities" do
       member do

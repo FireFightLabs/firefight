@@ -3,18 +3,18 @@ class IncidentFieldDefinitionsController < InertiaController
 
   def create
     field_definition_service.create(**field_definition_params)
-    redirect_to settings_path(tab: "custom-fields")
+    redirect_to settings_custom_fields_path
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: settings_path(tab: "custom-fields"),
+    redirect_back fallback_location: settings_custom_fields_path,
       inertia: { errors: e.record.errors.to_hash }
   end
 
   def update
     field_definition = current_workspace.incident_field_definitions.active.find(params[:id])
     field_definition_service.update(field_definition, field_definition_update_params)
-    redirect_to settings_path(tab: "custom-fields")
+    redirect_to settings_custom_fields_path
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: settings_path(tab: "custom-fields"),
+    redirect_back fallback_location: settings_custom_fields_path,
       inertia: { errors: e.record.errors.to_hash }
   end
 

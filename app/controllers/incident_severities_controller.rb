@@ -15,35 +15,35 @@ class IncidentSeveritiesController < InertiaController
     )
 
     if severity.save
-      redirect_to settings_path(tab: "severities")
+      redirect_to settings_severities_path
     else
-      redirect_back fallback_location: settings_path(tab: "severities"), inertia: { errors: severity.errors.to_hash }
+      redirect_back fallback_location: settings_severities_path, inertia: { errors: severity.errors.to_hash }
     end
   end
 
   def update
     if @severity.update(name: params[:name], description: params[:description])
-      redirect_to settings_path(tab: "severities")
+      redirect_to settings_severities_path
     else
-      redirect_back fallback_location: settings_path(tab: "severities"), inertia: { errors: @severity.errors.to_hash }
+      redirect_back fallback_location: settings_severities_path, inertia: { errors: @severity.errors.to_hash }
     end
   end
 
   def disable
     @severity.update!(deleted_at: Time.current)
-    redirect_to settings_path(tab: "severities")
+    redirect_to settings_severities_path
   end
 
   def enable
     @severity.update!(deleted_at: nil)
-    redirect_to settings_path(tab: "severities")
+    redirect_to settings_severities_path
   end
 
   def destroy
-    return redirect_to settings_path(tab: "severities") if @severity.incidents.exists?
+    return redirect_to settings_severities_path if @severity.incidents.exists?
 
     @severity.destroy!
-    redirect_to settings_path(tab: "severities")
+    redirect_to settings_severities_path
   end
 
   private

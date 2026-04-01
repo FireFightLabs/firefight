@@ -13,30 +13,30 @@ class IncidentRolesController < InertiaController
     )
 
     if role.save
-      redirect_to settings_path(tab: "roles")
+      redirect_to settings_roles_path
     else
-      redirect_back fallback_location: settings_path(tab: "roles"), inertia: { errors: role.errors.to_hash }
+      redirect_back fallback_location: settings_roles_path, inertia: { errors: role.errors.to_hash }
     end
   end
 
   def disable
-    return redirect_to settings_path(tab: "roles") if @role.slug == IncidentRole::SLUG_INCIDENT_LEAD
+    return redirect_to settings_roles_path if @role.slug == IncidentRole::SLUG_INCIDENT_LEAD
 
     @role.update!(deleted_at: Time.current)
-    redirect_to settings_path(tab: "roles")
+    redirect_to settings_roles_path
   end
 
   def enable
     @role.update!(deleted_at: nil)
-    redirect_to settings_path(tab: "roles")
+    redirect_to settings_roles_path
   end
 
   def destroy
-    return redirect_to settings_path(tab: "roles") if @role.slug == IncidentRole::SLUG_INCIDENT_LEAD
-    return redirect_to settings_path(tab: "roles") if @role.incident_role_assignments.exists?
+    return redirect_to settings_roles_path if @role.slug == IncidentRole::SLUG_INCIDENT_LEAD
+    return redirect_to settings_roles_path if @role.incident_role_assignments.exists?
 
     @role.destroy!
-    redirect_to settings_path(tab: "roles")
+    redirect_to settings_roles_path
   end
 
   private

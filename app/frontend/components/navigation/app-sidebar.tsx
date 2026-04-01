@@ -1,9 +1,15 @@
 import {
+  IconAlertTriangle,
   IconBook2,
+  IconChecklist,
   IconFlame,
+  IconForms,
+  IconKey,
+  IconListDetails,
   IconPlug,
-  IconSettings,
   IconUrgent,
+  IconUserShield,
+  IconWebhook,
 } from "@tabler/icons-react"
 import { Link, usePage } from "@inertiajs/react"
 
@@ -19,7 +25,17 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { SharedProps } from "@/types"
-import { cataloguePath, dashboardPath, settingsPath } from "@/lib/routes"
+import {
+  cataloguePath,
+  dashboardPath,
+  settingsApiKeysPath,
+  settingsCustomFieldsPath,
+  settingsFormsPath,
+  settingsRolesPath,
+  settingsSeveritiesPath,
+  settingsStatusesPath,
+  settingsWebhooksPath,
+} from "@/lib/routes"
 
 const navSections = [
   {
@@ -32,8 +48,19 @@ const navSections = [
     label: "Configure",
     items: [
       { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
+      { title: "Forms", url: settingsFormsPath(), icon: IconChecklist },
+      { title: "Custom Fields", url: settingsCustomFieldsPath(), icon: IconForms },
+      { title: "Roles", url: settingsRolesPath(), icon: IconUserShield },
+      { title: "Statuses", url: settingsStatusesPath(), icon: IconListDetails },
+      { title: "Severities", url: settingsSeveritiesPath(), icon: IconAlertTriangle },
       { title: "Integrations", url: "#", icon: IconPlug },
-      { title: "Settings", url: settingsPath(), icon: IconSettings },
+    ],
+  },
+  {
+    label: "Developer",
+    items: [
+      { title: "Webhooks", url: settingsWebhooksPath(), icon: IconWebhook },
+      { title: "API Keys", url: settingsApiKeysPath(), icon: IconKey },
     ],
   },
 ]
