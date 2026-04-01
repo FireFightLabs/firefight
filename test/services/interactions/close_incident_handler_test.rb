@@ -4,7 +4,8 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   fixtures :workspaces, :users, :workspace_memberships,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles
+           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles,
+           :incident_forms, :incident_form_fields, :incident_field_definitions
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -151,7 +152,7 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
     result = Interactions::CloseIncidentHandler.execute(build_interaction)
 
     assert_equal "errors", result[:response_action]
-    assert_includes result[:errors]["summary_block"], "already closed"
+    assert_includes result[:errors]["field_summary_block"], "already closed"
   end
 
   test "returns error when incident not found" do
@@ -181,9 +182,33 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
     Interactions::CloseIncidentHandler.execute(build_interaction)
   end
 
+  test "saves custom fields from form" do
+    stub_all_side_effects
+
+    Interactions::CloseIncidentHandler.execute(
+      build_interaction(custom_fields: { "customer_tier" => "Enterprise" })
+    )
+
+    @incident.reload
+    assert_equal "Enterprise", @incident.custom_fields["customer_tier"]
+  end
+
+  test "merges custom fields with existing values" do
+    @incident.update!(custom_fields: { "existing_key" => "existing_value" })
+    stub_all_side_effects
+
+    Interactions::CloseIncidentHandler.execute(
+      build_interaction(custom_fields: { "customer_tier" => "Pro" })
+    )
+
+    @incident.reload
+    assert_equal "existing_value", @incident.custom_fields["existing_key"]
+    assert_equal "Pro", @incident.custom_fields["customer_tier"]
+  end
+
   private
 
-  def build_interaction(name: nil, summary: nil, severity_slug: "critical", lead_user_id: nil)
+  def build_interaction(name: nil, summary: nil, severity_slug: "critical", lead_user_id: nil, custom_fields: {})
     Interaction.new(
       platform: Platforms::SLACK,
       type: Interaction::VIEW_SUBMISSION,
@@ -191,20 +216,20 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
       user_id: @member.platform_user_id,
       callback_id: Identifiers::CLOSE_INCIDENT_MODAL,
       private_metadata: { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.channel_id }.to_json,
-      values: build_values(name: name, summary: summary, severity_slug: severity_slug, lead_user_id: lead_user_id)
+      values: build_values(name: name, summary: summary, severity_slug: severity_slug, lead_user_id: lead_user_id, custom_fields: custom_fields)
     )
   end
 
-  def build_values(name: nil, summary: nil, severity_slug: "critical", lead_user_id: nil)
-    {
-      "name_block" => {
-        "name_input" => { "value" => name }
+  def build_values(name: nil, summary: nil, severity_slug: "critical", lead_user_id: nil, custom_fields: {})
+    vals = {
+      "field_name_block" => {
+        "field_name_input" => { "value" => name }
       },
-      "summary_block" => {
-        "summary_input" => { "value" => summary }
+      "field_summary_block" => {
+        "field_summary_input" => { "value" => summary }
       },
-      "severity_block" => {
-        "severity_select" => {
+      "field_severity_block" => {
+        "field_severity_input" => {
           "selected_option" => { "value" => severity_slug }
         }
       },
@@ -212,6 +237,16 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
         "lead_select" => { "selected_user" => lead_user_id }
       }
     }
+
+    custom_fields.each do |key, value|
+      vals["field_#{key}_block"] = {
+        "field_#{key}_input" => {
+          "selected_option" => { "value" => value }
+        }
+      }
+    end
+
+    vals
   end
 
   def stub_all_side_effects

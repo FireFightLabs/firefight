@@ -17,11 +17,12 @@ class IncidentEvent < ApplicationRecord
   MESSAGE_PINNED = "message.pinned"
   MESSAGE_UNPINNED = "message.unpinned"
   MESSAGE_FILE_SHARED = "message.file_shared"
+  INCIDENT_ACCEPTED = "incident.accepted"
   ESCALATION_ACKNOWLEDGED = "incident.escalation_acknowledged"
   ESCALATION_NUDGED = "incident.escalation_nudged"
 
   EVENT_TYPES = [
-    INCIDENT_CREATED, INCIDENT_UPDATED, LEAD_ASSIGNED,
+    INCIDENT_CREATED, INCIDENT_UPDATED, INCIDENT_ACCEPTED, LEAD_ASSIGNED,
     ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED,
     INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, POSTMORTEM_GENERATED, POSTMORTEM_EDITED,
     RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
@@ -36,6 +37,7 @@ class IncidentEvent < ApplicationRecord
     ACTION_CREATED => "Action item was created",
     ACTION_PICKED_UP => "Action item was picked up",
     ACTION_COMPLETED => "Action item was completed",
+    INCIDENT_ACCEPTED => "Incident was accepted from triage",
     INCIDENT_ESCALATED => "Incident was escalated",
     INCIDENT_RESOLVED => "Incident was resolved",
     INCIDENT_REOPENED => "Incident was reopened",

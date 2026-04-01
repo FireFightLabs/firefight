@@ -2,6 +2,7 @@ class Webhooks::PayloadRenderer
   TEMPLATE_MAP = {
     IncidentEvent::INCIDENT_CREATED => "webhooks/events/incident_created",
     IncidentEvent::INCIDENT_UPDATED => "webhooks/events/incident_updated",
+    IncidentEvent::INCIDENT_ACCEPTED => "webhooks/events/incident_updated",
     IncidentEvent::INCIDENT_RESOLVED => "webhooks/events/incident_resolved",
     IncidentEvent::INCIDENT_REOPENED => "webhooks/events/incident_reopened",
     IncidentEvent::INCIDENT_ESCALATED => "webhooks/events/incident_escalated",

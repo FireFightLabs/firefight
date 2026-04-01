@@ -72,6 +72,17 @@ class IncidentLifecycleService
     })
   end
 
+  def accept(incident, attrs, changed_by:)
+    incident.record_change!(IncidentEvent::INCIDENT_ACCEPTED, changed_by: changed_by) do
+      incident.update!(attrs)
+      incident.lead = changed_by unless incident.lead
+    end
+
+    IncidentUpdateWorkflow.start!(incident, context: {
+      updated_by_platform_user_id: changed_by&.platform_user_id
+    })
+  end
+
   def assign_lead(incident, lead, changed_by:)
     incident.record_change!(IncidentEvent::LEAD_ASSIGNED, changed_by: changed_by) do
       incident.lead = lead

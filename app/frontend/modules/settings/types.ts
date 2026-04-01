@@ -46,3 +46,55 @@ export interface ApiKey {
   lastUsedAt: string | null
   expiresAt: string | null
 }
+
+export interface CatalogTypeOption {
+  id: string
+  name: string
+  slug: string
+  color?: string
+  icon?: string
+}
+
+export interface IncidentFieldDefinitionSettings {
+  id: string
+  key: string
+  name: string
+  description?: string
+  fieldType: string
+  optionSource: string
+  position: number
+  options: string[]
+  catalogTypeId?: string
+  catalogTypeName?: string
+  usageCount: number
+}
+
+export interface IncidentFormFieldSettings {
+  id: string
+  fieldSourceKind: string
+  systemFieldKey?: string
+  incidentFieldDefinitionId?: string
+  name: string
+  description?: string
+  key: string
+  fieldType: string
+  optionSource?: string
+  position: number
+  visibilityMode: string
+  requiredMode: string
+  lockedRequired: boolean
+  options?: string[]
+  catalogTypeId?: string
+  catalogTypeName?: string
+}
+
+export interface IncidentFormSettings {
+  id: string
+  slug: string
+  name: string
+  description?: string
+  lifecycleEvent: string
+  position: number
+  fieldCount: number
+  fields: IncidentFormFieldSettings[]
+}

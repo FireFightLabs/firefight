@@ -4,7 +4,8 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_types, :incident_roles
+           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_types, :incident_roles,
+           :incident_forms, :incident_form_fields, :incident_field_definitions
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -167,12 +168,36 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     result = Interactions::IncidentUpdateHandler.execute(interaction)
 
     assert_equal "errors", result[:response_action]
-    assert result[:errors]["status_block"].present?
+    assert result[:errors]["field_status_block"].present?
+  end
+
+  test "saves custom fields from form" do
+    stub_all_side_effects
+
+    Interactions::IncidentUpdateHandler.execute(
+      build_interaction(custom_fields: { "customer_tier" => "Enterprise" })
+    )
+
+    @incident.reload
+    assert_equal "Enterprise", @incident.custom_fields["customer_tier"]
+  end
+
+  test "merges custom fields with existing values" do
+    @incident.update!(custom_fields: { "existing_key" => "existing_value" })
+    stub_all_side_effects
+
+    Interactions::IncidentUpdateHandler.execute(
+      build_interaction(custom_fields: { "customer_tier" => "Pro" })
+    )
+
+    @incident.reload
+    assert_equal "existing_value", @incident.custom_fields["existing_key"]
+    assert_equal "Pro", @incident.custom_fields["customer_tier"]
   end
 
   private
 
-  def build_interaction(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil)
+  def build_interaction(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil, custom_fields: {})
     Interaction.new(
       platform: Platforms::SLACK,
       type: Interaction::VIEW_SUBMISSION,
@@ -180,24 +205,24 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
       user_id: @member.platform_user_id,
       callback_id: Identifiers::INCIDENT_UPDATE_MODAL,
       private_metadata: { incident_id: @incident.id, temp_message_ts: "1234567890.123456", channel_id: @incident.channel_id }.to_json,
-      values: build_values(status_slug: status_slug, severity_slug: severity_slug, type_slug: type_slug, message: message, next_update_minutes: next_update_minutes)
+      values: build_values(status_slug: status_slug, severity_slug: severity_slug, type_slug: type_slug, message: message, next_update_minutes: next_update_minutes, custom_fields: custom_fields)
     )
   end
 
-  def build_values(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil)
-    {
-      "status_block" => {
-        "status_select" => {
+  def build_values(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil, custom_fields: {})
+    vals = {
+      "field_status_block" => {
+        "field_status_input" => {
           "selected_option" => { "value" => status_slug }
         }
       },
-      "severity_block" => {
-        "severity_select" => {
+      "field_severity_block" => {
+        "field_severity_input" => {
           "selected_option" => { "value" => severity_slug }
         }
       },
-      "type_block" => {
-        "type_select" => {
+      "field_incident_type_block" => {
+        "field_incident_type_input" => {
           "selected_option" => type_slug ? { "value" => type_slug } : nil
         }
       },
@@ -212,6 +237,16 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
         }
       }
     }
+
+    custom_fields.each do |key, value|
+      vals["field_#{key}_block"] = {
+        "field_#{key}_input" => {
+          "selected_option" => { "value" => value }
+        }
+      }
+    end
+
+    vals
   end
 
   def stub_all_side_effects

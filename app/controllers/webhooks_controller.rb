@@ -6,23 +6,23 @@ class WebhooksController < InertiaController
     webhook = current_workspace.webhooks.new(webhook_params)
 
     if webhook.save
-      redirect_to settings_path(tab: "webhooks")
+      redirect_to settings_webhooks_path
     else
-      redirect_back fallback_location: settings_path(tab: "webhooks"), inertia: { errors: webhook.errors.to_hash }
+      redirect_back fallback_location: settings_webhooks_path, inertia: { errors: webhook.errors.to_hash }
     end
   end
 
   def update
     if @webhook.update(webhook_params)
-      redirect_to settings_path(tab: "webhooks")
+      redirect_to settings_webhooks_path
     else
-      redirect_back fallback_location: settings_path(tab: "webhooks"), inertia: { errors: @webhook.errors.to_hash }
+      redirect_back fallback_location: settings_webhooks_path, inertia: { errors: @webhook.errors.to_hash }
     end
   end
 
   def destroy
     @webhook.destroy!
-    redirect_to settings_path(tab: "webhooks")
+    redirect_to settings_webhooks_path
   end
 
   def test
@@ -39,20 +39,20 @@ class WebhooksController < InertiaController
         incident_event: event,
         event_type: event.event_type
       )
-      redirect_to settings_path(tab: "webhooks"), notice: "Test delivery queued"
+      redirect_to settings_webhooks_path, notice: "Test delivery queued"
     else
-      redirect_to settings_path(tab: "webhooks"), alert: "No matching events found to test with"
+      redirect_to settings_webhooks_path, alert: "No matching events found to test with"
     end
   end
 
   def activate
     @webhook.activate!
-    redirect_to settings_path(tab: "webhooks")
+    redirect_to settings_webhooks_path
   end
 
   def deactivate
     @webhook.deactivate!
-    redirect_to settings_path(tab: "webhooks")
+    redirect_to settings_webhooks_path
   end
 
   def sample_payload
