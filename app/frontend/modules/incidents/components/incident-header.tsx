@@ -138,6 +138,22 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
           </div>
         </div>
       </div>
+
+      {incident.customFields && Object.keys(incident.customFields).length > 0 && (
+        <div className="mt-4 rounded-lg border bg-card/50 px-4 py-3">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custom Fields</span>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {Object.entries(incident.customFields).map(([key, value]) => (
+              <div key={key} className="flex items-baseline gap-2">
+                <span className="text-xs font-medium text-muted-foreground">{key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}:</span>
+                <span className="text-sm">
+                  {Array.isArray(value) ? value.join(", ") : String(value ?? "")}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </header>
   )
 }

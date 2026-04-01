@@ -24,6 +24,7 @@ class InteractionDispatcher
     Identifiers::PREVIEW_HOMEPAGE_DISABLED => Interactions::NoopHandler,
     Identifiers::PREVIEW_SUBSCRIBE_DISABLED => Interactions::NoopHandler,
     Identifiers::HOME_ACTION_SELECT => Interactions::HomeActionSelectHandler,
+    Identifiers::ACCEPT_INCIDENT => Interactions::AcceptIncidentHandler,
     Identifiers::SET_INCIDENT_LEAD_SELF => Interactions::SetLeadSelfHandler,
     Identifiers::UPDATE_INCIDENT_SUMMARY => Interactions::UpdateSummaryButtonHandler,
     Identifiers::ESCALATE_INCIDENT => Interactions::EscalateIncidentButtonHandler,

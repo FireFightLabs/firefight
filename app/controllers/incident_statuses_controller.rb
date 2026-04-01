@@ -16,35 +16,35 @@ class IncidentStatusesController < InertiaController
     )
 
     if status.save
-      redirect_to settings_path(tab: "statuses")
+      redirect_to settings_statuses_path
     else
-      redirect_back fallback_location: settings_path(tab: "statuses"), inertia: { errors: status.errors.to_hash }
+      redirect_back fallback_location: settings_statuses_path, inertia: { errors: status.errors.to_hash }
     end
   end
 
   def update
     if @status.update(name: params[:name], description: params[:description])
-      redirect_to settings_path(tab: "statuses")
+      redirect_to settings_statuses_path
     else
-      redirect_back fallback_location: settings_path(tab: "statuses"), inertia: { errors: @status.errors.to_hash }
+      redirect_back fallback_location: settings_statuses_path, inertia: { errors: @status.errors.to_hash }
     end
   end
 
   def disable
     @status.update!(deleted_at: Time.current)
-    redirect_to settings_path(tab: "statuses")
+    redirect_to settings_statuses_path
   end
 
   def enable
     @status.update!(deleted_at: nil)
-    redirect_to settings_path(tab: "statuses")
+    redirect_to settings_statuses_path
   end
 
   def destroy
-    return redirect_to settings_path(tab: "statuses") if @status.incidents.exists?
+    return redirect_to settings_statuses_path if @status.incidents.exists?
 
     @status.destroy!
-    redirect_to settings_path(tab: "statuses")
+    redirect_to settings_statuses_path
   end
 
   private

@@ -12,6 +12,8 @@ class Workspace < ApplicationRecord
   has_many :incident_severities, dependent: :destroy
   has_many :incident_roles, dependent: :destroy
   has_many :incident_types, dependent: :destroy
+  has_many :incident_field_definitions, dependent: :destroy
+  has_many :incident_forms, dependent: :destroy
   has_many :webhooks, dependent: :destroy
   has_many :api_keys, dependent: :destroy
   has_many :catalog_types

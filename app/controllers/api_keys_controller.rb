@@ -13,10 +13,10 @@ class ApiKeysController < InertiaController
       expires_at: params[:expires_at].present? ? Time.zone.parse(params[:expires_at]) : nil
     )
 
-    redirect_to settings_path(tab: "api-keys"),
+    redirect_to settings_api_keys_path,
       flash: { api_key_token: raw_token }
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: settings_path(tab: "api-keys"),
+    redirect_back fallback_location: settings_api_keys_path,
       inertia: { errors: e.record.errors.to_hash }
   end
 
@@ -26,12 +26,12 @@ class ApiKeysController < InertiaController
       permissions: params[:permissions]&.to_unsafe_h || @api_key.permissions,
       active: ActiveModel::Type::Boolean.new.cast(params[:active])
     )
-    redirect_to settings_path(tab: "api-keys")
+    redirect_to settings_api_keys_path
   end
 
   def destroy
     @api_key.soft_delete!
-    redirect_to settings_path(tab: "api-keys")
+    redirect_to settings_api_keys_path
   end
 
   private

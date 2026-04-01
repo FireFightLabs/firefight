@@ -50,4 +50,10 @@ class IncidentDetailSerializer < BaseSerializer
   def resolved_at
     incident.resolved_at&.utc&.iso8601
   end
+
+  type "Record<string, unknown>", optional: true
+  def custom_fields
+    fields = incident.custom_fields
+    fields.presence
+  end
 end

@@ -25,6 +25,8 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     incident_type = current_workspace.incident_types.active.find(params[:incident_type_id]) if params[:incident_type_id].present?
     declared_by = current_workspace.workspace_memberships.find(params[:declared_by_id]) if params[:declared_by_id].present?
 
+    custom_fields = validate_custom_fields(params[:custom_fields])
+
     ActiveRecord::Base.transaction do
       @incident = lifecycle_service.create(
         declared_by: declared_by,
@@ -33,6 +35,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
         incident_type: incident_type,
         name: params.require(:name),
         summary: params[:summary],
+        custom_fields: custom_fields,
         is_private: params.fetch(:visibility, Incident::VISIBILITY_PUBLIC) == Incident::VISIBILITY_PRIVATE,
         source: params.fetch(:source, Current.api_key.name),
         source_api_key: Current.api_key
@@ -99,6 +102,20 @@ class Api::V1::IncidentsController < Api::V1::ApiController
       attrs[:incident_severity] = new_severity if new_severity
       attrs[:incident_type] = new_type if new_type
       lifecycle_service.update(@incident, attrs, changed_by: changed_by)
+    end
+  end
+
+  def validate_custom_fields(raw_custom_fields)
+    return {} if raw_custom_fields.blank?
+
+    fields = raw_custom_fields.respond_to?(:to_unsafe_h) ? raw_custom_fields.to_unsafe_h : raw_custom_fields.to_h
+    resolver = IncidentFormResolver.new(current_workspace)
+
+    begin
+      result = resolver.validate_submission(IncidentForm::SLUG_DECLARE, fields)
+      result[:custom_fields]
+    rescue ActiveRecord::RecordNotFound
+      fields
     end
   end
 

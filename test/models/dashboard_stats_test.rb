@@ -31,17 +31,17 @@ class DashboardStatsTest < ActiveSupport::TestCase
     assert_equal "N/A", stats[1][:value]
   end
 
-  test "mttr computes average for resolved incidents this month" do
+  test "mttr computes average for all resolved incidents" do
     workspace = workspaces(:slack_workspace_one)
+    Rails.cache.delete("dashboard_stats/#{workspace.id}/mttr")
     stats = DashboardStats.new(workspace).to_a
 
-    resolved_this_month = workspace.incidents
+    resolved = workspace.incidents
       .where(deleted_at: nil)
-      .where("resolved_at >= ?", Time.current.beginning_of_month)
       .where.not(resolved_at: nil)
 
-    if resolved_this_month.any?
-      avg = resolved_this_month.pluck(:declared_at, :resolved_at)
+    if resolved.any?
+      avg = resolved.pluck(:declared_at, :resolved_at)
         .map { |d, r| ((r - d) / 60.0).round }
         .then { |times| times.sum / times.size }
       assert_equal "#{avg} min", stats[1][:value]

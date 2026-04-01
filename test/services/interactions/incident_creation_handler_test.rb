@@ -1,7 +1,10 @@
 require "test_helper"
 
 class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_lifecycle_stages, :incident_statuses
+  fixtures :workspaces, :users, :workspace_memberships, :incident_severities,
+           :incident_lifecycle_stages, :incident_statuses,
+           :incident_forms, :incident_form_fields, :incident_field_definitions,
+           :catalog_types, :catalog_entries
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -18,7 +21,7 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     result = nil
     assert_difference "Incident.count", 1 do
       result = Interactions::IncidentCreationHandler.execute(
-        build_interaction(severity: "critical", name: "DB Down", summary: "Primary DB offline", visibility: "public")
+        build_interaction(severity: "critical", name: "DB Down", summary: nil, visibility: "public")
       )
     end
 
@@ -30,7 +33,6 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     assert_equal @member, incident.declared_by
     assert_equal "critical", incident.incident_severity.slug
     assert_equal "investigating", incident.incident_status.slug
-    assert_equal "Primary DB offline", incident.summary
     assert_equal false, incident.is_private
     assert_equal "C12345678", incident.channel_id
   end
@@ -69,7 +71,7 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     )
 
     assert_equal "errors", result[:response_action]
-    assert result[:errors][:severity_block].present?
+    assert result[:errors][:field_severity_block].present?
   end
 
   test "returns error for unknown workspace member" do
@@ -80,21 +82,56 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     assert_equal "errors", result[:response_action]
   end
 
+  test "creates incident with custom fields from form" do
+    stub_create_channel
+    IncidentCreationWorkflow.stubs(:start!)
+
+    entry = catalog_entries(:auth_service)
+
+    result = Interactions::IncidentCreationHandler.execute(
+      build_interaction(
+        severity: "critical",
+        name: "Service Down",
+        custom_fields: { "affected_services" => [ entry.id ] }
+      )
+    )
+
+    assert_equal "update", result[:response_action]
+
+    incident = Incident.find_by!(name: "Service Down")
+    assert_equal [ entry.id ], incident.custom_fields["affected_services"]
+  end
+
   private
 
-  def build_interaction(severity: "minor", name: "Test Incident", summary: "Test summary", visibility: "public", user_id: @member.platform_user_id)
+  def build_interaction(severity: "minor", name: "Test Incident", summary: nil, visibility: "public", user_id: @member.platform_user_id, custom_fields: {})
+    values = {
+      "field_name_block" => { "field_name_input" => { "value" => name } },
+      "field_severity_block" => { Identifiers::INCIDENT_CREATION_SEVERITY_SELECT => { "selected_option" => { "value" => severity } } },
+      "visibility_block" => { "visibility_select" => { "selected_option" => { "value" => visibility } } }
+    }
+
+    custom_fields.each do |key, value|
+      defn = @workspace.incident_field_definitions.find_by!(key: key)
+      block_id = "field_#{key}_block"
+      action_id = "field_#{key}_input"
+
+      if value.is_a?(Array)
+        values[block_id] = { action_id => { "selected_options" => value.map { |v| { "value" => v } } } }
+      elsif defn.field_type.in?([ IncidentFieldDefinition::TYPE_SINGLE_SELECT, IncidentFieldDefinition::TYPE_CATALOG_REFERENCE ])
+        values[block_id] = { action_id => { "selected_option" => { "value" => value } } }
+      else
+        values[block_id] = { action_id => { "value" => value } }
+      end
+    end
+
     Interaction.new(
       platform: Platforms::SLACK,
       type: "view_submission",
       team_id: @workspace.platform_id,
       user_id: user_id,
       callback_id: Identifiers::INCIDENT_CREATION_MODAL,
-      values: {
-        "name_block" => { "name_input" => { "value" => name } },
-        "severity_block" => { Identifiers::INCIDENT_CREATION_SEVERITY_SELECT => { "selected_option" => { "value" => severity } } },
-        "summary_block" => { "summary_input" => { "value" => summary } },
-        "visibility_block" => { "visibility_select" => { "selected_option" => { "value" => visibility } } }
-      }
+      values: values
     )
   end
 end

@@ -4,6 +4,7 @@ class Webhook < ApplicationRecord
   SUBSCRIBABLE_EVENTS = [
     IncidentEvent::INCIDENT_CREATED,
     IncidentEvent::INCIDENT_UPDATED,
+    IncidentEvent::INCIDENT_ACCEPTED,
     IncidentEvent::INCIDENT_RESOLVED,
     IncidentEvent::INCIDENT_REOPENED,
     IncidentEvent::INCIDENT_ESCALATED,
