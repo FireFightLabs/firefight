@@ -1,5 +1,6 @@
 import * as React from "react"
 import { router } from "@inertiajs/react"
+import { incidentFormFieldPath, incidentFormFieldsPath } from "@/lib/routes"
 import {
   DndContext,
   closestCenter,
@@ -17,7 +18,6 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
-  IconChecklist,
   IconGripVertical,
   IconPlayerPlay,
   IconPlus,
@@ -75,18 +75,6 @@ function iconForForm(slug: string) {
   }
 }
 
-function accentForForm(slug: string) {
-  switch (slug) {
-    case "declare":
-      return "from-rose-500/16 via-orange-400/8 to-transparent"
-    case "accept":
-      return "from-violet-500/16 via-indigo-400/8 to-transparent"
-    case "resolve":
-      return "from-emerald-500/16 via-cyan-400/8 to-transparent"
-    default:
-      return "from-cyan-500/16 via-sky-400/8 to-transparent"
-  }
-}
 
 function iconTintForForm(slug: string) {
   switch (slug) {
@@ -101,9 +89,6 @@ function iconTintForForm(slug: string) {
   }
 }
 
-function titleCase(value: string) {
-  return value.split("_").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ")
-}
 
 interface AddFieldDialogProps {
   open: boolean
@@ -126,7 +111,7 @@ function AddFieldDialog({ open, onOpenChange, form, availableFields, allCustomFi
   function handleSubmit() {
     if (!selectedFieldId) return
 
-    router.post("/app/settings/forms/fields", {
+    router.post(incidentFormFieldsPath(), {
       incident_form_id: form.id,
       incident_field_definition_id: selectedFieldId,
     }, {
@@ -388,7 +373,7 @@ export function FormsTab({ forms, customFields, selectedFormId, onSelectForm, on
   }, [selectedForm])
 
   function handleUpdateField(field: IncidentFormFieldSettings, next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) {
-    router.patch(`/app/settings/forms/fields/${field.id}`, {
+    router.patch(incidentFormFieldPath(field.id), {
       visibility_mode: next.visibilityMode ?? field.visibilityMode,
       required_mode: next.requiredMode ?? field.requiredMode,
     }, {
@@ -397,7 +382,7 @@ export function FormsTab({ forms, customFields, selectedFormId, onSelectForm, on
   }
 
   function handleRemoveField(field: IncidentFormFieldSettings) {
-    router.delete(`/app/settings/forms/fields/${field.id}`, { preserveScroll: true })
+    router.delete(incidentFormFieldPath(field.id), { preserveScroll: true })
   }
 
   return (

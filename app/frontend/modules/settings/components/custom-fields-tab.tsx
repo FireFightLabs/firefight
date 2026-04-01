@@ -1,15 +1,14 @@
 import * as React from "react"
 import { router, useForm } from "@inertiajs/react"
+import { incidentFieldDefinitionPath, incidentFieldDefinitionsPath } from "@/lib/routes"
 import {
   IconAsterisk,
   IconBinaryTree2,
   IconChevronRight,
-  IconEdit,
   IconForms,
   IconLink,
   IconListDetails,
   IconPlus,
-  IconStack2,
 } from "@tabler/icons-react"
 
 import type {
@@ -18,10 +17,6 @@ import type {
 } from "@/modules/settings/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card"
 import {
   Dialog,
   DialogClose,
@@ -97,40 +92,39 @@ interface FieldDialogProps {
   catalogTypes: CatalogTypeOption[]
 }
 
-function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDialogProps) {
-  const isEdit = Boolean(field)
-  const form = useForm({
+function fieldToFormData(field?: IncidentFieldDefinitionSettings | null) {
+  return {
     name: field?.name ?? "",
     description: field?.description ?? "",
     field_type: field?.fieldType ?? "text",
     option_source: field?.optionSource ?? "none",
     options_text: field?.options?.join("\n") ?? "",
     catalog_type_id: field?.catalogTypeId ?? "",
-  })
+  }
+}
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    form.setData({
-      name: field?.name ?? "",
-      description: field?.description ?? "",
-      field_type: field?.fieldType ?? "text",
-      option_source: field?.optionSource ?? "none",
-      options_text: field?.options?.join("\n") ?? "",
-      catalog_type_id: field?.catalogTypeId ?? "",
-    })
-  }, [field?.id])
+function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDialogProps) {
+  const isEdit = Boolean(field)
+  const form = useForm(fieldToFormData(field))
+
+  const prevFieldId = React.useRef(field?.id)
+  if (field?.id !== prevFieldId.current) {
+    prevFieldId.current = field?.id
+    form.setData(fieldToFormData(field))
+  }
 
   const fieldType = form.data.field_type
   const optionSource = normalizeOptionSource(fieldType, form.data.option_source)
   const showFixedOptions = optionSource === "fixed"
   const showCatalogType = optionSource === "catalog"
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
+  const prevNormalized = React.useRef(optionSource)
+  if (optionSource !== prevNormalized.current) {
+    prevNormalized.current = optionSource
     if (form.data.option_source !== optionSource) {
       form.setData("option_source", optionSource)
     }
-  }, [optionSource])
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -147,12 +141,12 @@ function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDialogPro
     }
 
     if (field) {
-      router.patch(`/app/settings/custom-fields/${field.id}`, data, {
+      router.patch(incidentFieldDefinitionPath(field.id), data, {
         onSuccess: () => onOpenChange(false),
         preserveScroll: true,
       })
     } else {
-      router.post("/app/settings/custom-fields", data, {
+      router.post(incidentFieldDefinitionsPath(), data, {
         onSuccess: () => onOpenChange(false),
         preserveScroll: true,
       })
@@ -282,8 +276,6 @@ interface CustomFieldsTabProps {
 export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editingField, setEditingField] = React.useState<IncidentFieldDefinitionSettings | null>(null)
-
-  const catalogueBackedCount = fields.filter((field) => field.optionSource === "catalog").length
 
   return (
     <div className="space-y-6">
