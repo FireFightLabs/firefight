@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_31_100003) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_01_110001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -213,6 +213,52 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_31_100003) do
     t.index ["incident_id"], name: "index_incident_events_on_incident_id"
     t.index ["metadata"], name: "index_incident_events_on_metadata", using: :gin
     t.index ["user_id"], name: "index_incident_events_on_user_id"
+  end
+
+  create_table "incident_field_definitions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "config", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.text "description"
+    t.string "field_type", null: false
+    t.string "key", null: false
+    t.string "name", null: false
+    t.string "option_source", null: false
+    t.integer "position", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["workspace_id", "key"], name: "index_incident_field_definitions_on_workspace_and_key_active", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["workspace_id"], name: "index_incident_field_definitions_on_workspace_id"
+  end
+
+  create_table "incident_form_fields", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "config", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.string "field_source_kind", null: false
+    t.uuid "incident_field_definition_id"
+    t.uuid "incident_form_id", null: false
+    t.integer "position", null: false
+    t.string "required_mode", default: "optional", null: false
+    t.string "system_field_key"
+    t.datetime "updated_at", null: false
+    t.string "visibility_mode", default: "visible", null: false
+    t.index ["incident_field_definition_id"], name: "index_incident_form_fields_on_incident_field_definition_id"
+    t.index ["incident_form_id", "field_source_kind", "system_field_key"], name: "index_incident_form_fields_on_form_and_system_field", unique: true, where: "(system_field_key IS NOT NULL)"
+    t.index ["incident_form_id", "incident_field_definition_id"], name: "index_incident_form_fields_on_form_and_field_definition", unique: true, where: "(incident_field_definition_id IS NOT NULL)"
+    t.index ["incident_form_id"], name: "index_incident_form_fields_on_incident_form_id"
+  end
+
+  create_table "incident_forms", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "lifecycle_event", null: false
+    t.string "name", null: false
+    t.integer "position", null: false
+    t.string "slug", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["workspace_id", "slug"], name: "index_incident_forms_on_workspace_id_and_slug", unique: true
+    t.index ["workspace_id"], name: "index_incident_forms_on_workspace_id"
   end
 
   create_table "incident_lifecycle_stages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -885,6 +931,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_31_100003) do
   add_foreign_key "incident_actions", "workspace_memberships", column: "created_by_id"
   add_foreign_key "incident_events", "incidents"
   add_foreign_key "incident_events", "workspace_memberships", column: "user_id"
+  add_foreign_key "incident_field_definitions", "workspaces"
+  add_foreign_key "incident_form_fields", "incident_field_definitions"
+  add_foreign_key "incident_form_fields", "incident_forms"
+  add_foreign_key "incident_forms", "workspaces"
   add_foreign_key "incident_relationships", "incidents"
   add_foreign_key "incident_relationships", "incidents", column: "related_incident_id"
   add_foreign_key "incident_relationships", "workspace_memberships", column: "created_by_id"

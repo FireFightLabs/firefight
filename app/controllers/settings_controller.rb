@@ -10,6 +10,15 @@ class SettingsController < InertiaController
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.ordered
       ),
+      customFields: IncidentFieldDefinitionSettingsSerializer.many(
+        current_workspace.incident_field_definitions.active.ordered
+      ),
+      forms: IncidentFormSettingsSerializer.many(
+        current_workspace.incident_forms.ordered.includes(incident_form_fields: [ incident_field_definition: :workspace ])
+      ),
+      catalogTypes: CatalogTypeOptionSerializer.many(
+        current_workspace.catalog_types.active.ordered
+      ),
       webhooks: WebhookSerializer.many(
         current_workspace.webhooks.ordered
       ),

@@ -1,0 +1,17 @@
+declare_form_ws1:
+  id: cc000001-0000-0000-0000-000000000001
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  slug: declare
+  name: Declare
+  description: Shown when a responder first declares an incident.
+  lifecycle_event: declare
+  position: 1
+
+resolve_form_ws1:
+  id: cc000001-0000-0000-0000-000000000002
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  slug: resolve
+  name: Resolve
+  description: Shown when the incident is resolved or closed.
+  lifecycle_event: resolve
+  position: 2

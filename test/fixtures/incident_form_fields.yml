@@ -1,0 +1,35 @@
+declare_name_field_ws1:
+  id: dd000001-0000-0000-0000-000000000001
+  incident_form_id: cc000001-0000-0000-0000-000000000001
+  field_source_kind: system
+  system_field_key: name
+  position: 1
+  visibility_mode: visible
+  required_mode: optional
+
+declare_severity_field_ws1:
+  id: dd000001-0000-0000-0000-000000000002
+  incident_form_id: cc000001-0000-0000-0000-000000000001
+  field_source_kind: system
+  system_field_key: severity
+  position: 2
+  visibility_mode: visible
+  required_mode: fixed_required
+
+declare_affected_services_field_ws1:
+  id: dd000001-0000-0000-0000-000000000003
+  incident_form_id: cc000001-0000-0000-0000-000000000001
+  field_source_kind: custom
+  incident_field_definition_id: bb000001-0000-0000-0000-000000000001
+  position: 3
+  visibility_mode: visible
+  required_mode: optional
+
+resolve_status_field_ws1:
+  id: dd000001-0000-0000-0000-000000000004
+  incident_form_id: cc000001-0000-0000-0000-000000000002
+  field_source_kind: system
+  system_field_key: status
+  position: 1
+  visibility_mode: visible
+  required_mode: fixed_required

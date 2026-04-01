@@ -54,6 +54,16 @@ Rails.application.routes.draw do
         patch :enable
       end
     end
+    resources :incident_field_definitions, only: [ :create, :update ], path: "settings/custom-fields"
+    resources :incident_form_fields, only: [ :create, :update, :destroy ], path: "settings/forms/fields" do
+      collection do
+        patch :reorder
+      end
+      member do
+        patch :move_up
+        patch :move_down
+      end
+    end
     get "/incidents/:id", to: "incidents#show", as: :incident
     get "/incidents/:incident_id/postmortem", to: "incidents#postmortem", as: :incident_postmortem
     patch "/incidents/:incident_id/postmortem", to: "incidents#update_postmortem"
