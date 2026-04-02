@@ -899,3 +899,116 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_02_100000) do
     t.index ["workspace_id", "platform_user_id"], name: "index_workspace_memberships_on_workspace_and_platform_user", unique: true
     t.index ["workspace_id"], name: "index_workspace_memberships_on_workspace_id"
   end
+
+  create_table "workspaces", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "access_token"
+    t.integer "archive_channel_delay_minutes", default: 60, null: false
+    t.boolean "archive_channel_enabled", default: true, null: false
+    t.string "avatar_url"
+    t.datetime "created_at", null: false
+    t.string "incidents_channel_id"
+    t.datetime "installed_at", null: false
+    t.string "name", null: false
+    t.string "platform", default: "slack", null: false
+    t.jsonb "platform_data", default: {}, null: false
+    t.string "platform_id", null: false
+    t.text "refresh_token"
+    t.datetime "token_expires_at"
+    t.datetime "updated_at", null: false
+    t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
+    t.index ["platform", "platform_id"], name: "index_workspaces_on_platform_and_platform_id", unique: true
+    t.index ["platform"], name: "index_workspaces_on_platform"
+  end
+
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "api_keys", "workspace_memberships", column: "created_by_id"
+  add_foreign_key "api_keys", "workspaces"
+  add_foreign_key "catalog_attribute_definitions", "catalog_types"
+  add_foreign_key "catalog_entries", "catalog_types"
+  add_foreign_key "catalog_entries", "workspaces"
+  add_foreign_key "catalog_entry_relationships", "catalog_attribute_definitions"
+  add_foreign_key "catalog_entry_relationships", "catalog_entries", column: "source_entry_id"
+  add_foreign_key "catalog_entry_relationships", "catalog_entries", column: "target_entry_id"
+  add_foreign_key "catalog_entry_relationships", "workspaces"
+  add_foreign_key "catalog_types", "workspaces"
+  add_foreign_key "environments", "workspaces"
+  add_foreign_key "idempotency_keys", "workspaces"
+  add_foreign_key "incident_action_updates", "incident_actions"
+  add_foreign_key "incident_action_updates", "incidents"
+  add_foreign_key "incident_action_updates", "workspace_memberships", column: "actor_id"
+  add_foreign_key "incident_action_updates", "workspace_memberships", column: "assignee_id"
+  add_foreign_key "incident_action_updates", "workspace_memberships", column: "created_by_id"
+  add_foreign_key "incident_actions", "incidents"
+  add_foreign_key "incident_actions", "workspace_memberships", column: "assignee_id"
+  add_foreign_key "incident_actions", "workspace_memberships", column: "created_by_id"
+  add_foreign_key "incident_conditions", "workspaces"
+  add_foreign_key "incident_events", "incidents"
+  add_foreign_key "incident_events", "workspace_memberships", column: "user_id"
+  add_foreign_key "incident_field_definitions", "workspaces"
+  add_foreign_key "incident_form_fields", "incident_field_definitions"
+  add_foreign_key "incident_form_fields", "incident_forms"
+  add_foreign_key "incident_forms", "workspaces"
+  add_foreign_key "incident_relationships", "incidents"
+  add_foreign_key "incident_relationships", "incidents", column: "related_incident_id"
+  add_foreign_key "incident_relationships", "workspace_memberships", column: "created_by_id"
+  add_foreign_key "incident_role_assignments", "incident_roles"
+  add_foreign_key "incident_role_assignments", "incidents"
+  add_foreign_key "incident_role_assignments", "workspace_memberships"
+  add_foreign_key "incident_role_assignments", "workspace_memberships", column: "assigned_by_id"
+  add_foreign_key "incident_roles", "workspaces"
+  add_foreign_key "incident_severities", "workspaces"
+  add_foreign_key "incident_statuses", "incident_lifecycle_stages"
+  add_foreign_key "incident_statuses", "workspaces"
+  add_foreign_key "incident_types", "workspaces"
+  add_foreign_key "incident_updates", "incident_severities"
+  add_foreign_key "incident_updates", "incident_statuses"
+  add_foreign_key "incident_updates", "incident_types"
+  add_foreign_key "incident_updates", "incidents"
+  add_foreign_key "incident_updates", "workspace_memberships", column: "created_by_id"
+  add_foreign_key "incident_updates", "workspace_memberships", column: "declared_by_id"
+  add_foreign_key "incident_updates", "workspace_memberships", column: "lead_id"
+  add_foreign_key "incident_updates", "workspaces"
+  add_foreign_key "incidents", "api_keys", column: "source_api_key_id"
+  add_foreign_key "incidents", "incident_severities"
+  add_foreign_key "incidents", "incident_statuses"
+  add_foreign_key "incidents", "incident_types"
+  add_foreign_key "incidents", "workspace_memberships", column: "declared_by_id"
+  add_foreign_key "incidents", "workspaces"
+  add_foreign_key "postmortem_updates", "incidents"
+  add_foreign_key "postmortem_updates", "postmortems"
+  add_foreign_key "postmortem_updates", "workspace_memberships", column: "edited_by_id"
+  add_foreign_key "postmortems", "incidents"
+  add_foreign_key "postmortems", "workspace_memberships", column: "generated_by_id"
+  add_foreign_key "product_areas", "workspaces"
+  add_foreign_key "service_dependencies", "services"
+  add_foreign_key "service_dependencies", "services", column: "dependency_id"
+  add_foreign_key "service_environments", "environments"
+  add_foreign_key "service_environments", "services"
+  add_foreign_key "service_product_areas", "product_areas"
+  add_foreign_key "service_product_areas", "services"
+  add_foreign_key "services", "workspaces"
+  add_foreign_key "shoutouts", "incidents"
+  add_foreign_key "shoutouts", "workspace_memberships", column: "from_member_id"
+  add_foreign_key "shoutouts", "workspace_memberships", column: "to_member_id"
+  add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_workflow_events", "solid_workflow_steps", column: "step_id"
+  add_foreign_key "solid_workflow_events", "solid_workflow_workflows", column: "workflow_id"
+  add_foreign_key "solid_workflow_steps", "solid_workflow_workflows", column: "workflow_id"
+  add_foreign_key "team_product_areas", "product_areas"
+  add_foreign_key "team_product_areas", "teams"
+  add_foreign_key "team_services", "services"
+  add_foreign_key "team_services", "teams"
+  add_foreign_key "teams", "workspaces"
+  add_foreign_key "webhook_delinquency_trackers", "webhooks"
+  add_foreign_key "webhook_deliveries", "incident_events"
+  add_foreign_key "webhook_deliveries", "webhooks"
+  add_foreign_key "webhooks", "workspaces"
+  add_foreign_key "workspace_memberships", "users"
+  add_foreign_key "workspace_memberships", "workspaces"
+end
