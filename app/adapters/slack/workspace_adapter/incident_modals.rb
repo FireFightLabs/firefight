@@ -1,8 +1,8 @@
 module Slack::WorkspaceAdapter::IncidentModals
   extend ActiveSupport::Concern
 
-  def build_incident_creation_view(selected_severity_slug: nil)
-    Slack::ModalBuilder.incident_creation_form(workspace: @workspace, selected_severity_slug: selected_severity_slug)
+  def build_incident_creation_view(selected_severity_slug: nil, selected_type_id: nil)
+    Slack::ModalBuilder.incident_creation_form(workspace: @workspace, selected_severity_slug: selected_severity_slug, selected_type_id: selected_type_id)
   end
 
   def build_incident_created_view(incident)
@@ -13,9 +13,9 @@ module Slack::WorkspaceAdapter::IncidentModals
     open_modal(trigger_id: trigger_id, view: build_incident_creation_view)
   end
 
-  def update_incident_creation_modal(view_id:, selected_severity_slug:)
+  def update_incident_creation_modal(view_id:, selected_severity_slug: nil, selected_type_id: nil)
     translate_errors do
-      updated_view = build_incident_creation_view(selected_severity_slug: selected_severity_slug)
+      updated_view = build_incident_creation_view(selected_severity_slug: selected_severity_slug, selected_type_id: selected_type_id)
 
       Slack::Client.update_modal(
         workspace: @workspace,

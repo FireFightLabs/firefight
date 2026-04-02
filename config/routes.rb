@@ -38,6 +38,8 @@ Rails.application.routes.draw do
     get "/settings/roles", to: "settings#roles", as: :settings_roles
     get "/settings/statuses", to: "settings#statuses", as: :settings_statuses
     get "/settings/severities", to: "settings#severities", as: :settings_severities
+    get "/settings/types", to: "settings#types", as: :settings_types
+    resources :incident_types, only: [ :create, :update, :destroy ], path: "settings/types"
     get "/settings/custom-fields", to: "settings#custom_fields", as: :settings_custom_fields
     get "/settings/forms", to: "settings#forms", as: :settings_forms
     get "/settings/webhooks", to: "settings#webhooks", as: :settings_webhooks

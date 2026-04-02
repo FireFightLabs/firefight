@@ -18,6 +18,12 @@ class IncidentFormFieldsController < InertiaController
       visibility_mode: params.require(:visibility_mode),
       required_mode: params.require(:required_mode)
     )
+
+    if params.key?(:conditions)
+      conditions = parse_conditions(params[:conditions])
+      @form_field.sync_conditions!(conditions)
+    end
+
     redirect_to settings_forms_path(form: @form_field.incident_form_id)
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_forms_path(form: @form_field.incident_form_id),
@@ -59,5 +65,17 @@ class IncidentFormFieldsController < InertiaController
 
   def form_service
     @form_service ||= IncidentFormService.new(current_workspace)
+  end
+
+  def parse_conditions(raw)
+    return [] if raw.blank?
+
+    Array(raw).map do |c|
+      {
+        condition_field: c[:condition_field],
+        operator: c[:operator],
+        values: Array(c[:values])
+      }
+    end
   end
 end

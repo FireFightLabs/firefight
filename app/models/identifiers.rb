@@ -82,4 +82,5 @@ module Identifiers
   ACKNOWLEDGE_ESCALATION = "acknowledge_escalation"
   SHOUTOUT_FROM_REACTION = "shoutout_from_reaction"
   INCIDENT_CREATION_SEVERITY_SELECT = "incident_creation_severity_select"
+  INCIDENT_CREATION_TYPE_SELECT = "incident_creation_type_select"
 end

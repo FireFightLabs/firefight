@@ -1,10 +1,12 @@
 module Slack
   class ModalBuilder
-    def self.incident_creation_form(workspace:, selected_severity_slug: nil)
+    def self.incident_creation_form(workspace:, selected_severity_slug: nil, selected_type_id: nil)
       resolver = IncidentFormResolver.new(workspace)
+      context = {}
+      context[:incident_type] = selected_type_id if selected_type_id
 
       begin
-        visible_fields = resolver.resolve(IncidentForm::SLUG_DECLARE)
+        visible_fields = resolver.resolve(IncidentForm::SLUG_DECLARE, context: context)
       rescue ActiveRecord::RecordNotFound
         visible_fields = []
       end
@@ -12,7 +14,7 @@ module Slack
       blocks = if visible_fields.any?
         visible_fields.filter_map do |form_field|
           if form_field.system?
-            build_system_field_block(workspace, form_field, selected_severity_slug: selected_severity_slug, severity_dispatch: true)
+            build_system_field_block(workspace, form_field, selected_severity_slug: selected_severity_slug, severity_dispatch: true, type_dispatch: true, selected_type_id: selected_type_id)
           else
             build_custom_field_block(workspace, form_field)
           end
@@ -42,7 +44,7 @@ module Slack
       }
     end
 
-    def self.build_system_field_block(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false)
+    def self.build_system_field_block(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, selected_type_id: nil)
       case form_field.system_field_key
       when IncidentSystemField::KEY_NAME
         name_field_block(form_field, incident: incident)
@@ -52,7 +54,7 @@ module Slack
         slug = selected_severity_slug || incident&.incident_severity&.slug
         severity_field_block(workspace, form_field, selected_severity_slug: slug, dispatch: severity_dispatch)
       when IncidentSystemField::KEY_INCIDENT_TYPE
-        incident_type_field_block(workspace, form_field, incident: incident)
+        incident_type_field_block(workspace, form_field, incident: incident, dispatch: type_dispatch, selected_type_id: selected_type_id)
       when IncidentSystemField::KEY_STATUS
         status_field_block(workspace, form_field, incident: incident)
       end
@@ -169,7 +171,7 @@ module Slack
     end
     private_class_method :severity_field_block
 
-    def self.incident_type_field_block(workspace, form_field, incident: nil)
+    def self.incident_type_field_block(workspace, form_field, incident: nil, dispatch: false, selected_type_id: nil)
       types = workspace.incident_types.active.ordered
       return nil unless types.any?
 
@@ -182,25 +184,36 @@ module Slack
         option
       end
 
-      initial_type = if incident&.incident_type
+      selected_type = if selected_type_id
+        types.find { |t| t.id == selected_type_id }
+      end
+
+      initial_type = if selected_type
+        type_options.find { |o| o[:value] == selected_type.slug }
+      elsif incident&.incident_type
         type_options.find { |o| o[:value] == incident.incident_type.slug }
       end
 
+      action_id = dispatch ? Identifiers::INCIDENT_CREATION_TYPE_SELECT : "field_incident_type_input"
+
       element = {
         type: "static_select",
-        action_id: "field_incident_type_input",
+        action_id: action_id,
         placeholder: { type: "plain_text", text: "Select a type" },
         options: type_options
       }
       element[:initial_option] = initial_type if initial_type
 
-      {
+      block = {
         type: "input",
         block_id: "field_incident_type_block",
         element: element,
         label: { type: "plain_text", text: "Incident Type" },
         optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
       }
+      block[:dispatch_action] = true if dispatch
+
+      block
     end
     private_class_method :incident_type_field_block
 

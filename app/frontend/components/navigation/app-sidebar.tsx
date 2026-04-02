@@ -1,6 +1,7 @@
 import {
   IconAlertTriangle,
   IconBook2,
+  IconCategory,
   IconChecklist,
   IconFlame,
   IconForms,
@@ -34,6 +35,7 @@ import {
   settingsRolesPath,
   settingsSeveritiesPath,
   settingsStatusesPath,
+  settingsTypesPath,
   settingsWebhooksPath,
 } from "@/lib/routes"
 
@@ -53,6 +55,7 @@ const navSections = [
       { title: "Roles", url: settingsRolesPath(), icon: IconUserShield },
       { title: "Statuses", url: settingsStatusesPath(), icon: IconListDetails },
       { title: "Severities", url: settingsSeveritiesPath(), icon: IconAlertTriangle },
+      { title: "Types", url: settingsTypesPath(), icon: IconCategory },
       { title: "Integrations", url: "#", icon: IconPlug },
     ],
   },
