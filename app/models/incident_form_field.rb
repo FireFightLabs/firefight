@@ -14,6 +14,7 @@ class IncidentFormField < ApplicationRecord
 
   belongs_to :incident_form
   belongs_to :incident_field_definition, optional: true
+  has_many :incident_conditions, as: :conditionable, dependent: :destroy
 
   validates :field_source_kind, presence: true, inclusion: { in: FIELD_SOURCE_KINDS }
   validates :position, presence: true
@@ -39,6 +40,20 @@ class IncidentFormField < ApplicationRecord
 
   def source_name
     system? ? IncidentSystemField.fetch(system_field_key).name : incident_field_definition&.name
+  end
+
+  def sync_conditions!(conditions_params)
+    transaction do
+      incident_conditions.destroy_all
+      conditions_params.each do |cp|
+        incident_conditions.create!(
+          workspace: incident_form.workspace,
+          condition_field: cp[:condition_field],
+          operator: cp[:operator],
+          values: cp[:values]
+        )
+      end
+    end
   end
 
   private

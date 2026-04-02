@@ -65,6 +65,13 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     form_field.locked_required?
   end
 
+  type "IncidentConditionSettings[]", optional: true
+  def conditions
+    form_field.incident_conditions.map do |c|
+      { id: c.id, conditionField: c.condition_field, operator: c.operator, values: c.values }
+    end
+  end
+
   private
 
   def source_definition

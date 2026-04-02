@@ -69,6 +69,13 @@ export interface IncidentFieldDefinitionSettings {
   usageCount: number
 }
 
+export interface IncidentConditionSettings {
+  id: string
+  conditionField: string
+  operator: string
+  values: string[]
+}
+
 export interface IncidentFormFieldSettings {
   id: string
   fieldSourceKind: string
@@ -86,6 +93,7 @@ export interface IncidentFormFieldSettings {
   options?: string[]
   catalogTypeId?: string
   catalogTypeName?: string
+  conditions?: IncidentConditionSettings[]
 }
 
 export interface IncidentFormSettings {

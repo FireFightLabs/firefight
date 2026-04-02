@@ -18,6 +18,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
+  IconFilter,
   IconGripVertical,
   IconPlayerPlay,
   IconPlus,
@@ -25,13 +26,16 @@ import {
   IconRoute,
   IconSparkles,
   IconTrash,
+  IconX,
 } from "@tabler/icons-react"
 
 import type {
+  IncidentConditionSettings,
   IncidentFieldDefinitionSettings,
   IncidentFormFieldSettings,
   IncidentFormSettings,
 } from "@/modules/settings/types"
+import type { IncidentTypeSettings } from "@/types/serializers"
 import { reorderIncidentFormFieldsPath } from "@/lib/routes"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -60,6 +64,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 
 function iconForForm(slug: string) {
@@ -200,9 +210,156 @@ function AddFieldDialog({ open, onOpenChange, form, availableFields, allCustomFi
   )
 }
 
-function SortableFieldRow({ field, onUpdate, onRemove }: {
+const CONDITION_FIELD_INCIDENT_TYPE = "incident_type"
+const OPERATOR_ONE_OF = "one_of"
+const OPERATOR_NOT_ONE_OF = "not_one_of"
+
+const OPERATOR_LABELS: Record<string, string> = {
+  [OPERATOR_ONE_OF]: "is one of",
+  [OPERATOR_NOT_ONE_OF]: "is not one of",
+}
+
+function conditionSummary(conditions: IncidentConditionSettings[], incidentTypes: IncidentTypeSettings[]): string | null {
+  if (!conditions.length) return null
+
+  const typeMap = new Map(incidentTypes.map((t) => [t.id, t.name]))
+
+  return conditions
+    .map((c) => {
+      const names = c.values.map((v) => typeMap.get(v) ?? v).join(", ")
+      const label = OPERATOR_LABELS[c.operator] ?? c.operator
+      return `Type ${label} ${names}`
+    })
+    .join("; ")
+}
+
+function ConditionEditor({ field, incidentTypes, onSave }: {
   field: IncidentFormFieldSettings
+  incidentTypes: IncidentTypeSettings[]
+  onSave: (conditions: IncidentConditionSettings[]) => void
+}) {
+  const existing = field.conditions?.[0]
+  const [operator, setOperator] = React.useState(existing?.operator ?? OPERATOR_ONE_OF)
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
+    () => new Set(existing?.values ?? [])
+  )
+  const [open, setOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    const current = field.conditions?.[0]
+    setOperator(current?.operator ?? OPERATOR_ONE_OF)
+    setSelectedIds(new Set(current?.values ?? []))
+  }, [field.conditions])
+
+  function toggleType(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  function handleSave() {
+    if (selectedIds.size === 0) {
+      onSave([])
+    } else {
+      onSave([ {
+        id: existing?.id ?? "",
+        conditionField: CONDITION_FIELD_INCIDENT_TYPE,
+        operator,
+        values: Array.from(selectedIds),
+      } ])
+    }
+    setOpen(false)
+  }
+
+  function handleClear() {
+    onSave([])
+    setOpen(false)
+  }
+
+  const hasConditions = (field.conditions?.length ?? 0) > 0
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] transition-colors",
+            hasConditions
+              ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/15"
+              : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30"
+          )}
+        >
+          <IconFilter className="size-3" />
+          {hasConditions
+            ? conditionSummary(field.conditions!, incidentTypes)
+            : "Add condition"}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-0">
+        <div className="space-y-3 p-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Show this field when Incident Type</Label>
+            <Select value={operator} onValueChange={setOperator}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={OPERATOR_ONE_OF}>is one of</SelectItem>
+                <SelectItem value={OPERATOR_NOT_ONE_OF}>is not one of</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Types</Label>
+            <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border/60 p-2">
+              {incidentTypes.map((t) => (
+                <label key={t.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/30">
+                  <Checkbox
+                    checked={selectedIds.has(t.id)}
+                    onCheckedChange={() => toggleType(t.id)}
+                  />
+                  <span>{t.name}</span>
+                </label>
+              ))}
+              {incidentTypes.length === 0 && (
+                <p className="py-2 text-center text-xs text-muted-foreground">No incident types defined.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-border/50 px-4 py-2.5">
+          {hasConditions ? (
+            <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-destructive" onClick={handleClear}>
+              <IconX className="size-3" />
+              Remove
+            </Button>
+          ) : (
+            <div />
+          )}
+          <Button size="sm" className="h-7 px-3 text-xs" onClick={handleSave} disabled={selectedIds.size === 0 && !hasConditions}>
+            Save
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+
+function SortableFieldRow({ field, incidentTypes, onUpdate, onUpdateConditions, onRemove }: {
+  field: IncidentFormFieldSettings
+  incidentTypes: IncidentTypeSettings[]
   onUpdate: (next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) => void
+  onUpdateConditions: (conditions: IncidentConditionSettings[]) => void
   onRemove: () => void
 }) {
   const {
@@ -285,6 +442,7 @@ function SortableFieldRow({ field, onUpdate, onRemove }: {
           <span className="text-[11px] text-muted-foreground">Visible</span>
           <Switch
             checked={isVisible}
+            disabled={field.lockedRequired}
             onCheckedChange={(checked) => onUpdate({ visibilityMode: checked ? "visible" : "hidden" })}
           />
         </label>
@@ -303,6 +461,14 @@ function SortableFieldRow({ field, onUpdate, onRemove }: {
             />
           )}
         </label>
+
+        {!field.lockedRequired && (
+          <ConditionEditor
+            field={field}
+            incidentTypes={incidentTypes}
+            onSave={onUpdateConditions}
+          />
+        )}
 
         {field.fieldSourceKind === "custom" && (
           <Button
@@ -323,12 +489,13 @@ function SortableFieldRow({ field, onUpdate, onRemove }: {
 interface FormsTabProps {
   forms: IncidentFormSettings[]
   customFields: IncidentFieldDefinitionSettings[]
+  incidentTypes: IncidentTypeSettings[]
   selectedFormId: string | null
   onSelectForm: (formId: string) => void
   onNavigateToCustomFields?: () => void
 }
 
-export function FormsTab({ forms, customFields, selectedFormId, onSelectForm, onNavigateToCustomFields }: FormsTabProps) {
+export function FormsTab({ forms, customFields, incidentTypes, selectedFormId, onSelectForm, onNavigateToCustomFields }: FormsTabProps) {
   const selectedForm = React.useMemo(() => {
     return forms.find((form) => form.id === selectedFormId) ?? forms[0] ?? null
   }, [forms, selectedFormId])
@@ -376,6 +543,20 @@ export function FormsTab({ forms, customFields, selectedFormId, onSelectForm, on
     router.patch(incidentFormFieldPath(field.id), {
       visibility_mode: next.visibilityMode ?? field.visibilityMode,
       required_mode: next.requiredMode ?? field.requiredMode,
+    }, {
+      preserveScroll: true,
+    })
+  }
+
+  function handleUpdateConditions(field: IncidentFormFieldSettings, conditions: IncidentConditionSettings[]) {
+    router.patch(incidentFormFieldPath(field.id), {
+      visibility_mode: field.visibilityMode,
+      required_mode: field.requiredMode,
+      conditions: conditions.map((c) => ({
+        condition_field: c.conditionField,
+        operator: c.operator,
+        values: c.values,
+      })),
     }, {
       preserveScroll: true,
     })
@@ -453,7 +634,9 @@ export function FormsTab({ forms, customFields, selectedFormId, onSelectForm, on
                     <SortableFieldRow
                       key={field.id}
                       field={field}
+                      incidentTypes={incidentTypes}
                       onUpdate={(next) => handleUpdateField(field, next)}
+                      onUpdateConditions={(conditions) => handleUpdateConditions(field, conditions)}
                       onRemove={() => handleRemoveField(field)}
                     />
                   ))}

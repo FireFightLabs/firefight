@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_01_110001) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_02_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -197,6 +197,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_01_110001) do
     t.index ["deleted_at"], name: "index_incident_actions_on_deleted_at"
     t.index ["incident_id", "action_type"], name: "index_incident_actions_on_incident_id_and_action_type"
     t.index ["incident_id", "status"], name: "index_incident_actions_on_incident_id_and_status"
+  end
+
+  create_table "incident_conditions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "condition_field", null: false
+    t.uuid "conditionable_id", null: false
+    t.string "conditionable_type", null: false
+    t.datetime "created_at", null: false
+    t.string "operator", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "values", default: [], null: false
+    t.uuid "workspace_id", null: false
+    t.index ["conditionable_type", "conditionable_id"], name: "index_incident_conditions_on_conditionable"
+    t.index ["workspace_id"], name: "index_incident_conditions_on_workspace_id"
   end
 
   create_table "incident_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -929,6 +942,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_01_110001) do
   add_foreign_key "incident_actions", "incidents"
   add_foreign_key "incident_actions", "workspace_memberships", column: "assignee_id"
   add_foreign_key "incident_actions", "workspace_memberships", column: "created_by_id"
+  add_foreign_key "incident_conditions", "workspaces"
   add_foreign_key "incident_events", "incidents"
   add_foreign_key "incident_events", "workspace_memberships", column: "user_id"
   add_foreign_key "incident_field_definitions", "workspaces"

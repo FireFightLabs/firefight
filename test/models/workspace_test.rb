@@ -54,8 +54,8 @@ class WorkspaceTest < ActiveSupport::TestCase
     assert_equal user.id, membership.user_id
 
     # Verify default incident types
-    assert_equal 4, workspace.incident_types.count
-    assert_equal %w[data_issue performance_degradation security_incident service_outage],
+    assert_equal 5, workspace.incident_types.count
+    assert_equal %w[data infrastructure production security third_party],
                  workspace.incident_types.pluck(:slug).sort
   end
 

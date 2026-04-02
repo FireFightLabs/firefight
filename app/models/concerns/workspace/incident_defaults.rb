@@ -17,10 +17,11 @@ module Workspace::IncidentDefaults
   ].freeze
 
   DEFAULT_TYPES = [
-    { name: "Service Outage", slug: "service_outage", position: 1, is_default: false, description: "Service or infrastructure is down or unreachable." },
-    { name: "Performance Degradation", slug: "performance_degradation", position: 2, is_default: false, description: "Elevated latency, errors, or capacity-related degradation." },
-    { name: "Security Incident", slug: "security_incident", position: 3, is_default: false, description: "Unauthorized access, vulnerability exploitation, or data exposure risk." },
-    { name: "Data Issue", slug: "data_issue", position: 4, is_default: false, description: "Data loss, corruption, integrity, or correctness issues." }
+    { name: "Production", slug: "production", position: 1, is_default: true, color: "#DC143C", description: "Customer-facing service disruption or degradation." },
+    { name: "Security", slug: "security", position: 2, is_default: false, color: "#8B5CF6", description: "Unauthorized access, data exposure, or vulnerability exploitation." },
+    { name: "Infrastructure", slug: "infrastructure", position: 3, is_default: false, color: "#F59E0B", description: "Cloud, network, or platform-level failures." },
+    { name: "Data", slug: "data", position: 4, is_default: false, color: "#3B82F6", description: "Data loss, corruption, pipeline failure, or integrity issues." },
+    { name: "Third Party", slug: "third_party", position: 5, is_default: false, color: "#10B981", description: "Vendor or external dependency outage affecting your systems." }
   ].freeze
 
   DEFAULT_ROLES = [
@@ -58,7 +59,10 @@ module Workspace::IncidentDefaults
       lifecycle_event: IncidentForm::SLUG_UPDATE,
       position: 3,
       fields: [
-        { system_field_key: IncidentSystemField::KEY_SUMMARY, position: 1, required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL }
+        { system_field_key: IncidentSystemField::KEY_STATUS, position: 1, required_mode: IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED },
+        { system_field_key: IncidentSystemField::KEY_SEVERITY, position: 2, required_mode: IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED },
+        { system_field_key: IncidentSystemField::KEY_INCIDENT_TYPE, position: 3, required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL },
+        { system_field_key: IncidentSystemField::KEY_SUMMARY, position: 4, required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL }
       ]
     },
     {
@@ -68,8 +72,9 @@ module Workspace::IncidentDefaults
       lifecycle_event: IncidentForm::SLUG_RESOLVE,
       position: 4,
       fields: [
-        { system_field_key: IncidentSystemField::KEY_STATUS, position: 1, required_mode: IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED },
-        { system_field_key: IncidentSystemField::KEY_SUMMARY, position: 2, required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL }
+        { system_field_key: IncidentSystemField::KEY_NAME, position: 1, required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL },
+        { system_field_key: IncidentSystemField::KEY_SUMMARY, position: 2, required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL },
+        { system_field_key: IncidentSystemField::KEY_SEVERITY, position: 3, required_mode: IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED }
       ]
     }
   ].freeze
