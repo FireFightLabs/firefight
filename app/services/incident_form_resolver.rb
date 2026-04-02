@@ -12,14 +12,20 @@ class IncidentFormResolver
     @workspace = workspace
   end
 
-  def resolve(lifecycle_event)
+  def resolve(lifecycle_event, context: {})
     form = @workspace.incident_forms.find_by!(lifecycle_event: lifecycle_event)
     field_ids = cached_field_ids(form)
 
-    IncidentFormField
-      .includes(:incident_field_definition)
+    fields = IncidentFormField
+      .includes(:incident_field_definition, :incident_conditions)
       .where(id: field_ids)
       .order(:position)
+
+    return fields if context.empty?
+
+    fields.select do |field|
+      IncidentConditionEvaluator.match?(field.incident_conditions, context)
+    end
   end
 
   def self.cache_key(form)
@@ -30,8 +36,8 @@ class IncidentFormResolver
     Rails.cache.delete(cache_key(form))
   end
 
-  def validate_submission(lifecycle_event, raw_params)
-    visible_fields = resolve(lifecycle_event)
+  def validate_submission(lifecycle_event, raw_params, context: {})
+    visible_fields = resolve(lifecycle_event, context: context)
     system_attrs = {}
     custom_fields = {}
     errors = []
@@ -63,8 +69,8 @@ class IncidentFormResolver
     { system_attrs: system_attrs, custom_fields: custom_fields, errors: errors }
   end
 
-  def validate_submission!(lifecycle_event, raw_params)
-    result = validate_submission(lifecycle_event, raw_params)
+  def validate_submission!(lifecycle_event, raw_params, context: {})
+    result = validate_submission(lifecycle_event, raw_params, context: context)
     raise ValidationError.new(result[:errors]) if result[:errors].any?
 
     result

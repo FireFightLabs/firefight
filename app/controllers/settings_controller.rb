@@ -27,6 +27,14 @@ class SettingsController < InertiaController
     }
   end
 
+  def types
+    render inertia: "settings/types", props: {
+      types: IncidentTypeSettingsSerializer.many(
+        current_workspace.incident_types.active.ordered
+      )
+    }
+  end
+
   def custom_fields
     render inertia: "settings/custom-fields", props: {
       customFields: IncidentFieldDefinitionSettingsSerializer.many(
@@ -41,10 +49,13 @@ class SettingsController < InertiaController
   def forms
     render inertia: "settings/forms", props: {
       forms: IncidentFormSettingsSerializer.many(
-        current_workspace.incident_forms.ordered.includes(incident_form_fields: [ incident_field_definition: :workspace ])
+        current_workspace.incident_forms.ordered.includes(incident_form_fields: [ :incident_conditions, { incident_field_definition: :workspace } ])
       ),
       customFields: IncidentFieldDefinitionSettingsSerializer.many(
         current_workspace.incident_field_definitions.active.ordered
+      ),
+      incidentTypes: IncidentTypeSettingsSerializer.many(
+        current_workspace.incident_types.active.ordered
       )
     }
   end
