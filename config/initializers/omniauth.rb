@@ -18,8 +18,8 @@ Rails.application.config.middleware.use OmniAuth::Builder do
   end
 
   provider :slack,
-    Rails.application.credentials.dig(:slack, :client_id),
-    Rails.application.credentials.dig(:slack, :client_secret),
+    ENV["SLACK_CLIENT_ID"] || Rails.application.credentials.dig(:slack, :client_id),
+    ENV["SLACK_CLIENT_SECRET"] || Rails.application.credentials.dig(:slack, :client_secret),
     **provider_options
 end
 

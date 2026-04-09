@@ -132,11 +132,11 @@ module Slack
     end
 
     def slack_client_id
-      Rails.application.credentials.dig(:slack, :client_id)
+      ENV["SLACK_CLIENT_ID"] || Rails.application.credentials.dig(:slack, :client_id)
     end
 
     def slack_client_secret
-      Rails.application.credentials.dig(:slack, :client_secret)
+      ENV["SLACK_CLIENT_SECRET"] || Rails.application.credentials.dig(:slack, :client_secret)
     end
 
     def log_success(type, name, id)

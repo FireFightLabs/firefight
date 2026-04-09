@@ -8,6 +8,5 @@ class CreateIncidentConditions < ActiveRecord::Migration[8.1]
       t.jsonb :values, null: false, default: []
       t.timestamps
     end
-
   end
 end

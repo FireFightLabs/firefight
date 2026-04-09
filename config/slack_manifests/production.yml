@@ -5,15 +5,15 @@ display_information:
 
 features:
   bot_user:
-    display_name: Firefight Bot
+    display_name: Firefight
     always_online: false
   slash_commands:
     - command: /firefight
-      url: https://firefight-production-32a5.up.railway.app/api/v1/commands
+      url: https://slack.firefight.app/api/v1/commands
       description: "Manage incidents and coordinate response"
       should_escape: false
     - command: /ff
-      url: https://firefight-production-32a5.up.railway.app/api/v1/commands
+      url: https://slack.firefight.app/api/v1/commands
       description: "Manage incidents (short alias for /firefight)"
       should_escape: false
   shortcuts:
@@ -24,7 +24,7 @@ features:
 
 oauth_config:
   redirect_urls:
-    - https://firefight-production-32a5.up.railway.app/auth/slack/callback
+    - https://app.firefight.app/auth/slack/callback
   scopes:
     user:
       - users:read # Get user profile info (name, avatar) during OAuth
@@ -50,7 +50,7 @@ oauth_config:
 
 settings:
   event_subscriptions:
-    request_url: https://firefight-production-32a5.up.railway.app/api/v1/events
+    request_url: https://slack.firefight.app/api/v1/events
     bot_events:
       - app_mention
       - reaction_added
@@ -61,7 +61,7 @@ settings:
       - member_joined_channel
   interactivity:
     is_enabled: true
-    request_url: https://firefight-production-32a5.up.railway.app/api/v1/interactions
+    request_url: https://slack.firefight.app/api/v1/interactions
   org_deploy_enabled: true
   socket_mode_enabled: false
   token_rotation_enabled: true
