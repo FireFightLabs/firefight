@@ -142,6 +142,7 @@ production:
   primary: &primary_production
     <<: *default
     host: <%= ENV["FIREFIGHT_DATABASE_HOST"] %>
+    port: <%= ENV.fetch("FIREFIGHT_DATABASE_PORT", 5432) %>
     database: <%= ENV["FIREFIGHT_DATABASE"] %>
     username: <%= ENV["FIREFIGHT_DATABASE_USERNAME"] %>
     password: <%= ENV["FIREFIGHT_DATABASE_PASSWORD"] %>
