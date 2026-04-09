@@ -146,6 +146,7 @@ production:
     database: <%= ENV["FIREFIGHT_DATABASE"] %>
     username: <%= ENV["FIREFIGHT_DATABASE_USERNAME"] %>
     password: <%= ENV["FIREFIGHT_DATABASE_PASSWORD"] %>
+    sslmode: <%= ENV.fetch("FIREFIGHT_DATABASE_SSLMODE", "require") %>
   cache:
     <<: *primary_production
     database: <%= ENV["FIREFIGHT_DATABASE_CACHE"] %>
