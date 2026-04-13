@@ -108,4 +108,4 @@ gem "types_from_serializers"
 
 gem "benchmark", "~> 0.5.0"
 
-gem "commonmarker", "~> 2.7"
+gem "commonmarker", "~> 2.8"
