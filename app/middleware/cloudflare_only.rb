@@ -27,6 +27,8 @@ class CloudflareOnly
     return @app.call(env) unless @mode
     return @app.call(env) if env["PATH_INFO"] == HEALTH_CHECK_PATH
 
+    Rails.logger.info("CloudflareOnly debug: REMOTE_ADDR=#{env['REMOTE_ADDR']} XFF=#{env['HTTP_X_FORWARDED_FOR']} CF=#{env['HTTP_CF_CONNECTING_IP']}")
+
     edge_ip = source_ip(env)
     return forbidden unless edge_ip
     return @app.call(env) if @ranges.any? { |range| range.include?(edge_ip) }
