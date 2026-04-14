@@ -82,4 +82,8 @@ Rails.application.configure do
 
   # Skip DNS rebinding protection for the default health check endpoint.
   config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+
+  # Reject non-Cloudflare traffic when CLOUDFLARE_ONLY is set ("behind_lb" or "direct").
+  require Rails.root.join("app/middleware/cloudflare_only")
+  config.middleware.insert_before Rack::Runtime, CloudflareOnly
 end
