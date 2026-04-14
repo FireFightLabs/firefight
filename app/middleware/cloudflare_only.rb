@@ -40,14 +40,24 @@ class CloudflareOnly
 
   private
 
-  def source_ip(env)
+  # Returns true if any IP in the X-Forwarded-For chain is a Cloudflare edge.
+  # behind_lb mode: scan the whole chain since Hetzner LB doesn't append the
+  # connecting IP. The Cloudflare edge appears somewhere in the chain.
+  # direct mode: check REMOTE_ADDR.
+  def from_cloudflare?(env)
     case @mode
     when "behind_lb"
       forwarded = env["HTTP_X_FORWARDED_FOR"]
-      return nil unless forwarded
-      IPAddr.new(forwarded.split(",").last.strip)
+      return false unless forwarded
+      forwarded.split(",").any? do |raw|
+        ip = IPAddr.new(raw.strip)
+        @ranges.any? { |range| range.include?(ip) }
+      rescue IPAddr::InvalidAddressError
+        false
+      end
     when "direct"
-      IPAddr.new(env["REMOTE_ADDR"])
+      ip = IPAddr.new(env["REMOTE_ADDR"])
+      @ranges.any? { |range| range.include?(ip) }
     end
   end
 
