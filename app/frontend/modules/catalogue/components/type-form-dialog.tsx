@@ -201,7 +201,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                 {attributes.map((attr) => (
                   <div
                     key={attr.id}
-                    className="rounded-md border bg-card/50 px-3 py-2.5"
+                    className="rounded-md border bg-card px-3 py-2.5"
                   >
                     <div className="flex items-center gap-2">
                       <IconGripVertical className="size-4 shrink-0 text-muted-foreground/30 cursor-grab" />
