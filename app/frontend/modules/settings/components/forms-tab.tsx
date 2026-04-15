@@ -169,7 +169,7 @@ function AddFieldDialog({ open, onOpenChange, form, availableFields, allCustomFi
               </Select>
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-border/60 px-4 py-4 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border border-dashed border-border px-4 py-4 text-center text-sm text-muted-foreground">
               {allCustomFields.length === 0 ? (
                 <div className="space-y-2">
                   <p>No custom fields defined yet.</p>
@@ -319,7 +319,7 @@ function ConditionEditor({ field, incidentTypes, onSave }: {
 
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Types</Label>
-            <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border/60 p-2">
+            <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
               {incidentTypes.map((t) => (
                 <label key={t.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/30">
                   <Checkbox
@@ -336,7 +336,7 @@ function ConditionEditor({ field, incidentTypes, onSave }: {
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-border/50 px-4 py-2.5">
+        <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
           {hasConditions ? (
             <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-destructive" onClick={handleClear}>
               <IconX className="size-3" />
@@ -387,7 +387,7 @@ function SortableFieldRow({ field, incidentTypes, onUpdate, onUpdateConditions, 
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group border-b border-dashed border-border/40 px-4 py-5 last:border-b-0",
+        "group border-b border-dashed border-border px-4 py-5 last:border-b-0",
         isDragging && "relative rounded-xl border-solid border-cyan-500/30 bg-background shadow-lg",
         !isVisible && "opacity-40",
       )}
@@ -415,18 +415,18 @@ function SortableFieldRow({ field, incidentTypes, onUpdate, onUpdateConditions, 
           )}
           <div className="mt-2 max-w-lg">
             {isSelect ? (
-              <div className="flex h-9 items-center rounded-md border border-border/60 bg-muted/15 px-3">
+              <div className="flex h-9 items-center rounded-md border border-border bg-muted px-3">
                 <span className="flex-1 text-sm text-muted-foreground/50">Select an option...</span>
                 <svg className="size-3.5 text-muted-foreground/30" viewBox="0 0 16 16" fill="none">
                   <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
             ) : field.key === "summary" ? (
-              <div className="rounded-md border border-border/60 bg-muted/15 px-3 pt-2.5 pb-12">
+              <div className="rounded-md border border-border bg-muted px-3 pt-2.5 pb-12">
                 <span className="text-sm text-muted-foreground/50">Provide a summary...</span>
               </div>
             ) : (
-              <div className="flex h-9 items-center rounded-md border border-border/60 bg-muted/15 px-3">
+              <div className="flex h-9 items-center rounded-md border border-border bg-muted px-3">
                 <span className="text-sm text-muted-foreground/50">
                   {field.fieldType === "number" ? "0" : field.fieldType === "link" ? "https://..." : "Enter text..."}
                 </span>
@@ -576,7 +576,7 @@ export function FormsTab({ forms, customFields, incidentTypes, selectedFormId, o
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[200px_minmax(0,1fr)]">
-        <div className="flex flex-col gap-1 self-start rounded-xl border border-border/50 bg-muted/20 p-1.5">
+        <div className="flex flex-col gap-1 self-start rounded-xl border border-border bg-muted p-1.5">
           {forms.map((form) => {
             const isSelected = selectedForm?.id === form.id
 
@@ -603,8 +603,8 @@ export function FormsTab({ forms, customFields, incidentTypes, selectedFormId, o
         </div>
 
         {selectedForm && (
-          <Card className="overflow-hidden border-border/70 shadow-[0_26px_80px_-52px_rgba(8,15,30,0.32)]">
-            <CardHeader className="border-b border-border/50 px-5 py-4">
+          <Card className="overflow-hidden border-border shadow-[0_26px_80px_-52px_rgba(8,15,30,0.32)]">
+            <CardHeader className="border-b border-border px-5 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <span className={cn("rounded-md p-1", iconTintForForm(selectedForm.slug))}>

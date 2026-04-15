@@ -37,7 +37,7 @@ function TimelineSkeleton() {
 
 function ActionsSkeleton() {
   return (
-    <div className="rounded-xl border border-border/60 bg-card/40 p-4 space-y-3">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
       <Skeleton className="h-4 w-20" />
       <Skeleton className="h-1 w-full rounded-full" />
       {Array.from({ length: 3 }).map((_, i) => (

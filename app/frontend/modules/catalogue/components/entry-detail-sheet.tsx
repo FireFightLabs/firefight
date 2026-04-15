@@ -257,7 +257,7 @@ export function EntryDetailSheet({
               return (
                 <div
                   key={attr.id}
-                  className="flex items-start justify-between gap-4 rounded-md border bg-card/50 px-3 py-2.5"
+                  className="flex items-start justify-between gap-4 rounded-md border bg-card px-3 py-2.5"
                 >
                   <span className="text-xs font-medium text-muted-foreground shrink-0 pt-0.5">
                     {attr.name}

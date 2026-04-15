@@ -293,13 +293,13 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
       </div>
 
       {fields.length > 0 ? (
-        <div className="rounded-xl border border-border/50">
+        <div className="rounded-xl border border-border">
           {fields.map((field, index) => (
             <button
               key={field.id}
               type="button"
               onClick={() => { setEditingField(field); setDialogOpen(true) }}
-              className={`group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 ${index < fields.length - 1 ? "border-b border-border/40" : ""}`}
+              className={`group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 ${index < fields.length - 1 ? "border-b border-border" : ""}`}
             >
               <div className="rounded-lg bg-muted/60 p-1.5 text-muted-foreground">
                 <FieldTypeIcon fieldType={field.fieldType} />
@@ -327,7 +327,7 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-border/60 px-6 py-10 text-center">
+        <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
           <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-lg bg-muted/60">
             <IconForms className="size-5 text-muted-foreground" />
           </div>
