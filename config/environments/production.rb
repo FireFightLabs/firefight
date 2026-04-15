@@ -86,4 +86,9 @@ Rails.application.configure do
   # Reject non-Cloudflare traffic when CLOUDFLARE_ONLY is set ("behind_lb" or "direct").
   require Rails.root.join("app/middleware/cloudflare_only")
   config.middleware.insert_before Rack::Runtime, CloudflareOnly
+
+  # Restrict subdomain → path mapping when SUBDOMAIN_ROUTING=strict.
+  # Registered after CloudflareOnly so IP filtering runs first.
+  require Rails.root.join("app/middleware/subdomain_router")
+  config.middleware.insert_before Rack::Runtime, SubdomainRouter
 end
