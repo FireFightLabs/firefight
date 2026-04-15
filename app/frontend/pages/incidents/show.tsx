@@ -1,5 +1,4 @@
 import { Deferred, Head, Link, usePage } from "@inertiajs/react"
-import { IconArrowRight } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import {
@@ -22,13 +21,13 @@ interface IncidentShowProps {
 
 function TimelineSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex gap-3">
-          <Skeleton className="size-8 rounded-full shrink-0" />
+        <div key={i} className="flex gap-4">
+          <Skeleton className="size-[26px] rounded-full shrink-0" />
           <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-48" />
-            <Skeleton className="h-3 w-64" />
+            <Skeleton className="h-4 w-56" />
+            <Skeleton className="h-3 w-72" />
           </div>
         </div>
       ))}
@@ -38,12 +37,12 @@ function TimelineSkeleton() {
 
 function ActionsSkeleton() {
   return (
-    <div className="space-y-3">
-      <Skeleton className="h-5 w-24" />
-      <Skeleton className="h-2 w-full rounded-full" />
+    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+      <Skeleton className="h-4 w-20" />
+      <Skeleton className="h-1 w-full rounded-full" />
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="flex items-center gap-2">
-          <Skeleton className="size-4 shrink-0" />
+          <Skeleton className="size-4 shrink-0 rounded-full" />
           <Skeleton className="h-4 flex-1" />
         </div>
       ))}
@@ -57,47 +56,56 @@ export default function IncidentShow() {
   return (
     <AuthenticatedLayout title={incident.identifier}>
       <Head title={`${incident.identifier} — ${incident.name}`} />
-      <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
-        <nav className="flex items-center gap-1.5 text-sm text-muted-foreground mb-6">
-          <Link href={dashboardPath()} className="hover:text-foreground transition-colors">
-            Incidents
-          </Link>
-          <IconArrowRight className="size-3 text-muted-foreground/40" />
-          <span className="font-medium text-foreground">{incident.identifier}</span>
-        </nav>
 
-        <IncidentHeader incident={incident} />
+      <div>
+        <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8 lg:py-10">
+          <nav className="mb-8 flex items-center gap-2 text-[12px] text-muted-foreground/80">
+            <Link
+              href={dashboardPath()}
+              className="transition-colors hover:text-foreground"
+            >
+              Incidents
+            </Link>
+            <span className="text-muted-foreground/30">/</span>
+            <span className="font-mono text-foreground/90">{incident.identifier}</span>
+          </nav>
 
-        <div className="-mx-4 lg:-mx-6 mt-2 border-t bg-muted/30">
-          <div className="mx-auto w-full max-w-6xl px-4 lg:px-6 py-6">
-            <div className="flex flex-col lg:flex-row gap-6">
-              <div className="flex-1 min-w-0">
-                <Deferred data="timelineEvents" fallback={<TimelineSkeleton />}>
-                  <div className="flex items-center gap-2 mb-5">
-                    <div className="h-5 w-1 rounded-full bg-primary" />
-                    <h2 className="text-base font-semibold">Timeline</h2>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
-                      {(timelineEvents ?? []).length}
-                    </span>
-                  </div>
-                  <IncidentTimeline events={timelineEvents ?? []} />
+          <IncidentHeader incident={incident} />
+
+          <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
+            <div className="min-w-0 flex-1">
+              <Deferred data="timelineEvents" fallback={<TimelineSkeleton />}>
+                <div className="mb-6 flex items-baseline gap-3">
+                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/90">
+                    Timeline
+                  </h2>
+                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70">
+                    {(timelineEvents ?? []).length}
+                  </span>
+                  <div className="flex-1 h-px bg-border/50" />
+                </div>
+                <IncidentTimeline events={timelineEvents ?? []} />
+              </Deferred>
+            </div>
+
+            <aside className="w-full shrink-0 lg:w-[336px]">
+              <div className="lg:sticky lg:top-[calc(var(--header-height)+1.75rem)]">
+                <div className="mb-3">
+                  <IncidentPostmortemCard
+                    incidentId={incident.id}
+                    hasPostmortem={hasPostmortem}
+                    postmortemStatus={postmortemStatus}
+                  />
+                </div>
+                <Deferred data="actions" fallback={<ActionsSkeleton />}>
+                  <IncidentActionsSidebar actions={actions ?? []} />
                 </Deferred>
               </div>
-
-              <div className="w-full lg:w-[340px] shrink-0">
-                <div className="lg:sticky lg:top-[calc(var(--header-height)+1.5rem)]">
-                  <div className="mb-4">
-                    <IncidentPostmortemCard incidentId={incident.id} hasPostmortem={hasPostmortem} postmortemStatus={postmortemStatus} />
-                  </div>
-                  <Deferred data="actions" fallback={<ActionsSkeleton />}>
-                    <IncidentActionsSidebar actions={actions ?? []} />
-                  </Deferred>
-                </div>
-              </div>
-            </div>
+            </aside>
           </div>
         </div>
       </div>
     </AuthenticatedLayout>
   )
 }
+

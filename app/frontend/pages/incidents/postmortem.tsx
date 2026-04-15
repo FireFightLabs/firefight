@@ -188,12 +188,12 @@ function RevisionsSheet({
               <Separator />
               {diffHtml ? (
                 <div
-                  className="prose prose-sm dark:prose-invert max-w-none rounded-lg border p-4 bg-muted/30 [&_ins]:bg-emerald-500/20 [&_ins]:text-emerald-900 [&_ins]:no-underline [&_ins]:px-0.5 [&_ins]:rounded-sm dark:[&_ins]:text-emerald-300 [&_del]:bg-red-500/20 [&_del]:text-red-900 [&_del]:line-through [&_del]:px-0.5 [&_del]:rounded-sm dark:[&_del]:text-red-300"
+                  className="prose prose-sm dark:prose-invert max-w-none rounded-lg border p-4 bg-muted [&_ins]:bg-emerald-500/20 [&_ins]:text-emerald-900 [&_ins]:no-underline [&_ins]:px-0.5 [&_ins]:rounded-sm dark:[&_ins]:text-emerald-300 [&_del]:bg-red-500/20 [&_del]:text-red-900 [&_del]:line-through [&_del]:px-0.5 [&_del]:rounded-sm dark:[&_del]:text-red-300"
                   dangerouslySetInnerHTML={{ __html: diffHtml }}
                 />
               ) : selectedRevision.htmlContent ? (
                 <div
-                  className="prose prose-sm dark:prose-invert max-w-none rounded-lg border p-4 bg-muted/30"
+                  className="prose prose-sm dark:prose-invert max-w-none rounded-lg border p-4 bg-muted"
                   dangerouslySetInnerHTML={{ __html: selectedRevision.htmlContent }}
                 />
               ) : (
@@ -293,7 +293,7 @@ export default function PostmortemPage() {
     <>
       <Head title={`Postmortem — ${incident.identifier}`} />
       <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 print:hidden">
+        <header className="sticky top-0 z-50 border-b bg-background print:hidden">
           <div className="mx-auto flex h-12 max-w-4xl items-center gap-3 px-4 lg:px-6">
             <Link href={incidentPath(incident.id)} className="text-muted-foreground hover:text-foreground">
               <IconArrowLeft className="size-4" />

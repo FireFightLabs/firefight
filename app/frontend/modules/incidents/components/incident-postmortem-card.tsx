@@ -1,9 +1,7 @@
 import { Link } from "@inertiajs/react"
-import { IconArrowRight, IconFileText, IconFlame } from "@tabler/icons-react"
+import { IconArrowRight, IconFileText, IconSparkles } from "@tabler/icons-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { incidentPostmortemPath } from "@/lib/routes"
 
 const statusLabels: Record<string, string> = {
@@ -13,11 +11,11 @@ const statusLabels: Record<string, string> = {
   completed: "Completed",
 }
 
-const statusStyles: Record<string, string> = {
-  draft: "bg-muted text-muted-foreground",
-  in_progress: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  in_review: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  completed: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+const statusDotColors: Record<string, string> = {
+  draft: "bg-muted-foreground/50",
+  in_progress: "bg-amber-400",
+  in_review: "bg-sky-400",
+  completed: "bg-emerald-400",
 }
 
 export function IncidentPostmortemCard({
@@ -32,50 +30,56 @@ export function IncidentPostmortemCard({
   if (hasPostmortem) {
     const status = postmortemStatus ?? "draft"
     return (
-      <Link href={incidentPostmortemPath(incidentId)}>
-        <Card className="group cursor-pointer border-primary/20 bg-gradient-to-b from-primary/[0.04] to-transparent transition-all hover:border-primary/40">
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-              <IconFileText className="size-4 text-primary" />
+      <Link
+        href={incidentPostmortemPath(incidentId)}
+        className="group block rounded-xl border border-primary/25 bg-card px-4 py-4 transition-colors hover:border-primary/45 hover:bg-accent"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/20">
+            <IconFileText className="size-[17px] text-primary" strokeWidth={1.75} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-semibold text-foreground">Postmortem</span>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold">Postmortem</span>
-                <Badge
-                  variant="secondary"
-                  className={`text-[10px] ${statusStyles[status]}`}
-                >
-                  {statusLabels[status]}
-                </Badge>
-              </div>
-              <p className="mt-0.5 text-xs text-muted-foreground truncate">
-                Root cause analysis and actions
-              </p>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span
+                className={`size-1.5 rounded-full ${statusDotColors[status]}`}
+                aria-hidden
+              />
+              <span>{statusLabels[status]}</span>
+              <span className="text-muted-foreground/40">·</span>
+              <span className="truncate">Root cause & actions</span>
             </div>
-            <IconArrowRight className="size-4 text-muted-foreground/30 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-          </CardContent>
-        </Card>
+          </div>
+          <IconArrowRight className="size-4 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-primary" />
+        </div>
       </Link>
     )
   }
 
   return (
-    <Card className="border-dashed">
-      <CardContent className="flex flex-col items-center justify-center py-8 gap-3">
-        <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-          <IconFileText className="size-5 text-muted-foreground" />
+    <section className="rounded-xl border border-border bg-card px-5 py-5">
+      <div className="flex items-start gap-3">
+        <div className="flex size-9 items-center justify-center rounded-lg bg-muted/70">
+          <IconFileText className="size-[17px] text-muted-foreground/80" strokeWidth={1.75} />
         </div>
-        <div className="text-center">
-          <p className="text-sm font-semibold">No postmortem</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Document what happened and prevent recurrence.
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-semibold text-foreground">No postmortem yet</p>
+          <p className="mt-1 text-[12px] leading-[1.55] text-muted-foreground/90">
+            Capture what happened, why it happened, and what prevents it next time.
           </p>
         </div>
-        <Button size="sm">
-          <IconFlame className="size-4" />
-          Generate
+      </div>
+      <div className="mt-4 flex items-center gap-2">
+        <Button size="sm" className="h-8 gap-1.5 px-3 text-[12px]">
+          <IconSparkles className="size-3.5" strokeWidth={2} />
+          Generate draft
         </Button>
-      </CardContent>
-    </Card>
+        <Button variant="ghost" size="sm" className="h-8 px-2.5 text-[12px] text-muted-foreground">
+          Start blank
+        </Button>
+      </div>
+    </section>
   )
 }

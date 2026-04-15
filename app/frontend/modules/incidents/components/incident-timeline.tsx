@@ -30,20 +30,27 @@ const eventIcons: Record<string, typeof IconFlame> = {
   "incident.marked_duplicate": IconCopy,
 }
 
-const eventDotColors: Record<string, string> = {
-  "incident.created": "bg-primary text-primary-foreground ring-primary/20",
-  "incident.updated": "bg-blue-500 text-white ring-blue-500/20",
-  "incident.resolved": "bg-emerald-500 text-white ring-emerald-500/20",
-  "incident.reopened": "bg-amber-500 text-white ring-amber-500/20",
-  "incident.escalated": "bg-red-500 text-white ring-red-500/20",
-  "lead.assigned": "bg-violet-500 text-white ring-violet-500/20",
-  "action.created": "bg-muted text-muted-foreground ring-border",
-  "action.picked_up": "bg-muted text-muted-foreground ring-border",
-  "action.completed": "bg-emerald-500 text-white ring-emerald-500/20",
-  "postmortem.generated": "bg-violet-500 text-white ring-violet-500/20",
-  "postmortem.edited": "bg-violet-500 text-white ring-violet-500/20",
-  "relationship.created": "bg-muted text-muted-foreground ring-border",
-  "incident.marked_duplicate": "bg-muted text-muted-foreground ring-border",
+type DotAccent = "primary" | "emerald" | "amber" | "rose" | "violet" | "neutral"
+
+const eventAccent: Record<string, DotAccent> = {
+  "incident.created": "primary",
+  "incident.updated": "primary",
+  "incident.resolved": "emerald",
+  "incident.reopened": "amber",
+  "incident.escalated": "rose",
+  "lead.assigned": "violet",
+  "action.completed": "emerald",
+  "postmortem.generated": "violet",
+  "postmortem.edited": "violet",
+}
+
+const solidAccent: Record<DotAccent, string> = {
+  primary: "border-primary/60 bg-primary/20 text-primary",
+  emerald: "border-emerald-400/60 bg-emerald-400/15 text-emerald-300",
+  amber: "border-amber-400/60 bg-amber-400/15 text-amber-300",
+  rose: "border-rose-400/60 bg-rose-400/15 text-rose-300",
+  violet: "border-violet-400/60 bg-violet-400/15 text-violet-300",
+  neutral: "border-border bg-card text-muted-foreground",
 }
 
 const isHighlightEvent = (type: string) =>
@@ -52,12 +59,14 @@ const isHighlightEvent = (type: string) =>
     "incident.resolved",
     "incident.escalated",
     "incident.reopened",
+    "lead.assigned",
   ].includes(type)
 
 function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   })
 }
 
@@ -78,7 +87,7 @@ function ActorAvatar({ name }: { name: string }) {
     .slice(0, 2)
 
   return (
-    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground/90">
       {initials}
     </span>
   )
@@ -86,93 +95,100 @@ function ActorAvatar({ name }: { name: string }) {
 
 export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
   return (
-    <div className="relative">
+    <ol className="relative">
       {events.map((event, i) => {
         const Icon = eventIcons[event.eventType] || IconRefresh
-        const dotColor =
-          eventDotColors[event.eventType] ||
-          "bg-muted text-muted-foreground ring-border"
+        const accent: DotAccent = eventAccent[event.eventType] ?? "neutral"
+        const dotClasses = solidAccent[accent]
         const eventDate = formatDate(event.createdAt)
         const prevDate = i > 0 ? formatDate(events[i - 1].createdAt) : null
         const showDate = eventDate !== prevDate
         const highlight = isHighlightEvent(event.eventType)
         const hasContent =
-          (event.changes && event.changes.length > 0) || event.details
+          (event.changes && event.changes.length > 0) || Boolean(event.details)
+        const isLast = i === events.length - 1
 
         return (
-          <div key={event.id}>
+          <li key={event.id} className="relative">
             {showDate && (
-              <div className="relative flex items-center gap-3 py-3">
-                <div className="absolute left-[15px] top-0 bottom-0 w-px bg-border" />
-                <div className="relative z-10 flex size-8 items-center justify-center">
-                  <span className="rounded-full bg-background px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    {eventDate}
-                  </span>
-                </div>
+              <div className="relative flex items-center py-3 pl-14">
+                <div
+                  aria-hidden
+                  className="absolute left-[13px] top-0 bottom-0 w-px bg-border"
+                />
+                <span className="relative z-10 -ml-14 inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  <span aria-hidden className="size-1 rounded-full bg-muted-foreground/60" />
+                  {eventDate}
+                </span>
               </div>
             )}
-            <div className="group relative flex gap-4 pb-1">
-              {/* Connector line */}
-              {i < events.length - 1 && (
-                <div className="absolute left-[15px] top-8 bottom-0 w-px bg-border" />
+
+            <div className="relative flex gap-4 pb-5">
+              {!isLast && (
+                <div
+                  aria-hidden
+                  className="absolute left-[13px] top-7 bottom-0 w-px bg-border"
+                />
               )}
 
-              {/* Dot */}
-              <div className="relative z-10 flex shrink-0 pt-0.5">
+              <div className="relative z-10 shrink-0 pt-0.5">
                 <div
-                  className={`flex size-8 items-center justify-center rounded-full ring-4 ${dotColor}`}
+                  className={`flex size-[26px] items-center justify-center rounded-full border ${dotClasses}`}
                 >
-                  <Icon className="size-3.5" />
+                  <Icon className="size-[13px]" strokeWidth={2} />
                 </div>
               </div>
 
-              {/* Content */}
-              <div className="flex-1 min-w-0 pb-6">
-                <div
-                  className={`rounded-lg ${hasContent || highlight ? "border bg-card p-3" : "py-1"}`}
-                >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <ActorAvatar name={event.actor} />
-                    <span className="text-sm font-medium">{event.actor}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {event.description}
-                    </span>
-                    <span className="ml-auto shrink-0 text-[11px] font-mono tabular-nums text-muted-foreground/70">
-                      {formatTime(event.createdAt)}
-                    </span>
-                  </div>
-
-                  {event.changes && event.changes.length > 0 && (
-                    <div className="mt-2 flex flex-col gap-1.5">
-                      {event.changes.map((change) => (
-                        <div
-                          key={change.field}
-                          className="flex items-center gap-2 text-xs"
-                        >
-                          <span className="rounded bg-muted px-1.5 py-0.5 font-medium capitalize text-muted-foreground">
-                            {change.field}
-                          </span>
-                          <span className="text-muted-foreground/60 line-through">
-                            {change.before}
-                          </span>
-                          <IconArrowRight className="size-3 text-muted-foreground/40" />
-                          <span className="font-medium">{change.after}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {event.details && (
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground border-l-2 border-border pl-3">
-                      {event.details}
-                    </p>
-                  )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap text-[13px]">
+                  <ActorAvatar name={event.actor} />
+                  <span className={`font-medium ${highlight ? "text-foreground" : "text-foreground/95"}`}>
+                    {event.actor}
+                  </span>
+                  <span className="text-muted-foreground">{event.description}</span>
+                  <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground/80">
+                    {formatTime(event.createdAt)}
+                  </span>
                 </div>
+
+                {hasContent && (
+                  <div className="mt-2.5 rounded-lg border border-border bg-card px-3.5 py-2.5">
+                    {event.changes && event.changes.length > 0 && (
+                      <div className="flex flex-col gap-1.5">
+                        {event.changes.map((change) => (
+                          <div
+                            key={change.field}
+                            className="flex items-center gap-2 text-[12px]"
+                          >
+                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                              {change.field}
+                            </span>
+                            <span className="text-muted-foreground/80 line-through decoration-muted-foreground/40">
+                              {change.before}
+                            </span>
+                            <IconArrowRight className="size-3 text-muted-foreground/60" />
+                            <span className="font-medium text-foreground">
+                              {change.after}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {event.details && (
+                      <p
+                        className={`text-[13px] leading-[1.6] text-muted-foreground ${event.changes && event.changes.length > 0 ? "mt-2 pt-2 border-t border-border" : ""}`}
+                      >
+                        {event.details}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 }
