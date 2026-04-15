@@ -1,6 +1,5 @@
 import {
   IconBrandSlack,
-  IconClock,
   IconDotsVertical,
   IconExternalLink,
 } from "@tabler/icons-react"
@@ -9,7 +8,6 @@ import type { Incident } from "@/modules/incidents/types"
 import { LIFECYCLE_STAGES } from "@/lib/constants"
 import { formatDuration } from "@/lib/formatters"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -19,62 +17,86 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+function StatusBadge({ name, color }: { name: string; color: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium tracking-wide"
+      style={{
+        backgroundColor: `color-mix(in srgb, ${color} 18%, transparent)`,
+        color: `color-mix(in srgb, ${color} 70%, #F8FAFC)`,
+        borderColor: `color-mix(in srgb, ${color} 40%, transparent)`,
+      }}
+    >
+      <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} />
+      {name}
+    </span>
+  )
+}
+
+function MetaCell({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="px-5 py-3.5 min-w-0">
+      <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
+        {label}
+      </div>
+      <div className="mt-1.5 text-sm text-foreground truncate">{children}</div>
+    </div>
+  )
+}
+
 export function IncidentHeader({ incident }: { incident: Incident }) {
   const isActive = incident.status.lifecycleStage === LIFECYCLE_STAGES.ACTIVE
+  const declared = new Date(incident.declaredAt)
 
   return (
-    <header className="mb-8">
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        {isActive && (
-          <span className="relative flex size-2.5">
-            <span
-              className="absolute inline-flex size-full animate-ping rounded-full opacity-75"
-              style={{ backgroundColor: incident.status.color }}
-            />
-            <span
-              className="relative inline-flex size-2.5 rounded-full"
-              style={{ backgroundColor: incident.status.color }}
-            />
-          </span>
-        )}
-        <Badge
-          variant="secondary"
-          className="gap-1 font-medium"
-          style={{
-            backgroundColor: `${incident.severity.color}15`,
-            color: incident.severity.color,
-            borderColor: `${incident.severity.color}30`,
-          }}
-        >
-          {incident.severity.name}
-        </Badge>
-        <Badge
-          variant="secondary"
-          className="gap-1"
-          style={{
-            backgroundColor: `${incident.status.color}15`,
-            color: incident.status.color,
-            borderColor: `${incident.status.color}30`,
-          }}
-        >
-          {incident.status.name}
-        </Badge>
-        {incident.type && (
-          <Badge variant="outline" className="text-xs text-muted-foreground">
-            {incident.type.name}
-          </Badge>
-        )}
-        <div className="ml-auto flex items-center gap-2">
+    <header className="mb-10">
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          {isActive && (
+            <span className="relative flex size-2.5 mr-0.5" aria-label="Active incident">
+              <span
+                className="absolute inline-flex size-full animate-ping rounded-full opacity-60"
+                style={{ backgroundColor: incident.status.color }}
+              />
+              <span
+                className="relative inline-flex size-2.5 rounded-full"
+                style={{ backgroundColor: incident.status.color }}
+              />
+            </span>
+          )}
+          <StatusBadge name={incident.severity.name} color={incident.severity.color} />
+          <StatusBadge name={incident.status.name} color={incident.status.color} />
+          {incident.type && (
+            <span className="inline-flex items-center rounded-full border border-border bg-transparent px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+              {incident.type.name}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           {incident.source === "slack" && incident.channelName && (
-            <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-2 border-border bg-card px-3 font-mono text-[12px] text-muted-foreground hover:text-foreground hover:bg-accent"
+            >
               <IconBrandSlack className="size-3.5" />
               <span className="hidden sm:inline">#{incident.channelName}</span>
-              <IconExternalLink className="size-3" />
+              <IconExternalLink className="size-3 opacity-50" />
             </Button>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="size-8">
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8 border-border bg-card hover:bg-accent"
+              >
                 <IconDotsVertical className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -89,64 +111,63 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
         </div>
       </div>
 
-      <h1 className="text-2xl font-bold tracking-tight mb-3">
+      <h1 className="text-[32px] leading-[1.15] font-semibold tracking-[-0.02em] text-foreground mb-4">
         {incident.name}
       </h1>
 
       {incident.summary && (
-        <p className="text-[15px] text-muted-foreground leading-relaxed mb-4 max-w-3xl">
+        <p className="text-[15px] leading-[1.65] text-muted-foreground max-w-[65ch] mb-8">
           {incident.summary}
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Lead</span>
-          <div className="mt-1 flex items-center gap-2">
-            <Avatar className="size-5">
-              <AvatarFallback className="text-[10px] font-medium">
-                {incident.lead?.initials ?? "?"}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-sm font-medium truncate">{incident.lead?.name ?? "Unassigned"}</span>
-          </div>
-        </div>
-        <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Declared</span>
-          <div className="mt-1 flex items-center gap-1.5">
-            <IconClock className="size-3.5 text-muted-foreground" />
-            <span className="text-sm font-medium tabular-nums">
-              {new Date(incident.declaredAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+      <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border rounded-xl border border-border bg-card">
+        <MetaCell label="Lead">
+          {incident.lead ? (
+            <div className="flex items-center gap-2">
+              <Avatar className="size-5">
+                <AvatarFallback className="text-[10px] font-semibold">
+                  {incident.lead.initials}
+                </AvatarFallback>
+              </Avatar>
+              <span className="font-medium truncate">{incident.lead.name}</span>
+            </div>
+          ) : (
+            <span className="text-muted-foreground">Unassigned</span>
+          )}
+        </MetaCell>
+        <MetaCell label="Declared">
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-mono tabular-nums text-[13px]">
+              {declared.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })}
             </span>
-            <span className="text-xs text-muted-foreground">
-              {new Date(incident.declaredAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-            </span>
-          </div>
-        </div>
-        <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Duration</span>
-          <div className="mt-1">
-            <span className="text-sm font-semibold font-mono tabular-nums">
-              {formatDuration(incident.declaredAt, incident.resolvedAt)}
+            <span className="text-muted-foreground text-[12px]">
+              {declared.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </span>
           </div>
-        </div>
-        <div className="rounded-lg border bg-card/50 px-3 py-2.5">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Source</span>
-          <div className="mt-1">
-            <span className="text-sm font-medium capitalize">{incident.source}</span>
-          </div>
-        </div>
+        </MetaCell>
+        <MetaCell label="Duration">
+          <span className="font-mono tabular-nums font-medium">
+            {formatDuration(incident.declaredAt, incident.resolvedAt)}
+          </span>
+        </MetaCell>
+        <MetaCell label="Source">
+          <span className="capitalize">{incident.source}</span>
+        </MetaCell>
       </div>
 
       {incident.customFields && Object.keys(incident.customFields).length > 0 && (
-        <div className="mt-4 rounded-lg border bg-card/50 px-4 py-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custom Fields</span>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div className="mt-4 rounded-xl border border-border bg-card px-5 py-4">
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground/70 mb-3">
+            Custom Fields
+          </div>
+          <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
             {Object.entries(incident.customFields).map(([key, value]) => (
-              <div key={key} className="flex items-baseline gap-2">
-                <span className="text-xs font-medium text-muted-foreground">{key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}:</span>
-                <span className="text-sm">
+              <div key={key} className="flex items-baseline gap-3 text-sm min-w-0">
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                </span>
+                <span className="text-foreground truncate">
                   {Array.isArray(value) ? value.join(", ") : String(value ?? "")}
                 </span>
               </div>
