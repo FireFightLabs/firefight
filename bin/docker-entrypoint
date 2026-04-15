@@ -1,7 +1,10 @@
 #!/bin/bash -e
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+# Optional: auto-migrate on boot for simple single-container deploys.
+# Leave RUN_MIGRATIONS unset for production setups that run migrations
+# separately (Kamal pre-deploy hook, Kubernetes init container, etc.)
+# to avoid races when multiple web containers start in parallel.
+if [ "$RUN_MIGRATIONS" = "true" ] && [ "${@: -2:1}" = "./bin/rails" ] && [ "${@: -1:1}" = "server" ]; then
   ./bin/rails db:migrate
 fi
 
