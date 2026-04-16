@@ -12,10 +12,12 @@ Rails.application.config.middleware.use OmniAuth::Builder do
     user_scope: slack_scopes[:user_scope]
   }
 
-  # If SLACK_TEAM_ID env var is set, force that specific workspace
-  if ENV["SLACK_TEAM_ID"].present?
-    provider_options[:authorize_params] = { team: ENV["SLACK_TEAM_ID"] }
-  end
+  # Set team parameter for authorization
+  # If SLACK_TEAM_ID is set, force that specific workspace
+  # Otherwise, pass empty string to show workspace picker (prevents defaulting to logged-in workspace)
+  provider_options[:authorize_params] = {
+    team: ENV["SLACK_TEAM_ID"].presence || ""
+  }
 
   provider :slack,
     ENV["SLACK_CLIENT_ID"] || Rails.application.credentials.dig(:slack, :client_id),
