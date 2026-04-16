@@ -1,4 +1,4 @@
-import { Link } from "@inertiajs/react"
+import { Link, usePage } from "@inertiajs/react"
 import { type Icon } from "@tabler/icons-react"
 
 import {
@@ -21,7 +21,35 @@ interface NavSection {
   items: NavItem[]
 }
 
+function normalizePath(url: string): string {
+  return url.split("?")[0].replace(/\/$/, "")
+}
+
+function findActiveItem(sections: NavSection[], currentUrl: string): string | null {
+  const current = normalizePath(currentUrl)
+  let bestTitle: string | null = null
+  let bestLength = -1
+
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (!item.url || item.url === "#") continue
+      const path = normalizePath(item.url)
+      if (!path) continue
+      const matches = current === path || current.startsWith(`${path}/`)
+      if (matches && path.length > bestLength) {
+        bestLength = path.length
+        bestTitle = item.title
+      }
+    }
+  }
+
+  return bestTitle
+}
+
 export function NavMain({ sections }: { sections: NavSection[] }) {
+  const { url: currentUrl } = usePage()
+  const activeTitle = findActiveItem(sections, currentUrl)
+
   return (
     <>
       {sections.map((section, i) => (
@@ -33,7 +61,11 @@ export function NavMain({ sections }: { sections: NavSection[] }) {
             <SidebarMenu>
               {section.items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton tooltip={item.title} asChild>
+                  <SidebarMenuButton
+                    tooltip={item.title}
+                    asChild
+                    isActive={item.title === activeTitle}
+                  >
                     <Link href={item.url}>
                       {item.icon && <item.icon />}
                       <span>{item.title}</span>
