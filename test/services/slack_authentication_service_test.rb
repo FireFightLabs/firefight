@@ -2,7 +2,7 @@ require "test_helper"
 require "ostruct"
 
 class SlackAuthenticationServiceTest < ActiveSupport::TestCase
-  fixtures :incident_lifecycle_stages
+  fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships
 
   setup do
     @service = SlackAuthenticationService.new
@@ -169,5 +169,152 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     ensure
       Rails.logger = original_logger
     end
+  end
+
+  # handle_openid_signin — five outcomes
+
+  test "handle_openid_signin returns install_needed when workspace doesn't exist" do
+    auth_hash = mock_slack_openid_auth_hash(
+      info: { email: "newuser@example.com", team_id: "T_DOES_NOT_EXIST", team_name: "Brand New Co" }
+    )
+
+    outcome = @service.handle_openid_signin(auth_hash)
+
+    assert outcome.install_needed?
+    assert_equal "T_DOES_NOT_EXIST", outcome.team_id
+    assert_equal "Brand New Co", outcome.team_name
+    assert outcome.user.persisted?
+    assert_equal "newuser@example.com", outcome.user.email
+  end
+
+  test "handle_openid_signin signs in existing member" do
+    workspace = workspaces(:slack_workspace_one)
+    alice = users(:alice)
+    auth_hash = mock_slack_openid_auth_hash(
+      uid: "U12345678",
+      info: { email: alice.email, team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    outcome = @service.handle_openid_signin(auth_hash)
+
+    assert outcome.signed_in?
+    assert_equal workspace_memberships(:alice_workspace_one).id, outcome.membership.id
+    assert_equal "Welcome back to Firefight.", outcome.message
+  end
+
+  test "handle_openid_signin returns invite_needed when no membership, no invite, no auto-provision" do
+    workspace = workspaces(:slack_workspace_one)
+    auth_hash = mock_slack_openid_auth_hash(
+      info: { email: "stranger@example.com", team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    outcome = @service.handle_openid_signin(auth_hash)
+
+    assert outcome.invite_needed?
+    assert_equal workspace.name, outcome.team_name
+  end
+
+  test "handle_openid_signin auto-provisions when allow_auto_provision is true" do
+    workspace = workspaces(:slack_workspace_one)
+    workspace.update!(allow_auto_provision: true)
+    auth_hash = mock_slack_openid_auth_hash(
+      uid: "U_AUTO_PROVISION",
+      info: { email: "autoprov@example.com", team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    assert_difference -> { workspace.workspace_memberships.count }, 1 do
+      outcome = @service.handle_openid_signin(auth_hash)
+      assert outcome.signed_in?
+      assert_equal "autoprov@example.com", outcome.membership.user.email
+      assert_equal "U_AUTO_PROVISION", outcome.membership.platform_user_id
+    end
+  end
+
+  test "handle_openid_signin consumes pending invitation" do
+    workspace = workspaces(:slack_workspace_one)
+    inviter   = workspace_memberships(:alice_workspace_one)
+    invitation = Invitation.create!(workspace: workspace, invited_by: inviter, email: "invitee@example.com")
+
+    auth_hash = mock_slack_openid_auth_hash(
+      uid: "U_INVITEE",
+      info: { email: "invitee@example.com", team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    outcome = @service.handle_openid_signin(auth_hash, pending_invitation_id: invitation.id)
+
+    assert outcome.signed_in?
+    invitation.reload
+    assert invitation.redeemed_at.present?
+    assert_equal outcome.membership.id, invitation.redeemed_by_id
+    assert_equal "invitee@example.com", outcome.membership.user.email
+  end
+
+  test "handle_openid_signin ignores invitation for a different workspace" do
+    workspace_one = workspaces(:slack_workspace_one)
+    workspace_two = workspaces(:slack_workspace_two)
+    inviter_two   = workspace_memberships(:alice_workspace_two)
+    invitation    = Invitation.create!(workspace: workspace_two, invited_by: inviter_two, email: "crosswire@example.com")
+
+    auth_hash = mock_slack_openid_auth_hash(
+      info: { email: "crosswire@example.com", team_id: workspace_one.platform_id, team_name: workspace_one.name }
+    )
+
+    outcome = @service.handle_openid_signin(auth_hash, pending_invitation_id: invitation.id)
+
+    assert outcome.invite_needed?
+    invitation.reload
+    assert_nil invitation.redeemed_at
+  end
+
+  test "handle_openid_signin ignores invitation when email doesn't match" do
+    workspace = workspaces(:slack_workspace_one)
+    inviter   = workspace_memberships(:alice_workspace_one)
+    invitation = Invitation.create!(workspace: workspace, invited_by: inviter, email: "intended@example.com")
+
+    auth_hash = mock_slack_openid_auth_hash(
+      info: { email: "different@example.com", team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    outcome = @service.handle_openid_signin(auth_hash, pending_invitation_id: invitation.id)
+
+    assert outcome.invite_needed?
+    invitation.reload
+    assert_nil invitation.redeemed_at
+  end
+
+  # handle_install — wraps install path in AuthOutcome
+
+  test "handle_install returns signed_in outcome and triggers setup on first install" do
+    stub_successful_slack_workflow
+    SlackWorkspaceSetupWorkflow.expects(:start!).once.returns(OpenStruct.new(id: "wf-1", status: "running"))
+
+    outcome = @service.handle_install(@auth_hash)
+
+    assert outcome.signed_in?
+    assert outcome.membership.persisted?
+    assert_equal "Setting up your Firefight workspace...", outcome.message
+  end
+
+  test "handle_install returns signed_in outcome without triggering setup on reinstall" do
+    team_id = "T#{SecureRandom.hex(8)}"
+    Workspace.create!(
+      platform: "slack",
+      platform_id: team_id,
+      name: "Test Workspace",
+      access_token: "existing-token",
+      installed_at: Time.current,
+      incidents_channel_id: "C12345678"
+    )
+
+    SlackWorkspaceSetupWorkflow.expects(:start!).never
+
+    auth_hash = mock_slack_auth_hash(
+      extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
+    )
+
+    outcome = @service.handle_install(auth_hash)
+
+    assert outcome.signed_in?
+    assert_equal "Signed in.", outcome.message
   end
 end

@@ -27,9 +27,17 @@ Rails.application.routes.draw do
   get "/login", to: "sessions#new", as: :login
   delete "/logout", to: "sessions#destroy", as: :logout
 
-  # OmniAuth routes
-  get "/auth/:provider/callback", to: "auth/omniauth_callbacks#slack", as: :auth_provider_callback
-  get "/auth/failure", to: "auth/omniauth_callbacks#failure"
+  # OmniAuth callbacks — explicit per-strategy so each maps to its own action.
+  get "/auth/slack_openid/callback", to: "auth/omniauth_callbacks#slack_openid", as: :slack_openid_callback
+  get "/auth/slack/callback",        to: "auth/omniauth_callbacks#slack",        as: :slack_install_callback
+  get "/auth/failure",               to: "auth/omniauth_callbacks#failure"
+
+  # Invitation magic link — opens the invite, stores it in session, kicks off OIDC
+  resources :invitations, only: [ :show ], param: :signed_id
+
+  # Onboarding pages between OIDC sign-in and dashboard access
+  get "/onboarding/install",      to: "onboarding#install",      as: :onboarding_install
+  get "/onboarding/needs_invite", to: "onboarding#needs_invite", as: :onboarding_needs_invite
 
   # Authenticated application routes
   scope :app do
@@ -97,5 +105,8 @@ Rails.application.routes.draw do
       end
       get :sample_payload, on: :collection
     end
+
+    get "/settings/members", to: "settings#members", as: :settings_members
+    resources :invitations, only: [ :create, :destroy ], path: "settings/invitations"
   end
 end

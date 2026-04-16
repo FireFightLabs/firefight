@@ -26,7 +26,29 @@ class CommandDispatcher
   # @param command [Command] Platform-agnostic command object
   # @return [void]
   def self.dispatch(command)
+    ensure_member_provisioned(command)
     handler = find(command)
     handler.execute(command)
   end
+
+  # Auto-provision a WorkspaceMembership for the user invoking the command.
+  # Mirrors the InteractionDispatcher behaviour. Failures are logged but never
+  # block the slash command from running.
+  def self.ensure_member_provisioned(command)
+    workspace = command.workspace
+    return unless workspace
+
+    WorkspaceMemberProvisioner.find_or_provision!(
+      workspace: workspace,
+      platform_user_id: command.user_id,
+      adapter: workspace.adapter
+    )
+  rescue StandardError => e
+    Rails.logger.warn({
+      event: "command_dispatcher.provisioning_failed",
+      user_id: command.user_id,
+      error: e.message
+    })
+  end
+  private_class_method :ensure_member_provisioned
 end

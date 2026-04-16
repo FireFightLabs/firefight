@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #0A1E2E; max-width: 480px; margin: 32px auto; padding: 0 16px;">
+    <h1 style="font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 16px;">
+      You're invited to <%= @workspace.name %>
+    </h1>
+
+    <p style="font-size: 15px; line-height: 1.6; color: #556B7D; margin: 0 0 24px;">
+      <%= @inviter.name %> invited you to join their team on Firefight — incident management that lives in Slack.
+    </p>
+
+    <p style="margin: 0 0 32px;">
+      <a href="<%= @link %>"
+         style="display: inline-block; background: #0E8FA3; color: #FFFFFF; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; font-size: 14px;">
+        Accept invitation
+      </a>
+    </p>
+
+    <p style="font-size: 12px; line-height: 1.6; color: #556B7D; margin: 0 0 8px;">
+      This link expires on <%= @invitation.expires_at.strftime("%b %d, %Y") %>.
+    </p>
+
+    <p style="font-size: 12px; line-height: 1.6; color: #556B7D; margin: 0;">
+      If you weren't expecting this invitation, you can safely ignore this email.
+    </p>
+  </body>
+</html>

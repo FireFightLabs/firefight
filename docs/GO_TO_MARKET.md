@@ -106,14 +106,58 @@ Not an original pillar but implicit in the other four. Show up where the audienc
 
 Budget: 2-4 hours/week of founder time. No paid ads in year 1.
 
+## Product priority — why this order
+
+The sequence below is deliberate. Each feature either unlocks revenue directly or makes the next feature valuable. Shipping out of order wastes effort.
+
+### 1. On-call (months 1-2) — biggest TAM unlock
+
+Without on-call, every prospect asks "what about paging?" and buys PagerDuty as their primary tool. Firefight ends up secondary. With it, Firefight replaces PagerDuty for 10-50 engineer SaaS teams. Roughly **2x acquisition rate** once shipped.
+
+MVP: weekly rotation schedules, two-step escalation (primary → backup), Slack + email notifications, ack/resolve from Slack, "who's on-call" command. SMS + phone (Twilio) come later as paid tier.
+
+### 2. Status pages (month 3) — quick win
+
+Two weeks of work. Kills the "we also need StatusPage.io" objection, gives customers a public artifact that links back to you, bundled-free is a sales weapon.
+
+MVP: public page per workspace (CNAME), component list, incident history, email subscribers. No maintenance windows or uptime SLAs in year 1.
+
+### 3. Ability Gateway + first 3 integrations (months 4-5) — acquisition flywheel
+
+Integrations are SEO gold ("datadog incident management," "sentry on-call") and each launch is a marketing moment. Ship order: **Datadog, Sentry, GitHub** — covers the SMB SaaS stack.
+
+Ability Gateway is the plumbing that makes each new integration cheap to add. Build the plumbing alongside the first three.
+
+### 4. Workflow templates (month 6) — quick value
+
+Not a custom workflow builder (that's phase 2). Ship **toggle-able templates**:
+- "Page lead when severity is Critical"
+- "Auto-create Zoom bridge for High and above"
+- "Post to #exec for Critical"
+- "Prompt for postmortem on close"
+
+Templates cover 80% of SMB workflow needs. Visual builder comes later.
+
+### 5. Custom workflow builder (months 7-9) — lock-in play
+
+Full visual builder with triggers + conditions + actions. This is where switching costs kick in — once a customer has 15 custom workflows, they're not leaving. Incident.io's real moat.
+
+Why not first? Workflows need things to trigger and act on. Without on-call + integrations, the action list is tiny (post Slack message, set field). Workflows become valuable only when you have a rich ecosystem to orchestrate.
+
+### 6. Code intelligence, advanced AI (month 10+)
+
+Cool, differentiated, but doesn't close SMB deals. Build it when enterprise prospects start asking for "AI-powered incident insights." Year 2 material.
+
 ## 12-month roadmap
 
-| Quarter | Product | GTM |
-|---------|---------|-----|
-| **Q1** | Billing + RBAC + invites + postmortem editor + runbooks. Public launch. | Open source announcement. Hacker News launch. First 10 design partners → first 10 paying customers. |
-| **Q2** | On-call scheduling MVP. Better onboarding. | Content cadence hits 2 posts/week. First SEO traffic arriving. |
-| **Q3** | Status page. First 2-3 native integrations (Datadog, Sentry, GitHub). | 100 paying customers. First customer case study. Indie Hackers milestone post. |
-| **Q4** | SSO (free for everyone — undercut competitors). Analytics/insights. | Year-1 retrospective post. Sponsor one small SRE conference. 200+ paying customers. |
+| Month | Product | GTM |
+|-------|---------|-----|
+| **1** | Billing + RBAC + invites + postmortem editor + runbooks. Public launch. | Open source announcement. Hacker News launch. First 10 design partners → first 10 paying customers. |
+| **2-3** | On-call MVP (schedules, escalation, Slack notifications). | Content cadence hits 2 posts/week. First SEO traffic arriving. |
+| **4** | Status pages + on-call polish (Twilio SMS/phone). | First on-call launch post. PagerDuty comparison content. |
+| **5-6** | Ability Gateway + Datadog, Sentry, GitHub integrations. Workflow templates. | 75-100 paying customers. First customer case study. Indie Hackers milestone post. |
+| **7-9** | Custom workflow builder. More integrations (Jira, Linear, Zoom). | 150-200 paying customers. Content flywheel compounding. |
+| **10-12** | SSO (free, as acquisition play). Analytics/insights. | Year-1 retrospective post. Sponsor one small SRE conference. 200+ paying customers. |
 
 **End-of-year-1 target:** $15-20k MRR, 200+ paying customers.
 **End-of-year-2 target:** $50k MRR, 400-600 paying customers.

@@ -6,6 +6,7 @@ class Workspace < ApplicationRecord
 
   has_many :workspace_memberships, dependent: :destroy
   has_many :users, through: :workspace_memberships
+  has_many :invitations, dependent: :destroy
 
   has_many :incidents, dependent: :destroy
   has_many :incident_statuses, dependent: :destroy
@@ -80,5 +81,16 @@ class Workspace < ApplicationRecord
 
   def token_expired?
     token_expires_at.present? && token_expires_at < Time.current
+  end
+
+  # Provisions a member-role WorkspaceMembership for a user who signed in via
+  # Slack OIDC. Used by both invitation redemption and auto-provision flows.
+  # Does not set bot tokens — OIDC sign-in only carries user identity.
+  def auto_provision_member!(user:, auth_hash:)
+    workspace_memberships.find_or_create_by!(user: user) do |membership|
+      membership.platform_user_id = auth_hash.uid
+      membership.platform_data    = auth_hash.extra&.raw_info || {}
+      membership.joined_at        = Time.current
+    end
   end
 end

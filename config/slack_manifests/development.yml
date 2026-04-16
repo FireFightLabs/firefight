@@ -25,9 +25,14 @@ features:
 oauth_config:
   redirect_urls:
     - http://localhost:3000/auth/slack/callback
+    - http://localhost:3000/auth/slack_openid/callback
     - https://ff.bugrewind.com/auth/slack/callback
+    - https://ff.bugrewind.com/auth/slack_openid/callback
   scopes:
     user:
+      - openid             # OIDC: triggers Slack's native workspace picker on sign-in
+      - profile            # OIDC: name and avatar
+      - email              # OIDC: email for account linking
       - users:read         # Get user profile info (name, avatar) during OAuth
       - users:read.email   # Get user email for account linking
     bot:
