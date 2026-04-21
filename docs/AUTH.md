@@ -4,8 +4,7 @@
 - [Overview](#overview)
 - [Sign-in & Membership Decision Tree](#sign-in--membership-decision-tree)
 - [Two-Step Slack Auth Flow](#two-step-slack-auth-flow)
-- [Three Paths to Membership](#three-paths-to-membership)
-- [Invitations](#invitations)
+- [Membership Provisioning](#membership-provisioning)
 - [Architecture](#architecture)
 - [Database Schema](#database-schema)
 - [Configuration](#configuration)
@@ -21,8 +20,10 @@
 
 Firefight uses a **two-step Slack auth flow** that separates user identity (OpenID Connect) from bot installation (OAuth v2). This is the same pattern used by incident.io and Linear and solves two real problems with the single-step flow:
 
-1. **Workspace picker works.** OIDC triggers Slack's native workspace dropdown, so users with multiple workspaces can pick the right one. The previous `team: ""` hack didn't work — Slack still defaulted to the user's active workspace cookie.
+1. **Workspace picker works.** OIDC triggers Slack's native workspace dropdown, so users with multiple workspaces can pick the right one.
 2. **Non-installers can sign in.** A second engineer at a workspace where Firefight is already installed can sign into the dashboard without triggering the install flow (which would fail because they aren't an App Manager).
+
+The product model is **Slack-native**: installation is the admin gate; any Slack workspace member who uses Firefight — via `/firefight`, a Slack interaction, a channel join, or OIDC sign-in on the dashboard — is auto-provisioned as a member. There is no invitation system and no per-workspace auto-provision flag. Roles (`member` / `admin` / `owner`) still exist on memberships for future admin-action gating, but basic access does not require explicit seat management.
 
 ### Stack
 
@@ -49,19 +50,8 @@ Find Workspace by platform_id == team_id
 ├─ FOUND (Firefight is installed for this team)
 │   ↓
 │   Find WorkspaceMembership by (workspace, user)
-│   ├─ FOUND → Sign in. Dashboard.
-│   │         (Member was already provisioned via install,
-│   │          bot interaction, prior invite, or auto-provision.)
-│   │
-│   └─ NOT FOUND
-│       ↓
-│       Pending invitation in session for (workspace, email)?
-│       ├─ YES → Consume invite, create membership, sign in.
-│       └─ NO
-│           ↓
-│           workspace.allow_auto_provision?  (default false)
-│           ├─ TRUE  → Auto-create membership, sign in.
-│           └─ FALSE → "Ask your admin for an invite" page.
+│   ├─ FOUND     → Sign in. Dashboard.
+│   └─ NOT FOUND → Auto-provision via WorkspaceMemberProvisioner, sign in.
 │
 └─ NOT FOUND (workspace doesn't exist)
     ↓
@@ -69,7 +59,7 @@ Find Workspace by platform_id == team_id
     Buttons: [Install Firefight] (triggers bot OAuth — Slack rejects non-admins).
 ```
 
-This logic lives in `SlackAuthenticationService#handle_openid_signin` and returns an `AuthOutcome` value object. The controller maps the outcome to an HTTP response — no decision logic lives in the controller.
+This logic lives in `SlackAuthenticationService#handle_openid_signin` and returns an `AuthOutcome` value object with two variants: `signed_in` or `install_needed`. The controller maps the outcome to an HTTP response — no decision logic lives in the controller.
 
 ---
 
@@ -91,9 +81,8 @@ Auth::OmniauthCallbacksController#slack_openid
 SlackAuthenticationService#handle_openid_signin → AuthOutcome
     ↓
 Controller dispatches based on outcome:
-  - signed_in?      → set session, redirect to dashboard
+  - signed_in?      → set session, redirect to dashboard (or /onboarding/welcome on first install)
   - install_needed? → stash team in session, redirect to /onboarding/install
-  - invite_needed?  → redirect to /onboarding/needs_invite
 ```
 
 ### Step 2 — Bot install (only when needed)
@@ -105,19 +94,21 @@ User clicks "Add Firefight to Slack" on /onboarding/install
     ↓
 GET /auth/slack              (uses session[:pending_team_id])
     ↓
-Slack bot OAuth consent
+Slack bot OAuth consent (bot scopes only — user identity came from step 1)
     ↓
 GET /auth/slack/callback
     ↓
 Auth::OmniauthCallbacksController#slack
     ↓
-SlackAuthenticationService#handle_install
-    → Workspace.process_slack_installation(auth_hash)
+SlackAuthenticationService#handle_install(auth_hash, user: pending_user)
+    → Workspace.process_slack_installation(auth_hash, user:)
     → SlackWorkspaceSetupWorkflow.start! (first install only)
-    → AuthOutcome.signed_in
+    → AuthOutcome.signed_in(first_install: true)
     ↓
-Set session, redirect to dashboard
+Set session, redirect to /onboarding/welcome
 ```
+
+The install provider requests **bot scopes only**; user identity is carried by the prior OIDC step and threaded through via `session[:pending_user_id]`. The install callback never re-derives identity from the bot hash's `users.info` fetch (which is brittle and often returns partial data).
 
 ### Why two steps
 
@@ -130,73 +121,43 @@ Set session, redirect to dashboard
 
 ---
 
-## Three Paths to Membership
+## Membership Provisioning
 
-A `WorkspaceMembership` is the billable unit. It can be created three ways. Sign-in just checks whether one exists.
+A `WorkspaceMembership` is the billable unit. It can be created in three places — all converging on `WorkspaceMemberProvisioner.find_or_provision!` or the install-specific constructor.
 
 ### 1. Workspace install (owner)
 
-The first user installs Firefight via bot OAuth (step 2). `Workspace.process_slack_installation` creates the workspace and the installer's membership with `role: owner`. Triggers `SlackWorkspaceSetupWorkflow`.
+The first user installs Firefight via bot OAuth (step 2). `Workspace.process_slack_installation` creates the workspace and the installer's membership with `role: owner`. Triggers `SlackWorkspaceSetupWorkflow`. This path is distinct from provisioner — it also needs to store the bot token on the workspace.
 
-### 2. Bot-interaction provisioning (implicit consent)
+### 2. Slack-side usage (member)
 
-When a Slack user touches Firefight via Slack — runs `/firefight`, clicks an interaction, or is added to an incident channel — `WorkspaceMemberProvisioner.find_or_provision!` creates their membership with `role: member`. Wired into `CommandDispatcher` and `InteractionDispatcher` at the top of `dispatch`.
+When a Slack user touches Firefight via Slack — runs `/firefight`, clicks an interactive component, or is added to an incident channel — `WorkspaceMemberProvisioner.find_or_provision!` creates their membership with `role: member`. Wired in at the boundary layer:
 
-The idea: they've already used the product, so they should be able to sign into the dashboard with no additional friction. By the time they visit `app.firefight.app`, OIDC sign-in finds an existing membership and just logs them in.
+- `ProcessCommandJob#ensure_member_provisioned` — for async slash commands
+- `InteractionDispatcher.ensure_member_provisioned` — for synchronous button/modal interactions
+- `Events::MemberJoinedChannelHandler` — for `member_joined_channel` events
 
-### 3. Explicit invitation (admin)
+Existing members are returned without a Slack API call; new members trigger one `users.info` fetch via the adapter.
 
-An admin invites an email from settings. The recipient gets a magic-link email. Clicking the link stores the invitation ID in the session and bounces them through OIDC. On callback, the pending invitation is consumed and a membership is created. See [Invitations](#invitations) below.
+### 3. Dashboard OIDC sign-in (member)
 
-### Optional 4th path — `allow_auto_provision`
+When someone signs in via OIDC and the workspace exists but they have no membership yet, `SlackAuthenticationService#handle_openid_signin` calls the same provisioner, passing the OIDC-provided profile (`auth_hash.info`) via the `user_profile:` kwarg so the adapter fetch is skipped — we already have name, email, avatar from the ID token.
 
-A workspace owner can flip `workspaces.allow_auto_provision = true`. Anyone whose Slack identity matches the team can then sign in with no invite. Off by default — exposes seat billing and external-guest risk.
+This means a Slack workspace member who has never used Firefight in Slack can sign into the dashboard directly and will be provisioned as a member on first visit.
 
----
+### Provisioner contract
 
-## Invitations
-
-### Lifecycle
-
-```
-Admin opens Settings → Members → Invite
-    ↓
-POST /app/settings/invitations { email }
-    ↓
-Invitation row created (expires 7 days from now)
-    ↓
-InvitationMailer#invite delivers magic link
-    Link: /invitations/:signed_id
-    signed_id is a Rails-signed token with purpose: :workspace_invite
-    ↓
-Recipient clicks link
-    ↓
-GET /invitations/:signed_id
-    → InvitationsController#show
-    → verifies signed_id, checks active scope (not redeemed, not expired)
-    → stores invitation.id in session[:pending_invitation_id]
-    → redirects to /auth/slack_openid
-    ↓
-OIDC flow returns
-    ↓
-SlackAuthenticationService#handle_openid_signin
-    → finds pending invitation by id
-    → guards: invitation must belong to the OIDC team_id's workspace AND match email
-    → calls Invitation#consume! which creates the membership and sets redeemed_at
-    ↓
-Sign in, dashboard
+```ruby
+WorkspaceMemberProvisioner.find_or_provision!(
+  workspace:,
+  platform_user_id:,        # Slack user id (U...)
+  adapter:,                 # used iff user_profile is not supplied
+  user: nil,                # optional: pre-identified User
+  user_profile: nil         # optional: hash with :real_name/:name/:email/etc.
+)
 ```
 
-### Model rules
-
-- One active (un-redeemed, un-expired) invitation per `(workspace_id, email)` — partial uniqueness via `conditions: -> { where(redeemed_at: nil) }`.
-- `Invitation::DEFAULT_TTL = 7.days` set in `before_validation :set_default_expiry, on: :create`.
-- `consume!` runs in a transaction — calls `workspace.auto_provision_member!` and updates `redeemed_at` + `redeemed_by`.
-- Admins can revoke before redemption (`DELETE /app/settings/invitations/:id`).
-
-### No `role` column
-
-We don't yet have RBAC enforcement (no controller-level permission checks beyond owner/admin presence on the membership record). Invitations don't carry a role — every consumed invitation produces a `role: member` membership via `Workspace#auto_provision_member!`. When RBAC lands, add a `role` column and pass it through.
+Returns the existing or newly-created `WorkspaceMembership`. Returns `nil` on `AdapterError` (e.g., Slack API unavailable) — callers should tolerate nil.
 
 ---
 
@@ -206,17 +167,14 @@ We don't yet have RBAC enforcement (no controller-level permission checks beyond
 
 ```
 HTTP                   Auth::OmniauthCallbacksController (slim — 5 line actions)
-                       InvitationsController (signed_id lookup → session → redirect)
                        OnboardingController (renders Inertia pages)
                             ↓
 Decision logic         SlackAuthenticationService
                             ↓ returns
-Value object           AuthOutcome (signed_in? / install_needed? / invite_needed?)
+Value object           AuthOutcome (signed_in? / install_needed?)
                             ↓ used by
 State changes          User.find_or_create_from_openid!
                        Workspace.process_slack_installation
-                       Workspace#auto_provision_member!
-                       Invitation#consume!
                        WorkspaceMemberProvisioner.find_or_provision!
                             ↓
 External               OmniAuth strategies (slack, slack_openid)
@@ -229,10 +187,8 @@ The controller has no case statement on raw symbols. It calls the service, gets 
 
 Two providers are registered in `config/initializers/omniauth.rb`:
 
-- **`:slack_openid`** (`lib/omniauth/strategies/slack_openid.rb`) — sign-in flow. Hits `slack.com/oauth/v2/authorize` with `scope=` (empty) and `user_scope=openid,profile,email`. This is the same approach incident.io uses — Slack treats it as a sign-in flow, shows its native workspace picker + consent screen, and returns user identity only (no bot token). The standalone `/openid/connect/authorize` endpoint does **not** show a workspace picker reliably and was the wrong choice initially.
-- **`:slack`** (`lib/omniauth/strategies/slack.rb`) — OAuth v2 with bot scopes. Setup proc reads `session[:pending_team_id]` and forwards it as `authorize_params[:team]` so step 2 skips the picker.
-
-The previous `team: ""` hack on `:slack` is gone — it never worked.
+- **`:slack_openid`** (`lib/omniauth/strategies/slack_openid.rb`) — sign-in flow. Hits `slack.com/oauth/v2/authorize` with `scope=` (empty) and `user_scope=openid,profile,email`. This is the same approach incident.io uses — Slack treats it as a sign-in flow, shows its native workspace picker + consent screen, and returns user identity only (no bot token).
+- **`:slack`** (`lib/omniauth/strategies/slack.rb`) — OAuth v2 with **bot scopes only**. Setup proc reads `session[:pending_team_id]` and forwards it as `authorize_params[:team]` so step 2 skips the picker.
 
 ### Routes
 
@@ -241,15 +197,12 @@ get  "/auth/slack_openid/callback", to: "auth/omniauth_callbacks#slack_openid", 
 get  "/auth/slack/callback",        to: "auth/omniauth_callbacks#slack",        as: :slack_install_callback
 get  "/auth/failure",               to: "auth/omniauth_callbacks#failure"
 
-resources :invitations, only: [ :show ], param: :signed_id
-
-get "/onboarding/install",      to: "onboarding#install",      as: :onboarding_install
-get "/onboarding/needs_invite", to: "onboarding#needs_invite", as: :onboarding_needs_invite
+get "/onboarding/install", to: "onboarding#install", as: :onboarding_install
+get "/onboarding/welcome", to: "onboarding#welcome", as: :onboarding_welcome
 
 scope :app do
   # ... other app routes ...
   get "/settings/members", to: "settings#members", as: :settings_members
-  resources :invitations, only: [ :create, :destroy ], path: "settings/invitations"
 end
 ```
 
@@ -259,7 +212,7 @@ end
 |---|---|---|
 | `user_id`, `workspace_id` | sign-in callback | logout |
 | `pending_team_id`, `pending_team_name`, `pending_user_id` | OIDC callback when `install_needed?` | sign-in callback after install |
-| `pending_invitation_id` | InvitationsController#show | sign-in callback after invite consumed |
+| `show_welcome_note` | install completion | welcome page render (consumed once) |
 
 `apply_outcome` in the controller clears all `pending_*` keys on successful sign-in.
 
@@ -272,7 +225,6 @@ end
 1. **`workspaces`** — Slack workspaces / teams.
 2. **`users`** — Application users, identified by email.
 3. **`workspace_memberships`** — Join table linking users to workspaces with a role.
-4. **`invitations`** — Pending and historical workspace invites.
 
 ### `workspaces`
 
@@ -287,13 +239,10 @@ create_table :workspaces, id: :uuid do |t|
   t.text     :refresh_token          # encrypted
   t.datetime :token_expires_at
   t.datetime :installed_at
-  t.boolean  :allow_auto_provision, null: false, default: false
   t.timestamps
 end
 add_index :workspaces, [ :platform, :platform_id ], unique: true
 ```
-
-`allow_auto_provision` enables [path 4](#optional-4th-path--allow_auto_provision) above. Default false.
 
 ### `users`
 
@@ -327,24 +276,7 @@ end
 add_index :workspace_memberships, [ :workspace_id, :platform_user_id ], unique: true
 ```
 
-Memberships created via OIDC paths (invite, auto-provision, bot-interaction) don't carry user tokens — only identity. Only the install path sets bot/user tokens.
-
-### `invitations`
-
-```ruby
-create_table :invitations, id: :uuid do |t|
-  t.references :workspace,    type: :uuid, null: false, foreign_key: true
-  t.references :invited_by,   type: :uuid, null: false, foreign_key: { to_table: :workspace_memberships }
-  t.string     :email,        null: false
-  t.datetime   :expires_at,   null: false
-  t.datetime   :redeemed_at
-  t.references :redeemed_by,  type: :uuid, foreign_key: { to_table: :workspace_memberships }
-  t.timestamps
-end
-add_index :invitations, [ :workspace_id, :email ]
-```
-
-Email uniqueness is enforced at the model layer via a partial uniqueness constraint scoped to active (un-redeemed) invitations. No `role` column — see [Invitations](#invitations).
+Memberships created via the provisioner (OIDC sign-in and Slack-side usage) don't carry user tokens — only identity. Only the install path sets bot/user tokens.
 
 ---
 
@@ -372,7 +304,7 @@ In production, secrets come from the Kamal `.env` (sourced from 1Password). In l
 
 Scopes are defined in `config/slack_manifests/{development,production}.yml` and read into the OAuth strategies via `Slack::ManifestReader.scopes_for_environment(Rails.env)`.
 
-OIDC user scopes (required for the workspace picker):
+OIDC user scopes (required for the workspace picker) + bot scopes:
 ```yaml
 oauth_config:
   scopes:
@@ -389,7 +321,7 @@ oauth_config:
       # ... etc
 ```
 
-When manifest scopes change, re-upload the manifest to api.slack.com → app dashboard. Existing installations need to re-authorize for new bot scopes; OIDC scopes apply to new sign-ins automatically.
+The `:slack` install provider uses `bot` scopes only — the `user` block maps to the Slack app's OIDC configuration and is consumed by the `:slack_openid` provider at sign-in. When manifest scopes change, re-upload the manifest to api.slack.com → app dashboard. Existing installations need to re-authorize for new bot scopes; OIDC scopes apply to new sign-ins automatically.
 
 ### Rails Active Record encryption
 
@@ -452,7 +384,7 @@ Recurring schedule lives in `config/recurring.yml`. Worker starts via `bin/jobs`
    bin/dev
    ```
 
-6. **Sign in**: visit http://localhost:3000, click "Continue with Slack". Slack should show the workspace picker (this is OIDC working). Pick a workspace where Firefight isn't installed → land on `/onboarding/install` → click "Add Firefight to Slack" → bot install completes → dashboard.
+6. **Sign in**: visit http://localhost:3000, click "Continue with Slack". Slack should show the workspace picker (this is OIDC working). Pick a workspace where Firefight isn't installed → land on `/onboarding/install` → click "Add Firefight to Slack" → bot install completes → `/onboarding/welcome`.
 
 ### Helpers in controllers
 
@@ -494,10 +426,6 @@ oauth_config:
 
 Slack webhook URLs (commands, events, interactions) point at `https://slack.firefight.app/api/v1/...` — see manifest.
 
-### Staging
-
-There is no staging environment currently. Both `config/slack_manifests/development.yml` and `config/slack_manifests/production.yml` are in use; staging-related references in older infra docs are out of date.
-
 ---
 
 ## Troubleshooting
@@ -510,12 +438,9 @@ Slack only shows the picker when the user has multiple workspaces in the same br
 
 Workspace lookup is by `(platform: :slack, platform_id: team_id)`. If a workspace was installed under a different Slack app (e.g. dev vs prod), the `platform_id` will match but you'll be hitting a different DB. Confirm Slack app + Rails env line up.
 
-### Magic-link invitation 404s
+### Install completes but welcome page bounces
 
-`InvitationsController#show` uses `Invitation.find_signed(params[:signed_id], purpose: :workspace_invite)`. Common causes:
-- Link is older than `Invitation::DEFAULT_TTL` (7 days).
-- Invitation was already redeemed (`redeemed_at` set) — `Invitation.active` excludes it.
-- Invitation was revoked (deleted) by the admin.
+`/onboarding/welcome` requires `session[:user_id]`. The install callback sets it, but if session cookies are blocked or the OmniAuth callback raised an exception mid-transaction, the sign-in writes don't land. Check `log/development.log` for `auth.slack_install_failed` entries.
 
 ### Token refresh fails
 
@@ -551,8 +476,7 @@ membership.update!(role: "owner")
 ### RBAC enforcement
 
 Memberships have a `role` column (`member` / `admin` / `owner`) but no controller-level enforcement yet. Authorization is currently coarse — sign-in alone gates the dashboard. Adding RBAC means:
-- Permission checks in Inertia controllers (e.g. only owner/admin can access `/app/settings/invitations`).
-- A `role` column on `Invitation` so admins can set the recipient's role at invite time.
+- Permission checks in Inertia controllers (e.g. only owner/admin can access certain settings pages).
 - Permission checks in API controllers via the existing `authorize!(resource, action)` pattern in `ApiAuthentication`.
 
 ### Workspace switcher
@@ -567,10 +491,6 @@ Schema is ready — `workspaces.platform` enum supports `:teams`. Adding Teams r
 - Teams adapter under `app/adapters/teams/`.
 - Teams manifest in `config/teams_manifests/`.
 - `WorkspaceAdapter.for(workspace)` factory already dispatches by platform.
-
-### Cross-workspace invitation links
-
-Currently invitations are scoped to a single workspace + email. A "share invite link" feature would generate a token that any signed-in user can redeem against a specific workspace.
 
 ---
 
@@ -587,33 +507,25 @@ user.member_of?(workspace) / .owner_of?(workspace) / .admin_of?(workspace)
 
 # Workspace
 Workspace.find_or_create_from_slack!(auth_hash)
-Workspace.process_slack_installation(auth_hash) # transactional: workspace + user + membership
-workspace.auto_provision_member!(user:, auth_hash:) # OIDC path member creation
-workspace.allow_auto_provision?
+Workspace.process_slack_installation(auth_hash, user: nil) # transactional: workspace + user + membership
 workspace.token_expired?
 workspace.adapter                                # WorkspaceAdapter.for(self)
 
 # WorkspaceMembership
 WorkspaceMembership.find_or_create_from_omniauth!(user, workspace, auth_hash)
 membership.member_role? / .admin_role? / .owner_role?
-
-# Invitation
-Invitation::DEFAULT_TTL
-Invitation.active / .pending / .redeemed
-invitation.consume!(user:, auth_hash:)           # creates membership, marks redeemed
-invitation.signed_id(expires_in:, purpose: :workspace_invite)
 ```
 
 ### Services
 
 ```ruby
 SlackAuthenticationService.new
-  .handle_openid_signin(auth_hash, pending_invitation_id: nil) # → AuthOutcome
-  .handle_install(auth_hash)                                   # → AuthOutcome
-  .process_oauth_callback(auth_hash)                           # legacy, returns Hash
+  .handle_openid_signin(auth_hash)                    # → AuthOutcome
+  .handle_install(auth_hash, user: nil)               # → AuthOutcome
+  .process_oauth_callback(auth_hash)                  # legacy, returns Hash
 
 WorkspaceMemberProvisioner
-  .find_or_provision!(workspace:, platform_user_id:, adapter:) # bot-interaction path
+  .find_or_provision!(workspace:, platform_user_id:, adapter:, user: nil, user_profile: nil)
 
 Slack::TokenRefreshService.new
   .refresh_workspace(workspace) / .refresh_membership(membership)
@@ -623,11 +535,10 @@ Slack::TokenRefreshService.new
 ### Value object
 
 ```ruby
-AuthOutcome.signed_in(membership:, message:)
+AuthOutcome.signed_in(membership:, message:, first_install: false)
 AuthOutcome.install_needed(user:, team_id:, team_name:)
-AuthOutcome.invite_needed(team_name:)
 
-outcome.signed_in? / .install_needed? / .invite_needed?
+outcome.signed_in? / .install_needed? / .first_install?
 outcome.membership / .user / .team_id / .team_name / .message
 ```
 
@@ -646,10 +557,9 @@ bin/rails slack:force_refresh_all_workspaces
 ## Security
 
 - Bot and user tokens encrypted at rest via Rails `encrypts`.
-- Magic-link invitations use Rails `signed_id` with explicit `purpose: :workspace_invite` — tampered links and cross-purpose tokens are rejected cryptographically before any DB lookup.
-- Invitation consumption double-checks: signed_id valid AND record is in `active` scope (not redeemed, not expired) AND email matches the OIDC identity AND workspace matches the OIDC team_id.
 - Sessions are encrypted, HTTP-only, secure in production.
 - OmniAuth CSRF protection enabled; failures redirect to `/auth/failure`.
+- Install access is gated by Slack itself — only a workspace admin can approve the bot OAuth consent, which is Firefight's only admin-level gate. Anyone with access to the Slack workspace after install is considered a member; if an organization needs finer-grained dashboard access control, remove the user from the Slack workspace.
 
 ---
 
@@ -659,4 +569,4 @@ bin/rails slack:force_refresh_all_workspaces
 - [Slack OpenID Connect](https://api.slack.com/authentication/sign-in-with-slack)
 - [Slack token rotation](https://api.slack.com/authentication/rotation)
 - [OmniAuth](https://github.com/omniauth/omniauth)
-- Internal: `lib/omniauth/strategies/{slack,slack_openid}.rb`, `app/services/slack_authentication_service.rb`, `app/models/{auth_outcome,invitation}.rb`
+- Internal: `lib/omniauth/strategies/{slack,slack_openid}.rb`, `app/services/slack_authentication_service.rb`, `app/services/workspace_member_provisioner.rb`, `app/models/auth_outcome.rb`

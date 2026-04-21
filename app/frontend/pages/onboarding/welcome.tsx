@@ -95,7 +95,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
                 href="/app"
                 className="mt-6 inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-foreground text-[14px] font-medium text-background transition-colors hover:bg-foreground/90"
               >
-                Continue to dashboard
+                Continue to {workspaceName}
                 <span aria-hidden="true" className="translate-y-[-0.5px]">
                   →
                 </span>
@@ -105,14 +105,6 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
         </main>
       </div>
     </>
-  );
-}
-
-function DotSep() {
-  return (
-    <span aria-hidden="true" className="text-border">
-      ·
-    </span>
   );
 }
 
@@ -134,17 +126,6 @@ function Avatar() {
       onError={() => setErrored(true)}
       className="size-11 shrink-0 rounded-full object-cover ring-1 ring-border"
     />
-  );
-}
-
-function SlackMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" className={className} aria-hidden="true">
-      <rect x="6" y="0" width="4" height="8.5" rx="2" fill="#36C5F0" />
-      <rect x="6" y="7.5" width="4" height="8.5" rx="2" fill="#E01E5A" />
-      <rect x="0" y="6" width="8.5" height="4" rx="2" fill="#ECB22E" />
-      <rect x="7.5" y="6" width="8.5" height="4" rx="2" fill="#2EB67D" />
-    </svg>
   );
 }
 
