@@ -2,6 +2,14 @@ require "omniauth-oauth2"
 
 module OmniAuth
   module Strategies
+    class SlackOpenidAccessToken < ::OAuth2::AccessToken
+      def self.from_hash(client, hash)
+        params = hash.dup
+        user_token = params.dig("authed_user", "access_token") || params.dig(:authed_user, :access_token)
+        new(client, user_token, params)
+      end
+    end
+
     # Slack sign-in strategy. Uses OAuth v2 with an empty bot `scope` and
     # `user_scope=openid,profile,email` — the same approach incident.io uses.
     # This triggers Slack's native workspace picker and consent screen, returns
@@ -17,6 +25,14 @@ module OmniAuth
         authorize_url: "https://slack.com/oauth/v2/authorize",
         token_url: "https://slack.com/api/oauth.v2.access"
       }
+
+      def client
+        ::OAuth2::Client.new(
+          options.client_id,
+          options.client_secret,
+          deep_symbolize(options.client_options).merge(access_token_class: SlackOpenidAccessToken)
+        )
+      end
 
       def authorize_params
         super.merge(scope: "", user_scope: "openid,profile,email")
@@ -40,11 +56,10 @@ module OmniAuth
 
       def raw_info
         @raw_info ||= begin
-          user_token = access_token.params.dig("authed_user", "access_token")
           response = access_token.client.request(
             :get,
             "https://slack.com/api/openid.connect.userInfo",
-            headers: { "Authorization" => "Bearer #{user_token}" }
+            headers: { "Authorization" => "Bearer #{access_token.token}" }
           )
           JSON.parse(response.body)
         end
