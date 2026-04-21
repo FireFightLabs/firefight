@@ -35,6 +35,14 @@ class SettingsController < InertiaController
     }
   end
 
+  def members
+    render inertia: "settings/members", props: {
+      members: WorkspaceMembershipSerializer.many(
+        current_workspace.workspace_memberships.includes(:user).order(:joined_at)
+      )
+    }
+  end
+
   def custom_fields
     render inertia: "settings/custom-fields", props: {
       customFields: IncidentFieldDefinitionSettingsSerializer.many(

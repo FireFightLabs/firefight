@@ -9,6 +9,7 @@ import {
   IconListDetails,
   IconPlug,
   IconUrgent,
+  IconUsers,
   IconUserShield,
   IconWebhook,
 } from "@tabler/icons-react"
@@ -32,6 +33,7 @@ import {
   settingsApiKeysPath,
   settingsCustomFieldsPath,
   settingsFormsPath,
+  settingsMembersPath,
   settingsRolesPath,
   settingsSeveritiesPath,
   settingsStatusesPath,
@@ -50,6 +52,7 @@ const navSections = [
     label: "Configure",
     items: [
       { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
+      { title: "Members", url: settingsMembersPath(), icon: IconUsers },
       { title: "Forms", url: settingsFormsPath(), icon: IconChecklist },
       { title: "Custom Fields", url: settingsCustomFieldsPath(), icon: IconForms },
       { title: "Roles", url: settingsRolesPath(), icon: IconUserShield },

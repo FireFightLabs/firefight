@@ -25,8 +25,12 @@ features:
 oauth_config:
   redirect_urls:
     - https://app.firefight.app/auth/slack/callback
+    - https://app.firefight.app/auth/slack_openid/callback
   scopes:
     user:
+      - openid # OIDC: triggers Slack's native workspace picker on sign-in
+      - profile # OIDC: name and avatar
+      - email # OIDC: email for account linking
       - users:read # Get user profile info (name, avatar) during OAuth
       - users:read.email # Get user email for account linking
     bot:
