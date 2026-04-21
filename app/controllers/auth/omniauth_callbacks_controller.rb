@@ -16,8 +16,12 @@ module Auth
     end
 
     # Step 2 — bot install. Creates the workspace + owner membership.
+    # The installer's identity was established in step 1 (OIDC) and stashed in
+    # session as `pending_user_id`; we pass that user through so the install
+    # callback doesn't re-derive identity from the bot install's auth_hash
+    # (whose user_info / email fetch is brittle and not required here).
     def slack
-      outcome = SlackAuthenticationService.new.handle_install(auth_hash)
+      outcome = SlackAuthenticationService.new.handle_install(auth_hash, user: pending_user)
       apply_outcome(outcome)
     rescue => e
       log_auth_failure(:slack_install_failed, e)
@@ -43,6 +47,11 @@ module Auth
 
     def auth_hash
       request.env["omniauth.auth"]
+    end
+
+    def pending_user
+      id = session[:pending_user_id]
+      User.find_by(id: id) if id
     end
 
     # Maps an AuthOutcome to the right HTTP response. Keeps actions thin.

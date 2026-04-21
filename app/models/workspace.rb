@@ -58,11 +58,14 @@ class Workspace < ApplicationRecord
   # Coordinates creation of workspace, user, and membership in a transaction
   #
   # @param auth_hash [OmniAuth::AuthHash] OAuth response from Slack
+  # @param user [User, nil] Pre-identified user from the prior OIDC sign-in.
+  #   When provided, skips the auth_hash email lookup. The bot install's
+  #   users.info fetch is brittle and not required — identity already exists.
   # @return [Hash] Result with :workspace, :user, :membership, :first_install
-  def self.process_slack_installation(auth_hash)
+  def self.process_slack_installation(auth_hash, user: nil)
     transaction do
       workspace = find_or_create_from_slack!(auth_hash)
-      user = User.find_or_create_from_omniauth!(auth_hash)
+      user ||= User.find_or_create_from_omniauth!(auth_hash)
       membership = WorkspaceMembership.find_or_create_from_omniauth!(user, workspace, auth_hash)
 
       if workspace.previously_new_record?

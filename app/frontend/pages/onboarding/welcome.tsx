@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Head } from "@inertiajs/react";
 
 interface WelcomePageProps {
@@ -7,6 +8,10 @@ interface WelcomePageProps {
 }
 
 export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
+  const firstName = (userName?.trim().split(/\s+/)[0] ?? userName) || "there";
+  const now = new Date();
+  const dateStamp = `${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getFullYear()).slice(2)}`;
+
   return (
     <>
       <Head title="Welcome to Firefight" />
@@ -17,65 +22,174 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
           className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(10,30,46,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(10,30,46,0.035)_1px,transparent_1px)] bg-[size:56px_56px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]"
         />
 
-        <main className="relative flex flex-1 items-center justify-center px-6 py-12">
-          <div className="w-full max-w-[560px]">
-            <div className="rounded-xl border border-border bg-card px-8 py-10 shadow-[0_1px_0_0_rgba(10,30,46,0.02),0_1px_2px_0_rgba(10,30,46,0.04),0_8px_24px_-8px_rgba(10,30,46,0.08)] sm:px-10 sm:py-12">
-              <div className="mb-8 space-y-3">
-                <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[0.7rem] font-medium uppercase tracking-[0.18em] text-primary/90">
-                  Welcome
+        <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
+          <div style={{ width: "100%", maxWidth: "480px" }}>
+            <div className="rounded-2xl border border-border bg-card px-6 pb-6 pt-6 shadow-[0_1px_0_0_rgba(10,30,46,0.02),0_2px_4px_0_rgba(10,30,46,0.04),0_12px_40px_-12px_rgba(10,30,46,0.14)] sm:px-8 sm:pb-8 sm:pt-7">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex size-[22px] items-center justify-center rounded-[6px] bg-primary">
+                    <DropMark className="size-[11px] text-primary-foreground" />
+                  </span>
+                  <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-foreground">
+                    Firefight
+                  </span>
                 </div>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/60">
+                  From the founder · {dateStamp}
+                </span>
+              </div>
 
-                <h1 className="text-[1.9rem] font-medium leading-[1.1] tracking-[-0.025em] text-foreground">
-                  Firefight is ready in {workspaceName}
-                </h1>
+              <div className="mt-5 border-t border-border/60" />
 
-                <p className="max-w-[44ch] text-[0.95rem] leading-relaxed text-muted-foreground">
-                  {userName}, thanks for giving it a try. I built Firefight because incident tooling too often feels bloated, opaque, and priced for large companies rather than working teams.
+              {/* Greeting */}
+              <h1 className="mt-6 text-[3.25rem] font-medium leading-[1.0] tracking-[-0.045em] text-foreground">
+                You&apos;re in, <em className="italic">{firstName}.</em>
+              </h1>
+
+              {/* Body */}
+              <div className="mt-5 space-y-4">
+                <p className="text-[15px] leading-[1.65] text-foreground/88">
+                  I built Firefight because incident tooling too often feels{" "}
+                  <em className="italic">
+                    bloated, opaque, and priced for large companies
+                  </em>{" "}
+                  — not the teams actually running systems.
+                </p>
+
+                <p className="text-[15px] leading-[1.65] text-foreground/55">
+                  It&apos;s meant to be straightforward. Declare the incident.
+                  Create the response space. Keep the timeline clear. No
+                  automation mazes, no setup walls — just the three things you
+                  need when the pager goes.
+                </p>
+
+                <p className="text-[15px] leading-[1.65]">
+                  <span className="font-semibold text-foreground">
+                    If something feels rough or missing, tell us.
+                  </span>{" "}
+                  <span className="text-foreground/55">
+                    That&apos;s the feedback that matters now.
+                  </span>
                 </p>
               </div>
 
-              <div className="space-y-4 text-sm leading-relaxed text-foreground">
-                <p>
-                  Firefight is meant to be straightforward: declare an incident, create the response space, keep the timeline clear, and make the workflow understandable.
-                </p>
-
-                <p>
-                  It is not trying to automate every part of incident response or hide critical behavior behind layers of setup. If something feels rough, confusing, or missing, that is useful feedback for us right now.
-                </p>
-
-                <p className="text-muted-foreground">
-                  We&apos;re building this in the open, and the goal is simple: software teams can trust during a bad day, not just software that demos well.
-                </p>
-              </div>
-
-              <div className="mt-8 rounded-lg border border-border bg-background/70 px-4 py-4">
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary/90">
-                  What to do next
-                </p>
-                <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
-                  <li>Open the dashboard and review your workspace setup.</li>
-                  <li>Try creating your first incident from Slack.</li>
-                  <li>Send feedback directly if anything feels off.</li>
-                </ul>
-              </div>
-
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-sm text-muted-foreground">
-                  Uros Nikolic
-                  <div className="text-xs">Firefight</div>
+              {/* Signature */}
+              <div className="mt-6 flex items-center justify-between border-t border-border/60 py-5">
+                <div className="flex items-center gap-3">
+                  <Avatar />
+                  <div className="leading-tight">
+                    <p className="text-[13.5px] font-semibold tracking-[-0.01em] text-foreground">
+                      Uros Nikolic
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-muted-foreground">
+                      Founder, Firefight
+                    </p>
+                  </div>
                 </div>
-
-                <a
-                  href="/app"
-                  className="inline-flex h-10 items-center justify-center rounded-md bg-foreground px-5 text-sm font-medium text-background shadow-sm transition-colors hover:bg-foreground/90"
-                >
-                  Continue to dashboard
-                </a>
+                <SignatureMark className="h-9 w-[110px] text-foreground/50" />
               </div>
+
+              {/* CTA */}
+              <a
+                href="/app"
+                className="mt-6 inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-foreground text-[14px] font-medium text-background transition-colors hover:bg-foreground/90"
+              >
+                Continue to dashboard
+                <span aria-hidden="true" className="translate-y-[-0.5px]">
+                  →
+                </span>
+              </a>
             </div>
           </div>
         </main>
       </div>
     </>
+  );
+}
+
+function DotSep() {
+  return (
+    <span aria-hidden="true" className="text-border">
+      ·
+    </span>
+  );
+}
+
+function Avatar() {
+  const [errored, setErrored] = useState(false);
+
+  if (errored) {
+    return (
+      <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary text-[12px] font-semibold tracking-tight text-foreground">
+        UN
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src="https://i.pravatar.cc/96?img=12"
+      alt="Uros Nikolic"
+      onError={() => setErrored(true)}
+      className="size-11 shrink-0 rounded-full object-cover ring-1 ring-border"
+    />
+  );
+}
+
+function SlackMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} aria-hidden="true">
+      <rect x="6" y="0" width="4" height="8.5" rx="2" fill="#36C5F0" />
+      <rect x="6" y="7.5" width="4" height="8.5" rx="2" fill="#E01E5A" />
+      <rect x="0" y="6" width="8.5" height="4" rx="2" fill="#ECB22E" />
+      <rect x="7.5" y="6" width="8.5" height="4" rx="2" fill="#2EB67D" />
+    </svg>
+  );
+}
+
+function DropMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 12 16"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M6 0 C6 0 1 6.5 1 10.5 C1 13.5 3.2 16 6 16 C8.8 16 11 13.5 11 10.5 C11 6.5 6 0 6 0Z" />
+    </svg>
+  );
+}
+
+function SignatureMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 180 64"
+      fill="none"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        d="M18 44c4-11 7-17 10-17 3 0 2 8 3 14 1 3 2 6 5 6 6 0 11-21 17-21 4 0 2 16 7 16 6 0 9-14 13-14 2 0 2 2 2 5 0 6 1 13 5 13 5 0 10-9 15-16 6-10 11-16 16-16 4 0 5 4 5 8 0 8-4 17-4 24 0 3 1 6 4 6 4 0 8-6 13-13"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M123 17c8 0 15 9 15 18 0 8-5 15-13 15-7 0-11-5-11-11 0-7 5-11 10-11 4 0 7 2 9 5"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M149 18c5 11 8 22 9 33 1-8 4-16 10-23 3-4 7-7 11-7 3 0 5 2 5 5 0 10-14 14-24 16"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

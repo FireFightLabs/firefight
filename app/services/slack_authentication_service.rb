@@ -32,8 +32,11 @@ class SlackAuthenticationService
 
   # Bot install callback. Wraps the existing workspace install flow and returns
   # an AuthOutcome so the controller has a uniform interface.
-  def handle_install(auth_hash)
-    result = Workspace.process_slack_installation(auth_hash)
+  #
+  # @param user [User, nil] The installer, already identified by the prior OIDC
+  #   sign-in. When provided, skips re-deriving identity from auth_hash.
+  def handle_install(auth_hash, user: nil)
+    result = Workspace.process_slack_installation(auth_hash, user: user)
 
     trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]
 
