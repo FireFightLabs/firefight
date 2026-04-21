@@ -3,12 +3,10 @@ module Auth
     skip_before_action :verify_authenticity_token, only: [ :slack, :slack_openid ]
 
     # Step 1 — OIDC sign-in (identity only). Decides where to send the user
-    # next via AuthOutcome.
+    # next via AuthOutcome: signed_in (existing or newly-provisioned member) or
+    # install_needed (no workspace for this team yet).
     def slack_openid
-      outcome = SlackAuthenticationService.new.handle_openid_signin(
-        auth_hash,
-        pending_invitation_id: session[:pending_invitation_id]
-      )
+      outcome = SlackAuthenticationService.new.handle_openid_signin(auth_hash)
       apply_outcome(outcome)
     rescue => e
       log_auth_failure(:slack_openid_failed, e)
@@ -56,9 +54,8 @@ module Auth
 
     # Maps an AuthOutcome to the right HTTP response. Keeps actions thin.
     def apply_outcome(outcome)
-      return sign_in_and_redirect(outcome)        if outcome.signed_in?
-      return start_install_and_redirect(outcome)  if outcome.install_needed?
-      return redirect_needs_invite(outcome)        if outcome.invite_needed?
+      return sign_in_and_redirect(outcome)       if outcome.signed_in?
+      return start_install_and_redirect(outcome) if outcome.install_needed?
 
       raise "Unhandled auth outcome: #{outcome.inspect}"
     end
@@ -78,13 +75,8 @@ module Auth
       redirect_to onboarding_install_path
     end
 
-    def redirect_needs_invite(outcome)
-      clear_pending_session_keys
-      redirect_to onboarding_needs_invite_path(team: outcome.team_name)
-    end
-
     def clear_pending_session_keys
-      %i[pending_user_id pending_team_id pending_team_name pending_invitation_id].each do |key|
+      %i[pending_user_id pending_team_id pending_team_name].each do |key|
         session.delete(key)
       end
     end

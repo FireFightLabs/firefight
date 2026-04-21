@@ -17,10 +17,11 @@ Rails.application.config.middleware.use OmniAuth::Builder do
   # Step 2 — bot install. Only triggered when a user without an existing
   # workspace explicitly chooses to install Firefight. The team_id is read
   # from session (set by the OIDC handler) so the picker is skipped.
+  # Only bot scopes are requested here — user identity was already established
+  # by the :slack_openid provider in step 1.
   provider :slack, slack_client_id, slack_client_secret,
-    scope:      slack_scopes[:bot_scope],
-    user_scope: slack_scopes[:user_scope],
-    setup:      ->(env) {
+    scope: slack_scopes[:bot_scope],
+    setup: ->(env) {
       pending_team_id = env["rack.session"]&.dig("pending_team_id") || env["rack.session"]&.dig(:pending_team_id)
       env["omniauth.strategy"].options[:authorize_params] = { team: pending_team_id } if pending_team_id.present?
     }

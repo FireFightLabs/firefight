@@ -1,0 +1,88 @@
+require "test_helper"
+
+class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
+  fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships
+
+  setup do
+    @workspace = workspaces(:slack_workspace_one)
+    @adapter   = mock("adapter")
+  end
+
+  test "returns existing membership without hitting the adapter" do
+    existing = workspace_memberships(:alice_workspace_one)
+
+    @adapter.expects(:get_user_info).never
+
+    membership = WorkspaceMemberProvisioner.find_or_provision!(
+      workspace: @workspace,
+      platform_user_id: existing.platform_user_id,
+      adapter: @adapter
+    )
+
+    assert_equal existing.id, membership.id
+  end
+
+  test "provisions a member via adapter.get_user_info when no membership exists" do
+    @adapter.expects(:get_user_info).with(user_id: "U_ADAPTER_PATH").returns(
+      {
+        user: {
+          profile: {
+            real_name: "Real Name",
+            email: "real@example.com",
+            image_192: "https://example.com/avatar.jpg"
+          }
+        }
+      }
+    )
+
+    assert_difference -> { @workspace.workspace_memberships.count }, 1 do
+      membership = WorkspaceMemberProvisioner.find_or_provision!(
+        workspace: @workspace,
+        platform_user_id: "U_ADAPTER_PATH",
+        adapter: @adapter
+      )
+
+      assert_equal "U_ADAPTER_PATH", membership.platform_user_id
+      assert_equal "member", membership.role
+      assert_equal "real@example.com", membership.user.email
+      assert_equal "Real Name", membership.user.name
+    end
+  end
+
+  test "skips adapter when user_profile is provided (OIDC path)" do
+    @adapter.expects(:get_user_info).never
+
+    profile = OmniAuth::AuthHash::InfoHash.new(
+      name: "Skip Adapter",
+      email: "oidc@example.com",
+      image: "https://example.com/oidc.jpg"
+    )
+
+    assert_difference -> { @workspace.workspace_memberships.count }, 1 do
+      membership = WorkspaceMemberProvisioner.find_or_provision!(
+        workspace: @workspace,
+        platform_user_id: "U_OIDC_PATH",
+        adapter: @adapter,
+        user_profile: profile
+      )
+
+      assert_equal "oidc@example.com", membership.user.email
+      assert_equal "Skip Adapter", membership.user.name
+      assert_equal "U_OIDC_PATH", membership.platform_user_id
+    end
+  end
+
+  test "returns nil on AdapterError" do
+    @adapter.expects(:get_user_info).raises(AdapterError.new("boom"))
+
+    assert_no_difference -> { @workspace.workspace_memberships.count } do
+      result = WorkspaceMemberProvisioner.find_or_provision!(
+        workspace: @workspace,
+        platform_user_id: "U_ERROR",
+        adapter: @adapter
+      )
+
+      assert_nil result
+    end
+  end
+end

@@ -2,10 +2,14 @@
 # controller should do next. Decision logic lives here; HTTP concerns stay in
 # the controller; state changes happen on the models.
 class SlackAuthenticationService
-  # OIDC sign-in (identity only). Decides between signed_in / install_needed /
-  # invite_needed based on workspace existence, membership, and pending invites.
-  def handle_openid_signin(auth_hash, pending_invitation_id: nil)
-    email     = auth_hash.info.email
+  # OIDC sign-in (identity only). Two outcomes:
+  #   - install_needed: no workspace for this team yet, kick off install.
+  #   - signed_in:      workspace exists; return or create the membership.
+  #
+  # Provisioning is always allowed for existing workspaces — Slack is the source
+  # of truth. Installation is the admin gate; anyone who uses Firefight in a
+  # workspace that has it installed gets a membership.
+  def handle_openid_signin(auth_hash)
     team_id   = auth_hash.info.team_id
     team_name = auth_hash.info.team_name
 
@@ -17,17 +21,14 @@ class SlackAuthenticationService
     membership = workspace.workspace_memberships.find_by(user: user)
     return AuthOutcome.signed_in(membership: membership, message: "Welcome back to Firefight.") if membership
 
-    if (invitation = active_invitation_for(pending_invitation_id, workspace, email))
-      membership = invitation.consume!(user: user, auth_hash: auth_hash)
-      return AuthOutcome.signed_in(membership: membership, message: "You're in. Welcome to #{workspace.name}.")
-    end
-
-    if workspace.allow_auto_provision?
-      membership = workspace.auto_provision_member!(user: user, auth_hash: auth_hash)
-      return AuthOutcome.signed_in(membership: membership, message: "Welcome to #{workspace.name}.")
-    end
-
-    AuthOutcome.invite_needed(team_name: team_name)
+    membership = WorkspaceMemberProvisioner.find_or_provision!(
+      workspace:        workspace,
+      platform_user_id: auth_hash.uid,
+      adapter:          workspace.adapter,
+      user:             user,
+      user_profile:     auth_hash.info
+    )
+    AuthOutcome.signed_in(membership: membership, message: "Welcome to #{workspace.name}.")
   end
 
   # Bot install callback. Wraps the existing workspace install flow and returns
@@ -56,12 +57,6 @@ class SlackAuthenticationService
   end
 
   private
-
-  def active_invitation_for(id, workspace, email)
-    return nil unless id
-    invite = Invitation.active.find_by(id: id, workspace: workspace)
-    invite if invite&.email&.casecmp?(email)
-  end
 
   def trigger_workspace_setup(workspace, installer_user_id)
     Rails.logger.info({

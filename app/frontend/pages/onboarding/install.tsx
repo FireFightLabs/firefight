@@ -54,7 +54,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       {
         name: "email",
         explanation:
-          "Provides the user's email address for account linking, invitations, and membership checks.",
+          "Provides the user's email address for account linking and membership checks.",
       },
       {
         name: "users:read",

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_16_120001) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_21_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -472,21 +472,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_16_120001) do
     t.index ["workspace_id"], name: "index_incidents_on_workspace_id"
   end
 
-  create_table "invitations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "email", null: false
-    t.datetime "expires_at", null: false
-    t.uuid "invited_by_id", null: false
-    t.datetime "redeemed_at"
-    t.uuid "redeemed_by_id"
-    t.datetime "updated_at", null: false
-    t.uuid "workspace_id", null: false
-    t.index ["invited_by_id"], name: "index_invitations_on_invited_by_id"
-    t.index ["redeemed_by_id"], name: "index_invitations_on_redeemed_by_id"
-    t.index ["workspace_id", "email"], name: "index_invitations_on_workspace_id_and_email"
-    t.index ["workspace_id"], name: "index_invitations_on_workspace_id"
-  end
-
   create_table "postmortem_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "changed_sections", default: [], null: false
     t.jsonb "content", default: {}, null: false
@@ -917,7 +902,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_16_120001) do
 
   create_table "workspaces", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "access_token"
-    t.boolean "allow_auto_provision", default: false, null: false
     t.integer "archive_channel_delay_minutes", default: 60, null: false
     t.boolean "archive_channel_enabled", default: true, null: false
     t.string "avatar_url"
@@ -991,9 +975,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_16_120001) do
   add_foreign_key "incidents", "incident_types"
   add_foreign_key "incidents", "workspace_memberships", column: "declared_by_id"
   add_foreign_key "incidents", "workspaces"
-  add_foreign_key "invitations", "workspace_memberships", column: "invited_by_id"
-  add_foreign_key "invitations", "workspace_memberships", column: "redeemed_by_id"
-  add_foreign_key "invitations", "workspaces"
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortem_updates", "workspace_memberships", column: "edited_by_id"

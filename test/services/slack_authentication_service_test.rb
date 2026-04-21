@@ -171,7 +171,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     end
   end
 
-  # handle_openid_signin — five outcomes
+  # handle_openid_signin — three outcomes
 
   test "handle_openid_signin returns install_needed when workspace doesn't exist" do
     auth_hash = mock_slack_openid_auth_hash(
@@ -202,84 +202,22 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     assert_equal "Welcome back to Firefight.", outcome.message
   end
 
-  test "handle_openid_signin returns invite_needed when no membership, no invite, no auto-provision" do
+  test "handle_openid_signin auto-provisions when workspace exists but user has no membership" do
     workspace = workspaces(:slack_workspace_one)
     auth_hash = mock_slack_openid_auth_hash(
-      info: { email: "stranger@example.com", team_id: workspace.platform_id, team_name: workspace.name }
-    )
-
-    outcome = @service.handle_openid_signin(auth_hash)
-
-    assert outcome.invite_needed?
-    assert_equal workspace.name, outcome.team_name
-  end
-
-  test "handle_openid_signin auto-provisions when allow_auto_provision is true" do
-    workspace = workspaces(:slack_workspace_one)
-    workspace.update!(allow_auto_provision: true)
-    auth_hash = mock_slack_openid_auth_hash(
-      uid: "U_AUTO_PROVISION",
-      info: { email: "autoprov@example.com", team_id: workspace.platform_id, team_name: workspace.name }
+      uid: "U_NEW_MEMBER",
+      info: { email: "newbie@example.com", team_id: workspace.platform_id, team_name: workspace.name }
     )
 
     assert_difference -> { workspace.workspace_memberships.count }, 1 do
       outcome = @service.handle_openid_signin(auth_hash)
+
       assert outcome.signed_in?
-      assert_equal "autoprov@example.com", outcome.membership.user.email
-      assert_equal "U_AUTO_PROVISION", outcome.membership.platform_user_id
+      assert_equal "newbie@example.com", outcome.membership.user.email
+      assert_equal "U_NEW_MEMBER", outcome.membership.platform_user_id
+      assert_equal "member", outcome.membership.role
+      assert_equal "Welcome to #{workspace.name}.", outcome.message
     end
-  end
-
-  test "handle_openid_signin consumes pending invitation" do
-    workspace = workspaces(:slack_workspace_one)
-    inviter   = workspace_memberships(:alice_workspace_one)
-    invitation = Invitation.create!(workspace: workspace, invited_by: inviter, email: "invitee@example.com")
-
-    auth_hash = mock_slack_openid_auth_hash(
-      uid: "U_INVITEE",
-      info: { email: "invitee@example.com", team_id: workspace.platform_id, team_name: workspace.name }
-    )
-
-    outcome = @service.handle_openid_signin(auth_hash, pending_invitation_id: invitation.id)
-
-    assert outcome.signed_in?
-    invitation.reload
-    assert invitation.redeemed_at.present?
-    assert_equal outcome.membership.id, invitation.redeemed_by_id
-    assert_equal "invitee@example.com", outcome.membership.user.email
-  end
-
-  test "handle_openid_signin ignores invitation for a different workspace" do
-    workspace_one = workspaces(:slack_workspace_one)
-    workspace_two = workspaces(:slack_workspace_two)
-    inviter_two   = workspace_memberships(:alice_workspace_two)
-    invitation    = Invitation.create!(workspace: workspace_two, invited_by: inviter_two, email: "crosswire@example.com")
-
-    auth_hash = mock_slack_openid_auth_hash(
-      info: { email: "crosswire@example.com", team_id: workspace_one.platform_id, team_name: workspace_one.name }
-    )
-
-    outcome = @service.handle_openid_signin(auth_hash, pending_invitation_id: invitation.id)
-
-    assert outcome.invite_needed?
-    invitation.reload
-    assert_nil invitation.redeemed_at
-  end
-
-  test "handle_openid_signin ignores invitation when email doesn't match" do
-    workspace = workspaces(:slack_workspace_one)
-    inviter   = workspace_memberships(:alice_workspace_one)
-    invitation = Invitation.create!(workspace: workspace, invited_by: inviter, email: "intended@example.com")
-
-    auth_hash = mock_slack_openid_auth_hash(
-      info: { email: "different@example.com", team_id: workspace.platform_id, team_name: workspace.name }
-    )
-
-    outcome = @service.handle_openid_signin(auth_hash, pending_invitation_id: invitation.id)
-
-    assert outcome.invite_needed?
-    invitation.reload
-    assert_nil invitation.redeemed_at
   end
 
   # handle_install — wraps install path in AuthOutcome

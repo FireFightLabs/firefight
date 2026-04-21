@@ -1,6 +1,6 @@
-# Renders the two interstitial pages between OIDC sign-in and dashboard:
-#   - install: workspace doesn't exist, user can choose to install Firefight
-#   - needs_invite: workspace exists, user isn't a member, no pending invite
+# Interstitial pages between OIDC sign-in and dashboard:
+#   - install: workspace doesn't exist for this team, user can choose to install Firefight
+#   - welcome: first-install confirmation (letter from founder)
 class OnboardingController < InertiaController
   def install
     # Pulled from session by the OIDC handler; if missing, drop to login.
@@ -14,17 +14,10 @@ class OnboardingController < InertiaController
 
   def welcome
     return redirect_to(login_path) unless user_signed_in?
-    # return redirect_to(dashboard_path) unless session.delete(:show_welcome_note)
 
     render inertia: "onboarding/welcome", props: {
       userName: current_user.name,
       workspaceName: current_workspace.name
-    }
-  end
-
-  def needs_invite
-    render inertia: "onboarding/needs_invite", props: {
-      teamName: params[:team]
     }
   end
 end
