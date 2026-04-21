@@ -20,7 +20,13 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     get "/auth/slack_openid/callback"
     assert_redirected_to onboarding_install_path
 
-    get onboarding_install_path
+    # Inertia headers skip the HTML layout (which would require the Vite
+    # manifest to be built in CI) and return JSON props directly. Version must
+    # match or Inertia returns 409 Conflict.
+    get onboarding_install_path, headers: {
+      "X-Inertia" => "true",
+      "X-Inertia-Version" => InertiaRails.configuration.version
+    }
 
     assert_response :success
     assert_match "Install Co", response.body
