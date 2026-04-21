@@ -18,7 +18,7 @@ Rails.application.config.middleware.use OmniAuth::Builder do
   # workspace explicitly chooses to install Firefight. The team_id is read
   # from session (set by the OIDC handler) so the picker is skipped.
   provider :slack, slack_client_id, slack_client_secret,
-    scope:      slack_scopes[:scope],
+    scope:      slack_scopes[:bot_scope],
     user_scope: slack_scopes[:user_scope],
     setup:      ->(env) {
       pending_team_id = env["rack.session"]&.dig("pending_team_id") || env["rack.session"]&.dig(:pending_team_id)

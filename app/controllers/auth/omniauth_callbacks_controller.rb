@@ -57,8 +57,9 @@ module Auth
     def sign_in_and_redirect(outcome)
       session[:user_id]      = outcome.membership.user_id
       session[:workspace_id] = outcome.membership.workspace_id
+      session[:show_welcome_note] = true if outcome.first_install?
       clear_pending_session_keys
-      redirect_to dashboard_path, notice: outcome.message
+      redirect_to(outcome.first_install? ? onboarding_welcome_path : dashboard_path, notice: outcome.message)
     end
 
     def start_install_and_redirect(outcome)

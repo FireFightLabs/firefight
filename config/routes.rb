@@ -37,6 +37,7 @@ Rails.application.routes.draw do
 
   # Onboarding pages between OIDC sign-in and dashboard access
   get "/onboarding/install",      to: "onboarding#install",      as: :onboarding_install
+  get "/onboarding/welcome",      to: "onboarding#welcome",      as: :onboarding_welcome
   get "/onboarding/needs_invite", to: "onboarding#needs_invite", as: :onboarding_needs_invite
 
   # Authenticated application routes

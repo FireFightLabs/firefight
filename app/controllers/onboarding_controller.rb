@@ -12,6 +12,16 @@ class OnboardingController < InertiaController
     }
   end
 
+  def welcome
+    return redirect_to(login_path) unless user_signed_in?
+    return redirect_to(dashboard_path) unless session.delete(:show_welcome_note)
+
+    render inertia: "onboarding/welcome", props: {
+      userName: current_user.name,
+      workspaceName: current_workspace.name
+    }
+  end
+
   def needs_invite
     render inertia: "onboarding/needs_invite", props: {
       teamName: params[:team]

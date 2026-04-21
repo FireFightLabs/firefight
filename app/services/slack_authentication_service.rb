@@ -38,7 +38,11 @@ class SlackAuthenticationService
     trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]
 
     message = result[:first_install] ? "Setting up your Firefight workspace..." : "Signed in."
-    AuthOutcome.signed_in(membership: result[:membership], message: message)
+    AuthOutcome.signed_in(
+      membership: result[:membership],
+      message: message,
+      first_install: result[:first_install]
+    )
   end
 
   # Kept for backward compatibility — older callers still expect a Hash.

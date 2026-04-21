@@ -1,5 +1,14 @@
 import { Head, usePage } from "@inertiajs/react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
 interface InstallPageProps {
   [key: string]: unknown;
   teamName: string;
@@ -14,7 +23,19 @@ const PERMISSIONS = [
   "Add emoji reactions and pin key messages",
 ];
 
-const PERMISSION_GROUPS = [
+type Scope = {
+  name: string;
+  explanation: string;
+  boundary?: string;
+};
+
+type PermissionGroup = {
+  title: string;
+  description: string;
+  scopes: Scope[];
+};
+
+const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     title: "Sign-in and workspace identity",
     description:
@@ -44,6 +65,7 @@ const PERMISSION_GROUPS = [
         name: "users:read.email",
         explanation:
           "Lets Firefight match Slack identities to Firefight accounts by email during sign-in and onboarding.",
+        boundary: "Used only for account linking, not for marketing.",
       },
       {
         name: "team:read",
@@ -81,6 +103,7 @@ const PERMISSION_GROUPS = [
         name: "channels:manage",
         explanation:
           "Lets Firefight create and manage public incident channels during incident setup.",
+        boundary: "Only for public incident channels Firefight creates.",
       },
       {
         name: "channels:join",
@@ -96,6 +119,7 @@ const PERMISSION_GROUPS = [
         name: "groups:write",
         explanation:
           "Lets Firefight create and manage private incident channels when a workspace wants private response spaces.",
+        boundary: "Only for private incident channels Firefight creates.",
       },
       {
         name: "app_mentions:read",
@@ -112,12 +136,14 @@ const PERMISSION_GROUPS = [
       {
         name: "channels:history",
         explanation:
-          "Lets Firefight read message history in public incident channels so it can build timelines and capture key updates.",
+          "Lets Firefight read message history to build timelines and capture key updates.",
+        boundary: "Only in public incident channels Firefight is invited to.",
       },
       {
         name: "groups:history",
         explanation:
-          "Lets Firefight read message history in private incident channels for the same timeline and update workflows.",
+          "Lets Firefight read message history for the same timeline and update workflows.",
+        boundary: "Only in private incident channels Firefight is invited to.",
       },
       {
         name: "files:read",
@@ -154,6 +180,11 @@ const PERMISSION_GROUPS = [
     ],
   },
 ];
+
+const TOTAL_SCOPES = PERMISSION_GROUPS.reduce(
+  (sum, group) => sum + group.scopes.length,
+  0,
+);
 
 export default function Install() {
   const { teamName } = usePage<InstallPageProps>().props;
@@ -202,63 +233,102 @@ export default function Install() {
                 Add Firefight to Slack
               </a>
 
-              <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">
+              <PermissionsDialog />
+
+              <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
                 You'll need to be a Slack workspace admin to complete the
                 install.
               </p>
-
-              <details className="mt-6 rounded-lg border border-border bg-background/70 p-4 text-left">
-                <summary className="cursor-pointer list-none text-sm font-medium text-foreground marker:hidden">
-                  <span className="inline-flex items-center gap-2">
-                    <Chevron className="size-4 text-muted-foreground" />
-                    Why these permissions are needed
-                  </span>
-                </summary>
-
-                <div className="mt-4 space-y-5">
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    Firefight requests Slack permissions so it can create and run
-                    incident workflows inside your workspace. Below is each
-                    scope we request and how it is used.
-                  </p>
-
-                  {PERMISSION_GROUPS.map((group) => (
-                    <section key={group.title} className="space-y-3">
-                      <div className="space-y-1">
-                        <h2 className="text-sm font-medium text-foreground">
-                          {group.title}
-                        </h2>
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                          {group.description}
-                        </p>
-                      </div>
-
-                      <ul className="space-y-2">
-                        {group.scopes.map((scope) => (
-                          <li
-                            key={scope.name}
-                            className="rounded-md border border-border/80 bg-card px-3 py-2"
-                          >
-                            <div className="text-xs font-medium text-foreground">
-                              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.75rem]">
-                                {scope.name}
-                              </code>
-                            </div>
-                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                              {scope.explanation}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  ))}
-                </div>
-              </details>
             </div>
           </div>
         </main>
       </div>
     </>
+  );
+}
+
+function PermissionsDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+        >
+          See all {TOTAL_SCOPES} permissions
+          <span aria-hidden="true" className="translate-y-[-0.5px]">
+            →
+          </span>
+        </button>
+      </DialogTrigger>
+
+      <DialogContent
+        style={{
+          maxWidth: "560px",
+          maxHeight: "min(85vh, 720px)",
+          display: "grid",
+          gridTemplateRows: "auto minmax(0, 1fr)",
+        }}
+        className="w-[calc(100vw-2rem)] gap-0 overflow-hidden border-border/70 bg-card p-0 shadow-[0_24px_60px_-24px_rgba(10,30,46,0.22),0_8px_20px_-8px_rgba(10,30,46,0.08)]"
+      >
+        <DialogHeader className="space-y-1.5 border-b border-border/60 px-6 pt-6 pb-5 sm:text-left">
+          <DialogTitle className="text-[1.0625rem] font-medium tracking-[-0.01em] text-foreground">
+            Permissions Firefight needs
+          </DialogTitle>
+          <DialogDescription className="text-[13px] leading-relaxed text-muted-foreground">
+            Slack groups these OAuth scopes by what they let Firefight do in
+            your workspace.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="overflow-y-auto overscroll-contain">
+          <div className="px-6 pt-7 pb-7">
+            {PERMISSION_GROUPS.map((group) => (
+              <section
+                key={group.title}
+                className="border-t border-border/50 pt-8 first:border-t-0 first:pt-0"
+              >
+                <div className="mb-5">
+                  <p className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/65 tabular-nums">
+                    {group.scopes.length} scope
+                    {group.scopes.length === 1 ? "" : "s"}
+                  </p>
+                  <h3 className="mt-2 text-[15px] font-semibold tracking-[-0.015em] text-foreground">
+                    {group.title}
+                  </h3>
+                  <p className="mt-2 text-[13px] leading-[1.6] text-muted-foreground">
+                    {group.description}
+                  </p>
+                </div>
+
+                <dl className="space-y-5 pb-2">
+                  {group.scopes.map((scope) => (
+                    <div key={scope.name} className="space-y-[7px]">
+                      <dt>
+                        <code className="inline-block rounded-[4px] bg-foreground/[0.05] px-[7px] py-[3px] font-mono text-[11.5px] font-semibold leading-none tracking-[-0.01em] text-foreground">
+                          {scope.name}
+                        </code>
+                      </dt>
+                      <dd className="text-[13px] leading-[1.55] text-foreground/85">
+                        {scope.explanation}
+                        {scope.boundary ? (
+                          <>
+                            {" "}
+                            <span className="italic text-foreground/55">
+                              {scope.boundary}
+                            </span>
+                          </>
+                        ) : null}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -275,23 +345,6 @@ function Checkmark({ className }: { className?: string }) {
       aria-hidden="true"
     >
       <path d="M3 8l3.5 3.5L13 5" />
-    </svg>
-  );
-}
-
-function Chevron({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M3.5 6 8 10.5 12.5 6" />
     </svg>
   );
 }
