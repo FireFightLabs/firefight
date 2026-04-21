@@ -58,6 +58,42 @@ module OmniauthTestHelper
     OmniAuth::AuthHash.new(merged)
   end
 
+  # Create a mock Slack OIDC auth hash (different shape than OAuth v2:
+  # uid is `sub`, no nested authed_user, custom claims for team).
+  def mock_slack_openid_auth_hash(overrides = {})
+    team_id = overrides.dig(:info, :team_id) || "T#{SecureRandom.hex(8)}"
+
+    defaults = {
+      provider: "slack_openid",
+      uid: "U12345678",
+      info: {
+        name: "Test User",
+        email: "test@example.com",
+        image: "https://example.com/avatar.jpg",
+        team_id: team_id,
+        team_name: "Test Workspace"
+      },
+      credentials: {
+        token: "ya29.test-id-token",
+        refresh_token: nil,
+        expires_at: nil,
+        expires: false
+      },
+      extra: {
+        raw_info: {
+          "sub" => "U12345678",
+          "name" => "Test User",
+          "email" => "test@example.com",
+          "picture" => "https://example.com/avatar.jpg",
+          "https://slack.com/team_id" => team_id,
+          "https://slack.com/team_name" => "Test Workspace"
+        }
+      }
+    }
+
+    OmniAuth::AuthHash.new(deep_merge_hashes(defaults, overrides))
+  end
+
   # Create a mock Slack interaction payload
   #
   # @param type [String] Interaction type (block_actions, view_submission, etc.)

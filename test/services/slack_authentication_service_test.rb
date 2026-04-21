@@ -2,7 +2,7 @@ require "test_helper"
 require "ostruct"
 
 class SlackAuthenticationServiceTest < ActiveSupport::TestCase
-  fixtures :incident_lifecycle_stages
+  fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships
 
   setup do
     @service = SlackAuthenticationService.new
@@ -169,5 +169,90 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     ensure
       Rails.logger = original_logger
     end
+  end
+
+  # handle_openid_signin — three outcomes
+
+  test "handle_openid_signin returns install_needed when workspace doesn't exist" do
+    auth_hash = mock_slack_openid_auth_hash(
+      info: { email: "newuser@example.com", team_id: "T_DOES_NOT_EXIST", team_name: "Brand New Co" }
+    )
+
+    outcome = @service.handle_openid_signin(auth_hash)
+
+    assert outcome.install_needed?
+    assert_equal "T_DOES_NOT_EXIST", outcome.team_id
+    assert_equal "Brand New Co", outcome.team_name
+    assert outcome.user.persisted?
+    assert_equal "newuser@example.com", outcome.user.email
+  end
+
+  test "handle_openid_signin signs in existing member" do
+    workspace = workspaces(:slack_workspace_one)
+    alice = users(:alice)
+    auth_hash = mock_slack_openid_auth_hash(
+      uid: "U12345678",
+      info: { email: alice.email, team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    outcome = @service.handle_openid_signin(auth_hash)
+
+    assert outcome.signed_in?
+    assert_equal workspace_memberships(:alice_workspace_one).id, outcome.membership.id
+    assert_equal "Welcome back to Firefight.", outcome.message
+  end
+
+  test "handle_openid_signin auto-provisions when workspace exists but user has no membership" do
+    workspace = workspaces(:slack_workspace_one)
+    auth_hash = mock_slack_openid_auth_hash(
+      uid: "U_NEW_MEMBER",
+      info: { email: "newbie@example.com", team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    assert_difference -> { workspace.workspace_memberships.count }, 1 do
+      outcome = @service.handle_openid_signin(auth_hash)
+
+      assert outcome.signed_in?
+      assert_equal "newbie@example.com", outcome.membership.user.email
+      assert_equal "U_NEW_MEMBER", outcome.membership.platform_user_id
+      assert_equal "member", outcome.membership.role
+      assert_equal "Welcome to #{workspace.name}.", outcome.message
+    end
+  end
+
+  # handle_install — wraps install path in AuthOutcome
+
+  test "handle_install returns signed_in outcome and triggers setup on first install" do
+    stub_successful_slack_workflow
+    SlackWorkspaceSetupWorkflow.expects(:start!).once.returns(OpenStruct.new(id: "wf-1", status: "running"))
+
+    outcome = @service.handle_install(@auth_hash)
+
+    assert outcome.signed_in?
+    assert outcome.membership.persisted?
+    assert_equal "Setting up your Firefight workspace...", outcome.message
+  end
+
+  test "handle_install returns signed_in outcome without triggering setup on reinstall" do
+    team_id = "T#{SecureRandom.hex(8)}"
+    Workspace.create!(
+      platform: "slack",
+      platform_id: team_id,
+      name: "Test Workspace",
+      access_token: "existing-token",
+      installed_at: Time.current,
+      incidents_channel_id: "C12345678"
+    )
+
+    SlackWorkspaceSetupWorkflow.expects(:start!).never
+
+    auth_hash = mock_slack_auth_hash(
+      extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
+    )
+
+    outcome = @service.handle_install(auth_hash)
+
+    assert outcome.signed_in?
+    assert_equal "Signed in.", outcome.message
   end
 end
