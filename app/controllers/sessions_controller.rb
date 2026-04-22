@@ -6,12 +6,15 @@ class SessionsController < InertiaController
       return
     end
 
-    render inertia: "auth/login"
+    render inertia: "auth/login", props: {
+      inviteCodeClaimed: claimed_invite_code.present?
+    }
   end
 
   def destroy
     session.delete(:user_id)
     session.delete(:workspace_id)
+    session.delete(:invite_code_id)
     redirect_to root_path, notice: "Signed out successfully"
   end
 end

@@ -6,7 +6,7 @@ module Auth
     # next via AuthOutcome: signed_in (existing or newly-provisioned member) or
     # install_needed (no workspace for this team yet).
     def slack_openid
-      outcome = SlackAuthenticationService.new.handle_openid_signin(auth_hash)
+      outcome = SlackAuthenticationService.new.handle_openid_signin(auth_hash, invite_code: claimed_invite_code)
       apply_outcome(outcome)
     rescue => e
       log_auth_failure(:slack_openid_failed, e)
@@ -19,7 +19,7 @@ module Auth
     # callback doesn't re-derive identity from the bot install's auth_hash
     # (whose user_info / email fetch is brittle and not required here).
     def slack
-      outcome = SlackAuthenticationService.new.handle_install(auth_hash, user: pending_user)
+      outcome = SlackAuthenticationService.new.handle_install(auth_hash, user: pending_user, invite_code: claimed_invite_code)
       apply_outcome(outcome)
     rescue => e
       log_auth_failure(:slack_install_failed, e)
@@ -56,6 +56,7 @@ module Auth
     def apply_outcome(outcome)
       return sign_in_and_redirect(outcome)       if outcome.signed_in?
       return start_install_and_redirect(outcome) if outcome.install_needed?
+      return invite_required_and_redirect(outcome) if outcome.invite_required?
 
       raise "Unhandled auth outcome: #{outcome.inspect}"
     end
@@ -64,6 +65,8 @@ module Auth
       session[:user_id]      = outcome.membership.user_id
       session[:workspace_id] = outcome.membership.workspace_id
       session[:show_welcome_note] = true if outcome.first_install?
+      # Existing members do not consume invite capacity, but any stale claim
+      # should still be cleared once sign-in succeeds.
       clear_pending_session_keys
       redirect_to(outcome.first_install? ? onboarding_welcome_path : dashboard_path, notice: outcome.message)
     end
@@ -76,9 +79,14 @@ module Auth
     end
 
     def clear_pending_session_keys
-      %i[pending_user_id pending_team_id pending_team_name].each do |key|
+      %i[pending_user_id pending_team_id pending_team_name invite_code_id].each do |key|
         session.delete(key)
       end
+    end
+
+    def invite_required_and_redirect(outcome)
+      clear_pending_session_keys
+      redirect_to login_path, alert: outcome.message
     end
 
     def log_auth_failure(event, error)

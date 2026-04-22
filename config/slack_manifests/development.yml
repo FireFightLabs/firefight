@@ -6,7 +6,7 @@ display_information:
 features:
   bot_user:
     display_name: Firefight Bot
-    always_online: false
+    always_online: true
   slash_commands:
     - command: /firefight
       url: https://ff.bugrewind.com/api/v1/commands

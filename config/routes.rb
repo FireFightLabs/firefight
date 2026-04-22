@@ -26,6 +26,7 @@ Rails.application.routes.draw do
   root to: "sessions#new"
   get "/login", to: "sessions#new", as: :login
   delete "/logout", to: "sessions#destroy", as: :logout
+  post "/invite-code/claim", to: "invite_codes#create", as: :claim_invite_code
 
   # OmniAuth callbacks — explicit per-strategy so each maps to its own action.
   get "/auth/slack_openid/callback", to: "auth/omniauth_callbacks#slack_openid", as: :slack_openid_callback

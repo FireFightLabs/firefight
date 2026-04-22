@@ -1,12 +1,13 @@
 display_information:
   name: Firefight
-  description: Firefight - Workspace management and collaboration
+  description: Declare, run, and resolve incidents without leaving Slack
+  long_description: Firefight is an incident management platform built for Slack-first teams. Declare an incident with /firefight, and a dedicated channel is created with the right responders, severity, and lifecycle tracking. Updates, lead assignments, and status changes are captured as a timeline automatically — no copy-pasting into a separate tool. When the incident resolves, Firefight generates a postmortem draft from the channel transcript so you can review what happened instead of reconstructing it. Integrations let you page specific teams in their own channels, receive alerts from observability tools, and sync with your on-call rotation. Designed for engineering, platform, and SRE teams who want rigorous incident response without leaving the tools they already use.
   background_color: "#000000"
 
 features:
   bot_user:
     display_name: Firefight
-    always_online: false
+    always_online: true
   slash_commands:
     - command: /firefight
       url: https://slack.firefight.app/api/v1/commands
@@ -37,6 +38,7 @@ oauth_config:
       - team:read # Get workspace info (name, domain) during installation
       - commands # Enable slash commands (/firefight, /ff)
       - chat:write # Post messages to channels (welcome, incident announcements)
+      - chat:write.public # Post to public channels without being a member (for sharing)
       - im:write # Send DMs to users (for sharing via DM)
       - channels:manage # Create public channels on installation
       - channels:join # Bot can join channels it creates
