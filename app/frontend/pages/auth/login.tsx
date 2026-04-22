@@ -1,25 +1,14 @@
-import { Head, useForm, usePage } from "@inertiajs/react";
-import type { FormEvent } from "react";
+import { Head, usePage } from "@inertiajs/react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { SlackAuthButton } from "@/modules/auth/components/slack-auth-button";
 import type { SharedProps } from "@/types";
 
 interface LoginPageProps extends SharedProps {
   [key: string]: unknown;
-  inviteCodeClaimed: boolean;
 }
 
 export default function Login() {
-  const { flash, inviteCodeClaimed } = usePage<LoginPageProps>().props;
-  const form = useForm({ code: "" });
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    form.post("/invite-code/claim");
-  };
+  const { flash } = usePage<LoginPageProps>().props;
 
   return (
     <>
@@ -41,18 +30,8 @@ export default function Login() {
                   Sign in
                 </h1>
                 <p className="mx-auto max-w-[32ch] text-[0.9375rem] leading-relaxed text-muted-foreground">
-                  Firefight is in public beta. New workspace access currently
-                  requires an invite code before first sign-in.
-                </p>
-              </div>
-
-              <div className="mb-6 rounded-lg border border-border/80 bg-muted/30 p-4 text-left">
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  Public beta
-                </p>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Existing members can sign in normally. Everyone else needs an
-                  invite code before Slack can create or join a workspace.
+                  Connect your Slack workspace to get started. We&apos;ll walk
+                  you through setup on first sign-in.
                 </p>
               </div>
 
@@ -66,32 +45,6 @@ export default function Login() {
                 <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-left text-sm text-destructive">
                   {flash.alert}
                 </div>
-              ) : null}
-
-              <form className="mb-6 space-y-3 text-left" onSubmit={submit}>
-                <div className="space-y-2">
-                  <Label htmlFor="invite-code">Invite code</Label>
-                  <Input
-                    id="invite-code"
-                    name="code"
-                    value={form.data.code}
-                    onChange={(event) => form.setData("code", event.target.value)}
-                    placeholder="Enter your invite code"
-                    autoCapitalize="characters"
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                </div>
-
-                <Button type="submit" className="w-full" disabled={form.processing}>
-                  {inviteCodeClaimed ? "Replace invite code" : "Claim invite code"}
-                </Button>
-              </form>
-
-              {inviteCodeClaimed ? (
-                <p className="mb-6 text-sm leading-relaxed text-foreground">
-                  Invite code claimed. Continue with Slack when you're ready.
-                </p>
               ) : null}
 
               <SlackAuthButton />

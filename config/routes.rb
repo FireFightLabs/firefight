@@ -34,6 +34,7 @@ Rails.application.routes.draw do
   get "/auth/failure",               to: "auth/omniauth_callbacks#failure"
 
   # Onboarding pages between OIDC sign-in and dashboard access
+  get "/onboarding/invite-code", to: "onboarding#invite_code", as: :onboarding_invite_code
   get "/onboarding/install", to: "onboarding#install", as: :onboarding_install
   get "/onboarding/welcome", to: "onboarding#welcome", as: :onboarding_welcome
 

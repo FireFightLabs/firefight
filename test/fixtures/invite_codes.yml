@@ -2,6 +2,10 @@ active_public_beta_code:
   id: dddddddd-dddd-dddd-dddd-dddddddddddd
   code_digest: <%= InviteCode.digest_code("BETA-ACCESS") %>
 
+second_active_public_beta_code:
+  id: cccccccc-cccc-cccc-cccc-cccccccccccc
+  code_digest: <%= InviteCode.digest_code("EARLY-ACCESS") %>
+
 expired_public_beta_code:
   id: eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee
   code_digest: <%= InviteCode.digest_code("EXPIRED-BETA") %>

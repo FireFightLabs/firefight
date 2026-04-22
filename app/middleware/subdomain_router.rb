@@ -5,7 +5,7 @@ class SubdomainRouter
   # Includes Rails engine mounts (Active Storage, Action Mailbox), Vite assets,
   # and the dashboard routes themselves.
   APP_EXACT    = %w[/ /login /logout].freeze
-  APP_PREFIXES = %w[/app /auth /rails /vite].freeze
+  APP_PREFIXES = %w[/app /auth /rails /vite /invite-code /onboarding].freeze
 
   # Slack webhook paths — must ONLY be callable from slack.firefight.app.
   SLACK_EXACT = %w[/api/v1/commands /api/v1/events /api/v1/interactions].freeze

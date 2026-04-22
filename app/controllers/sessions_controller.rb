@@ -6,9 +6,7 @@ class SessionsController < InertiaController
       return
     end
 
-    render inertia: "auth/login", props: {
-      inviteCodeClaimed: claimed_invite_code.present?
-    }
+    render inertia: "auth/login"
   end
 
   def destroy

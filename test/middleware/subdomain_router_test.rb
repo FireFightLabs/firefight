@@ -52,6 +52,13 @@ class SubdomainRouterTest < ActiveSupport::TestCase
     assert_allowed "app.firefight.app", "/vite/assets/app.css"
   end
 
+  test "app subdomain allows onboarding and invite-code paths" do
+    assert_allowed "app.firefight.app", "/invite-code/claim"
+    assert_allowed "app.firefight.app", "/onboarding/invite-code"
+    assert_allowed "app.firefight.app", "/onboarding/install"
+    assert_allowed "app.firefight.app", "/onboarding/welcome"
+  end
+
   test "app subdomain blocks api and slack paths" do
     assert_blocked "app.firefight.app", "/api/v1/incidents"
     assert_blocked "app.firefight.app", "/api/v1/commands"

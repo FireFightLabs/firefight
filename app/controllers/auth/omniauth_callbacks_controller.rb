@@ -4,9 +4,10 @@ module Auth
 
     # Step 1 — OIDC sign-in (identity only). Decides where to send the user
     # next via AuthOutcome: signed_in (existing or newly-provisioned member) or
-    # install_needed (no workspace for this team yet).
+    # install_needed (no workspace for this team yet — sends them to the invite
+    # code step before the install callback).
     def slack_openid
-      outcome = SlackAuthenticationService.new.handle_openid_signin(auth_hash, invite_code: claimed_invite_code)
+      outcome = SlackAuthenticationService.new.handle_openid_signin(auth_hash)
       apply_outcome(outcome)
     rescue => e
       log_auth_failure(:slack_openid_failed, e)
@@ -75,7 +76,7 @@ module Auth
       session[:pending_user_id]   = outcome.user.id
       session[:pending_team_id]   = outcome.team_id
       session[:pending_team_name] = outcome.team_name
-      redirect_to onboarding_install_path
+      redirect_to onboarding_invite_code_path
     end
 
     def clear_pending_session_keys

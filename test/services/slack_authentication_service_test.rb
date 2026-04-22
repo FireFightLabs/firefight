@@ -171,25 +171,15 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     end
   end
 
-  # handle_openid_signin — three outcomes
+  # handle_openid_signin — signed_in + install_needed. No invite gate here;
+  # installs are gated in handle_install.
 
-  test "handle_openid_signin returns invite_required when workspace doesn't exist and invite is missing" do
+  test "handle_openid_signin returns install_needed when workspace doesn't exist" do
     auth_hash = mock_slack_openid_auth_hash(
       info: { email: "newuser@example.com", team_id: "T_DOES_NOT_EXIST", team_name: "Brand New Co" }
     )
 
     outcome = @service.handle_openid_signin(auth_hash)
-
-    assert outcome.invite_required?
-    assert_equal SlackAuthenticationService::INVITE_REQUIRED_MESSAGE, outcome.message
-  end
-
-  test "handle_openid_signin returns install_needed when workspace doesn't exist and invite is valid" do
-    auth_hash = mock_slack_openid_auth_hash(
-      info: { email: "newuser@example.com", team_id: "T_DOES_NOT_EXIST", team_name: "Brand New Co" }
-    )
-
-    outcome = @service.handle_openid_signin(auth_hash, invite_code: invite_codes(:active_public_beta_code))
 
     assert outcome.install_needed?
     assert_equal "T_DOES_NOT_EXIST", outcome.team_id
@@ -213,29 +203,15 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     assert_equal "Welcome back to Firefight.", outcome.message
   end
 
-  test "handle_openid_signin returns invite_required when workspace exists but user has no membership and invite is missing" do
+  test "handle_openid_signin auto-provisions when workspace exists and user has no membership" do
     workspace = workspaces(:slack_workspace_one)
-    auth_hash = mock_slack_openid_auth_hash(
-      uid: "U_NEW_MEMBER",
-      info: { email: "newbie@example.com", team_id: workspace.platform_id, team_name: workspace.name }
-    )
-
-    outcome = @service.handle_openid_signin(auth_hash)
-
-    assert outcome.invite_required?
-    assert_equal SlackAuthenticationService::INVITE_REQUIRED_MESSAGE, outcome.message
-  end
-
-  test "handle_openid_signin auto-provisions when workspace exists, user has no membership, and invite is valid" do
-    workspace = workspaces(:slack_workspace_one)
-    invite_code = invite_codes(:active_public_beta_code)
     auth_hash = mock_slack_openid_auth_hash(
       uid: "U_NEW_MEMBER",
       info: { email: "newbie@example.com", team_id: workspace.platform_id, team_name: workspace.name }
     )
 
     assert_difference -> { workspace.workspace_memberships.count }, 1 do
-      outcome = @service.handle_openid_signin(auth_hash, invite_code: invite_code)
+      outcome = @service.handle_openid_signin(auth_hash)
 
       assert outcome.signed_in?
       assert_equal "newbie@example.com", outcome.membership.user.email
@@ -243,24 +219,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       assert_equal "member", outcome.membership.role
       assert_equal "Welcome to #{workspace.name}.", outcome.message
     end
-
-    assert invite_code.reload.redeemed?
-  end
-
-  test "handle_openid_signin returns invite_required when invite code was already redeemed concurrently" do
-    workspace = workspaces(:slack_workspace_one)
-    invite_code = invite_codes(:active_public_beta_code)
-    auth_hash = mock_slack_openid_auth_hash(
-      uid: "U_NEW_MEMBER",
-      info: { email: "newbie@example.com", team_id: workspace.platform_id, team_name: workspace.name }
-    )
-
-    invite_code.update!(redeemed_at: Time.current)
-
-    outcome = @service.handle_openid_signin(auth_hash, invite_code: invite_code)
-
-    assert outcome.invite_required?
-    assert_equal SlackAuthenticationService::INVITE_REQUIRED_MESSAGE, outcome.message
   end
 
   # handle_install — wraps install path in AuthOutcome
