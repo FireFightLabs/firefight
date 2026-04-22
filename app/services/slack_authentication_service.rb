@@ -4,46 +4,35 @@
 class SlackAuthenticationService
   INVITE_REQUIRED_MESSAGE = "Public beta access currently requires an invite code.".freeze
 
-  # OIDC sign-in (identity only). Three outcomes:
-  #   - install_needed: no workspace for this team yet, kick off install.
+  # OIDC sign-in (identity only). Two outcomes (plus the install-gated third):
   #   - signed_in:      workspace exists; return or create the membership.
-  #   - invite_required: access is gated until a valid invite code is claimed.
+  #   - install_needed: no workspace for this team yet, hand off to the
+  #                     onboarding invite-code step before the install callback.
   #
-  # Provisioning is always allowed for existing workspaces — Slack is the source
-  # of truth. Installation is the admin gate; anyone who uses Firefight in a
-  # workspace that has it installed gets a membership.
-  def handle_openid_signin(auth_hash, invite_code: nil)
+  # Invite gating is scoped to new workspace installs — once a workspace is on
+  # Firefight, any Slack member of that team can auto-provision. Slack is the
+  # source of truth for who belongs; the platform-level invite exists only to
+  # gate workspaces, not individuals.
+  def handle_openid_signin(auth_hash)
     team_id   = auth_hash.info.team_id
     team_name = auth_hash.info.team_name
 
     user      = User.find_or_create_from_openid!(auth_hash)
     workspace = Workspace.find_by(platform: :slack, platform_id: team_id)
 
-    if workspace.nil?
-      return AuthOutcome.invite_required(message: INVITE_REQUIRED_MESSAGE) unless invite_code&.active?
-
-      return AuthOutcome.install_needed(user: user, team_id: team_id, team_name: team_name)
-    end
+    return AuthOutcome.install_needed(user: user, team_id: team_id, team_name: team_name) if workspace.nil?
 
     membership = workspace.workspace_memberships.find_by(user: user)
     return AuthOutcome.signed_in(membership: membership, message: "Welcome back to Firefight.") if membership
 
-    return AuthOutcome.invite_required(message: INVITE_REQUIRED_MESSAGE) unless invite_code&.active?
-
-    membership = ActiveRecord::Base.transaction do
-      invite_code.redeem!(user)
-      WorkspaceMemberProvisioner.find_or_provision!(
-        workspace:        workspace,
-        platform_user_id: auth_hash.uid,
-        adapter:          workspace.adapter,
-        user:             user,
-        user_profile:     auth_hash.info
-      )
-    end
-
+    membership = WorkspaceMemberProvisioner.find_or_provision!(
+      workspace:        workspace,
+      platform_user_id: auth_hash.uid,
+      adapter:          workspace.adapter,
+      user:             user,
+      user_profile:     auth_hash.info
+    )
     AuthOutcome.signed_in(membership: membership, message: "Welcome to #{workspace.name}.")
-  rescue InviteCode::RedemptionError
-    AuthOutcome.invite_required(message: INVITE_REQUIRED_MESSAGE)
   end
 
   # Bot install callback. Wraps the existing workspace install flow and returns
