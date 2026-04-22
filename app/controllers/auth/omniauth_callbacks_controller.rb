@@ -91,11 +91,38 @@ module Auth
     end
 
     def log_auth_failure(event, error)
-      Rails.logger.error({
+      Rails.logger.error(auth_failure_payload(event, error).to_json)
+    end
+
+    def auth_failure_payload(event, error)
+      {
         event: "auth.#{event}",
-        error: error.message,
-        backtrace: error.backtrace&.first(5)
-      })
+        error_class: error.class.name,
+        error_message: error.message,
+        backtrace: error.backtrace&.first(20),
+        cause_class: error.cause&.class&.name,
+        cause_message: error.cause&.message,
+        cause_backtrace: error.cause&.backtrace&.first(10),
+        context: auth_failure_context
+      }
+    end
+
+    # Session + auth_hash context that helps diagnose install failures without
+    # leaking tokens or emails. Wrapped in a rescue because auth_hash may be nil
+    # on some pre-callback failures and session access can raise mid-error.
+    def auth_failure_context
+      hash = auth_hash
+      {
+        pending_user_id_present:   session[:pending_user_id].present?,
+        pending_team_id:           session[:pending_team_id],
+        invite_code_id_present:    session[:invite_code_id].present?,
+        auth_hash_present:         hash.present?,
+        slack_uid_present:         hash&.uid.present?,
+        slack_team_id:             hash&.dig("extra", "team_info", "id") || hash&.info&.team_id,
+        slack_scopes_present:      hash&.credentials&.scope.present?
+      }
+    rescue StandardError => e
+      { context_error: "#{e.class.name}: #{e.message}" }
     end
   end
 end
