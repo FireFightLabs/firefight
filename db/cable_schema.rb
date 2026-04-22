@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_21_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_22_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -470,6 +470,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_21_130000) do
     t.index ["workspace_id", "incident_status_id"], name: "index_incidents_on_workspace_id_and_incident_status_id"
     t.index ["workspace_id", "sequence_number"], name: "index_incidents_on_workspace_id_and_sequence_number", unique: true
     t.index ["workspace_id"], name: "index_incidents_on_workspace_id"
+  end
+
+  create_table "invite_codes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "code_digest", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at"
+    t.datetime "redeemed_at"
+    t.uuid "redeemed_by_id"
+    t.datetime "updated_at", null: false
+    t.index ["code_digest"], name: "index_invite_codes_on_code_digest", unique: true
+    t.index ["redeemed_by_id"], name: "index_invite_codes_on_redeemed_by_id"
   end
 
   create_table "postmortem_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -975,6 +986,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_21_130000) do
   add_foreign_key "incidents", "incident_types"
   add_foreign_key "incidents", "workspace_memberships", column: "declared_by_id"
   add_foreign_key "incidents", "workspaces"
+  add_foreign_key "invite_codes", "users", column: "redeemed_by_id"
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortem_updates", "workspace_memberships", column: "edited_by_id"

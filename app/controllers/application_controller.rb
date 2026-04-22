@@ -29,4 +29,15 @@ class ApplicationController < ActionController::Base
       redirect_to login_path, alert: "Please sign in to continue"
     end
   end
+
+  def claimed_invite_code
+    id = session[:invite_code_id]
+    return unless id
+
+    invite_code = InviteCode.find_by(id: id)
+    return invite_code if invite_code&.active?
+
+    session.delete(:invite_code_id)
+    nil
+  end
 end

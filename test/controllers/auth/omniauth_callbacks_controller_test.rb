@@ -1,7 +1,7 @@
 require "test_helper"
 
 class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
-  fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships
+  fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships, :invite_codes
 
   setup do
     OmniAuth.config.test_mode = true
@@ -33,8 +33,58 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Welcome back to Firefight.", flash[:notice]
   end
 
-  test "slack_openid auto-provisions a new member when workspace exists" do
+  test "slack_openid with no workspace requires invite code" do
+    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
+      info: { email: "installer@example.com", team_id: "T_NEW", team_name: "Brand New Co" }
+    )
+
+    get "/auth/slack_openid/callback"
+
+    assert_redirected_to login_path
+    assert_equal "Public beta access currently requires an invite code.", flash[:alert]
+    assert_nil session[:user_id]
+    assert_nil session[:workspace_id]
+  end
+
+  test "slack_openid with claimed invite code kicks off install flow" do
+    post claim_invite_code_path, params: { code: "BETA-ACCESS" }
+
+    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
+      info: { email: "installer@example.com", team_id: "T_NEW", team_name: "Brand New Co" }
+    )
+
+    get "/auth/slack_openid/callback"
+
+    assert_redirected_to onboarding_install_path
+    user = User.find_by(email: "installer@example.com")
+    assert user.present?
+    assert_equal user.id, session[:pending_user_id]
+    assert_equal "T_NEW", session[:pending_team_id]
+    assert_equal "Brand New Co", session[:pending_team_name]
+    assert_equal invite_codes(:active_public_beta_code).id, session[:invite_code_id]
+  end
+
+  test "slack_openid blocks auto-provisioning without invite code" do
     workspace = workspaces(:slack_workspace_one)
+
+    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
+      uid: "U_BRAND_NEW",
+      info: { email: "brand.new@example.com", team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    assert_no_difference -> { workspace.workspace_memberships.count } do
+      get "/auth/slack_openid/callback"
+    end
+
+    assert_redirected_to login_path
+    assert_equal "Public beta access currently requires an invite code.", flash[:alert]
+  end
+
+  test "slack_openid auto-provisions with claimed invite code" do
+    workspace = workspaces(:slack_workspace_one)
+    invite_code = invite_codes(:active_public_beta_code)
+
+    post claim_invite_code_path, params: { code: "BETA-ACCESS" }
 
     OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
       uid: "U_BRAND_NEW",
@@ -46,27 +96,9 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to dashboard_path
-    new_membership = workspace.workspace_memberships.find_by(platform_user_id: "U_BRAND_NEW")
-    assert_equal new_membership.user_id,      session[:user_id]
-    assert_equal workspace.id,                session[:workspace_id]
-    assert_equal "member",                    new_membership.role
-  end
-
-  test "slack_openid with no workspace kicks off install flow" do
-    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
-      info: { email: "installer@example.com", team_id: "T_NEW", team_name: "Brand New Co" }
-    )
-
-    get "/auth/slack_openid/callback"
-
-    assert_redirected_to onboarding_install_path
-    user = User.find_by(email: "installer@example.com")
-    assert user.present?
-    assert_equal user.id,      session[:pending_user_id]
-    assert_equal "T_NEW",      session[:pending_team_id]
-    assert_equal "Brand New Co", session[:pending_team_name]
-    assert_nil session[:user_id]
-    assert_nil session[:workspace_id]
+    assert invite_code.reload.redeemed?
+    assert_equal "brand.new@example.com", invite_code.redeemed_by.email
+    assert_nil session[:invite_code_id]
   end
 
   # slack — bot install
@@ -81,6 +113,8 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     OmniAuth.config.mock_auth[:slack] = mock_slack_auth_hash(
       extra: { team_info: { "id" => team_id, "name" => "Fresh Install Co" } }
     )
+
+    post claim_invite_code_path, params: { code: "BETA-ACCESS" }
 
     # Seed session: installer identified via prior OIDC step
     get "/auth/slack_openid/callback"  # trigger a session with pending_user_id
@@ -110,6 +144,18 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_nil session[:pending_user_id]
     assert_nil session[:pending_team_id]
     assert_nil session[:pending_team_name]
+    assert_nil session[:invite_code_id]
+  end
+
+  test "slack install redirects to login when no invite code is claimed for a new workspace" do
+    OmniAuth.config.mock_auth[:slack] = mock_slack_auth_hash(
+      extra: { team_info: { "id" => "T_DIRECT_INSTALL", "name" => "Direct Install Co" } }
+    )
+
+    get "/auth/slack/callback"
+
+    assert_redirected_to login_path
+    assert_equal "Public beta access currently requires an invite code.", flash[:alert]
   end
 
   # failure

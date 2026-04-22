@@ -12,8 +12,13 @@ class AuthOutcome
     new(:install_needed, user: user, team_id: team_id, team_name: team_name)
   end
 
+  def self.invite_required(message:)
+    new(:invite_required, message: message)
+  end
+
   def signed_in?      = type == :signed_in
   def install_needed? = type == :install_needed
+  def invite_required? = type == :invite_required
   def first_install?  = first_install
 
   private

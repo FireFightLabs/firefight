@@ -1,7 +1,7 @@
 require "test_helper"
 
 class OnboardingControllerTest < ActionDispatch::IntegrationTest
-  fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships
+  fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships, :invite_codes
 
   # install
 
@@ -14,6 +14,7 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
   test "install renders when pending_team_id is present in session" do
     # Seed session via OIDC callback — the cleanest way to set pending_* keys
     OmniAuth.config.test_mode = true
+    post claim_invite_code_path, params: { code: "BETA-ACCESS" }
     OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
       info: { email: "installer@example.com", team_id: "T_NEW_FOR_INSTALL", team_name: "Install Co" }
     )
