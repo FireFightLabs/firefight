@@ -73,6 +73,19 @@ module OmniAuth
         full_host + callback_path
       end
 
+      def authorize_params
+        state = SecureRandom.hex(24)
+        verifier = options.pkce ? SecureRandom.hex(64) : nil
+        params = deep_symbolize(options.authorize_params)
+          .merge(options_for("authorize"))
+          .merge(pkce_authorize_params_for(verifier))
+          .merge(state: state)
+
+        session["omniauth.pkce.verifier"] = verifier if verifier
+        session["omniauth.state"] = state
+        params
+      end
+
       # Override build_access_token to pass the PKCE code_verifier per-request
       # instead of relying on omniauth-oauth2's auto-handling, which mutates
       # shared strategy options across requests and can leak verifiers between
@@ -87,6 +100,15 @@ module OmniAuth
         end
 
         client.auth_code.get_token(code, params, deep_symbolize(options.auth_token_params))
+      end
+
+      def pkce_authorize_params_for(verifier)
+        return {} unless verifier
+
+        {
+          code_challenge: options.pkce_options[:code_challenge].call(verifier),
+          code_challenge_method: options.pkce_options[:code_challenge_method]
+        }
       end
     end
   end
