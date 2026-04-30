@@ -2,36 +2,10 @@ require "omniauth-oauth2"
 
 module OmniAuth
   module Strategies
-    class SlackOpenidAccessToken < ::OAuth2::AccessToken
-      def self.from_hash(client, hash)
-        # TEMP DEBUG: log the FULL Slack response body before constructing the
-        # access token. This is the raw response body from oauth.v2.access —
-        # the only place we can capture it before the gem masks the error.
-        # Remove once root cause is found.
-        OmniAuth.logger.info({
-          event: "slack_openid.from_hash",
-          response_class: hash.class.name,
-          response_keys: (hash.respond_to?(:keys) ? hash.keys.map(&:to_s) : nil),
-          response_full: hash.respond_to?(:to_h) ? hash.to_h : hash.inspect[0, 4000],
-          response_inspect: hash.inspect[0, 4000],
-          ok: hash["ok"] || hash[:ok],
-          error: hash["error"] || hash[:error],
-          warning: hash["warning"] || hash[:warning],
-          response_metadata: hash["response_metadata"] || hash[:response_metadata],
-          authed_user_present: !hash.dig("authed_user").nil? || !hash.dig(:authed_user).nil?,
-          authed_user_keys: (hash.dig("authed_user")&.keys || hash.dig(:authed_user)&.keys || []).map(&:to_s)
-        }.to_json)
-
-        params = hash.dup
-        user_token = params.dig("authed_user", "access_token") || params.dig(:authed_user, :access_token)
-        new(client, user_token, params)
-      end
-    end
-
-    # Slack sign-in strategy. Uses OAuth v2 with an empty bot `scope` and
-    # `user_scope=openid,profile,email` — the same approach incident.io uses.
-    # This triggers Slack's native workspace picker and consent screen, returns
-    # user identity only, and does NOT install a bot.
+    # Slack sign-in strategy. Uses Slack's dedicated OpenID Connect endpoints
+    # (`/openid/connect/authorize` + `/api/openid.connect.token`) which are
+    # purpose-built for "Sign in with Slack" and properly support PKCE.
+    # Returns user identity only, does NOT install a bot.
     #
     # Pairs with the regular `slack` strategy: this one establishes user
     # identity, the other handles bot installation.
@@ -52,14 +26,6 @@ module OmniAuth
       # Enable PKCE (Proof Key for Code Exchange, RFC 7636).
       # Defense-in-depth on top of client_secret for the OIDC sign-in flow.
       option :pkce, true
-
-      def client
-        ::OAuth2::Client.new(
-          options.client_id,
-          options.client_secret,
-          deep_symbolize(options.client_options).merge(access_token_class: SlackOpenidAccessToken)
-        )
-      end
 
       def authorize_params
         state = SecureRandom.hex(24)
