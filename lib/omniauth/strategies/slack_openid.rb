@@ -38,10 +38,15 @@ module OmniAuth
     class SlackOpenid < OmniAuth::Strategies::OAuth2
       option :name, "slack_openid"
 
+      # Use Slack's dedicated OpenID Connect endpoints rather than the standard
+      # OAuth v2 ones. The /api/oauth.v2.access endpoint does not properly
+      # validate PKCE for user_scope-only sign-in flows; the /openid/connect/*
+      # endpoints are purpose-built for "Sign in with Slack" and handle PKCE
+      # correctly.
       option :client_options, {
         site: "https://slack.com",
-        authorize_url: "https://slack.com/oauth/v2/authorize",
-        token_url: "https://slack.com/api/oauth.v2.access"
+        authorize_url: "https://slack.com/openid/connect/authorize",
+        token_url: "https://slack.com/api/openid.connect.token"
       }
 
       # Enable PKCE (Proof Key for Code Exchange, RFC 7636).
@@ -59,13 +64,15 @@ module OmniAuth
       def authorize_params
         state = SecureRandom.hex(24)
         generated_verifier = options.pkce ? SecureRandom.hex(64) : nil
+        # Slack's OIDC endpoints follow the OpenID Connect standard:
+        # space-separated scopes via the `scope` param (no `user_scope` split,
+        # no comma-separation that the legacy OAuth v2 endpoint uses).
         params = deep_symbolize(options.authorize_params)
           .merge(options_for("authorize"))
           .merge(pkce_authorize_params_for(generated_verifier))
           .merge(
             state: state,
-            scope: "",
-            user_scope: "openid,profile,email",
+            scope: "openid profile email",
             redirect_uri: callback_url,
             response_type: "code"
           )
