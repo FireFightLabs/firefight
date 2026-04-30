@@ -73,7 +73,7 @@ module OmniAuth
         token = client.auth_code.get_token(code, params, deep_symbolize(options.auth_token_params))
         log_token_response_success(token)
         token
-      rescue OAuth2::Error => e
+      rescue ::OAuth2::Error => e
         log_token_response_error(e)
         raise
       rescue StandardError => e
