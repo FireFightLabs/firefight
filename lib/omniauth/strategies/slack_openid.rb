@@ -41,7 +41,7 @@ module OmniAuth
       def authorize_params
         params = super.merge(scope: "", user_scope: "openid,profile,email")
         verifier = session["omniauth.pkce.verifier"]
-        Rails.logger.info({
+        OmniAuth.logger.info({
           event: "pkce.authorize",
           strategy: "slack_openid",
           verifier_present: verifier.present?,
@@ -66,7 +66,7 @@ module OmniAuth
         if options.pkce
           verifier = session.delete("omniauth.pkce.verifier")
           params[:code_verifier] = verifier if verifier
-          Rails.logger.info({
+          OmniAuth.logger.info({
             event: "pkce.token_exchange",
             strategy: "slack_openid",
             verifier_present: verifier.present?,
