@@ -93,7 +93,11 @@ module OmniAuth
         params = deep_symbolize(options.authorize_params)
           .merge(options_for("authorize"))
           .merge(pkce_authorize_params_for(verifier))
-          .merge(state: state)
+          .merge(
+            state: state,
+            redirect_uri: callback_url,
+            response_type: "code"
+          )
 
         session["omniauth.pkce.verifier"] = verifier if verifier
         session["omniauth.state"] = state

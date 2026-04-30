@@ -4,6 +4,24 @@ module OmniAuth
   module Strategies
     class SlackOpenidAccessToken < ::OAuth2::AccessToken
       def self.from_hash(client, hash)
+        # TEMP DEBUG: log the FULL Slack response body before constructing the
+        # access token. This is the raw response body from oauth.v2.access —
+        # the only place we can capture it before the gem masks the error.
+        # Remove once root cause is found.
+        OmniAuth.logger.info({
+          event: "slack_openid.from_hash",
+          response_class: hash.class.name,
+          response_keys: (hash.respond_to?(:keys) ? hash.keys.map(&:to_s) : nil),
+          response_full: hash.respond_to?(:to_h) ? hash.to_h : hash.inspect[0, 4000],
+          response_inspect: hash.inspect[0, 4000],
+          ok: hash["ok"] || hash[:ok],
+          error: hash["error"] || hash[:error],
+          warning: hash["warning"] || hash[:warning],
+          response_metadata: hash["response_metadata"] || hash[:response_metadata],
+          authed_user_present: !hash.dig("authed_user").nil? || !hash.dig(:authed_user).nil?,
+          authed_user_keys: (hash.dig("authed_user")&.keys || hash.dig(:authed_user)&.keys || []).map(&:to_s)
+        }.to_json)
+
         params = hash.dup
         user_token = params.dig("authed_user", "access_token") || params.dig(:authed_user, :access_token)
         new(client, user_token, params)
@@ -44,7 +62,13 @@ module OmniAuth
         params = deep_symbolize(options.authorize_params)
           .merge(options_for("authorize"))
           .merge(pkce_authorize_params_for(generated_verifier))
-          .merge(state: state, scope: "", user_scope: "openid,profile,email")
+          .merge(
+            state: state,
+            scope: "",
+            user_scope: "openid,profile,email",
+            redirect_uri: callback_url,
+            response_type: "code"
+          )
 
         session["omniauth.pkce.verifier"] = generated_verifier if generated_verifier
         session["omniauth.state"] = state
