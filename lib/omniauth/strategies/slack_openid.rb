@@ -39,7 +39,20 @@ module OmniAuth
       end
 
       def authorize_params
-        super.merge(scope: "", user_scope: "openid,profile,email")
+        params = super.merge(scope: "", user_scope: "openid,profile,email")
+        verifier = session["omniauth.pkce.verifier"]
+        Rails.logger.info({
+          event: "pkce.authorize",
+          strategy: "slack_openid",
+          verifier_present: verifier.present?,
+          verifier_length: verifier&.length,
+          verifier_fingerprint: verifier && "#{verifier[0, 6]}..#{verifier[-6, 6]}",
+          challenge_present: params[:code_challenge].present?,
+          challenge_fingerprint: params[:code_challenge] && "#{params[:code_challenge][0, 6]}..#{params[:code_challenge][-6, 6]}",
+          challenge_method: params[:code_challenge_method],
+          state_present: session["omniauth.state"].present?
+        }.to_json)
+        params
       end
 
       # Override build_access_token to pass the PKCE code_verifier per-request
@@ -53,6 +66,16 @@ module OmniAuth
         if options.pkce
           verifier = session.delete("omniauth.pkce.verifier")
           params[:code_verifier] = verifier if verifier
+          Rails.logger.info({
+            event: "pkce.token_exchange",
+            strategy: "slack_openid",
+            verifier_present: verifier.present?,
+            verifier_length: verifier&.length,
+            verifier_fingerprint: verifier && "#{verifier[0, 6]}..#{verifier[-6, 6]}",
+            code_present: code.present?,
+            redirect_uri: callback_url,
+            state_match: session["omniauth.state"].present?
+          }.to_json)
         end
 
         client.auth_code.get_token(code, params, deep_symbolize(options.auth_token_params))
