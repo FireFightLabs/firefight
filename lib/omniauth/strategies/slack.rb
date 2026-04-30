@@ -72,6 +72,22 @@ module OmniAuth
       def callback_url
         full_host + callback_path
       end
+
+      # Override build_access_token to pass the PKCE code_verifier per-request
+      # instead of relying on omniauth-oauth2's auto-handling, which mutates
+      # shared strategy options across requests and can leak verifiers between
+      # concurrent or rapid-fire auth attempts.
+      def build_access_token
+        code = request.params["code"]
+        params = { redirect_uri: callback_url }.merge(token_params.to_hash(symbolize_keys: true))
+
+        if options.pkce
+          verifier = session.delete("omniauth.pkce.verifier")
+          params[:code_verifier] = verifier if verifier
+        end
+
+        client.auth_code.get_token(code, params, deep_symbolize(options.auth_token_params))
+      end
     end
   end
 end
