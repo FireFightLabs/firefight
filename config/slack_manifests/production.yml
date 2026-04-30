@@ -1,27 +1,27 @@
 display_information:
   name: Firefight
   description: Declare, run, and resolve incidents without leaving Slack
+  background_color: "#04111d"
   long_description: Firefight is an incident management platform built for Slack-first teams. Declare an incident with /firefight, and a dedicated channel is created with the right responders, severity, and lifecycle tracking. Updates, lead assignments, and status changes are captured as a timeline automatically — no copy-pasting into a separate tool. When the incident resolves, Firefight generates a postmortem draft from the channel transcript so you can review what happened instead of reconstructing it. Integrations let you page specific teams in their own channels, receive alerts from observability tools, and sync with your on-call rotation. Designed for engineering, platform, and SRE teams who want rigorous incident response without leaving the tools they already use.
-  background_color: "#000000"
 
 features:
   bot_user:
     display_name: Firefight
     always_online: true
+  shortcuts:
+    - name: Create an incident
+      type: global
+      callback_id: create_incident_shortcut
+      description: Quickly declare a new incident
   slash_commands:
     - command: /firefight
       url: https://slack.firefight.app/api/v1/commands
-      description: "Manage incidents and coordinate response"
+      description: Manage incidents and coordinate response
       should_escape: false
     - command: /ff
       url: https://slack.firefight.app/api/v1/commands
-      description: "Manage incidents (short alias for /firefight)"
+      description: Manage incidents (short alias for /firefight)
       should_escape: false
-  shortcuts:
-    - name: "Create an incident"
-      type: global
-      callback_id: create_incident_shortcut
-      description: "Quickly declare a new incident"
 
 oauth_config:
   redirect_urls:
@@ -29,45 +29,48 @@ oauth_config:
     - https://app.firefight.app/auth/slack_openid/callback
   scopes:
     user:
-      - openid # OIDC: triggers Slack's native workspace picker on sign-in
-      - profile # OIDC: name and avatar
-      - email # OIDC: email for account linking
-      - users:read # Get user profile info (name, avatar) during OAuth
+      - openid           # OIDC: triggers Slack's native workspace picker on sign-in
+      - profile          # OIDC: name and avatar
+      - email            # OIDC: email for account linking
+      - users:read       # Get user profile info (name, avatar) during OAuth
       - users:read.email # Get user email for account linking
     bot:
-      - team:read # Get workspace info (name, domain) during installation
-      - commands # Enable slash commands (/firefight, /ff)
-      - chat:write # Post messages to channels (welcome, incident announcements)
+      - team:read         # Get workspace info (name, domain) during installation
+      - commands          # Enable slash commands (/firefight, /ff)
+      - chat:write        # Post messages to channels (welcome, incident announcements)
       - chat:write.public # Post to public channels without being a member (for sharing)
-      - im:write # Send DMs to users (for sharing via DM)
-      - channels:manage # Create public channels on installation
-      - channels:join # Bot can join channels it creates
-      - channels:read # Read channel info (check if #incidents exists)
-      - groups:write # Create and manage private incident channels
-      - users:read # Get user info for @mentions in messages
-      - pins:write # Pin key messages in incident channels
-      - pins:read # Receive pin events for timeline updates
-      - reactions:read # Receive reaction_added events for action/followup creation
-      - reactions:write # Add emoji reactions to messages (AI acknowledgment)
-      - channels:history # Fetch message text from incident channels (conversations.history)
-      - groups:history # Read private incident channel messages/events
-      - files:read # Download shared files for archival
+      - im:write          # Send DMs to users (for sharing via DM)
+      - channels:manage   # Create public channels on installation
+      - channels:join     # Bot can join channels it creates
+      - channels:read     # Read channel info (check if #incidents exists)
+      - groups:write      # Create and manage private incident channels
+      - users:read        # Get user info for @mentions in messages
+      - users:read.email  # Read email field on users.info responses (required for installer identity during bot install)
+      - pins:write        # Pin key messages in incident channels
+      - pins:read         # Receive pin events for timeline updates
+      - reactions:read    # Receive reaction_added events for action/followup creation
+      - reactions:write   # Add emoji reactions to messages (AI acknowledgment)
+      - channels:history  # Fetch message text from incident channels (conversations.history)
+      - groups:history    # Read private incident channel messages/events
+      - files:read        # Download shared files for archival
       - app_mentions:read # Receive app_mention events when @Firefight is mentioned
+  pkce_enabled: true # PKCE (RFC 7636) — defense-in-depth on top of client_secret
 
 settings:
   event_subscriptions:
     request_url: https://slack.firefight.app/api/v1/events
     bot_events:
       - app_mention
-      - reaction_added
+      - member_joined_channel
       - message.channels
       - message.groups
       - pin_added
       - pin_removed
-      - member_joined_channel
+      - reaction_added
   interactivity:
     is_enabled: true
     request_url: https://slack.firefight.app/api/v1/interactions
   org_deploy_enabled: true
   socket_mode_enabled: false
   token_rotation_enabled: true
+  is_mcp_enabled: false

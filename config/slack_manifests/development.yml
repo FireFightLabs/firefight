@@ -44,6 +44,7 @@ oauth_config:
       - channels:read # Read channel info (check if #incidents exists)
       - groups:write # Create and manage private incident channels
       - users:read # Get user info for @mentions in messages
+      - users:read.email # Read email field on users.info responses (required for installer identity during bot install)
       - pins:write # Pin key messages in incident channels
       - pins:read # Receive pin events for timeline updates
       - reactions:read # Receive reaction_added events for action/followup creation
@@ -52,6 +53,7 @@ oauth_config:
       - groups:history # Read private incident channel messages/events
       - files:read # Download shared files for archival
       - app_mentions:read # Receive app_mention events when @Firefight is mentioned
+  pkce_enabled: true # PKCE (RFC 7636) — defense-in-depth on top of client_secret
 
 settings:
   event_subscriptions:

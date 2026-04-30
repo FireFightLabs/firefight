@@ -26,6 +26,10 @@ module OmniAuth
         token_url: "https://slack.com/api/oauth.v2.access"
       }
 
+      # Enable PKCE (Proof Key for Code Exchange, RFC 7636).
+      # Defense-in-depth on top of client_secret for the OIDC sign-in flow.
+      option :pkce, true
+
       def client
         ::OAuth2::Client.new(
           options.client_id,
