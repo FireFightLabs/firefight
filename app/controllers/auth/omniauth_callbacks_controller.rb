@@ -28,6 +28,8 @@ module Auth
     end
 
     def failure
+      log_omniauth_failure
+
       error_message = case params[:message]
       when "csrf_detected"
         "Authentication session expired. Please try again."
@@ -92,6 +94,39 @@ module Auth
 
     def log_auth_failure(event, error)
       Rails.logger.error(auth_failure_payload(event, error).to_json)
+    end
+
+    # OmniAuth's /auth/failure handler — logs the underlying error from
+    # request.env["omniauth.error"] so we can see exactly what Slack rejected
+    # (PKCE mismatch, invalid_grant, etc.) instead of just the generic message.
+    def log_omniauth_failure
+      omniauth_error = request.env["omniauth.error"]
+      payload = {
+        event: "auth.omniauth_failure",
+        message:                params[:message],
+        strategy:               request.env["omniauth.error.strategy"]&.name,
+        error_class:            omniauth_error&.class&.name,
+        error_message:          omniauth_error&.message,
+        error_response_body:    extract_error_response_body(omniauth_error),
+        backtrace:              omniauth_error&.backtrace&.first(20),
+        cause_class:            omniauth_error&.cause&.class&.name,
+        cause_message:          omniauth_error&.cause&.message,
+        pkce_verifier_present:  session["omniauth.pkce.verifier"].present?
+      }
+      Rails.logger.error(payload.to_json)
+    rescue StandardError => e
+      Rails.logger.error({ event: "auth.omniauth_failure_logging_failed", error: e.message }.to_json)
+    end
+
+    # OAuth2::Error wraps the upstream HTTP response — extract its body so we
+    # can see Slack's actual error code (invalid_grant, invalid_client, etc.)
+    def extract_error_response_body(error)
+      return nil unless error.respond_to?(:response) && error.response
+
+      body = error.response.respond_to?(:body) ? error.response.body : error.response
+      body.is_a?(String) ? body[0, 1000] : body.inspect[0, 1000]
+    rescue StandardError
+      nil
     end
 
     def auth_failure_payload(event, error)
