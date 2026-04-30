@@ -39,7 +39,16 @@ module OmniAuth
       end
 
       def authorize_params
-        params = super.merge(scope: "", user_scope: "openid,profile,email")
+        state = SecureRandom.hex(24)
+        generated_verifier = options.pkce ? SecureRandom.hex(64) : nil
+        params = deep_symbolize(options.authorize_params)
+          .merge(options_for("authorize"))
+          .merge(pkce_authorize_params_for(generated_verifier))
+          .merge(state: state, scope: "", user_scope: "openid,profile,email")
+
+        session["omniauth.pkce.verifier"] = generated_verifier if generated_verifier
+        session["omniauth.state"] = state
+
         verifier = session["omniauth.pkce.verifier"]
         OmniAuth.logger.info({
           event: "pkce.authorize",
@@ -66,17 +75,19 @@ module OmniAuth
         if options.pkce
           verifier = session.delete("omniauth.pkce.verifier")
           params[:code_verifier] = verifier if verifier
-          OmniAuth.logger.info({
-            event: "pkce.token_exchange",
-            strategy: "slack_openid",
-            verifier_present: verifier.present?,
-            verifier_length: verifier&.length,
-            verifier_fingerprint: verifier && "#{verifier[0, 6]}..#{verifier[-6, 6]}",
-            code_present: code.present?,
-            redirect_uri: callback_url,
-            state_match: session["omniauth.state"].present?
-          }.to_json)
         end
+
+        actual_verifier = params[:code_verifier] || params["code_verifier"]
+        OmniAuth.logger.info({
+          event: "pkce.token_request",
+          strategy: "slack_openid",
+          code_present: code.present?,
+          code_verifier_in_params: actual_verifier.present?,
+          code_verifier_length: actual_verifier&.length,
+          code_verifier_fingerprint: actual_verifier && "#{actual_verifier[0, 6]}..#{actual_verifier[-6, 6]}",
+          param_keys: params.keys.map(&:to_s),
+          redirect_uri: params[:redirect_uri] || params["redirect_uri"]
+        }.to_json)
 
         client.auth_code.get_token(code, params, deep_symbolize(options.auth_token_params))
       end
@@ -110,6 +121,15 @@ module OmniAuth
 
       def callback_url
         full_host + callback_path
+      end
+
+      def pkce_authorize_params_for(verifier)
+        return {} unless verifier
+
+        {
+          code_challenge: options.pkce_options[:code_challenge].call(verifier),
+          code_challenge_method: options.pkce_options[:code_challenge_method]
+        }
       end
     end
   end
