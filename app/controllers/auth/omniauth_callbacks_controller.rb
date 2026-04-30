@@ -93,7 +93,7 @@ module Auth
     end
 
     def log_auth_failure(event, error)
-      Rails.logger.error(auth_failure_payload(event, error).to_json)
+      OmniAuth.logger.error(auth_failure_payload(event, error).to_json)
     end
 
     # OmniAuth's /auth/failure handler — logs the underlying error from
@@ -113,9 +113,9 @@ module Auth
         cause_message:          omniauth_error&.cause&.message,
         pkce_verifier_present:  session["omniauth.pkce.verifier"].present?
       }
-      Rails.logger.error(payload.to_json)
+      OmniAuth.logger.error(payload.to_json)
     rescue StandardError => e
-      Rails.logger.error({ event: "auth.omniauth_failure_logging_failed", error: e.message }.to_json)
+      OmniAuth.logger.error({ event: "auth.omniauth_failure_logging_failed", error: e.message }.to_json)
     end
 
     # OAuth2::Error wraps the upstream HTTP response — extract its body so we
