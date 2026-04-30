@@ -5,10 +5,11 @@
 class OnboardingController < InertiaController
   def invite_code
     return redirect_to(login_path) if session[:pending_team_id].blank?
+    # Already have a valid claim — no reason to show this screen again.
+    return redirect_to(onboarding_install_path) if claimed_invite_code.present?
 
     render inertia: "onboarding/invite-code", props: {
-      teamName: session[:pending_team_name],
-      inviteCodeClaimed: claimed_invite_code.present?
+      teamName: session[:pending_team_name]
     }
   end
 

@@ -1,4 +1,4 @@
-import { Head, Link, useForm, usePage } from "@inertiajs/react";
+import { Head, useForm, usePage } from "@inertiajs/react";
 import type { FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,10 @@ import type { SharedProps } from "@/types";
 interface InviteCodePageProps extends SharedProps {
   [key: string]: unknown;
   teamName: string;
-  inviteCodeClaimed: boolean;
 }
 
 export default function InviteCode() {
-  const { flash, teamName, inviteCodeClaimed } =
-    usePage<InviteCodePageProps>().props;
+  const { flash, teamName } = usePage<InviteCodePageProps>().props;
   const form = useForm({ code: "" });
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -82,18 +80,9 @@ export default function InviteCode() {
                   className="w-full"
                   disabled={form.processing}
                 >
-                  {inviteCodeClaimed ? "Replace invite code" : "Claim invite code"}
+                  Continue
                 </Button>
               </form>
-
-              {inviteCodeClaimed ? (
-                <Link
-                  href="/onboarding/install"
-                  className="mt-3 flex h-9 w-full items-center justify-center rounded-md border border-border bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  Continue to install
-                </Link>
-              ) : null}
 
               <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">
                 Don&apos;t have a code?{" "}
