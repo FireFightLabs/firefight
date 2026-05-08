@@ -1,27 +1,41 @@
-# README
+# Firefight
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+Incident management platform built with Rails 8.1.
 
-Things you may want to cover:
+## Requirements
 
-* Ruby version
+We use [mise](https://mise.jdx.dev/) to pin language and tool versions. After installing mise, run `mise install` from the repo root to get the right Ruby.
 
-* System dependencies
+- Ruby 3.4.7 (pinned in `.ruby-version`)
+- PostgreSQL 18.3
+- Node (for the frontend toolchain)
 
-* Configuration
+## PostgreSQL via Docker
 
-* Database creation
+Production runs PostgreSQL 18.3, so we run the same version locally to keep dev/prod parity. Start it with:
 
-* Database initialization
+```sh
+docker run -d \
+  --name firefight-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  -v firefight-postgres-data:/var/lib/postgresql/data \
+  postgres:18.3
+```
 
-* How to run the test suite
+Stop and start it later with `docker stop firefight-postgres` and `docker start firefight-postgres`. The named volume `firefight-postgres-data` keeps your data across restarts.
 
-* Services (job queues, cache servers, search engines, etc.)
+Then create the development and test databases:
 
-* Deployment instructions
+```sh
+bin/rails db:prepare
+bin/rails db:prepare RAILS_ENV=test
+```
 
-* ...
+## Running the test suite
+
+`bin/ci` runs rubocop, bundler-audit, brakeman, the test suite (parallel), system tests, and seeds.
 
 ## Active Storage (Cloudflare R2)
 
