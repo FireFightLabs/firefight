@@ -12,8 +12,8 @@ Rails.application.configure do
   # Show full error reports.
   config.consider_all_requests_local = true
 
-  # Allow requests from tunnelmole or ngrok (for Slack webhooks in development)
-  # Set ALLOWED_HOSTS in .env file
+  # Allow requests from a Cloudflare Tunnel (or ngrok) hostname for Slack webhooks in development.
+  # Set ALLOWED_HOSTS in .env as a comma-separated list (e.g. "dev.example.com,*.trycloudflare.com").
   if ENV["ALLOWED_HOSTS"].present?
     ENV["ALLOWED_HOSTS"].split(",").each do |host|
       config.hosts << host.strip
