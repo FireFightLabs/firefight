@@ -467,6 +467,7 @@ app/frontend/
 - Never modify files in `components/ui/` — they may be updated by `npx shadcn` later
 - Wrap or compose shadcn components if you need custom behavior
 - ESLint ignores `components/ui/` for this reason
+- Prefer shadcn/ui components when one exists for your use case; write a custom component only if shadcn doesn't have it
 
 **Type discipline:**
 - No `Record<string, string>` when a tighter type exists — use typed keys from const arrays
