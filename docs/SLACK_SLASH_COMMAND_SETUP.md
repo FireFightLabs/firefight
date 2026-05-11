@@ -127,32 +127,40 @@ If you prefer to update manually or don't have the Slack CLI installed:
 4. Copy the contents of the appropriate manifest file
 5. Paste and save
 
-**Important:** For local development, you'll need to use ngrok or a similar tool to expose your local server to Slack.
+**Important:** For local development, you'll need a public tunnel so Slack can reach your local server.
 
-### 4. Set Up ngrok for Local Development
+### 4. Set Up a Local Tunnel (Cloudflare Tunnel)
 
-Slack needs to reach your local server. Use ngrok:
+See the "Local development tunnel" section of the root `README.md` for the full setup. The short version, using a named tunnel for a stable hostname:
 
 ```bash
-# Install ngrok (if not already installed)
-brew install ngrok
-
-# Start ngrok
-ngrok http 3000
+brew install cloudflared
+cloudflared tunnel login
+cloudflared tunnel create firefight-dev
+cloudflared tunnel route dns firefight-dev dev.<your-domain>
+cloudflared tunnel run --url http://localhost:3000 firefight-dev
 ```
 
-Copy the ngrok URL (e.g., `https://abc123.ngrok.io`) and update your development manifest:
+Then add the hostname to `.env` so Rails accepts requests to it:
+
+```sh
+ALLOWED_HOSTS=dev.<your-domain>
+```
+
+Update your development manifest with the same hostname:
 
 ```yaml
 features:
   slash_commands:
     - command: /firefight
-      url: https://YOUR-NGROK-URL.ngrok.io/api/v1/commands
+      url: https://dev.<your-domain>/api/v1/commands
     - command: /ff
-      url: https://YOUR-NGROK-URL.ngrok.io/api/v1/commands
+      url: https://dev.<your-domain>/api/v1/commands
   interactivity:
-    request_url: https://YOUR-NGROK-URL.ngrok.io/api/v1/interactions
+    request_url: https://dev.<your-domain>/api/v1/interactions
 ```
+
+For a one-off session you can skip the named-tunnel setup and run `cloudflared tunnel --url http://localhost:3000`, but the printed `*.trycloudflare.com` URL rotates each run and you'll have to re-paste it into the manifest every time.
 
 ### 5. Reinstall Slack App
 
@@ -233,7 +241,7 @@ Values: {...}
 If you get "Unauthorized" errors, check:
 
 1. Signing secret is correctly added to credentials
-2. ngrok URL is correct in Slack manifest
+2. Tunnel hostname is correct in Slack manifest and matches `ALLOWED_HOSTS`
 3. Request is coming from Slack (not a browser/Postman)
 
 ### Common Issues
@@ -316,7 +324,7 @@ end
 1. Add signing secret and app ID to credentials
 2. Install Slack CLI (`brew install slack-cli`)
 3. Login to Slack CLI (`slack login`)
-4. Set up ngrok
+4. Set up Cloudflare Tunnel (see README "Local development tunnel" section)
 5. Push Slack manifest (`bin/rails slack:manifest:push[development]`)
 6. Test slash commands
 

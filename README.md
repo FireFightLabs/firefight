@@ -33,6 +33,38 @@ bin/rails db:prepare
 bin/rails db:prepare RAILS_ENV=test
 ```
 
+## Local development tunnel (Cloudflare Tunnel)
+
+Slack needs a public URL to deliver slash commands and interactions to your local Rails server. We use [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) since we're already on Cloudflare for R2.
+
+Quick start (ephemeral hostname, rotates each run):
+
+```sh
+brew install cloudflared
+cloudflared tunnel --url http://localhost:3000
+```
+
+Copy the printed `*.trycloudflare.com` URL into your Slack app manifest's request URLs.
+
+For day-to-day dev, prefer a named tunnel so the hostname stays stable across restarts (no need to re-paste URLs into the Slack manifest each session):
+
+```sh
+cloudflared tunnel login                          # authenticate, pick a Cloudflare-managed domain
+cloudflared tunnel create firefight-dev           # creates a tunnel + credentials file
+cloudflared tunnel route dns firefight-dev dev.<your-domain>
+cloudflared tunnel run --url http://localhost:3000 firefight-dev
+```
+
+Then point your dev Slack manifest at `https://dev.<your-domain>/api/v1/commands` and `/api/v1/interactions`.
+
+Rails blocks unknown hosts by default, so add your tunnel hostname to `.env`:
+
+```sh
+ALLOWED_HOSTS=dev.<your-domain>,*.trycloudflare.com
+```
+
+`config/environments/development.rb` reads `ALLOWED_HOSTS` (comma-separated) and appends each entry to `config.hosts`.
+
 ## Running the test suite
 
 `bin/ci` runs rubocop, bundler-audit, brakeman, the test suite (parallel), system tests, and seeds.
