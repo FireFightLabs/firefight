@@ -33,6 +33,26 @@ bin/rails db:prepare
 bin/rails db:prepare RAILS_ENV=test
 ```
 
+## Environment variables
+
+Copy `.env.example` to `.env` and fill in the values. At minimum you need the Slack credentials and Active Record encryption keys.
+
+Generate the encryption keys (run once per developer machine):
+
+```sh
+bin/rails db:encryption:init
+```
+
+Copy the three output values into your `.env`:
+
+```sh
+ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=<primary_key>
+ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=<deterministic_key>
+ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=<key_derivation_salt>
+```
+
+These keys encrypt sensitive columns (OAuth tokens). Each developer generates their own local keys — they do not need to match across machines.
+
 ## Local development tunnel (Cloudflare Tunnel)
 
 Slack needs a public URL to deliver slash commands and interactions to your local Rails server. We use [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) since we're already on Cloudflare for R2.
