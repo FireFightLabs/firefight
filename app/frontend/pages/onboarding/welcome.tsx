@@ -13,18 +13,18 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
   const dateStamp = `${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getFullYear()).slice(2)}`;
 
   return (
-    <>
+    <div className="dark">
       <Head title="Welcome to Firefight" />
 
       <div className="relative flex min-h-svh flex-col bg-background text-foreground">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(10,30,46,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(10,30,46,0.035)_1px,transparent_1px)] bg-[size:56px_56px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]"
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(115,211,238,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(115,211,238,0.03)_1px,transparent_1px)] bg-[size:56px_56px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]"
         />
 
         <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
           <div style={{ width: "100%", maxWidth: "480px" }}>
-            <div className="rounded-2xl border border-border bg-card px-6 pb-6 pt-6 shadow-[0_1px_0_0_rgba(10,30,46,0.02),0_2px_4px_0_rgba(10,30,46,0.04),0_12px_40px_-12px_rgba(10,30,46,0.14)] sm:px-8 sm:pb-8 sm:pt-7">
+            <div className="rounded-[14px] border border-[rgba(115,211,238,0.3)] bg-card px-6 pb-6 pt-6 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-8 sm:pb-8 sm:pt-7">
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -104,7 +104,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
           </div>
         </main>
       </div>
-    </>
+    </div>
   );
 }
 
