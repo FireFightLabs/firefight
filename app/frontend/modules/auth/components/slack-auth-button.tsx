@@ -5,7 +5,11 @@ export function SlackAuthButton() {
     <Button
       asChild
       variant="outline"
-      className="h-11 w-full justify-center gap-3 border-border bg-card font-medium shadow-[0_1px_0_0_rgba(10,30,46,0.04),0_1px_2px_0_rgba(10,30,46,0.06)] transition-[box-shadow,transform] hover:bg-card hover:shadow-[0_1px_0_0_rgba(10,30,46,0.06),0_2px_4px_0_rgba(10,30,46,0.08)] active:translate-y-px"
+      className="h-11 w-full justify-center gap-3 bg-card font-medium transition-[box-shadow,transform] hover:bg-card active:translate-y-px"
+      style={{
+        borderColor: "rgba(115,211,238,0.45)",
+        boxShadow: "0 0 16px rgba(115,211,238,0.15), 0 0 4px rgba(115,211,238,0.3)",
+      }}
     >
       <a href="/auth/slack_openid">
         <SlackLogo className="size-[18px] shrink-0" />
