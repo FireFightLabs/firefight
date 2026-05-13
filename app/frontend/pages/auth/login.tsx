@@ -20,10 +20,10 @@ export default function Login() {
               <div className="mb-8 flex flex-col items-center space-y-4">
                 <FireFightLogo />
                 <div className="space-y-2">
-                  <h1 className="text-[1.75rem] font-medium leading-[1.15] tracking-[-0.02em] text-foreground">
+                  <h1 className="text-2xl font-semibold tracking-tight text-foreground">
                     Sign in
                   </h1>
-                  <p className="mx-auto text-[1.0625rem] leading-relaxed text-muted-foreground">
+                  <p className="mx-auto text-sm leading-relaxed text-muted-foreground">
                     Connect your Slack workspace to get started.<br />
                     We&apos;ll walk you through setup on first sign-in.
                   </p>

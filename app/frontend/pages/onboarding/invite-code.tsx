@@ -41,10 +41,10 @@ export default function InviteCode() {
                   <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                     Public beta
                   </p>
-                  <h1 className="text-[1.75rem] font-medium leading-[1.15] tracking-[-0.02em] text-foreground">
+                  <h1 className="text-2xl font-semibold tracking-tight text-foreground">
                     Enter invite code
                   </h1>
-                  <p className="mx-auto max-w-[34ch] text-[0.9375rem] leading-relaxed text-muted-foreground">
+                  <p className="mx-auto max-w-[34ch] text-sm leading-relaxed text-muted-foreground">
                     Firefight is in public beta. Installing to{" "}
                     <span className="whitespace-nowrap font-medium text-foreground">{teamName}</span>{" "}
                     requires a one-time invite code.

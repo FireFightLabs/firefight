@@ -208,10 +208,10 @@ export default function Install() {
               <div className="mb-8 flex flex-col items-center space-y-4 text-center">
                 <FireFightLogo />
                 <div className="space-y-2">
-                <h1 className="text-[1.75rem] font-medium leading-[1.15] tracking-[-0.02em] text-foreground">
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground">
                   Install Firefight
                 </h1>
-                <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
+                <p className="text-sm leading-relaxed text-muted-foreground">
                   Connect Firefight to{" "}
                   <span className="font-medium text-foreground">
                     {teamName}
@@ -284,10 +284,8 @@ function PermissionsDialog() {
         className="dark w-[calc(100vw-2rem)] gap-0 overflow-hidden border-border/70 bg-card p-0 shadow-[0_24px_60px_-24px_rgba(10,30,46,0.22),0_8px_20px_-8px_rgba(10,30,46,0.08)] [&>button]:text-muted-foreground [&>button]:hover:text-foreground"
       >
         <DialogHeader className="space-y-1.5 border-b border-border/60 px-6 pt-6 pb-5 sm:text-left">
-          <DialogTitle className="text-[1.0625rem] font-medium tracking-[-0.01em] text-foreground">
-            Permissions Firefight needs
-          </DialogTitle>
-          <DialogDescription className="text-[13px] leading-relaxed text-muted-foreground">
+          <DialogTitle>Permissions Firefight needs</DialogTitle>
+          <DialogDescription className="leading-relaxed">
             Slack groups these OAuth scopes by what they let Firefight do in
             your workspace.
           </DialogDescription>
@@ -301,14 +299,14 @@ function PermissionsDialog() {
                 className="border-t border-border/50 pt-8 first:border-t-0 first:pt-0"
               >
                 <div className="mb-5">
-                  <p className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/65 tabular-nums">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/65 tabular-nums">
                     {group.scopes.length} scope
                     {group.scopes.length === 1 ? "" : "s"}
                   </p>
-                  <h3 className="mt-2 text-[15px] font-semibold tracking-[-0.015em] text-foreground">
+                  <h3 className="mt-2 text-sm font-semibold text-foreground">
                     {group.title}
                   </h3>
-                  <p className="mt-2 text-[13px] leading-[1.6] text-muted-foreground">
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                     {group.description}
                   </p>
                 </div>
@@ -317,11 +315,11 @@ function PermissionsDialog() {
                   {group.scopes.map((scope) => (
                     <div key={scope.name} className="space-y-[7px]">
                       <dt>
-                        <code className="inline-block rounded-[4px] bg-foreground/[0.05] px-[7px] py-[3px] font-mono text-[11.5px] font-semibold leading-none tracking-[-0.01em] text-foreground">
+                        <code className="inline-block rounded-[4px] bg-foreground/[0.05] px-[7px] py-[3px] font-mono text-xs font-semibold leading-none text-foreground">
                           {scope.name}
                         </code>
                       </dt>
-                      <dd className="text-[13px] leading-[1.55] text-foreground/85">
+                      <dd className="text-sm leading-relaxed text-foreground/85">
                         {scope.explanation}
                         {scope.boundary ? (
                           <>

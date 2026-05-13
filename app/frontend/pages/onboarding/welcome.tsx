@@ -3,7 +3,6 @@ import { Head } from "@inertiajs/react";
 
 import { FireFightLogo } from "@/components/fire-fight-logo";
 import { Button } from "@/components/ui/button";
-
 import { dashboardPath } from "@/lib/routes";
 import type { SharedProps } from "@/types";
 
@@ -34,7 +33,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
               {/* Header */}
               <div className="flex items-center justify-between">
                 <FireFightLogo className="size-8" />
-                <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/60">
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
                   From the founder · {dateStamp}
                 </span>
               </div>
@@ -42,13 +41,13 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
               <div className="mt-5 border-t border-[rgba(115,211,238,0.25)]" />
 
               {/* Greeting */}
-              <h1 className="mt-6 text-[3.25rem] font-medium leading-[1.0] tracking-[-0.045em] text-foreground">
+              <h1 className="mt-6 text-5xl font-medium leading-none tracking-tighter text-foreground">
                 You&apos;re in, <em className="italic">{firstName}.</em>
               </h1>
 
               {/* Body */}
               <div className="mt-5 space-y-4">
-                <p className="text-[15px] leading-[1.65] text-foreground/88">
+                <p className="text-sm leading-relaxed text-foreground/88">
                   I built Firefight because incident tooling too often feels{" "}
                   <em className="italic">
                     bloated, opaque, and priced for large companies
@@ -56,14 +55,14 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
                   — not the teams actually running systems.
                 </p>
 
-                <p className="text-[15px] leading-[1.65] text-foreground/55">
+                <p className="text-sm leading-relaxed text-foreground/55">
                   It&apos;s meant to be straightforward. Declare the incident.
                   Create the response space. Keep the timeline clear. No
                   automation mazes, no setup walls — just the three things you
                   need when the pager goes.
                 </p>
 
-                <p className="text-[15px] leading-[1.65]">
+                <p className="text-sm leading-relaxed">
                   <span className="font-semibold text-foreground">
                     If something feels rough or missing, tell us.
                   </span>
@@ -79,10 +78,10 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
                 <div className="flex items-center gap-3">
                   <Avatar />
                   <div className="leading-tight">
-                    <p className="text-[13.5px] font-semibold tracking-[-0.01em] text-foreground">
+                    <p className="text-sm font-semibold tracking-tight text-foreground">
                       Uros Nikolic
                     </p>
-                    <p className="mt-0.5 text-[12px] text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       Founder, Firefight
                     </p>
                   </div>
@@ -110,7 +109,7 @@ function Avatar() {
 
   if (errored) {
     return (
-      <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary text-[12px] font-semibold tracking-tight text-foreground">
+      <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold tracking-tight text-foreground">
         UN
       </span>
     );
@@ -125,7 +124,6 @@ function Avatar() {
     />
   );
 }
-
 
 function SignatureMark({ className }: { className?: string }) {
   return (

@@ -13,7 +13,7 @@ export function SlackAuthButton() {
     >
       <a href={signInWithSlackPath()}>
         <SlackLogo className="size-[18px] shrink-0" />
-        <span className="text-[0.9375rem]">Continue with Slack</span>
+        <span>Continue with Slack</span>
       </a>
     </Button>
   );
