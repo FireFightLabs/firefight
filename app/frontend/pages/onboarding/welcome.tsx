@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Head } from "@inertiajs/react";
 
+import { FireFightLogo } from "@/components/fire-fight-logo";
+import { Button } from "@/components/ui/button";
+
 import { dashboardPath } from "@/lib/routes";
 import type { SharedProps } from "@/types";
 
@@ -27,23 +30,16 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
 
         <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
           <div style={{ width: "100%", maxWidth: "480px" }}>
-            <div className="rounded-[14px] border border-[rgba(115,211,238,0.3)] bg-card px-6 pb-6 pt-6 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-8 sm:pb-8 sm:pt-7">
+            <div className="rounded-[14px] border border-[rgba(115,211,238,0.3)] bg-card px-8 pb-8 pt-10 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-10 sm:pb-10 sm:pt-12">
               {/* Header */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex size-[22px] items-center justify-center rounded-[6px] bg-primary">
-                    <DropMark className="size-[11px] text-primary-foreground" />
-                  </span>
-                  <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-foreground">
-                    Firefight
-                  </span>
-                </div>
+                <FireFightLogo className="size-8" />
                 <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/60">
                   From the founder · {dateStamp}
                 </span>
               </div>
 
-              <div className="mt-5 border-t border-border/60" />
+              <div className="mt-5 border-t border-[rgba(115,211,238,0.25)]" />
 
               {/* Greeting */}
               <h1 className="mt-6 text-[3.25rem] font-medium leading-[1.0] tracking-[-0.045em] text-foreground">
@@ -70,7 +66,8 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
                 <p className="text-[15px] leading-[1.65]">
                   <span className="font-semibold text-foreground">
                     If something feels rough or missing, tell us.
-                  </span>{" "}
+                  </span>
+                  <br />
                   <span className="text-foreground/55">
                     That&apos;s the feedback that matters now.
                   </span>
@@ -78,7 +75,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
               </div>
 
               {/* Signature */}
-              <div className="mt-6 flex items-center justify-between border-t border-border/60 py-5">
+              <div className="mt-6 flex items-center justify-between border-t border-[rgba(115,211,238,0.25)] py-4">
                 <div className="flex items-center gap-3">
                   <Avatar />
                   <div className="leading-tight">
@@ -94,15 +91,12 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
               </div>
 
               {/* CTA */}
-              <a
-                href={dashboardPath()}
-                className="mt-6 inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-foreground text-[14px] font-medium text-background transition-colors hover:bg-foreground/90"
-              >
-                Continue to {workspaceName}
-                <span aria-hidden="true" className="translate-y-[-0.5px]">
-                  →
-                </span>
-              </a>
+              <Button asChild className="mt-4 w-full cursor-pointer transition-shadow hover:shadow-[0_0_12px_rgba(115,211,238,0.2)]">
+                <a href={dashboardPath()}>
+                  Continue to {workspaceName}
+                  <span aria-hidden="true" className="text-base">→</span>
+                </a>
+              </Button>
             </div>
           </div>
         </main>
@@ -132,18 +126,6 @@ function Avatar() {
   );
 }
 
-function DropMark({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 12 16"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M6 0 C6 0 1 6.5 1 10.5 C1 13.5 3.2 16 6 16 C8.8 16 11 13.5 11 10.5 C11 6.5 6 0 6 0Z" />
-    </svg>
-  );
-}
 
 function SignatureMark({ className }: { className?: string }) {
   return (
