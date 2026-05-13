@@ -45,7 +45,7 @@ export default function InviteCode() {
                   </h1>
                   <p className="mx-auto max-w-[34ch] text-[0.9375rem] leading-relaxed text-muted-foreground">
                     Firefight is in public beta. Installing to{" "}
-                    <span className="font-medium text-foreground">{teamName}</span>{" "}
+                    <span className="whitespace-nowrap font-medium text-foreground">{teamName}</span>{" "}
                     requires a one-time invite code.
                   </p>
                 </div>
@@ -67,12 +67,16 @@ export default function InviteCode() {
                     autoCapitalize="characters"
                     autoCorrect="off"
                     spellCheck={false}
+                    style={{
+                      backgroundColor: "#071826",
+                      borderColor: "rgba(115,211,238,0.5)",
+                    }}
                   />
                 </div>
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full cursor-pointer"
                   disabled={form.processing}
                 >
                   Continue
