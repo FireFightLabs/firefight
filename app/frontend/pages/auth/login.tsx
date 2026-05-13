@@ -20,7 +20,7 @@ export default function Login() {
         />
 
         <main className="relative flex flex-1 items-center justify-center px-6 py-12">
-          <div className="w-full max-w-[420px]">
+          <div className="w-full max-w-[540px]">
             <div className="relative rounded-[14px] border border-[rgba(115,211,238,0.3)] bg-card px-8 py-10 text-center shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-10 sm:py-12">
               <div className="mb-8 flex flex-col items-center space-y-4">
                 <svg width="36" height="36" viewBox="20 20 34 39" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -31,9 +31,9 @@ export default function Login() {
                   <h1 className="text-[1.75rem] font-medium leading-[1.15] tracking-[-0.02em] text-foreground">
                     Sign in
                   </h1>
-                  <p className="mx-auto max-w-[32ch] text-[0.9375rem] leading-relaxed text-muted-foreground">
-                    Connect your Slack workspace to get started. We&apos;ll walk
-                    you through setup on first sign-in.
+                  <p className="mx-auto text-[1.0625rem] leading-relaxed text-muted-foreground">
+                    Connect your Slack workspace to get started.<br />
+                    We&apos;ll walk you through setup on first sign-in.
                   </p>
                 </div>
               </div>
