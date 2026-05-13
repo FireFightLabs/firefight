@@ -1,12 +1,11 @@
 import type { CurrentUser, CurrentWorkspace } from './serializers'
 
-export type Flash = {
+export type FlashData = {
   notice?: string
   alert?: string
 }
 
 export type SharedProps = {
-  flash: Flash
   currentUser?: CurrentUser
   currentWorkspace?: CurrentWorkspace
 }
