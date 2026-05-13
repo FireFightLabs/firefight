@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Head } from "@inertiajs/react";
 
+import { Card } from "@/components/card";
 import { FireFightLogo } from "@/components/fire-fight-logo";
 import { Button } from "@/components/ui/button";
 import { dashboardPath } from "@/lib/routes";
@@ -29,7 +30,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
 
         <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
           <div style={{ width: "100%", maxWidth: "480px" }}>
-            <div className="rounded-[14px] border border-primary/30 bg-card px-8 pb-8 pt-10 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-10 sm:pb-10 sm:pt-12">
+            <Card variant="glow">
               {/* Header */}
               <div className="flex items-center justify-between">
                 <FireFightLogo className="size-8" />
@@ -96,7 +97,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
                   <span aria-hidden="true" className="text-base">→</span>
                 </a>
               </Button>
-            </div>
+            </Card>
           </div>
         </main>
       </div>
