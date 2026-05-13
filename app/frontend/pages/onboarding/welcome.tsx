@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { Head } from "@inertiajs/react";
 
-interface WelcomePageProps {
+import { dashboardPath } from "@/lib/routes";
+import type { SharedProps } from "@/types";
+
+interface WelcomePageProps extends SharedProps {
   [key: string]: unknown;
   userName: string;
   workspaceName: string;
@@ -92,7 +95,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
 
               {/* CTA */}
               <a
-                href="/app"
+                href={dashboardPath()}
                 className="mt-6 inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-foreground text-[14px] font-medium text-background transition-colors hover:bg-foreground/90"
               >
                 Continue to {workspaceName}
