@@ -6,6 +6,12 @@ Rack::Attack.throttle("auth by ip", limit: 20, period: 60.seconds) do |req|
   req.ip if req.path.start_with?("/auth/")
 end
 
+# Throttle invite code claim attempts. Not a brute-force defense (digest space is
+# infeasible) — protects against race-to-redeem if a code is leaked publicly.
+Rack::Attack.throttle("invite_code_claim by ip", limit: 10, period: 60.seconds) do |req|
+  req.ip if req.path == "/invite-code/claim" && req.post?
+end
+
 Rack::Attack.throttled_responder = lambda do |request|
   if request.path.start_with?("/api/")
     [ 429, { "Content-Type" => "application/json" }, [ { error: "Too many requests" }.to_json ] ]

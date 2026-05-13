@@ -12,4 +12,18 @@ class InviteCodeTest < ActiveSupport::TestCase
       invite_code.redeem!(users(:charlie))
     end
   end
+
+  test "find_active_by_code is case- and whitespace-insensitive" do
+    expected = invite_codes(:active_public_beta_code)
+
+    assert_equal expected, InviteCode.find_active_by_code("BETA-ACCESS")
+    assert_equal expected, InviteCode.find_active_by_code("beta-access")
+    assert_equal expected, InviteCode.find_active_by_code("  BETA-ACCESS  ")
+    assert_equal expected, InviteCode.find_active_by_code("BeTa-AcCeSs")
+  end
+
+  test "find_active_by_code returns nil for expired or redeemed codes" do
+    assert_nil InviteCode.find_active_by_code("EXPIRED-BETA")
+    assert_nil InviteCode.find_active_by_code("USED-BETA")
+  end
 end

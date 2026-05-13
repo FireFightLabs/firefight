@@ -6,6 +6,7 @@ import { FlashAlerts } from "@/components/flash-alerts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { claimInviteCodePath } from "@/lib/routes";
 import type { SharedProps } from "@/types";
 
 interface InviteCodePageProps extends SharedProps {
@@ -19,7 +20,7 @@ export default function InviteCode() {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    form.post("/invite-code/claim");
+    form.post(claimInviteCodePath());
   };
 
   return (

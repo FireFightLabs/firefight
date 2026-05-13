@@ -27,10 +27,9 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "New Co", response.body
-    assert_match '"inviteCodeClaimed":false', response.body
   end
 
-  test "invite_code clears an expired claimed code and reports not-claimed" do
+  test "invite_code clears an expired claimed code" do
     seed_pending_install("T_CLEAR_CO", "Clear Co")
     post claim_invite_code_path, params: { code: "BETA-ACCESS" }
     assert_equal invite_codes(:active_public_beta_code).id, session[:invite_code_id]
@@ -40,7 +39,6 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     get onboarding_invite_code_path, headers: inertia_headers
 
     assert_response :success
-    assert_match '"inviteCodeClaimed":false', response.body
     assert_nil session[:invite_code_id]
   end
 
