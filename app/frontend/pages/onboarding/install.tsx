@@ -1,4 +1,5 @@
 import { Head, usePage } from "@inertiajs/react";
+import { IconCheck } from "@tabler/icons-react";
 
 import { FireFightLogo } from "@/components/fire-fight-logo";
 import {
@@ -9,11 +10,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { installSlackAppPath } from "@/lib/routes";
+import type { SharedProps } from "@/types";
 
-interface InstallPageProps {
+interface InstallPageProps extends SharedProps {
   [key: string]: unknown;
   teamName: string;
-  teamId: string;
 }
 
 const PERMISSIONS = [
@@ -224,14 +226,14 @@ export default function Install() {
                     key={permission}
                     className="flex items-start gap-3 text-sm text-foreground"
                   >
-                    <Checkmark className="mt-[3px] size-4 shrink-0 text-primary" />
+                    <IconCheck className="mt-[3px] size-4 shrink-0 text-primary" stroke={2.5} />
                     <span>{permission}</span>
                   </li>
                 ))}
               </ul>
 
               <a
-                href="/auth/slack"
+                href={installSlackAppPath()}
                 className="flex h-11 w-full items-center justify-center rounded-md bg-foreground text-sm font-medium text-background shadow-sm transition-colors hover:bg-foreground/90"
               >
                 Add Firefight to Slack
@@ -336,19 +338,3 @@ function PermissionsDialog() {
   );
 }
 
-function Checkmark({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M3 8l3.5 3.5L13 5" />
-    </svg>
-  );
-}

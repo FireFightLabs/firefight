@@ -18,13 +18,16 @@ class OnboardingController < InertiaController
     return redirect_to(onboarding_invite_code_path) if claimed_invite_code.blank?
 
     render inertia: "onboarding/install", props: {
-      teamName: session[:pending_team_name],
-      teamId: session[:pending_team_id]
+      teamName: session[:pending_team_name]
     }
   end
 
+  # show_welcome_note is set in the auth callback on first install only and is
+  # consumed here so the founder's letter renders exactly once. Direct visits
+  # after onboarding (or refreshes) fall through to the dashboard.
   def welcome
     return redirect_to(login_path) unless user_signed_in?
+    return redirect_to(dashboard_path) unless session.delete(:show_welcome_note)
 
     render inertia: "onboarding/welcome", props: {
       userName: current_user.name,
