@@ -6,10 +6,9 @@ export function SlackAuthButton() {
     <Button
       asChild
       variant="outline"
-      className="h-11 w-full max-w-[320px] justify-center gap-3 bg-card font-medium transition-[box-shadow,transform] hover:bg-card active:translate-y-px"
+      className="h-11 w-full max-w-[320px] justify-center gap-3 bg-card font-medium shadow-[0_0_16px_rgba(115,211,238,0.15),0_0_4px_rgba(115,211,238,0.3)] transition-[box-shadow,transform] hover:bg-card hover:shadow-[0_0_24px_rgba(115,211,238,0.4),0_0_8px_rgba(115,211,238,0.55)] active:translate-y-px"
       style={{
         borderColor: "rgba(115,211,238,0.45)",
-        boxShadow: "0 0 16px rgba(115,211,238,0.15), 0 0 4px rgba(115,211,238,0.3)",
       }}
     >
       <a href={signInWithSlackPath()}>
