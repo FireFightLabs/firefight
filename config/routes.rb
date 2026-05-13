@@ -33,6 +33,12 @@ Rails.application.routes.draw do
   get "/auth/slack/callback",        to: "auth/omniauth_callbacks#slack",        as: :slack_install_callback
   get "/auth/failure",               to: "auth/omniauth_callbacks#failure"
 
+  # OmniAuth start endpoints. The OmniAuth middleware intercepts these before
+  # Rails routing — these declarations exist only so we get named path helpers.
+  # The redirect target is a safety net in case the middleware is misconfigured.
+  get "/auth/slack_openid", to: redirect("/login"), as: :sign_in_with_slack
+  get "/auth/slack",        to: redirect("/login"), as: :install_slack_app
+
   # Onboarding pages between OIDC sign-in and dashboard access
   get "/onboarding/invite-code", to: "onboarding#invite_code", as: :onboarding_invite_code
   get "/onboarding/install", to: "onboarding#install", as: :onboarding_install

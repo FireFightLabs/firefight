@@ -63,13 +63,20 @@ module Auth
     end
 
     def sign_in_and_redirect(outcome)
+      # Capture return_to before reset_session wipes the session.
+      return_to = safe_return_to(session[:return_to])
+      reset_session
       session[:user_id]      = outcome.membership.user_id
       session[:workspace_id] = outcome.membership.workspace_id
       session[:show_welcome_note] = true if outcome.first_install?
-      # Existing members do not consume invite capacity, but any stale claim
-      # should still be cleared once sign-in succeeds.
-      clear_pending_session_keys
-      redirect_to(outcome.first_install? ? onboarding_welcome_path : dashboard_path, notice: outcome.message)
+      target = outcome.first_install? ? onboarding_welcome_path : (return_to || dashboard_path)
+      redirect_to(target, notice: outcome.message)
+    end
+
+    def safe_return_to(path)
+      return nil if path.blank?
+      return nil unless path.is_a?(String) && path.start_with?("/app/")
+      path
     end
 
     def start_install_and_redirect(outcome)

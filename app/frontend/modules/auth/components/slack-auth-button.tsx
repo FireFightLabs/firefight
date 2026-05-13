@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { signInWithSlackPath } from "@/lib/routes";
 
 export function SlackAuthButton() {
   return (
@@ -11,7 +12,7 @@ export function SlackAuthButton() {
         boxShadow: "0 0 16px rgba(115,211,238,0.15), 0 0 4px rgba(115,211,238,0.3)",
       }}
     >
-      <a href="/auth/slack_openid">
+      <a href={signInWithSlackPath()}>
         <SlackLogo className="size-[18px] shrink-0" />
         <span className="text-[0.9375rem]">Continue with Slack</span>
       </a>

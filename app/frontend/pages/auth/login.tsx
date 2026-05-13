@@ -58,14 +58,18 @@ export default function Login() {
                 </p>
                 <p className="mt-1 text-xs leading-relaxed">
                   <a
-                    href="/terms"
+                    href="https://firefight.app/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="font-semibold text-foreground underline decoration-border underline-offset-[3px] transition-colors hover:decoration-foreground"
                   >
                     Terms
                   </a>
                   <span className="text-muted-foreground"> and </span>
                   <a
-                    href="/privacy"
+                    href="https://firefight.app/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="font-semibold text-foreground underline decoration-border underline-offset-[3px] transition-colors hover:decoration-foreground"
                   >
                     Privacy Policy
@@ -75,39 +79,7 @@ export default function Login() {
             </div>
           </div>
         </main>
-
-        <Footer />
       </div>
     </div>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="relative px-6 py-6 md:px-10 md:py-8">
-      <div className="flex flex-col items-start justify-between gap-3 text-xs text-muted-foreground md:flex-row md:items-center">
-        <div className="flex items-center gap-2">
-          <span aria-hidden="true" className="relative flex size-1.5">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#10B981] opacity-60" />
-            <span className="relative inline-flex size-1.5 rounded-full bg-[#10B981]" />
-          </span>
-          <span>All systems operational</span>
-        </div>
-        <div className="flex items-center gap-5">
-          <a
-            href="https://github.com/firefightlabs/firefight"
-            className="transition-colors hover:text-foreground"
-            target="_blank"
-            rel="noreferrer"
-          >
-            GitHub
-          </a>
-          <a href="/docs" className="transition-colors hover:text-foreground">
-            Docs
-          </a>
-          <span className="tabular-nums">v1.0</span>
-        </div>
-      </div>
-    </footer>
   );
 }

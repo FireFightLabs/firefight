@@ -16,7 +16,7 @@ module Firefight
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     config.autoload_lib(ignore: %w[assets tasks omniauth slack])
 
-    config.session_store :cookie_store, key: "_firefight_session", expire_after: 12.hours
+    config.session_store :cookie_store, key: "_firefight_session", expire_after: 12.hours, same_site: :lax
 
     # Configuration for the application, engines, and railties goes here.
     #
