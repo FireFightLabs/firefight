@@ -29,7 +29,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
 
         <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
           <div style={{ width: "100%", maxWidth: "480px" }}>
-            <div className="rounded-[14px] border border-[rgba(115,211,238,0.3)] bg-card px-8 pb-8 pt-10 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-10 sm:pb-10 sm:pt-12">
+            <div className="rounded-[14px] border border-primary/30 bg-card px-8 pb-8 pt-10 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-10 sm:pb-10 sm:pt-12">
               {/* Header */}
               <div className="flex items-center justify-between">
                 <FireFightLogo className="size-8" />
@@ -38,7 +38,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
                 </span>
               </div>
 
-              <div className="mt-5 border-t border-[rgba(115,211,238,0.25)]" />
+              <div className="mt-5 border-t border-primary/25" />
 
               {/* Greeting */}
               <h1 className="mt-6 text-5xl font-medium leading-none tracking-tighter text-foreground">
@@ -74,7 +74,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
               </div>
 
               {/* Signature */}
-              <div className="mt-6 flex items-center justify-between border-t border-[rgba(115,211,238,0.25)] py-4">
+              <div className="mt-6 flex items-center justify-between border-t border-primary/25 py-4">
                 <div className="flex items-center gap-3">
                   <Avatar />
                   <div className="leading-tight">

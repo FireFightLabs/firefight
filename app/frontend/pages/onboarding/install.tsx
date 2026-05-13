@@ -204,7 +204,7 @@ export default function Install() {
 
         <main className="relative flex flex-1 items-center justify-center px-6 py-12">
           <div className="w-full max-w-[460px]">
-            <div className="relative rounded-[14px] border border-[rgba(115,211,238,0.3)] bg-card px-8 pb-8 pt-10 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-10 sm:pb-10 sm:pt-12">
+            <div className="relative rounded-[14px] border border-primary/30 bg-card px-8 pb-8 pt-10 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-10 sm:pb-10 sm:pt-12">
               <div className="mb-8 flex flex-col items-center space-y-4 text-center">
                 <FireFightLogo />
                 <div className="space-y-2">
@@ -236,8 +236,7 @@ export default function Install() {
               <Button
                 asChild
                 variant="outline"
-                className="h-11 w-full cursor-pointer justify-center gap-3 bg-card font-medium shadow-[0_0_16px_rgba(115,211,238,0.15),0_0_4px_rgba(115,211,238,0.3)] transition-[box-shadow,transform] hover:bg-card hover:shadow-[0_0_24px_rgba(115,211,238,0.4),0_0_8px_rgba(115,211,238,0.55)] active:translate-y-px"
-                style={{ borderColor: "rgba(115,211,238,0.45)" }}
+                className="h-11 w-full cursor-pointer justify-center gap-3 border-primary/45 bg-card font-medium shadow-[0_0_16px_rgba(115,211,238,0.15),0_0_4px_rgba(115,211,238,0.3)] transition-[box-shadow,transform] hover:bg-card hover:shadow-[0_0_24px_rgba(115,211,238,0.4),0_0_8px_rgba(115,211,238,0.55)] active:translate-y-px"
               >
                 <a href={installSlackAppPath()}>
                   <SlackLogo className="size-[18px] shrink-0" />
