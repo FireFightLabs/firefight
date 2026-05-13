@@ -2,6 +2,7 @@ import { Head, usePage } from "@inertiajs/react";
 import { IconCheck } from "@tabler/icons-react";
 
 import { FireFightLogo } from "@/components/fire-fight-logo";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -203,7 +204,7 @@ export default function Install() {
 
         <main className="relative flex flex-1 items-center justify-center px-6 py-12">
           <div className="w-full max-w-[460px]">
-            <div className="relative rounded-[14px] border border-[rgba(115,211,238,0.3)] bg-card px-8 py-10 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-10 sm:py-12">
+            <div className="relative rounded-[14px] border border-[rgba(115,211,238,0.3)] bg-card px-8 pb-8 pt-10 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-10 sm:pb-10 sm:pt-12">
               <div className="mb-8 flex flex-col items-center space-y-4 text-center">
                 <FireFightLogo />
                 <div className="space-y-2">
@@ -215,7 +216,7 @@ export default function Install() {
                   <span className="font-medium text-foreground">
                     {teamName}
                   </span>
-                  . The bot needs the following permissions:
+                  .<br />The bot needs the following permissions:
                 </p>
                 </div>
               </div>
@@ -232,12 +233,17 @@ export default function Install() {
                 ))}
               </ul>
 
-              <a
-                href={installSlackAppPath()}
-                className="flex h-11 w-full items-center justify-center rounded-md bg-foreground text-sm font-medium text-background shadow-sm transition-colors hover:bg-foreground/90"
+              <Button
+                asChild
+                variant="outline"
+                className="h-11 w-full cursor-pointer justify-center gap-3 bg-card font-medium shadow-[0_0_16px_rgba(115,211,238,0.15),0_0_4px_rgba(115,211,238,0.3)] transition-[box-shadow,transform] hover:bg-card hover:shadow-[0_0_24px_rgba(115,211,238,0.4),0_0_8px_rgba(115,211,238,0.55)] active:translate-y-px"
+                style={{ borderColor: "rgba(115,211,238,0.45)" }}
               >
-                Add Firefight to Slack
-              </a>
+                <a href={installSlackAppPath()}>
+                  <SlackLogo className="size-[18px] shrink-0" />
+                  <span className="text-[0.9375rem]">Add Firefight to Slack</span>
+                </a>
+              </Button>
 
               <PermissionsDialog />
 
@@ -259,7 +265,7 @@ function PermissionsDialog() {
       <DialogTrigger asChild>
         <button
           type="button"
-          className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+          className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
         >
           See all {TOTAL_SCOPES} permissions
           <span aria-hidden="true" className="translate-y-[-0.5px]">
@@ -275,7 +281,7 @@ function PermissionsDialog() {
           display: "grid",
           gridTemplateRows: "auto minmax(0, 1fr)",
         }}
-        className="w-[calc(100vw-2rem)] gap-0 overflow-hidden border-border/70 bg-card p-0 shadow-[0_24px_60px_-24px_rgba(10,30,46,0.22),0_8px_20px_-8px_rgba(10,30,46,0.08)]"
+        className="dark w-[calc(100vw-2rem)] gap-0 overflow-hidden border-border/70 bg-card p-0 shadow-[0_24px_60px_-24px_rgba(10,30,46,0.22),0_8px_20px_-8px_rgba(10,30,46,0.08)] [&>button]:text-muted-foreground [&>button]:hover:text-foreground"
       >
         <DialogHeader className="space-y-1.5 border-b border-border/60 px-6 pt-6 pb-5 sm:text-left">
           <DialogTitle className="text-[1.0625rem] font-medium tracking-[-0.01em] text-foreground">
@@ -337,4 +343,21 @@ function PermissionsDialog() {
     </Dialog>
   );
 }
+
+function SlackLogo({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 122.8 122.8"
+      className={className}
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M25.8 77.6a12.9 12.9 0 1 1-12.9-12.9h12.9zm6.5 0a12.9 12.9 0 0 1 25.8 0v32.3a12.9 12.9 0 0 1-25.8 0z" fill="#E01E5A" />
+      <path d="M45.2 25.8a12.9 12.9 0 1 1 12.9-12.9v12.9zm0 6.5a12.9 12.9 0 0 1 0 25.8H12.9a12.9 12.9 0 0 1 0-25.8z" fill="#36C5F0" />
+      <path d="M97 45.2a12.9 12.9 0 1 1 12.9 12.9H97zm-6.5 0a12.9 12.9 0 0 1-25.8 0V12.9a12.9 12.9 0 0 1 25.8 0z" fill="#2EB67D" />
+      <path d="M77.6 97a12.9 12.9 0 1 1-12.9 12.9V97zm0-6.5a12.9 12.9 0 0 1 0-25.8h32.3a12.9 12.9 0 0 1 0 25.8z" fill="#ECB22E" />
+    </svg>
+  );
+}
+
 
