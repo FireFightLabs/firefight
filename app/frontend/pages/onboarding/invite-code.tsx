@@ -51,9 +51,7 @@ export default function InviteCode() {
               id="invite-code"
               name="code"
               value={form.data.code}
-              onChange={(event) =>
-                form.setData("code", event.target.value)
-              }
+              onChange={(event) => form.setData("code", event.target.value)}
               placeholder="Enter your invite code"
               autoCapitalize="characters"
               autoCorrect="off"
@@ -76,7 +74,7 @@ export default function InviteCode() {
           <p className="text-center text-xs leading-relaxed text-muted-foreground">
             Don&apos;t have a code?{" "}
             <a
-              href="mailto:hello@firefight.app"
+              href="mailto:support@firefight.app"
               className="font-semibold text-foreground underline decoration-border underline-offset-[3px] transition-colors hover:decoration-foreground"
             >
               Request access
