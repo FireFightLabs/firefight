@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Head } from "@inertiajs/react";
 
 import { Card } from "@/components/card";
 import { FireFightLogo } from "@/components/fire-fight-logo";
 import { Button } from "@/components/ui/button";
 import { dashboardPath } from "@/lib/routes";
+import { AuthLayout } from "@/modules/auth/components/auth-layout";
 import type { SharedProps } from "@/types";
 
 interface WelcomePageProps extends SharedProps {
@@ -19,89 +19,68 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
   const dateStamp = `${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getFullYear()).slice(2)}`;
 
   return (
-    <div className="dark">
-      <Head title="Welcome to Firefight" />
+    <AuthLayout title="Welcome to Firefight">
+      <Card variant="glow">
+        <div className="flex items-center justify-between">
+          <FireFightLogo className="size-8" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
+            From the founder · {dateStamp}
+          </span>
+        </div>
 
-      <div className="relative flex min-h-svh flex-col bg-background text-foreground">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(115,211,238,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(115,211,238,0.03)_1px,transparent_1px)] bg-[size:56px_56px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]"
-        />
+        <div className="mt-5 border-t border-primary/25" />
 
-        <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
-          <div style={{ width: "100%", maxWidth: "480px" }}>
-            <Card variant="glow">
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <FireFightLogo className="size-8" />
-                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
-                  From the founder · {dateStamp}
-                </span>
-              </div>
+        <h1 className="mt-6 text-3xl font-medium tracking-tight text-foreground">
+          You&apos;re in, <em className="italic">{firstName}.</em>
+        </h1>
 
-              <div className="mt-5 border-t border-primary/25" />
+        <div className="mt-5 space-y-4 text-sm leading-relaxed text-foreground/85">
+          <p>
+            I built Firefight because every incident tool I&apos;d worked
+            with felt the same way: bloated, complicated, priced for
+            enterprise. Not built for the teams actually wading into alerts
+            at 3am.
+          </p>
 
-              {/* Greeting */}
-              <h1 className="mt-6 text-5xl font-medium leading-none tracking-tighter text-foreground">
-                You&apos;re in, <em className="italic">{firstName}.</em>
-              </h1>
+          <p>
+            Firefight is simple to start and built to grow with you. Start
+            small, add the workflows you need as your team learns what good
+            incident response looks like. We build in the open — the source
+            is on GitHub, you can see what we&apos;re working on, and you
+            can push back when something feels off. That&apos;s how dev
+            tools should be built.
+          </p>
 
-              {/* Body */}
-              <div className="mt-5 space-y-4">
-                <p className="text-sm leading-relaxed text-foreground/88">
-                  I built Firefight because incident tooling too often feels{" "}
-                  <em className="italic">
-                    bloated, opaque, and priced for large companies
-                  </em>{" "}
-                  — not the teams actually running systems.
-                </p>
+          <p>
+            If something feels rough or you need a hand, message me
+            directly. We&apos;re a small team, we read everything, and we
+            mean that.
+          </p>
+        </div>
 
-                <p className="text-sm leading-relaxed text-foreground/55">
-                  It&apos;s meant to be straightforward. Declare the incident.
-                  Create the response space. Keep the timeline clear. No
-                  automation mazes, no setup walls — just the three things you
-                  need when the pager goes.
-                </p>
-
-                <p className="text-sm leading-relaxed">
-                  <span className="font-semibold text-foreground">
-                    If something feels rough or missing, tell us.
-                  </span>
-                  <br />
-                  <span className="text-foreground/55">
-                    That&apos;s the feedback that matters now.
-                  </span>
-                </p>
-              </div>
-
-              {/* Signature */}
-              <div className="mt-6 flex items-center justify-between border-t border-primary/25 py-4">
-                <div className="flex items-center gap-3">
-                  <Avatar />
-                  <div className="leading-tight">
-                    <p className="text-sm font-semibold tracking-tight text-foreground">
-                      Uros Nikolic
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Founder, Firefight
-                    </p>
-                  </div>
-                </div>
-                <SignatureMark className="h-9 w-[110px] text-foreground/50" />
-              </div>
-
-              {/* CTA */}
-              <Button asChild className="mt-4 w-full cursor-pointer transition-shadow hover:shadow-[0_0_12px_rgba(115,211,238,0.2)]">
-                <a href={dashboardPath()}>
-                  Continue to {workspaceName}
-                  <span aria-hidden="true" className="text-base">→</span>
-                </a>
-              </Button>
-            </Card>
+        <div className="mt-6 flex items-center justify-between border-t border-primary/25 py-4">
+          <div className="flex items-center gap-3">
+            <Avatar />
+            <div className="leading-tight">
+              <p className="text-sm font-semibold tracking-tight text-foreground">
+                Uros Nikolic
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Founder, Firefight
+              </p>
+            </div>
           </div>
-        </main>
-      </div>
-    </div>
+          <SignatureMark className="h-9 w-[110px] text-foreground/50" />
+        </div>
+
+        <Button asChild className="mt-4 w-full cursor-pointer transition-shadow hover:shadow-[0_0_12px_rgba(115,211,238,0.2)]">
+          <a href={dashboardPath()}>
+            Continue to {workspaceName}
+            <span aria-hidden="true" className="text-base">→</span>
+          </a>
+        </Button>
+      </Card>
+    </AuthLayout>
   );
 }
 
