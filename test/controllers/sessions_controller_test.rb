@@ -4,7 +4,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
   fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships
 
   test "GET /login renders login page when unauthenticated" do
-    get login_path
+    get login_path, headers: inertia_headers
     assert_response :success
   end
 

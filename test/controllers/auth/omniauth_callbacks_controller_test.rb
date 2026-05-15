@@ -144,7 +144,7 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     existing  = workspace_memberships(:alice_workspace_one)
     alice     = users(:alice)
 
-    get login_path
+    get login_path, headers: inertia_headers
     pre_cookie = cookies["_firefight_session"]
     assert pre_cookie.present?, "expected a session cookie before sign-in"
 

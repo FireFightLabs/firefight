@@ -41,9 +41,7 @@ export default function InviteCode() {
             </>
           }
         />
-
         <FlashAlerts className="mb-4" />
-
         <form className="space-y-3 text-left" onSubmit={submit}>
           <div className="space-y-2">
             <Label htmlFor="invite-code">Invite code</Label>
@@ -60,7 +58,6 @@ export default function InviteCode() {
               style={{ backgroundColor: "#071826" }}
             />
           </div>
-
           <Button
             type="submit"
             className="w-full cursor-pointer transition-shadow hover:shadow-[0_0_12px_rgba(115,211,238,0.2)]"
@@ -69,7 +66,6 @@ export default function InviteCode() {
             Continue
           </Button>
         </form>
-
         <div className="mt-6 border-t border-primary/25 pt-4">
           <p className="text-center text-xs leading-relaxed text-muted-foreground">
             Don&apos;t have a code?{" "}
