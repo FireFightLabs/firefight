@@ -2,13 +2,13 @@ import { useForm, usePage } from "@inertiajs/react";
 import type { FormEvent } from "react";
 
 import { Card } from "@/components/card";
-import { FireFightLogo } from "@/components/fire-fight-logo";
 import { FlashAlerts } from "@/components/flash-alerts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { claimInviteCodePath } from "@/lib/routes";
 import { AuthLayout } from "@/modules/auth/components/auth-layout";
+import { CardHeader } from "@/modules/auth/components/card-header";
 import type { SharedProps } from "@/types";
 
 interface InviteCodePageProps extends SharedProps {
@@ -28,22 +28,19 @@ export default function InviteCode() {
   return (
     <AuthLayout title="Enter invite code" containerClassName="max-w-[420px]">
       <Card variant="glow">
-        <div className="mb-8 flex flex-col items-center space-y-4 text-center">
-          <FireFightLogo />
-          <div className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              Public beta
-            </p>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              Enter invite code
-            </h1>
-            <p className="mx-auto max-w-[34ch] text-sm leading-relaxed text-muted-foreground">
+        <CardHeader
+          overline="Public beta"
+          title="Enter invite code"
+          subtitle={
+            <>
               Firefight is in public beta. Installing to{" "}
-              <span className="whitespace-nowrap font-medium text-foreground">{teamName}</span>{" "}
+              <span className="whitespace-nowrap font-medium text-foreground">
+                {teamName}
+              </span>{" "}
               requires a one-time invite code.
-            </p>
-          </div>
-        </div>
+            </>
+          }
+        />
 
         <FlashAlerts className="mb-4" />
 
