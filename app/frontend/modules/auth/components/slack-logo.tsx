@@ -1,21 +1,4 @@
-import { Button } from "@/components/ui/button";
-
-export function SlackAuthButton() {
-  return (
-    <Button
-      asChild
-      variant="outline"
-      className="h-11 w-full justify-center gap-3 border-border bg-card font-medium shadow-[0_1px_0_0_rgba(10,30,46,0.04),0_1px_2px_0_rgba(10,30,46,0.06)] transition-[box-shadow,transform] hover:bg-card hover:shadow-[0_1px_0_0_rgba(10,30,46,0.06),0_2px_4px_0_rgba(10,30,46,0.08)] active:translate-y-px"
-    >
-      <a href="/auth/slack_openid">
-        <SlackLogo className="size-[18px] shrink-0" />
-        <span className="text-[0.9375rem]">Continue with Slack</span>
-      </a>
-    </Button>
-  );
-}
-
-function SlackLogo({ className }: { className?: string }) {
+export function SlackLogo({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 122.8 122.8"

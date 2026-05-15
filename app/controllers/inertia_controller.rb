@@ -3,9 +3,8 @@
 class InertiaController < ApplicationController
   inertia_share do
     {
-      flash: flash.to_hash,
-      currentUser: current_user&.as_json(only: [ :id, :name, :email, :avatar_url ]),
-      currentWorkspace: current_workspace&.as_json(only: [ :id, :name, :platform, :avatar_url ])
+      currentUser: current_user && CurrentUserSerializer.one(current_user),
+      currentWorkspace: current_workspace && CurrentWorkspaceSerializer.one(current_workspace)
     }
   end
 end

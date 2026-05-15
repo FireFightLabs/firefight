@@ -1,7 +1,13 @@
 import { useState } from "react";
-import { Head } from "@inertiajs/react";
 
-interface WelcomePageProps {
+import { Card } from "@/components/card";
+import { FireFightLogo } from "@/components/fire-fight-logo";
+import { Button } from "@/components/ui/button";
+import { dashboardPath } from "@/lib/routes";
+import { AuthLayout } from "@/modules/auth/components/auth-layout";
+import type { SharedProps } from "@/types";
+
+interface WelcomePageProps extends SharedProps {
   [key: string]: unknown;
   userName: string;
   workspaceName: string;
@@ -13,98 +19,68 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
   const dateStamp = `${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getFullYear()).slice(2)}`;
 
   return (
-    <>
-      <Head title="Welcome to Firefight" />
+    <AuthLayout title="Welcome to Firefight">
+      <Card variant="glow">
+        <div className="flex items-center justify-between">
+          <FireFightLogo className="size-8" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
+            From the founder · {dateStamp}
+          </span>
+        </div>
 
-      <div className="relative flex min-h-svh flex-col bg-background text-foreground">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(10,30,46,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(10,30,46,0.035)_1px,transparent_1px)] bg-[size:56px_56px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]"
-        />
+        <div className="mt-5 border-t border-primary/25" />
 
-        <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
-          <div style={{ width: "100%", maxWidth: "480px" }}>
-            <div className="rounded-2xl border border-border bg-card px-6 pb-6 pt-6 shadow-[0_1px_0_0_rgba(10,30,46,0.02),0_2px_4px_0_rgba(10,30,46,0.04),0_12px_40px_-12px_rgba(10,30,46,0.14)] sm:px-8 sm:pb-8 sm:pt-7">
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex size-[22px] items-center justify-center rounded-[6px] bg-primary">
-                    <DropMark className="size-[11px] text-primary-foreground" />
-                  </span>
-                  <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-foreground">
-                    Firefight
-                  </span>
-                </div>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/60">
-                  From the founder · {dateStamp}
-                </span>
-              </div>
+        <h1 className="mt-6 text-3xl font-medium tracking-tight text-foreground">
+          You&apos;re in, <em className="italic">{firstName}.</em>
+        </h1>
 
-              <div className="mt-5 border-t border-border/60" />
+        <div className="mt-5 space-y-4 text-sm leading-relaxed text-foreground/85">
+          <p>
+            I built Firefight because every incident tool I&apos;d worked
+            with felt the same way: bloated, complicated, priced for
+            enterprise. Not built for the teams actually wading into alerts
+            at 3am.
+          </p>
 
-              {/* Greeting */}
-              <h1 className="mt-6 text-[3.25rem] font-medium leading-[1.0] tracking-[-0.045em] text-foreground">
-                You&apos;re in, <em className="italic">{firstName}.</em>
-              </h1>
+          <p>
+            Firefight is simple to start and built to grow with you. Start
+            small, add the workflows you need as your team learns what good
+            incident response looks like. We build in the open — the source
+            is on GitHub, you can see what we&apos;re working on, and you
+            can push back when something feels off. That&apos;s how dev
+            tools should be built.
+          </p>
 
-              {/* Body */}
-              <div className="mt-5 space-y-4">
-                <p className="text-[15px] leading-[1.65] text-foreground/88">
-                  I built Firefight because incident tooling too often feels{" "}
-                  <em className="italic">
-                    bloated, opaque, and priced for large companies
-                  </em>{" "}
-                  — not the teams actually running systems.
-                </p>
+          <p>
+            If something feels rough or you need a hand, message me
+            directly. We&apos;re a small team, we read everything, and we
+            mean that.
+          </p>
+        </div>
 
-                <p className="text-[15px] leading-[1.65] text-foreground/55">
-                  It&apos;s meant to be straightforward. Declare the incident.
-                  Create the response space. Keep the timeline clear. No
-                  automation mazes, no setup walls — just the three things you
-                  need when the pager goes.
-                </p>
-
-                <p className="text-[15px] leading-[1.65]">
-                  <span className="font-semibold text-foreground">
-                    If something feels rough or missing, tell us.
-                  </span>{" "}
-                  <span className="text-foreground/55">
-                    That&apos;s the feedback that matters now.
-                  </span>
-                </p>
-              </div>
-
-              {/* Signature */}
-              <div className="mt-6 flex items-center justify-between border-t border-border/60 py-5">
-                <div className="flex items-center gap-3">
-                  <Avatar />
-                  <div className="leading-tight">
-                    <p className="text-[13.5px] font-semibold tracking-[-0.01em] text-foreground">
-                      Uros Nikolic
-                    </p>
-                    <p className="mt-0.5 text-[12px] text-muted-foreground">
-                      Founder, Firefight
-                    </p>
-                  </div>
-                </div>
-                <SignatureMark className="h-9 w-[110px] text-foreground/50" />
-              </div>
-
-              {/* CTA */}
-              <a
-                href="/app"
-                className="mt-6 inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-foreground text-[14px] font-medium text-background transition-colors hover:bg-foreground/90"
-              >
-                Continue to {workspaceName}
-                <span aria-hidden="true" className="translate-y-[-0.5px]">
-                  →
-                </span>
-              </a>
+        <div className="mt-6 flex items-center justify-between border-t border-primary/25 py-4">
+          <div className="flex items-center gap-3">
+            <Avatar />
+            <div className="leading-tight">
+              <p className="text-sm font-semibold tracking-tight text-foreground">
+                Uros Nikolic
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Founder, Firefight
+              </p>
             </div>
           </div>
-        </main>
-      </div>
-    </>
+          <SignatureMark className="h-9 w-[110px] text-foreground/50" />
+        </div>
+
+        <Button asChild className="mt-4 w-full cursor-pointer transition-shadow hover:shadow-[0_0_12px_rgba(115,211,238,0.2)]">
+          <a href={dashboardPath()}>
+            Continue to {workspaceName}
+            <span aria-hidden="true" className="text-base">→</span>
+          </a>
+        </Button>
+      </Card>
+    </AuthLayout>
   );
 }
 
@@ -113,7 +89,7 @@ function Avatar() {
 
   if (errored) {
     return (
-      <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary text-[12px] font-semibold tracking-tight text-foreground">
+      <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold tracking-tight text-foreground">
         UN
       </span>
     );
@@ -126,19 +102,6 @@ function Avatar() {
       onError={() => setErrored(true)}
       className="size-11 shrink-0 rounded-full object-cover ring-1 ring-border"
     />
-  );
-}
-
-function DropMark({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 12 16"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M6 0 C6 0 1 6.5 1 10.5 C1 13.5 3.2 16 6 16 C8.8 16 11 13.5 11 10.5 C11 6.5 6 0 6 0Z" />
-    </svg>
   );
 }
 

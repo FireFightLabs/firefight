@@ -125,6 +125,42 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Public beta access currently requires an invite code.", flash[:alert]
   end
 
+  test "slack_openid redirects to login when the service raises" do
+    workspace = workspaces(:slack_workspace_one)
+    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
+      info: { email: "boom@example.com", team_id: workspace.platform_id, team_name: workspace.name }
+    )
+    SlackAuthenticationService.any_instance.stubs(:handle_openid_signin).raises(StandardError, "kaboom")
+
+    get "/auth/slack_openid/callback"
+
+    assert_redirected_to login_path
+    assert_equal "Sign-in failed. Please try again.", flash[:alert]
+    assert_nil session[:user_id]
+  end
+
+  test "slack_openid rotates the session id on successful sign-in (fixation regression)" do
+    workspace = workspaces(:slack_workspace_one)
+    existing  = workspace_memberships(:alice_workspace_one)
+    alice     = users(:alice)
+
+    get login_path
+    pre_cookie = cookies["_firefight_session"]
+    assert pre_cookie.present?, "expected a session cookie before sign-in"
+
+    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
+      uid: existing.platform_user_id,
+      info: { email: alice.email, team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    get "/auth/slack_openid/callback"
+
+    assert_redirected_to dashboard_path
+    post_cookie = cookies["_firefight_session"]
+    assert post_cookie.present?
+    assert_not_equal pre_cookie, post_cookie, "session cookie should rotate on sign-in to prevent fixation"
+  end
+
   # failure
 
   test "failure with csrf_detected redirects to login with specific alert" do
@@ -132,5 +168,26 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to login_path
     assert_equal "Authentication session expired. Please try again.", flash[:alert]
+  end
+
+  test "failure with access_denied redirects with denial alert" do
+    get "/auth/failure?message=access_denied"
+
+    assert_redirected_to login_path
+    assert_equal "You denied access to your Slack account.", flash[:alert]
+  end
+
+  test "failure with invalid_credentials redirects with support alert" do
+    get "/auth/failure?message=invalid_credentials"
+
+    assert_redirected_to login_path
+    assert_equal "Invalid credentials. Please contact support.", flash[:alert]
+  end
+
+  test "failure with unknown message falls back to generic alert" do
+    get "/auth/failure?message=something_weird"
+
+    assert_redirected_to login_path
+    assert_equal "Authentication failed. Please try again.", flash[:alert]
   end
 end
