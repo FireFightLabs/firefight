@@ -1,14 +1,13 @@
-import { User, Workspace } from './models'
+import type { CurrentUser, CurrentWorkspace } from './serializers'
 
-export type Flash = {
+export type FlashData = {
   notice?: string
   alert?: string
 }
 
 export type SharedProps = {
-  flash: Flash
-  currentUser?: User
-  currentWorkspace?: Workspace
+  currentUser?: CurrentUser
+  currentWorkspace?: CurrentWorkspace
 }
 
 export interface Pagination {

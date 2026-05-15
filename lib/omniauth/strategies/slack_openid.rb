@@ -61,7 +61,10 @@ module OmniAuth
             "https://slack.com/api/openid.connect.userInfo",
             headers: { "Authorization" => "Bearer #{access_token.token}" }
           )
-          JSON.parse(response.body)
+          raise "Slack userInfo returned HTTP #{response.status}" unless response.status == 200
+          parsed = JSON.parse(response.body)
+          raise "Slack userInfo returned ok=false: #{parsed['error']}" if parsed["ok"] == false
+          parsed
         end
       end
 

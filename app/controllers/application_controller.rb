@@ -13,11 +13,13 @@ class ApplicationController < ActionController::Base
   private
 
   def current_user
-    @current_user ||= User.find_by(id: session[:user_id]) if session[:user_id]
+    return @current_user if defined?(@current_user)
+    @current_user = session[:user_id] ? User.find_by(id: session[:user_id]) : nil
   end
 
   def current_workspace
-    @current_workspace ||= Workspace.find_by(id: session[:workspace_id]) if session[:workspace_id]
+    return @current_workspace if defined?(@current_workspace)
+    @current_workspace = session[:workspace_id] ? Workspace.find_by(id: session[:workspace_id]) : nil
   end
 
   def user_signed_in?
@@ -25,9 +27,10 @@ class ApplicationController < ActionController::Base
   end
 
   def require_authentication
-    unless user_signed_in?
-      redirect_to login_path, alert: "Please sign in to continue"
-    end
+    return if user_signed_in?
+
+    session[:return_to] = request.fullpath if request.get? && request.fullpath.start_with?("/app/")
+    redirect_to login_path, alert: "Please sign in to continue"
   end
 
   def claimed_invite_code

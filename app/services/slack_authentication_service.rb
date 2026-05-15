@@ -2,7 +2,8 @@
 # controller should do next. Decision logic lives here; HTTP concerns stay in
 # the controller; state changes happen on the models.
 class SlackAuthenticationService
-  INVITE_REQUIRED_MESSAGE = "Public beta access currently requires an invite code.".freeze
+  INVITE_REQUIRED_MESSAGE   = "Public beta access currently requires an invite code.".freeze
+  WORKSPACE_MISMATCH_MESSAGE = "Workspace mismatch. Please sign in again with the workspace you want to connect.".freeze
 
   # OIDC sign-in (identity only). Two outcomes (plus the install-gated third):
   #   - signed_in:      workspace exists; return or create the membership.
@@ -39,24 +40,41 @@ class SlackAuthenticationService
   # an AuthOutcome so the controller has a uniform interface.
   #
   # @param user [User, nil] The installer, already identified by the prior OIDC
-  #   sign-in. When provided, skips re-deriving identity from auth_hash.
-  def handle_install(auth_hash, user: nil, invite_code: nil)
+  #   sign-in. Required for first-install: we never derive identity from the
+  #   install auth_hash's user_info (brittle and not the user who signed in).
+  # @param pending_team_id [String, nil] The Slack team_id captured during the
+  #   prior OIDC step. If provided and does not match the auth_hash's team_id,
+  #   the install is rejected — prevents bypassing invite gating by signing in
+  #   for team A and redirecting the bot install to team B.
+  def handle_install(auth_hash, user: nil, invite_code: nil, pending_team_id: nil)
     team_id = auth_hash.extra.team_info["id"]
+
+    if pending_team_id.present? && pending_team_id != team_id
+      Rails.logger.warn({
+        event: "slack_authentication.team_mismatch",
+        pending_team_id: pending_team_id,
+        install_team_id: team_id
+      })
+      return AuthOutcome.invite_required(message: WORKSPACE_MISMATCH_MESSAGE)
+    end
+
     existing_workspace = Workspace.find_by(platform: :slack, platform_id: team_id)
 
     if existing_workspace.nil? && !invite_code&.active?
       return AuthOutcome.invite_required(message: INVITE_REQUIRED_MESSAGE)
     end
 
-    installer = user
+    if existing_workspace.nil? && user.nil?
+      Rails.logger.warn({
+        event: "slack_authentication.missing_installer",
+        install_team_id: team_id
+      })
+      return AuthOutcome.invite_required(message: INVITE_REQUIRED_MESSAGE)
+    end
 
     result = ActiveRecord::Base.transaction do
-      if existing_workspace.nil?
-        installer ||= User.find_or_create_from_omniauth!(auth_hash)
-        invite_code.redeem!(installer)
-      end
-
-      Workspace.process_slack_installation(auth_hash, user: installer)
+      invite_code.redeem!(user) if existing_workspace.nil?
+      Workspace.process_slack_installation(auth_hash, user: user)
     end
 
     trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]

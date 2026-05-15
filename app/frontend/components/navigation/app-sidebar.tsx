@@ -100,7 +100,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             user={{
               name: currentUser.name,
               email: currentUser.email,
-              avatar: currentUser.avatar_url,
+              avatar: currentUser.avatarUrl,
             }}
           />
         )}

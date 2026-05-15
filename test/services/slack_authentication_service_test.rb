@@ -227,11 +227,46 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     stub_successful_slack_workflow
     SlackWorkspaceSetupWorkflow.expects(:start!).once.returns(OpenStruct.new(id: "wf-1", status: "running"))
 
-    outcome = @service.handle_install(@auth_hash, invite_code: invite_codes(:active_public_beta_code))
+    outcome = @service.handle_install(
+      @auth_hash,
+      user: users(:charlie),
+      invite_code: invite_codes(:active_public_beta_code)
+    )
 
     assert outcome.signed_in?
     assert outcome.membership.persisted?
     assert_equal "Setting up your Firefight workspace...", outcome.message
+  end
+
+  test "handle_install rejects install when pending_team_id does not match auth_hash team" do
+    invite_code = invite_codes(:active_public_beta_code)
+
+    assert_no_difference -> { Workspace.count } do
+      outcome = @service.handle_install(
+        @auth_hash,
+        user: users(:charlie),
+        invite_code: invite_code,
+        pending_team_id: "T_DIFFERENT_FROM_AUTH_HASH"
+      )
+
+      assert outcome.invite_required?
+      assert_equal SlackAuthenticationService::WORKSPACE_MISMATCH_MESSAGE, outcome.message
+    end
+
+    assert_not invite_code.reload.redeemed?
+  end
+
+  test "handle_install rejects first install when installer (user) is missing" do
+    invite_code = invite_codes(:active_public_beta_code)
+
+    assert_no_difference -> { Workspace.count } do
+      outcome = @service.handle_install(@auth_hash, invite_code: invite_code)
+
+      assert outcome.invite_required?
+      assert_equal SlackAuthenticationService::INVITE_REQUIRED_MESSAGE, outcome.message
+    end
+
+    assert_not invite_code.reload.redeemed?
   end
 
   test "handle_install returns invite_required when invite code was already redeemed concurrently" do
