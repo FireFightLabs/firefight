@@ -33,7 +33,7 @@ export function PermissionsDialog() {
           display: "grid",
           gridTemplateRows: "auto minmax(0, 1fr)",
         }}
-        className="dark w-[calc(100vw-2rem)] gap-0 overflow-hidden border-border/70 bg-card p-0 shadow-[0_24px_60px_-24px_rgba(10,30,46,0.22),0_8px_20px_-8px_rgba(10,30,46,0.08)] [&>button]:text-muted-foreground [&>button]:hover:text-foreground"
+        className="w-[calc(100vw-2rem)] gap-0 overflow-hidden border-border/70 bg-card p-0 shadow-[0_24px_60px_-24px_rgba(10,30,46,0.22),0_8px_20px_-8px_rgba(10,30,46,0.08)] [&>button]:text-muted-foreground [&>button]:hover:text-foreground"
       >
         <DialogHeader className="space-y-1.5 border-b border-border/60 px-6 pt-6 pb-5 sm:text-left">
           <DialogTitle>Permissions Firefight needs</DialogTitle>

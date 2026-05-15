@@ -15,7 +15,7 @@ export function AuthLayout({
   children,
 }: AuthLayoutProps) {
   return (
-    <div className="dark">
+    <>
       <Head title={title} />
       <div className="relative flex min-h-svh flex-col bg-background text-foreground">
         <div
@@ -29,6 +29,6 @@ export function AuthLayout({
           </div>
         </main>
       </div>
-    </div>
+    </>
   );
 }
