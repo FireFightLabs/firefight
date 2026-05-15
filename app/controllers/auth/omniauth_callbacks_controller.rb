@@ -20,7 +20,12 @@ module Auth
     # callback doesn't re-derive identity from the bot install's auth_hash
     # (whose user_info / email fetch is brittle and not required here).
     def slack
-      outcome = SlackAuthenticationService.new.handle_install(auth_hash, user: pending_user, invite_code: claimed_invite_code)
+      outcome = SlackAuthenticationService.new.handle_install(
+        auth_hash,
+        user: pending_user,
+        invite_code: claimed_invite_code,
+        pending_team_id: session[:pending_team_id]
+      )
       apply_outcome(outcome)
     rescue => e
       log_auth_failure(:slack_install_failed, e)
