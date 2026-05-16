@@ -1,155 +1,182 @@
 require "test_helper"
 
 class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces
+  fixtures :workspaces, :users, :workspace_memberships
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
   end
 
-  test "should enqueue job for valid slack command" do
+  test "should dispatch valid slack command and return 200" do
+    CommandDispatcher.expects(:dispatch).once.returns(nil)
+
     request_data = slack_command_request(
-    team_id: @workspace.platform_id,
-    user_id: "U12345678",
-    text: "help"
+      team_id: @workspace.platform_id,
+      user_id: "U12345678",
+      text: "help"
     )
 
-    assert_enqueued_with(job: ProcessCommandJob) do
     post api_v1_commands_url,
          params: request_data[:body],
          headers: request_data[:headers]
+
+    assert_response :success
+  end
+
+  test "should pass parsed command to dispatcher" do
+    dispatched_command = nil
+    CommandDispatcher.stubs(:dispatch).with { |cmd| dispatched_command = cmd; true }.returns(nil)
+
+    request_data = slack_command_request(
+      team_id: @workspace.platform_id,
+      user_id: "U12345678",
+      text: "help me",
+      channel_id: "C12345678"
+    )
+
+    post api_v1_commands_url,
+         params: request_data[:body],
+         headers: request_data[:headers]
+
+    assert_equal Platforms::SLACK, dispatched_command.platform
+    assert_equal @workspace.id, dispatched_command.workspace_id
+    assert_equal "U12345678", dispatched_command.user_id
+    assert_equal "help me", dispatched_command.text
+    assert_equal "C12345678", dispatched_command.channel_id
+  end
+
+  test "should render ephemeral response in body when handler returns one" do
+    CommandDispatcher.stubs(:dispatch).returns(
+      { response_type: Command::EPHEMERAL, text: "Not in incident channel" }
+    )
+
+    request_data = slack_command_request(team_id: @workspace.platform_id, text: "summary")
+    post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal "ephemeral", body["response_type"]
+    assert_equal "Not in incident channel", body["text"]
+  end
+
+  test "should include blocks in ephemeral response when provided" do
+    blocks = [ { type: "section", text: { type: "mrkdwn", text: "*Timeline*" } } ]
+    CommandDispatcher.stubs(:dispatch).returns(
+      { response_type: Command::EPHEMERAL, text: "Timeline", blocks: blocks }
+    )
+
+    request_data = slack_command_request(team_id: @workspace.platform_id, text: "timeline")
+    post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal "section", body["blocks"].first["type"]
+  end
+
+  test "should return empty 200 when handler returns nil" do
+    CommandDispatcher.stubs(:dispatch).returns(nil)
+
+    request_data = slack_command_request(team_id: @workspace.platform_id, text: "")
+    post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
+
+    assert_response :success
+    assert_empty response.body
+  end
+
+  test "should render ephemeral error when dispatch raises" do
+    CommandDispatcher.stubs(:dispatch).raises(StandardError.new("boom"))
+
+    request_data = slack_command_request(team_id: @workspace.platform_id, text: "help")
+    post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal "ephemeral", body["response_type"]
+    assert_includes body["text"], "something went wrong"
+  end
+
+  test "should return 200 without dispatching when workspace is unknown" do
+    CommandDispatcher.expects(:dispatch).never
+
+    request_data = slack_command_request(team_id: "TNONEXIST")
+    post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
+
+    assert_response :success
+  end
+
+  test "should provision new member before dispatching" do
+    stub_get_user_info
+    CommandDispatcher.stubs(:dispatch).returns(nil)
+
+    request_data = slack_command_request(
+      team_id: @workspace.platform_id,
+      user_id: "U_NEW_USER",
+      text: "help"
+    )
+
+    assert_difference "WorkspaceMembership.count", 1 do
+      post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
     end
+
+    membership = @workspace.workspace_memberships.find_by!(platform_user_id: "U_NEW_USER")
+    assert_equal "member", membership.role
+  end
+
+  test "should continue dispatching when provisioning fails" do
+    WorkspaceMemberProvisioner.stubs(:find_or_provision!).raises(StandardError.new("API down"))
+    CommandDispatcher.expects(:dispatch).once.returns(nil)
+
+    request_data = slack_command_request(team_id: @workspace.platform_id, text: "help")
+    post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
 
     assert_response :success
   end
 
   test "should reject request without signature" do
+    CommandDispatcher.expects(:dispatch).never
+
     params = {
-    team_id: @workspace.platform_id,
-    user_id: "U12345678",
-    text: "help"
+      team_id: @workspace.platform_id,
+      user_id: "U12345678",
+      text: "help"
     }
 
-    assert_no_enqueued_jobs do
-      post api_v1_commands_url, params: params
-    end
+    post api_v1_commands_url, params: params
 
     assert_response :unauthorized
     assert_equal "Unauthorized", JSON.parse(response.body)["error"]
   end
 
   test "should reject request with invalid signature" do
-    request_data = slack_command_request(team_id: @workspace.platform_id)
+    CommandDispatcher.expects(:dispatch).never
 
-    # Tamper with signature
+    request_data = slack_command_request(team_id: @workspace.platform_id)
     request_data[:headers]["X-Slack-Signature"] = "v0=invalid_signature"
 
-    assert_no_enqueued_jobs do
-      post api_v1_commands_url,
+    post api_v1_commands_url,
          params: request_data[:body],
          headers: request_data[:headers]
-    end
 
     assert_response :unauthorized
   end
 
   test "should reject request with old timestamp (replay attack)" do
+    CommandDispatcher.expects(:dispatch).never
+
     old_timestamp = (Time.now - SlackConstants::REPLAY_ATTACK_WINDOW - 1.minute).to_i
+    request_data = slack_command_request(team_id: @workspace.platform_id)
 
-    request_data = slack_command_request(
-    team_id: @workspace.platform_id,
-    timestamp: old_timestamp
-    )
-
-    # Generate valid signature for old timestamp
     sig_basestring = "#{SlackConstants::SIGNATURE_VERSION}:#{old_timestamp}:#{request_data[:body]}"
     signature = "#{SlackConstants::SIGNATURE_VERSION}=" +
-              OpenSSL::HMAC.hexdigest("SHA256", SlackConstants::SIGNING_SECRET, sig_basestring)
+                OpenSSL::HMAC.hexdigest("SHA256", SlackConstants::SIGNING_SECRET, sig_basestring)
 
     request_data[:headers]["X-Slack-Signature"] = signature
     request_data[:headers]["X-Slack-Request-Timestamp"] = old_timestamp.to_s
 
-    assert_no_enqueued_jobs do
-      post api_v1_commands_url,
+    post api_v1_commands_url,
          params: request_data[:body],
          headers: request_data[:headers]
-    end
 
     assert_response :unauthorized
-  end
-
-  test "should return 404 when workspace not found" do
-    request_data = slack_command_request(
-    team_id: "TNONEXIST" # Non-existent workspace
-    )
-
-    assert_no_enqueued_jobs do
-      post api_v1_commands_url,
-         params: request_data[:body],
-         headers: request_data[:headers]
-    end
-
-    assert_response :not_found
-    assert_equal "Not found", JSON.parse(response.body)["error"]
-  end
-
-  test "should handle empty command text" do
-    request_data = slack_command_request(
-    team_id: @workspace.platform_id,
-    text: ""
-    )
-
-    assert_enqueued_with(job: ProcessCommandJob) do
-    post api_v1_commands_url,
-         params: request_data[:body],
-         headers: request_data[:headers]
-    end
-
-    assert_response :success
-  end
-
-  test "should handle command with text" do
-    request_data = slack_command_request(
-    team_id: @workspace.platform_id,
-    text: Identifiers::SUBCOMMAND_STATUS
-    )
-
-    assert_enqueued_with(job: ProcessCommandJob) do
-    post api_v1_commands_url,
-         params: request_data[:body],
-         headers: request_data[:headers]
-    end
-
-    assert_response :success
-  end
-
-  test "should pass all command parameters to job" do
-    expected_params = {
-    token: "test-token",
-    team_id: @workspace.platform_id,
-    team_domain: "test-workspace",
-    channel_id: "C12345678",
-    channel_name: "general",
-    user_id: "U12345678",
-    user_name: "alice",
-    command: "/firefight",
-    text: "help me",
-    response_url: "https://hooks.slack.com/commands/T12345678/12345/abc123",
-    trigger_id: "123456.789.abc123",
-    api_app_id: "A12345678"
-    }
-
-    request_data = slack_command_request(expected_params)
-
-    assert_enqueued_with(
-    job: ProcessCommandJob,
-    args: ->(args) { args[0] == Platforms::SLACK && args[1]["text"] == "help me" }
-    ) do
-    post api_v1_commands_url,
-         params: request_data[:body],
-         headers: request_data[:headers]
-    end
-
-    assert_response :success
   end
 end
