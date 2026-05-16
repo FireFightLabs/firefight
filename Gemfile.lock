@@ -277,7 +277,6 @@ GEM
     mini_magick (5.3.1)
       logger
     mini_mime (1.1.5)
-    mini_portile2 (2.8.9)
     minitest (6.0.6)
       drb (~> 2.0)
       prism (~> 1.5)
@@ -290,6 +289,8 @@ GEM
     mutex_m (0.3.0)
     net-http (0.9.1)
       uri (>= 0.11.1)
+    net-http-persistent (4.0.8)
+      connection_pool (>= 2.2.4, < 4)
     net-imap (0.6.4)
       date
       net-protocol
@@ -305,9 +306,6 @@ GEM
       net-protocol
     net-ssh (7.3.2)
     nio4r (2.7.5)
-    nokogiri (1.19.3)
-      mini_portile2 (~> 2.8.2)
-      racc (~> 1.4)
     nokogiri (1.19.3-aarch64-linux-gnu)
       racc (~> 1.4)
     nokogiri (1.19.3-aarch64-linux-musl)
@@ -602,7 +600,6 @@ PLATFORMS
   arm-linux-musl
   arm64-darwin-23
   arm64-darwin-24
-  ruby
   x86_64-linux
   x86_64-linux-gnu
   x86_64-linux-musl
@@ -626,6 +623,7 @@ DEPENDENCIES
   kamal
   minitest (~> 6.0)
   mocha
+  net-http-persistent
   oj_serializers
   omniauth (~> 2.1)
   omniauth-oauth2

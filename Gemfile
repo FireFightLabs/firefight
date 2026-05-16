@@ -46,6 +46,9 @@ gem "js-routes", "~> 2.3"
 # HTTP client for API requests
 gem "httparty"
 
+# Persistent HTTP connection pool (for Slack API keep-alive)
+gem "net-http-persistent"
+
 # AI intelligence layer (postmortem generation, incident Q&A, integrations)
 gem "firefight_ai", path: "engines/firefight_ai"
 
