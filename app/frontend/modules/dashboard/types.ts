@@ -5,6 +5,7 @@ export interface DashboardStat {
   changeType?: "up" | "down"
   trendDescription: string
   detail: string
+  highlight?: "success" | "danger"
 }
 
 export interface DashboardFilters {

@@ -19,8 +19,9 @@ class DashboardStats
     {
       label: "Active Incidents",
       value: count.to_s,
-      trendDescription: "Currently open incidents",
-      detail: "Across all severity levels"
+      trendDescription: count.zero? ? "All clear" : "Currently open incidents",
+      detail: "Across all severity levels",
+      highlight: count.zero? ? "success" : "danger"
     }
   end
 

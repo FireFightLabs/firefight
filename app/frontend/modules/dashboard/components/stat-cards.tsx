@@ -15,8 +15,22 @@ import { Skeleton } from "@/components/ui/skeleton"
 function StatCard({ stat }: { stat: DashboardStat }) {
   const TrendIcon = stat.changeType === "up" ? IconTrendingUp : IconTrendingDown
 
+  const borderClass =
+    stat.highlight === "success"
+      ? "border border-border border-l-2 border-l-[#5BD3A1]"
+      : stat.highlight === "danger"
+        ? "border border-border border-l-2 border-l-red-500"
+        : "border border-border"
+
+  const dotClass =
+    stat.highlight === "success"
+      ? "size-2 rounded-full bg-[#5BD3A1] shrink-0"
+      : stat.highlight === "danger"
+        ? "size-2 rounded-full bg-red-500 shrink-0"
+        : null
+
   return (
-    <Card className="@container/card">
+    <Card className={`@container/card ${borderClass}`}>
       <CardHeader>
         <CardDescription>{stat.label}</CardDescription>
         <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
@@ -32,7 +46,8 @@ function StatCard({ stat }: { stat: DashboardStat }) {
         )}
       </CardHeader>
       <CardFooter className="flex-col items-start gap-1.5 text-sm">
-        <div className="line-clamp-1 flex gap-2 font-medium">
+        <div className="line-clamp-1 flex items-center gap-2 font-medium">
+          {dotClass && <span className={dotClass} />}
           {stat.trendDescription}
         </div>
         <div className="text-muted-foreground">{stat.detail}</div>
