@@ -43,6 +43,7 @@ import {
 
 const navSections = [
   {
+    label: "Respond",
     items: [
       { title: "Incidents", url: dashboardPath(), icon: IconUrgent },
     ],
@@ -90,7 +91,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="pt-6">
+      <SidebarContent className="pt-8 px-2">
         <NavMain sections={navSections} />
       </SidebarContent>
       <SidebarFooter>
