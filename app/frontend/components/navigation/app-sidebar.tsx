@@ -3,7 +3,6 @@ import {
   IconBook2,
   IconCategory,
   IconChecklist,
-  IconFlame,
   IconForms,
   IconKey,
   IconListDetails,
@@ -15,6 +14,7 @@ import {
 } from "@tabler/icons-react"
 import { Link, usePage } from "@inertiajs/react"
 
+import { FireFightLogo } from "@/components/fire-fight-logo"
 import { NavMain } from "@/components/navigation/nav-main"
 import { NavUser } from "@/components/navigation/nav-user"
 import {
@@ -43,7 +43,6 @@ import {
 
 const navSections = [
   {
-    label: "Respond",
     items: [
       { title: "Incidents", url: dashboardPath(), icon: IconUrgent },
     ],
@@ -76,7 +75,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="h-(--header-height) justify-center border-b">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -84,14 +83,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
               <Link href={dashboardPath()}>
-                <IconFlame className="size-5!" />
-                <span className="text-base font-semibold">Firefight</span>
+                <FireFightLogo style={{ width: "2rem", height: "2rem" }} className="shrink-0" />
+                <span className="text-base font-semibold">FireFight</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="pt-6">
         <NavMain sections={navSections} />
       </SidebarContent>
       <SidebarFooter>
