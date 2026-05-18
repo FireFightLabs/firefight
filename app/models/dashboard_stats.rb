@@ -19,8 +19,8 @@ class DashboardStats
     {
       label: "Active Incidents",
       value: count.to_s,
-      trendDescription: count.zero? ? "All clear" : "Currently open incidents",
-      detail: "Across all severity levels",
+      trendDescription: count.zero? ? "All clear" : "Open now",
+      detail: "Across all severities",
       highlight: count.zero? ? "success" : "danger"
     }
   end
@@ -36,10 +36,10 @@ class DashboardStats
     end
 
     {
-      label: "MTTR",
-      value: avg ? "#{avg} min" : "N/A",
-      trendDescription: "Mean time to resolve",
-      detail: "Across all resolved incidents"
+      label: "Avg. Resolution Time",
+      value: avg ? "#{avg} min" : "—",
+      trendDescription: avg ? "Avg. to resolve" : "No data yet",
+      detail: "Based on resolved incidents"
     }
   end
 
@@ -53,7 +53,7 @@ class DashboardStats
       label: "Total Incidents",
       value: count.to_s,
       trendDescription: "Declared this month",
-      detail: "All severity levels"
+      detail: "Across all severities"
     }
   end
 
@@ -71,8 +71,8 @@ class DashboardStats
     {
       label: "Critical Incidents",
       value: count.to_s,
-      trendDescription: "P1 severity this month",
-      detail: "Highest severity incidents"
+      trendDescription: "Declared this month",
+      detail: "Critical severity only"
     }
   end
 
