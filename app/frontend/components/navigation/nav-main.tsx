@@ -62,7 +62,10 @@ export function NavMain({ sections }: { sections: NavSection[] }) {
           <SidebarGroupContent>
             <SidebarMenu>
               {section.items.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.title} className="relative">
+                  {item.title === activeTitle && (
+                    <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-primary" />
+                  )}
                   <SidebarMenuButton
                     tooltip={item.title}
                     asChild
