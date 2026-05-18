@@ -2,12 +2,18 @@ class Api::V1::CommandsController < Api::V1::BaseController
   # POST /api/v1/commands
   # Handles Slack slash commands (/firefight, /ff)
   def create
-    command = Slack::CommandAdapter.parse(command_params.to_h)
+    command = Slack::CommandAdapter.parse(command_params.to_h.with_indifferent_changes)
 
-    unless command.valid?
-      Rails.logger.error({ event: "command.invalid", errors: command.errors.full_messages })
-      return head :ok
-    end
+
+  unless command.valid?
+    Rails.logger.error({ event: "command.unknown_workspace", errors: command.errors.full_messages })
+    install_url = "https://#{ENV.fetch('APP_HOST')}/onboarding/install"
+    return render json: {
+      response_type: "ephemeral",
+      text: "Firefight isn't connected to this Slack workspace. " \
+            "A workspace admin can <#{install_url}|reinstall the app> to fix this."
+    }
+  end
 
     ensure_member_provisioned(command)
     result = CommandDispatcher.dispatch(command)
