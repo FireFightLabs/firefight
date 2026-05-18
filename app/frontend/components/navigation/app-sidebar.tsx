@@ -51,15 +51,20 @@ const navSections = [
   {
     label: "Configure",
     items: [
-      { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
-      { title: "Members", url: settingsMembersPath(), icon: IconUsers },
-      { title: "Forms", url: settingsFormsPath(), icon: IconChecklist },
-      { title: "Custom Fields", url: settingsCustomFieldsPath(), icon: IconForms },
-      { title: "Roles", url: settingsRolesPath(), icon: IconUserShield },
       { title: "Statuses", url: settingsStatusesPath(), icon: IconListDetails },
       { title: "Severities", url: settingsSeveritiesPath(), icon: IconAlertTriangle },
       { title: "Types", url: settingsTypesPath(), icon: IconCategory },
+      { title: "Forms", url: settingsFormsPath(), icon: IconChecklist },
+      { title: "Custom Fields", url: settingsCustomFieldsPath(), icon: IconForms },
+      { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
       { title: "Integrations", url: "#", icon: IconPlug },
+    ],
+  },
+  {
+    label: "Team",
+    items: [
+      { title: "Members", url: settingsMembersPath(), icon: IconUsers },
+      { title: "Roles", url: settingsRolesPath(), icon: IconUserShield },
     ],
   },
   {
