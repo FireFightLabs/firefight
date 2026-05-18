@@ -84,7 +84,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <Link href={dashboardPath()}>
                 <FireFightLogo style={{ width: "2rem", height: "2rem" }} className="shrink-0" />
-                <span className="text-base font-semibold">FireFight</span>
+                <span className="text-base font-bold tracking-tight">FireFight</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
