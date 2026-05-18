@@ -5,6 +5,7 @@ module Slack
     # @param payload [Hash] Slack slash command parameters
     # @return [Command] Platform-agnostic command object
     def self.parse(payload)
+      payload = payload.with_indifferent_access
       Command.new(
         platform: Platforms::SLACK,
         workspace_id: find_workspace_id(payload[:team_id]),

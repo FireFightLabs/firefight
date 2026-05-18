@@ -8,7 +8,14 @@ module Interactions
 
       description = interaction.values.dig("description_block", "description_input", "value")
       assignee_user_id = interaction.values.dig("assignee_block", "assignee_select", "selected_user")
-      assignee = assignee_user_id ? workspace.workspace_memberships.find_by!(platform_user_id: assignee_user_id) : nil
+      if assignee_user_id
+        assignee = WorkspaceMemberProvisioner.find_or_provision!(
+          workspace: workspace,
+          platform_user_id: assignee_user_id,
+          adapter: workspace.adapter
+        )
+        return { response_action: "errors", errors: { "assignee_block" => "Couldn't load that user's profile from Slack. Please try again in a moment." } } unless assignee
+      end
 
       platform_data = {}
       platform_data[:source_message_link] = metadata[:source_message_link] if metadata[:source_message_link]
