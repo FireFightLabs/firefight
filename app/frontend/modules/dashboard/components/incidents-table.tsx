@@ -5,7 +5,6 @@ import { useIncidentsTable } from "@/modules/dashboard/hooks/use-incidents-table
 import { incidentsTableColumns } from "@/modules/dashboard/lib/incidents-table-columns"
 import { DataTable } from "@/components/data-table"
 import { TablePagination } from "@/components/table-pagination"
-import { ColumnVisibilityDropdown } from "@/components/column-visibility-dropdown"
 import { IncidentsTableToolbar } from "./incidents-table-toolbar"
 
 interface IncidentsTableProps {
@@ -30,9 +29,8 @@ export function IncidentsTable({ incidents, pagination, filters, severityOptions
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <div className="flex items-center justify-between px-4 lg:px-6">
+      <div className="flex items-center px-4 lg:px-6">
         <h2 className="text-lg font-semibold">Recent Incidents</h2>
-        <ColumnVisibilityDropdown table={table} />
       </div>
 
       <IncidentsTableToolbar
