@@ -15,6 +15,11 @@ class CommandDispatcher
 
   def self.dispatch(command)
     handler = find(command)
+    OpenTelemetry::Trace.current_span.add_attributes({
+      "slack.command_name" => command.command_name,
+      "slack.subcommand" => command.subcommand,
+      "slack.handler" => handler.name
+    }.compact)
     handler.execute(command)
   end
 end
