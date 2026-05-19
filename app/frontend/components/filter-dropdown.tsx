@@ -29,10 +29,10 @@ export function FilterDropdown({ label, options, selected, onToggle }: FilterDro
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 cursor-pointer">
-          {label}
+        <Button variant="outline" size="sm" className="h-9 cursor-pointer focus-visible:ring-1 focus-visible:ring-border">
+          <span className="text-muted-foreground">{label}</span>
           {selected.size > 0 && (
-            <Badge variant="secondary" className="ml-1 rounded-sm px-1">
+            <Badge variant="secondary" className="ml-0.5 rounded px-1 py-0 text-[11px] bg-primary/15 text-primary border-transparent">
               {selectedLabel ?? selected.size}
             </Badge>
           )}
