@@ -22,6 +22,10 @@ interface FilterDropdownProps {
 }
 
 export function FilterDropdown({ label, options, selected, onToggle }: FilterDropdownProps) {
+  const selectedLabel = selected.size === 1
+    ? options.find((o) => selected.has(o.value))?.label
+    : null
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -29,7 +33,7 @@ export function FilterDropdown({ label, options, selected, onToggle }: FilterDro
           {label}
           {selected.size > 0 && (
             <Badge variant="secondary" className="ml-1 rounded-sm px-1">
-              {selected.size}
+              {selectedLabel ?? selected.size}
             </Badge>
           )}
           <IconChevronDown />
