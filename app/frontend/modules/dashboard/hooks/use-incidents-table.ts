@@ -38,17 +38,17 @@ export function useIncidentsTable(
 ) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-  const [searchInput, setSearchInput] = React.useState(filters.search)
+  const [searchInput, setSearchInput] = React.useState(filters.search ?? "")
   const searchTimerRef = React.useRef<ReturnType<typeof setTimeout>>()
-  const searchInputRef = React.useRef(filters.search)
+  const searchInputRef = React.useRef(filters.search ?? "")
   const filtersRef = React.useRef(filters)
   filtersRef.current = filters
   const paginationRef = React.useRef(pagination)
   paginationRef.current = pagination
 
   React.useEffect(() => {
-    setSearchInput(filters.search)
-    searchInputRef.current = filters.search
+    setSearchInput(filters.search ?? "")
+    searchInputRef.current = filters.search ?? ""
   }, [filters.search])
 
   React.useEffect(() => {
