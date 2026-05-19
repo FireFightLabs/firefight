@@ -58,9 +58,9 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     accessorKey: "lead",
     header: "Lead",
     cell: ({ row }) => (
-      <span className="text-muted-foreground">
-        {row.original.lead ?? "Unassigned"}
-      </span>
+      row.original.lead
+        ? <span>{row.original.lead}</span>
+        : <span className="text-muted-foreground">Unassigned</span>
     ),
   },
   {
@@ -76,7 +76,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     id: "duration",
     header: "Duration",
     cell: ({ row }) => (
-      <span className="font-mono text-xs">
+      <span className="font-mono text-xs text-muted-foreground">
         {formatDuration(row.original.declaredAt, row.original.resolvedAt)}
       </span>
     ),
