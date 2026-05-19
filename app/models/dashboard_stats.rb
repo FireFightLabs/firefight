@@ -20,8 +20,7 @@ class DashboardStats
       label: "Active Incidents",
       value: count.to_s,
       trendDescription: count.zero? ? "All clear" : "Open now",
-      detail: "Across all severities",
-      highlight: count.zero? ? "success" : "danger"
+      detail: "Across all severities"
     }
   end
 
@@ -72,7 +71,8 @@ class DashboardStats
       label: "Critical Incidents",
       value: count.to_s,
       trendDescription: "Declared this month",
-      detail: "Critical severity only"
+      detail: "Critical severity only",
+      highlight: count.positive? ? "danger" : nil
     }
   end
 
