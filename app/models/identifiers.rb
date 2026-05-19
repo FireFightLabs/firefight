@@ -67,6 +67,7 @@ module Identifiers
   SHARE_INCIDENTS_CHANNEL = "share_incidents_channel"
   PREVIEW_ANNOUNCEMENT = "preview_announcement"
   PREVIEW_HOMEPAGE_DISABLED = "preview_homepage_disabled"
+  INCIDENT_HOMEPAGE = "incident_homepage"
   PREVIEW_SUBSCRIBE_DISABLED = "preview_subscribe_disabled"
   ACCEPT_INCIDENT = "accept_incident"
   SET_INCIDENT_LEAD_SELF = "set_incident_lead_self"
