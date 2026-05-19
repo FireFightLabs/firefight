@@ -1,13 +1,11 @@
 module Slack
   class CommandAdapter < ::CommandAdapter
-    TRACER = OpenTelemetry.tracer_provider.tracer("firefight.slack.boundary")
-
     # Parse Slack slash command payload into a Command object
     #
     # @param payload [Hash] Slack slash command parameters
     # @return [Command] Platform-agnostic command object
     def self.parse(payload)
-      TRACER.in_span("slack.command_adapter.parse") do
+      Firefight::TRACER.in_span("slack.command_adapter.parse") do
         payload = payload.with_indifferent_access
         Command.new(
           platform: Platforms::SLACK,

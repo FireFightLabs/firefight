@@ -1,6 +1,4 @@
 class Api::V1::BaseController < ActionController::API
-  TRACER = OpenTelemetry.tracer_provider.tracer("firefight.slack.boundary")
-
   # Verify Slack signature on all requests by default
   # Controllers can skip with: skip_before_action :verify_slack_signature!
   before_action :verify_slack_signature!
@@ -13,7 +11,8 @@ class Api::V1::BaseController < ActionController::API
   private
 
   def verify_slack_signature!
-    TRACER.in_span("slack.verify_signature") do
+    OpenTelemetry::Trace.current_span.add_attributes({ "firefight.source" => "slack" })
+    Firefight::TRACER.in_span("slack.verify_signature") do
       Slack::SignatureVerifier.verify!(request)
     end
   end
@@ -23,7 +22,7 @@ class Api::V1::BaseController < ActionController::API
   # downstream handlers can trust find_by!(platform_user_id:) for the actor.
   # Best-effort: provisioning failure logs a warning, dispatch continues.
   def ensure_membership!(workspace:, platform_user_id:)
-    TRACER.in_span("slack.ensure_membership") do
+    Firefight::TRACER.in_span("slack.ensure_membership") do
       return unless workspace && platform_user_id
 
       WorkspaceMemberProvisioner.find_or_provision!(
