@@ -46,11 +46,11 @@ function StatCard({ stat }: { stat: DashboardStat }) {
         )}
       </CardHeader>
       <CardFooter className="flex-col items-start gap-1.5 text-sm">
-        <div className="line-clamp-1 flex items-center gap-2 font-medium">
+        <div className="line-clamp-1 flex items-center gap-2">
           {dotClass && <span className={dotClass} />}
           {stat.trendDescription}
         </div>
-        <div className="text-muted-foreground">{stat.detail}</div>
+        <div className="text-muted-foreground text-xs">{stat.detail}</div>
       </CardFooter>
     </Card>
   )
