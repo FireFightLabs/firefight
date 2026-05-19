@@ -44,7 +44,14 @@ export function IncidentsTable({ incidents, pagination, filters, severityOptions
       />
 
       <div className="mx-4 lg:mx-6">
-        <DataTable table={table} emptyMessage="No incidents found." />
+        <DataTable
+          table={table}
+          emptyMessage={
+            filters.search || filters.severities.length > 0 || filters.statuses.length > 0
+              ? "No incidents match your filters."
+              : "All clear — no incidents yet."
+          }
+        />
       </div>
 
       <TablePagination
