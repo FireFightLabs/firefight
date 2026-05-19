@@ -104,6 +104,10 @@ gem "yabeda-prometheus-mmap"
 gem "prometheus-client-mmap", "~> 1.3"
 gem "webrick"
 
+gem "opentelemetry-sdk"
+gem "opentelemetry-exporter-otlp"
+gem "opentelemetry-instrumentation-all"
+
 gem "vite_rails", "~> 3.0"
 
 gem "oj_serializers"
