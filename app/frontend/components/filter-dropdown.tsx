@@ -25,7 +25,7 @@ export function FilterDropdown({ label, options, selected, onToggle }: FilterDro
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9">
+        <Button variant="outline" size="sm" className="h-9 cursor-pointer">
           {label}
           {selected.size > 0 && (
             <Badge variant="secondary" className="ml-1 rounded-sm px-1">

@@ -36,13 +36,13 @@ export function IncidentsTableToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2 px-4 lg:px-6">
-      <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="relative w-72">
         <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search incidents..."
           value={searchInput}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 h-9"
+          className="pl-9 h-9 focus-visible:ring-1"
         />
       </div>
 
