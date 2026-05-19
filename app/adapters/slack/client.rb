@@ -415,11 +415,17 @@ module Slack
 
     # Persistent HTTP connection pool for Slack API.
     # Reuses TCP+TLS sockets across calls, eliminating handshake overhead
-    # (~100-200ms per call) on the warm path. Net::HTTP::Persistent maintains
+    # (~15-20ms per call) on the warm path. Net::HTTP::Persistent maintains
     # per-thread connection caches internally, so this is thread-safe under Puma.
+    #
+    # idle_timeout: 600 (10 min) — Slack tolerates long keep-alives, and Slack
+    # commands are bursty (a user fires one, thinks, fires another minutes later).
+    # With per-thread pooling under Puma's RAILS_MAX_THREADS=3, threads see
+    # Slack traffic infrequently — short timeouts here mean we re-handshake
+    # almost every time. 10 minutes captures realistic command spacing.
     def self.http_pool
       @http_pool ||= Net::HTTP::Persistent.new(name: "slack_api").tap do |pool|
-        pool.idle_timeout = 30
+        pool.idle_timeout = 600
       end
     end
 
