@@ -58,7 +58,7 @@ export function IncidentsTable({ incidents, pagination, filters, severityOptions
         pagination={pagination}
         onPageChange={setPage}
         onPerPageChange={setPerPage}
-        totalLabel="incident(s) total"
+        totalLabel={`${pagination.totalCount === 1 ? "incident" : "incidents"} total`}
       />
     </div>
   )
