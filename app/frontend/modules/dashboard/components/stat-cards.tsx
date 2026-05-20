@@ -32,7 +32,7 @@ function StatCard({ stat }: { stat: DashboardStat }) {
         )}
       </CardHeader>
       <CardFooter className="flex-col items-start gap-1.5 text-sm">
-        <div className="line-clamp-1 flex items-center gap-2">
+        <div className="line-clamp-1 flex items-center gap-2 font-medium text-foreground/80">
           {stat.trendDescription}
         </div>
         <div className="text-muted-foreground text-xs">{stat.detail}</div>
