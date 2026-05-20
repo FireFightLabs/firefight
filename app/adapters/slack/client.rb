@@ -466,7 +466,7 @@ module Slack
       request["Content-Type"] = "application/json"
       request.body = payload.to_json
 
-      response = http_pool.request(uri, request)
+      response = pool_request(uri, request)
       body = JSON.parse(response.body).with_indifferent_access
 
       unless body[:ok]

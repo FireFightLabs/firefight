@@ -42,15 +42,6 @@ plugin :yabeda_prometheus
 # Run the Solid Queue supervisor inside of Puma for single-server deployments.
 plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
 
-# Eagerly open one connection per AR pool (primary, cache, queue, cable) so
-# the first request after a worker boot doesn't pay the ~250ms cold-connect
-# + schema-introspection tax. Defensive: failures inside the warmup are
-# rescued — worker boots normally if the DB is briefly unreachable.
-# Opt out with CONNECTION_WARMUP=false (see config/initializers/connection_warmup.rb).
-on_worker_boot do
-  ConnectionWarmup.run if defined?(ConnectionWarmup)
-end
-
 # Specify the PID file. Defaults to tmp/pids/server.pid in development.
 # In other environments, only set the PID file if requested.
 pidfile ENV["PIDFILE"] if ENV["PIDFILE"]

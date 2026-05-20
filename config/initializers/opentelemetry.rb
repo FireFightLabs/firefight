@@ -9,9 +9,21 @@ if Rails.env.production?
   require "opentelemetry/exporter/otlp"
   require "opentelemetry/instrumentation/all"
 
+  # Required env vars in production (set via Kamal secrets / deploy.yml):
+  #   OTEL_EXPORTER_OTLP_ENDPOINT  — where to send spans (Tempo/Honeycomb/etc).
+  #                                  Without this the exporter silently drops to
+  #                                  localhost:4318 and times out at shutdown.
+  #   OTEL_TRACES_SAMPLER          — e.g. "parentbased_traceidratio"
+  #   OTEL_TRACES_SAMPLER_ARG      — e.g. "0.1" for 10% sampling. Default
+  #                                  AlwaysOn generates one trace per request.
+  #   KAMAL_VERSION                — deployed commit SHA. Kamal does NOT inject
+  #                                  this automatically; wire it via deploy.yml.
   OpenTelemetry::SDK.configure do |c|
     c.service_name = "firefight"
     c.service_version = ENV.fetch("KAMAL_VERSION", "dev")
+    c.resource = OpenTelemetry::SDK::Resources::Resource.create(
+      "deployment.environment" => ENV.fetch("DEPLOYMENT_ENVIRONMENT", Rails.env)
+    )
     c.use_all
   end
 end

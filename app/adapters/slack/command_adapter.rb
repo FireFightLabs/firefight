@@ -5,25 +5,23 @@ module Slack
     # @param payload [Hash] Slack slash command parameters
     # @return [Command] Platform-agnostic command object
     def self.parse(payload)
-      Firefight::TRACER.in_span("slack.command_adapter.parse") do
-        payload = payload.with_indifferent_access
-        Command.new(
-          platform: Platforms::SLACK,
-          workspace_id: find_workspace_id(payload[:team_id]),
-          user_id: payload[:user_id],
-          text: payload[:text].to_s.strip,
-          trigger_id: payload[:trigger_id],
-          channel_id: payload[:channel_id],
-          metadata: {
-            team_id: payload[:team_id],
-            team_domain: payload[:team_domain],
-            channel_name: payload[:channel_name],
-            user_name: payload[:user_name],
-            command: payload[:command],
-            response_url: payload[:response_url]
-          }
-        )
-      end
+      payload = payload.with_indifferent_access
+      Command.new(
+        platform: Platforms::SLACK,
+        workspace_id: find_workspace_id(payload[:team_id]),
+        user_id: payload[:user_id],
+        text: payload[:text].to_s.strip,
+        trigger_id: payload[:trigger_id],
+        channel_id: payload[:channel_id],
+        metadata: {
+          team_id: payload[:team_id],
+          team_domain: payload[:team_domain],
+          channel_name: payload[:channel_name],
+          user_name: payload[:user_name],
+          command: payload[:command],
+          response_url: payload[:response_url]
+        }
+      )
     end
 
     private
