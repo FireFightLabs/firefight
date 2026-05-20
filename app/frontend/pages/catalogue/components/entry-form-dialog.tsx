@@ -1,4 +1,5 @@
 import { router } from "@inertiajs/react"
+import type { FormDataConvertible } from "@inertiajs/core"
 import { useEffect, useState, type ReactNode } from "react"
 
 import type { AttributeDefinition, CatalogEntry, CatalogType, ReferenceEntry, SlackChannel, SlackMember, WorkspaceMember } from "@/pages/catalogue/types"
@@ -59,8 +60,8 @@ function AttributeField({
   resolvedMembers,
 }: {
   attr: AttributeDefinition
-  value: unknown
-  onChange: (value: unknown) => void
+  value: FormDataConvertible
+  onChange: (value: FormDataConvertible) => void
   allTypes: CatalogType[]
   referenceEntries: ReferenceEntry[]
   slackMembers: SlackMember[]
@@ -245,18 +246,18 @@ export function EntryFormDialog({
 }: EntryFormDialogProps) {
   const isEdit = !!entry
   const [name, setName] = useState(entry?.name ?? "")
-  const [attributes, setAttributes] = useState<Record<string, unknown>>(
-    entry?.attributes ?? {}
+  const [attributes, setAttributes] = useState<Record<string, FormDataConvertible>>(
+    (entry?.attributes as Record<string, FormDataConvertible>) ?? {}
   )
   const [processing, setProcessing] = useState(false)
   const { members: slackMembers, channels: slackChannels, loadMembers, loadChannels } = useSlackData()
 
   useEffect(() => {
     setName(entry?.name ?? "")
-    setAttributes(entry?.attributes ?? {})
+    setAttributes((entry?.attributes as Record<string, FormDataConvertible>) ?? {})
   }, [entry])
 
-  const updateAttribute = (attrKey: string, value: unknown) => {
+  const updateAttribute = (attrKey: string, value: FormDataConvertible) => {
     setAttributes((prev) => ({ ...prev, [attrKey]: value }))
   }
 

@@ -239,7 +239,7 @@ function PostmortemView({
   incident: PostmortemPageProps["incident"]
   postmortem: Postmortem
 }) {
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const { setData, patch, processing, recentlySuccessful } = useHttp({ html_content: "" })
   const [editorKey, setEditorKey] = useState(0)
   const [revisionsOpen, setRevisionsOpen] = useState(false)

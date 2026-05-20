@@ -240,7 +240,7 @@ function ApiKeyEditSheet({
     })
   }
 
-  function handleSave() {
+  const handleSave = () => {
     router.patch(apiKeyPath(apiKey.id), {
       name,
       active,

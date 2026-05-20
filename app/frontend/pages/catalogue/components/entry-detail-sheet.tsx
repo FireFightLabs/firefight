@@ -243,11 +243,11 @@ export function EntryDetailSheet({
         </div>
 
         <div className="flex flex-col gap-5 px-6 pb-6">
-          {descValue && (
+          {descValue ? (
             <p className="text-sm text-muted-foreground leading-relaxed">
               {String(descValue)}
             </p>
-          )}
+          ) : null}
 
           <Separator className="my-1" />
 

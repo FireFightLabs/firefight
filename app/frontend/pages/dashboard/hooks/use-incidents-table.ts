@@ -16,7 +16,7 @@ import { DEFAULT_PER_PAGE, SEARCH_DEBOUNCE_MS } from "@/pages/dashboard/lib/cons
 import { dashboardPath } from "@/lib/routes"
 
 function navigateDashboard(filters: DashboardFilters, pagination: { page: number; perPage: number }) {
-  const params: Record<string, unknown> = {}
+  const params: Record<string, string | string[] | number> = {}
   if (filters.search) params.search = filters.search
   if (filters.severities.length > 0) params.severities = filters.severities
   if (filters.statuses.length > 0) params.statuses = filters.statuses
@@ -39,7 +39,7 @@ export function useIncidentsTable(
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [searchInput, setSearchInput] = useState(filters.search ?? "")
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const searchInputRef = useRef(filters.search ?? "")
   const filtersRef = useRef(filters)
   filtersRef.current = filters

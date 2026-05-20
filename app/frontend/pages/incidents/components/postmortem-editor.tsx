@@ -58,7 +58,6 @@ export function PostmortemEditor({ content, onUpdate }: PostmortemEditorProps) {
     <div className="relative">
       <BubbleMenu
         editor={editor}
-        tippyOptions={{ duration: 150 }}
         className="flex items-center gap-0.5 rounded-lg border bg-popover p-1 shadow-md"
       >
         <Button

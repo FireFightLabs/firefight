@@ -6,10 +6,11 @@ import { IncidentTimeline } from "@/pages/incidents/components/incident-timeline
 import { IncidentActionsSidebar } from "@/pages/incidents/components/incident-actions"
 import { IncidentPostmortemCard } from "@/pages/incidents/components/incident-postmortem-card"
 import type { Incident, IncidentAction, TimelineEvent } from "@/pages/incidents/types"
+import type { SharedProps } from "@/types"
 import { dashboardPath } from "@/lib/routes"
 import { Skeleton } from "@/components/ui/skeleton"
 
-interface IncidentShowProps {
+interface IncidentPageProps extends SharedProps {
   incident: Incident
   timelineEvents?: TimelineEvent[]
   actions?: IncidentAction[]
@@ -48,8 +49,8 @@ function ActionsSkeleton() {
   )
 }
 
-export default function IncidentShow() {
-  const { incident, timelineEvents, actions, hasPostmortem, postmortemStatus } = usePage<IncidentShowProps>().props
+export default function IncidentPage() {
+  const { incident, timelineEvents, actions, hasPostmortem, postmortemStatus } = usePage<IncidentPageProps>().props
 
   return (
     <AuthenticatedLayout title={incident.identifier}>

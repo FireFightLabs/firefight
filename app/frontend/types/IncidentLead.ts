@@ -1,1 +1,1 @@
-export { default } from "./serializers/IncidentLead"
+export type { default } from "./serializers/IncidentLead"

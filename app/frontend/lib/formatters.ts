@@ -15,7 +15,7 @@ export function formatDateTime(dateStr: string): string {
   })
 }
 
-export function formatDuration(start: string, end: string | null): string {
+export function formatDuration(start: string, end: string | null | undefined): string {
   const startTime = new Date(start)
   const endTime = end ? new Date(end) : new Date()
   const minutes = Math.floor((endTime.getTime() - startTime.getTime()) / 60000)
