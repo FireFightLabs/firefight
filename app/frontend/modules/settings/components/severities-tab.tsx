@@ -160,11 +160,11 @@ function EditSeverityDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const form = useForm({ name: severity.name, description: severity.description ?? "" })
+  const form = useForm({ name: severity.name, description: severity.description ?? "", color: severity.color })
 
   React.useEffect(() => {
     if (open) {
-      form.setData({ name: severity.name, description: severity.description ?? "" })
+      form.setData({ name: severity.name, description: severity.description ?? "", color: severity.color })
     }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -205,6 +205,24 @@ function EditSeverityDialog({
                 value={form.data.description}
                 onChange={(e) => form.setData("description", e.target.value)}
               />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`edit-sev-color-${severity.id}`}>Color</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id={`edit-sev-color-${severity.id}`}
+                  type="color"
+                  value={form.data.color}
+                  onChange={(e) => form.setData("color", e.target.value)}
+                  className="h-9 w-12 cursor-pointer p-1"
+                />
+                <Input
+                  value={form.data.color}
+                  onChange={(e) => form.setData("color", e.target.value)}
+                  className="flex-1 font-mono text-sm"
+                  placeholder="#3B82F6"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
