@@ -1,5 +1,5 @@
 import { IconCheck, IconChevronDown } from "@tabler/icons-react"
-import * as React from "react"
+import { useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 export interface SearchableSelectOption {
   value: string
   label: string
-  icon?: React.ReactNode
+  icon?: ReactNode
 }
 
 interface SearchableSelectProps {
@@ -19,8 +19,8 @@ interface SearchableSelectProps {
   searchPlaceholder?: string
   emptyText?: string
   onOpen?: () => void
-  renderSelected?: (option: SearchableSelectOption) => React.ReactNode
-  renderOption?: (option: SearchableSelectOption) => React.ReactNode
+  renderSelected?: (option: SearchableSelectOption) => ReactNode
+  renderOption?: (option: SearchableSelectOption) => ReactNode
 }
 
 export function SearchableSelect({
@@ -34,7 +34,7 @@ export function SearchableSelect({
   renderSelected,
   renderOption,
 }: SearchableSelectProps) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = useState(false)
   const selected = options.find((o) => o.value === value)
 
   const defaultRender = (option: SearchableSelectOption) => (

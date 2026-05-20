@@ -15,7 +15,7 @@ class CatalogueController < InertiaController
     entries = type.catalog_entries.active.ordered.with_relationships
     all_types = current_workspace.catalog_types.active.ordered.includes(:catalog_attribute_definitions)
 
-    render inertia: "catalogue/show", props: {
+    render inertia: "catalogue/type", props: {
       type: CatalogTypeSerializer.one(type),
       entries: CatalogEntrySerializer.many(entries),
       allTypes: CatalogTypeSerializer.many(all_types),

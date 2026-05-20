@@ -3,7 +3,6 @@ import {
   IconBook2,
   IconCategory,
   IconChecklist,
-  IconFlame,
   IconForms,
   IconKey,
   IconListDetails,
@@ -13,8 +12,10 @@ import {
   IconUserShield,
   IconWebhook,
 } from "@tabler/icons-react"
+import type { ComponentProps } from "react"
 import { Link, usePage } from "@inertiajs/react"
 
+import { FireFightLogo } from "@/components/fire-fight-logo"
 import { NavMain } from "@/components/navigation/nav-main"
 import { NavUser } from "@/components/navigation/nav-user"
 import {
@@ -51,15 +52,20 @@ const navSections = [
   {
     label: "Configure",
     items: [
-      { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
-      { title: "Members", url: settingsMembersPath(), icon: IconUsers },
-      { title: "Forms", url: settingsFormsPath(), icon: IconChecklist },
-      { title: "Custom Fields", url: settingsCustomFieldsPath(), icon: IconForms },
-      { title: "Roles", url: settingsRolesPath(), icon: IconUserShield },
       { title: "Statuses", url: settingsStatusesPath(), icon: IconListDetails },
       { title: "Severities", url: settingsSeveritiesPath(), icon: IconAlertTriangle },
       { title: "Types", url: settingsTypesPath(), icon: IconCategory },
+      { title: "Forms", url: settingsFormsPath(), icon: IconChecklist },
+      { title: "Custom Fields", url: settingsCustomFieldsPath(), icon: IconForms },
+      { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
       { title: "Integrations", url: "#", icon: IconPlug },
+    ],
+  },
+  {
+    label: "Team",
+    items: [
+      { title: "Members", url: settingsMembersPath(), icon: IconUsers },
+      { title: "Roles", url: settingsRolesPath(), icon: IconUserShield },
     ],
   },
   {
@@ -71,12 +77,12 @@ const navSections = [
   },
 ]
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const { currentUser } = usePage<SharedProps>().props
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="h-(--header-height) justify-center border-b">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -84,14 +90,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
               <Link href={dashboardPath()}>
-                <IconFlame className="size-5!" />
-                <span className="text-base font-semibold">Firefight</span>
+                <FireFightLogo style={{ width: "2rem", height: "2rem" }} className="shrink-0" />
+                <span className="text-base font-bold tracking-tight">FireFight</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="pt-8 px-2">
         <NavMain sections={navSections} />
       </SidebarContent>
       <SidebarFooter>

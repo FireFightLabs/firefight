@@ -159,10 +159,10 @@ app/models/incident.rb                            # filtered_list class method +
 app/models/dashboard_stats.rb                     # PORO for stat card metrics
 app/serializers/incident_list_item_serializer.rb  # Serializes incidents → auto-generates TS type
 app/serializers/severity_option_serializer.rb     # Serializes severity options → auto-generates TS type
-app/frontend/modules/dashboard/hooks/             # useIncidentsTable — server-side filter navigation
-app/frontend/modules/dashboard/components/        # Table, toolbar, pagination, stat cards + skeleton
+app/frontend/pages/dashboard/hooks/               # useIncidentsTable — server-side filter navigation
+app/frontend/pages/dashboard/components/          # Table, toolbar, pagination, stat cards + skeleton
 app/frontend/types/serializers/                   # Auto-generated TS types (never edit manually)
-app/frontend/modules/dashboard/types.ts           # Manual TS types (Pagination, DashboardFilters, DashboardStat)
+app/frontend/pages/dashboard/types.ts             # Manual TS types (DashboardFilters, DashboardStat)
 ```
 
 ### Dispatchers
@@ -444,54 +444,84 @@ React 19 + TypeScript + Inertia.js (server-driven routing) + Vite + Tailwind CSS
 
 ```
 app/frontend/
-  components/              # Shared reusable components
+  components/              # Cross-page shared components
+    auth/                  # auth-layout, card-header, slack-button (used by login + onboarding)
     layout/                # App shell (authenticated-layout, theme-toggle)
     navigation/            # Sidebar, nav items, site header
     ui/                    # shadcn/ui primitives — NEVER modify directly
-  modules/                 # Feature-specific code
+  pages/                   # Routes + co-located feature code
     dashboard/
-      components/          # UI components (incidents-table, stat-cards, toolbar, pagination)
-      hooks/               # Feature hooks (use-incidents-table)
-      lib/                 # Helpers, constants, columns, mock data
-      types.ts             # Feature-specific types
+      index.tsx            # /
+      components/          # incidents-table, stat-cards, toolbar, pagination
+      hooks/               # use-incidents-table
+      lib/                 # constants, columns
+      types.ts             # DashboardStat, DashboardFilters
+    login/
+      index.tsx            # /login
+      components/          # terms-notice (login-only)
     incidents/
-      components/          # incident-header, incident-timeline, incident-actions, etc.
-      types.ts             # Incident, IncidentListItem, IncidentAction, TimelineEvent
-    settings/
-      components/          # Tab components (roles-tab, webhooks-tab, api-keys-tab, etc.)
-      types.ts             # Settings-specific types
+      index.tsx            # /incidents/:id
+      postmortem.tsx       # /incidents/:id/postmortem
+      components/          # incident-header, timeline, actions, postmortem-card, postmortem-editor
+      types.ts             # Incident, IncidentAction, TimelineEvent
     catalogue/
-      components/          # type-card, entry-table, entry-detail-sheet, form dialogs
-      lib/                 # icon-map, mock-data, constants
+      index.tsx            # /catalogue
+      type.tsx             # /catalogue/:type_slug
+      components/          # type-card, entry-table, sheets, form dialogs
+      hooks/               # use-slack-data
+      lib/                 # icon-map, constants
       types.ts             # CatalogType, AttributeDefinition, CatalogEntry
-    auth/
-      components/          # slack-auth-button
-  pages/                   # Thin routing shells ONLY — no business logic
-    dashboard/index.tsx
-    incidents/show.tsx
-    incidents/postmortem.tsx
-    settings/index.tsx
-    catalogue/index.tsx
-    catalogue/show.tsx
-    auth/login.tsx
-  types/                   # Shared app-level types (SharedProps, User, Workspace)
-  hooks/                   # Shared hooks (use-mobile)
-  lib/                     # Shared utilities (routes, utils)
+    settings/
+      index.tsx            # /settings
+      <tab>.tsx            # /settings/<tab>
+      components/          # one component per file: *-tab.tsx + every dialog/sheet extracted
+      hooks/               # use-sync-form-data, use-permissions-matrix
+      lib/                 # types.ts (data types; lives under lib/ to avoid colliding with types.tsx page)
+    onboarding/
+      <step>.tsx           # /onboarding/<step>
+      components/          # permissions-dialog (install-only but onboarding-feature-shared)
+      lib/                 # scope-permissions
+  types/                   # Cross-page app-level types (SharedProps, Pagination)
+    serializers/           # Auto-generated from oj_serializers — never edit by hand
+  hooks/                   # Cross-page hooks (use-mobile)
+  lib/                     # Cross-page utilities (routes, utils, formatters)
   entrypoints/             # Vite entrypoints (inertia.tsx, application.css)
 ```
 
 ### Rules
 
 **Pages are thin routing shells:**
-- Pages compose module components, receive props via `usePage<>()`, and set `<Head>` title
+- The `index.tsx` (and any other top-level `.tsx`) in a `pages/<feature>/` folder is the entry point — it composes co-located components, receives props via `usePage<>()`, and sets `<Head>` title
 - No business logic, no mock data defaults, no complex markup in pages
 - Mock data fallbacks use `??` at the page level, never default props inside components
 
-**Module isolation:**
-- Feature-specific code lives in `modules/<feature>/`
-- Each module owns its `components/`, `hooks/`, `lib/`, and `types.ts`
-- No cross-module imports between features (dashboard must not import from settings)
-- Shared domain types (e.g., `IncidentListItem`) live in the owning module's `types.ts` and are imported directly
+**One React component per file:**
+- Each `.tsx` file contains exactly one React component (the file's default or named export).
+- Types, helper functions, and constants used by that component stay in the same file.
+- Substantial sub-components (anything with state, effects, or non-trivial JSX) move to their own file under `pages/<feature>/components/`. Pure render-only inline helpers under ~15 lines are still extracted for consistency.
+- Filename matches the component name in kebab-case: `IncidentHeader` → `incident-header.tsx`, `PermissionsMatrix` → `permissions-matrix.tsx`.
+- For a page that needs early-return-then-hooks, run all hooks first (use optional chaining when props might be null) and return the empty state branch *after* the hooks — don't split into wrapper + body.
+
+**Page file paths mirror URL paths:**
+- The base route of a namespace is `index.tsx`. Sub-routes use the static URL segment as the filename.
+- When a route has only a dynamic segment (e.g. `/catalogue/:type_slug`), name the file after the singular resource being shown (`type.tsx`), not Rails actions (`show.tsx`) or bracket notation (`[slug].tsx`).
+- Inertia resolves pages by string lookup against the `render inertia:` argument — keep the controller string in sync with the file path (`render inertia: "incidents/index"` → `pages/incidents/index.tsx`).
+- Single-route top-level pages still get a folder for consistency (`pages/login/index.tsx`, not `pages/login.tsx`).
+- Examples: `/` → `dashboard/index.tsx`, `/incidents/:id` → `incidents/index.tsx`, `/incidents/:id/postmortem` → `incidents/postmortem.tsx`, `/catalogue` → `catalogue/index.tsx`, `/catalogue/:type_slug` → `catalogue/type.tsx`.
+
+**Page co-location:**
+- Feature-specific code lives next to the route that owns it: `pages/<feature>/components/`, `pages/<feature>/hooks/`, `pages/<feature>/lib/`, `pages/<feature>/types.ts`
+- No cross-page imports — `pages/dashboard/` must never import from `pages/incidents/`. If two pages need the same thing, lift it.
+- **Lifting rules** (where it goes when ≥2 pages need it):
+  - Shared UI → top-level `components/<topic>/` (e.g. `components/auth/` for the login + onboarding kit)
+  - Shared types → top-level `types/` (e.g. `SharedProps`, `Pagination`); serializer-derived types are auto-generated into `types/serializers/`
+  - Shared hooks → top-level `@/hooks/` (e.g. `use-mobile`)
+  - Shared utils → top-level `@/lib/`
+- **Hooks placement specifically:**
+  - A hook used by exactly one feature lives in that feature's folder: `pages/<feature>/hooks/<name>.ts`.
+  - A hook used by ≥2 features OR a generic primitive (`use-mobile`) lives at `app/frontend/hooks/`.
+  - Don't keep file-local hooks inline in a component file — every hook is its own `.ts`, named `use-<kebab>.ts`.
+- The Inertia resolver does a string lookup against `import.meta.glob('../pages/**/*.tsx')` so co-located components (anything other than the file the controller names) are inert — they're imported into the bundle but never resolved as a page.
 
 **shadcn/ui components are untouched:**
 - Never modify files in `components/ui/` — they may be updated by `npx shadcn` later
@@ -506,24 +536,29 @@ app/frontend/
 - Reference fields store entry IDs, not display labels — resolve at render time via `resolveReference()` or equivalent
 - Use `Pick<>` from shared types instead of redefining inline shapes
 - Page props are typed via `usePage<InterfaceName>()`
+- Page-prop interfaces must `extend SharedProps` (from `@/types`). `SharedProps` intersects with Inertia's `PageProps` so the index-signature constraint is satisfied; bare `interface Foo { ... }` fails the `usePage<T extends PageProps>` constraint in strict mode. Name them `<Resource>PageProps` (e.g. `DashboardPageProps`, `CatalogueTypePageProps`).
 
 **Dependency direction:**
-- Pages import from modules — never the reverse
-- Module components receive data as props — never import mock data or lookup functions directly
+- The page entry-point file (`index.tsx` / sibling `.tsx`) owns data flow; its co-located components/hooks/lib are leaves it composes
+- Co-located components receive data as props — never import mock data or lookup functions directly
 - Lookup helpers (e.g., `getTypeById`, `resolveReference`) are acceptable in leaf display components but all available options (e.g., list of types for a dropdown) must be passed as props from the page level
 - Search/filter logic in components should resolve references before matching (users search by display name, not stored IDs)
 
 **Data flow:**
-- Controllers send typed Inertia props → pages receive via `usePage<>()` → pass to module components
+- Controllers send typed Inertia props → page entry-point receives via `usePage<>()` → passes to co-located components
 - Components receive data as required props — no internal mock fallbacks
-- Mock data lives in `modules/<feature>/lib/mock-data.ts` and is only imported at the page level
+- Mock data lives in `pages/<feature>/lib/mock-data.ts` and is only imported by the page entry-point
 - Lookup/resolver functions (e.g., `resolveReference()`) are called at render time, not stored in data
 
+**Imports use the `@/` alias only:**
+- Never `./` or `../` in `app/frontend/`. Always `@/components/...`, `@/pages/...`, `@/hooks/...`, `@/lib/...`, `@/types`. The alias resolves to `app/frontend/` (configured in `tsconfig.app.json` + root `tsconfig.json`).
+- Exception: gem-generated files in `types/serializers/` use relative imports — leave them alone, they're regenerated by `types_from_serializers`.
+
 **Component patterns:**
-- Dynamic icon selection uses a `<ComponentName>` component, not a function returning a component (React compiler requirement)
+- React hooks and types are named imports — `import { useState, useEffect, type ReactNode } from "react"`. Never `import * as React from "react"` + `React.useState(...)`. The only exception is files inside `components/ui/` (shadcn primitives, untouched).
+- Dynamic icon selection uses a `<ComponentName>` component, not a function returning a component
 - `useCallback` for functions passed to memoized children or returned from hooks
 - `useMemo` for derived/filtered data
-- Impure functions (`Date.now()`) captured in `useMemo` with eslint-disable comment if needed
 
 **Naming conventions:**
 - Components: `PascalCase` (`IncidentsTable`, `StatCards`)
@@ -531,7 +566,7 @@ app/frontend/
 - Types: `PascalCase` (`IncidentListItem`, `DashboardStat`)
 - Constants: `UPPER_SNAKE_CASE` (`SEVERITY_OPTIONS`, `STATUS_LABELS`)
 - Hooks: `camelCase` with `use` prefix (`useIncidentsTable`)
-- Module directories: `kebab-case` (`dashboard`, `incidents`, `catalogue`)
+- Feature/page directories: `kebab-case` (`dashboard`, `incidents`, `catalogue`)
 
 **Navigation:**
 - Sidebar sections: "Respond" (Incidents), "Configure" (Catalogue, Integrations, Settings)
@@ -541,7 +576,7 @@ app/frontend/
 
 ### Tooling
 
-- `npm run typecheck` — TypeScript strict check (`tsc --noEmit`)
+- `npm run typecheck` — TypeScript strict check (`tsc -b --noEmit`). Uses `-b` because the root `tsconfig.json` is a project-references file; plain `tsc --noEmit` silently skips the referenced projects.
 - `npm run lint` — ESLint with TypeScript + React Hooks plugins
 - `npm run lint:fix` — auto-fix lint issues
 - Both must pass clean before any PR

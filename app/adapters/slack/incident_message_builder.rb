@@ -43,6 +43,9 @@ module Slack
 
     # Announcement posted to #incidents channel
     def self.announcement_blocks(incident)
+      base_url = ENV["APP_URL"]
+      homepage_url = base_url ? "#{base_url}/app/incidents/#{incident.id}" : nil
+
       announcement_blocks_for({
         title: "#{incident.identifier} \u00B7 #{incident.name || 'Untitled Incident'}",
         summary: incident.summary,
@@ -53,7 +56,8 @@ module Slack
         lead_id: incident.lead&.platform_user_id,
         channel_id: incident.channel_id,
         relationship_text: relationship_summary(incident),
-        custom_fields_text: custom_fields_summary(incident)
+        custom_fields_text: custom_fields_summary(incident),
+        homepage_url: homepage_url
       })
     end
 
@@ -82,14 +86,17 @@ module Slack
       blocks << { type: "section", text: { type: "mrkdwn", text: data[:custom_fields_text] } } if data[:custom_fields_text]
       blocks << { type: "section", text: { type: "mrkdwn", text: data[:relationship_text] } } if data[:relationship_text]
       blocks << { type: "divider" }
+      homepage_button = {
+        type: "button",
+        text: { type: "plain_text", text: ":globe_with_meridians: Incident homepage", emoji: true },
+        action_id: data[:homepage_url] ? Identifiers::INCIDENT_HOMEPAGE : Identifiers::PREVIEW_HOMEPAGE_DISABLED
+      }
+      homepage_button[:url] = data[:homepage_url] if data[:homepage_url]
+
       blocks << {
         type: "actions",
         elements: [
-          {
-            type: "button",
-            text: { type: "plain_text", text: ":globe_with_meridians: Incident homepage", emoji: true },
-            action_id: Identifiers::PREVIEW_HOMEPAGE_DISABLED
-          },
+          homepage_button,
           {
             type: "button",
             text: { type: "plain_text", text: ":bell: Subscribe", emoji: true },

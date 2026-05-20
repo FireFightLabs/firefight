@@ -1,1 +1,1 @@
-export { default } from "./serializers/ActorCompact"
+export type { default } from "@/types/serializers/ActorCompact"

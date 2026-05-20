@@ -1,7 +1,7 @@
 class StatusCompactSerializer < BaseSerializer
   object_as :status
 
-  attributes(name: { type: :string })
+  attributes(name: { type: :string }, color: { type: :string })
 
   type :string
   def lifecycle_stage

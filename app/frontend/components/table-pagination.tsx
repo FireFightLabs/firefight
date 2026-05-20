@@ -39,19 +39,19 @@ export function TablePagination({
 
   return (
     <div className="flex items-center justify-between px-4 lg:px-6">
-      <div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
+      <div className="hidden flex-1 text-sm text-foreground/60 lg:flex">
         {totalCount} {totalLabel}
       </div>
       <div className="flex w-full items-center gap-8 lg:w-fit">
         <div className="hidden items-center gap-2 lg:flex">
-          <Label htmlFor="rows-per-page" className="text-sm font-medium">
+          <Label htmlFor="rows-per-page" className="text-sm font-medium text-foreground/60">
             Rows per page
           </Label>
           <Select
             value={`${perPage}`}
             onValueChange={(value) => onPerPageChange(Number(value))}
           >
-            <SelectTrigger size="sm" className="w-20" id="rows-per-page">
+            <SelectTrigger size="sm" className="w-20 cursor-pointer focus-visible:ring-1 focus-visible:ring-border focus-visible:border-border" id="rows-per-page">
               <SelectValue placeholder={perPage} />
             </SelectTrigger>
             <SelectContent side="top">
@@ -63,49 +63,49 @@ export function TablePagination({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex w-fit items-center justify-center text-sm font-medium">
+        <div className="flex w-fit items-center justify-center text-sm font-medium text-foreground/60">
           Page {page} of {totalPages}
         </div>
-        <div className="ml-auto flex items-center gap-2 lg:ml-0">
+        <div className="ml-auto flex items-center gap-3 lg:ml-0">
           <Button
             variant="outline"
-            className="hidden size-8 lg:flex"
+            className="hidden size-9 lg:flex"
             size="icon"
             onClick={() => onPageChange(1)}
             disabled={!canPreviousPage}
           >
             <span className="sr-only">Go to first page</span>
-            <IconChevronsLeft />
+            <IconChevronsLeft className="size-4" />
           </Button>
           <Button
             variant="outline"
-            className="size-8"
+            className="size-9"
             size="icon"
             onClick={() => onPageChange(page - 1)}
             disabled={!canPreviousPage}
           >
             <span className="sr-only">Go to previous page</span>
-            <IconChevronLeft />
+            <IconChevronLeft className="size-4" />
           </Button>
           <Button
             variant="outline"
-            className="size-8"
+            className="size-9"
             size="icon"
             onClick={() => onPageChange(page + 1)}
             disabled={!canNextPage}
           >
             <span className="sr-only">Go to next page</span>
-            <IconChevronRight />
+            <IconChevronRight className="size-4" />
           </Button>
           <Button
             variant="outline"
-            className="hidden size-8 lg:flex"
+            className="hidden size-9 lg:flex"
             size="icon"
             onClick={() => onPageChange(totalPages)}
             disabled={!canNextPage}
           >
             <span className="sr-only">Go to last page</span>
-            <IconChevronsRight />
+            <IconChevronsRight className="size-4" />
           </Button>
         </div>
       </div>

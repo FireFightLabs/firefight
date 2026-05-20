@@ -23,7 +23,7 @@ class IncidentStatusesController < InertiaController
   end
 
   def update
-    if @status.update(name: params[:name], description: params[:description])
+    if @status.update(name: params[:name], description: params[:description], color: params[:color])
       redirect_to settings_statuses_path
     else
       redirect_back fallback_location: settings_statuses_path, inertia: { errors: @status.errors.to_hash }

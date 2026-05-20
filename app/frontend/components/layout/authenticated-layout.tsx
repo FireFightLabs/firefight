@@ -1,4 +1,4 @@
-import { ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
 
 import { AppSidebar } from "@/components/navigation/app-sidebar"
 import { SiteHeader } from "@/components/navigation/site-header"
@@ -20,15 +20,15 @@ export function AuthenticatedLayout({
         style={
           {
             "--sidebar-width": "calc(var(--spacing) * 72)",
-            "--header-height": "calc(var(--spacing) * 12)",
-          } as React.CSSProperties
+            "--header-height": "calc(var(--spacing) * 16)",
+          } as CSSProperties
         }
       >
-        <AppSidebar variant="inset" />
+        <AppSidebar />
         <SidebarInset>
           <SiteHeader title={title} />
           <div className="flex flex-1 flex-col">
-            <div className="@container/main flex flex-1 flex-col gap-2">
+            <div className="@container/main flex flex-1 flex-col gap-2 pt-6">
               {children}
             </div>
           </div>

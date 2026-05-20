@@ -1,7 +1,7 @@
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { SeveritiesTab } from "@/modules/settings/components/severities-tab"
+import { SeveritiesTab } from "@/pages/settings/components/severities-tab"
 import type { IncidentSeveritySettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
