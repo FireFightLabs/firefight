@@ -19,7 +19,7 @@ function StatCard({ stat }: { stat: DashboardStat }) {
     <Card className="@container/card border border-border">
       <CardHeader>
         <CardDescription>{stat.label}</CardDescription>
-        <CardTitle className={`text-2xl font-semibold tabular-nums @[250px]/card:text-3xl ${stat.highlight === "danger" ? "text-red-500" : ""}`}>
+        <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
           {stat.value}
         </CardTitle>
         {stat.change && (
