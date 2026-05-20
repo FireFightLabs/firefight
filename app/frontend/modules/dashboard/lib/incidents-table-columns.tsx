@@ -3,7 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 
 import type { IncidentListItem } from "@/types/serializers"
 import { incidentPath } from "@/lib/routes"
-import { severityBadgeClass, statusVariant } from "@/lib/constants"
+import { severityBadgeClass } from "@/lib/constants"
 import { formatDateTime, formatDuration } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import { StatusIcon } from "../components/status-icon"
@@ -45,9 +45,15 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => {
-      const { name, lifecycleStage } = row.original.status
+      const { name, color, lifecycleStage } = row.original.status
       return (
-        <Badge variant={statusVariant(lifecycleStage)}>
+        <Badge
+          style={{
+            backgroundColor: `${color}26`,
+            color: color,
+            borderColor: `${color}4D`,
+          }}
+        >
           <StatusIcon statusName={name} lifecycleStage={lifecycleStage} />
           {name}
         </Badge>

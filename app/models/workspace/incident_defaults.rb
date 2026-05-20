@@ -8,12 +8,12 @@ module Workspace::IncidentDefaults
   ].freeze
 
   DEFAULT_STATUSES = [
-    { name: "Triaging", slug: "triaging", stage: IncidentLifecycleStage::TRIAGE, position: 0, is_default: false, color: "#9B59B6", description: "Investigating a potential issue to confirm it is a real incident" },
-    { name: "Investigating", slug: "investigating", stage: IncidentLifecycleStage::ACTIVE, position: 1, is_default: true, color: "#3B82F6", description: "Root cause under active investigation" },
-    { name: "Identified", slug: "identified", stage: IncidentLifecycleStage::ACTIVE, position: 2, is_default: false, color: "#F97316", description: "Root cause identified" },
-    { name: "Monitoring", slug: "monitoring", stage: IncidentLifecycleStage::ACTIVE, position: 3, is_default: false, color: "#4169E1", description: "Fix deployed, monitoring for stability" },
-    { name: "Resolved", slug: "resolved", stage: IncidentLifecycleStage::CLOSED, position: 4, is_default: false, color: "#32CD32", description: "Incident fully resolved" },
-    { name: "Canceled", slug: "canceled", stage: IncidentLifecycleStage::CANCELED, position: 5, is_default: false, color: "#999999", description: "False positive, duplicate, or invalid incident" }
+    { name: "Triaging", slug: "triaging", stage: IncidentLifecycleStage::TRIAGE, position: 0, is_default: false, color: "#8B5CF6", description: "Investigating a potential issue to confirm it is a real incident" },
+    { name: "Investigating", slug: "investigating", stage: IncidentLifecycleStage::ACTIVE, position: 1, is_default: true, color: "#F59E0B", description: "Root cause under active investigation" },
+    { name: "Identified", slug: "identified", stage: IncidentLifecycleStage::ACTIVE, position: 2, is_default: false, color: "#14B8A6", description: "Root cause identified" },
+    { name: "Monitoring", slug: "monitoring", stage: IncidentLifecycleStage::ACTIVE, position: 3, is_default: false, color: "#22C55E", description: "Fix deployed, monitoring for stability" },
+    { name: "Resolved", slug: "resolved", stage: IncidentLifecycleStage::CLOSED, position: 4, is_default: false, color: "#16A34A", description: "Incident fully resolved" },
+    { name: "Canceled", slug: "canceled", stage: IncidentLifecycleStage::CANCELED, position: 5, is_default: false, color: "#6B7280", description: "False positive, duplicate, or invalid incident" }
   ].freeze
 
   DEFAULT_TYPES = [
