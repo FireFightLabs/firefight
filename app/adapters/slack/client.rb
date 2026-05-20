@@ -401,7 +401,7 @@ module Slack
       request = Net::HTTP::Get.new(uri)
       request["Authorization"] = "Bearer #{workspace.access_token}"
 
-      response = http_pool.request(uri, request)
+      response = pool_request(uri, request)
 
       unless response.code.to_i.between?(200, 299)
         raise ApiError, "Slack file download failed with status #{response.code}"
@@ -416,16 +416,37 @@ module Slack
     # Persistent HTTP connection pool for Slack API.
     # Reuses TCP+TLS sockets across calls, eliminating handshake overhead
     # (~15-20ms per call) on the warm path. Net::HTTP::Persistent maintains
-    # per-thread connection caches internally, so this is thread-safe under Puma.
+    # per-thread connection caches internally, so the pool object is shared
+    # across Puma threads but each thread has its own socket cache.
     #
-    # idle_timeout: 600 (10 min) — Slack tolerates long keep-alives, and Slack
-    # commands are bursty (a user fires one, thinks, fires another minutes later).
-    # With per-thread pooling under Puma's RAILS_MAX_THREADS=3, threads see
-    # Slack traffic infrequently — short timeouts here mean we re-handshake
-    # almost every time. 10 minutes captures realistic command spacing.
+    # idle_timeout: 30s — safely under the typical AWS ALB / Slack edge idle
+    # window (~60s). Pairs with pool_request's stale-socket retry: if we ever
+    # do reuse a half-closed socket, the second attempt opens a fresh one.
+    STALE_SOCKET_ERRORS = [ EOFError, Errno::ECONNRESET, Errno::EPIPE, Net::HTTP::Persistent::Error ].freeze
+    HTTP_POOL_MUTEX = Mutex.new
+
     def self.http_pool
-      @http_pool ||= Net::HTTP::Persistent.new(name: "slack_api").tap do |pool|
-        pool.idle_timeout = 600
+      @http_pool || HTTP_POOL_MUTEX.synchronize do
+        @http_pool ||= Net::HTTP::Persistent.new(name: "slack_api").tap do |pool|
+          pool.idle_timeout = 30
+        end
+      end
+    end
+
+    # Wraps http_pool.request with a single retry on stale-socket errors.
+    # Net::HTTP::Persistent.retry_change_requests defaults to false, so it
+    # won't auto-retry POSTs — we do it here. One retry only: if both attempts
+    # die at the connection level the underlying issue isn't a stale socket.
+    def self.pool_request(uri, request)
+      attempts = 0
+      begin
+        attempts += 1
+        http_pool.request(uri, request)
+      rescue *STALE_SOCKET_ERRORS => e
+        raise if attempts >= 2
+
+        Rails.logger.info({ event: "slack.client.stale_socket_retry", error_class: e.class.name, error: e.message })
+        retry
       end
     end
 
