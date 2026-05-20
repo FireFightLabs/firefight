@@ -1,4 +1,4 @@
-import * as React from "react"
+import { useCallback, useState } from "react"
 import { Head, router, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
@@ -21,12 +21,12 @@ interface FormsPageProps extends SharedProps {
 export default function Forms() {
   const { forms, customFields, incidentTypes } = usePage<FormsPageProps>().props
 
-  const [selectedFormId, setSelectedFormId] = React.useState<string | null>(() => {
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get("form") || null
   })
 
-  const updateFormParam = React.useCallback((id: string | null) => {
+  const updateFormParam = useCallback((id: string | null) => {
     setSelectedFormId(id)
     const params = new URLSearchParams(window.location.search)
     if (id) {

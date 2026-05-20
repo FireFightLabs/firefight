@@ -1,4 +1,4 @@
-import { ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
 
 import { AppSidebar } from "@/components/navigation/app-sidebar"
 import { SiteHeader } from "@/components/navigation/site-header"
@@ -21,7 +21,7 @@ export function AuthenticatedLayout({
           {
             "--sidebar-width": "calc(var(--spacing) * 72)",
             "--header-height": "calc(var(--spacing) * 16)",
-          } as React.CSSProperties
+          } as CSSProperties
         }
       >
         <AppSidebar />

@@ -1,6 +1,6 @@
 import { Head, Link, usePage } from "@inertiajs/react"
 import { IconArrowRight, IconPlus, IconSettings } from "@tabler/icons-react"
-import * as React from "react"
+import { useState } from "react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Badge } from "@/components/ui/badge"
@@ -10,9 +10,10 @@ import { EntryFormDialog } from "@/modules/catalogue/components/entry-form-dialo
 import { TypeFormDialog } from "@/modules/catalogue/components/type-form-dialog"
 import { CatalogIcon } from "@/modules/catalogue/lib/icon-map"
 import type { CatalogType, CatalogEntry, ReferenceEntry, WorkspaceMember } from "@/modules/catalogue/types"
+import type { SharedProps } from "@/types"
 import { cataloguePath } from "@/lib/routes"
 
-interface CatalogueShowProps {
+interface CatalogueTypePageProps extends SharedProps {
   type: CatalogType
   entries: CatalogEntry[]
   allTypes: CatalogType[]
@@ -20,10 +21,10 @@ interface CatalogueShowProps {
   workspaceMembers: WorkspaceMember[]
 }
 
-export default function CatalogueShow() {
-  const { type, entries, allTypes, referenceEntries, workspaceMembers } = usePage<CatalogueShowProps>().props
-  const [addEntryOpen, setAddEntryOpen] = React.useState(false)
-  const [editTypeOpen, setEditTypeOpen] = React.useState(false)
+export default function CatalogueTypePage() {
+  const { type, entries, allTypes, referenceEntries, workspaceMembers } = usePage<CatalogueTypePageProps>().props
+  const [addEntryOpen, setAddEntryOpen] = useState(false)
+  const [editTypeOpen, setEditTypeOpen] = useState(false)
 
   return (
     <AuthenticatedLayout title={type.name}>

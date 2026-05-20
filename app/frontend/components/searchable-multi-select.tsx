@@ -1,5 +1,5 @@
 import { IconCheck, IconChevronDown, IconX } from "@tabler/icons-react"
-import * as React from "react"
+import { useState, type ReactNode } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 export interface SearchableMultiSelectOption {
   value: string
   label: string
-  icon?: React.ReactNode
+  icon?: ReactNode
 }
 
 interface SearchableMultiSelectProps {
@@ -21,8 +21,8 @@ interface SearchableMultiSelectProps {
   searchPlaceholder?: string
   emptyText?: string
   onOpen?: () => void
-  renderBadge?: (option: SearchableMultiSelectOption) => React.ReactNode
-  renderOption?: (option: SearchableMultiSelectOption) => React.ReactNode
+  renderBadge?: (option: SearchableMultiSelectOption) => ReactNode
+  renderOption?: (option: SearchableMultiSelectOption) => ReactNode
 }
 
 export function SearchableMultiSelect({
@@ -37,7 +37,7 @@ export function SearchableMultiSelect({
   renderBadge,
   renderOption,
 }: SearchableMultiSelectProps) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = useState(false)
 
   const toggle = (id: string) => {
     if (value.includes(id)) {

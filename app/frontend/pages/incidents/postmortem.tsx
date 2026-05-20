@@ -1,4 +1,4 @@
-import * as React from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Head, Link, router, useHttp, usePage } from "@inertiajs/react"
 import {
   IconArrowLeft,
@@ -12,6 +12,7 @@ import {
 import HtmlDiff from "htmldiff-js"
 import TurndownService from "turndown"
 
+import type { SharedProps } from "@/types"
 import type { Postmortem, PostmortemUpdate } from "@/types/serializers"
 import { PostmortemEditor } from "@/modules/incidents/components/postmortem-editor"
 import { Badge } from "@/components/ui/badge"
@@ -54,7 +55,7 @@ const updateTypeLabels: Record<string, string> = {
   ai_edited: "AI rewritten",
 }
 
-interface PostmortemPageProps {
+interface PostmortemPageProps extends SharedProps {
   incident: { id: string; identifier: string; name: string }
   postmortem: Postmortem | null
 }
@@ -72,11 +73,11 @@ function RevisionsSheet({
   onOpenChange: (open: boolean) => void
   onRestore: (html: string) => void
 }) {
-  const [revisions, setRevisions] = React.useState<PostmortemUpdate[]>([])
-  const [loading, setLoading] = React.useState(false)
-  const [selectedId, setSelectedId] = React.useState<string | null>(null)
+  const [revisions, setRevisions] = useState<PostmortemUpdate[]>([])
+  const [loading, setLoading] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (open && revisions.length === 0) {
       setLoading(true)
       fetch(incidentPostmortemRevisionsPath(incidentId))
@@ -92,7 +93,7 @@ function RevisionsSheet({
   const selectedRevision = selectedId ? revisions.find((r) => r.id === selectedId) : null
   const selectedIndex = selectedRevision ? revisions.indexOf(selectedRevision) : -1
 
-  const diffHtml = React.useMemo(() => {
+  const diffHtml = useMemo(() => {
     if (!selectedRevision?.htmlContent) return null
     const olderHtml = selectedRevision.htmlContent
     // revisions are newest-first, so the "next" version is the one before it in the array (index - 1)
@@ -228,13 +229,23 @@ export default function PostmortemPage() {
     )
   }
 
-  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout>>()
-  const { setData, patch, processing, recentlySuccessful } = useHttp({ html_content: "" })
-  const [editorKey, setEditorKey] = React.useState(0)
-  const [revisionsOpen, setRevisionsOpen] = React.useState(false)
-  const editorContentRef = React.useRef(postmortem.htmlContent ?? "")
+  return <PostmortemView incident={incident} postmortem={postmortem} />
+}
 
-  const handleContentUpdate = React.useCallback((html: string) => {
+function PostmortemView({
+  incident,
+  postmortem,
+}: {
+  incident: PostmortemPageProps["incident"]
+  postmortem: Postmortem
+}) {
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const { setData, patch, processing, recentlySuccessful } = useHttp({ html_content: "" })
+  const [editorKey, setEditorKey] = useState(0)
+  const [revisionsOpen, setRevisionsOpen] = useState(false)
+  const editorContentRef = useRef(postmortem.htmlContent ?? "")
+
+  const handleContentUpdate = useCallback((html: string) => {
     editorContentRef.current = html
     clearTimeout(saveTimerRef.current)
     setData("html_content", html)
@@ -244,14 +255,14 @@ export default function PostmortemPage() {
     }, 1500)
   }, [incident.id, setData, patch])
 
-  const handleRestore = React.useCallback((html: string) => {
+  const handleRestore = useCallback((html: string) => {
     editorContentRef.current = html
     setEditorKey((k) => k + 1)
     setData("html_content", html)
     patch(incidentPostmortemPath(incident.id))
   }, [incident.id, setData, patch])
 
-  const handleExportMarkdown = React.useCallback(() => {
+  const handleExportMarkdown = useCallback(() => {
     const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" })
     const title = `# ${postmortem.title}\n\n> ${incident.identifier} — ${incident.name}\n\n`
     const markdown = title + turndown.turndown(editorContentRef.current || "")
@@ -264,7 +275,7 @@ export default function PostmortemPage() {
     URL.revokeObjectURL(url)
   }, [incident, postmortem.title])
 
-  React.useEffect(() => {
+  useEffect(() => {
     const flushPendingSave = () => {
       if (!saveTimerRef.current) return
       clearTimeout(saveTimerRef.current)

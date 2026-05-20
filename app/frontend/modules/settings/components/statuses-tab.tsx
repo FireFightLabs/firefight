@@ -1,4 +1,4 @@
-import * as React from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { router, useForm } from "@inertiajs/react"
 import { IconGripVertical, IconPlus } from "@tabler/icons-react"
 
@@ -56,10 +56,10 @@ interface StatusesTabProps {
 }
 
 function AddStatusDialog({ stage }: { stage: LifecycleStageWithStatuses }) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = useState(false)
   const form = useForm({ name: "", description: "", color: "#3B82F6", lifecycle_stage_key: stage.key })
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
     form.post(incidentStatusesPath(), {
       onSuccess: () => {
@@ -152,13 +152,13 @@ function EditStatusDialog({
 }) {
   const form = useForm({ name: status.name, description: status.description ?? "", color: status.color })
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (open) {
       form.setData({ name: status.name, description: status.description ?? "", color: status.color })
     }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
     form.patch(incidentStatusPath(status.id), {
       onSuccess: () => onOpenChange(false),
@@ -230,7 +230,7 @@ function EditStatusDialog({
 }
 
 export function StatusesTab({ lifecycleStages }: StatusesTabProps) {
-  const [editingStatus, setEditingStatus] = React.useState<IncidentStatusSettings | null>(null)
+  const [editingStatus, setEditingStatus] = useState<IncidentStatusSettings | null>(null)
 
   function handleToggleEnabled(status: IncidentStatusSettings) {
     router.patch(

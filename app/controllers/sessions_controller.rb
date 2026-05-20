@@ -5,7 +5,7 @@ class SessionsController < InertiaController
       return
     end
 
-    render inertia: "auth/login"
+    render inertia: "login/index"
   end
 
   def destroy

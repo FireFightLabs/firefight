@@ -1,4 +1,4 @@
-import * as React from "react"
+import { useState, type FormEvent } from "react"
 import { router, useForm } from "@inertiajs/react"
 import { IconGripVertical, IconPlus, IconShieldCheck } from "@tabler/icons-react"
 
@@ -49,10 +49,10 @@ interface RolesTabProps {
 }
 
 export function RolesTab({ roles }: RolesTabProps) {
-  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
   const form = useForm({ name: "", description: "" })
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
     form.post(incidentRolesPath(), {
       onSuccess: () => {

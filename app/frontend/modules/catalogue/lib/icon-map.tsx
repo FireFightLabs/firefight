@@ -24,9 +24,9 @@ export function CatalogIcon({
   iconKey,
   className,
 }: {
-  iconKey: string
+  iconKey?: string
   className?: string
 }) {
-  const Icon = iconMap[iconKey] ?? IconBox
+  const Icon = (iconKey && iconMap[iconKey]) ?? IconBox
   return <Icon className={className} />
 }

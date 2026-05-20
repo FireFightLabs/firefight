@@ -1,5 +1,5 @@
 import { IconCircleCheck, IconCircleX, IconSearch } from "@tabler/icons-react"
-import * as React from "react"
+import { useMemo, useState } from "react"
 
 import type { CatalogEntry, CatalogType, AttributeDefinition, ReferenceEntry, WorkspaceMember } from "@/modules/catalogue/types"
 import { Badge } from "@/components/ui/badge"
@@ -126,13 +126,13 @@ export function EntryTable({
   referenceEntries: ReferenceEntry[]
   workspaceMembers: WorkspaceMember[]
 }) {
-  const [search, setSearch] = React.useState("")
-  const [selectedEntry, setSelectedEntry] = React.useState<CatalogEntry | null>(null)
-  const [editingEntry, setEditingEntry] = React.useState<CatalogEntry | null>(null)
+  const [search, setSearch] = useState("")
+  const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(null)
+  const [editingEntry, setEditingEntry] = useState<CatalogEntry | null>(null)
 
   const visibleAttributes = type.attributeDefinitions.filter((a) => a.key !== "description").slice(0, 4)
 
-  const filtered = React.useMemo(() => {
+  const filtered = useMemo(() => {
     if (!search) return entries
     const q = search.toLowerCase()
     return entries.filter((e) => {

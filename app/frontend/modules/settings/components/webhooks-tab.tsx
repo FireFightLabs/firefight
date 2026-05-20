@@ -4,7 +4,7 @@ import {
   IconPlus,
   IconWebhook,
 } from "@tabler/icons-react"
-import * as React from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { router, useForm } from "@inertiajs/react"
 
 import type { Webhook } from "@/types/serializers"
@@ -75,8 +75,8 @@ const eventLabel = (value: string) =>
   subscribableEvents.find((e) => e.value === value)?.label ?? value
 
 function AddWebhookDialog() {
-  const [open, setOpen] = React.useState(false)
-  const [selectedEvents, setSelectedEvents] = React.useState<Set<string>>(new Set())
+  const [open, setOpen] = useState(false)
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set())
   const form = useForm<{ name: string; url: string; subscribed_events: string[] }>({
     name: "",
     url: "",
@@ -92,7 +92,7 @@ function AddWebhookDialog() {
     })
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
     form.transform(() => ({
       webhook: { name: form.data.name, url: form.data.url, subscribed_events: [...selectedEvents] },
@@ -219,9 +219,9 @@ function WebhookDetailSheet({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const [secretVisible, setSecretVisible] = React.useState(false)
+  const [secretVisible, setSecretVisible] = useState(false)
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!open) setSecretVisible(false)
   }, [open])
 

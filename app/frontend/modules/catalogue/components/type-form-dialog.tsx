@@ -4,7 +4,7 @@ import {
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react"
-import * as React from "react"
+import { useEffect, useState } from "react"
 
 import type { AttributeDefinition, AttributeType, CatalogType } from "@/modules/catalogue/types"
 import { ATTRIBUTE_TYPES, ATTRIBUTE_TYPE_LABELS } from "@/modules/catalogue/lib/constants"
@@ -49,15 +49,15 @@ interface TypeFormDialogProps {
 
 export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: TypeFormDialogProps) {
   const isEdit = !!type
-  const [name, setName] = React.useState(type?.name ?? "")
-  const [description, setDescription] = React.useState(type?.description ?? "")
-  const [color, setColor] = React.useState(type?.color ?? TYPE_COLORS[0])
-  const [attributes, setAttributes] = React.useState<AttributeDefinition[]>(
+  const [name, setName] = useState(type?.name ?? "")
+  const [description, setDescription] = useState(type?.description ?? "")
+  const [color, setColor] = useState(type?.color ?? TYPE_COLORS[0])
+  const [attributes, setAttributes] = useState<AttributeDefinition[]>(
     type?.attributeDefinitions ?? []
   )
-  const [processing, setProcessing] = React.useState(false)
+  const [processing, setProcessing] = useState(false)
 
-  React.useEffect(() => {
+  useEffect(() => {
     setName(type?.name ?? "")
     setDescription(type?.description ?? "")
     setColor(type?.color ?? TYPE_COLORS[0])

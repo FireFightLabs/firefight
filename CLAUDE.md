@@ -467,13 +467,15 @@ app/frontend/
     auth/
       components/          # slack-auth-button
   pages/                   # Thin routing shells ONLY — no business logic
-    dashboard/index.tsx
-    incidents/show.tsx
-    incidents/postmortem.tsx
-    settings/index.tsx
-    catalogue/index.tsx
-    catalogue/show.tsx
-    auth/login.tsx
+    dashboard/index.tsx    # /
+    login/index.tsx        # /login
+    incidents/index.tsx    # /incidents/:id
+    incidents/postmortem.tsx # /incidents/:id/postmortem
+    catalogue/index.tsx    # /catalogue
+    catalogue/type.tsx     # /catalogue/:type_slug
+    settings/index.tsx     # /settings
+    settings/<tab>.tsx     # /settings/<tab>
+    onboarding/<step>.tsx  # /onboarding/<step>
   types/                   # Shared app-level types (SharedProps, User, Workspace)
   hooks/                   # Shared hooks (use-mobile)
   lib/                     # Shared utilities (routes, utils)
@@ -486,6 +488,13 @@ app/frontend/
 - Pages compose module components, receive props via `usePage<>()`, and set `<Head>` title
 - No business logic, no mock data defaults, no complex markup in pages
 - Mock data fallbacks use `??` at the page level, never default props inside components
+
+**Page file paths mirror URL paths:**
+- The base route of a namespace is `index.tsx`. Sub-routes use the static URL segment as the filename.
+- When a route has only a dynamic segment (e.g. `/catalogue/:type_slug`), name the file after the singular resource being shown (`type.tsx`), not Rails actions (`show.tsx`) or bracket notation (`[slug].tsx`).
+- Inertia resolves pages by string lookup against the `render inertia:` argument — keep the controller string in sync with the file path (`render inertia: "incidents/index"` → `pages/incidents/index.tsx`).
+- Single-route top-level pages still get a folder for consistency (`pages/login/index.tsx`, not `pages/login.tsx`).
+- Examples: `/` → `dashboard/index.tsx`, `/incidents/:id` → `incidents/index.tsx`, `/incidents/:id/postmortem` → `incidents/postmortem.tsx`, `/catalogue` → `catalogue/index.tsx`, `/catalogue/:type_slug` → `catalogue/type.tsx`.
 
 **Module isolation:**
 - Feature-specific code lives in `modules/<feature>/`
@@ -506,6 +515,7 @@ app/frontend/
 - Reference fields store entry IDs, not display labels — resolve at render time via `resolveReference()` or equivalent
 - Use `Pick<>` from shared types instead of redefining inline shapes
 - Page props are typed via `usePage<InterfaceName>()`
+- Page-prop interfaces must `extend SharedProps` (from `@/types`). `SharedProps` intersects with Inertia's `PageProps` so the index-signature constraint is satisfied; bare `interface Foo { ... }` fails the `usePage<T extends PageProps>` constraint in strict mode. Name them `<Resource>PageProps` (e.g. `DashboardPageProps`, `CatalogueTypePageProps`).
 
 **Dependency direction:**
 - Pages import from modules — never the reverse
@@ -520,10 +530,10 @@ app/frontend/
 - Lookup/resolver functions (e.g., `resolveReference()`) are called at render time, not stored in data
 
 **Component patterns:**
-- Dynamic icon selection uses a `<ComponentName>` component, not a function returning a component (React compiler requirement)
+- React hooks and types are named imports — `import { useState, useEffect, type ReactNode } from "react"`. Never `import * as React from "react"` + `React.useState(...)`. The only exception is files inside `components/ui/` (shadcn primitives, untouched).
+- Dynamic icon selection uses a `<ComponentName>` component, not a function returning a component
 - `useCallback` for functions passed to memoized children or returned from hooks
 - `useMemo` for derived/filtered data
-- Impure functions (`Date.now()`) captured in `useMemo` with eslint-disable comment if needed
 
 **Naming conventions:**
 - Components: `PascalCase` (`IncidentsTable`, `StatCards`)
@@ -541,7 +551,7 @@ app/frontend/
 
 ### Tooling
 
-- `npm run typecheck` — TypeScript strict check (`tsc --noEmit`)
+- `npm run typecheck` — TypeScript strict check (`tsc -b --noEmit`). Uses `-b` because the root `tsconfig.json` is a project-references file; plain `tsc --noEmit` silently skips the referenced projects.
 - `npm run lint` — ESLint with TypeScript + React Hooks plugins
 - `npm run lint:fix` — auto-fix lint issues
 - Both must pass clean before any PR

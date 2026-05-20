@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import {
   IconBrandSlack,
   IconDotsVertical,
@@ -38,7 +39,7 @@ function MetaCell({
   children,
 }: {
   label: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <div className="px-5 py-3.5 min-w-0">

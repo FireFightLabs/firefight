@@ -1,4 +1,4 @@
-import * as React from "react"
+import { useRef, useState, type FormEvent } from "react"
 import { router, useForm } from "@inertiajs/react"
 import {
   IconCategory,
@@ -64,13 +64,13 @@ function TypeDialog({ open, onOpenChange, type }: TypeDialogProps) {
   const isEdit = Boolean(type)
   const form = useForm(typeToFormData(type))
 
-  const prevTypeId = React.useRef(type?.id)
+  const prevTypeId = useRef(type?.id)
   if (type?.id !== prevTypeId.current) {
     prevTypeId.current = type?.id
     form.setData(typeToFormData(type))
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
 
     if (type) {
@@ -170,8 +170,8 @@ interface TypesTabProps {
 }
 
 export function TypesTab({ types }: TypesTabProps) {
-  const [dialogOpen, setDialogOpen] = React.useState(false)
-  const [editingType, setEditingType] = React.useState<IncidentTypeSettings | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingType, setEditingType] = useState<IncidentTypeSettings | null>(null)
 
   function handleDelete(type: IncidentTypeSettings) {
     router.delete(incidentTypePath(type.id), { preserveScroll: true })

@@ -1,4 +1,4 @@
-import * as React from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { router } from "@inertiajs/react"
 import {
   getCoreRowModel,
@@ -36,26 +36,25 @@ export function useIncidentsTable(
   filters: DashboardFilters,
   pagination: Pagination,
 ) {
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-  const [searchInput, setSearchInput] = React.useState(filters.search ?? "")
-  const searchTimerRef = React.useRef<ReturnType<typeof setTimeout>>()
-  const searchInputRef = React.useRef(filters.search ?? "")
-  const filtersRef = React.useRef(filters)
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [searchInput, setSearchInput] = useState(filters.search ?? "")
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const searchInputRef = useRef(filters.search ?? "")
+  const filtersRef = useRef(filters)
   filtersRef.current = filters
-  const paginationRef = React.useRef(pagination)
+  const paginationRef = useRef(pagination)
   paginationRef.current = pagination
 
-  React.useEffect(() => {
+  useEffect(() => {
     setSearchInput(filters.search ?? "")
     searchInputRef.current = filters.search ?? ""
   }, [filters.search])
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => clearTimeout(searchTimerRef.current)
   }, [])
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet
   const table = useReactTable({
     data,
     columns,
@@ -67,7 +66,7 @@ export function useIncidentsTable(
     getSortedRowModel: getSortedRowModel(),
   })
 
-  const handleSearchChange = React.useCallback((value: string) => {
+  const handleSearchChange = useCallback((value: string) => {
     setSearchInput(value)
     searchInputRef.current = value
     clearTimeout(searchTimerRef.current)
@@ -79,7 +78,7 @@ export function useIncidentsTable(
     }, SEARCH_DEBOUNCE_MS)
   }, [])
 
-  const toggleSeverity = React.useCallback((slug: string) => {
+  const toggleSeverity = useCallback((slug: string) => {
     const current = [...filtersRef.current.severities]
     const idx = current.indexOf(slug)
     if (idx >= 0) current.splice(idx, 1)
@@ -91,7 +90,7 @@ export function useIncidentsTable(
     )
   }, [])
 
-  const toggleStatus = React.useCallback((key: string) => {
+  const toggleStatus = useCallback((key: string) => {
     const current = [...filtersRef.current.statuses]
     const idx = current.indexOf(key)
     if (idx >= 0) current.splice(idx, 1)
@@ -103,16 +102,16 @@ export function useIncidentsTable(
     )
   }, [])
 
-  const setPage = React.useCallback((page: number) => {
+  const setPage = useCallback((page: number) => {
     navigateDashboard(filtersRef.current, { ...paginationRef.current, page })
   }, [])
 
-  const setPerPage = React.useCallback((perPage: number) => {
+  const setPerPage = useCallback((perPage: number) => {
     navigateDashboard(filtersRef.current, { page: 1, perPage })
   }, [])
 
-  const selectedSeverities = React.useMemo(() => new Set(filters.severities), [filters.severities])
-  const selectedStatuses = React.useMemo(() => new Set(filters.statuses), [filters.statuses])
+  const selectedSeverities = useMemo(() => new Set(filters.severities), [filters.severities])
+  const selectedStatuses = useMemo(() => new Set(filters.statuses), [filters.statuses])
 
   return {
     table,

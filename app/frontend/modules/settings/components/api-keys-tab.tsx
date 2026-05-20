@@ -5,7 +5,7 @@ import {
   IconKey,
   IconPlus,
 } from "@tabler/icons-react"
-import * as React from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { router, useForm, usePage } from "@inertiajs/react"
 
 import type { ApiKey as ApiKeyType } from "@/types/serializers"
@@ -109,8 +109,8 @@ function permsToHash(perms: Record<string, Set<string>>): Record<string, string[
 }
 
 function CreateKeyDialog() {
-  const [open, setOpen] = React.useState(false)
-  const [perms, setPerms] = React.useState<Record<string, Set<string>>>({})
+  const [open, setOpen] = useState(false)
+  const [perms, setPerms] = useState<Record<string, Set<string>>>({})
   const form = useForm({ name: "", expires_at: "", permissions: {} as Record<string, string[]> })
 
   const togglePerm = (resource: string, action: string) => {
@@ -124,7 +124,7 @@ function CreateKeyDialog() {
     })
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
     form.transform(() => ({
       name: form.data.name,
@@ -211,11 +211,11 @@ function ApiKeyEditSheet({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const [editPerms, setEditPerms] = React.useState<Record<string, Set<string>>>({})
-  const [name, setName] = React.useState("")
-  const [active, setActive] = React.useState(true)
+  const [editPerms, setEditPerms] = useState<Record<string, Set<string>>>({})
+  const [name, setName] = useState("")
+  const [active, setActive] = useState(true)
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (apiKey && open) {
       setName(apiKey.name)
       setActive(apiKey.active)
@@ -324,8 +324,8 @@ interface ApiKeysTabProps {
 
 export function ApiKeysTab({ apiKeys }: ApiKeysTabProps) {
   const { flash } = usePage<{ flash: { api_key_token?: string } }>().props
-  const [copied, setCopied] = React.useState(false)
-  const [editingKey, setEditingKey] = React.useState<ApiKeyType | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [editingKey, setEditingKey] = useState<ApiKeyType | null>(null)
 
   const createdToken = flash.api_key_token ?? null
 
@@ -341,8 +341,7 @@ export function ApiKeysTab({ apiKeys }: ApiKeysTabProps) {
     router.delete(apiKeyPath(apiKey.id))
   }
 
-  // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally captured once at mount
-  const now = React.useMemo(() => Date.now(), [])
+  const now = useMemo(() => Date.now(), [])
 
   return (
     <div className="flex flex-col gap-6">

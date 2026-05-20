@@ -1,4 +1,4 @@
-import * as React from "react"
+import { useRef, useState, type FormEvent } from "react"
 import { router, useForm } from "@inertiajs/react"
 import { incidentFieldDefinitionPath, incidentFieldDefinitionsPath } from "@/lib/routes"
 import {
@@ -107,7 +107,7 @@ function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDialogPro
   const isEdit = Boolean(field)
   const form = useForm(fieldToFormData(field))
 
-  const prevFieldId = React.useRef(field?.id)
+  const prevFieldId = useRef(field?.id)
   if (field?.id !== prevFieldId.current) {
     prevFieldId.current = field?.id
     form.setData(fieldToFormData(field))
@@ -118,7 +118,7 @@ function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDialogPro
   const showFixedOptions = optionSource === "fixed"
   const showCatalogType = optionSource === "catalog"
 
-  const prevNormalized = React.useRef(optionSource)
+  const prevNormalized = useRef(optionSource)
   if (optionSource !== prevNormalized.current) {
     prevNormalized.current = optionSource
     if (form.data.option_source !== optionSource) {
@@ -126,7 +126,7 @@ function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDialogPro
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
 
     const data = {
@@ -274,8 +274,8 @@ interface CustomFieldsTabProps {
 }
 
 export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) {
-  const [dialogOpen, setDialogOpen] = React.useState(false)
-  const [editingField, setEditingField] = React.useState<IncidentFieldDefinitionSettings | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingField, setEditingField] = useState<IncidentFieldDefinitionSettings | null>(null)
 
   return (
     <div className="space-y-6">

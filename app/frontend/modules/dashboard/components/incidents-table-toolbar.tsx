@@ -1,4 +1,4 @@
-import * as React from "react"
+import { useMemo } from "react"
 import { IconSearch } from "@tabler/icons-react"
 
 import type { SeverityOption } from "@/types/serializers"
@@ -25,11 +25,11 @@ export function IncidentsTableToolbar({
   onToggleStatus,
   severityOptions,
 }: IncidentsTableToolbarProps) {
-  const severityFilterOptions = React.useMemo(
+  const severityFilterOptions = useMemo(
     () => severityOptions.map((s) => ({ value: s.slug, label: s.name })),
     [severityOptions],
   )
-  const statusFilterOptions = React.useMemo(
+  const statusFilterOptions = useMemo(
     () => STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
     [],
   )

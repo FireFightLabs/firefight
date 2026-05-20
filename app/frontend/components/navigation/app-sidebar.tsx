@@ -12,6 +12,7 @@ import {
   IconUserShield,
   IconWebhook,
 } from "@tabler/icons-react"
+import type { ComponentProps } from "react"
 import { Link, usePage } from "@inertiajs/react"
 
 import { FireFightLogo } from "@/components/fire-fight-logo"
@@ -76,7 +77,7 @@ const navSections = [
   },
 ]
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const { currentUser } = usePage<SharedProps>().props
 
   return (

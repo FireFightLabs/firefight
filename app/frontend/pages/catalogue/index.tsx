@@ -1,20 +1,21 @@
 import { Head, usePage } from "@inertiajs/react"
 import { IconPlus } from "@tabler/icons-react"
-import * as React from "react"
+import { useState } from "react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Button } from "@/components/ui/button"
 import { TypeGrid } from "@/modules/catalogue/components/type-grid"
 import { TypeFormDialog } from "@/modules/catalogue/components/type-form-dialog"
 import type { CatalogType } from "@/modules/catalogue/types"
+import type { SharedProps } from "@/types"
 
-interface CatalogueIndexProps {
+interface CataloguePageProps extends SharedProps {
   types: CatalogType[]
 }
 
-export default function CatalogueIndex() {
-  const { types } = usePage<CatalogueIndexProps>().props
-  const [createOpen, setCreateOpen] = React.useState(false)
+export default function CataloguePage() {
+  const { types } = usePage<CataloguePageProps>().props
+  const [createOpen, setCreateOpen] = useState(false)
 
   return (
     <AuthenticatedLayout title="Catalogue">

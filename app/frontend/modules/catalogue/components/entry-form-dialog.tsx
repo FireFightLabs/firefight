@@ -1,5 +1,5 @@
 import { router } from "@inertiajs/react"
-import * as React from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 import type { AttributeDefinition, CatalogEntry, CatalogType, ReferenceEntry, SlackChannel, SlackMember, WorkspaceMember } from "@/modules/catalogue/types"
 import { SearchableSelect } from "@/components/searchable-select"
@@ -37,7 +37,7 @@ function avatarIcon(url?: string, size = "size-5") {
 function toMemberOptions(members: SlackMember[], resolvedMembers: WorkspaceMember[]) {
   const allSources = [ ...resolvedMembers, ...members ]
   const seen = new Set<string>()
-  return allSources.reduce<{ value: string; label: string; icon: React.ReactNode }[]>((acc, m) => {
+  return allSources.reduce<{ value: string; label: string; icon: ReactNode }[]>((acc, m) => {
     if (!seen.has(m.id)) {
       seen.add(m.id)
       acc.push({ value: m.id, label: m.name, icon: avatarIcon(m.avatarUrl) })
@@ -244,14 +244,14 @@ export function EntryFormDialog({
   onOpenChange,
 }: EntryFormDialogProps) {
   const isEdit = !!entry
-  const [name, setName] = React.useState(entry?.name ?? "")
-  const [attributes, setAttributes] = React.useState<Record<string, unknown>>(
+  const [name, setName] = useState(entry?.name ?? "")
+  const [attributes, setAttributes] = useState<Record<string, unknown>>(
     entry?.attributes ?? {}
   )
-  const [processing, setProcessing] = React.useState(false)
+  const [processing, setProcessing] = useState(false)
   const { members: slackMembers, channels: slackChannels, loadMembers, loadChannels } = useSlackData()
 
-  React.useEffect(() => {
+  useEffect(() => {
     setName(entry?.name ?? "")
     setAttributes(entry?.attributes ?? {})
   }, [entry])

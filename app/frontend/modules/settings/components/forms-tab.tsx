@@ -1,4 +1,4 @@
-import * as React from "react"
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react"
 import { router } from "@inertiajs/react"
 import { incidentFormFieldPath, incidentFormFieldsPath } from "@/lib/routes"
 import {
@@ -110,9 +110,9 @@ interface AddFieldDialogProps {
 }
 
 function AddFieldDialog({ open, onOpenChange, form, availableFields, allCustomFields, onNavigateToCustomFields }: AddFieldDialogProps) {
-  const [selectedFieldId, setSelectedFieldId] = React.useState(availableFields[0]?.id ?? "")
+  const [selectedFieldId, setSelectedFieldId] = useState(availableFields[0]?.id ?? "")
 
-  React.useEffect(() => {
+  useEffect(() => {
     setSelectedFieldId(availableFields[0]?.id ?? "")
   }, [availableFields, form.id])
 
@@ -239,13 +239,13 @@ function ConditionEditor({ field, incidentTypes, onSave }: {
   onSave: (conditions: IncidentConditionSettings[]) => void
 }) {
   const existing = field.conditions?.[0]
-  const [operator, setOperator] = React.useState(existing?.operator ?? OPERATOR_ONE_OF)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
+  const [operator, setOperator] = useState(existing?.operator ?? OPERATOR_ONE_OF)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set(existing?.values ?? [])
   )
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = useState(false)
 
-  React.useEffect(() => {
+  useEffect(() => {
     const current = field.conditions?.[0]
     setOperator(current?.operator ?? OPERATOR_ONE_OF)
     setSelectedIds(new Set(current?.values ?? []))
@@ -372,7 +372,7 @@ function SortableFieldRow({ field, incidentTypes, onUpdate, onUpdateConditions, 
     isDragging,
   } = useSortable({ id: field.id })
 
-  const style: React.CSSProperties = {
+  const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition,
     zIndex: isDragging ? 10 : undefined,
@@ -496,13 +496,13 @@ interface FormsTabProps {
 }
 
 export function FormsTab({ forms, customFields, incidentTypes, selectedFormId, onSelectForm, onNavigateToCustomFields }: FormsTabProps) {
-  const selectedForm = React.useMemo(() => {
+  const selectedForm = useMemo(() => {
     return forms.find((form) => form.id === selectedFormId) ?? forms[0] ?? null
   }, [forms, selectedFormId])
 
-  const [addFieldOpen, setAddFieldOpen] = React.useState(false)
+  const [addFieldOpen, setAddFieldOpen] = useState(false)
 
-  const availableFields = React.useMemo(() => {
+  const availableFields = useMemo(() => {
     if (!selectedForm) return []
     const attachedIds = new Set(selectedForm.fields.map((field) => field.incidentFieldDefinitionId).filter(Boolean))
     return customFields.filter((field) => !attachedIds.has(field.id))
@@ -514,12 +514,12 @@ export function FormsTab({ forms, customFields, incidentTypes, selectedFormId, o
     }),
   )
 
-  const fieldIds = React.useMemo(
+  const fieldIds = useMemo(
     () => selectedForm?.fields.map((f) => f.id) ?? [],
     [selectedForm?.fields],
   )
 
-  const handleDragEnd = React.useCallback((event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     if (!selectedForm) return
 
     const { active, over } = event

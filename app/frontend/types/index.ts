@@ -1,3 +1,4 @@
+import type { PageProps } from '@inertiajs/core'
 import type { CurrentUser, CurrentWorkspace } from './serializers'
 
 export type FlashData = {
@@ -5,7 +6,7 @@ export type FlashData = {
   alert?: string
 }
 
-export type SharedProps = {
+export type SharedProps = PageProps & {
   currentUser?: CurrentUser
   currentWorkspace?: CurrentWorkspace
 }

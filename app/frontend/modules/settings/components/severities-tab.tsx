@@ -1,4 +1,4 @@
-import * as React from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { router, useForm } from "@inertiajs/react"
 import { IconGripVertical, IconPlus } from "@tabler/icons-react"
 
@@ -49,10 +49,10 @@ interface SeveritiesTabProps {
 }
 
 function AddSeverityDialog() {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = useState(false)
   const form = useForm({ name: "", description: "", rank: "1", color: "#FF6B35" })
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
     form.post(incidentSeveritiesPath(), {
       onSuccess: () => {
@@ -162,13 +162,13 @@ function EditSeverityDialog({
 }) {
   const form = useForm({ name: severity.name, description: severity.description ?? "", color: severity.color })
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (open) {
       form.setData({ name: severity.name, description: severity.description ?? "", color: severity.color })
     }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
     form.patch(incidentSeverityPath(severity.id), {
       onSuccess: () => onOpenChange(false),
@@ -240,7 +240,7 @@ function EditSeverityDialog({
 }
 
 export function SeveritiesTab({ severities }: SeveritiesTabProps) {
-  const [editingSeverity, setEditingSeverity] = React.useState<IncidentSeveritySettings | null>(null)
+  const [editingSeverity, setEditingSeverity] = useState<IncidentSeveritySettings | null>(null)
 
   function handleToggleEnabled(severity: IncidentSeveritySettings) {
     router.patch(
