@@ -133,6 +133,18 @@
   code, pre, kbd, samp {
     font-family: var(--font-mono);
   }
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Pointer cursor on Radix menu / select / combobox options. Unlayered so it
+   beats shadcn's `cursor-default` utility (utilities outrank @layer base). */
+[role="menuitem"]:not([data-disabled]),
+[role="menuitemcheckbox"]:not([data-disabled]),
+[role="menuitemradio"]:not([data-disabled]),
+[role="option"]:not([data-disabled]) {
+  cursor: pointer;
 }
 
 /* Postmortem editor — Ghost/Medium inspired */
@@ -251,10 +263,6 @@
 
   strong {
     font-weight: 700;
-  }
-
-  button:not(:disabled) {
-    cursor: pointer;
   }
 
   .is-empty::before {
