@@ -1,8 +1,8 @@
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { StatusesTab } from "@/modules/settings/components/statuses-tab"
-import type { LifecycleStageWithStatuses } from "@/modules/settings/types"
+import { StatusesTab } from "@/pages/settings/components/statuses-tab"
+import type { LifecycleStageWithStatuses } from "@/pages/settings/lib/types"
 import type { SharedProps } from "@/types"
 
 interface StatusesPageProps extends SharedProps {

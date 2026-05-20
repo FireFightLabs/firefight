@@ -14,7 +14,7 @@ import TurndownService from "turndown"
 
 import type { SharedProps } from "@/types"
 import type { Postmortem, PostmortemUpdate } from "@/types/serializers"
-import { PostmortemEditor } from "@/modules/incidents/components/postmortem-editor"
+import { PostmortemEditor } from "@/pages/incidents/components/postmortem-editor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {

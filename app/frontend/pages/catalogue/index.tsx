@@ -4,9 +4,9 @@ import { useState } from "react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Button } from "@/components/ui/button"
-import { TypeGrid } from "@/modules/catalogue/components/type-grid"
-import { TypeFormDialog } from "@/modules/catalogue/components/type-form-dialog"
-import type { CatalogType } from "@/modules/catalogue/types"
+import { TypeGrid } from "@/pages/catalogue/components/type-grid"
+import { TypeFormDialog } from "@/pages/catalogue/components/type-form-dialog"
+import type { CatalogType } from "@/pages/catalogue/types"
 import type { SharedProps } from "@/types"
 
 interface CataloguePageProps extends SharedProps {

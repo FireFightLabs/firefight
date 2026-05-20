@@ -4,7 +4,7 @@ import { Card } from "@/components/card";
 import { FireFightLogo } from "@/components/fire-fight-logo";
 import { Button } from "@/components/ui/button";
 import { dashboardPath } from "@/lib/routes";
-import { AuthLayout } from "@/modules/auth/components/auth-layout";
+import { AuthLayout } from "@/components/auth/auth-layout";
 import type { SharedProps } from "@/types";
 
 interface WelcomePageProps extends SharedProps {

@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { claimInviteCodePath } from "@/lib/routes";
-import { AuthLayout } from "@/modules/auth/components/auth-layout";
-import { CardHeader } from "@/modules/auth/components/card-header";
+import { AuthLayout } from "@/components/auth/auth-layout";
+import { CardHeader } from "@/components/auth/card-header";
 import type { SharedProps } from "@/types";
 
 interface InviteCodePageProps extends SharedProps {

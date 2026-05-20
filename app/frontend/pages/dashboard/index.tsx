@@ -2,9 +2,9 @@ import { Deferred, Head, usePage } from "@inertiajs/react"
 
 import type { Pagination, SharedProps } from "@/types"
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { StatCards, StatCardsSkeleton } from "@/modules/dashboard/components/stat-cards"
-import { IncidentsTable } from "@/modules/dashboard/components/incidents-table"
-import type { DashboardStat, DashboardFilters } from "@/modules/dashboard/types"
+import { StatCards, StatCardsSkeleton } from "@/pages/dashboard/components/stat-cards"
+import { IncidentsTable } from "@/pages/dashboard/components/incidents-table"
+import type { DashboardStat, DashboardFilters } from "@/pages/dashboard/types"
 import type { IncidentListItem, SeverityOption } from "@/types/serializers"
 
 interface DashboardPageProps extends SharedProps {

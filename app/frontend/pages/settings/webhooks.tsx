@@ -2,7 +2,7 @@ import { useCallback, useState } from "react"
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { WebhooksTab } from "@/modules/settings/components/webhooks-tab"
+import { WebhooksTab } from "@/pages/settings/components/webhooks-tab"
 import type { Webhook } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 

@@ -1,7 +1,7 @@
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { RolesTab } from "@/modules/settings/components/roles-tab"
+import { RolesTab } from "@/pages/settings/components/roles-tab"
 import type { IncidentRole } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 

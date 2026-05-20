@@ -2,12 +2,12 @@ import { useCallback, useState } from "react"
 import { Head, router, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { FormsTab } from "@/modules/settings/components/forms-tab"
+import { FormsTab } from "@/pages/settings/components/forms-tab"
 import { settingsCustomFieldsPath } from "@/lib/routes"
 import type {
   IncidentFieldDefinitionSettings,
   IncidentFormSettings,
-} from "@/modules/settings/types"
+} from "@/pages/settings/lib/types"
 import type { IncidentTypeSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 

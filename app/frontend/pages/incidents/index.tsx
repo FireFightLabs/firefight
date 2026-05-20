@@ -1,13 +1,11 @@
 import { Deferred, Head, Link, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import {
-  IncidentHeader,
-  IncidentTimeline,
-  IncidentActionsSidebar,
-  IncidentPostmortemCard,
-} from "@/modules/incidents/components"
-import type { Incident, IncidentAction, TimelineEvent } from "@/modules/incidents/types"
+import { IncidentHeader } from "@/pages/incidents/components/incident-header"
+import { IncidentTimeline } from "@/pages/incidents/components/incident-timeline"
+import { IncidentActionsSidebar } from "@/pages/incidents/components/incident-actions"
+import { IncidentPostmortemCard } from "@/pages/incidents/components/incident-postmortem-card"
+import type { Incident, IncidentAction, TimelineEvent } from "@/pages/incidents/types"
 import { dashboardPath } from "@/lib/routes"
 import { Skeleton } from "@/components/ui/skeleton"
 
