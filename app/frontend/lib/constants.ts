@@ -9,7 +9,7 @@ export type LifecycleStageKey = (typeof LIFECYCLE_STAGES)[keyof typeof LIFECYCLE
 export function severityBadgeClass(rank: number) {
   if (rank >= 4) return "bg-[#D42B2B] text-white border-transparent"
   if (rank >= 3) return "bg-[#E07A12] text-white border-transparent"
-  return "bg-slate-500 text-slate-100 border-transparent"
+  return "bg-[#3B82F6] text-white border-transparent"
 }
 
 export function statusVariant(lifecycleStage: string) {
