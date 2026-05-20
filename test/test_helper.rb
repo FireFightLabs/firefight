@@ -29,6 +29,7 @@ module ActiveSupport
     include OmniauthTestHelper
     include SlackClientStubHelper
     include ApiTestHelper
+    include InertiaTestHelper
 
     # Add more helper methods to be used by all tests here...
   end

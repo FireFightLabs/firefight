@@ -41,12 +41,10 @@ class Command
     @incident ||= workspace&.incidents&.active&.in_channel(channel_id)&.first
   end
 
-  # Check if command is from Slack
   def slack?
     platform == Platforms::SLACK
   end
 
-  # Check if command is from Teams
   def teams?
     platform == Platforms::TEAMS
   end

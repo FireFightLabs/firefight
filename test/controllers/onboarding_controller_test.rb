@@ -106,7 +106,7 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     get "/auth/slack/callback"
     assert_redirected_to onboarding_welcome_path
 
-    get onboarding_welcome_path
+    get onboarding_welcome_path, headers: inertia_headers
     assert_response :success
 
     # Second visit redirects — the flag was consumed.
@@ -122,15 +122,5 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     )
     get "/auth/slack_openid/callback"
     assert_redirected_to onboarding_invite_code_path
-  end
-
-  # Inertia headers skip the HTML layout (which would require the Vite manifest
-  # to be built in CI) and return JSON props directly. Version must match or
-  # Inertia returns 409 Conflict.
-  def inertia_headers
-    {
-      "X-Inertia" => "true",
-      "X-Inertia-Version" => InertiaRails.configuration.version
-    }
   end
 end

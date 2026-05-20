@@ -33,3 +33,7 @@ OmniAuth.config.silence_get_warning = true
 OmniAuth.config.on_failure = proc { |env|
   OmniAuth::FailureEndpoint.new(env).redirect_to_failure
 }
+
+# Silence OmniAuth's strategy-level debug chatter ("Setup endpoint detected…")
+# during tests. Gets its own logger so we don't lower Rails.logger globally.
+OmniAuth.config.logger = Logger.new(IO::NULL) if Rails.env.test?

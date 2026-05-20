@@ -80,7 +80,7 @@ module Interactions
     private_class_method :handle_postmortem
 
     def self.post_list(workspace, adapter, channel_id, user_id)
-      response = Commands::Firefight::ListHandler.build_response(workspace)
+      response = Commands::ListHandler.build_response(workspace)
       adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: response[:text])
     rescue AdapterError => e
       Rails.logger.warn({ event: "interactions.home_continue.post_list_failed", error: e.message })

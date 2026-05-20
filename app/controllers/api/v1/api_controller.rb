@@ -3,12 +3,23 @@ class Api::V1::ApiController < ActionController::API
 
   rate_limit to: 1000, within: 1.minute, by: -> { Current.api_key&.id }, with: :rate_limit_exceeded
 
+  before_action :annotate_trace_source
+
   rescue_from ActiveRecord::RecordNotFound, with: :not_found
   rescue_from ActiveRecord::RecordInvalid, with: :validation_error
   rescue_from ActionController::ParameterMissing, with: :bad_request
   rescue_from ApiAuthentication::ForbiddenError, with: :forbidden
 
   private
+
+  def annotate_trace_source
+    OpenTelemetry::Trace.current_span.add_attributes({
+      "firefight.source" => "api",
+      "firefight.api_key.name" => Current.api_key&.name,
+      "firefight.workspace.id" => Current.workspace&.id,
+      "firefight.api.client_source" => params[:source]
+    }.compact)
+  end
 
   def rate_limit_exceeded
     render json: error_response("rate_limit_exceeded", "Rate limit exceeded. Try again later."), status: :too_many_requests
