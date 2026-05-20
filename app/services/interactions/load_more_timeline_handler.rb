@@ -5,7 +5,7 @@ module Interactions
       payload = JSON.parse(interaction.action_value || "{}")
       incident = workspace.incidents.find(payload["incident_id"])
       limit = payload["limit"].to_i
-      limit = Commands::Firefight::TimelineHandler::DEFAULT_LIMIT if limit <= 0
+      limit = Commands::TimelineHandler::DEFAULT_LIMIT if limit <= 0
 
       view_id = interaction.view&.dig("id")
       return nil unless view_id

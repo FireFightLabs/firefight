@@ -1,3 +1,5 @@
+require "net/http/persistent"
+
 module Slack
   # Wrapper for Slack Web API calls
   class Client
@@ -395,21 +397,57 @@ module Slack
     end
 
     def self.download_file(workspace:, url:)
-      response = HTTParty.get(
-        url,
-        headers: {
-          "Authorization" => "Bearer #{workspace.access_token}"
-        }
-      )
+      uri = URI(url)
+      request = Net::HTTP::Get.new(uri)
+      request["Authorization"] = "Bearer #{workspace.access_token}"
 
-      unless response.code.between?(200, 299)
+      response = pool_request(uri, request)
+
+      unless response.code.to_i.between?(200, 299)
         raise ApiError, "Slack file download failed with status #{response.code}"
       end
 
       {
         body: response.body,
-        content_type: response.headers["content-type"]
+        content_type: response["content-type"]
       }
+    end
+
+    # Persistent HTTP connection pool for Slack API.
+    # Reuses TCP+TLS sockets across calls, eliminating handshake overhead
+    # (~15-20ms per call) on the warm path. Net::HTTP::Persistent maintains
+    # per-thread connection caches internally, so the pool object is shared
+    # across Puma threads but each thread has its own socket cache.
+    #
+    # idle_timeout: 30s — safely under the typical AWS ALB / Slack edge idle
+    # window (~60s). Pairs with pool_request's stale-socket retry: if we ever
+    # do reuse a half-closed socket, the second attempt opens a fresh one.
+    STALE_SOCKET_ERRORS = [ EOFError, Errno::ECONNRESET, Errno::EPIPE, Net::HTTP::Persistent::Error ].freeze
+    HTTP_POOL_MUTEX = Mutex.new
+
+    def self.http_pool
+      @http_pool || HTTP_POOL_MUTEX.synchronize do
+        @http_pool ||= Net::HTTP::Persistent.new(name: "slack_api").tap do |pool|
+          pool.idle_timeout = 30
+        end
+      end
+    end
+
+    # Wraps http_pool.request with a single retry on stale-socket errors.
+    # Net::HTTP::Persistent.retry_change_requests defaults to false, so it
+    # won't auto-retry POSTs — we do it here. One retry only: if both attempts
+    # die at the connection level the underlying issue isn't a stale socket.
+    def self.pool_request(uri, request)
+      attempts = 0
+      begin
+        attempts += 1
+        http_pool.request(uri, request)
+      rescue *STALE_SOCKET_ERRORS => e
+        raise if attempts >= 2
+
+        Rails.logger.info({ event: "slack.client.stale_socket_retry", error_class: e.class.name, error: e.message })
+        retry
+      end
     end
 
     private
@@ -422,15 +460,13 @@ module Slack
     # @return [Hash] Parsed JSON response with indifferent access
     # @raise [ApiError] if request fails or Slack returns an error
     def self.api_post(workspace:, endpoint:, payload:)
-      response = HTTParty.post(
-        "#{SLACK_API_BASE}/#{endpoint}",
-        headers: {
-          "Authorization" => "Bearer #{workspace.access_token}",
-          "Content-Type" => "application/json"
-        },
-        body: payload.to_json
-      )
+      uri = URI("#{SLACK_API_BASE}/#{endpoint}")
+      request = Net::HTTP::Post.new(uri)
+      request["Authorization"] = "Bearer #{workspace.access_token}"
+      request["Content-Type"] = "application/json"
+      request.body = payload.to_json
 
+      response = pool_request(uri, request)
       body = JSON.parse(response.body).with_indifferent_access
 
       unless body[:ok]
