@@ -21,7 +21,7 @@ export default function Dashboard() {
   return (
     <AuthenticatedLayout title="Incidents">
       <Head title="Incidents" />
-      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <div className="flex flex-col gap-6 py-4 md:gap-8 md:py-6">
         <Deferred data="stats" fallback={<StatCardsSkeleton />}>
           <StatCards stats={stats ?? []} />
         </Deferred>
