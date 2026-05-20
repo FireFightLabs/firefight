@@ -253,6 +253,10 @@
     font-weight: 700;
   }
 
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
   .is-empty::before {
     color: var(--muted-foreground);
     content: attr(data-placeholder);
