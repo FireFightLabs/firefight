@@ -1,7 +1,7 @@
 require "test_helper"
 
 class Commands::HomeModalHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces
+  fixtures :workspaces, :incident_severities, :incident_statuses, :incident_lifecycle_stages
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

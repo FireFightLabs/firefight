@@ -1,9 +1,10 @@
-# Skip the OpenTelemetry SDK in test. Loading instrumentations adds ~3s to
-# boot per process, and the BatchSpanProcessor blocks at shutdown trying to
-# flush spans to localhost:4318. `Firefight::TRACER` still resolves below —
-# without the SDK, OpenTelemetry's API returns a no-op tracer, so spans in
-# app code become free no-ops instead of errors.
-unless Rails.env.test?
+# opentelemetry-api is tiny and loads in every environment so `Firefight::TRACER`
+# always resolves. Outside production we stop here — `OpenTelemetry.tracer_provider`
+# returns the default ProxyTracerProvider, so spans become free no-ops with no boot
+# cost, no instrumentation patching, and no BatchSpanProcessor flush at shutdown.
+require "opentelemetry"
+
+if Rails.env.production?
   require "opentelemetry/sdk"
   require "opentelemetry/exporter/otlp"
   require "opentelemetry/instrumentation/all"

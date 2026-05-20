@@ -104,9 +104,11 @@ gem "yabeda-prometheus-mmap"
 gem "prometheus-client-mmap", "~> 1.3"
 gem "webrick"
 
-gem "opentelemetry-sdk"
-gem "opentelemetry-exporter-otlp"
-gem "opentelemetry-instrumentation-all"
+# `require: false` so test boot doesn't pay the load cost of 15 instrumentation
+# gems. config/initializers/opentelemetry.rb requires them explicitly outside test.
+gem "opentelemetry-sdk", require: false
+gem "opentelemetry-exporter-otlp", require: false
+gem "opentelemetry-instrumentation-all", require: false
 
 gem "vite_rails", "~> 3.0"
 
