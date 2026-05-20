@@ -1,4 +1,12 @@
 class IncidentInviteService
+  # Three forms a user can name an invitee in command text:
+  # Slack mention (<@U123>), bare @handle, or raw user ID (U12345678).
+  TARGET_TOKEN_REGEX = /<@[A-Z0-9]+|@[a-z0-9._-]|\bU[A-Z0-9]{8,}\b/i
+
+  def self.target_tokens?(text)
+    text.to_s.match?(TARGET_TOKEN_REGEX)
+  end
+
   def initialize(workspace)
     @workspace = workspace
     @adapter = workspace.adapter
@@ -41,6 +49,23 @@ class IncidentInviteService
       already_in_channel_user_ids: already_in_channel_user_ids,
       failed_invites: failed_invites
     }
+  end
+
+  def resolve_and_notify!(incident:, text:, channel_id:, user_id:)
+    targets = resolve_invitees(text)
+
+    if targets[:user_ids].empty?
+      message = if targets[:had_target_tokens]
+        "Couldn't resolve #{targets[:unresolved_handles].map { |h| "@#{h}" }.join(', ')}. Try `/ff invite` to pick responders from the modal."
+      else
+        "No users specified. Try `/ff invite @alice @bob` or `/ff invite` to pick responders from the modal."
+      end
+      @adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: message)
+      return
+    end
+
+    result = invite!(incident: incident, user_ids: targets[:user_ids])
+    @adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: summary_message(result))
   end
 
   def summary_message(result)

@@ -15,16 +15,20 @@ Run `bin/ci` to validate changes. It runs rubocop, bundler-audit, brakeman, rail
 - Keep it simple, avoid over-engineering
 - Rubocop enforced: `[ {...} ]` not `[{...}]` (SpaceInsideArrayLiteralBrackets)
 - Never use raw strings for identifiers, resource names, action names, or event types — always use constants (e.g., `ApiKey::RESOURCE_INCIDENTS` not `"incidents"`, `IncidentEvent::INCIDENT_CREATED` not `"incident.created"`, `Identifiers::INCIDENT_CREATION_MODAL` not the string)
+- Model concerns live next to their model in `app/models/<model>/`, not in `app/models/concerns/`. E.g. `Incident::Lifecycle` lives at `app/models/incident/lifecycle.rb`. Don't use `rails g concern` (it generates into `app/models/concerns/`) — create the file manually in the right directory.
 
 ## Architecture
 
 ### Layer Hierarchy
 
 ```
-Controller → Job → Dispatcher → Handler → Service → Adapter → Slack::Client
+Controller → Dispatcher → Handler → Service → Adapter → Slack::Client
+                                  ↘ Job → Service → Adapter → Slack::Client   (heavy work only)
 ```
 
 Each layer has a single responsibility. Never skip layers.
+
+Commands dispatch **synchronously** by default — Slack's 3-second budget covers the common path (modal openers, ephemerals, fast DB work). A handler enqueues its own job only when the work can't fit: AI generation, paginated Slack lookups, large fan-outs. See [When to enqueue from a handler](#when-to-enqueue-from-a-handler).
 
 ### Entry Points (Boundary Layers)
 
@@ -85,14 +89,33 @@ The service:
 
 ### Thin Controllers
 
-Controllers validate requests, enqueue jobs, and respond immediately. No business logic. Slack requires response within 3 seconds (trigger_id expiration).
+Controllers validate requests, normalize payloads, dispatch synchronously, and render the response. No business logic. Slack requires response within 3 seconds (trigger_id expiration) — the controller stays in-process and meets that budget by relying on handlers to enqueue jobs when their work is heavy.
 
 ```
-Api::V1::CommandsController → ProcessCommandJob.perform_later → head :ok
-Api::V1::InteractionsController → Slack::InteractionNormalizer.call → InteractionDispatcher.dispatch (sync, needs response body for modals)
+Api::V1::CommandsController     → Slack::CommandAdapter.parse → ensure_membership! → CommandDispatcher.dispatch → render JSON / head :ok
+Api::V1::InteractionsController → Slack::InteractionNormalizer.call → ensure_membership! → InteractionDispatcher.dispatch → render JSON / head :ok
 ```
+
+`ensure_membership!` (in `Api::V1::BaseController`) lazily provisions a `WorkspaceMembership` for the acting Slack user via `WorkspaceMemberProvisioner` so downstream handlers can trust `find_by!(platform_user_id:)`. Best-effort — provisioning failure logs and dispatch continues.
 
 Controllers are the platform-specific boundary — they normalize payloads into platform-agnostic objects before passing to dispatchers.
+
+#### When to enqueue from a handler
+
+Most handlers stay sync. A handler should enqueue its own job when **any** of these is true:
+
+- The work calls an AI provider or another slow external API (`PostmortemHandler`, `CatchupHandler`).
+- The work hits paginated Slack endpoints (`users.list`, `conversations.list`) or fans out N sequential API calls (`InviteHandler` resolve+invite path).
+- The work could plausibly exceed ~1.5s on the slowest realistic workspace (leaves headroom inside Slack's 3s budget for signature verify, membership provisioning, and dispatch).
+
+Pattern (see `Commands::InviteHandler` + `IncidentInviteJob` + `IncidentInviteService#resolve_and_notify!` as the reference):
+
+1. Handler does cheap precondition checks; if heavy work is needed, calls `MyJob.perform_later(...)` with primitive args (ids, text, channel_id, user_id — never AR records).
+2. Handler returns an immediate ephemeral acknowledgment (`Command.ephemeral(":hourglass_flowing_sand: …")`).
+3. Job loads records and calls a single service method that owns the whole flow (work + final notification via `adapter.post_ephemeral`).
+4. Job is a thin shell — no business logic, no Slack calls. Service owns the orchestration; adapter owns the platform calls.
+
+Handlers that must stay sync regardless of cost: anything that opens a modal. `trigger_id` expires in 3s and cannot be used from a job.
 
 **Inertia controllers** follow the same thin pattern. Query filtering belongs in model scopes (chainable, independently testable). Serialization belongs in serializer classes (`app/serializers/`). Aggregations and computed metrics belong in POROs (e.g., `DashboardStats`). The controller parses params, chains scopes, paginates, and renders — no inline SQL, no serialization loops, no metric calculations.
 
@@ -162,11 +185,13 @@ Never put in a handler: DB queries beyond `command.workspace` / `command.inciden
 
 `command.workspace` and `command.incident` are memoized on `Command` — call them directly, no local variable needed.
 
+Handlers decide whether to dispatch sync or enqueue a job — see [When to enqueue from a handler](#when-to-enqueue-from-a-handler). The controller never decides; it always calls the handler the same way.
+
 ### Normalizers
 
 Platform-specific payloads are normalized into platform-agnostic POJOs at the boundary (controllers/jobs) before reaching dispatchers and handlers.
 
-- `Slack::CommandAdapter.parse(payload)` → `Command` (ActiveModel with validations) — called in `ProcessCommandJob`
+- `Slack::CommandAdapter.parse(payload)` → `Command` (ActiveModel with validations) — called in `CommandsController`
 - `Slack::InteractionNormalizer.call(payload)` → `Interaction` (plain PORO with attr_readers) — called in `InteractionsController`
 
 Dispatchers and handlers only receive normalized objects — never raw payloads. Handlers access normalized fields (`interaction.user_id`, `command.trigger_id`).
@@ -367,7 +392,7 @@ app/adapters/
   adapter_error.rb                    # Platform-agnostic error hierarchy
   workspace_adapter.rb                # Factory: WorkspaceAdapter.for(workspace)
   slack/
-    client.rb                         # Slack API wrapper (HTTParty)
+    client.rb                         # Slack API wrapper (Net::HTTP::Persistent pool, see http_pool)
     workspace_adapter.rb              # Slack adapter (low-level + high-level methods)
     interaction_normalizer.rb         # Raw payload → Interaction POJO
     command_adapter.rb                # Raw payload → Command POJO
@@ -389,10 +414,15 @@ app/serializers/
 
 app/services/
   incident_lifecycle_service.rb       # Shared write operations (create, update, close, reopen, lead)
+  incident_invite_service.rb          # Resolve targets + invite + notify (used by InviteHandler + IncidentInviteJob)
   command_dispatcher.rb               # Routes commands → handlers
   interaction_dispatcher.rb           # Routes interactions → handlers
   incident_creation_service.rb        # Incident creation details (channel, metadata, announcements)
   workspace_setup_service.rb          # Workspace setup business logic
+  workspace_member_provisioner.rb     # Lazy provisions WorkspaceMembership from a Slack user_id
+
+app/jobs/
+  incident_invite_job.rb              # Async resolve+invite for InviteHandler (paginated users.list path)
 
 app/views/shared/
   _incident.json.jbuilder             # Shared incident serialization (used by API + webhooks)

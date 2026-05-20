@@ -8,6 +8,8 @@ class Api::V1::InteractionsController < Api::V1::BaseController
     return unless payload
 
     interaction = Slack::InteractionNormalizer.call(payload)
+    workspace = Workspace.find_by(platform: Platforms::SLACK, platform_id: interaction.team_id)
+    ensure_membership!(workspace: workspace, platform_user_id: interaction.user_id)
     result = InteractionDispatcher.dispatch(interaction)
 
     if result

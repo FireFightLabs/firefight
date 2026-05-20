@@ -3,17 +3,17 @@ require "test_helper"
 class CommandDispatcherTest < ActiveSupport::TestCase
   test "routes /firefight to Firefight::HomeHandler" do
     command = build_command(command_name: "/firefight", text: Identifiers::SUBCOMMAND_NEW)
-    assert_equal Commands::Firefight::HomeHandler, CommandDispatcher.find(command)
+    assert_equal Commands::HomeHandler, CommandDispatcher.find(command)
   end
 
   test "routes /ff to Firefight::HomeHandler" do
     command = build_command(command_name: "/ff", text: Identifiers::SUBCOMMAND_STATUS)
-    assert_equal Commands::Firefight::HomeHandler, CommandDispatcher.find(command)
+    assert_equal Commands::HomeHandler, CommandDispatcher.find(command)
   end
 
   test "routes /firefight with empty text to Firefight::HomeHandler" do
     command = build_command(command_name: "/firefight", text: "")
-    assert_equal Commands::Firefight::HomeHandler, CommandDispatcher.find(command)
+    assert_equal Commands::HomeHandler, CommandDispatcher.find(command)
   end
 
   test "falls back to ModalHandler for unknown slash commands" do
@@ -36,7 +36,7 @@ class CommandDispatcherTest < ActiveSupport::TestCase
   test "dispatch calls execute on the resolved handler" do
     command = build_command(command_name: "/ff", text: Identifiers::SUBCOMMAND_SUMMARY)
 
-    Commands::Firefight::HomeHandler.expects(:execute).with(command).once
+    Commands::HomeHandler.expects(:execute).with(command).once
 
     CommandDispatcher.dispatch(command)
   end

@@ -11,7 +11,32 @@ class Api::V1::BaseController < ActionController::API
   private
 
   def verify_slack_signature!
-    Slack::SignatureVerifier.verify!(request)
+    OpenTelemetry::Trace.current_span.add_attributes({ "firefight.source" => "slack" })
+    Firefight::TRACER.in_span("slack.verify_signature") do
+      Slack::SignatureVerifier.verify!(request)
+    end
+  end
+
+  # Provision a workspace membership if one doesn't exist yet.
+  # Centralized here so commands and interactions share the same path —
+  # downstream handlers can trust find_by!(platform_user_id:) for the actor.
+  # Best-effort: provisioning failure logs a warning, dispatch continues.
+  def ensure_membership!(workspace:, platform_user_id:)
+    Firefight::TRACER.in_span("slack.ensure_membership") do
+      return unless workspace && platform_user_id
+
+      WorkspaceMemberProvisioner.find_or_provision!(
+        workspace: workspace,
+        platform_user_id: platform_user_id,
+        adapter: workspace.adapter
+      )
+    rescue StandardError => e
+      Rails.logger.warn({
+        event: "membership.provisioning_failed",
+        platform_user_id: platform_user_id,
+        error: e.message
+      })
+    end
   end
 
   def not_found(exception)

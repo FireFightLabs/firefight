@@ -46,6 +46,9 @@ gem "js-routes", "~> 2.3"
 # HTTP client for API requests
 gem "httparty"
 
+# Persistent HTTP connection pool (for Slack API keep-alive)
+gem "net-http-persistent"
+
 # AI intelligence layer (postmortem generation, incident Q&A, integrations)
 gem "firefight_ai", path: "engines/firefight_ai"
 
@@ -100,6 +103,12 @@ gem "yabeda-http_requests"
 gem "yabeda-prometheus-mmap"
 gem "prometheus-client-mmap", "~> 1.3"
 gem "webrick"
+
+# `require: false` so test boot doesn't pay the load cost of 15 instrumentation
+# gems. config/initializers/opentelemetry.rb requires them explicitly outside test.
+gem "opentelemetry-sdk", require: false
+gem "opentelemetry-exporter-otlp", require: false
+gem "opentelemetry-instrumentation-all", require: false
 
 gem "vite_rails", "~> 3.0"
 

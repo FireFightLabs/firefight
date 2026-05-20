@@ -49,6 +49,12 @@ class InteractionDispatcher
   def self.dispatch(interaction)
     ensure_member_provisioned(interaction)
     handler = find(interaction)
+    OpenTelemetry::Trace.current_span.add_attributes({
+      "slack.interaction_type" => interaction.type,
+      "slack.callback_id" => interaction.callback_id,
+      "slack.action_id" => interaction.action_id,
+      "slack.handler" => handler.name
+    }.compact)
     handler.execute(interaction)
   end
 

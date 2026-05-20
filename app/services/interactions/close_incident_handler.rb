@@ -58,7 +58,13 @@ module Interactions
       end
 
       if lead_user_id.present?
-        lead_member = workspace.workspace_memberships.find_by!(platform_user_id: lead_user_id)
+        lead_member = WorkspaceMemberProvisioner.find_or_provision!(
+          workspace: workspace,
+          platform_user_id: lead_user_id,
+          adapter: workspace.adapter
+        )
+        return { response_action: "errors", errors: { "lead_block" => "Couldn't load that user's profile from Slack. Please try again in a moment." } } unless lead_member
+
         attrs[:lead] = lead_member
       end
 
