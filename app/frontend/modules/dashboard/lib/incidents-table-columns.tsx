@@ -36,7 +36,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     accessorKey: "severity",
     header: "Severity",
     cell: ({ row }) => (
-      <Badge className={`${severityBadgeClass(row.original.severity.rank)} min-w-20 justify-center`}>
+      <Badge className={`${severityBadgeClass(row.original.severity.rank)} min-w-24 justify-center`}>
         {row.original.severity.name}
       </Badge>
     ),
@@ -52,6 +52,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
             backgroundColor: `${color}26`,
             color: color,
             borderColor: `${color}4D`,
+            minWidth: "7.5rem",
           }}
         >
           <StatusIcon statusName={name} lifecycleStage={lifecycleStage} />
