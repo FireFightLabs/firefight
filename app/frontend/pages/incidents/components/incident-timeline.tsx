@@ -13,6 +13,7 @@ import {
 } from "@tabler/icons-react"
 
 import type { TimelineEvent } from "@/pages/incidents/types"
+import { ActorAvatar } from "@/pages/incidents/components/actor-avatar"
 
 const eventIcons: Record<string, typeof IconFlame> = {
   "incident.created": IconFlame,
@@ -76,21 +77,6 @@ function formatDate(dateStr: string): string {
     month: "short",
     day: "numeric",
   })
-}
-
-function ActorAvatar({ name }: { name: string }) {
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2)
-
-  return (
-    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground/90">
-      {initials}
-    </span>
-  )
 }
 
 export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {

@@ -1,1 +1,1 @@
-export type { default } from "./serializers/IncidentTypeCompact"
+export type { default } from "@/types/serializers/IncidentTypeCompact"

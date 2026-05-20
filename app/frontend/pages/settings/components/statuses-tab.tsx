@@ -1,37 +1,23 @@
-import { useEffect, useState, type FormEvent } from "react"
-import { router, useForm } from "@inertiajs/react"
-import { IconGripVertical, IconPlus } from "@tabler/icons-react"
+import { useState } from "react"
+import { router } from "@inertiajs/react"
+import { IconGripVertical } from "@tabler/icons-react"
 
 import { toast } from "sonner"
 
 import type { IncidentStatusSettings } from "@/types/serializers"
 import type { LifecycleStageWithStatuses } from "@/pages/settings/lib/types"
 import {
-  incidentStatusesPath,
   incidentStatusPath,
   disableIncidentStatusPath,
   enableIncidentStatusPath,
 } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
 } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -41,8 +27,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Textarea } from "@/components/ui/textarea"
-import { ColorDot, RowActions } from "./shared"
+import { AddStatusDialog } from "@/pages/settings/components/add-status-dialog"
+import { ColorDot } from "@/pages/settings/components/color-dot"
+import { EditStatusDialog } from "@/pages/settings/components/edit-status-dialog"
+import { RowActions } from "@/pages/settings/components/row-actions"
 
 const stageColors: Record<string, string> = {
   triage: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
@@ -53,180 +41,6 @@ const stageColors: Record<string, string> = {
 
 interface StatusesTabProps {
   lifecycleStages: LifecycleStageWithStatuses[]
-}
-
-function AddStatusDialog({ stage }: { stage: LifecycleStageWithStatuses }) {
-  const [open, setOpen] = useState(false)
-  const form = useForm({ name: "", description: "", color: "#3B82F6", lifecycle_stage_key: stage.key })
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    form.post(incidentStatusesPath(), {
-      onSuccess: () => {
-        setOpen(false)
-        form.reset()
-      },
-    })
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <IconPlus className="size-4" />
-          Add Status
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Add Status to {stage.name}</DialogTitle>
-            <DialogDescription>
-              Create a new status within the {stage.name.toLowerCase()} lifecycle stage.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={`status-name-${stage.key}`}>Name</Label>
-              <Input
-                id={`status-name-${stage.key}`}
-                placeholder="e.g. Mitigated"
-                value={form.data.name}
-                onChange={(e) => form.setData("name", e.target.value)}
-              />
-              {form.errors.name && (
-                <p className="text-xs text-destructive">{form.errors.name}</p>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={`status-desc-${stage.key}`}>Description</Label>
-              <Textarea
-                id={`status-desc-${stage.key}`}
-                placeholder="When should this status be used?"
-                rows={2}
-                value={form.data.description}
-                onChange={(e) => form.setData("description", e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={`status-color-${stage.key}`}>Color</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id={`status-color-${stage.key}`}
-                  type="color"
-                  value={form.data.color}
-                  onChange={(e) => form.setData("color", e.target.value)}
-                  className="h-9 w-12 cursor-pointer p-1"
-                />
-                <Input
-                  value={form.data.color}
-                  onChange={(e) => form.setData("color", e.target.value)}
-                  className="flex-1 font-mono text-sm"
-                  placeholder="#3B82F6"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline" type="button">Cancel</Button>
-            </DialogClose>
-            <Button type="submit" disabled={form.processing}>
-              Create Status
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function EditStatusDialog({
-  status,
-  open,
-  onOpenChange,
-}: {
-  status: IncidentStatusSettings
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const form = useForm({ name: status.name, description: status.description ?? "", color: status.color })
-
-  useEffect(() => {
-    if (open) {
-      form.setData({ name: status.name, description: status.description ?? "", color: status.color })
-    }
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    form.patch(incidentStatusPath(status.id), {
-      onSuccess: () => onOpenChange(false),
-    })
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Edit Status</DialogTitle>
-            <DialogDescription>
-              Update the name and description for this status.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={`edit-name-${status.id}`}>Name</Label>
-              <Input
-                id={`edit-name-${status.id}`}
-                value={form.data.name}
-                onChange={(e) => form.setData("name", e.target.value)}
-              />
-              {form.errors.name && (
-                <p className="text-xs text-destructive">{form.errors.name}</p>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={`edit-desc-${status.id}`}>Description</Label>
-              <Textarea
-                id={`edit-desc-${status.id}`}
-                rows={2}
-                value={form.data.description}
-                onChange={(e) => form.setData("description", e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={`edit-color-${status.id}`}>Color</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id={`edit-color-${status.id}`}
-                  type="color"
-                  value={form.data.color}
-                  onChange={(e) => form.setData("color", e.target.value)}
-                  className="h-9 w-12 cursor-pointer p-1"
-                />
-                <Input
-                  value={form.data.color}
-                  onChange={(e) => form.setData("color", e.target.value)}
-                  className="flex-1 font-mono text-sm"
-                  placeholder="#3B82F6"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline" type="button">Cancel</Button>
-            </DialogClose>
-            <Button type="submit" disabled={form.processing}>
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
 }
 
 export function StatusesTab({ lifecycleStages }: StatusesTabProps) {

@@ -1,5 +1,5 @@
 import type { PageProps } from '@inertiajs/core'
-import type { CurrentUser, CurrentWorkspace } from './serializers'
+import type { CurrentUser, CurrentWorkspace } from '@/types/serializers'
 
 export type FlashData = {
   notice?: string

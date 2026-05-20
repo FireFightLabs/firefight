@@ -1,14 +1,15 @@
 import { Deferred, Head, Link, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
+import { ActionsSkeleton } from "@/pages/incidents/components/actions-skeleton"
 import { IncidentHeader } from "@/pages/incidents/components/incident-header"
 import { IncidentTimeline } from "@/pages/incidents/components/incident-timeline"
-import { IncidentActionsSidebar } from "@/pages/incidents/components/incident-actions"
+import { IncidentActionsSidebar } from "@/pages/incidents/components/incident-actions-sidebar"
 import { IncidentPostmortemCard } from "@/pages/incidents/components/incident-postmortem-card"
+import { TimelineSkeleton } from "@/pages/incidents/components/timeline-skeleton"
 import type { Incident, IncidentAction, TimelineEvent } from "@/pages/incidents/types"
 import type { SharedProps } from "@/types"
 import { dashboardPath } from "@/lib/routes"
-import { Skeleton } from "@/components/ui/skeleton"
 
 interface IncidentPageProps extends SharedProps {
   incident: Incident
@@ -16,37 +17,6 @@ interface IncidentPageProps extends SharedProps {
   actions?: IncidentAction[]
   hasPostmortem: boolean
   postmortemStatus?: string
-}
-
-function TimelineSkeleton() {
-  return (
-    <div className="space-y-5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex gap-4">
-          <Skeleton className="size-[26px] rounded-full shrink-0" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-56" />
-            <Skeleton className="h-3 w-72" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function ActionsSkeleton() {
-  return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-      <Skeleton className="h-4 w-20" />
-      <Skeleton className="h-1 w-full rounded-full" />
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <Skeleton className="size-4 shrink-0 rounded-full" />
-          <Skeleton className="h-4 flex-1" />
-        </div>
-      ))}
-    </div>
-  )
 }
 
 export default function IncidentPage() {

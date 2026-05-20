@@ -42,7 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { RowActions } from "./shared"
+import { RowActions } from "@/pages/settings/components/row-actions"
 
 interface RolesTabProps {
   roles: IncidentRole[]

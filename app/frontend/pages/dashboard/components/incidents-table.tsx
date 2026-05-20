@@ -5,7 +5,7 @@ import { useIncidentsTable } from "@/pages/dashboard/hooks/use-incidents-table"
 import { incidentsTableColumns } from "@/pages/dashboard/lib/incidents-table-columns"
 import { DataTable } from "@/components/data-table"
 import { TablePagination } from "@/components/table-pagination"
-import { IncidentsTableToolbar } from "./incidents-table-toolbar"
+import { IncidentsTableToolbar } from "@/pages/dashboard/components/incidents-table-toolbar"
 
 interface IncidentsTableProps {
   incidents: IncidentListItem[]

@@ -1,4 +1,3 @@
-import type { ReactNode } from "react"
 import {
   IconBrandSlack,
   IconDotsVertical,
@@ -17,39 +16,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-
-function StatusBadge({ name, color }: { name: string; color: string }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium tracking-wide"
-      style={{
-        backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
-        color: `color-mix(in srgb, ${color} 75%, var(--foreground))`,
-        borderColor: `color-mix(in srgb, ${color} 38%, transparent)`,
-      }}
-    >
-      <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} />
-      {name}
-    </span>
-  )
-}
-
-function MetaCell({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
-  return (
-    <div className="px-5 py-3.5 min-w-0">
-      <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
-        {label}
-      </div>
-      <div className="mt-1.5 text-sm text-foreground truncate">{children}</div>
-    </div>
-  )
-}
+import { MetaCell } from "@/pages/incidents/components/meta-cell"
+import { StatusBadge } from "@/pages/incidents/components/status-badge"
 
 export function IncidentHeader({ incident }: { incident: Incident }) {
   const isActive = incident.status.lifecycleStage === LIFECYCLE_STAGES.ACTIVE

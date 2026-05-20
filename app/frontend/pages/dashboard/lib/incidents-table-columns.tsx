@@ -6,7 +6,7 @@ import { incidentPath } from "@/lib/routes"
 import { severityBadgeClass } from "@/lib/constants"
 import { formatDateTime, formatDuration } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
-import { StatusIcon } from "../components/status-icon"
+import { StatusIcon } from "@/pages/dashboard/components/status-icon"
 
 export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
   {
@@ -25,6 +25,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     cell: ({ row }) => (
       <Link
         href={incidentPath(row.original.id)}
+        prefetch="hover"
         className="font-medium text-foreground hover:underline"
       >
         {row.original.name}
