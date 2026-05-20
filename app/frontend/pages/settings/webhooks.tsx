@@ -1,8 +1,8 @@
-import * as React from "react"
+import { useCallback, useState } from "react"
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { WebhooksTab } from "@/modules/settings/components/webhooks-tab"
+import { WebhooksTab } from "@/pages/settings/components/webhooks-tab"
 import type { Webhook } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
@@ -14,12 +14,12 @@ interface WebhooksPageProps extends SharedProps {
 export default function Webhooks() {
   const { webhooks } = usePage<WebhooksPageProps>().props
 
-  const [activeWebhookId, setActiveWebhookId] = React.useState<string | null>(() => {
+  const [activeWebhookId, setActiveWebhookId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get("webhook") || null
   })
 
-  const updateWebhookParam = React.useCallback((id: string | null) => {
+  const updateWebhookParam = useCallback((id: string | null) => {
     setActiveWebhookId(id)
     const params = new URLSearchParams(window.location.search)
     if (id) {

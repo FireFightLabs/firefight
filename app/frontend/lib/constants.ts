@@ -6,10 +6,10 @@ export const LIFECYCLE_STAGES = {
 
 export type LifecycleStageKey = (typeof LIFECYCLE_STAGES)[keyof typeof LIFECYCLE_STAGES]
 
-export function severityVariant(rank: number) {
-  if (rank >= 4) return "destructive" as const
-  if (rank >= 3) return "default" as const
-  return "secondary" as const
+export function severityBadgeClass(rank: number) {
+  if (rank >= 4) return "bg-[#D42B2B] text-white border-transparent"
+  if (rank >= 3) return "bg-[#E07A12] text-white border-transparent"
+  return "bg-[#3B82F6] text-white border-transparent"
 }
 
 export function statusVariant(lifecycleStage: string) {

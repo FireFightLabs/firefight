@@ -19,8 +19,8 @@ class DashboardStats
     {
       label: "Active Incidents",
       value: count.to_s,
-      trendDescription: "Currently open incidents",
-      detail: "Across all severity levels"
+      trendDescription: count.zero? ? "All clear" : "Open now",
+      detail: "Across all severities"
     }
   end
 
@@ -35,11 +35,27 @@ class DashboardStats
     end
 
     {
-      label: "MTTR",
-      value: avg ? "#{avg} min" : "N/A",
-      trendDescription: "Mean time to resolve",
-      detail: "Across all resolved incidents"
+      label: "Avg. Resolution Time",
+      value: avg ? format_minutes(avg) : "—",
+      trendDescription: avg ? "Avg. to resolve" : "No data yet",
+      detail: "Based on resolved incidents"
     }
+  end
+
+  # Formats a total minute count into a short duration string:
+  # 45 → "45m", 95 → "1h 35m", 2753 → "1d 21h"
+  def format_minutes(minutes)
+    return "#{minutes}m" if minutes < 60
+
+    hours = minutes / 60
+    if hours < 24
+      remaining = minutes % 60
+      return remaining.zero? ? "#{hours}h" : "#{hours}h #{remaining}m"
+    end
+
+    days = hours / 24
+    remaining_hours = hours % 24
+    remaining_hours.zero? ? "#{days}d" : "#{days}d #{remaining_hours}h"
   end
 
   def total_incidents_stat
@@ -52,7 +68,7 @@ class DashboardStats
       label: "Total Incidents",
       value: count.to_s,
       trendDescription: "Declared this month",
-      detail: "All severity levels"
+      detail: "Across all severities"
     }
   end
 
@@ -70,8 +86,9 @@ class DashboardStats
     {
       label: "Critical Incidents",
       value: count.to_s,
-      trendDescription: "P1 severity this month",
-      detail: "Highest severity incidents"
+      trendDescription: "Declared this month",
+      detail: "Critical severity only",
+      highlight: count.positive? ? "danger" : nil
     }
   end
 

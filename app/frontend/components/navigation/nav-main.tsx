@@ -53,14 +53,19 @@ export function NavMain({ sections }: { sections: NavSection[] }) {
   return (
     <>
       {sections.map((section, i) => (
-        <SidebarGroup key={section.label ?? i}>
+        <SidebarGroup key={section.label ?? i} className={i > 0 ? "mt-2" : ""}>
           {section.label && (
-            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+            <SidebarGroupLabel className="uppercase tracking-wider text-[10px]">
+              {section.label}
+            </SidebarGroupLabel>
           )}
           <SidebarGroupContent>
             <SidebarMenu>
               {section.items.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.title} className="relative">
+                  {item.title === activeTitle && (
+                    <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-primary" />
+                  )}
                   <SidebarMenuButton
                     tooltip={item.title}
                     asChild

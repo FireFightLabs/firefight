@@ -8,7 +8,7 @@ class DashboardStatsTest < ActiveSupport::TestCase
 
     assert_equal 4, stats.length
     assert_equal "Active Incidents", stats[0][:label]
-    assert_equal "MTTR", stats[1][:label]
+    assert_equal "Avg. Resolution Time", stats[1][:label]
     assert_equal "Total Incidents", stats[2][:label]
     assert_equal "Critical Incidents", stats[3][:label]
   end
@@ -28,7 +28,7 @@ class DashboardStatsTest < ActiveSupport::TestCase
     )
 
     stats = DashboardStats.new(workspace).to_a
-    assert_equal "N/A", stats[1][:value]
+    assert_equal "—", stats[1][:value]
   end
 
   test "mttr computes average for all resolved incidents" do
@@ -41,13 +41,23 @@ class DashboardStatsTest < ActiveSupport::TestCase
       .where.not(resolved_at: nil)
 
     if resolved.any?
-      avg = resolved.pluck(:declared_at, :resolved_at)
+      avg_minutes = resolved.pluck(:declared_at, :resolved_at)
         .map { |d, r| ((r - d) / 60.0).round }
         .then { |times| times.sum / times.size }
-      assert_equal "#{avg} min", stats[1][:value]
+      expected = DashboardStats.new(workspace).send(:format_minutes, avg_minutes)
+      assert_equal expected, stats[1][:value]
     else
-      assert_equal "N/A", stats[1][:value]
+      assert_equal "—", stats[1][:value]
     end
+  end
+
+  test "format_minutes returns short duration strings" do
+    stats = DashboardStats.new(workspaces(:slack_workspace_one))
+    assert_equal "45m", stats.send(:format_minutes, 45)
+    assert_equal "1h", stats.send(:format_minutes, 60)
+    assert_equal "1h 35m", stats.send(:format_minutes, 95)
+    assert_equal "1d", stats.send(:format_minutes, 1440)
+    assert_equal "1d 21h", stats.send(:format_minutes, 2753)
   end
 
   test "critical incidents returns 0 when no critical severity exists" do

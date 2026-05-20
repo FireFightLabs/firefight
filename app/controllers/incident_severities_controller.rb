@@ -22,7 +22,7 @@ class IncidentSeveritiesController < InertiaController
   end
 
   def update
-    if @severity.update(name: params[:name], description: params[:description])
+    if @severity.update(name: params[:name], description: params[:description], color: params[:color])
       redirect_to settings_severities_path
     else
       redirect_back fallback_location: settings_severities_path, inertia: { errors: @severity.errors.to_hash }
