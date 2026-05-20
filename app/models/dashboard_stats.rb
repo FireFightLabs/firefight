@@ -36,10 +36,26 @@ class DashboardStats
 
     {
       label: "Avg. Resolution Time",
-      value: avg ? "#{avg} min" : "—",
+      value: avg ? format_minutes(avg) : "—",
       trendDescription: avg ? "Avg. to resolve" : "No data yet",
       detail: "Based on resolved incidents"
     }
+  end
+
+  # Formats a total minute count into a short duration string:
+  # 45 → "45m", 95 → "1h 35m", 2753 → "1d 21h"
+  def format_minutes(minutes)
+    return "#{minutes}m" if minutes < 60
+
+    hours = minutes / 60
+    if hours < 24
+      remaining = minutes % 60
+      return remaining.zero? ? "#{hours}h" : "#{hours}h #{remaining}m"
+    end
+
+    days = hours / 24
+    remaining_hours = hours % 24
+    remaining_hours.zero? ? "#{days}d" : "#{days}d #{remaining_hours}h"
   end
 
   def total_incidents_stat
