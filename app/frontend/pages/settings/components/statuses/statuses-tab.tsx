@@ -27,9 +27,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { AddStatusDialog } from "@/pages/settings/components/add-status-dialog"
+import { AddStatusDialog } from "@/pages/settings/components/statuses/add-status-dialog"
 import { ColorDot } from "@/pages/settings/components/color-dot"
-import { EditStatusDialog } from "@/pages/settings/components/edit-status-dialog"
+import { EditStatusDialog } from "@/pages/settings/components/statuses/edit-status-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
 
 const stageColors: Record<string, string> = {

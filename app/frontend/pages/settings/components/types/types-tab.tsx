@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/table"
 import { ColorDot } from "@/pages/settings/components/color-dot"
 import { RowActions } from "@/pages/settings/components/row-actions"
-import { TypeDialog } from "@/pages/settings/components/type-dialog"
+import { TypeDialog } from "@/pages/settings/components/types/type-dialog"
 
 interface TypesTabProps {
   types: IncidentTypeSettings[]

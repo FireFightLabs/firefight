@@ -11,8 +11,8 @@ import type {
 } from "@/pages/settings/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { FieldDialog } from "@/pages/settings/components/field-dialog"
-import { FieldTypeIcon } from "@/pages/settings/components/field-type-icon"
+import { FieldDialog } from "@/pages/settings/components/custom-fields/field-dialog"
+import { FieldTypeIcon } from "@/pages/settings/components/custom-fields/field-type-icon"
 
 function titleCase(value: string) {
   return value.split("_").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ")

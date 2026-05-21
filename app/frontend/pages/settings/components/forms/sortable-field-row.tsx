@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { ConditionEditor } from "@/pages/settings/components/condition-editor"
+import { ConditionEditor } from "@/pages/settings/components/forms/condition-editor"
 
 export function SortableFieldRow({ field, incidentTypes, onUpdate, onUpdateConditions, onRemove }: {
   field: IncidentFormFieldSettings

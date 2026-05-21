@@ -474,7 +474,8 @@ app/frontend/
     settings/
       index.tsx            # /settings
       <tab>.tsx            # /settings/<tab>
-      components/          # one component per file: *-tab.tsx + every dialog/sheet extracted
+      components/          # cross-tab shared (color-dot, row-actions)
+        <tab>/             # one folder per settings tab; holds *-tab.tsx + its dialogs/sheets
       hooks/               # use-sync-form-data, use-permissions-matrix
       lib/                 # types.ts (data types; lives under lib/ to avoid colliding with types.tsx page)
     onboarding/
@@ -521,6 +522,10 @@ app/frontend/
   - A hook used by exactly one feature lives in that feature's folder: `pages/<feature>/hooks/<name>.ts`.
   - A hook used by ≥2 features OR a generic primitive (`use-mobile`) lives at `app/frontend/hooks/`.
   - Don't keep file-local hooks inline in a component file — every hook is its own `.ts`, named `use-<kebab>.ts`.
+- **Multi-page features group sub-components per page:**
+  - When a feature has multiple page files (e.g. `pages/settings/` with one `.tsx` per tab), components used by exactly one page live in a subfolder named after that page: `pages/<feature>/components/<page>/<component>.tsx`.
+  - Components shared by ≥2 pages within the feature stay flat at `pages/<feature>/components/` (e.g. `pages/settings/components/row-actions.tsx`, used by every settings tab).
+  - Features with a single page (e.g. `pages/dashboard/`) keep the flat `components/` layout — no per-page subfolder needed.
 - The Inertia resolver does a string lookup against `import.meta.glob('../pages/**/*.tsx')` so co-located components (anything other than the file the controller names) are inert — they're imported into the bundle but never resolved as a page.
 
 **shadcn/ui components are untouched:**

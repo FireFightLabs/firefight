@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { PermissionsMatrix } from "@/pages/settings/components/permissions-matrix"
+import { PermissionsMatrix } from "@/pages/settings/components/api-keys/permissions-matrix"
 import { permsToHash, usePermissionsMatrix } from "@/pages/settings/hooks/use-permissions-matrix"
 
 export function CreateKeyDialog() {

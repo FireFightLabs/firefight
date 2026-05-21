@@ -16,7 +16,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
-import { PermissionsMatrix } from "@/pages/settings/components/permissions-matrix"
+import { PermissionsMatrix } from "@/pages/settings/components/api-keys/permissions-matrix"
 
 export function ApiKeyEditSheet({
   apiKey,

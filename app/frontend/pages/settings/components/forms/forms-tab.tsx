@@ -40,8 +40,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { AddFieldDialog } from "@/pages/settings/components/add-field-dialog"
-import { SortableFieldRow } from "@/pages/settings/components/sortable-field-row"
+import { AddFieldDialog } from "@/pages/settings/components/forms/add-field-dialog"
+import { SortableFieldRow } from "@/pages/settings/components/forms/sortable-field-row"
 
 function iconForForm(slug: string) {
   switch (slug) {

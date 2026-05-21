@@ -23,9 +23,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { AddWebhookDialog } from "@/pages/settings/components/add-webhook-dialog"
+import { AddWebhookDialog } from "@/pages/settings/components/webhooks/add-webhook-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
-import { WebhookDetailSheet } from "@/pages/settings/components/webhook-detail-sheet"
+import { WebhookDetailSheet } from "@/pages/settings/components/webhooks/webhook-detail-sheet"
 
 export function WebhooksTab({
   webhooks,

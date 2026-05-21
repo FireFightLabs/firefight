@@ -27,9 +27,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { AddSeverityDialog } from "@/pages/settings/components/add-severity-dialog"
+import { AddSeverityDialog } from "@/pages/settings/components/severities/add-severity-dialog"
 import { ColorDot } from "@/pages/settings/components/color-dot"
-import { EditSeverityDialog } from "@/pages/settings/components/edit-severity-dialog"
+import { EditSeverityDialog } from "@/pages/settings/components/severities/edit-severity-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
 
 interface SeveritiesTabProps {

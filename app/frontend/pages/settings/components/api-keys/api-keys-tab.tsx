@@ -27,8 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ApiKeyEditSheet } from "@/pages/settings/components/api-key-edit-sheet"
-import { CreateKeyDialog } from "@/pages/settings/components/create-key-dialog"
+import { ApiKeyEditSheet } from "@/pages/settings/components/api-keys/api-key-edit-sheet"
+import { CreateKeyDialog } from "@/pages/settings/components/api-keys/create-key-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
 
 
@@ -48,11 +48,11 @@ interface ApiKeysTabProps {
 }
 
 export function ApiKeysTab({ apiKeys }: ApiKeysTabProps) {
-  const { flash } = usePage<{ flash: { api_key_token?: string } }>().props
+  const { flash } = usePage<{ flash?: { api_key_token?: string } }>().props
   const [copied, setCopied] = useState(false)
   const [editingKey, setEditingKey] = useState<ApiKeyType | null>(null)
 
-  const createdToken = flash.api_key_token ?? null
+  const createdToken = flash?.api_key_token ?? null
 
   const handleCopy = () => {
     if (createdToken) {

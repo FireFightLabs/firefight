@@ -2,7 +2,7 @@ import { useCallback, useState } from "react"
 import { Head, router, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { FormsTab } from "@/pages/settings/components/forms-tab"
+import { FormsTab } from "@/pages/settings/components/forms/forms-tab"
 import { settingsCustomFieldsPath } from "@/lib/routes"
 import type {
   IncidentFieldDefinitionSettings,
