@@ -5,7 +5,7 @@ import { Card } from "@/components/card";
 import { installSlackAppPath } from "@/lib/routes";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { CardHeader } from "@/components/auth/card-header";
-import { PermissionsDialog } from "@/pages/onboarding/components/permissions-dialog";
+import { PermissionsDialog } from "@/pages/onboarding/components/install/permissions-dialog";
 import { SlackButton } from "@/components/auth/slack-button";
 import type { SharedProps } from "@/types";
 

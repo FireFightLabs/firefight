@@ -1,5 +1,5 @@
 import type { CatalogType } from "@/pages/catalogue/types"
-import { TypeCard } from "@/pages/catalogue/components/type-card"
+import { TypeCard } from "@/pages/catalogue/components/index/type-card"
 
 export function TypeGrid({ types }: { types: CatalogType[] }) {
   return (

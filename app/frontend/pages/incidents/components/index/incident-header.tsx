@@ -16,8 +16,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MetaCell } from "@/pages/incidents/components/meta-cell"
-import { StatusBadge } from "@/pages/incidents/components/status-badge"
+import { MetaCell } from "@/pages/incidents/components/index/meta-cell"
+import { StatusBadge } from "@/pages/incidents/components/index/status-badge"
 
 export function IncidentHeader({ incident }: { incident: Incident }) {
   const isActive = incident.status.lifecycleStage === LIFECYCLE_STAGES.ACTIVE

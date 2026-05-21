@@ -1,9 +1,9 @@
 import type { Icon as TablerIcon } from "@tabler/icons-react"
 
 import type { IncidentAction } from "@/pages/incidents/types"
-import { ActionItem } from "@/pages/incidents/components/action-item"
-import { AddActionDialog } from "@/pages/incidents/components/add-action-dialog"
-import { ProgressRail } from "@/pages/incidents/components/progress-rail"
+import { ActionItem } from "@/pages/incidents/components/index/action-item"
+import { AddActionDialog } from "@/pages/incidents/components/index/add-action-dialog"
+import { ProgressRail } from "@/pages/incidents/components/index/progress-rail"
 
 export function ActionPanel({
   title,

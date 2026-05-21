@@ -7,7 +7,7 @@ import {
 } from "@tabler/icons-react"
 
 import type { CatalogEntry, CatalogType, ReferenceEntry, WorkspaceMember } from "@/pages/catalogue/types"
-import { AttributeValue } from "@/pages/catalogue/components/attribute-value"
+import { AttributeValue } from "@/pages/catalogue/components/type/attribute-value"
 import { CatalogIcon } from "@/pages/catalogue/lib/icon-map"
 import { formatDate } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"

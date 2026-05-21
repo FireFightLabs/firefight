@@ -2,7 +2,7 @@ import { IconSearch } from "@tabler/icons-react"
 import { useMemo, useState } from "react"
 
 import type { CatalogEntry, CatalogType, ReferenceEntry, WorkspaceMember } from "@/pages/catalogue/types"
-import { CellValue } from "@/pages/catalogue/components/cell-value"
+import { CellValue } from "@/pages/catalogue/components/type/cell-value"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -12,8 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { EntryDetailSheet } from "@/pages/catalogue/components/entry-detail-sheet"
-import { EntryFormDialog } from "@/pages/catalogue/components/entry-form-dialog"
+import { EntryDetailSheet } from "@/pages/catalogue/components/type/entry-detail-sheet"
+import { EntryFormDialog } from "@/pages/catalogue/components/type/entry-form-dialog"
 
 export function EntryTable({
   type,

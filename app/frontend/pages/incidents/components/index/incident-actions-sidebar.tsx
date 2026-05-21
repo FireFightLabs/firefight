@@ -1,7 +1,7 @@
 import { IconCheckbox, IconChecks } from "@tabler/icons-react"
 
 import type { IncidentAction } from "@/pages/incidents/types"
-import { ActionPanel } from "@/pages/incidents/components/action-panel"
+import { ActionPanel } from "@/pages/incidents/components/index/action-panel"
 
 export function IncidentActionsSidebar({ actions }: { actions: IncidentAction[] }) {
   const actionItems = actions.filter((a) => a.actionType === "action")

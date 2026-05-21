@@ -13,7 +13,7 @@ import {
 } from "@tabler/icons-react"
 
 import type { TimelineEvent } from "@/pages/incidents/types"
-import { ActorAvatar } from "@/pages/incidents/components/actor-avatar"
+import { ActorAvatar } from "@/pages/incidents/components/index/actor-avatar"
 
 const eventIcons: Record<string, typeof IconFlame> = {
   "incident.created": IconFlame,

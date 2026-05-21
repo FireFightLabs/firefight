@@ -13,8 +13,8 @@ import TurndownService from "turndown"
 
 import type { SharedProps } from "@/types"
 import type { Postmortem } from "@/types/serializers"
-import { PostmortemEditor } from "@/pages/incidents/components/postmortem-editor"
-import { RevisionsSheet } from "@/pages/incidents/components/revisions-sheet"
+import { PostmortemEditor } from "@/pages/incidents/components/postmortem/postmortem-editor"
+import { RevisionsSheet } from "@/pages/incidents/components/postmortem/revisions-sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {

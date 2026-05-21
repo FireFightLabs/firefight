@@ -3,7 +3,7 @@ import type { FormDataConvertible } from "@inertiajs/core"
 import { useEffect, useState } from "react"
 
 import type { CatalogEntry, CatalogType, ReferenceEntry, WorkspaceMember } from "@/pages/catalogue/types"
-import { AttributeField } from "@/pages/catalogue/components/attribute-field"
+import { AttributeField } from "@/pages/catalogue/components/type/attribute-field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {

@@ -4,7 +4,7 @@ import { useState } from "react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Button } from "@/components/ui/button"
-import { TypeGrid } from "@/pages/catalogue/components/type-grid"
+import { TypeGrid } from "@/pages/catalogue/components/index/type-grid"
 import { TypeFormDialog } from "@/pages/catalogue/components/type-form-dialog"
 import type { CatalogType } from "@/pages/catalogue/types"
 import type { SharedProps } from "@/types"
