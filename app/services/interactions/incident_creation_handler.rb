@@ -7,8 +7,9 @@ module Interactions
       values = interaction.values
 
       resolver = IncidentFormResolver.new(workspace)
+      context = build_condition_context(workspace, values)
       visible_fields = begin
-        resolver.resolve(IncidentForm::SLUG_DECLARE)
+        resolver.resolve(IncidentForm::SLUG_DECLARE, context: context)
       rescue ActiveRecord::RecordNotFound
         []
       end
@@ -22,7 +23,7 @@ module Interactions
       visibility = values.dig("visibility_block", "visibility_select", "selected_option", "value")
 
       result = if visible_fields.any?
-        resolver.validate_submission(IncidentForm::SLUG_DECLARE, raw_params)
+        resolver.validate_submission(IncidentForm::SLUG_DECLARE, raw_params, context: context)
       else
         { system_attrs: raw_params, custom_fields: {}, errors: [] }
       end
@@ -83,6 +84,27 @@ module Interactions
         errors: { field_name_block: "Failed to create incident. Please try again." }
       }
     end
+
+    def self.build_condition_context(workspace, values)
+      context = {}
+
+      type_slug = values.dig("field_incident_type_block", Identifiers::INCIDENT_CREATION_TYPE_SELECT, "selected_option", "value") ||
+                  values.dig("field_incident_type_block", "field_incident_type_input", "selected_option", "value")
+      if type_slug.present?
+        type_id = workspace.incident_types.active.where(slug: type_slug).pick(:id)
+        context[:incident_type] = type_id if type_id
+      end
+
+      severity_slug = values.dig("field_severity_block", Identifiers::INCIDENT_CREATION_SEVERITY_SELECT, "selected_option", "value") ||
+                      values.dig("field_severity_block", "field_severity_input", "selected_option", "value")
+      if severity_slug.present?
+        severity_id = workspace.incident_severities.where(slug: severity_slug).pick(:id)
+        context[:severity] = severity_id if severity_id
+      end
+
+      context
+    end
+    private_class_method :build_condition_context
 
     def self.extract_form_values(visible_fields, values)
       raw_params = {}

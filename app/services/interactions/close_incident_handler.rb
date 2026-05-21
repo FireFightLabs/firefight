@@ -10,8 +10,9 @@ module Interactions
 
       values = interaction.values
       resolver = IncidentFormResolver.new(workspace)
+      context = build_condition_context(workspace, values, incident)
       visible_fields = begin
-        resolver.resolve(IncidentForm::SLUG_RESOLVE)
+        resolver.resolve(IncidentForm::SLUG_RESOLVE, context: context)
       rescue ActiveRecord::RecordNotFound
         []
       end
@@ -23,7 +24,7 @@ module Interactions
       end
 
       result = if visible_fields.any?
-        resolver.validate_submission(IncidentForm::SLUG_RESOLVE, raw_params)
+        resolver.validate_submission(IncidentForm::SLUG_RESOLVE, raw_params, context: context)
       else
         { system_attrs: raw_params, custom_fields: {}, errors: [] }
       end
@@ -78,6 +79,25 @@ module Interactions
       delete_temp_message(workspace, metadata) if workspace && metadata
       { response_action: "errors", errors: { "field_summary_block" => "Something went wrong. Please close this modal and try again." } }
     end
+
+    def self.build_condition_context(workspace, values, incident)
+      type_slug = values.dig("field_incident_type_block", "field_incident_type_input", "selected_option", "value")
+      type_id = if type_slug.present?
+        workspace.incident_types.active.where(slug: type_slug).pick(:id) || incident.incident_type_id
+      else
+        incident.incident_type_id
+      end
+
+      severity_slug = values.dig("field_severity_block", "field_severity_input", "selected_option", "value")
+      severity_id = if severity_slug.present?
+        workspace.incident_severities.where(slug: severity_slug).pick(:id) || incident.incident_severity_id
+      else
+        incident.incident_severity_id
+      end
+
+      { incident_type: type_id, severity: severity_id }.compact
+    end
+    private_class_method :build_condition_context
 
     def self.extract_form_values(visible_fields, values)
       raw_params = {}

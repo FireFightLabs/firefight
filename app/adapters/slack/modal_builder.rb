@@ -4,6 +4,10 @@ module Slack
       resolver = IncidentFormResolver.new(workspace)
       context = {}
       context[:incident_type] = selected_type_id if selected_type_id
+      if selected_severity_slug
+        selected_severity_id = workspace.incident_severities.where(slug: selected_severity_slug).pick(:id)
+        context[:severity] = selected_severity_id if selected_severity_id
+      end
 
       begin
         visible_fields = resolver.resolve(IncidentForm::SLUG_DECLARE, context: context)
@@ -769,8 +773,12 @@ module Slack
       metadata = private_metadata || incident.id
 
       resolver = IncidentFormResolver.new(workspace)
+      context = {
+        incident_type: incident.incident_type_id,
+        severity: incident.incident_severity_id
+      }.compact
       visible_fields = begin
-        resolver.resolve(IncidentForm::SLUG_UPDATE)
+        resolver.resolve(IncidentForm::SLUG_UPDATE, context: context)
       rescue ActiveRecord::RecordNotFound
         []
       end
@@ -1170,8 +1178,12 @@ module Slack
       workspace = incident.workspace
 
       resolver = IncidentFormResolver.new(workspace)
+      context = {
+        incident_type: incident.incident_type_id,
+        severity: incident.incident_severity_id
+      }.compact
       visible_fields = begin
-        resolver.resolve(IncidentForm::SLUG_RESOLVE)
+        resolver.resolve(IncidentForm::SLUG_RESOLVE, context: context)
       rescue ActiveRecord::RecordNotFound
         []
       end
