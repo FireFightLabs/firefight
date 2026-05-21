@@ -1,17 +1,14 @@
 import {
   IconCircleCheck,
   IconCircleX,
-  IconClipboard,
-  IconKey,
 } from "@tabler/icons-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { router, usePage } from "@inertiajs/react"
 
 import type { ApiKey as ApiKeyType } from "@/types/serializers"
 import { apiKeyPath } from "@/lib/routes"
 import { formatDate } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -29,6 +26,7 @@ import {
 } from "@/components/ui/table"
 import { ApiKeyEditSheet } from "@/pages/settings/components/api-keys/api-key-edit-sheet"
 import { CreateKeyDialog } from "@/pages/settings/components/api-keys/create-key-dialog"
+import { TokenRevealedDialog } from "@/pages/settings/components/api-keys/token-revealed-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
 
 
@@ -48,19 +46,19 @@ interface ApiKeysTabProps {
 }
 
 export function ApiKeysTab({ apiKeys }: ApiKeysTabProps) {
-  const { flash } = usePage<{ flash?: { api_key_token?: string } }>().props
-  const [copied, setCopied] = useState(false)
+  // `flash` (not `props.flash`) — Inertia Rails 3.17+ exposes flash natively on the page.
+  // Custom keys flow through `flash.inertia[:key]` on the server (see ApiKeysController#create).
+  const { flash } = usePage()
   const [editingKey, setEditingKey] = useState<ApiKeyType | null>(null)
+  const [revealedToken, setRevealedToken] = useState<string | null>(null)
 
-  const createdToken = flash?.api_key_token ?? null
-
-  const handleCopy = () => {
-    if (createdToken) {
-      navigator.clipboard.writeText(createdToken)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+  // Lift the just-created token from flash into local state so the modal stays
+  // open across re-renders. Flash itself is cleared by Rails on the next request.
+  useEffect(() => {
+    if (flash?.api_key_token) {
+      setRevealedToken(flash.api_key_token)
     }
-  }
+  }, [flash?.api_key_token])
 
   function handleDelete(apiKey: ApiKeyType) {
     router.delete(apiKeyPath(apiKey.id))
@@ -70,30 +68,6 @@ export function ApiKeysTab({ apiKeys }: ApiKeysTabProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      {createdToken && (
-        <Card className="border-primary/50 bg-primary/5">
-          <CardContent className="flex flex-col gap-3 pt-6">
-            <div className="flex items-start gap-2">
-              <IconKey className="size-5 text-primary mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">
-                  Your new API key has been created. Copy it now — you won't be able to see it again.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-sm break-all">
-                {createdToken}
-              </code>
-              <Button variant="outline" size="sm" onClick={handleCopy}>
-                <IconClipboard className="size-4" />
-                {copied ? "Copied!" : "Copy"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -186,6 +160,11 @@ export function ApiKeysTab({ apiKeys }: ApiKeysTabProps) {
         apiKey={editingKey}
         open={editingKey !== null}
         onOpenChange={(open) => { if (!open) setEditingKey(null) }}
+      />
+
+      <TokenRevealedDialog
+        token={revealedToken}
+        onDismiss={() => setRevealedToken(null)}
       />
     </div>
   )
