@@ -15,7 +15,7 @@ class Slack::WorkspaceAdapter::IncidentModalsTest < ActiveSupport::TestCase
 
   test "open_invite_responders_modal opens modal with incident" do
     incident = mock("incident")
-    Slack::ModalBuilder.expects(:invite_responders_modal).with(
+    Slack::Modals::Invite.expects(:build).with(
       incident,
       selected_user_ids: [ "U11111111" ],
       private_metadata: nil
