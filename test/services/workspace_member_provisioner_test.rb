@@ -25,13 +25,11 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
   test "provisions a member via adapter.get_user_info when no membership exists" do
     @adapter.expects(:get_user_info).with(user_id: "U_ADAPTER_PATH").returns(
       {
-        user: {
-          profile: {
-            real_name: "Real Name",
-            email: "real@example.com",
-            image_192: "https://example.com/avatar.jpg"
-          }
-        }
+        user_id: "U_ADAPTER_PATH",
+        display_name: "Real Name",
+        real_name: "Real Name",
+        avatar_url: "https://example.com/avatar.jpg",
+        email: "real@example.com"
       }
     )
 

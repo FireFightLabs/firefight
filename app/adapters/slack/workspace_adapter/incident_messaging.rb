@@ -5,21 +5,21 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   TIMELINE_PAGE_SIZE = 15
   TIMELINE_MAX_EVENTS = 45
 
-  def update_incident_quick_actions(channel_id:, ts:, incident:)
+  def update_incident_quick_actions(channel_id:, message_id:, incident:)
     blocks = Slack::Messages::QuickActions.build(incident)
     update_message(
       channel_id: channel_id,
-      ts: ts,
+      message_id: message_id,
       text: "#{incident.identifier} - Quick Actions",
       blocks: blocks
     )
   end
 
-  def update_incident_announcement(channel_id:, ts:, incident:)
+  def update_incident_announcement(channel_id:, message_id:, incident:)
     blocks = Slack::Messages::Announcement.build(incident)
     update_message(
       channel_id: channel_id,
-      ts: ts,
+      message_id: message_id,
       text: "New incident: #{incident.identifier}",
       blocks: blocks
     )
@@ -78,7 +78,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Incident updated", blocks: blocks)
   end
 
-  def post_incident_update_announcement_thread(channel_id:, thread_ts:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
+  def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
     blocks = Slack::Messages::StatusUpdate.build(
       incident,
       message: message,
@@ -88,7 +88,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
       previous_severity_name: previous_severity_name,
       previous_type_name: previous_type_name
     )
-    post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident updated", blocks: blocks)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident updated", blocks: blocks)
   end
 
   def post_incident_update_reminder(channel_id:, user_id:, incident:)
@@ -146,9 +146,9 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Incident resolved", blocks: blocks)
   end
 
-  def post_resolution_announcement_thread(channel_id:, thread_ts:, incident:, resolved_by_platform_user_id:)
+  def post_resolution_announcement_thread(channel_id:, parent_message_id:, incident:, resolved_by_platform_user_id:)
     blocks = Slack::Messages::Resolution.announcement_thread(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
-    post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident resolved", blocks: blocks)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident resolved", blocks: blocks)
   end
 
   def post_related_link_message(channel_id:, source:, target:, linked_by_platform_user_id:)
@@ -171,9 +171,9 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Incident reopened", blocks: blocks)
   end
 
-  def post_reopen_announcement_thread(channel_id:, thread_ts:, incident:, reopened_by_platform_user_id:, reason: nil)
+  def post_reopen_announcement_thread(channel_id:, parent_message_id:, incident:, reopened_by_platform_user_id:, reason: nil)
     blocks = Slack::Messages::Reopen.announcement_thread(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
-    post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident reopened", blocks: blocks)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident reopened", blocks: blocks)
   end
 
   def post_escalation_message(channel_id:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
@@ -186,14 +186,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Incident escalated", blocks: blocks)
   end
 
-  def post_escalation_announcement_thread(channel_id:, thread_ts:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+  def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
     blocks = Slack::Messages::Escalation.build(
       incident,
       escalated_by_platform_user_id: escalated_by_platform_user_id,
       escalated_to_platform_user_id: escalated_to_platform_user_id,
       reason: reason
     )
-    post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident escalated", blocks: blocks)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident escalated", blocks: blocks)
   end
 
   def post_escalation_direct_message(user_id:, incident:, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
@@ -232,16 +232,16 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "New #{type_label} added", blocks: blocks)
   end
 
-  def update_action_picked_up(channel_id:, ts:, action:)
+  def update_action_picked_up(channel_id:, message_id:, action:)
     blocks = Slack::Messages::Action.picked_up(action)
     type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
-    update_message(channel_id: channel_id, ts: ts, text: "#{type_label.capitalize} updated", blocks: blocks)
+    update_message(channel_id: channel_id, message_id: message_id, text: "#{type_label.capitalize} updated", blocks: blocks)
   end
 
-  def update_action_completed(channel_id:, ts:, action:)
+  def update_action_completed(channel_id:, message_id:, action:)
     blocks = Slack::Messages::Action.completed(action)
     type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
-    update_message(channel_id: channel_id, ts: ts, text: "#{type_label.capitalize} updated", blocks: blocks)
+    update_message(channel_id: channel_id, message_id: message_id, text: "#{type_label.capitalize} updated", blocks: blocks)
   end
 
   def post_shoutout_message(channel_id:, incident:, from_user_id:, recipient_user_id:, message:)

@@ -53,18 +53,18 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   # post_message tests
 
-  test "post_message posts to channel and returns message_ts" do
+  test "post_message posts to channel and returns message_id" do
     stub_post_message
     result = @adapter.post_message(channel_id: "C12345678", text: "hello", blocks: [])
 
-    assert_equal "1234567890.123456", result[:message_ts]
+    assert_equal "1234567890.123456", result[:message_id]
   end
 
   # pin_message tests
 
   test "pin_message pins message in channel" do
     stub_pin_message
-    result = @adapter.pin_message(channel_id: "C12345678", timestamp: "1234567890.123456")
+    result = @adapter.pin_message(channel_id: "C12345678", message_id: "1234567890.123456")
 
     assert result[:ok]
   end

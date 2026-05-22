@@ -16,7 +16,7 @@ class Interactions::ModalCleanupTest < ActiveSupport::TestCase
       channel_id: "C12345"
     )
 
-    @adapter.expects(:delete_message).with(channel_id: "C12345", ts: "1700000000.000100").once
+    @adapter.expects(:delete_message).with(channel_id: "C12345", message_id: "1700000000.000100").once
 
     Interactions::ModalCleanup.delete_temp_message(@workspace, metadata)
   end

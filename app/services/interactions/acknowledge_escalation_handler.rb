@@ -58,7 +58,7 @@ module Interactions
 
         workspace.adapter.update_message(
           channel_id: dm_channel_id,
-          ts: dm_message_ts,
+          message_id: dm_message_ts,
           text: "Escalation acknowledged",
           blocks: updated_blocks
         )

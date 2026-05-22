@@ -13,7 +13,7 @@ module Interactions
     def self.delete_temp_message(workspace, metadata)
       return if metadata.temp_message_ts.blank? || metadata.channel_id.blank?
 
-      workspace.adapter.delete_message(channel_id: metadata.channel_id, ts: metadata.temp_message_ts)
+      workspace.adapter.delete_message(channel_id: metadata.channel_id, message_id: metadata.temp_message_ts)
     rescue AdapterError => e
       Rails.logger.warn({ event: "interactions.modal_cleanup.delete_temp_failed", error: e.message })
     end

@@ -10,7 +10,7 @@ class SummaryModalOpener
 
     metadata = {
       incident_id: incident.id,
-      temp_message_ts: result[:message_ts],
+      temp_message_ts: result[:message_id],
       channel_id: incident.channel_id
     }.to_json
 
@@ -23,7 +23,7 @@ class SummaryModalOpener
   def self.cleanup_temp_message(adapter, channel_id, ts)
     return unless ts
 
-    adapter.delete_message(channel_id: channel_id, ts: ts)
+    adapter.delete_message(channel_id: channel_id, message_id: ts)
   rescue AdapterError => e
     Rails.logger.warn({ event: "summary_modal_opener.cleanup_temp_failed", error: e.message })
   end
