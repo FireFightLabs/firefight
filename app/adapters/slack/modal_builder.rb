@@ -9,22 +9,14 @@ module Slack
         context[:severity] = selected_severity_id if selected_severity_id
       end
 
-      begin
-        visible_fields = resolver.resolve(IncidentForm::SLUG_DECLARE, context: context)
-      rescue ActiveRecord::RecordNotFound
-        visible_fields = []
-      end
+      visible_fields = resolver.resolve(IncidentForm::SLUG_DECLARE, context: context)
 
-      blocks = if visible_fields.any?
-        visible_fields.filter_map do |form_field|
-          if form_field.system?
-            build_system_field_block(workspace, form_field, selected_severity_slug: selected_severity_slug, severity_dispatch: true, type_dispatch: true, selected_type_id: selected_type_id)
-          else
-            build_custom_field_block(workspace, form_field)
-          end
+      blocks = visible_fields.filter_map do |form_field|
+        if form_field.system?
+          build_system_field_block(workspace, form_field, selected_severity_slug: selected_severity_slug, severity_dispatch: true, type_dispatch: true, selected_type_id: selected_type_id)
+        else
+          build_custom_field_block(workspace, form_field)
         end
-      else
-        build_fallback_blocks(workspace, selected_severity_slug: selected_severity_slug)
       end
 
       blocks << visibility_block
@@ -456,76 +448,6 @@ module Slack
     end
     private_class_method :visibility_block
 
-    def self.build_fallback_blocks(workspace, selected_severity_slug: nil)
-      severities = workspace.incident_severities.active.ordered
-      default_severity = severities.find(&:is_default?) || severities.last
-      selected_severity = if selected_severity_slug
-        severities.find { |s| s.slug == selected_severity_slug } || default_severity
-      else
-        default_severity
-      end
-
-      severity_options = severities.map do |severity|
-        {
-          text: { type: "plain_text", text: severity.name },
-          value: severity.slug
-        }
-      end
-
-      initial_option = {
-        text: { type: "plain_text", text: selected_severity.name },
-        value: selected_severity.slug
-      }
-
-      [
-        {
-          type: "input",
-          block_id: "field_name_block",
-          element: {
-            type: "plain_text_input",
-            action_id: "field_name_input",
-            placeholder: { type: "plain_text", text: "Write something" },
-            max_length: 200
-          },
-          label: { type: "plain_text", text: "Incident name" },
-          hint: { type: "plain_text", text: "Give a short description of what is happening. If you'd like to, you can leave it blank and change it later" },
-          optional: true
-        },
-        {
-          type: "input",
-          block_id: "field_severity_block",
-          dispatch_action: true,
-          element: {
-            type: "static_select",
-            action_id: Identifiers::INCIDENT_CREATION_SEVERITY_SELECT,
-            placeholder: { type: "plain_text", text: "Select severity" },
-            options: severity_options,
-            initial_option: initial_option
-          },
-          label: { type: "plain_text", text: "Severity" }
-        }.tap do |block|
-          if selected_severity.description.present?
-            block[:hint] = { type: "plain_text", text: selected_severity.description }
-          end
-        end,
-        {
-          type: "input",
-          block_id: "field_summary_block",
-          element: {
-            type: "plain_text_input",
-            action_id: "field_summary_input",
-            multiline: true,
-            placeholder: { type: "plain_text", text: "Think about what you'd like to read if you were coming to the incident fresh..." },
-            max_length: 3000
-          },
-          label: { type: "plain_text", text: "Summary" },
-          hint: { type: "plain_text", text: "Your current understanding of what happened in the incident, and the impact it had. It's fine to go into detail here." },
-          optional: true
-        }
-      ]
-    end
-    private_class_method :build_fallback_blocks
-
     def self.incident_created_confirmation(incident, team_id:)
       channel_link = "slack://channel?team=#{team_id}&id=#{incident.channel_id}"
 
@@ -777,22 +699,14 @@ module Slack
         incident_type: incident.incident_type_id,
         severity: incident.incident_severity_id
       }.compact
-      visible_fields = begin
-        resolver.resolve(IncidentForm::SLUG_UPDATE, context: context)
-      rescue ActiveRecord::RecordNotFound
-        []
-      end
+      visible_fields = resolver.resolve(IncidentForm::SLUG_UPDATE, context: context)
 
-      blocks = if visible_fields.any?
-        visible_fields.filter_map do |form_field|
-          if form_field.system?
-            build_system_field_block(workspace, form_field, incident: incident)
-          else
-            build_custom_field_block(workspace, form_field, incident: incident)
-          end
+      blocks = visible_fields.filter_map do |form_field|
+        if form_field.system?
+          build_system_field_block(workspace, form_field, incident: incident)
+        else
+          build_custom_field_block(workspace, form_field, incident: incident)
         end
-      else
-        build_update_fallback_blocks(incident)
       end
 
       blocks << message_block
@@ -829,37 +743,7 @@ module Slack
       { label: "7 days", value: "10080" }
     ].freeze
 
-    def self.type_block(types, current_type)
-      type_options = types.map do |type|
-        option = {
-          text: { type: "plain_text", text: type.name },
-          value: type.slug
-        }
-        option[:description] = { type: "plain_text", text: type.description } if type.description.present?
-        option
-      end
-
-      initial_type = current_type ? type_options.find { |o| o[:value] == current_type.slug } : nil
-
-      element = {
-        type: "static_select",
-        action_id: "field_incident_type_input",
-        placeholder: { type: "plain_text", text: "Select a type" },
-        options: type_options
-      }
-      element[:initial_option] = initial_type if initial_type
-
-      {
-        type: "input",
-        block_id: "field_incident_type_block",
-        element: element,
-        label: { type: "plain_text", text: "Type" },
-        optional: true
-      }
-    end
-    private_class_method :type_block
-
-    def self.next_update_options
+def self.next_update_options
       NEXT_UPDATE_OPTIONS.map do |opt|
         {
           text: { type: "plain_text", text: opt[:label] },
@@ -926,128 +810,7 @@ module Slack
     end
     private_class_method :lead_field_block
 
-    def self.build_update_fallback_blocks(incident)
-      workspace = incident.workspace
-      statuses = workspace.incident_statuses.active.ordered
-      severities = workspace.incident_severities.active.ordered
-      types = workspace.incident_types.active.ordered
-
-      current_status = incident.incident_status
-      current_severity = incident.incident_severity
-
-      status_options = statuses.map do |status|
-        option = {
-          text: { type: "plain_text", text: status.name },
-          value: status.slug
-        }
-        option[:description] = { type: "plain_text", text: status.description } if status.description.present?
-        option
-      end
-
-      severity_options = severities.map do |severity|
-        option = {
-          text: { type: "plain_text", text: severity.name },
-          value: severity.slug
-        }
-        option[:description] = { type: "plain_text", text: severity.description } if severity.description.present?
-        option
-      end
-
-      initial_status = status_options.find { |o| o[:value] == current_status.slug }
-      initial_severity = severity_options.find { |o| o[:value] == current_severity.slug }
-
-      blocks = [
-        {
-          type: "input",
-          block_id: "field_status_block",
-          element: {
-            type: "static_select",
-            action_id: "field_status_input",
-            options: status_options,
-            initial_option: initial_status
-          }.compact,
-          label: { type: "plain_text", text: "Status" }
-        },
-        {
-          type: "input",
-          block_id: "field_severity_block",
-          element: {
-            type: "static_select",
-            action_id: "field_severity_input",
-            options: severity_options,
-            initial_option: initial_severity
-          }.compact,
-          label: { type: "plain_text", text: "Severity" }
-        }
-      ]
-
-      if types.any?
-        blocks << type_block(types, incident.incident_type)
-      end
-
-      blocks
-    end
-    private_class_method :build_update_fallback_blocks
-
-    def self.build_close_fallback_blocks(incident)
-      workspace = incident.workspace
-
-      name_value = incident.name.present? ? { initial_value: incident.name } : {}
-      summary_value = incident.summary.present? ? { initial_value: incident.summary } : {}
-
-      severities = workspace.incident_severities.active.ordered
-      severity_options = severities.map do |severity|
-        option = {
-          text: { type: "plain_text", text: severity.name },
-          value: severity.slug
-        }
-        option[:description] = { type: "plain_text", text: severity.description } if severity.description.present?
-        option
-      end
-      initial_severity = severity_options.find { |o| o[:value] == incident.incident_severity.slug }
-
-      [
-        {
-          type: "input",
-          block_id: "field_name_block",
-          element: {
-            type: "plain_text_input",
-            action_id: "field_name_input",
-            placeholder: { type: "plain_text", text: "Incident name" },
-            max_length: 200
-          }.merge(name_value),
-          label: { type: "plain_text", text: "Incident name" },
-          optional: true
-        },
-        {
-          type: "input",
-          block_id: "field_summary_block",
-          element: {
-            type: "plain_text_input",
-            action_id: "field_summary_input",
-            multiline: true,
-            placeholder: { type: "plain_text", text: "Final summary of what happened and how it was resolved..." },
-            max_length: 3000
-          }.merge(summary_value),
-          label: { type: "plain_text", text: "Summary" },
-          optional: true
-        },
-        {
-          type: "input",
-          block_id: "field_severity_block",
-          element: {
-            type: "static_select",
-            action_id: "field_severity_input",
-            options: severity_options,
-            initial_option: initial_severity
-          }.compact,
-          label: { type: "plain_text", text: "Severity" }
-        }
-      ]
-    end
-    private_class_method :build_close_fallback_blocks
-
-    def self.actions_list_modal(incident)
+def self.actions_list_modal(incident)
       actions = incident.incident_actions.active.actions.recent
       blocks = action_items_blocks(actions, empty_label: "actions", button_label: "+ Add new action",
                                             button_action_id: Identifiers::ADD_NEW_ACTION,
@@ -1182,22 +945,14 @@ module Slack
         incident_type: incident.incident_type_id,
         severity: incident.incident_severity_id
       }.compact
-      visible_fields = begin
-        resolver.resolve(IncidentForm::SLUG_RESOLVE, context: context)
-      rescue ActiveRecord::RecordNotFound
-        []
-      end
+      visible_fields = resolver.resolve(IncidentForm::SLUG_RESOLVE, context: context)
 
-      blocks = if visible_fields.any?
-        visible_fields.filter_map do |form_field|
-          if form_field.system?
-            build_system_field_block(workspace, form_field, incident: incident)
-          else
-            build_custom_field_block(workspace, form_field, incident: incident)
-          end
+      blocks = visible_fields.filter_map do |form_field|
+        if form_field.system?
+          build_system_field_block(workspace, form_field, incident: incident)
+        else
+          build_custom_field_block(workspace, form_field, incident: incident)
         end
-      else
-        build_close_fallback_blocks(incident)
       end
 
       blocks << lead_field_block(incident)

@@ -2,7 +2,8 @@ require "test_helper"
 
 class Commands::ReopenIncidentTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles
+           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles,
+           :incident_forms, :incident_form_fields, :incident_field_definitions
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
