@@ -389,11 +389,7 @@ module Slack
     end
 
     def self.get_user_info(workspace:, user_id:)
-      api_post(
-        workspace: workspace,
-        endpoint: "users.info",
-        payload: { user: user_id }
-      )
+      api_get(workspace: workspace, endpoint: "users.info", params: { user: user_id })
     end
 
     def self.download_file(workspace:, url:)
@@ -459,6 +455,25 @@ module Slack
     # @param payload [Hash] Request payload
     # @return [Hash] Parsed JSON response with indifferent access
     # @raise [ApiError] if request fails or Slack returns an error
+    def self.api_get(workspace:, endpoint:, params: {})
+      uri = URI("#{SLACK_API_BASE}/#{endpoint}")
+      uri.query = URI.encode_www_form(params) if params.any?
+      request = Net::HTTP::Get.new(uri)
+      request["Authorization"] = "Bearer #{workspace.access_token}"
+
+      response = pool_request(uri, request)
+      body = JSON.parse(response.body).with_indifferent_access
+
+      unless body[:ok]
+        error_details = body.slice(:error, :response_metadata, :needed, :provided)
+        raise ApiError, "Slack API error: #{body[:error]} (details: #{error_details.to_json})"
+      end
+
+      body
+    rescue JSON::ParserError => e
+      raise ApiError, "Failed to parse Slack API response: #{e.message}"
+    end
+
     def self.api_post(workspace:, endpoint:, payload:)
       uri = URI("#{SLACK_API_BASE}/#{endpoint}")
       request = Net::HTTP::Post.new(uri)

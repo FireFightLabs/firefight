@@ -106,4 +106,20 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
       )
     end
   end
+
+  # get_user_info tests
+
+  test "get_user_info returns user data from Slack" do
+    stub_get_user_info
+    result = @adapter.get_user_info(user_id: "U_NEW_USER")
+
+    assert_equal "U_NEW_USER", result.dig(:user, :id)
+  end
+
+  test "get_user_info translates ApiError to AdapterError" do
+    stub_get_user_info(raises: Slack::Client::ApiError.new("user_not_found"))
+    assert_raises(AdapterError) do
+      @adapter.get_user_info(user_id: "U_MISSING")
+    end
+  end
 end
