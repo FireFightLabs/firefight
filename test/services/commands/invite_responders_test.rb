@@ -12,9 +12,10 @@ class Commands::InviteRespondersTest < ActiveSupport::TestCase
   end
 
   test "opens invite modal when text has no target tokens" do
+    Slack::Modals::Invite.expects(:build).with(@incident).returns({ type: "modal" })
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
-    adapter.expects(:open_invite_responders_modal).with(trigger_id: "12345.trigger", incident: @incident).once
+    adapter.expects(:open_modal).with(trigger_id: "12345.trigger", view: { type: "modal" }).once
 
     assert_no_enqueued_jobs only: IncidentInviteJob do
       result = Commands::InviteResponders.execute(build_command("invite"))
@@ -71,9 +72,10 @@ class Commands::InviteRespondersTest < ActiveSupport::TestCase
   end
 
   test "handles trigger expiration when opening modal" do
+    Slack::Modals::Invite.expects(:build).with(@incident).returns({ type: "modal" })
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
-    adapter.expects(:open_invite_responders_modal).raises(AdapterError::TriggerExpired.new("expired"))
+    adapter.expects(:open_modal).raises(AdapterError::TriggerExpired.new("expired"))
 
     result = Commands::InviteResponders.execute(build_command("invite"))
 

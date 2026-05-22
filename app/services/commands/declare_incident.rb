@@ -6,7 +6,7 @@ module Commands
       workspace = command.workspace
       raise ArgumentError, "Workspace not found" unless workspace
 
-      workspace.adapter.open_incident_creation_modal(trigger_id: command.trigger_id)
+      workspace.adapter.open_modal(trigger_id: command.trigger_id, view: Slack::Modals::IncidentCreation.build(workspace: workspace))
     rescue AdapterError::TriggerExpired
       { response_type: Command::EPHEMERAL, text: "The command timed out. Please try again." }
     end

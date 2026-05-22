@@ -6,7 +6,7 @@ module Commands
 
       # No invitees in the text → open the picker modal. Must stay sync; trigger_id expires in 3s.
       unless IncidentInviteService.target_tokens?(command.text)
-        command.workspace.adapter.open_invite_responders_modal(trigger_id: command.trigger_id, incident: command.incident)
+        command.workspace.adapter.open_modal(trigger_id: command.trigger_id, view: Slack::Modals::Invite.build(command.incident))
         return nil
       end
 

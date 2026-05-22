@@ -14,7 +14,7 @@ class CloseModalOpener
       channel_id: incident.channel_id
     }.to_json
 
-    adapter.open_close_incident_modal(trigger_id: trigger_id, incident: incident, private_metadata: metadata)
+    adapter.open_modal(trigger_id: trigger_id, view: Slack::Modals::IncidentClose.build(incident, private_metadata: metadata))
   rescue AdapterError::TriggerExpired
     cleanup_temp_message(adapter, incident.channel_id, result&.dig(:message_ts))
     raise

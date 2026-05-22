@@ -4,7 +4,7 @@ module Commands
       return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
       return Command.ephemeral("No active incident in this channel.") unless command.incident
 
-      command.workspace.adapter.open_shoutout_modal(trigger_id: command.trigger_id, incident: command.incident)
+      command.workspace.adapter.open_modal(trigger_id: command.trigger_id, view: Slack::Modals::Shoutout.build(command.incident))
       nil
     rescue AdapterError::TriggerExpired
       Command.ephemeral("This command has expired. Please try `/ff shoutout` again.")

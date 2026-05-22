@@ -43,7 +43,7 @@ module Interactions
         severity: attrs["severity"]
       })
 
-      { response_action: "update", view: workspace.adapter.build_incident_created_view(incident) }
+      { response_action: "update", view: Slack::Modals::IncidentCreated.build(incident, team_id: workspace.platform_id) }
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.error({ event: "incident.creation_error", error: e.message })
       { response_action: "errors", errors: { field_severity_block: "Invalid severity selection. Please try again." } }

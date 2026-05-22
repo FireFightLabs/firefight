@@ -14,7 +14,7 @@ class EscalateModalOpener
       channel_id: incident.channel_id
     }.to_json
 
-    adapter.open_escalate_incident_modal(trigger_id: trigger_id, incident: incident, private_metadata: metadata)
+    adapter.open_modal(trigger_id: trigger_id, view: Slack::Modals::Escalate.build(incident, private_metadata: metadata))
   rescue AdapterError::TriggerExpired
     cleanup_temp_message(adapter, incident.channel_id, result&.dig(:message_ts))
     raise
