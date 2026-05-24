@@ -117,18 +117,24 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
     end
   end
 
-  test "first_error_block_id is nil when there are no visible fields" do
-    # Strip every visible field from the declare form.
+  test "code-default system fields apply when no DB overlay rows exist" do
+    # Strip every overlay row from the declare form — defaults still apply.
     form = @workspace.incident_forms.find_by!(lifecycle_event: IncidentForm::SLUG_DECLARE)
     form.incident_form_fields.destroy_all
-    IncidentFormResolver.bust_cache(form)
 
+    values = {
+      "field_severity_block" => {
+        "field_severity_input" => { "selected_option" => { "value" => "critical" } }
+      }
+    }
     result = IncidentFormSubmission.new(
-      workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: {}
+      workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: values
     ).parse
 
     assert_empty result.errors
-    assert_nil result.first_error_block_id
+    # Defaults include name + severity + summary + incident_type + visibility on declare.
+    assert result.includes_system_key?(IncidentSystemField::KEY_SEVERITY)
+    assert result.includes_system_key?(IncidentSystemField::KEY_VISIBILITY)
   end
 
   test "exposes visible_system_keys for callers that need to distinguish 'on form' from 'absent value'" do

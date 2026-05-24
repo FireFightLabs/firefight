@@ -18,6 +18,12 @@ module Slack
           incident_type_block(workspace, form_field, incident: incident, dispatch: type_dispatch, selected_type_id: selected_type_id)
         when IncidentSystemField::KEY_STATUS
           status_block(workspace, form_field, incident: incident)
+        when IncidentSystemField::KEY_LEAD
+          lead_block(form_field, incident: incident)
+        when IncidentSystemField::KEY_VISIBILITY
+          visibility_block(form_field, incident: incident)
+        when IncidentSystemField::KEY_NEXT_UPDATE
+          next_update_block(form_field)
         end
       end
 
@@ -44,21 +50,75 @@ module Slack
         end
       end
 
-      def self.visibility_block
+      VISIBILITY_OPTIONS = [
+        { text: { type: "plain_text", text: "Everyone (public)" }, value: Incident::VISIBILITY_PUBLIC },
+        { text: { type: "plain_text", text: "Private" },           value: Incident::VISIBILITY_PRIVATE }
+      ].freeze
+
+      NEXT_UPDATE_OPTIONS = [
+        { label: "5 minutes", value: "5" },
+        { label: "15 minutes", value: "15" },
+        { label: "30 minutes", value: "30" },
+        { label: "1 hour", value: "60" },
+        { label: "3 hours", value: "180" },
+        { label: "1 day", value: "1440" },
+        { label: "7 days", value: "10080" }
+      ].freeze
+
+      def self.visibility_block(form_field, incident: nil)
+        current = if incident
+          incident.is_private ? Incident::VISIBILITY_PRIVATE : Incident::VISIBILITY_PUBLIC
+        else
+          Incident::VISIBILITY_PUBLIC
+        end
+        initial = VISIBILITY_OPTIONS.find { |o| o[:value] == current } || VISIBILITY_OPTIONS.first
+
         {
           type: "input",
-          block_id: "visibility_block",
+          block_id: "field_visibility_block",
           element: {
             type: "static_select",
-            action_id: "visibility_select",
-            options: [
-              { text: { type: "plain_text", text: "Everyone (public)" }, value: Incident::VISIBILITY_PUBLIC },
-              { text: { type: "plain_text", text: "Private" }, value: Incident::VISIBILITY_PRIVATE }
-            ],
-            initial_option: { text: { type: "plain_text", text: "Everyone (public)" }, value: Incident::VISIBILITY_PUBLIC }
+            action_id: "field_visibility_input",
+            options: VISIBILITY_OPTIONS,
+            initial_option: initial
           },
           label: { type: "plain_text", text: "Who should be able to see this incident?" },
-          hint: { type: "plain_text", text: "Public incidents are visible to everyone in the workspace. Private incidents are only accessible to invited members." }
+          hint: { type: "plain_text", text: "Public incidents are visible to everyone in the workspace. Private incidents are only accessible to invited members." },
+          optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
+        }
+      end
+
+      def self.lead_block(form_field, incident: nil)
+        element = {
+          type: "users_select",
+          action_id: "field_lead_input",
+          placeholder: { type: "plain_text", text: "Select a person" }
+        }
+        element[:initial_user] = incident.lead.platform_user_id if incident&.lead
+
+        {
+          type: "input",
+          block_id: "field_lead_block",
+          element: element,
+          label: { type: "plain_text", text: "Incident Lead" },
+          optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
+        }
+      end
+
+      def self.next_update_block(form_field)
+        options = NEXT_UPDATE_OPTIONS.map { |o| { text: { type: "plain_text", text: o[:label] }, value: o[:value] } }
+
+        {
+          type: "input",
+          block_id: "field_next_update_block",
+          element: {
+            type: "static_select",
+            action_id: "field_next_update_input",
+            placeholder: { type: "plain_text", text: "Select a time" },
+            options: options
+          },
+          label: { type: "plain_text", text: "When will you provide the next update?" },
+          optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
         }
       end
 

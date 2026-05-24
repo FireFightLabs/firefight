@@ -11,7 +11,6 @@ module Slack
             FieldBlocks.build_custom(workspace, form_field)
           end
         end
-        blocks << FieldBlocks.visibility_block
 
         {
           type: "modal",

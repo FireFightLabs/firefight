@@ -1,3 +1,18 @@
+# Resolves the effective field list for an incident form by merging
+# code-defined system field defaults with per-workspace DB overlay rows.
+#
+# Source of truth:
+#   - Defaults come from `IncidentSystemField.defaults_for(form_slug)` —
+#     they always exist, the code depends on them, no migration is needed
+#     when a new system field is added.
+#   - DB rows in `incident_form_fields` are overlays:
+#     * a row with the same `system_field_key` as a default OVERRIDES the
+#       default's required_mode / visibility_mode / position / conditions
+#       (visibility_mode: hidden removes the field from the resolved set)
+#     * a row with `field_source_kind: custom` APPENDS a workspace-defined
+#       custom field
+#
+# `validate_submission` then validates raw params against the resolved set.
 class IncidentFormResolver
   class ValidationError < StandardError
     attr_reader :field_errors
@@ -14,26 +29,46 @@ class IncidentFormResolver
 
   def resolve(lifecycle_event, context: {})
     form = @workspace.incident_forms.find_by!(lifecycle_event: lifecycle_event)
-    field_ids = cached_field_ids(form)
 
-    fields = IncidentFormField
+    db_rows = form.incident_form_fields
       .includes(:incident_field_definition, :incident_conditions)
-      .where(id: field_ids)
-      .order(:position)
+      .to_a
 
-    return fields if context.empty?
+    overrides_by_key = db_rows
+      .select { |r| r.field_source_kind == IncidentFormField::FIELD_SOURCE_KIND_SYSTEM }
+      .index_by(&:system_field_key)
 
-    fields.select do |field|
-      IncidentConditionEvaluator.match?(field.incident_conditions, context)
+    custom_rows = db_rows.select { |r| r.field_source_kind == IncidentFormField::FIELD_SOURCE_KIND_CUSTOM }
+
+    merged = []
+
+    IncidentSystemField.defaults_for(lifecycle_event).each_with_index do |defn, idx|
+      override = overrides_by_key[defn.key]
+      if override
+        next if override.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
+        merged << override
+      else
+        merged << default_form_field(form, defn, position: idx)
+      end
     end
+
+    custom_rows.each do |row|
+      next if row.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
+      merged << row
+    end
+
+    merged.sort_by!(&:position)
+
+    return merged if context.empty?
+
+    merged.select { |field| IncidentConditionEvaluator.match?(field.incident_conditions, context) }
   end
 
-  def self.cache_key(form)
-    "incident_form/#{form.workspace_id}/#{form.lifecycle_event}"
-  end
-
-  def self.bust_cache(form)
-    Rails.cache.delete(cache_key(form))
+  # Kept for backwards compatibility with callers that still bust the cache
+  # after mutating form fields. The resolver no longer caches (queries are
+  # small and per-modal-open), but the no-op keeps the API stable.
+  def self.bust_cache(_form)
+    # no-op
   end
 
   def validate_submission(lifecycle_event, raw_params, context: {})
@@ -78,13 +113,18 @@ class IncidentFormResolver
 
   private
 
-  def cached_field_ids(form)
-    Rails.cache.fetch(self.class.cache_key(form)) do
-      form.incident_form_fields
-        .where(visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE)
-        .order(:position)
-        .pluck(:id)
-    end
+  # Builds an unpersisted IncidentFormField that represents a code-default
+  # system field. Downstream consumers iterate the same `IncidentFormField`
+  # interface whether the field came from defaults or DB.
+  def default_form_field(form, defn, position:)
+    IncidentFormField.new(
+      incident_form: form,
+      field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
+      system_field_key: defn.key,
+      required_mode: defn.required_mode_for(form.lifecycle_event),
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      position: position
+    )
   end
 
   def validate_required!(form_field, key, value, errors)

@@ -2,13 +2,25 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
   object_as :form_field
 
   attributes(
-    id: { type: :string },
     field_source_kind: { type: :string },
     position: { type: :number },
     visibility_mode: { type: :string },
     required_mode: { type: :string },
     locked_required: { type: :boolean }
   )
+
+  # Persisted overlay rows use their DB id. Unpersisted code-default fields
+  # are given a synthetic id (`default:<key>`) so the frontend can key,
+  # render, and detect them.
+  type :string
+  def id
+    form_field.id || "default:#{form_field.system_field_key}"
+  end
+
+  type :boolean
+  def is_default
+    form_field.id.nil?
+  end
 
   type :string, optional: true
   def system_field_key

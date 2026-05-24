@@ -231,8 +231,8 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
           "value" => message
         }
       },
-      "next_update_block" => {
-        "next_update_select" => {
+      "field_next_update_block" => {
+        "field_next_update_input" => {
           "selected_option" => next_update_minutes ? { "value" => next_update_minutes } : nil
         }
       }

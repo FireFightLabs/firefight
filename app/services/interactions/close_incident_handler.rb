@@ -22,7 +22,7 @@ module Interactions
         }
       end
 
-      lead_member, lead_error = resolve_lead(workspace, interaction.values)
+      lead_member, lead_error = resolve_lead(workspace, submission)
       return lead_error if lead_error
 
       attrs = build_close_attrs(workspace, incident, submission, lead_member)
@@ -37,8 +37,8 @@ module Interactions
       { response_action: "errors", errors: { "field_summary_block" => "Something went wrong. Please close this modal and try again." } }
     end
 
-    def self.resolve_lead(workspace, values)
-      lead_user_id = values.dig("lead_block", "lead_select", "selected_user")
+    def self.resolve_lead(workspace, submission)
+      lead_user_id = submission.system_attrs["lead"]
       return [ nil, nil ] if lead_user_id.blank?
 
       lead_member = WorkspaceMemberProvisioner.find_or_provision!(
@@ -74,7 +74,7 @@ module Interactions
     private_class_method :already_closed_error
 
     def self.lead_provision_error
-      { response_action: "errors", errors: { "lead_block" => "Couldn't load that user's profile from Slack. Please try again in a moment." } }
+      { response_action: "errors", errors: { "field_lead_block" => "Couldn't load that user's profile from Slack. Please try again in a moment." } }
     end
     private_class_method :lead_provision_error
   end

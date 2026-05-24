@@ -16,8 +16,11 @@ class IncidentFormSettingsSerializer < BaseSerializer
 
   type :number
   def field_count
-    incident_form.incident_form_fields.size
+    incident_form.resolved_fields.size
   end
 
-  has_many :incident_form_fields, as: :fields, serializer: IncidentFormFieldSettingsSerializer
+  type "IncidentFormFieldSettings[]"
+  def fields
+    IncidentFormFieldSettingsSerializer.many(incident_form.resolved_fields)
+  end
 end

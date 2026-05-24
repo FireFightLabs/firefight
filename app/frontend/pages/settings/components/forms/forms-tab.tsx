@@ -127,6 +127,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
   }, [selectedForm])
 
   function handleUpdateField(field: IncidentFormFieldSettings, next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) {
+    if (field.isDefault) return
     router.patch(incidentFormFieldPath(field.id), {
       visibility_mode: next.visibilityMode ?? field.visibilityMode,
       required_mode: next.requiredMode ?? field.requiredMode,
@@ -136,6 +137,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
   }
 
   function handleUpdateConditions(field: IncidentFormFieldSettings, conditions: IncidentConditionSettings[]) {
+    if (field.isDefault) return
     router.patch(incidentFormFieldPath(field.id), {
       visibility_mode: field.visibilityMode,
       required_mode: field.requiredMode,
@@ -150,6 +152,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
   }
 
   function handleRemoveField(field: IncidentFormFieldSettings) {
+    if (field.isDefault) return
     router.delete(incidentFormFieldPath(field.id), { preserveScroll: true })
   }
 

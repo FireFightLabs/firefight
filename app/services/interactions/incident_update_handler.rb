@@ -30,7 +30,7 @@ module Interactions
         message: message
       )
 
-      apply_next_update_reminder(incident, interaction.values)
+      apply_next_update_reminder(incident, submission)
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata)
 
       nil
@@ -58,8 +58,14 @@ module Interactions
     end
     private_class_method :build_update_attrs
 
-    def self.apply_next_update_reminder(incident, values)
-      next_update_minutes = values.dig("next_update_block", "next_update_select", "selected_option", "value")
+    # Reads `next_update` from the form submission. If the field isn't on the
+    # configured form at all, leave `next_update_at` untouched (the workspace
+    # has opted out of update reminders). If it's on the form but the user
+    # picked nothing, clear it.
+    def self.apply_next_update_reminder(incident, submission)
+      return unless submission.includes_system_key?(IncidentSystemField::KEY_NEXT_UPDATE)
+
+      next_update_minutes = submission.system_attrs["next_update"]
 
       if next_update_minutes.present?
         incident.update!(next_update_at: Time.current + next_update_minutes.to_i.minutes)

@@ -18,7 +18,6 @@ module Slack
             FieldBlocks.build_custom(workspace, form_field, incident: incident)
           end
         end
-        blocks << lead_block(incident)
 
         {
           type: "modal",
@@ -29,23 +28,6 @@ module Slack
           submit: { type: "plain_text", text: "Close incident" },
           close: { type: "plain_text", text: "Cancel" },
           blocks: blocks
-        }
-      end
-
-      def self.lead_block(incident)
-        element = {
-          type: "users_select",
-          action_id: "lead_select",
-          placeholder: { type: "plain_text", text: "Select a person" }
-        }
-        element[:initial_user] = incident.lead.platform_user_id if incident.lead
-
-        {
-          type: "input",
-          block_id: "lead_block",
-          element: element,
-          label: { type: "plain_text", text: "Incident Lead" },
-          optional: true
         }
       end
     end
