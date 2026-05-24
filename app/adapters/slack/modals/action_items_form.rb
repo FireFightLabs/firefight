@@ -18,7 +18,10 @@ module Slack
 
       def self.build(incident, kind:, private_metadata: nil)
         cfg = KINDS.fetch(kind)
-        metadata = private_metadata || { incident_id: incident.id }.to_json
+        metadata = private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id)
+        # When this modal is launched from a reaction shortcut the caller
+        # encodes the source message text in the private_metadata so we can
+        # prefill the description.
         parsed_metadata = JSON.parse(metadata) rescue {}
         initial_description = parsed_metadata["source_message_text"]
 

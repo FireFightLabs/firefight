@@ -3,7 +3,7 @@ module Slack
     module IncidentUpdate
       def self.build(incident, private_metadata: nil)
         workspace = incident.workspace
-        metadata = private_metadata || incident.id
+        metadata = private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id)
 
         context = {
           incident_type: incident.incident_type_id,

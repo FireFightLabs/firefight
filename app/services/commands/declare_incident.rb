@@ -1,14 +1,12 @@
 module Commands
-  # Handles opening the incident creation modal
-  # Platform-agnostic handler that delegates to platform-specific adapters
   class DeclareIncident
     def self.execute(command)
-      workspace = command.workspace
-      raise ArgumentError, "Workspace not found" unless workspace
+      return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
 
-      workspace.adapter.open_modal(trigger_id: command.trigger_id, view: Slack::Modals::IncidentCreation.build(workspace: workspace))
+      command.workspace.adapter.open_modal(trigger_id: command.trigger_id, view: Slack::Modals::IncidentCreation.build(workspace: command.workspace))
+      nil
     rescue AdapterError::TriggerExpired
-      { response_type: Command::EPHEMERAL, text: "The command timed out. Please try again." }
+      Command.ephemeral("This command has expired. Please try `/ff new` again.")
     end
   end
 end

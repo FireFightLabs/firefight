@@ -10,9 +10,7 @@ class Commands::OpenHomeTest < ActiveSupport::TestCase
   test "opens home modal for empty command" do
     stub_open_modal
     command = build_command("")
-    response = Commands::OpenHome.execute(command)
-
-    assert response[:success]
+    assert_nil Commands::OpenHome.execute(command)
   end
 
   test "opens home modal for nil text" do
@@ -25,17 +23,13 @@ class Commands::OpenHomeTest < ActiveSupport::TestCase
       channel_id: "C12345678",
       metadata: { command: "/ff" }
     )
-    response = Commands::OpenHome.execute(command)
-
-    assert response[:success]
+    assert_nil Commands::OpenHome.execute(command)
   end
 
   test "opens home modal for 'home' subcommand" do
     stub_open_modal
     command = build_command(Identifiers::SUBCOMMAND_HOME)
-    response = Commands::OpenHome.execute(command)
-
-    assert response[:success]
+    assert_nil Commands::OpenHome.execute(command)
   end
 
   test "handles trigger expiration" do

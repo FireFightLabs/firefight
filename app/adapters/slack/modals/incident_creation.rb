@@ -32,6 +32,7 @@ module Slack
 
         IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_DECLARE, context: context)
       end
+      private_class_method :resolve_visible_fields
     end
   end
 end
