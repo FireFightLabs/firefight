@@ -24,52 +24,17 @@ module Workspace::IncidentDefaults
     { name: "Third Party", slug: "third_party", position: 5, is_default: false, color: "#10B981", description: "Vendor or external dependency outage affecting your systems." }
   ].freeze
 
-  DEFAULT_ROLES = [
-    { name: "Incident Lead", slug: IncidentRole::SLUG_INCIDENT_LEAD, position: 1, required: false, description: "Coordinates incident response and makes decisions" }
-  ].freeze
+  # Lead role is defined in IncidentRole::DEFAULTS and materialized on
+  # demand via Workspace#ensure_incident_role!. No seeding required.
 
-  # Default forms are seeded as empty shells. The fields that appear on each
-  # form come from `IncidentSystemField` (code defaults) merged with any
-  # per-workspace overlay rows admins add in the settings editor. Adding a
-  # new default system field never requires a migration.
-  DEFAULT_FORMS = [
-    {
-      slug: IncidentForm::SLUG_DECLARE,
-      name: "Declare",
-      description: "Shown when a responder first declares an incident.",
-      lifecycle_event: IncidentForm::SLUG_DECLARE,
-      position: 1
-    },
-    {
-      slug: IncidentForm::SLUG_ACCEPT,
-      name: "Accept",
-      description: "Shown when a responder accepts a triaged incident.",
-      lifecycle_event: IncidentForm::SLUG_ACCEPT,
-      position: 2
-    },
-    {
-      slug: IncidentForm::SLUG_UPDATE,
-      name: "Update",
-      description: "Shown when responders share a status update.",
-      lifecycle_event: IncidentForm::SLUG_UPDATE,
-      position: 3
-    },
-    {
-      slug: IncidentForm::SLUG_RESOLVE,
-      name: "Resolve",
-      description: "Shown when the incident is resolved or closed.",
-      lifecycle_event: IncidentForm::SLUG_RESOLVE,
-      position: 4
-    }
-  ].freeze
+  # Forms are defined in IncidentForm::DEFAULTS and materialized on
+  # demand via Workspace#ensure_incident_form!. No seeding required.
 
   def setup_incident_configuration!
     transaction do
       create_default_severities!
       create_default_statuses!
       create_default_types!
-      create_default_roles!
-      create_default_forms!
     end
 
     Rails.logger.info({
@@ -78,15 +43,15 @@ module Workspace::IncidentDefaults
       workspace_id: id,
       severities_count: DEFAULT_SEVERITIES.count,
       statuses_count: DEFAULT_STATUSES.count,
-      types_count: DEFAULT_TYPES.count,
-      roles_count: DEFAULT_ROLES.count
+      types_count: DEFAULT_TYPES.count
     })
   end
 
+  # Kept as a no-op for backwards compatibility (older migrations call it).
+  # Forms now come from `IncidentForm::DEFAULTS` and need no per-workspace
+  # rows; see `Workspace#ensure_incident_form!` for lazy materialization.
   def setup_incident_forms!
-    transaction do
-      create_default_forms!
-    end
+    # no-op
   end
 
   private
@@ -108,12 +73,6 @@ module Workspace::IncidentDefaults
   def create_default_types!
     DEFAULT_TYPES.each do |type_data|
       incident_types.create!(type_data)
-    end
-  end
-
-  def create_default_roles!
-    DEFAULT_ROLES.each do |role_data|
-      incident_roles.create!(role_data)
     end
   end
 

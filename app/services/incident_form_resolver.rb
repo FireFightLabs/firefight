@@ -28,11 +28,12 @@ class IncidentFormResolver
   end
 
   def resolve(lifecycle_event, context: {})
-    form = @workspace.incident_forms.find_by!(lifecycle_event: lifecycle_event)
+    raise ArgumentError, "Unknown form slug: #{lifecycle_event}" unless IncidentForm::DEFAULTS_BY_SLUG.key?(lifecycle_event)
 
-    db_rows = form.incident_form_fields
-      .includes(:incident_field_definition, :incident_conditions)
-      .to_a
+    # IncidentForm rows are optional — they exist only when an admin has
+    # customized the form. Fall back to code defaults when no row exists.
+    form = @workspace.incident_forms.find_by(lifecycle_event: lifecycle_event)
+    db_rows = form ? form.incident_form_fields.includes(:incident_field_definition, :incident_conditions).to_a : []
 
     overrides_by_key = db_rows
       .select { |r| r.field_source_kind == IncidentFormField::FIELD_SOURCE_KIND_SYSTEM }
@@ -48,7 +49,7 @@ class IncidentFormResolver
         next if override.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
         merged << override
       else
-        merged << default_form_field(form, defn, position: idx)
+        merged << default_form_field(lifecycle_event, defn, position: idx)
       end
     end
 
@@ -115,13 +116,13 @@ class IncidentFormResolver
 
   # Builds an unpersisted IncidentFormField that represents a code-default
   # system field. Downstream consumers iterate the same `IncidentFormField`
-  # interface whether the field came from defaults or DB.
-  def default_form_field(form, defn, position:)
+  # interface whether the field came from defaults or DB. We don't set
+  # `incident_form` because the form itself may not be persisted either.
+  def default_form_field(lifecycle_event, defn, position:)
     IncidentFormField.new(
-      incident_form: form,
       field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
       system_field_key: defn.key,
-      required_mode: defn.required_mode_for(form.lifecycle_event),
+      required_mode: defn.required_mode_for(lifecycle_event),
       visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
       position: position
     )

@@ -107,14 +107,20 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
     assert_equal @incident.incident_severity.slug, result.system_attrs["severity"]
   end
 
-  test "raises ActiveRecord::RecordNotFound when the form slug is not seeded" do
+  test "falls back to code defaults when no IncidentForm DB row exists" do
     @workspace.incident_forms.where(lifecycle_event: IncidentForm::SLUG_DECLARE).destroy_all
 
-    assert_raises(ActiveRecord::RecordNotFound) do
-      IncidentFormSubmission.new(
-        workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: {}
-      ).parse
-    end
+    values = {
+      "field_severity_block" => {
+        "field_severity_input" => { "selected_option" => { "value" => "critical" } }
+      }
+    }
+    result = IncidentFormSubmission.new(
+      workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: values
+    ).parse
+
+    assert_empty result.errors
+    assert_equal "critical", result.system_attrs["severity"]
   end
 
   test "code-default system fields apply when no DB overlay rows exist" do

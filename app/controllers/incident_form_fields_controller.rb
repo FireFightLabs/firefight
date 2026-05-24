@@ -3,12 +3,12 @@ class IncidentFormFieldsController < InertiaController
   before_action :set_form_field, only: [ :update, :destroy, :move_up, :move_down ]
 
   def create
-    form = current_workspace.incident_forms.find(params[:incident_form_id])
+    form = resolve_form(params[:incident_form_id])
     field_definition = current_workspace.incident_field_definitions.active.find(params[:incident_field_definition_id])
     form_service.add_custom_field(form, field_definition)
     redirect_to settings_forms_path(form: form.id)
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: settings_forms_path(form: form.id),
+    redirect_back fallback_location: settings_forms_path(form: form&.id),
       inertia: { errors: e.record.errors.to_hash }
   end
 
@@ -49,13 +49,25 @@ class IncidentFormFieldsController < InertiaController
   end
 
   def reorder
-    form = current_workspace.incident_forms.find(params.require(:incident_form_id))
+    form = resolve_form(params.require(:incident_form_id))
     ordered_ids = params.require(:ordered_ids)
     form_service.reorder(form, ordered_ids)
     redirect_to settings_forms_path(form: form.id)
   end
 
   private
+
+  # Accepts either a persisted form's DB id or a `default:<slug>` synthetic
+  # id from the settings editor. Synthetic ids materialize the default into
+  # a real DB row on first use via `Workspace#ensure_incident_form!`.
+  def resolve_form(id_or_default)
+    id = id_or_default.to_s
+    if id.start_with?("default:")
+      current_workspace.ensure_incident_form!(id.delete_prefix("default:"))
+    else
+      current_workspace.incident_forms.find(id)
+    end
+  end
 
   def set_form_field
     @form_field = IncidentFormField.joins(:incident_form)
