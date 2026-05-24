@@ -43,6 +43,18 @@ module Slack
         blocks
       end
 
+      # Rewrites the original escalation DM after acknowledgment: drops the
+      # action buttons and appends a confirmation section.
+      def self.dm_after_acknowledgment(original_blocks)
+        stripped = (original_blocks || []).reject { |b| b["type"] == "actions" || b[:type] == "actions" }
+        stripped + [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: ":white_check_mark: *You acknowledged this escalation*" }
+          }
+        ]
+      end
+
       def self.acknowledged(_incident, acknowledged_by_platform_user_id:, escalated_to_platform_user_id:)
         [
           { type: "section", text: { type: "mrkdwn", text: ":white_check_mark: *Escalation acknowledged*" } },

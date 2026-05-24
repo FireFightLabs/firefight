@@ -25,6 +25,15 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
+  def post_lead_announcement(channel_id:, lead_platform_user_id:)
+    blocks = Slack::Messages::LeadAssignment.announcement(lead_platform_user_id: lead_platform_user_id)
+    post_message(
+      channel_id: channel_id,
+      text: "<@#{lead_platform_user_id}> is now the Incident Lead",
+      blocks: blocks
+    )
+  end
+
   def post_lead_expectations(channel_id:, user_id:)
     blocks = [
       {
@@ -215,6 +224,16 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Escalation acknowledged", blocks: blocks)
   end
 
+  def mark_escalation_dm_acknowledged(channel_id:, message_id:, original_blocks:)
+    blocks = Slack::Messages::Escalation.dm_after_acknowledgment(original_blocks)
+    update_message(
+      channel_id: channel_id,
+      message_id: message_id,
+      text: "Escalation acknowledged",
+      blocks: blocks
+    )
+  end
+
   def post_escalation_nudge_direct_message(user_id:, incident:, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
     blocks = Slack::Messages::Escalation.direct_message(
       incident,
@@ -275,6 +294,16 @@ module Slack::WorkspaceAdapter::IncidentMessaging
       text: "Create #{type_label} from this message?",
       blocks: blocks
     )
+  end
+
+  def post_ai_response(channel_id:, incident:, answer:)
+    blocks = Slack::Messages::AiResponse.build(incident: incident, answer: answer)
+    post_message(channel_id: channel_id, text: answer, blocks: blocks)
+  end
+
+  def post_ai_response_threaded(channel_id:, parent_message_id:, incident:, answer:)
+    blocks = Slack::Messages::AiResponse.build(incident: incident, answer: answer)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: answer, blocks: blocks)
   end
 
   def post_postmortem_message(channel_id:, incident:, postmortem:)
