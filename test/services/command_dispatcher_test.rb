@@ -16,12 +16,12 @@ class CommandDispatcherTest < ActiveSupport::TestCase
     assert_equal Commands::HomeHandler, CommandDispatcher.find(command)
   end
 
-  test "falls back to ModalHandler for unknown slash commands" do
+  test "falls back to DeclareIncident for unknown slash commands" do
     command = build_command(command_name: "/unknown", text: "")
-    assert_equal Commands::ModalHandler, CommandDispatcher.find(command)
+    assert_equal Commands::DeclareIncident, CommandDispatcher.find(command)
   end
 
-  test "falls back to ModalHandler when no command name in metadata" do
+  test "falls back to DeclareIncident when no command name in metadata" do
     command = Command.new(
       platform: Platforms::SLACK,
       workspace_id: SecureRandom.uuid,
@@ -30,7 +30,7 @@ class CommandDispatcherTest < ActiveSupport::TestCase
       channel_id: "C12345678",
       metadata: {}
     )
-    assert_equal Commands::ModalHandler, CommandDispatcher.find(command)
+    assert_equal Commands::DeclareIncident, CommandDispatcher.find(command)
   end
 
   test "dispatch calls execute on the resolved handler" do

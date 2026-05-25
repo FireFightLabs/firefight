@@ -10,9 +10,7 @@ class Interactions::HomeContinueHandlerTest < ActiveSupport::TestCase
   end
 
   test "replaces home modal with incident action modal" do
-    adapter = mock("workspace_adapter")
-    WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
-    adapter.expects(:build_incident_update_view).returns({ "type" => "modal", "title" => { "type" => "plain_text", "text" => "Update Incident" } })
+    Slack::Modals::IncidentUpdate.expects(:build).returns({ "type" => "modal", "title" => { "type" => "plain_text", "text" => "Update Incident" } })
 
     result = Interactions::HomeContinueHandler.execute(
       build_interaction(selected: Identifiers::HOME_ACTION_STATUS)
@@ -23,9 +21,7 @@ class Interactions::HomeContinueHandlerTest < ActiveSupport::TestCase
   end
 
   test "replaces home modal with incident creation modal for new action" do
-    adapter = mock("workspace_adapter")
-    WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
-    adapter.expects(:build_incident_creation_view).returns({ "type" => "modal", "title" => { "type" => "plain_text", "text" => "New Incident" } })
+    Slack::Modals::IncidentCreation.expects(:build).returns({ "type" => "modal", "title" => { "type" => "plain_text", "text" => "New Incident" } })
 
     result = Interactions::HomeContinueHandler.execute(
       build_interaction(selected: Identifiers::HOME_ACTION_NEW)

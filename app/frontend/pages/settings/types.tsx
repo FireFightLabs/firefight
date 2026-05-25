@@ -1,7 +1,7 @@
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { TypesTab } from "@/pages/settings/components/types-tab"
+import { TypesTab } from "@/pages/settings/components/types/types-tab"
 import type { IncidentTypeSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 

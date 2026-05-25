@@ -233,8 +233,8 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
           "selected_option" => { "value" => severity_slug }
         }
       },
-      "lead_block" => {
-        "lead_select" => { "selected_user" => lead_user_id }
+      "field_lead_block" => {
+        "field_lead_input" => { "selected_user" => lead_user_id }
       }
     }
 

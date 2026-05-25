@@ -1,7 +1,7 @@
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { ApiKeysTab } from "@/pages/settings/components/api-keys-tab"
+import { ApiKeysTab } from "@/pages/settings/components/api-keys/api-keys-tab"
 import type { ApiKey } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 

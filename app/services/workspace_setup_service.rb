@@ -102,7 +102,7 @@ class WorkspaceSetupService
       message: "Posted welcome message to incidents channel",
       workspace_id: workspace.id,
       channel_id: channel_id,
-      message_ts: result[:message_ts]
+      message_ts: result[:message_id]
     })
 
     result

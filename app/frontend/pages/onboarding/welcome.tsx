@@ -3,8 +3,8 @@ import { FireFightLogo } from "@/components/fire-fight-logo";
 import { Button } from "@/components/ui/button";
 import { dashboardPath } from "@/lib/routes";
 import { AuthLayout } from "@/components/auth/auth-layout";
-import { FounderAvatar } from "@/pages/onboarding/components/founder-avatar";
-import { SignatureMark } from "@/pages/onboarding/components/signature-mark";
+import { FounderAvatar } from "@/pages/onboarding/components/welcome/founder-avatar";
+import { SignatureMark } from "@/pages/onboarding/components/welcome/signature-mark";
 import type { SharedProps } from "@/types";
 
 interface WelcomePageProps extends SharedProps {

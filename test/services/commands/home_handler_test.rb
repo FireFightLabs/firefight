@@ -9,84 +9,84 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
 
   # --- Subcommand routing ---
 
-  test "routes 'new' subcommand to ModalHandler" do
+  test "routes 'new' subcommand to DeclareIncident" do
     command = build_command("new")
 
-    Commands::ModalHandler.expects(:execute).with(command).once
+    Commands::DeclareIncident.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
   # --- Placeholder subcommands ---
 
-  test "routes 'summary' subcommand to SummaryHandler" do
+  test "routes 'summary' subcommand to UpdateSummary" do
     command = build_command("summary")
 
-    Commands::SummaryHandler.expects(:execute).with(command).once
+    Commands::UpdateSummary.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'lead' subcommand to LeadHandler" do
+  test "routes 'lead' subcommand to AssignLead" do
     command = build_command("lead")
 
-    Commands::LeadHandler.expects(:execute).with(command).once
+    Commands::AssignLead.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'status' subcommand to StatusHandler" do
+  test "routes 'status' subcommand to ChangeStatus" do
     command = build_command("status")
 
-    Commands::StatusHandler.expects(:execute).with(command).once
+    Commands::ChangeStatus.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'update' subcommand to UpdateHandler" do
+  test "routes 'update' subcommand to UpdateIncident" do
     command = build_command("update")
 
-    Commands::UpdateHandler.expects(:execute).with(command).once
+    Commands::UpdateIncident.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'severity' subcommand to SeverityHandler" do
+  test "routes 'severity' subcommand to ChangeSeverity" do
     command = build_command("severity")
 
-    Commands::SeverityHandler.expects(:execute).with(command).once
+    Commands::ChangeSeverity.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'escalate' subcommand to EscalateHandler" do
+  test "routes 'escalate' subcommand to EscalateIncident" do
     command = build_command("escalate")
 
-    Commands::EscalateHandler.expects(:execute).with(command).once
+    Commands::EscalateIncident.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'invite' subcommand to InviteHandler" do
+  test "routes 'invite' subcommand to InviteResponders" do
     command = build_command("invite")
 
-    Commands::InviteHandler.expects(:execute).with(command).once
+    Commands::InviteResponders.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'list' subcommand to ListHandler" do
+  test "routes 'list' subcommand to ListActiveIncidents" do
     command = build_command("list")
 
-    Commands::ListHandler.expects(:execute).with(command).once
+    Commands::ListActiveIncidents.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'timeline' subcommand to TimelineHandler" do
+  test "routes 'timeline' subcommand to ShowTimeline" do
     command = build_command("timeline")
 
-    Commands::TimelineHandler.expects(:execute).with(command).once
+    Commands::ShowTimeline.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
@@ -101,58 +101,58 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
 
   # --- Aliases ---
 
-  test "routes 'action' to ActionsHandler" do
+  test "routes 'action' to ListActions" do
     command = build_command("action")
 
-    Commands::ActionsHandler.expects(:execute).with(command).once
+    Commands::ListActions.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'actions' to ActionsHandler" do
+  test "routes 'actions' to ListActions" do
     command = build_command("actions")
 
-    Commands::ActionsHandler.expects(:execute).with(command).once
+    Commands::ListActions.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'followup' to FollowupsHandler" do
+  test "routes 'followup' to ListFollowups" do
     command = build_command("followup")
 
-    Commands::FollowupsHandler.expects(:execute).with(command).once
+    Commands::ListFollowups.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'followups' to FollowupsHandler" do
+  test "routes 'followups' to ListFollowups" do
     command = build_command("followups")
 
-    Commands::FollowupsHandler.expects(:execute).with(command).once
+    Commands::ListFollowups.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'resolve' to CloseHandler" do
+  test "routes 'resolve' to CloseIncident" do
     command = build_command("resolve")
 
-    Commands::CloseHandler.expects(:execute).with(command).once
+    Commands::CloseIncident.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'close' to CloseHandler" do
+  test "routes 'close' to CloseIncident" do
     command = build_command("close")
 
-    Commands::CloseHandler.expects(:execute).with(command).once
+    Commands::CloseIncident.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
 
-  test "routes 'reopen' to ReopenHandler" do
+  test "routes 'reopen' to ReopenIncident" do
     command = build_command("reopen")
 
-    Commands::ReopenHandler.expects(:execute).with(command).once
+    Commands::ReopenIncident.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
@@ -191,7 +191,7 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
   test "handles uppercase subcommands" do
     command = build_command("NEW")
 
-    Commands::ModalHandler.expects(:execute).with(command).once
+    Commands::DeclareIncident.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
@@ -199,7 +199,7 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
   test "handles mixed case subcommands" do
     command = build_command("Summary")
 
-    Commands::SummaryHandler.expects(:execute).with(command).once
+    Commands::UpdateSummary.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
@@ -209,7 +209,7 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
   test "routes correctly when subcommand has additional arguments" do
     command = build_command("new production database down")
 
-    Commands::ModalHandler.expects(:execute).with(command).once
+    Commands::DeclareIncident.expects(:execute).with(command).once
 
     Commands::HomeHandler.execute(command)
   end
@@ -218,7 +218,7 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
 
   test "returns error message when handler raises" do
     command = build_command("new")
-    Commands::ModalHandler.stubs(:execute).raises(StandardError, "boom")
+    Commands::DeclareIncident.stubs(:execute).raises(StandardError, "boom")
 
     response = Commands::HomeHandler.execute(command)
 

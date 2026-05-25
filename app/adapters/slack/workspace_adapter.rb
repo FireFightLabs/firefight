@@ -1,15 +1,11 @@
 module Slack
-  class WorkspaceAdapter
+  class WorkspaceAdapter < ::PlatformAdapter
     include Slack::WorkspaceAdapter::WorkspaceSetup
     include Slack::WorkspaceAdapter::UserOperations
     include Slack::WorkspaceAdapter::IncidentModals
     include Slack::WorkspaceAdapter::IncidentMessaging
 
     CHANNEL_DESCRIPTION = "FireFight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
-
-    def initialize(workspace)
-      @workspace = workspace
-    end
 
     # Create a Slack channel with given name
     #
@@ -84,16 +80,16 @@ module Slack
           blocks: blocks
         )
 
-        { message_ts: result[:ts] }
+        { message_id: result[:ts] }
       end
     end
 
-    def add_reaction(channel_id:, timestamp:, name:)
+    def add_reaction(channel_id:, message_id:, name:)
       translate_errors do
         Slack::Client.add_reaction(
           workspace: @workspace,
           channel: channel_id,
-          timestamp: timestamp,
+          timestamp: message_id,
           name: name
         )
 
@@ -101,12 +97,12 @@ module Slack
       end
     end
 
-    def pin_message(channel_id:, timestamp:)
+    def pin_message(channel_id:, message_id:)
       translate_errors do
         Slack::Client.pin_message(
           workspace: @workspace,
           channel: channel_id,
-          timestamp: timestamp
+          timestamp: message_id
         )
 
         { ok: true }
@@ -161,12 +157,12 @@ module Slack
       end
     end
 
-    def update_message(channel_id:, ts:, text:, blocks:)
+    def update_message(channel_id:, message_id:, text:, blocks:)
       translate_errors do
         Slack::Client.update_message(
           workspace: @workspace,
           channel: channel_id,
-          ts: ts,
+          ts: message_id,
           text: text,
           blocks: blocks
         )
@@ -175,57 +171,79 @@ module Slack
       end
     end
 
-    def delete_message(channel_id:, ts:)
+    def delete_message(channel_id:, message_id:)
       translate_errors do
         Slack::Client.delete_message(
           workspace: @workspace,
           channel: channel_id,
-          ts: ts
+          ts: message_id
         )
 
         { success: true }
       end
     end
 
-    def get_message_permalink(channel_id:, message_ts:)
+    def get_message_permalink(channel_id:, message_id:)
       translate_errors do
         result = Slack::Client.get_permalink(
           workspace: @workspace,
           channel: channel_id,
-          message_ts: message_ts
+          message_ts: message_id
         )
 
         { permalink: result[:permalink] }
       end
     end
 
-    def fetch_message(channel_id:, ts:)
+    def fetch_message(channel_id:, message_id:)
       translate_errors do
-        Slack::Client.get_message(
+        raw = Slack::Client.get_message(
           workspace: @workspace,
           channel: channel_id,
-          ts: ts
+          ts: message_id
         )
+        message = raw.is_a?(Hash) ? (raw[:message] || raw["message"] || raw) : {}
+
+        {
+          message_id: message[:ts] || message["ts"],
+          channel_id: channel_id,
+          user_id: message[:user] || message["user"],
+          text: message[:text] || message["text"],
+          posted_at: (message[:ts] || message["ts"])&.to_f&.then { |t| Time.at(t) },
+          raw: message
+        }
       end
     end
 
     def get_user_info(user_id:)
       translate_errors do
-        Slack::Client.get_user_info(workspace: @workspace, user_id: user_id)
+        raw = Slack::Client.get_user_info(workspace: @workspace, user_id: user_id)
+        user = raw[:user] || raw["user"] || raw
+        profile = user[:profile] || user["profile"] || {}
+
+        {
+          user_id: user[:id] || user["id"],
+          display_name: profile[:display_name].presence || profile["display_name"].presence || user[:name] || user["name"],
+          real_name: profile[:real_name] || profile["real_name"],
+          avatar_url: profile[:image_192] || profile["image_192"] || profile[:image_48] || profile["image_48"],
+          email: profile[:email] || profile["email"],
+          timezone: user[:tz] || user["tz"],
+          raw: user
+        }
       end
     end
 
-    def post_threaded_message(channel_id:, thread_ts:, text:, blocks: nil)
+    def post_threaded_message(channel_id:, parent_message_id:, text:, blocks: nil)
       translate_errors do
         result = Slack::Client.post_message(
           workspace: @workspace,
           channel: channel_id,
           text: text,
           blocks: blocks,
-          thread_ts: thread_ts
+          thread_ts: parent_message_id
         )
 
-        { message_ts: result[:ts] }
+        { message_id: result[:ts] }
       end
     end
 

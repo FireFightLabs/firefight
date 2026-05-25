@@ -32,6 +32,33 @@ class Workspace < ApplicationRecord
     WorkspaceAdapter.for(self)
   end
 
+  # Lazily materializes a built-in incident form. Returns the existing DB
+  # row when an admin has already customized the form; otherwise creates
+  # one from `IncidentForm::DEFAULTS`. Callers that need to attach overlay
+  # rows (custom fields, system field overrides) use this to get a real
+  # `incident_form_id`.
+  def ensure_incident_form!(slug)
+    incident_forms.find_or_create_by!(slug: slug) do |form|
+      defaults = IncidentForm.defaults_for(slug)
+      raise ArgumentError, "Unknown incident form slug: #{slug}" unless defaults
+
+      form.assign_attributes(defaults)
+    end
+  end
+
+  # Lazily materializes a built-in incident role. Returns the existing DB
+  # row when present; otherwise creates one from `IncidentRole::DEFAULTS`.
+  # Callers that need to create assignments use this to get a real
+  # `incident_role_id`.
+  def ensure_incident_role!(slug)
+    incident_roles.find_or_create_by!(slug: slug) do |role|
+      defaults = IncidentRole.defaults_for(slug)
+      raise ArgumentError, "Unknown incident role slug: #{slug}" unless defaults
+
+      role.assign_attributes(defaults)
+    end
+  end
+
   def self.find_or_create_from_slack!(auth_hash)
     team_info = auth_hash.extra.team_info
 
