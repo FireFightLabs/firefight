@@ -28,7 +28,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
   end
 
   test "resolve raises for unknown lifecycle event" do
-    assert_raises(ActiveRecord::RecordNotFound) do
+    assert_raises(ArgumentError) do
       @resolver.resolve("nonexistent")
     end
   end

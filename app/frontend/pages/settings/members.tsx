@@ -1,7 +1,7 @@
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { MembersTable } from "@/pages/settings/components/members-table"
+import { MembersTable } from "@/pages/settings/components/members/members-table"
 import type { WorkspaceMembership } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 

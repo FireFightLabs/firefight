@@ -4,6 +4,8 @@ import type { CurrentUser, CurrentWorkspace } from '@/types/serializers'
 export type FlashData = {
   notice?: string
   alert?: string
+  // Custom flash keys sent via `flash.inertia[:key]` on the server.
+  api_key_token?: string
 }
 
 export type SharedProps = PageProps & {

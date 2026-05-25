@@ -34,7 +34,7 @@ module Events
     private_class_method :strip_mention
 
     def self.acknowledge(workspace, channel_id, timestamp)
-      workspace.adapter.add_reaction(channel_id: channel_id, timestamp: timestamp, name: "eyes")
+      workspace.adapter.add_reaction(channel_id: channel_id, message_id: timestamp, name: "eyes")
     rescue AdapterError => e
       Rails.logger.info({ event: "events.app_mention.reaction_failed", error: e.message }.to_json)
     end

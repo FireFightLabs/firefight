@@ -10,43 +10,43 @@ module Commands
 
       case subcommand
       when Identifiers::SUBCOMMAND_NEW
-        Commands::ModalHandler.execute(command)
+        Commands::DeclareIncident.execute(command)
       when Identifiers::SUBCOMMAND_HOME, nil
-        Commands::HomeModalHandler.execute(command)
+        Commands::OpenHome.execute(command)
       when Identifiers::SUBCOMMAND_SUMMARY
-        Commands::SummaryHandler.execute(command)
+        Commands::UpdateSummary.execute(command)
       when Identifiers::SUBCOMMAND_LEAD
-        Commands::LeadHandler.execute(command)
+        Commands::AssignLead.execute(command)
       when Identifiers::SUBCOMMAND_STATUS
-        Commands::StatusHandler.execute(command)
+        Commands::ChangeStatus.execute(command)
       when Identifiers::SUBCOMMAND_UPDATE
-        Commands::UpdateHandler.execute(command)
+        Commands::UpdateIncident.execute(command)
       when Identifiers::SUBCOMMAND_SEVERITY
-        Commands::SeverityHandler.execute(command)
+        Commands::ChangeSeverity.execute(command)
       when Identifiers::SUBCOMMAND_ESCALATE
-        Commands::EscalateHandler.execute(command)
+        Commands::EscalateIncident.execute(command)
       when Identifiers::SUBCOMMAND_INVITE
-        Commands::InviteHandler.execute(command)
+        Commands::InviteResponders.execute(command)
       when Identifiers::SUBCOMMAND_ACTION, Identifiers::SUBCOMMAND_ACTIONS
-        Commands::ActionsHandler.execute(command)
+        Commands::ListActions.execute(command)
       when Identifiers::SUBCOMMAND_FOLLOWUP, Identifiers::SUBCOMMAND_FOLLOWUPS
-        Commands::FollowupsHandler.execute(command)
+        Commands::ListFollowups.execute(command)
       when Identifiers::SUBCOMMAND_LINK, Identifiers::SUBCOMMAND_RELATE, Identifiers::SUBCOMMAND_DUPLICATE
-        Commands::LinkHandler.execute(command)
+        Commands::LinkIncident.execute(command)
       when Identifiers::SUBCOMMAND_CLOSE, Identifiers::SUBCOMMAND_RESOLVE
-        Commands::CloseHandler.execute(command)
+        Commands::CloseIncident.execute(command)
       when Identifiers::SUBCOMMAND_REOPEN
-        Commands::ReopenHandler.execute(command)
+        Commands::ReopenIncident.execute(command)
       when Identifiers::SUBCOMMAND_POSTMORTEM
-        Commands::PostmortemHandler.execute(command)
+        Commands::GeneratePostmortem.execute(command)
       when Identifiers::SUBCOMMAND_CATCHUP
-        Commands::CatchupHandler.execute(command)
+        Commands::GenerateCatchup.execute(command)
       when Identifiers::SUBCOMMAND_TIMELINE
-        Commands::TimelineHandler.execute(command)
+        Commands::ShowTimeline.execute(command)
       when Identifiers::SUBCOMMAND_LIST
-        Commands::ListHandler.execute(command)
+        Commands::ListActiveIncidents.execute(command)
       when Identifiers::SUBCOMMAND_SHOUTOUT
-        Commands::ShoutoutHandler.execute(command)
+        Commands::GiveShoutout.execute(command)
       else
         suggestion = suggest_subcommand(subcommand)
         msg = if suggestion

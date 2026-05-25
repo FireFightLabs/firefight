@@ -104,11 +104,11 @@ Controllers are the platform-specific boundary — they normalize payloads into 
 
 Most handlers stay sync. A handler should enqueue its own job when **any** of these is true:
 
-- The work calls an AI provider or another slow external API (`PostmortemHandler`, `CatchupHandler`).
-- The work hits paginated Slack endpoints (`users.list`, `conversations.list`) or fans out N sequential API calls (`InviteHandler` resolve+invite path).
+- The work calls an AI provider or another slow external API (`Commands::GeneratePostmortem`, `Commands::GenerateCatchup`).
+- The work hits paginated Slack endpoints (`users.list`, `conversations.list`) or fans out N sequential API calls (`Commands::InviteResponders` resolve+invite path).
 - The work could plausibly exceed ~1.5s on the slowest realistic workspace (leaves headroom inside Slack's 3s budget for signature verify, membership provisioning, and dispatch).
 
-Pattern (see `Commands::InviteHandler` + `IncidentInviteJob` + `IncidentInviteService#resolve_and_notify!` as the reference):
+Pattern (see `Commands::InviteResponders` + `IncidentInviteJob` + `IncidentInviteService#resolve_and_notify!` as the reference):
 
 1. Handler does cheap precondition checks; if heavy work is needed, calls `MyJob.perform_later(...)` with primitive args (ids, text, channel_id, user_id — never AR records).
 2. Handler returns an immediate ephemeral acknowledgment (`Command.ephemeral(":hourglass_flowing_sand: …")`).
@@ -174,9 +174,16 @@ Route to handlers using lookup tables. Fall back to `UnknownHandler`.
 
 ### Handlers
 
+The "handler" layer is split by namespace, with different naming conventions reflecting different semantics:
+
+- **`app/services/commands/`** — Slack slash-command handlers. Named as action verbs without a `Handler` suffix (e.g. `Commands::DeclareIncident`, `Commands::ChangeStatus`, `Commands::AssignLead`). The class name reads as the user's intent; the `Commands::` namespace already marks the architectural layer. The dispatch site reads like an English description (`on SUBCOMMAND_STATUS, Commands::ChangeStatus.execute(command)`). One exception: `Commands::HomeHandler` keeps the suffix because it's the sub-dispatcher, not a leaf action — it routes `Identifiers::SUBCOMMAND_*` to the corresponding command class.
+- **`app/services/interactions/`** — Slack interaction handlers (button clicks, view submissions, shortcuts). Keep the `Handler` suffix (e.g. `Interactions::HomeContinueHandler`, `Interactions::UnknownHandler`). Interaction names describe *what UI event happened*, not an action — `Handler` reads naturally as "handles this event."
+
+Both layers share the same shape:
+
 Class methods with `self.execute(command)` or `self.execute(interaction)`. Stateless. Return response hashes or nil.
 
-Handlers are thin — only guards, routing, and delegation:
+They are thin — only guards, routing, and delegation:
 - Guard clauses (`return ephemeral("...") unless command.workspace`)
 - Route to the right service or adapter method
 - Return the response hash
@@ -186,6 +193,8 @@ Never put in a handler: DB queries beyond `command.workspace` / `command.inciden
 `command.workspace` and `command.incident` are memoized on `Command` — call them directly, no local variable needed.
 
 Handlers decide whether to dispatch sync or enqueue a job — see [When to enqueue from a handler](#when-to-enqueue-from-a-handler). The controller never decides; it always calls the handler the same way.
+
+**Naming new commands:** verb first, noun after — `DeclareIncident`, `ChangeStatus`, `AssignLead`, `GeneratePostmortem`. Filename matches: `declare_incident.rb`, etc. If the command opens a modal as its only action, name it after the *intent* rather than the implementation (`AssignLead`, not `OpenLeadModal`). Only fall back to `Open<Thing>` when the intent really is "show this view" (`OpenHome`).
 
 ### Normalizers
 
@@ -474,7 +483,8 @@ app/frontend/
     settings/
       index.tsx            # /settings
       <tab>.tsx            # /settings/<tab>
-      components/          # one component per file: *-tab.tsx + every dialog/sheet extracted
+      components/          # cross-tab shared (color-dot, row-actions)
+        <tab>/             # one folder per settings tab; holds *-tab.tsx + its dialogs/sheets
       hooks/               # use-sync-form-data, use-permissions-matrix
       lib/                 # types.ts (data types; lives under lib/ to avoid colliding with types.tsx page)
     onboarding/
@@ -521,6 +531,10 @@ app/frontend/
   - A hook used by exactly one feature lives in that feature's folder: `pages/<feature>/hooks/<name>.ts`.
   - A hook used by ≥2 features OR a generic primitive (`use-mobile`) lives at `app/frontend/hooks/`.
   - Don't keep file-local hooks inline in a component file — every hook is its own `.ts`, named `use-<kebab>.ts`.
+- **Multi-page features group sub-components per page:**
+  - When a feature has multiple page files (e.g. `pages/settings/` with one `.tsx` per tab), components used by exactly one page live in a subfolder named after that page: `pages/<feature>/components/<page>/<component>.tsx`.
+  - Components shared by ≥2 pages within the feature stay flat at `pages/<feature>/components/` (e.g. `pages/settings/components/row-actions.tsx`, used by every settings tab).
+  - Features with a single page (e.g. `pages/dashboard/`) keep the flat `components/` layout — no per-page subfolder needed.
 - The Inertia resolver does a string lookup against `import.meta.glob('../pages/**/*.tsx')` so co-located components (anything other than the file the controller names) are inert — they're imported into the bundle but never resolved as a page.
 
 **shadcn/ui components are untouched:**

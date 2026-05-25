@@ -16,7 +16,7 @@ class IncidentActionService
     action.create_initial_update!(actor: created_by)
 
     result = @workspace.adapter.post_action_message(channel_id: incident.channel_id, action: action)
-    action.update!(message_ts: result[:message_ts])
+    action.update!(message_ts: result[:message_id])
 
     action
   end
@@ -47,13 +47,13 @@ class IncidentActionService
     when :picked_up
       adapter.update_action_picked_up(
         channel_id: action.incident.channel_id,
-        ts: action.message_ts,
+        message_id: action.message_ts,
         action: action
       )
     when :completed
       adapter.update_action_completed(
         channel_id: action.incident.channel_id,
-        ts: action.message_ts,
+        message_id: action.message_ts,
         action: action
       )
     end

@@ -10,7 +10,7 @@ class CommandDispatcher
     handler = COMMAND_HANDLERS[command.command_name]
     return handler if handler
 
-    Commands::ModalHandler
+    Commands::DeclareIncident
   end
 
   def self.dispatch(command)

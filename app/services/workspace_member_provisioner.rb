@@ -50,12 +50,11 @@ class WorkspaceMemberProvisioner
     nil
   end
 
-  # Retrieves the Slack profile hash via adapter, normalizing Slack's nested
-  # `{ user: { profile: {...} } }` shape into a flat profile hash.
+  # Returns a flat profile hash via the platform adapter. The adapter
+  # normalizes platform-specific shapes; we may also receive an
+  # OmniAuth::AuthHash::InfoHash from the OIDC path, which `pick` handles.
   def self.fetch_profile(adapter, platform_user_id)
-    response  = adapter.get_user_info(user_id: platform_user_id)
-    slack_user = response[:user] || response["user"] || {}
-    slack_user[:profile] || slack_user["profile"] || {}
+    adapter.get_user_info(user_id: platform_user_id)
   end
   private_class_method :fetch_profile
 

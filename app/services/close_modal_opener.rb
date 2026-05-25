@@ -10,11 +10,11 @@ class CloseModalOpener
 
     metadata = {
       incident_id: incident.id,
-      temp_message_ts: result[:message_ts],
+      temp_message_ts: result[:message_id],
       channel_id: incident.channel_id
     }.to_json
 
-    adapter.open_close_incident_modal(trigger_id: trigger_id, incident: incident, private_metadata: metadata)
+    adapter.open_modal(trigger_id: trigger_id, view: Slack::Modals::IncidentClose.build(incident, private_metadata: metadata))
   rescue AdapterError::TriggerExpired
     cleanup_temp_message(adapter, incident.channel_id, result&.dig(:message_ts))
     raise
@@ -23,7 +23,7 @@ class CloseModalOpener
   def self.cleanup_temp_message(adapter, channel_id, ts)
     return unless ts
 
-    adapter.delete_message(channel_id: channel_id, ts: ts)
+    adapter.delete_message(channel_id: channel_id, message_id: ts)
   rescue AdapterError => e
     Rails.logger.warn({ event: "close_modal_opener.cleanup_temp_failed", error: e.message })
   end

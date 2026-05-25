@@ -39,7 +39,7 @@ module Events
     end
 
     def self.fetch_permalink(workspace, channel_id, message_ts)
-      workspace.adapter.get_message_permalink(channel_id: channel_id, message_ts: message_ts)[:permalink]
+      workspace.adapter.get_message_permalink(channel_id: channel_id, message_id: message_ts)[:permalink]
     rescue AdapterError
       nil
     end
