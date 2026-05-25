@@ -8,7 +8,7 @@ module Interactions
 
       return already_closed_error if incident.closed?
 
-      submission = IncidentFormSubmission.new(
+      submission = Slack::FormSubmission.new(
         workspace: workspace,
         form_slug: IncidentForm::SLUG_RESOLVE,
         values: interaction.values,

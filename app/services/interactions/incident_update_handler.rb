@@ -6,7 +6,7 @@ module Interactions
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
-      submission = IncidentFormSubmission.new(
+      submission = Slack::FormSubmission.new(
         workspace: workspace,
         form_slug: IncidentForm::SLUG_UPDATE,
         values: interaction.values,

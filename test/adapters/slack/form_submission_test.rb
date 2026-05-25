@@ -1,6 +1,6 @@
 require "test_helper"
 
-class IncidentFormSubmissionTest < ActiveSupport::TestCase
+class Slack::FormSubmissionTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships,
            :incident_severities, :incident_types,
            :incident_lifecycle_stages, :incident_statuses,
@@ -20,7 +20,7 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
       }
     }
 
-    result = IncidentFormSubmission.new(
+    result = Slack::FormSubmission.new(
       workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: values
     ).parse
 
@@ -40,7 +40,7 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
       }
     }
 
-    result = IncidentFormSubmission.new(
+    result = Slack::FormSubmission.new(
       workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: values
     ).parse
 
@@ -61,7 +61,7 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
       }
     }
 
-    result = IncidentFormSubmission.new(
+    result = Slack::FormSubmission.new(
       workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: values
     ).parse
 
@@ -74,7 +74,7 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
       "field_name_block" => { "field_name_input" => { "value" => "No severity" } }
     }
 
-    result = IncidentFormSubmission.new(
+    result = Slack::FormSubmission.new(
       workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: values
     ).parse
 
@@ -95,7 +95,7 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
       }
     }
 
-    result = IncidentFormSubmission.new(
+    result = Slack::FormSubmission.new(
       workspace: @workspace,
       form_slug: IncidentForm::SLUG_UPDATE,
       values: values,
@@ -115,7 +115,7 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
         "field_severity_input" => { "selected_option" => { "value" => "critical" } }
       }
     }
-    result = IncidentFormSubmission.new(
+    result = Slack::FormSubmission.new(
       workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: values
     ).parse
 
@@ -133,7 +133,7 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
         "field_severity_input" => { "selected_option" => { "value" => "critical" } }
       }
     }
-    result = IncidentFormSubmission.new(
+    result = Slack::FormSubmission.new(
       workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: values
     ).parse
 
@@ -150,7 +150,7 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
       }
     }
 
-    result = IncidentFormSubmission.new(
+    result = Slack::FormSubmission.new(
       workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: values
     ).parse
 
@@ -167,7 +167,7 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
       "field_unknown_block" => { "field_unknown_input" => { "value" => "ignored" } }
     }
 
-    result = IncidentFormSubmission.new(
+    result = Slack::FormSubmission.new(
       workspace: @workspace, form_slug: IncidentForm::SLUG_DECLARE, values: values
     ).parse
 
