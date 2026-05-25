@@ -92,8 +92,8 @@ The service:
 Controllers validate requests, normalize payloads, dispatch synchronously, and render the response. No business logic. Slack requires response within 3 seconds (trigger_id expiration) — the controller stays in-process and meets that budget by relying on handlers to enqueue jobs when their work is heavy.
 
 ```
-Api::V1::CommandsController     → Slack::CommandAdapter.parse → ensure_membership! → CommandDispatcher.dispatch → render JSON / head :ok
-Api::V1::InteractionsController → Slack::InteractionNormalizer.call → ensure_membership! → InteractionDispatcher.dispatch → render JSON / head :ok
+Api::V1::CommandsController     → Slack::CommandParser.parse     → ensure_membership! → CommandDispatcher.dispatch     → render JSON / head :ok
+Api::V1::InteractionsController → Slack::InteractionParser.parse → ensure_membership! → InteractionDispatcher.dispatch → render JSON / head :ok
 ```
 
 `ensure_membership!` (in `Api::V1::BaseController`) lazily provisions a `WorkspaceMembership` for the acting Slack user via `WorkspaceMemberProvisioner` so downstream handlers can trust `find_by!(platform_user_id:)`. Best-effort — provisioning failure logs and dispatch continues.
@@ -200,8 +200,8 @@ Handlers decide whether to dispatch sync or enqueue a job — see [When to enque
 
 Platform-specific payloads are normalized into platform-agnostic POJOs at the boundary (controllers/jobs) before reaching dispatchers and handlers.
 
-- `Slack::CommandAdapter.parse(payload)` → `Command` (ActiveModel with validations) — called in `CommandsController`
-- `Slack::InteractionNormalizer.call(payload)` → `Interaction` (plain PORO with attr_readers) — called in `InteractionsController`
+- `Slack::CommandParser.parse(payload)` → `Command` (ActiveModel with validations) — called in `CommandsController`
+- `Slack::InteractionParser.parse(payload)` → `Interaction` (plain PORO with attr_readers) — called in `InteractionsController`
 
 Dispatchers and handlers only receive normalized objects — never raw payloads. Handlers access normalized fields (`interaction.user_id`, `command.trigger_id`).
 
@@ -403,8 +403,8 @@ app/adapters/
   slack/
     client.rb                         # Slack API wrapper (Net::HTTP::Persistent pool, see http_pool)
     workspace_adapter.rb              # Slack adapter (low-level + high-level methods)
-    interaction_normalizer.rb         # Raw payload → Interaction POJO
-    command_adapter.rb                # Raw payload → Command POJO
+    interaction_parser.rb             # Raw payload → Interaction POJO
+    command_parser.rb                 # Raw payload → Command POJO
     modal_builder.rb                  # Block Kit modal definitions (internal to adapter)
     incident_message_builder.rb       # Incident Block Kit messages (internal to adapter)
 
