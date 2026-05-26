@@ -5,7 +5,8 @@ class IncidentActionUpdate < ApplicationRecord
 
   UPDATE_TYPES = [ CREATED, PICKED_UP, COMPLETED ].freeze
 
-  has_one :incident_event, as: :eventable, touch: true
+  include Recordable
+  records IncidentAction, recorder: :actor
 
   belongs_to :incident_action
   belongs_to :incident

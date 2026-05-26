@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 # Incident::Metrics - Incident analytics and calculations
 #
 # Provides read-only calculations for incident metrics and analytics:

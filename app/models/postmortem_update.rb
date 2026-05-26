@@ -5,7 +5,8 @@ class PostmortemUpdate < ApplicationRecord
 
   UPDATE_TYPES = [ GENERATED, EDITED, AI_EDITED ].freeze
 
-  has_one :incident_event, as: :eventable, touch: true
+  include Recordable
+  records Postmortem, recorder: :edited_by
 
   belongs_to :postmortem
   belongs_to :incident

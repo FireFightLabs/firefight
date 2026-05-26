@@ -29,8 +29,8 @@ class IncidentAction::SnapshotsTest < ActiveSupport::TestCase
     )
   end
 
-  test "build_snapshot_attributes returns all action columns" do
-    attrs = @action.build_snapshot_attributes
+  test "snapshot_attributes returns all action columns" do
+    attrs = @action.snapshot_attributes
 
     assert_equal @action, attrs[:incident_action]
     assert_equal @incident, attrs[:incident]
@@ -43,9 +43,9 @@ class IncidentAction::SnapshotsTest < ActiveSupport::TestCase
     assert_nil attrs[:deleted_at]
   end
 
-  test "create_initial_update! creates snapshot with empty changed_fields" do
+  test "record_change! with no block records the initial creation snapshot" do
     assert_difference [ "IncidentActionUpdate.count", "IncidentEvent.count" ], 1 do
-      @action.create_initial_update!(actor: @member)
+      @action.record_change!(IncidentEvent::ACTION_CREATED, by: @member)
     end
 
     update = @action.incident_action_updates.find_by!(update_type: IncidentActionUpdate::CREATED)
@@ -63,9 +63,9 @@ class IncidentAction::SnapshotsTest < ActiveSupport::TestCase
   end
 
   test "record_change! captures changed fields" do
-    @action.create_initial_update!(actor: @member)
+    @action.record_change!(IncidentEvent::ACTION_CREATED, by: @member)
 
-    @action.record_change!(IncidentEvent::ACTION_PICKED_UP, actor: @bob) do
+    @action.record_change!(IncidentEvent::ACTION_PICKED_UP, by: @bob) do
       @action.update!(assignee: @bob, status: IncidentAction::STATUS_IN_PROGRESS)
     end
 
@@ -82,9 +82,9 @@ class IncidentAction::SnapshotsTest < ActiveSupport::TestCase
 
   test "record_change! detects only actually changed fields" do
     @action.update!(assignee: @bob, status: IncidentAction::STATUS_IN_PROGRESS)
-    @action.create_initial_update!(actor: @member)
+    @action.record_change!(IncidentEvent::ACTION_CREATED, by: @member)
 
-    @action.record_change!(IncidentEvent::ACTION_COMPLETED, actor: @bob) do
+    @action.record_change!(IncidentEvent::ACTION_COMPLETED, by: @bob) do
       @action.update!(status: IncidentAction::STATUS_DONE)
     end
 
@@ -95,9 +95,9 @@ class IncidentAction::SnapshotsTest < ActiveSupport::TestCase
   end
 
   test "record_change! snapshot reflects state after change" do
-    @action.create_initial_update!(actor: @member)
+    @action.record_change!(IncidentEvent::ACTION_CREATED, by: @member)
 
-    @action.record_change!(IncidentEvent::ACTION_PICKED_UP, actor: @bob) do
+    @action.record_change!(IncidentEvent::ACTION_PICKED_UP, by: @bob) do
       @action.update!(assignee: @bob, status: IncidentAction::STATUS_IN_PROGRESS)
     end
 

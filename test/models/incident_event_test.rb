@@ -76,66 +76,20 @@ class IncidentEventTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
-  # HELPER METHODS
+  # UPDATE_TYPE_MAP
   # ============================================================================
 
-  test "before_snapshot returns before metadata" do
-    event = incident_events(:inc1_updated)
-    snapshot = event.before_snapshot
-    assert_equal "Database connection pool exhausted", snapshot["name"]
-    assert_nil snapshot["summary"]
+  test "update_type_for maps lifecycle event types to IncidentUpdate update_types" do
+    assert_equal IncidentUpdate::CREATED, IncidentEvent.update_type_for(IncidentEvent::INCIDENT_CREATED)
+    assert_equal IncidentUpdate::UPDATED, IncidentEvent.update_type_for(IncidentEvent::INCIDENT_UPDATED)
+    assert_equal IncidentUpdate::CLOSED, IncidentEvent.update_type_for(IncidentEvent::INCIDENT_RESOLVED)
+    assert_equal IncidentUpdate::REOPENED, IncidentEvent.update_type_for(IncidentEvent::INCIDENT_REOPENED)
   end
 
-  test "before_snapshot returns empty hash if not present" do
-    event = incident_events(:inc1_created)
-    assert_equal({}, event.before_snapshot)
-  end
-
-  test "after_snapshot returns after metadata" do
-    event = incident_events(:inc1_created)
-    snapshot = event.after_snapshot
-    assert_equal "Database connection pool exhausted", snapshot["name"]
-    assert_equal "investigating", snapshot["status"]
-    assert_equal "critical", snapshot["severity"]
-  end
-
-  test "after_snapshot returns empty hash if not present" do
-    event = incident_events(:inc1_lead_assigned)
-    assert_equal({}, event.after_snapshot)
-  end
-
-  test "changed_fields returns list of changed fields" do
-    event = incident_events(:inc1_updated)
-    assert_equal [ "summary" ], event.changed_fields
-  end
-
-  test "changed_fields returns empty array if not present" do
-    event = incident_events(:inc1_created)
-    assert_equal [], event.changed_fields
-  end
-
-  test "details returns details metadata" do
-    event = incident_events(:inc1_lead_assigned)
-    details = event.details
-    assert_equal "incident_lead", details["role"]
-    assert_equal "alice_workspace_one", details["assigned_to"]
-  end
-
-  test "details returns nil if not present" do
-    event = incident_events(:inc1_created)
-    assert_nil event.details
-  end
-
-  test "changed? returns true for changed fields" do
-    event = incident_events(:inc1_updated)
-    assert event.changed?("summary")
-    assert event.changed?(:summary)
-  end
-
-  test "changed? returns false for unchanged fields" do
-    event = incident_events(:inc1_updated)
-    assert_not event.changed?("name")
-    assert_not event.changed?(:status)
+  test "update_type_for raises ArgumentError for events without an eventable" do
+    assert_raises(ArgumentError) do
+      IncidentEvent.update_type_for(IncidentEvent::MESSAGE_PINNED)
+    end
   end
 
   # ============================================================================
@@ -181,13 +135,13 @@ class IncidentEventTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
-  # DELEGATED TYPES
+  # DELEGATED TYPES + changed_fields
   # ============================================================================
 
-  test "delegated_type is optional" do
+  test "eventable is optional (action events carry only metadata)" do
     event = IncidentEvent.new(
       incident: incidents(:active_critical_ws1),
-      event_type: IncidentEvent::INCIDENT_UPDATED
+      event_type: IncidentEvent::MESSAGE_PINNED
     )
     assert_nil event.eventable
     assert event.valid?
@@ -220,32 +174,6 @@ class IncidentEventTest < ActiveSupport::TestCase
     )
 
     assert_equal 1, incident.incident_events.updates.count
-  end
-
-  test "action_updates scope returns events with IncidentActionUpdate eventable" do
-    incident = incidents(:active_critical_ws1)
-    member = workspace_memberships(:alice_workspace_one)
-    action = incident_actions(:inc1_action_open)
-
-    action_update = IncidentActionUpdate.create!(
-      incident_action: action,
-      incident: incident,
-      update_type: IncidentActionUpdate::CREATED,
-      action_type: action.action_type,
-      actor: member,
-      created_by: action.created_by,
-      assignee: action.assignee,
-      description: action.description,
-      status: action.status
-    )
-
-    incident.incident_events.create!(
-      event_type: IncidentEvent::ACTION_CREATED,
-      user: member,
-      eventable: action_update
-    )
-
-    assert_equal 1, incident.incident_events.action_updates.count
   end
 
   test "changed_fields delegates to IncidentActionUpdate when eventable" do
@@ -309,6 +237,11 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_not event.changed?(:name)
   end
 
+  test "changed_fields returns empty array when no eventable" do
+    event = incident_events(:inc1_lead_assigned)
+    assert_equal [], event.changed_fields
+  end
+
   # ============================================================================
   # FIXTURES LOADING
   # ============================================================================
@@ -318,17 +251,5 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_equal incidents(:active_critical_ws1), event.incident
     assert_equal "incident.created", event.event_type
     assert_not_nil event.metadata
-  end
-
-  test "event with changed_fields loads correctly" do
-    event = incident_events(:inc1_updated)
-    assert_equal [ "summary" ], event.changed_fields
-    assert event.changed?("summary")
-  end
-
-  test "event with details loads correctly" do
-    event = incident_events(:inc3_resolved)
-    assert_equal 4, event.details["resolution_time"]
-    assert_equal "Fixed by restarting upload service", event.details["resolution_notes"]
   end
 end

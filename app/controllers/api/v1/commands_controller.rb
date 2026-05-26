@@ -1,6 +1,6 @@
 class Api::V1::CommandsController < Api::V1::BaseController
   def create
-    command = Slack::CommandAdapter.parse(command_params.to_h)
+    command = Slack::CommandParser.parse(command_params.to_h)
 
     unless command.valid?
       Rails.logger.error({ event: "command.unknown_workspace", errors: command.errors.full_messages })

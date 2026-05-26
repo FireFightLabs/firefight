@@ -1,6 +1,6 @@
 require "test_helper"
 
-class Slack::CommandAdapterTest < ActiveSupport::TestCase
+class Slack::CommandParserTest < ActiveSupport::TestCase
   fixtures :workspaces
 
   setup do
@@ -21,7 +21,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
     "response_url" => "https://hooks.slack.com/commands/T12345678/12345/abc123"
     }
 
-    command = Slack::CommandAdapter.parse(payload)
+    command = Slack::CommandParser.parse(payload)
 
     assert_equal Platforms::SLACK, command.platform
     assert_equal @workspace.id, command.workspace_id
@@ -45,7 +45,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
     "response_url" => "https://hooks.slack.com/commands/T12345678/12345/abc123"
     }
 
-    command = Slack::CommandAdapter.parse(payload)
+    command = Slack::CommandParser.parse(payload)
 
     assert_equal @workspace.platform_id, command.metadata[:team_id]
     assert_equal "test-workspace", command.metadata[:team_domain]
@@ -64,7 +64,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
     "channel_id" => "C12345678"
     }
 
-    command = Slack::CommandAdapter.parse(payload)
+    command = Slack::CommandParser.parse(payload)
 
     assert_equal "", command.text
     assert command.blank?
@@ -79,7 +79,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
     "channel_id" => "C12345678"
     }
 
-    command = Slack::CommandAdapter.parse(payload)
+    command = Slack::CommandParser.parse(payload)
 
     assert_equal "help me", command.text
   end
@@ -93,7 +93,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
     "channel_id" => "C12345678"
     }
 
-    command = Slack::CommandAdapter.parse(payload)
+    command = Slack::CommandParser.parse(payload)
 
     assert_equal "", command.text
     assert command.blank?
@@ -108,7 +108,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
     "channel_id" => "C12345678"
     }
 
-    command = Slack::CommandAdapter.parse(payload)
+    command = Slack::CommandParser.parse(payload)
 
     assert_nil command.workspace_id
     refute command.valid? # Should be invalid because workspace_id is required
@@ -123,7 +123,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
     "channel_id" => "C12345678"
     }
 
-    command = Slack::CommandAdapter.parse(payload)
+    command = Slack::CommandParser.parse(payload)
 
     assert command.valid?
     assert_empty command.errors
@@ -138,7 +138,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
     "channel_id" => "C12345678"
     }
 
-    command = Slack::CommandAdapter.parse(payload)
+    command = Slack::CommandParser.parse(payload)
 
     assert_equal @workspace, command.workspace
     assert_equal @workspace.name, command.workspace.name
@@ -153,7 +153,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
     "channel_id" => "C12345678"
     }
 
-    command = Slack::CommandAdapter.parse(payload)
+    command = Slack::CommandParser.parse(payload)
 
     assert command.slack?
     refute command.teams?
@@ -168,7 +168,7 @@ class Slack::CommandAdapterTest < ActiveSupport::TestCase
     "channel_id" => "C12345678"
     }
 
-    command = Slack::CommandAdapter.parse(payload)
+    command = Slack::CommandParser.parse(payload)
 
     assert_equal "status", command.subcommand
     assert_equal [ "status", "--verbose" ], command.args

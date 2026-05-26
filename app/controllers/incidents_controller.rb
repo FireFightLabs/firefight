@@ -42,7 +42,7 @@ class IncidentsController < InertiaController
     postmortem = incident.postmortem or raise ActiveRecord::RecordNotFound
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
 
-    postmortem.update_content!(params[:html_content], edited_by: member)
+    postmortem.update_content!(params[:html_content], by: member)
 
     head :ok
   end
@@ -52,7 +52,7 @@ class IncidentsController < InertiaController
     postmortem = incident.postmortem or raise ActiveRecord::RecordNotFound
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
 
-    postmortem.update_status!(params.require(:status), edited_by: member)
+    postmortem.update_status!(params.require(:status), by: member)
 
     redirect_to incident_postmortem_path(incident)
   end

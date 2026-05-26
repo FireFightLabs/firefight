@@ -7,7 +7,7 @@ module Interactions
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
       new_summary = interaction.values.dig("summary_block", "summary_input", "value")
 
-      incident.record_change!(IncidentEvent::INCIDENT_UPDATED, changed_by: member) do
+      incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) do
         incident.update!(summary: new_summary)
       end
 
