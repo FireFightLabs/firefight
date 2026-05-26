@@ -55,3 +55,6 @@ node_modules
 # Ignore key files for decrypting credentials and more.
 /config/credentials/*.key
 
+# Local knowledge-graph artifacts from /understand
+/.understand-anything/
+
