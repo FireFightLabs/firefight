@@ -21,7 +21,7 @@ class IncidentLifecycleService
     previous_severity_name = incident.incident_severity.name
     previous_type_name = incident.incident_type&.name
 
-    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, changed_by: changed_by, message: message) do
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: changed_by, message: message) do
       incident.update!(attrs)
     end
 
@@ -37,7 +37,7 @@ class IncidentLifecycleService
   def close(incident, attrs, changed_by:)
     lead = attrs.delete(:lead)
 
-    incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, changed_by: changed_by) do
+    incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, by: changed_by) do
       incident.update!(attrs)
       incident.lead = lead if lead
     end
@@ -55,7 +55,12 @@ class IncidentLifecycleService
   end
 
   def reopen(incident, attrs, changed_by:, reason: nil)
-    incident.record_change!(IncidentEvent::INCIDENT_REOPENED, changed_by: changed_by, message: reason, details: reason ? { reason: reason } : nil) do
+    incident.record_change!(
+      IncidentEvent::INCIDENT_REOPENED,
+      by: changed_by,
+      message: reason,
+      metadata: reason ? { reason: reason } : nil
+    ) do
       incident.update!(attrs)
     end
 
@@ -73,7 +78,7 @@ class IncidentLifecycleService
   end
 
   def accept(incident, attrs, changed_by:)
-    incident.record_change!(IncidentEvent::INCIDENT_ACCEPTED, changed_by: changed_by) do
+    incident.record_change!(IncidentEvent::INCIDENT_ACCEPTED, by: changed_by) do
       incident.update!(attrs)
       incident.lead = changed_by unless incident.lead
     end
@@ -84,7 +89,7 @@ class IncidentLifecycleService
   end
 
   def assign_lead(incident, lead, changed_by:)
-    incident.record_change!(IncidentEvent::LEAD_ASSIGNED, changed_by: changed_by) do
+    incident.record_change!(IncidentEvent::LEAD_ASSIGNED, by: changed_by) do
       incident.lead = lead
     end
 

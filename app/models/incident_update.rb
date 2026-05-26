@@ -8,7 +8,8 @@ class IncidentUpdate < ApplicationRecord
 
   UPDATE_TYPES = [ CREATED, UPDATED, CLOSED, REOPENED, LEAD_ASSIGNED, ACCEPTED ].freeze
 
-  has_one :incident_event, as: :eventable, touch: true
+  include Recordable
+  records Incident, recorder: :created_by
 
   belongs_to :incident
   belongs_to :workspace, optional: false

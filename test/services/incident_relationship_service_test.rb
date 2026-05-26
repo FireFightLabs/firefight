@@ -38,10 +38,10 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
 
     event1 = @incident1.incident_events.find_by!(event_type: IncidentEvent::RELATIONSHIP_CREATED)
     assert_equal @member, event1.user
-    assert_equal @incident2.id, event1.metadata.dig("details", "related_incident_id")
+    assert_equal @incident2.id, event1.metadata["related_incident_id"]
 
     event2 = @incident2.incident_events.find_by!(event_type: IncidentEvent::RELATIONSHIP_CREATED)
-    assert_equal @incident1.id, event2.metadata.dig("details", "related_incident_id")
+    assert_equal @incident1.id, event2.metadata["related_incident_id"]
   end
 
   test "link_related is idempotent" do
@@ -97,7 +97,7 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
     @service.mark_duplicate(source: @incident1, canonical: @incident2, created_by: @member)
 
     event = @incident2.incident_events.find_by!(event_type: IncidentEvent::MARKED_DUPLICATE)
-    assert_equal @incident1.id, event.metadata.dig("details", "related_incident_id")
+    assert_equal @incident1.id, event.metadata["related_incident_id"]
   end
 
   test "mark_duplicate creates incident update snapshot" do

@@ -8,7 +8,7 @@ module FirefightAi
       prompt_data = incident.to_full_context(workspace: @workspace)
       ai_result = call_ai(prompt_data)
       postmortem = create_postmortem(incident, ai_result, generated_by: generated_by)
-      postmortem.create_initial_update!(edited_by: generated_by)
+      postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: generated_by)
       postmortem
     end
 

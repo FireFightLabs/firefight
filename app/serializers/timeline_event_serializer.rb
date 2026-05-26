@@ -30,18 +30,31 @@ class TimelineEventSerializer < BaseSerializer
   def changes
     return nil unless event.eventable.is_a?(IncidentUpdate) && event.changed_fields.any?
 
+    current = event.eventable
+    previous = previous_incident_update(current)
+
     event.changed_fields.map do |field|
       {
         field: field,
-        before: event.before_snapshot[field].to_s,
-        after: event.after_snapshot[field].to_s
+        before: previous&.public_send(field).to_s,
+        after: current.public_send(field).to_s
       }
     end
   end
 
   type :string, optional: true
   def details
-    d = event.details
+    d = event.metadata["message"] || event.metadata[:message]
     d.is_a?(String) ? d : nil
+  end
+
+  private
+
+  def previous_incident_update(current)
+    IncidentUpdate
+      .where(incident_id: current.incident_id)
+      .where("created_at < ?", current.created_at)
+      .order(created_at: :desc)
+      .first
   end
 end

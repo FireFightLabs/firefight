@@ -1,4 +1,7 @@
 # Incident events for testing
+# Note: snapshot-style metadata (before/after/changed_fields) lives on the
+# linked eventable (IncidentUpdate/IncidentActionUpdate/PostmortemUpdate),
+# not on IncidentEvent. The events below carry only action metadata.
 
 # Workspace One - Incident 1 events
 inc1_created:
@@ -6,11 +9,7 @@ inc1_created:
   event_type: incident.created
   user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
   created_at: <%= 2.hours.ago %>
-  metadata:
-    after:
-      name: "Database connection pool exhausted"
-      status: "investigating"
-      severity: "critical"
+  metadata: {}
 
 inc1_updated:
   incident: active_critical_ws1
@@ -18,13 +17,7 @@ inc1_updated:
   user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
   created_at: <%= 1.5.hours.ago %>
   metadata:
-    before:
-      name: "Database connection pool exhausted"
-      summary: null
-    after:
-      name: "Database connection pool exhausted"
-      summary: "Production database hitting max connections"
-    changed_fields: ["summary"]
+    message: "Production database hitting max connections"
 
 inc1_lead_assigned:
   incident: active_critical_ws1
@@ -32,9 +25,8 @@ inc1_lead_assigned:
   user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
   created_at: <%= 1.hour.ago %>
   metadata:
-    details:
-      role: "incident_lead"
-      assigned_to: "alice_workspace_one"
+    role: "incident_lead"
+    assigned_to: "alice_workspace_one"
 
 # Workspace One - Incident 2 events
 inc2_created:
@@ -42,11 +34,7 @@ inc2_created:
   event_type: incident.created
   user_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
   created_at: <%= 1.hour.ago %>
-  metadata:
-    after:
-      name: "Payment processing slow"
-      status: "identified"
-      severity: "major"
+  metadata: {}
 
 # Resolved incident with resolution event
 inc3_resolved:
@@ -55,9 +43,8 @@ inc3_resolved:
   user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
   created_at: <%= 20.hours.ago %>
   metadata:
-    details:
-      resolution_time: 4
-      resolution_notes: "Fixed by restarting upload service"
+    resolution_time: 4
+    resolution_notes: "Fixed by restarting upload service"
 
 # Workspace Two - Incident 1 events
 ws2_inc1_created:
@@ -65,8 +52,4 @@ ws2_inc1_created:
   event_type: incident.created
   user_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
   created_at: <%= 15.minutes.ago %>
-  metadata:
-    after:
-      name: "Complete service outage"
-      status: "triaging"
-      severity: "p0"
+  metadata: {}

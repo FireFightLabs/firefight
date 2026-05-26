@@ -280,11 +280,42 @@ Adapters return normalized hashes: `{ channel_id:, channel_name: }`, `{ message_
 
 **Platform boundary rule**: `Slack::Client` is only called from `Slack::WorkspaceAdapter`. No Slack-specific code outside `app/adapters/slack/`.
 
-### Domain Events
+### Domain Events — Trackable + Recordable
 
-`IncidentEvent` records are created via `incident.record_change!` or `incident.create_initial_update!` (defined in `Incident::Snapshots`). Both return the created `IncidentEvent`.
+Every meaningful state change to `Incident`, `IncidentAction`, or `Postmortem` is recorded as an `IncidentUpdate` / `IncidentActionUpdate` / `PostmortemUpdate` (the immutable snapshot — full state at that moment + `changed_fields` diff) plus an `IncidentEvent` (the event-bus row linking back to the snapshot via `delegated_type :eventable`).
 
-Domain event publication (`ProcessDomainEventJob`) belongs in the **service layer**, not in model callbacks. Models must not enqueue jobs.
+Models opt in via two paired concerns:
+
+- `Trackable` (`app/models/concerns/trackable.rb`) — on the live model. Provides `record_change!(event_type, by:, message: nil, metadata: nil) { ... }`. Diffs `snapshot_attributes` before/after the block, writes the snapshot + event in one transaction.
+- `Recordable` (`app/models/concerns/recordable.rb`) — on the snapshot model. Declares `records SourceClass, recorder: :column_name` and wires `has_one :incident_event, as: :eventable`.
+
+```ruby
+class Incident
+  include Trackable
+  tracked_by IncidentUpdate
+
+  def snapshot_attributes
+    { incident: self, workspace_id:, incident_status:, ... }
+  end
+end
+
+class IncidentUpdate < ApplicationRecord
+  include Recordable
+  records Incident, recorder: :created_by
+end
+
+incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, by: member) do
+  incident.update!(incident_status: resolved_status)
+end
+```
+
+Pass no block for "this just got created" — the diff is empty.
+
+Adding a new trackable model: create the snapshot table (mirroring tracked columns + `update_type`, `changed_fields`, recorder FK), include the concerns, add event_type constants to `IncidentEvent::EVENT_TYPES`, add the pair to `IncidentEvent::UPDATE_TYPE_MAP`, append the recordable class to `IncidentEvent`'s `delegated_type :eventable, types: [...]`.
+
+**Domain event publication** runs from `IncidentEvent`'s `after_create_commit :publish_to_event_bus` → `ProcessDomainEventJob`. The commit hook lives on the model because the canonical "this event happened" moment is the event row's commit; pushing publication into the service layer means every event-creation site has to remember to publish, and we'd lose events on accidental raw `incident_events.create!`.
+
+**Events without a recordable** (`MESSAGE_PINNED`, `INCIDENT_ESCALATED`, `ESCALATION_ACKNOWLEDGED`, `RELATIONSHIP_CREATED`, etc.) are still created directly with `incident.incident_events.create!(event_type:, user:, metadata:)`. They have no eventable; their payload lives flat in `metadata` (no `details:` nesting).
 
 ### Workflows
 

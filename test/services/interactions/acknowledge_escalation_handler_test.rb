@@ -14,9 +14,7 @@ class Interactions::AcknowledgeEscalationHandlerTest < ActiveSupport::TestCase
       event_type: IncidentEvent::INCIDENT_ESCALATED,
       user: @escalated_by,
       metadata: {
-        details: {
-          escalated_to_platform_user_id: @escalated_to.platform_user_id
-        }
+        escalated_to_platform_user_id: @escalated_to.platform_user_id
       }
     )
   end
@@ -31,8 +29,8 @@ class Interactions::AcknowledgeEscalationHandlerTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ESCALATION_ACKNOWLEDGED)
-    assert_equal @escalated_to.platform_user_id, event.details["acknowledged_by_platform_user_id"]
-    assert_equal @escalated_to.platform_user_id, @escalation_event.reload.details["acknowledged_by_platform_user_id"]
+    assert_equal @escalated_to.platform_user_id, event.metadata["acknowledged_by_platform_user_id"]
+    assert_equal @escalated_to.platform_user_id, @escalation_event.reload.metadata["acknowledged_by_platform_user_id"]
   end
 
   test "ignores acknowledgement from different user" do

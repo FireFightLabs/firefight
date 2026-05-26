@@ -53,6 +53,31 @@ class IncidentEvent < ApplicationRecord
     ESCALATION_NUDGED => "Escalation reminder was sent"
   }.freeze
 
+  # Canonical event_type -> recordable update_type map. Only events backed by
+  # a Recordable snapshot (IncidentUpdate/IncidentActionUpdate/PostmortemUpdate)
+  # appear here. Action-only events (pins, file shares, escalations,
+  # relationships) carry their payload in `metadata` and have no eventable.
+  UPDATE_TYPE_MAP = {
+    INCIDENT_CREATED     => IncidentUpdate::CREATED,
+    INCIDENT_UPDATED     => IncidentUpdate::UPDATED,
+    INCIDENT_ACCEPTED    => IncidentUpdate::ACCEPTED,
+    LEAD_ASSIGNED        => IncidentUpdate::LEAD_ASSIGNED,
+    INCIDENT_RESOLVED    => IncidentUpdate::CLOSED,
+    INCIDENT_REOPENED    => IncidentUpdate::REOPENED,
+    MERGED_INTO          => IncidentUpdate::CLOSED,
+    ACTION_CREATED       => IncidentActionUpdate::CREATED,
+    ACTION_PICKED_UP     => IncidentActionUpdate::PICKED_UP,
+    ACTION_COMPLETED     => IncidentActionUpdate::COMPLETED,
+    POSTMORTEM_GENERATED => PostmortemUpdate::GENERATED,
+    POSTMORTEM_EDITED    => PostmortemUpdate::EDITED
+  }.freeze
+
+  def self.update_type_for(event_type)
+    UPDATE_TYPE_MAP.fetch(event_type) do
+      raise ArgumentError, "no recordable update_type for event_type=#{event_type.inspect}"
+    end
+  end
+
   # Associations
   belongs_to :incident
   belongs_to :user, class_name: "WorkspaceMembership", optional: true
@@ -71,25 +96,8 @@ class IncidentEvent < ApplicationRecord
   scope :action_updates, -> { where(eventable_type: "IncidentActionUpdate") }
   scope :postmortem_updates, -> { where(eventable_type: "PostmortemUpdate") }
 
-  # Helper methods
-  def before_snapshot
-    metadata["before"] || {}
-  end
-
-  def after_snapshot
-    metadata["after"] || {}
-  end
-
   def changed_fields
-    if eventable.is_a?(IncidentUpdate) || eventable.is_a?(IncidentActionUpdate)
-      eventable.changed_fields || []
-    else
-      metadata["changed_fields"] || []
-    end
-  end
-
-  def details
-    metadata["details"]
+    eventable&.changed_fields || []
   end
 
   def changed?(field = nil)
