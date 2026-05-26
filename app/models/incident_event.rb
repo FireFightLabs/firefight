@@ -1,5 +1,4 @@
 class IncidentEvent < ApplicationRecord
-  # Event type constants
   INCIDENT_CREATED = "incident.created"
   INCIDENT_UPDATED = "incident.updated"
   LEAD_ASSIGNED = "lead.assigned"
@@ -53,10 +52,9 @@ class IncidentEvent < ApplicationRecord
     ESCALATION_NUDGED => "Escalation reminder was sent"
   }.freeze
 
-  # Canonical event_type -> recordable update_type map. Only events backed by
-  # a Recordable snapshot (IncidentUpdate/IncidentActionUpdate/PostmortemUpdate)
-  # appear here. Action-only events (pins, file shares, escalations,
-  # relationships) carry their payload in `metadata` and have no eventable.
+  # Only events backed by a Recordable snapshot appear here. Action-only events
+  # (pins, file shares, escalations, relationships) carry their payload in
+  # `metadata` and have no eventable.
   UPDATE_TYPE_MAP = {
     INCIDENT_CREATED     => IncidentUpdate::CREATED,
     INCIDENT_UPDATED     => IncidentUpdate::UPDATED,
@@ -78,7 +76,6 @@ class IncidentEvent < ApplicationRecord
     end
   end
 
-  # Associations
   belongs_to :incident
   belongs_to :user, class_name: "WorkspaceMembership", optional: true
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate PostmortemUpdate], optional: true
@@ -86,10 +83,8 @@ class IncidentEvent < ApplicationRecord
 
   after_create_commit :publish_to_event_bus
 
-  # Validations
   validates :event_type, presence: true, inclusion: { in: EVENT_TYPES }
 
-  # Scopes
   scope :chronological, -> { order(created_at: :asc) }
   scope :recent, -> { order(created_at: :desc) }
   scope :updates, -> { where(eventable_type: "IncidentUpdate") }

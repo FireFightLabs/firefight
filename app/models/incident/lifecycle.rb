@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 # Incident::Lifecycle - Status transitions and lifecycle management
 #
 # Handles incident lifecycle state changes:

@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 module Postmortem::Snapshots
   extend ActiveSupport::Concern
 

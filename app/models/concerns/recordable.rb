@@ -1,18 +1,3 @@
-# frozen_string_literal: true
-
-# Recordable is the partner concern to Trackable. It's included on the
-# immutable snapshot models (IncidentUpdate, IncidentActionUpdate,
-# PostmortemUpdate) — one row per `record_change!` on the live model.
-#
-#   class IncidentUpdate < ApplicationRecord
-#     include Recordable
-#     records Incident, recorder: :created_by
-#   end
-#
-# `recorder:` names the belongs_to column that stores *who* performed the
-# change (different per recordable for historical reasons — IncidentUpdate
-# uses `created_by`, IncidentActionUpdate uses `actor`, PostmortemUpdate
-# uses `edited_by`).
 module Recordable
   extend ActiveSupport::Concern
 

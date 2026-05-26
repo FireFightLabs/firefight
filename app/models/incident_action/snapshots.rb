@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 module IncidentAction::Snapshots
   extend ActiveSupport::Concern
 
