@@ -23,8 +23,12 @@ class Slack::IncidentTimelineFormatterTest < ActiveSupport::TestCase
   end
 
   test "renders action description when eventable has no message" do
-    event = incident_events(:inc1_created)
-    event.update!(event_type: IncidentEvent::ACTION_CREATED, metadata: {})
+    event = IncidentEvent.new(
+      incident: incidents(:active_critical_ws1),
+      event_type: IncidentEvent::ACTION_CREATED,
+      metadata: {},
+      created_at: Time.current
+    )
     event.stubs(:eventable).returns(Struct.new(:description).new("Rollback task created"))
 
     text = Slack::IncidentTimelineFormatter.to_text(event)

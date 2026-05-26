@@ -25,7 +25,7 @@ class Commands::ShowTimelineTest < ActiveSupport::TestCase
   test "includes load more button when more events are available" do
     member = workspace_memberships(:alice_workspace_one)
     20.times do
-      @incident.incident_events.create!(event_type: IncidentEvent::INCIDENT_UPDATED, user: member)
+      @incident.incident_events.create!(event_type: IncidentEvent::MESSAGE_PINNED, user: member)
     end
 
     view = @workspace.adapter.build_timeline_view(@incident, limit: 15)
