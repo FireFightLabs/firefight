@@ -84,6 +84,7 @@ class IncidentEvent < ApplicationRecord
   after_create_commit :publish_to_event_bus
 
   validates :event_type, presence: true, inclusion: { in: EVENT_TYPES }
+  validate :eventable_matches_event_type
 
   scope :chronological, -> { order(created_at: :asc) }
   scope :recent, -> { order(created_at: :desc) }
@@ -110,6 +111,18 @@ class IncidentEvent < ApplicationRecord
   end
 
   private
+
+  def eventable_matches_event_type
+    return if event_type.blank?
+
+    snapshot_backed = UPDATE_TYPE_MAP.key?(event_type)
+
+    if snapshot_backed && eventable.nil?
+      errors.add(:eventable, "is required for event_type=#{event_type}")
+    elsif !snapshot_backed && eventable.present?
+      errors.add(:eventable, "must be nil for event_type=#{event_type}")
+    end
+  end
 
   def publish_to_event_bus
     ProcessDomainEventJob.perform_later(

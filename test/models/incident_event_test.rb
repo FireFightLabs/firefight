@@ -22,7 +22,7 @@ class IncidentEventTest < ActiveSupport::TestCase
   test "user is optional" do
     event = IncidentEvent.new(
       incident: incidents(:active_critical_ws1),
-      event_type: IncidentEvent::INCIDENT_UPDATED
+      event_type: IncidentEvent::MESSAGE_PINNED
     )
     assert_nil event.user
     assert event.valid?
@@ -49,14 +49,71 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_includes event.errors[:event_type], "is not included in the list"
   end
 
-  test "accepts valid event_types" do
+  test "accepts valid event_types when eventable presence matches the contract" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    snapshot_backed_types = IncidentEvent::UPDATE_TYPE_MAP.keys
+
     IncidentEvent::EVENT_TYPES.each do |event_type|
-      event = IncidentEvent.new(
-        incident: incidents(:active_critical_ws1),
-        event_type: event_type
-      )
-      assert event.valid?, "#{event_type} should be valid"
+      event = IncidentEvent.new(incident: incident, event_type: event_type)
+
+      if snapshot_backed_types.include?(event_type)
+        event.eventable = IncidentUpdate.new(
+          incident: incident,
+          workspace_id: incident.workspace_id,
+          incident_status: incident.incident_status,
+          incident_severity: incident.incident_severity,
+          declared_by: incident.declared_by,
+          sequence_number: incident.sequence_number,
+          identifier: incident.identifier,
+          name: incident.name,
+          is_private: incident.is_private,
+          declared_at: incident.declared_at,
+          update_type: IncidentEvent.update_type_for(event_type),
+          created_by: member
+        ) unless event_type.start_with?("action.") || event_type.start_with?("postmortem.")
+      end
+
+      next if event_type.start_with?("action.") || event_type.start_with?("postmortem.")
+      assert event.valid?, "#{event_type} should be valid, got: #{event.errors.full_messages.join(', ')}"
     end
+  end
+
+  test "snapshot-backed event_type requires an eventable" do
+    event = IncidentEvent.new(
+      incident: incidents(:active_critical_ws1),
+      event_type: IncidentEvent::INCIDENT_RESOLVED
+    )
+    assert_not event.valid?
+    assert_includes event.errors[:eventable], "is required for event_type=#{IncidentEvent::INCIDENT_RESOLVED}"
+  end
+
+  test "action-only event_type rejects an eventable" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+
+    update = IncidentUpdate.create!(
+      incident: incident,
+      workspace_id: incident.workspace_id,
+      incident_status: incident.incident_status,
+      incident_severity: incident.incident_severity,
+      declared_by: incident.declared_by,
+      sequence_number: incident.sequence_number,
+      identifier: incident.identifier,
+      name: incident.name,
+      is_private: incident.is_private,
+      declared_at: incident.declared_at,
+      update_type: IncidentUpdate::UPDATED,
+      created_by: member
+    )
+
+    event = IncidentEvent.new(
+      incident: incident,
+      event_type: IncidentEvent::MESSAGE_PINNED,
+      eventable: update
+    )
+    assert_not event.valid?
+    assert_includes event.errors[:eventable], "must be nil for event_type=#{IncidentEvent::MESSAGE_PINNED}"
   end
 
   # ============================================================================
