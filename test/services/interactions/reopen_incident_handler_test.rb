@@ -75,7 +75,7 @@ class Interactions::ReopenIncidentHandlerTest < ActiveSupport::TestCase
     assert_equal "Issue is still occurring", event.eventable.message
     assert event.changed?(:status)
     assert event.changed?(:resolved_at)
-    assert_equal "Issue is still occurring", event.details["reason"]
+    assert_equal "Issue is still occurring", event.metadata["reason"]
   end
 
   test "starts IncidentReopenWorkflow with context including reason" do

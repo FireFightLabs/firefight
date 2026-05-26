@@ -8,13 +8,11 @@ class Slack::IncidentTimelineFormatterTest < ActiveSupport::TestCase
     event.update!(
       event_type: IncidentEvent::MESSAGE_FILE_SHARED,
       metadata: {
-        details: {
-          file_name: "runbook.png",
-          mime_type: "image/png",
-          user_id: "U123",
-          blob_id: 10,
-          permalink: "https://workspace.slack.com/archives/C123/p123"
-        }
+        file_name: "runbook.png",
+        mime_type: "image/png",
+        user_id: "U123",
+        blob_id: 10,
+        permalink: "https://workspace.slack.com/archives/C123/p123"
       }
     )
 
@@ -26,7 +24,7 @@ class Slack::IncidentTimelineFormatterTest < ActiveSupport::TestCase
 
   test "renders action description when eventable has no message" do
     event = incident_events(:inc1_created)
-    event.update!(event_type: IncidentEvent::ACTION_CREATED, metadata: { details: {} })
+    event.update!(event_type: IncidentEvent::ACTION_CREATED, metadata: {})
     event.stubs(:eventable).returns(Struct.new(:description).new("Rollback task created"))
 
     text = Slack::IncidentTimelineFormatter.to_text(event)

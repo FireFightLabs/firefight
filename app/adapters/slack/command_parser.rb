@@ -1,9 +1,5 @@
 module Slack
-  class CommandAdapter < ::CommandAdapter
-    # Parse Slack slash command payload into a Command object
-    #
-    # @param payload [Hash] Slack slash command parameters
-    # @return [Command] Platform-agnostic command object
+  class CommandParser < ::CommandParser
     def self.parse(payload)
       payload = payload.with_indifferent_access
       Command.new(

@@ -25,13 +25,11 @@ module Events
         event_type: event_type,
         user: member,
         metadata: {
-          details: {
-            user_id: event["user"],
-            message_ts: message_ts,
-            channel_id: channel_id,
-            thread_ts: event.dig("item", "message", "thread_ts"),
-            permalink: permalink
-          }
+          user_id: event["user"],
+          message_ts: message_ts,
+          channel_id: channel_id,
+          thread_ts: event.dig("item", "message", "thread_ts"),
+          permalink: permalink
         }
       )
     rescue StandardError => e

@@ -68,7 +68,7 @@ class IncidentCreationService
   def create_incident_event(incident)
     return { ok: true } if incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_CREATED)
 
-    incident.create_initial_update!(created_by: incident.declared_by)
+    incident.record_change!(IncidentEvent::INCIDENT_CREATED, by: incident.declared_by)
     { ok: true }
   end
 end

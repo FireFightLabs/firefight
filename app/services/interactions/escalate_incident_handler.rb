@@ -13,10 +13,8 @@ module Interactions
         event_type: IncidentEvent::INCIDENT_ESCALATED,
         user: member,
         metadata: {
-          details: {
-            escalated_to_platform_user_id: escalated_to_user_id,
-            reason: reason
-          }
+          escalated_to_platform_user_id: escalated_to_user_id,
+          reason: reason
         }
       )
 

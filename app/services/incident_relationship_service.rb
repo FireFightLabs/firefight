@@ -30,7 +30,7 @@ class IncidentRelationshipService
       created_by: created_by
     )
 
-    source.record_change!(IncidentEvent::MERGED_INTO, changed_by: created_by, details: {
+    source.record_change!(IncidentEvent::MERGED_INTO, by: created_by, metadata: {
       canonical_incident_id: canonical.id,
       canonical_identifier: canonical.identifier
     }) do
@@ -55,10 +55,8 @@ class IncidentRelationshipService
       event_type: event_type,
       user: actor,
       metadata: {
-        details: {
-          related_incident_id: other_incident.id,
-          related_identifier: other_incident.identifier
-        }
+        related_incident_id: other_incident.id,
+        related_identifier: other_incident.identifier
       }
     )
   end

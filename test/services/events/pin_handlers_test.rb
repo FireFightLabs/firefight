@@ -30,7 +30,7 @@ class Events::PinHandlersTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::MESSAGE_PINNED)
     assert_equal @member, event.user
-    assert_equal "1234567890.111111", event.details["message_ts"]
+    assert_equal "1234567890.111111", event.metadata["message_ts"]
   end
 
   test "creates message unpinned event" do

@@ -15,4 +15,4 @@ postmortem_update_generated_ws1:
         body: "On the morning of the incident, users reported issues."
   status: draft
   model_id: claude-sonnet-4-6
-  changed_sections: []
+  changed_fields: []

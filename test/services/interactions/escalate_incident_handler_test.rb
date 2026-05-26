@@ -39,8 +39,8 @@ class Interactions::EscalateIncidentHandlerTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_ESCALATED)
     assert_equal @member, event.user
-    assert_equal @target.platform_user_id, event.details["escalated_to_platform_user_id"]
-    assert_equal "Need backend support", event.details["reason"]
+    assert_equal @target.platform_user_id, event.metadata["escalated_to_platform_user_id"]
+    assert_equal "Need backend support", event.metadata["reason"]
   end
 
   test "starts incident escalation workflow" do

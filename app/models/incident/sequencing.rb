@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 # Incident::Sequencing - Sequential numbering and identifier generation
 #
 # Handles workspace-scoped sequential incident numbers with row-level locking

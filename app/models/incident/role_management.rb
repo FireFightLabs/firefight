@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 # Incident::RoleManagement - Role assignment helpers
 #
 # Provides convenience methods for managing incident role assignments,

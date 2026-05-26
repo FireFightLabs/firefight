@@ -137,14 +137,12 @@ class IncidentUpdateService
       reason: reason
     )
 
-    unless incident.incident_events.where(event_type: IncidentEvent::ESCALATION_NUDGED).where("metadata @> ?", { details: { escalation_event_id: escalation_event_id } }.to_json).exists?
+    unless incident.incident_events.where(event_type: IncidentEvent::ESCALATION_NUDGED).where("metadata @> ?", { escalation_event_id: escalation_event_id }.to_json).exists?
       incident.incident_events.create!(
         event_type: IncidentEvent::ESCALATION_NUDGED,
         metadata: {
-          details: {
-            escalation_event_id: escalation_event_id,
-            escalated_to_platform_user_id: escalated_to_platform_user_id
-          }
+          escalation_event_id: escalation_event_id,
+          escalated_to_platform_user_id: escalated_to_platform_user_id
         }
       )
     end
