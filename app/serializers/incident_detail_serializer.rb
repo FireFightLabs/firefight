@@ -8,6 +8,7 @@ class IncidentDetailSerializer < BaseSerializer
     summary: { type: :string },
     source: { type: :string },
     channel_name: { type: :string, optional: true },
+    channel_id: { type: :string, optional: true },
     is_private: { type: :boolean }
   )
 

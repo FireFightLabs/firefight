@@ -49,15 +49,22 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {incident.source === "slack" && incident.channelName && (
+          {incident.source === "slack" && incident.channelName && incident.channelId && (
             <Button
               variant="outline"
               size="sm"
               className="h-8 gap-2 border-primary/30 bg-primary/10 px-3 font-mono text-[12px] text-primary hover:bg-primary/20 hover:border-primary/50 hover:text-primary"
+              asChild
             >
-              <IconBrandSlack className="size-3.5" />
-              <span className="hidden sm:inline">#{incident.channelName}</span>
-              <IconExternalLink className="size-3 opacity-50" />
+              <a
+                href={`https://slack.com/app_redirect?channel=${incident.channelId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <IconBrandSlack className="size-3.5" />
+                <span className="hidden sm:inline">#{incident.channelName}</span>
+                <IconExternalLink className="size-3 opacity-50" />
+              </a>
             </Button>
           )}
           <DropdownMenu>
