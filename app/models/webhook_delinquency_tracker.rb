@@ -11,11 +11,18 @@ class WebhookDelinquencyTracker < ApplicationRecord
       mark_first_failure_time if consecutive_failures_count.zero?
       increment!(:consecutive_failures_count, touch: true)
 
-      webhook.deactivate! if delinquent?
+      auto_deactivate! if delinquent?
     end
   end
 
   private
+
+  def auto_deactivate!
+    return unless webhook.active?
+
+    webhook.deactivate!
+    Webhooks::DeactivationNotifier.notify(webhook, reason: "delinquency_threshold")
+  end
 
   def reset
     update_columns(consecutive_failures_count: 0, first_failure_at: nil)
