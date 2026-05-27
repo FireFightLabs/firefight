@@ -32,16 +32,48 @@ class Webhooks::DeliveryServiceTest < ActiveSupport::TestCase
     assert_not_nil @delivery.request_body
   end
 
-  test "records HMAC signature in request headers" do
+  test "records HMAC signature, version, timestamp, and attempt headers" do
     stub_ssrf_resolution("93.184.216.34")
     stub_http_response(200)
 
     Webhooks::DeliveryService.deliver(@delivery)
 
     @delivery.reload
-    assert @delivery.request_headers.key?("X-Webhook-Signature")
-    assert @delivery.request_headers.key?("X-Webhook-Event")
-    assert_equal @event.event_type, @delivery.request_headers["X-Webhook-Event"]
+    headers = @delivery.request_headers
+    assert headers.key?("X-Webhook-Signature")
+    assert_match(/\Av1=[a-f0-9]{64}\z/, headers["X-Webhook-Signature"])
+    assert_equal @event.event_type, headers["X-Webhook-Event"]
+    assert_equal Webhooks::DeliveryService::PAYLOAD_VERSION, headers["X-Webhook-Version"]
+    assert_equal "1", headers["X-Webhook-Attempt"]
+    assert_not_nil headers["X-Webhook-Timestamp"]
+    assert_nothing_raised { Time.iso8601(headers["X-Webhook-Timestamp"]) }
+  end
+
+  test "increments attempts counter on each deliver" do
+    stub_ssrf_resolution("93.184.216.34")
+    stub_http_response(200)
+
+    Webhooks::DeliveryService.deliver(@delivery)
+    assert_equal 1, @delivery.reload.attempts
+
+    @delivery.update_columns(state: "pending")
+    Webhooks::DeliveryService.deliver(@delivery)
+    assert_equal 2, @delivery.reload.attempts
+  end
+
+  test "reuses signed_payload bytes on retry so consumers see immutable body" do
+    stub_ssrf_resolution("93.184.216.34")
+    stub_http_response(200)
+
+    Webhooks::DeliveryService.deliver(@delivery)
+    first_payload = @delivery.reload.signed_payload
+    assert_not_nil first_payload
+
+    @event.incident.update_columns(name: "Drifted name")
+    @delivery.update_columns(state: "pending")
+
+    Webhooks::DeliveryService.deliver(@delivery)
+    assert_equal first_payload, @delivery.reload.signed_payload
   end
 
   test "marks delivery errored for private IP" do
@@ -99,22 +131,22 @@ class Webhooks::DeliveryServiceTest < ActiveSupport::TestCase
     assert_equal 1, tracker.reload.consecutive_failures_count
   end
 
-  test "signature matches HMAC-SHA256 of payload" do
+  test "signature is HMAC-SHA256 over scheme:timestamp:body" do
     stub_ssrf_resolution("93.184.216.34")
 
-    captured_signature = nil
+    captured = {}
     Net::HTTP.any_instance.stubs(:request).with do |request|
-      captured_signature = request["X-Webhook-Signature"]
+      captured[:signature] = request["X-Webhook-Signature"]
+      captured[:timestamp] = request["X-Webhook-Timestamp"]
+      captured[:body] = request.body
       true
     end.returns(stub(code: "200", read_body: nil))
 
     Webhooks::DeliveryService.deliver(@delivery)
 
-    payload = @delivery.reload.request_body.to_json
-    expected = OpenSSL::HMAC.hexdigest("SHA256", @webhook.signing_secret, payload)
-
-    # Signature should be a valid hex string
-    assert_match(/\A[a-f0-9]{64}\z/, captured_signature)
+    signing_input = "v1:#{captured[:timestamp]}:#{captured[:body]}"
+    expected = "v1=" + OpenSSL::HMAC.hexdigest("SHA256", @webhook.signing_secret, signing_input)
+    assert_equal expected, captured[:signature]
   end
 
   private

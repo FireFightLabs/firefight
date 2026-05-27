@@ -1,9 +1,11 @@
 class Webhooks::DeliveryService
   class ResponseTooLarge < StandardError; end
 
-  USER_AGENT = "Firefight-Webhooks/1.0"
-  ENDPOINT_TIMEOUT = 7.seconds
-  MAX_RESPONSE_SIZE = 100.kilobytes
+  USER_AGENT          = "Firefight-Webhooks/1.0"
+  ENDPOINT_TIMEOUT    = 7.seconds
+  MAX_RESPONSE_SIZE   = 100.kilobytes
+  PAYLOAD_VERSION     = "1"
+  SIGNATURE_SCHEME    = "v1"
 
   def self.deliver(webhook_delivery)
     new(webhook_delivery).deliver
@@ -11,24 +13,19 @@ class Webhooks::DeliveryService
 
   def initialize(webhook_delivery)
     @delivery = webhook_delivery
-    @webhook = webhook_delivery.webhook
+    @webhook  = webhook_delivery.webhook
   end
 
   def deliver
     @delivery.in_progress!
+    @delivery.increment!(:attempts)
 
-    payload = Webhooks::PayloadRenderer.render(
-      @delivery.incident_event,
-      delivery_id: @delivery.id
-    )
-
+    payload = signed_payload
     resolved_ip = Webhooks::SsrfProtector.resolve_public_ip(uri.host)
-    if resolved_ip.nil?
-      record_error("private_uri")
-      return
-    end
+    return record_error("private_uri") if resolved_ip.nil?
 
-    request_headers = build_headers(payload)
+    timestamp = Time.current.utc.iso8601
+    request_headers = build_headers(payload, timestamp)
     @delivery.update!(request_headers: request_headers, request_body: JSON.parse(payload))
 
     response = perform_request(payload, request_headers, resolved_ip)
@@ -39,42 +36,53 @@ class Webhooks::DeliveryService
       delivered_at: Time.current
     )
 
-    @webhook.webhook_delinquency_tracker&.record_delivery(@delivery)
+    record_outcome
   rescue ResponseTooLarge
     record_error("response_too_large")
-    @webhook.webhook_delinquency_tracker&.record_delivery(@delivery)
   rescue Resolv::ResolvTimeout, Resolv::ResolvError, SocketError
     record_error("dns_lookup_failed")
-    @webhook.webhook_delinquency_tracker&.record_delivery(@delivery)
   rescue Net::OpenTimeout, Net::ReadTimeout, Errno::ETIMEDOUT
     record_error("connection_timeout")
-    @webhook.webhook_delinquency_tracker&.record_delivery(@delivery)
   rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ECONNRESET
     record_error("destination_unreachable")
-    @webhook.webhook_delinquency_tracker&.record_delivery(@delivery)
   rescue OpenSSL::SSL::SSLError
     record_error("failed_tls")
-    @webhook.webhook_delinquency_tracker&.record_delivery(@delivery)
   end
 
   private
+
+  # Renders the payload once and stores it on the delivery row. Subsequent
+  # retries reuse the exact same bytes so the signature matches and the
+  # consumer sees an immutable payload regardless of incident state drift.
+  def signed_payload
+    return @delivery.signed_payload if @delivery.signed_payload.present?
+
+    payload = Webhooks::PayloadRenderer.render(@delivery.incident_event, delivery_id: @delivery.id)
+    @delivery.update!(signed_payload: payload)
+    payload
+  end
 
   def uri
     @uri ||= URI(@webhook.url)
   end
 
-  def build_headers(payload)
+  def build_headers(payload, timestamp)
     {
-      "User-Agent" => USER_AGENT,
-      "Content-Type" => "application/json",
-      "X-Webhook-Signature" => signature(payload),
-      "X-Webhook-Event" => @delivery.event_type,
-      "X-Webhook-Delivery" => @delivery.id
+      "User-Agent"          => USER_AGENT,
+      "Content-Type"        => "application/json",
+      "X-Webhook-Version"   => PAYLOAD_VERSION,
+      "X-Webhook-Event"     => @delivery.event_type,
+      "X-Webhook-Delivery"  => @delivery.id,
+      "X-Webhook-Attempt"   => @delivery.attempts.to_s,
+      "X-Webhook-Timestamp" => timestamp,
+      "X-Webhook-Signature" => "#{SIGNATURE_SCHEME}=#{signature(payload, timestamp)}"
     }
   end
 
-  def signature(payload)
-    OpenSSL::HMAC.hexdigest("SHA256", @webhook.signing_secret, payload)
+  # Signing input is "<scheme>:<timestamp>:<body>". Consumers must verify
+  # the timestamp is within their freshness window before HMAC-comparing.
+  def signature(payload, timestamp)
+    OpenSSL::HMAC.hexdigest("SHA256", @webhook.signing_secret, "#{SIGNATURE_SCHEME}:#{timestamp}:#{payload}")
   end
 
   def perform_request(payload, headers, resolved_ip)
@@ -105,5 +113,10 @@ class Webhooks::DeliveryService
 
   def record_error(message)
     @delivery.update!(state: :errored, error_message: message)
+    record_outcome
+  end
+
+  def record_outcome
+    @webhook.webhook_delinquency_tracker&.record_delivery(@delivery)
   end
 end

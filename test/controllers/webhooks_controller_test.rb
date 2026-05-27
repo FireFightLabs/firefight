@@ -114,6 +114,32 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
   end
 
   # ============================================================================
+  # REPLAY
+  # ============================================================================
+
+  test "replay creates a new delivery against the same webhook + event" do
+    original = webhook_deliveries(:errored_delivery)
+
+    assert_difference -> { @webhook.webhook_deliveries.count }, 1 do
+      post replay_webhook_delivery_url(@webhook, original)
+    end
+
+    assert_response :redirect
+    replay = @webhook.webhook_deliveries.where(incident_event_id: original.incident_event_id).order(:created_at).last
+    assert_equal original.event_type, replay.event_type
+    assert_equal "pending", replay.state
+  end
+
+  test "replay cannot reach a webhook from another workspace" do
+    other_webhook = webhooks(:workspace_two_webhook)
+    original = webhook_deliveries(:errored_delivery)
+
+    assert_no_difference -> { WebhookDelivery.count } do
+      post replay_webhook_delivery_url(other_webhook, original)
+    end
+  end
+
+  # ============================================================================
   # WORKSPACE SCOPING
   # ============================================================================
 
