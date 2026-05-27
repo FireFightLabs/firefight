@@ -56,29 +56,5 @@ module SolidWorkflow
       step.update_column(:checkpoint, merged)
       result
     end
-
-    def with_retry(max_attempts: 3, backoff_base: 2, rescue_classes: [ StandardError ], &block)
-      attempt = 0
-
-      begin
-        attempt += 1
-        block.call
-      rescue *rescue_classes => e
-        if attempt < max_attempts
-          sleep_time = backoff_base**attempt
-          Rails.logger.warn({
-            event: "workflow.step.retry",
-            attempt: attempt,
-            max_attempts: max_attempts,
-            sleep_seconds: sleep_time,
-            error: e.message
-          })
-          sleep(sleep_time)
-          retry
-        else
-          raise
-        end
-      end
-    end
   end
 end

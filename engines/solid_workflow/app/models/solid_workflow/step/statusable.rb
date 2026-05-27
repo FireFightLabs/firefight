@@ -18,7 +18,7 @@ module SolidWorkflow
         scope :completed, -> { where(status: %i[succeeded skipped]) }
         scope :failed, -> { where(status: :failed) }
         scope :in_progress, -> { where(status: :running) }
-        scope :orphaned, ->(threshold = 10.minutes.ago) { running.where("updated_at < ?", threshold) }
+        scope :orphaned, ->(threshold = SolidWorkflow.orphaned_step_threshold.ago) { running.where("updated_at < ?", threshold) }
       end
 
       def completed?

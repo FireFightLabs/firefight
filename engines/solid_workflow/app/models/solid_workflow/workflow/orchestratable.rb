@@ -7,12 +7,10 @@ module SolidWorkflow
         reload
         all_steps = steps.reload.to_a
 
-        Rails.logger.info({
-          event: "workflow.orchestration.debug_start",
+        Rails.logger.debug({
+          event: "workflow.orchestration.start",
           workflow_id: id,
           workflow_state: state,
-          completed: completed?,
-          paused: paused?,
           steps_count: all_steps.count
         })
 
@@ -21,13 +19,6 @@ module SolidWorkflow
         step_map = all_steps.index_by(&:name)
         ready = all_steps.select { |s| s.ready_to_run?(step_map) }
         ready = apply_concurrency_limit(all_steps, ready)
-
-        Rails.logger.info({
-          event: "workflow.orchestration.debug_ready",
-          workflow_id: id,
-          ready_count: ready.count,
-          ready_steps: ready.map(&:name)
-        })
 
         ready.each do |step|
           step.populate_input_data(all_steps, step_map: step_map)
@@ -48,27 +39,23 @@ module SolidWorkflow
           end
         end
 
-        Rails.logger.info({
-          event: "workflow.orchestration.debug_enqueue",
-          workflow_id: id,
-          enqueueing_count: ready.count
-        })
-
         ready.each do |step|
+          SolidWorkflow::RunStepJob.set(queue: step.queue_name).perform_later(step.id)
+        end
+
+        if ready.any?
           Rails.logger.info({
-            event: "workflow.orchestration.debug_enqueue_step",
+            event:      "workflow.orchestration.enqueued",
             workflow_id: id,
-            step_id: step.id,
-            step_name: step.name
+            step_names: ready.map(&:name)
           })
-          SolidWorkflow::RunStepJob.perform_later(step.id)
         end
 
         update_workflow_state(all_steps)
       end
 
       def enqueue_next_steps_later
-        SolidWorkflow::OrchestrateJob.set(wait: 1.second).perform_later(id)
+        SolidWorkflow::OrchestrateJob.perform_later(id)
       end
 
       private
