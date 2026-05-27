@@ -150,19 +150,19 @@ class WorkflowStepTest < ActiveSupport::TestCase
     assert step.run_at > Time.current
   end
 
-  test "calculate_backoff uses exponential strategy by default" do
+  test "calculate_backoff uses exponential strategy by default with jitter" do
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
     step = workflow.steps.first
 
     step.update!(attempts: 1)
-    assert_equal 2.seconds, step.send(:calculate_backoff)
+    assert_in_delta 2.0, step.send(:calculate_backoff).to_f, 0.5
 
     step.update!(attempts: 2)
-    assert_equal 4.seconds, step.send(:calculate_backoff)
+    assert_in_delta 4.0, step.send(:calculate_backoff).to_f, 1.0
 
     step.update!(attempts: 3)
-    assert_equal 8.seconds, step.send(:calculate_backoff)
+    assert_in_delta 8.0, step.send(:calculate_backoff).to_f, 2.0
   end
 
   test "skip! marks step as skipped" do
