@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_26_095040) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_26_230832) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -874,8 +874,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_095040) do
     t.datetime "delivered_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "signed_payload"
+    t.integer "attempts", default: 0, null: false
     t.index ["created_at"], name: "index_webhook_deliveries_on_created_at"
     t.index ["incident_event_id"], name: "index_webhook_deliveries_on_incident_event_id"
+    t.index ["state"], name: "index_webhook_deliveries_on_state"
     t.index ["webhook_id", "created_at"], name: "index_webhook_deliveries_on_webhook_id_and_created_at"
     t.index ["webhook_id"], name: "index_webhook_deliveries_on_webhook_id"
   end

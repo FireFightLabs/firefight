@@ -109,6 +109,11 @@ Rails.application.routes.draw do
         post :deactivate
       end
       get :sample_payload, on: :collection
+      resources :deliveries, only: [], controller: "webhook_deliveries" do
+        member do
+          post :replay
+        end
+      end
     end
 
     get "/settings/members", to: "settings#members", as: :settings_members
