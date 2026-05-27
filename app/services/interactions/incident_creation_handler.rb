@@ -33,7 +33,8 @@ module Interactions
         summary: attrs["summary"],
         custom_fields: submission.custom_fields.presence || {},
         is_private: visibility == Incident::VISIBILITY_PRIVATE,
-        source: Incident::SOURCE_SLACK
+        source: Incident::SOURCE_SLACK,
+        create_channel_sync: true
       )
 
       Rails.logger.info({
