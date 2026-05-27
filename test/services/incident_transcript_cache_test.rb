@@ -36,4 +36,43 @@ class IncidentTranscriptCacheTest < ActiveSupport::TestCase
 
     assert_empty IncidentTranscriptCache.entries(@incident)
   end
+
+  test "append writes with ACTIVE_TTL so stale-open incidents fall out naturally" do
+    Rails.cache.expects(:write).with(
+      includes(":transcript"),
+      anything,
+      expires_in: IncidentTranscriptCache::ACTIVE_TTL
+    )
+
+    IncidentTranscriptCache.append(incident: @incident, entry: { "ts" => "1.0", "text" => "hi" })
+  end
+
+  test "expire_after_close uses CLOSED_TTL" do
+    IncidentTranscriptCache.append(incident: @incident, entry: { "ts" => "1.0", "text" => "hi" })
+
+    Rails.cache.expects(:write).with(
+      includes(":transcript"),
+      anything,
+      expires_in: IncidentTranscriptCache::CLOSED_TTL
+    )
+
+    IncidentTranscriptCache.expire_after_close!(@incident)
+  end
+
+  test "clear_expiry resets to ACTIVE_TTL on reopen" do
+    IncidentTranscriptCache.append(incident: @incident, entry: { "ts" => "1.0", "text" => "hi" })
+
+    Rails.cache.expects(:write).with(
+      includes(":transcript"),
+      anything,
+      expires_in: IncidentTranscriptCache::ACTIVE_TTL
+    )
+
+    IncidentTranscriptCache.clear_expiry!(@incident)
+  end
+
+  test "CLOSED_TTL covers the typical reopen window" do
+    assert_operator IncidentTranscriptCache::CLOSED_TTL, :>=, 14.days,
+      "CLOSED_TTL should cover at least a 2-week reopen window"
+  end
 end

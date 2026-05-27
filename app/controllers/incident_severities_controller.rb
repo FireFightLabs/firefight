@@ -3,22 +3,18 @@ class IncidentSeveritiesController < InertiaController
   before_action :set_severity, only: [ :update, :disable, :enable, :destroy ]
 
   def create
-    max_position = current_workspace.incident_severities.maximum(:position) || 0
-
     severity = current_workspace.incident_severities.new(
       name: params.require(:name),
       slug: params.require(:name).parameterize(separator: "_"),
       description: params[:description],
       color: params[:color] || "#6B7280",
-      rank: params.require(:rank).to_i,
-      position: max_position + 1
+      rank: params.require(:rank).to_i
     )
 
-    if severity.save
-      redirect_to settings_severities_path
-    else
-      redirect_back fallback_location: settings_severities_path, inertia: { errors: severity.errors.to_hash }
-    end
+    severity.save_in_position!
+    redirect_to settings_severities_path
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: settings_severities_path, inertia: { errors: e.record.errors.to_hash }
   end
 
   def update
@@ -40,7 +36,9 @@ class IncidentSeveritiesController < InertiaController
   end
 
   def destroy
-    return redirect_to settings_severities_path if @severity.incidents.exists?
+    if @severity.incidents.exists?
+      return redirect_to settings_severities_path, alert: "Can't delete a severity that's in use by incidents. Disable it instead."
+    end
 
     @severity.destroy!
     redirect_to settings_severities_path

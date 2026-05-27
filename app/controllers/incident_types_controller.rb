@@ -3,22 +3,18 @@ class IncidentTypesController < InertiaController
   before_action :set_incident_type, only: [ :update, :destroy ]
 
   def create
-    max_position = current_workspace.incident_types.maximum(:position) || 0
-
     incident_type = current_workspace.incident_types.new(
       name: params.require(:name),
       slug: params.require(:name).parameterize(separator: "_"),
       description: params[:description],
       color: params[:color],
-      is_default: ActiveModel::Type::Boolean.new.cast(params[:is_default]) || false,
-      position: max_position + 1
+      is_default: ActiveModel::Type::Boolean.new.cast(params[:is_default]) || false
     )
 
-    if incident_type.save
-      redirect_to settings_types_path
-    else
-      redirect_back fallback_location: settings_types_path, inertia: { errors: incident_type.errors.to_hash }
-    end
+    incident_type.save_in_position!
+    redirect_to settings_types_path
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: settings_types_path, inertia: { errors: incident_type.errors.to_hash }
   end
 
   def update
@@ -36,13 +32,12 @@ class IncidentTypesController < InertiaController
     end
   end
 
+  # Always soft-delete via deleted_at so destroy semantics match severities,
+  # statuses, and roles (admin can disable then re-enable from the UI). The
+  # previous behavior conditionally hard-deleted when no incidents referenced
+  # the type, which was inconsistent and harder for the UI to reason about.
   def destroy
-    if @incident_type.incidents.where(deleted_at: nil).exists?
-      @incident_type.update!(deleted_at: Time.current)
-    else
-      @incident_type.destroy!
-    end
-
+    @incident_type.update!(deleted_at: Time.current)
     redirect_to settings_types_path
   end
 

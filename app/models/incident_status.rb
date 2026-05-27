@@ -1,4 +1,6 @@
 class IncidentStatus < ApplicationRecord
+  include Positioned
+
   belongs_to :workspace
   belongs_to :incident_lifecycle_stage
 

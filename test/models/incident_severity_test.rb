@@ -137,7 +137,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
       name: "Severity 1",
       slug: "severity_1",
       rank: 6,
-      position: 98,
+      position: 100,
       is_default: false
     )
     severity2 = IncidentSeverity.create!(
@@ -145,7 +145,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
       name: "Severity 2",
       slug: "severity_2",
       rank: 8,
-      position: 99,
+      position: 101,
       is_default: false
     )
     assert severity1.persisted?
