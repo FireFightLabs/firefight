@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_27_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_27_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1012,9 +1012,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_140000) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
-  add_foreign_key "solid_workflow_events", "solid_workflow_steps", column: "step_id"
-  add_foreign_key "solid_workflow_events", "solid_workflow_workflows", column: "workflow_id"
-  add_foreign_key "solid_workflow_steps", "solid_workflow_workflows", column: "workflow_id"
+  add_foreign_key "solid_workflow_events", "solid_workflow_steps", column: "step_id", on_delete: :cascade
+  add_foreign_key "solid_workflow_events", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade
+  add_foreign_key "solid_workflow_steps", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade
   add_foreign_key "team_product_areas", "product_areas"
   add_foreign_key "team_product_areas", "teams"
   add_foreign_key "team_services", "services"
