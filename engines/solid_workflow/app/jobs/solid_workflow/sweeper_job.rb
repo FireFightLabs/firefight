@@ -13,7 +13,7 @@ module SolidWorkflow
     def sweep_stuck_workflows
       SolidWorkflow::Workflow.stuck.find_each do |workflow|
         Rails.logger.info({ event: "workflow.sweeper.resuming", workflow_id: workflow.id })
-        workflow.enqueue_next_steps
+        SolidWorkflow::OrchestrateJob.perform_later(workflow.id)
       end
     end
 

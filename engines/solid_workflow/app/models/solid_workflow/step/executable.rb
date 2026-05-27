@@ -52,19 +52,29 @@ module SolidWorkflow
 
       def mark_failed!(error)
         update!(last_error: format_error(error))
-        workflow.record_event(SolidWorkflow::Events::Step::FAILED, step: self, error: error.message)
 
         if should_retry?
+          workflow.record_event(SolidWorkflow::Events::Step::ATTEMPT_FAILED, step: self, error: truncate_error(error.message))
           schedule_retry!
         else
           update!(status: :failed, completed_at: Time.current)
+          workflow.record_event(SolidWorkflow::Events::Step::FAILED, step: self, error: truncate_error(error.message))
         end
       end
 
       private
 
+      MAX_ERROR_MESSAGE_BYTES = 2_000
+
       def format_error(error)
-        "#{error.class}: #{error.message}\n#{error.backtrace.first(5).join("\n")}"
+        cleaner = Rails.respond_to?(:backtrace_cleaner) ? Rails.backtrace_cleaner : nil
+        backtrace = cleaner ? cleaner.clean(error.backtrace || []).first(10) : Array(error.backtrace).first(10)
+        "#{error.class}: #{truncate_error(error.message)}\n#{backtrace.join("\n")}"
+      end
+
+      def truncate_error(message)
+        return message if message.to_s.bytesize <= MAX_ERROR_MESSAGE_BYTES
+        message.byteslice(0, MAX_ERROR_MESSAGE_BYTES) + "…[truncated]"
       end
     end
   end

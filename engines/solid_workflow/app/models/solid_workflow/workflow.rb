@@ -22,10 +22,16 @@ module SolidWorkflow
 
     def workflow_class_must_be_registered
       return if workflow_class.blank?
+      return if SolidWorkflow::Base.registry.key?(workflow_class)
 
-      unless SolidWorkflow::Base.registry.key?(workflow_class)
-        errors.add(:workflow_class, "must be a registered workflow class (#{workflow_class} not found in registry)")
-      end
+      errors.add(
+        :workflow_class,
+        "#{workflow_class} is not registered. " \
+        "Workflow classes register themselves via `inherited`; ensure the file " \
+        "(app/workflows/#{workflow_class.underscore}.rb) has been loaded — in " \
+        "consoles without eager_load, run `Rails.application.eager_load!` or " \
+        "`require_dependency '#{workflow_class.underscore}'` first."
+      )
     end
   end
 end
