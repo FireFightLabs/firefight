@@ -13,6 +13,7 @@ module SolidWorkflow
     module Step
       STARTED = "step.started"
       SUCCEEDED = "step.succeeded"
+      ATTEMPT_FAILED = "step.attempt_failed"
       FAILED = "step.failed"
       SKIPPED = "step.skipped"
       CANCELLED = "step.cancelled"

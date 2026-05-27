@@ -17,7 +17,8 @@ class WorkflowTest < ActiveSupport::TestCase
     state: :pending
     )
     assert_not workflow.valid?
-    assert workflow.errors[:workflow_class].any? { |msg| msg.include?("must be a registered workflow class") }
+    assert workflow.errors[:workflow_class].any? { |msg| msg.include?("not registered") }
+    assert workflow.errors[:workflow_class].any? { |msg| msg.include?("non_existent_workflow") }
   end
 
   test "creates workflow with registered class" do

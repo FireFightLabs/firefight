@@ -12,5 +12,9 @@ module SolidWorkflow
     validates :name, :status, presence: true
 
     scope :ordered, -> { order(:position) }
+
+    def queue_name
+      retry_config&.dig("queue").presence || SolidWorkflow.queue_name.to_s
+    end
   end
 end

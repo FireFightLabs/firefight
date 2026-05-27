@@ -17,6 +17,10 @@ development:
     class: SolidWorkflow::SweeperJob
     queue: workflows
     schedule: every 5 minutes
+  workflow_cleanup:
+    class: SolidWorkflow::CleanupJob # prunes completed workflows + steps + events older than 30 days
+    queue: workflows
+    schedule: at 4am every day
 
 staging:
   cleanup_idempotency_keys:
@@ -36,6 +40,10 @@ staging:
     class: SolidWorkflow::SweeperJob
     queue: workflows
     schedule: every 5 minutes
+  workflow_cleanup:
+    class: SolidWorkflow::CleanupJob # prunes completed workflows + steps + events older than 30 days
+    queue: workflows
+    schedule: at 4am every day
 
 production:
   cleanup_idempotency_keys:
@@ -55,3 +63,7 @@ production:
     class: SolidWorkflow::SweeperJob
     queue: workflows
     schedule: every 5 minutes
+  workflow_cleanup:
+    class: SolidWorkflow::CleanupJob # prunes completed workflows + steps + events older than 30 days
+    queue: workflows
+    schedule: at 4am every day
