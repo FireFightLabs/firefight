@@ -1,4 +1,6 @@
 class IncidentType < ApplicationRecord
+  include Positioned
+
   belongs_to :workspace
   has_many :incidents, dependent: :restrict_with_error
 

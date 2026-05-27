@@ -1,7 +1,14 @@
 class IncidentTranscriptCache
   KEY_PREFIX = "incident"
   MAX_ENTRIES = 2000
-  CLOSED_TTL = 1.week
+  # Active incidents auto-renew via every new message, so the cache stays warm
+  # as long as people are talking. Stale-open incidents fall out naturally.
+  ACTIVE_TTL = 60.days
+  # Sized to cover the typical reopen window (days to a few weeks) without
+  # requiring a Slack history rebuild. Longer reopens lose the cache and
+  # currently degrade to partial catchup; rebuild-on-miss is tracked
+  # separately as a follow-up.
+  CLOSED_TTL = 30.days
 
   def self.append(incident:, entry:)
     payload = read_payload(incident)
@@ -9,7 +16,7 @@ class IncidentTranscriptCache
     entries << entry
     entries = entries.last(MAX_ENTRIES)
 
-    write_payload(incident, { "entries" => entries })
+    write_payload(incident, { "entries" => entries }, expires_in: ACTIVE_TTL)
   end
 
   def self.entries(incident)
@@ -27,7 +34,7 @@ class IncidentTranscriptCache
     payload = read_payload(incident)
     return if payload.empty?
 
-    write_payload(incident, payload)
+    write_payload(incident, payload, expires_in: ACTIVE_TTL)
   end
 
   def self.grouped_messages(incident, workspace:)

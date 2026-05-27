@@ -12,7 +12,13 @@ class WebhookDelivery < ApplicationRecord
   after_create_commit :deliver_later
 
   def self.cleanup(batch_size: 500, pause: 0.1)
-    sleep pause until stale.limit(batch_size).delete_all.zero?
+    BatchedDelete.run(
+      stale,
+      label: "webhook_deliveries.cleanup",
+      batch_size: batch_size,
+      pause: pause,
+      metadata: { stale_days: STALE_THRESHOLD.to_i / 86_400 }
+    )
   end
 
   def succeeded?
