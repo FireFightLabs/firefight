@@ -5,42 +5,43 @@ import {
 } from "@tabler/icons-react"
 
 import type { Incident } from "@/pages/incidents/types"
-import { LIFECYCLE_STAGES } from "@/lib/constants"
+import { severityBadgeClass } from "@/lib/constants"
 import { formatDuration } from "@/lib/formatters"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { MetaCell } from "@/pages/incidents/components/index/meta-cell"
-import { StatusBadge } from "@/pages/incidents/components/index/status-badge"
+import { StatusIcon } from "@/pages/dashboard/components/status-icon"
 
 export function IncidentHeader({ incident }: { incident: Incident }) {
-  const isActive = incident.status.lifecycleStage === LIFECYCLE_STAGES.ACTIVE
   const declared = new Date(incident.declaredAt)
 
   return (
     <header className="mb-10">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
-          {isActive && (
-            <span className="relative flex size-2.5 mr-0.5" aria-label="Active incident">
-              <span
-                className="absolute inline-flex size-full animate-ping rounded-full opacity-60"
-                style={{ backgroundColor: incident.status.color }}
-              />
-              <span
-                className="relative inline-flex size-2.5 rounded-full"
-                style={{ backgroundColor: incident.status.color }}
-              />
-            </span>
-          )}
-          <StatusBadge name={incident.severity.name} color={incident.severity.color} />
-          <StatusBadge name={incident.status.name} color={incident.status.color} />
+          <Badge className={`${severityBadgeClass(incident.severity.rank)} min-w-24 justify-center py-1`}>
+            {incident.severity.name}
+          </Badge>
+          <Badge
+            style={{
+              backgroundColor: `${incident.status.color}33`,
+              color: incident.status.color,
+              borderColor: `${incident.status.color}66`,
+              minWidth: "7.5rem",
+              paddingTop: "0.25rem",
+              paddingBottom: "0.25rem",
+            }}
+          >
+            <StatusIcon statusName={incident.status.name} lifecycleStage={incident.status.lifecycleStage} />
+            {incident.status.name}
+          </Badge>
           {incident.type && (
             <span className="inline-flex items-center rounded-full border border-border bg-transparent px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
               {incident.type.name}
@@ -52,7 +53,7 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-2 border-border bg-card px-3 font-mono text-[12px] text-muted-foreground hover:text-foreground hover:bg-accent"
+              className="h-8 gap-2 border-primary/30 bg-primary/10 px-3 font-mono text-[12px] text-primary hover:bg-primary/20 hover:border-primary/50 hover:text-primary"
             >
               <IconBrandSlack className="size-3.5" />
               <span className="hidden sm:inline">#{incident.channelName}</span>
@@ -64,16 +65,12 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8 border-border bg-card hover:bg-accent"
+                className="size-8 border-border bg-card hover:bg-accent focus-visible:ring-0 focus-visible:ring-offset-0"
               >
                 <IconDotsVertical className="size-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>Edit Incident</DropdownMenuItem>
-              <DropdownMenuItem>Change Status</DropdownMenuItem>
-              <DropdownMenuItem>Assign Lead</DropdownMenuItem>
-              <DropdownMenuSeparator />
+            <DropdownMenuContent align="end" sideOffset={8}>
               <DropdownMenuItem>Close Incident</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

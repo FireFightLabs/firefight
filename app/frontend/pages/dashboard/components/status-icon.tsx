@@ -1,5 +1,5 @@
 import {
-  IconCircleCheckFilled,
+  IconCheck,
   IconCircleDashedCheck,
   IconLoader,
   IconUrgent,
@@ -14,7 +14,7 @@ interface StatusIconProps {
 
 export function StatusIcon({ statusName, lifecycleStage }: StatusIconProps) {
   if (lifecycleStage === LIFECYCLE_STAGES.CLOSED) {
-    return <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
+    return <IconCheck className="size-4" stroke={2.5} />
   }
 
   switch (statusName) {
