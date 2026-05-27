@@ -9,9 +9,6 @@ class AdapterError < StandardError
   class RestrictedAction < AdapterError; end
   class UnsafeDownloadHost < AdapterError; end
 
-  # Terminal platform-auth failure. Caller should stop retrying for this
-  # workspace; an upstream handler is responsible for surfacing the
-  # re-install prompt to admins.
   class AuthRevoked < AdapterError
     attr_reader :error_code
 
@@ -21,7 +18,6 @@ class AdapterError < StandardError
     end
   end
 
-  # Caller is being rate-limited by the platform. retry_after is in seconds.
   class RateLimited < AdapterError
     attr_reader :retry_after
 

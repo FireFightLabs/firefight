@@ -11,10 +11,6 @@ class Slack::ClientTest < ActiveSupport::TestCase
     )
   end
 
-  # ============================================================================
-  # Typed errors from SLACK_ERROR_CODES table
-  # ============================================================================
-
   test "translates name_taken to ChannelExistsError" do
     stub_ok_false_response("name_taken")
     assert_raises(Slack::Client::ChannelExistsError) do
@@ -70,10 +66,6 @@ class Slack::ClientTest < ActiveSupport::TestCase
     assert_equal({ ok: true }, Slack::Client.unarchive_channel(workspace: @workspace, channel: "Cx"))
   end
 
-  # ============================================================================
-  # AuthRevoked
-  # ============================================================================
-
   test "token_revoked raises AuthRevokedError with error_code" do
     stub_ok_false_response("token_revoked")
     err = assert_raises(Slack::Client::AuthRevokedError) do
@@ -95,10 +87,6 @@ class Slack::ClientTest < ActiveSupport::TestCase
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
   end
-
-  # ============================================================================
-  # 429 rate limit — honors Retry-After, retries once, then propagates
-  # ============================================================================
 
   test "429 triggers one retry honoring Retry-After then succeeds" do
     Slack::Client.stubs(:sleep)
@@ -133,10 +121,6 @@ class Slack::ClientTest < ActiveSupport::TestCase
     assert_equal 1, err.retry_after
   end
 
-  # ============================================================================
-  # 5xx retry with backoff
-  # ============================================================================
-
   test "transient 5xx retried up to MAX_RETRY_ATTEMPTS then succeeds" do
     Slack::Client.stubs(:sleep)
     sequence = sequence("5xx-recovery")
@@ -168,10 +152,6 @@ class Slack::ClientTest < ActiveSupport::TestCase
     end
   end
 
-  # ============================================================================
-  # download_file host allowlist
-  # ============================================================================
-
   test "download_file refuses non-slack.com hosts" do
     assert_raises(Slack::Client::UnsafeDownloadHost) do
       Slack::Client.download_file(workspace: @workspace, url: "https://evil.example.com/leak")
@@ -194,10 +174,6 @@ class Slack::ClientTest < ActiveSupport::TestCase
     Slack::Client.download_file(workspace: @workspace, url: "https://slack.com/api/x")
   end
 
-  # ============================================================================
-  # Structured log
-  # ============================================================================
-
   test "emits slack.client.call log line on success" do
     pool = mock_pool
     pool.expects(:request).returns(http_response(200, { ok: true }.to_json))
@@ -206,10 +182,6 @@ class Slack::ClientTest < ActiveSupport::TestCase
 
     Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
   end
-
-  # ============================================================================
-  # Helpers
-  # ============================================================================
 
   private
 

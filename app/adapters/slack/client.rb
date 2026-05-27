@@ -18,9 +18,6 @@ module Slack
     class ServerError < ApiError; end
     class UnsafeDownloadHost < ApiError; end
 
-    # Terminal auth failures — the workspace's access_token is dead. Callers
-    # should stop retrying and surface this to whatever notifier owns
-    # workspace re-install prompts.
     class AuthRevokedError < ApiError
       attr_reader :error_code
 
@@ -30,8 +27,6 @@ module Slack
       end
     end
 
-    # 429 from Slack. retry_after is seconds from the header (or a sensible
-    # default if Slack omits it).
     class RateLimitedError < ApiError
       attr_reader :retry_after
 
@@ -41,9 +36,6 @@ module Slack
       end
     end
 
-    # Maps Slack's `error` field on a 200/`ok: false` response to a typed
-    # subclass. Anything missing falls through to a generic ApiError —
-    # callers shouldn't string-sniff messages.
     SLACK_ERROR_CODES = {
       "expired_trigger_id" => TriggerExpiredError,
       "name_taken"         => ChannelExistsError,
@@ -408,9 +400,8 @@ module Slack
       )
     end
 
-    # Slack file URLs always live on *.slack.com. Refuse to send the
-    # workspace's Bearer token to anything else — guards against a hostile
-    # `permalink_public` value or a misrouted URL leaking credentials.
+    # Allowlist so the workspace's Bearer token can't leak to a hostile host
+    # via a forged `permalink_public` or misrouted URL.
     ALLOWED_DOWNLOAD_HOST_SUFFIX = ".slack.com"
 
     def self.download_file(workspace:, url:)
@@ -435,17 +426,14 @@ module Slack
       }
     end
 
-    # Persistent HTTP connection pool for Slack API.
-    # Reuses TCP+TLS sockets across calls, eliminating handshake overhead
-    # (~15-20ms per call) on the warm path. Net::HTTP::Persistent maintains
-    # per-thread connection caches internally, so the pool object is shared
-    # across Puma threads but each thread has its own socket cache.
+    # Persistent HTTP connection pool for Slack API. Per-thread socket caches
+    # are managed inside Net::HTTP::Persistent; the pool object is shared
+    # across Puma threads.
     #
-    # idle_timeout: 30s — safely under the typical AWS ALB / Slack edge idle
-    # window (~60s). Pairs with pool_request's stale-socket retry: if we ever
-    # do reuse a half-closed socket, the second attempt opens a fresh one.
-    # open_timeout / read_timeout: bounded so a wedged Slack endpoint can't
-    # pin a Puma thread forever.
+    # idle_timeout (30s): safely under typical AWS ALB / Slack edge idle
+    # window (~60s); pool_request retries once if we ever reuse a half-closed
+    # socket. open/read timeout: a wedged Slack endpoint can't pin a Puma
+    # thread forever.
     OPEN_TIMEOUT_SECONDS    = 5
     READ_TIMEOUT_SECONDS    = 10
     IDLE_TIMEOUT_SECONDS    = 30
@@ -465,14 +453,6 @@ module Slack
       end
     end
 
-    # Wraps http_pool.request with:
-    #   - 1 stale-socket retry (transparent, no backoff)
-    #   - up to MAX_RETRY_ATTEMPTS for transient network errors + 5xx, with
-    #     jittered exponential backoff (~250ms, 500ms)
-    #   - 1 RateLimitedError retry honoring Retry-After (capped at
-    #     MAX_RATE_LIMIT_WAIT)
-    # Emits a structured `slack.client.call` log line every call with
-    # endpoint, status, duration_ms, attempts.
     def self.pool_request(uri, request, endpoint: nil)
       started_at  = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       attempts    = 0
@@ -526,8 +506,7 @@ module Slack
       1
     end
 
-    # Jittered exponential backoff. attempts is 1-indexed (first retry uses
-    # attempts=1). Adds ±50% jitter so concurrent callers don't synchronize.
+    # ±50% jitter so concurrent callers don't synchronize on retry.
     def self.backoff_seconds(attempts)
       base = 0.25 * (2**(attempts - 1))
       base + (rand * base) - (base / 2.0)

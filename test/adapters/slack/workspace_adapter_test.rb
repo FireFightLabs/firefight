@@ -107,10 +107,6 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     end
   end
 
-  # ============================================================================
-  # New typed-error translations
-  # ============================================================================
-
   test "translates AuthRevokedError to AdapterError::AuthRevoked and notifies" do
     stub_post_message(raises: Slack::Client::AuthRevokedError.new("token_revoked"))
     Slack::AuthRevokedNotifier.expects(:notify).with(@workspace, error_code: "token_revoked").once
