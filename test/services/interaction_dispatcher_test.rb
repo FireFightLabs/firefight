@@ -18,12 +18,12 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::IncidentUpdateHandler, InteractionDispatcher.find(interaction)
   end
 
-  test "routes escalate_incident_modal to EscalateIncidentHandler" do
+  test "routes escalate_incident_modal to EscalateIncident" do
     interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::ESCALATE_INCIDENT_MODAL)
     assert_equal Interactions::EscalateIncidentHandler, InteractionDispatcher.find(interaction)
   end
 
-  test "routes invite_responders_modal to InviteRespondersHandler" do
+  test "routes invite_responders_modal to InviteResponders" do
     interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::INVITE_RESPONDERS_MODAL)
     assert_equal Interactions::InviteRespondersHandler, InteractionDispatcher.find(interaction)
   end

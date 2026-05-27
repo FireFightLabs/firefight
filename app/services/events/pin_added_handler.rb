@@ -25,13 +25,11 @@ module Events
         event_type: event_type,
         user: member,
         metadata: {
-          details: {
-            user_id: event["user"],
-            message_ts: message_ts,
-            channel_id: channel_id,
-            thread_ts: event.dig("item", "message", "thread_ts"),
-            permalink: permalink
-          }
+          user_id: event["user"],
+          message_ts: message_ts,
+          channel_id: channel_id,
+          thread_ts: event.dig("item", "message", "thread_ts"),
+          permalink: permalink
         }
       )
     rescue StandardError => e
@@ -39,7 +37,7 @@ module Events
     end
 
     def self.fetch_permalink(workspace, channel_id, message_ts)
-      workspace.adapter.get_message_permalink(channel_id: channel_id, message_ts: message_ts)[:permalink]
+      workspace.adapter.get_message_permalink(channel_id: channel_id, message_id: message_ts)[:permalink]
     rescue AdapterError
       nil
     end

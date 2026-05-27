@@ -5,10 +5,9 @@ json.data do
     json.partial! "webhooks/shared/incident", incident: @event.incident
   end
 
-  details = @event.details || {}
   json.related_incident do
-    json.id details["related_incident_id"]
-    json.identifier details["related_identifier"]
+    json.id @event.metadata["related_incident_id"]
+    json.identifier @event.metadata["related_identifier"]
   end
 
   if @event.user

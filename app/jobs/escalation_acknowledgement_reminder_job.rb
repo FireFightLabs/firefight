@@ -7,7 +7,7 @@ class EscalationAcknowledgementReminderJob < ApplicationJob
     incident = Incident.find(incident_id)
     escalation_event = incident.incident_events.find(escalation_event_id)
 
-    return if escalation_event.details&.dig("acknowledged_by_platform_user_id").present?
+    return if escalation_event.metadata&.dig("acknowledged_by_platform_user_id").present?
     return if EscalationAcknowledgementTracker.acknowledged?(workspace_id: incident.workspace_id, escalation_event_id: escalation_event.id)
 
     service = IncidentUpdateService.new(incident.workspace)

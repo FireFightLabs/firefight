@@ -56,7 +56,7 @@ module Events
     end
 
     def self.fetch_message_text(adapter, channel_id, ts)
-      message = adapter.fetch_message(channel_id: channel_id, ts: ts)
+      message = adapter.fetch_message(channel_id: channel_id, message_id: ts)
       message&.dig(:text) || message&.dig("text") || ""
     rescue AdapterError
       ""
@@ -64,7 +64,7 @@ module Events
     private_class_method :fetch_message_text
 
     def self.fetch_permalink(adapter, channel_id, message_ts)
-      result = adapter.get_message_permalink(channel_id: channel_id, message_ts: message_ts)
+      result = adapter.get_message_permalink(channel_id: channel_id, message_id: message_ts)
       result[:permalink]
     rescue AdapterError
       nil

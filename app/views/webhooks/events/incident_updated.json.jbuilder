@@ -7,12 +7,19 @@ json.data do
 
   json.changed_fields @event.changed_fields
 
-  if @event.before_snapshot.present? && @event.after_snapshot.present?
+  current = @event.eventable.is_a?(IncidentUpdate) ? @event.eventable : nil
+  previous = current && IncidentUpdate
+    .where(incident_id: current.incident_id)
+    .where("created_at < ?", current.created_at)
+    .order(created_at: :desc)
+    .first
+
+  if current && @event.changed_fields.any?
     json.changes do
       @event.changed_fields.each do |field|
         json.set! field do
-          json.before @event.before_snapshot[field]
-          json.after @event.after_snapshot[field]
+          json.before previous&.public_send(field)
+          json.after current.public_send(field)
         end
       end
     end

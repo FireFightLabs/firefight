@@ -53,18 +53,18 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
 
   # post_message tests
 
-  test "post_message posts to channel and returns message_ts" do
+  test "post_message posts to channel and returns message_id" do
     stub_post_message
     result = @adapter.post_message(channel_id: "C12345678", text: "hello", blocks: [])
 
-    assert_equal "1234567890.123456", result[:message_ts]
+    assert_equal "1234567890.123456", result[:message_id]
   end
 
   # pin_message tests
 
   test "pin_message pins message in channel" do
     stub_pin_message
-    result = @adapter.pin_message(channel_id: "C12345678", timestamp: "1234567890.123456")
+    result = @adapter.pin_message(channel_id: "C12345678", message_id: "1234567890.123456")
 
     assert result[:ok]
   end
@@ -107,13 +107,54 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     end
   end
 
+  test "translates AuthRevokedError to AdapterError::AuthRevoked and notifies" do
+    stub_post_message(raises: Slack::Client::AuthRevokedError.new("token_revoked"))
+    Slack::AuthRevokedNotifier.expects(:notify).with(@workspace, error_code: "token_revoked").once
+
+    err = assert_raises(AdapterError::AuthRevoked) do
+      @adapter.post_message(channel_id: "C1", text: "hi", blocks: [])
+    end
+    assert_equal "token_revoked", err.error_code
+  end
+
+  test "translates RateLimitedError to AdapterError::RateLimited with retry_after" do
+    stub_post_message(raises: Slack::Client::RateLimitedError.new(3))
+
+    err = assert_raises(AdapterError::RateLimited) do
+      @adapter.post_message(channel_id: "C1", text: "hi", blocks: [])
+    end
+    assert_equal 3, err.retry_after
+  end
+
+  test "translates NotInChannelError to AdapterError::NotInChannel" do
+    stub_post_message(raises: Slack::Client::NotInChannelError.new("not_in_channel"))
+    assert_raises(AdapterError::NotInChannel) do
+      @adapter.post_message(channel_id: "C1", text: "hi", blocks: [])
+    end
+  end
+
+  test "translates IsArchivedError to AdapterError::IsArchived" do
+    stub_post_message(raises: Slack::Client::IsArchivedError.new("is_archived"))
+    assert_raises(AdapterError::IsArchived) do
+      @adapter.post_message(channel_id: "C1", text: "hi", blocks: [])
+    end
+  end
+
+  test "translates RestrictedActionError to AdapterError::RestrictedAction" do
+    stub_invite_to_channel(raises: Slack::Client::RestrictedActionError.new("restricted_action"))
+    assert_raises(AdapterError::RestrictedAction) do
+      @adapter.invite_user(channel_id: "C1", user_id: "U1")
+    end
+  end
+
   # get_user_info tests
 
-  test "get_user_info returns user data from Slack" do
+  test "get_user_info returns normalized user data from Slack" do
     stub_get_user_info
     result = @adapter.get_user_info(user_id: "U_NEW_USER")
 
-    assert_equal "U_NEW_USER", result.dig(:user, :id)
+    assert_equal "U_NEW_USER", result[:user_id]
+    assert_equal "New User", result[:real_name]
   end
 
   test "get_user_info translates ApiError to AdapterError" do

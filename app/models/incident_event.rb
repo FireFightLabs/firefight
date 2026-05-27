@@ -1,5 +1,4 @@
 class IncidentEvent < ApplicationRecord
-  # Event type constants
   INCIDENT_CREATED = "incident.created"
   INCIDENT_UPDATED = "incident.updated"
   LEAD_ASSIGNED = "lead.assigned"
@@ -53,7 +52,30 @@ class IncidentEvent < ApplicationRecord
     ESCALATION_NUDGED => "Escalation reminder was sent"
   }.freeze
 
-  # Associations
+  # Only events backed by a Recordable snapshot appear here. Action-only events
+  # (pins, file shares, escalations, relationships) carry their payload in
+  # `metadata` and have no eventable.
+  UPDATE_TYPE_MAP = {
+    INCIDENT_CREATED     => IncidentUpdate::CREATED,
+    INCIDENT_UPDATED     => IncidentUpdate::UPDATED,
+    INCIDENT_ACCEPTED    => IncidentUpdate::ACCEPTED,
+    LEAD_ASSIGNED        => IncidentUpdate::LEAD_ASSIGNED,
+    INCIDENT_RESOLVED    => IncidentUpdate::CLOSED,
+    INCIDENT_REOPENED    => IncidentUpdate::REOPENED,
+    MERGED_INTO          => IncidentUpdate::CLOSED,
+    ACTION_CREATED       => IncidentActionUpdate::CREATED,
+    ACTION_PICKED_UP     => IncidentActionUpdate::PICKED_UP,
+    ACTION_COMPLETED     => IncidentActionUpdate::COMPLETED,
+    POSTMORTEM_GENERATED => PostmortemUpdate::GENERATED,
+    POSTMORTEM_EDITED    => PostmortemUpdate::EDITED
+  }.freeze
+
+  def self.update_type_for(event_type)
+    UPDATE_TYPE_MAP.fetch(event_type) do
+      raise ArgumentError, "no recordable update_type for event_type=#{event_type.inspect}"
+    end
+  end
+
   belongs_to :incident
   belongs_to :user, class_name: "WorkspaceMembership", optional: true
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate PostmortemUpdate], optional: true
@@ -61,35 +83,17 @@ class IncidentEvent < ApplicationRecord
 
   after_create_commit :publish_to_event_bus
 
-  # Validations
   validates :event_type, presence: true, inclusion: { in: EVENT_TYPES }
+  validate :eventable_matches_event_type
 
-  # Scopes
   scope :chronological, -> { order(created_at: :asc) }
   scope :recent, -> { order(created_at: :desc) }
   scope :updates, -> { where(eventable_type: "IncidentUpdate") }
   scope :action_updates, -> { where(eventable_type: "IncidentActionUpdate") }
   scope :postmortem_updates, -> { where(eventable_type: "PostmortemUpdate") }
 
-  # Helper methods
-  def before_snapshot
-    metadata["before"] || {}
-  end
-
-  def after_snapshot
-    metadata["after"] || {}
-  end
-
   def changed_fields
-    if eventable.is_a?(IncidentUpdate) || eventable.is_a?(IncidentActionUpdate)
-      eventable.changed_fields || []
-    else
-      metadata["changed_fields"] || []
-    end
-  end
-
-  def details
-    metadata["details"]
+    eventable&.changed_fields || []
   end
 
   def changed?(field = nil)
@@ -107,6 +111,18 @@ class IncidentEvent < ApplicationRecord
   end
 
   private
+
+  def eventable_matches_event_type
+    return if event_type.blank?
+
+    snapshot_backed = UPDATE_TYPE_MAP.key?(event_type)
+
+    if snapshot_backed && eventable.nil?
+      errors.add(:eventable, "is required for event_type=#{event_type}")
+    elsif !snapshot_backed && eventable.present?
+      errors.add(:eventable, "must be nil for event_type=#{event_type}")
+    end
+  end
 
   def publish_to_event_bus
     ProcessDomainEventJob.perform_later(

@@ -1,7 +1,7 @@
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { CustomFieldsTab } from "@/pages/settings/components/custom-fields-tab"
+import { CustomFieldsTab } from "@/pages/settings/components/custom-fields/custom-fields-tab"
 import type {
   CatalogTypeOption,
   IncidentFieldDefinitionSettings,

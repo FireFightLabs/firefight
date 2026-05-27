@@ -7,9 +7,7 @@ class SettingsController < InertiaController
 
   def roles
     render inertia: "settings/roles", props: {
-      roles: IncidentRoleSerializer.many(
-        current_workspace.incident_roles.ordered
-      )
+      roles: IncidentRoleSerializer.many(IncidentRole.all_for_workspace(current_workspace))
     }
   end
 
@@ -56,14 +54,15 @@ class SettingsController < InertiaController
 
   def forms
     render inertia: "settings/forms", props: {
-      forms: IncidentFormSettingsSerializer.many(
-        current_workspace.incident_forms.ordered.includes(incident_form_fields: [ :incident_conditions, { incident_field_definition: :workspace } ])
-      ),
+      forms: IncidentFormSettingsSerializer.many(IncidentForm.all_for_workspace(current_workspace)),
       customFields: IncidentFieldDefinitionSettingsSerializer.many(
         current_workspace.incident_field_definitions.active.ordered
       ),
       incidentTypes: IncidentTypeSettingsSerializer.many(
         current_workspace.incident_types.active.ordered
+      ),
+      severities: IncidentSeveritySettingsSerializer.many(
+        current_workspace.incident_severities.ordered
       )
     }
   end

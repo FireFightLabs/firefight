@@ -108,7 +108,7 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     values = {
       "field_name_block" => { "field_name_input" => { "value" => name } },
       "field_severity_block" => { Identifiers::INCIDENT_CREATION_SEVERITY_SELECT => { "selected_option" => { "value" => severity } } },
-      "visibility_block" => { "visibility_select" => { "selected_option" => { "value" => visibility } } }
+      "field_visibility_block" => { "field_visibility_input" => { "selected_option" => { "value" => visibility } } }
     }
 
     custom_fields.each do |key, value|

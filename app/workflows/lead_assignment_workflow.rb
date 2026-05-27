@@ -30,21 +30,9 @@ class LeadAssignmentWorkflow < SolidWorkflow::Base
 
   def post_lead_announcement(workflow:, step:, input:)
     checkpointed(step) do
-      lead_id = workflow.context["lead_platform_user_id"]
-      blocks = [
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: ":firefighter: <@#{lead_id}> is now the *Incident Lead*" }
-        },
-        {
-          type: "context",
-          elements: [ { type: "mrkdwn", text: "Responsible for coordinating the response and updates" } ]
-        }
-      ]
-      workflow.subject.workspace.adapter.post_message(
+      workflow.subject.workspace.adapter.post_lead_announcement(
         channel_id: workflow.subject.channel_id,
-        text: "<@#{lead_id}> is now the Incident Lead",
-        blocks: blocks
+        lead_platform_user_id: workflow.context["lead_platform_user_id"]
       )
     end
   end

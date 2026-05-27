@@ -33,11 +33,11 @@ class IncidentCreationService
         channel_id: incident.channel_id,
         incident: incident
       )
-      message_ts = result[:message_ts]
+      message_ts = result[:message_id]
       incident.update!(initial_message_ts: message_ts)
     end
 
-    adapter.pin_message(channel_id: incident.channel_id, timestamp: message_ts)
+    adapter.pin_message(channel_id: incident.channel_id, message_id: message_ts)
     { message_ts: message_ts }
   end
 
@@ -55,8 +55,8 @@ class IncidentCreationService
       channel_id: @workspace.incidents_channel_id,
       incident: incident
     )
-    incident.update!(announcement_message_ts: result[:message_ts])
-    { message_ts: result[:message_ts] }
+    incident.update!(announcement_message_ts: result[:message_id])
+    { message_ts: result[:message_id] }
   end
 
   def invite_declarer(incident)
@@ -68,7 +68,7 @@ class IncidentCreationService
   def create_incident_event(incident)
     return { ok: true } if incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_CREATED)
 
-    incident.create_initial_update!(created_by: incident.declared_by)
+    incident.record_change!(IncidentEvent::INCIDENT_CREATED, by: incident.declared_by)
     { ok: true }
   end
 end

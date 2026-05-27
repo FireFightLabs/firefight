@@ -5,7 +5,7 @@ json.data do
     json.partial! "webhooks/shared/incident", incident: @event.incident
   end
 
-  json.details @event.details
+  json.details @event.metadata
 
   if @event.user
     json.actor do

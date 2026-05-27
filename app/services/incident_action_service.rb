@@ -13,16 +13,16 @@ class IncidentActionService
       platform_data: platform_data
     )
 
-    action.create_initial_update!(actor: created_by)
+    action.record_change!(IncidentEvent::ACTION_CREATED, by: created_by)
 
     result = @workspace.adapter.post_action_message(channel_id: incident.channel_id, action: action)
-    action.update!(message_ts: result[:message_ts])
+    action.update!(message_ts: result[:message_id])
 
     action
   end
 
   def pick_up_action(action:, picked_up_by:)
-    action.record_change!(IncidentEvent::ACTION_PICKED_UP, actor: picked_up_by) do
+    action.record_change!(IncidentEvent::ACTION_PICKED_UP, by: picked_up_by) do
       action.update!(assignee: picked_up_by, status: IncidentAction::STATUS_IN_PROGRESS)
     end
 
@@ -30,7 +30,7 @@ class IncidentActionService
   end
 
   def complete_action(action:, completed_by:)
-    action.record_change!(IncidentEvent::ACTION_COMPLETED, actor: completed_by) do
+    action.record_change!(IncidentEvent::ACTION_COMPLETED, by: completed_by) do
       action.update!(status: IncidentAction::STATUS_DONE)
     end
 
@@ -47,13 +47,13 @@ class IncidentActionService
     when :picked_up
       adapter.update_action_picked_up(
         channel_id: action.incident.channel_id,
-        ts: action.message_ts,
+        message_id: action.message_ts,
         action: action
       )
     when :completed
       adapter.update_action_completed(
         channel_id: action.incident.channel_id,
-        ts: action.message_ts,
+        message_id: action.message_ts,
         action: action
       )
     end

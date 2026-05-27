@@ -5,22 +5,31 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   TIMELINE_PAGE_SIZE = 15
   TIMELINE_MAX_EVENTS = 45
 
-  def update_incident_quick_actions(channel_id:, ts:, incident:)
-    blocks = Slack::IncidentMessageBuilder.quick_actions_blocks(incident)
+  def update_incident_quick_actions(channel_id:, message_id:, incident:)
+    blocks = Slack::Messages::QuickActions.build(incident)
     update_message(
       channel_id: channel_id,
-      ts: ts,
+      message_id: message_id,
       text: "#{incident.identifier} - Quick Actions",
       blocks: blocks
     )
   end
 
-  def update_incident_announcement(channel_id:, ts:, incident:)
-    blocks = Slack::IncidentMessageBuilder.announcement_blocks(incident)
+  def update_incident_announcement(channel_id:, message_id:, incident:)
+    blocks = Slack::Messages::Announcement.build(incident)
     update_message(
       channel_id: channel_id,
-      ts: ts,
+      message_id: message_id,
       text: "New incident: #{incident.identifier}",
+      blocks: blocks
+    )
+  end
+
+  def post_lead_announcement(channel_id:, lead_platform_user_id:)
+    blocks = Slack::Messages::LeadAssignment.announcement(lead_platform_user_id: lead_platform_user_id)
+    post_message(
+      channel_id: channel_id,
+      text: "<@#{lead_platform_user_id}> is now the Incident Lead",
       blocks: blocks
     )
   end
@@ -48,7 +57,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_incident_quick_actions(channel_id:, incident:)
-    blocks = Slack::IncidentMessageBuilder.quick_actions_blocks(incident)
+    blocks = Slack::Messages::QuickActions.build(incident)
     post_message(
       channel_id: channel_id,
       text: "#{incident.identifier} - Quick Actions",
@@ -57,7 +66,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_incident_announcement(channel_id:, incident:)
-    blocks = Slack::IncidentMessageBuilder.announcement_blocks(incident)
+    blocks = Slack::Messages::Announcement.build(incident)
     post_message(
       channel_id: channel_id,
       text: "New incident: #{incident.identifier}",
@@ -66,10 +75,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
-    blocks = Slack::IncidentMessageBuilder.status_update_blocks(
+    blocks = Slack::Messages::StatusUpdate.build(
       incident,
       message: message,
       updated_by_platform_user_id: updated_by_platform_user_id,
+      scope: :inline,
       previous_status_name: previous_status_name,
       previous_severity_name: previous_severity_name,
       previous_type_name: previous_type_name
@@ -77,20 +87,21 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Incident updated", blocks: blocks)
   end
 
-  def post_incident_update_announcement_thread(channel_id:, thread_ts:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
-    blocks = Slack::IncidentMessageBuilder.status_update_announcement_blocks(
+  def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
+    blocks = Slack::Messages::StatusUpdate.build(
       incident,
       message: message,
       updated_by_platform_user_id: updated_by_platform_user_id,
+      scope: :announcement,
       previous_status_name: previous_status_name,
       previous_severity_name: previous_severity_name,
       previous_type_name: previous_type_name
     )
-    post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident updated", blocks: blocks)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident updated", blocks: blocks)
   end
 
   def post_incident_update_reminder(channel_id:, user_id:, incident:)
-    blocks = Slack::IncidentMessageBuilder.update_reminder_blocks(incident)
+    blocks = Slack::Messages::StatusUpdate.update_reminder(incident)
     post_ephemeral(
       channel_id: channel_id,
       user_id: user_id,
@@ -140,42 +151,42 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_resolution_message(channel_id:, incident:, resolved_by_platform_user_id:)
-    blocks = Slack::IncidentMessageBuilder.resolution_blocks(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
+    blocks = Slack::Messages::Resolution.build(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
     post_message(channel_id: channel_id, text: "Incident resolved", blocks: blocks)
   end
 
-  def post_resolution_announcement_thread(channel_id:, thread_ts:, incident:, resolved_by_platform_user_id:)
-    blocks = Slack::IncidentMessageBuilder.resolution_announcement_thread_blocks(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
-    post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident resolved", blocks: blocks)
+  def post_resolution_announcement_thread(channel_id:, parent_message_id:, incident:, resolved_by_platform_user_id:)
+    blocks = Slack::Messages::Resolution.announcement_thread(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident resolved", blocks: blocks)
   end
 
   def post_related_link_message(channel_id:, source:, target:, linked_by_platform_user_id:)
-    blocks = Slack::IncidentMessageBuilder.related_link_blocks(source, target, linked_by_platform_user_id: linked_by_platform_user_id)
+    blocks = Slack::Messages::Link.related(source, target, linked_by_platform_user_id: linked_by_platform_user_id)
     post_message(channel_id: channel_id, text: "Incident linked", blocks: blocks)
   end
 
   def post_duplicate_source_message(channel_id:, source:, canonical:, linked_by_platform_user_id:)
-    blocks = Slack::IncidentMessageBuilder.duplicate_source_blocks(source, canonical, linked_by_platform_user_id: linked_by_platform_user_id)
+    blocks = Slack::Messages::Link.duplicate_source(source, canonical, linked_by_platform_user_id: linked_by_platform_user_id)
     post_message(channel_id: channel_id, text: "Incident merged", blocks: blocks)
   end
 
   def post_duplicate_canonical_message(channel_id:, source:, canonical:, linked_by_platform_user_id:)
-    blocks = Slack::IncidentMessageBuilder.duplicate_canonical_blocks(source, canonical, linked_by_platform_user_id: linked_by_platform_user_id)
+    blocks = Slack::Messages::Link.duplicate_canonical(source, canonical, linked_by_platform_user_id: linked_by_platform_user_id)
     post_message(channel_id: channel_id, text: "Duplicate merged in", blocks: blocks)
   end
 
   def post_reopen_message(channel_id:, incident:, reopened_by_platform_user_id:, reason: nil)
-    blocks = Slack::IncidentMessageBuilder.reopen_blocks(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
+    blocks = Slack::Messages::Reopen.build(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
     post_message(channel_id: channel_id, text: "Incident reopened", blocks: blocks)
   end
 
-  def post_reopen_announcement_thread(channel_id:, thread_ts:, incident:, reopened_by_platform_user_id:, reason: nil)
-    blocks = Slack::IncidentMessageBuilder.reopen_announcement_thread_blocks(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
-    post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident reopened", blocks: blocks)
+  def post_reopen_announcement_thread(channel_id:, parent_message_id:, incident:, reopened_by_platform_user_id:, reason: nil)
+    blocks = Slack::Messages::Reopen.announcement_thread(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident reopened", blocks: blocks)
   end
 
   def post_escalation_message(channel_id:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
-    blocks = Slack::IncidentMessageBuilder.escalation_blocks(
+    blocks = Slack::Messages::Escalation.build(
       incident,
       escalated_by_platform_user_id: escalated_by_platform_user_id,
       escalated_to_platform_user_id: escalated_to_platform_user_id,
@@ -184,18 +195,18 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Incident escalated", blocks: blocks)
   end
 
-  def post_escalation_announcement_thread(channel_id:, thread_ts:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
-    blocks = Slack::IncidentMessageBuilder.escalation_announcement_thread_blocks(
+  def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+    blocks = Slack::Messages::Escalation.build(
       incident,
       escalated_by_platform_user_id: escalated_by_platform_user_id,
       escalated_to_platform_user_id: escalated_to_platform_user_id,
       reason: reason
     )
-    post_threaded_message(channel_id: channel_id, thread_ts: thread_ts, text: "Incident escalated", blocks: blocks)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident escalated", blocks: blocks)
   end
 
   def post_escalation_direct_message(user_id:, incident:, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
-    blocks = Slack::IncidentMessageBuilder.escalation_direct_message_blocks(
+    blocks = Slack::Messages::Escalation.direct_message(
       incident,
       escalated_by_platform_user_id: escalated_by_platform_user_id,
       escalation_event_id: escalation_event_id,
@@ -205,7 +216,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_escalation_acknowledged_message(channel_id:, incident:, acknowledged_by_platform_user_id:, escalated_to_platform_user_id:)
-    blocks = Slack::IncidentMessageBuilder.escalation_acknowledged_blocks(
+    blocks = Slack::Messages::Escalation.acknowledged(
       incident,
       acknowledged_by_platform_user_id: acknowledged_by_platform_user_id,
       escalated_to_platform_user_id: escalated_to_platform_user_id
@@ -213,36 +224,47 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Escalation acknowledged", blocks: blocks)
   end
 
+  def mark_escalation_dm_acknowledged(channel_id:, message_id:, original_blocks:)
+    blocks = Slack::Messages::Escalation.dm_after_acknowledgment(original_blocks)
+    update_message(
+      channel_id: channel_id,
+      message_id: message_id,
+      text: "Escalation acknowledged",
+      blocks: blocks
+    )
+  end
+
   def post_escalation_nudge_direct_message(user_id:, incident:, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
-    blocks = Slack::IncidentMessageBuilder.escalation_nudge_direct_message_blocks(
+    blocks = Slack::Messages::Escalation.direct_message(
       incident,
       escalated_by_platform_user_id: escalated_by_platform_user_id,
       escalation_event_id: escalation_event_id,
-      reason: reason
+      reason: reason,
+      variant: :nudge
     )
     post_message(channel_id: user_id, text: "Reminder to acknowledge escalation", blocks: blocks)
   end
 
   def post_action_message(channel_id:, action:)
     type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
-    blocks = Slack::IncidentMessageBuilder.action_created_blocks(action)
+    blocks = Slack::Messages::Action.created(action)
     post_message(channel_id: channel_id, text: "New #{type_label} added", blocks: blocks)
   end
 
-  def update_action_picked_up(channel_id:, ts:, action:)
-    blocks = Slack::IncidentMessageBuilder.action_picked_up_blocks(action)
+  def update_action_picked_up(channel_id:, message_id:, action:)
+    blocks = Slack::Messages::Action.picked_up(action)
     type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
-    update_message(channel_id: channel_id, ts: ts, text: "#{type_label.capitalize} updated", blocks: blocks)
+    update_message(channel_id: channel_id, message_id: message_id, text: "#{type_label.capitalize} updated", blocks: blocks)
   end
 
-  def update_action_completed(channel_id:, ts:, action:)
-    blocks = Slack::IncidentMessageBuilder.action_completed_blocks(action)
+  def update_action_completed(channel_id:, message_id:, action:)
+    blocks = Slack::Messages::Action.completed(action)
     type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
-    update_message(channel_id: channel_id, ts: ts, text: "#{type_label.capitalize} updated", blocks: blocks)
+    update_message(channel_id: channel_id, message_id: message_id, text: "#{type_label.capitalize} updated", blocks: blocks)
   end
 
   def post_shoutout_message(channel_id:, incident:, from_user_id:, recipient_user_id:, message:)
-    blocks = Slack::IncidentMessageBuilder.shoutout_blocks(
+    blocks = Slack::Messages::Shoutout.build(
       incident,
       from_user_id: from_user_id,
       recipient_user_id: recipient_user_id,
@@ -252,7 +274,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_shoutout_from_reaction_prompt(channel_id:, user_id:, incident_id:)
-    blocks = Slack::IncidentMessageBuilder.shoutout_from_reaction_blocks(incident_id)
+    blocks = Slack::Messages::Shoutout.from_reaction(incident_id)
     post_ephemeral(
       channel_id: channel_id,
       user_id: user_id,
@@ -262,7 +284,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_action_from_reaction_prompt(channel_id:, user_id:, action_type:, message_text:, incident_id:, source_message_link:)
-    blocks = Slack::IncidentMessageBuilder.action_from_reaction_blocks(
+    blocks = Slack::Messages::Action.from_reaction(
       action_type, message_text, incident_id, source_message_link
     )
     type_label = action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
@@ -274,8 +296,18 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
+  def post_ai_response(channel_id:, incident:, answer:)
+    blocks = Slack::Messages::AiResponse.build(incident: incident, answer: answer)
+    post_message(channel_id: channel_id, text: answer, blocks: blocks)
+  end
+
+  def post_ai_response_threaded(channel_id:, parent_message_id:, incident:, answer:)
+    blocks = Slack::Messages::AiResponse.build(incident: incident, answer: answer)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: answer, blocks: blocks)
+  end
+
   def post_postmortem_message(channel_id:, incident:, postmortem:)
-    blocks = Slack::IncidentMessageBuilder.postmortem_blocks(incident, postmortem)
+    blocks = Slack::Messages::Postmortem.build(incident, postmortem)
     post_message(
       channel_id: channel_id,
       text: "Postmortem generated for #{incident.identifier}",

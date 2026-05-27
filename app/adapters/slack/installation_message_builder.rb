@@ -56,13 +56,13 @@ module Slack
         }
       ]
 
-      preview_blocks += Slack::IncidentMessageBuilder.announcement_blocks_for({
+      preview_blocks += Slack::Messages::Announcement.build_from(
         title: "[PREVIEW] Website is down",
         summary: "The marketing website is down: I'm getting a '502 Gateway OverallTimeout' error",
         severity_name: "Minor",
         status_name: "Investigating",
         reporter_id: user_id
-      })
+      )
 
       { blocks: preview_blocks }
     end

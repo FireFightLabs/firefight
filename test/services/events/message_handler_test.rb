@@ -34,9 +34,9 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::MESSAGE_FILE_SHARED)
     assert_equal @member, event.user
-    assert_equal "runbook.png", event.details["file_name"]
-    assert_equal "image/png", event.details["mime_type"]
-    assert_equal "1234567890.123456", event.details["message_ts"]
+    assert_equal "runbook.png", event.metadata["file_name"]
+    assert_equal "image/png", event.metadata["mime_type"]
+    assert_equal "1234567890.123456", event.metadata["message_ts"]
   end
 
   test "ignores unsupported message subtype" do

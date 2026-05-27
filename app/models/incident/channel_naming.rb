@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 # Incident::ChannelNaming - Platform channel name generation
 #
 # Generates Slack/Teams channel names for incidents.

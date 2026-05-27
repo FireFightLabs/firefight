@@ -7,7 +7,7 @@ module Interactions
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
       new_summary = interaction.values.dig("summary_block", "summary_input", "value")
 
-      incident.record_change!(IncidentEvent::INCIDENT_UPDATED, changed_by: member) do
+      incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) do
         incident.update!(summary: new_summary)
       end
 
@@ -35,7 +35,7 @@ module Interactions
     def self.delete_temp_message(workspace, metadata)
       return unless metadata[:temp_message_ts] && metadata[:channel_id]
 
-      workspace.adapter.delete_message(channel_id: metadata[:channel_id], ts: metadata[:temp_message_ts])
+      workspace.adapter.delete_message(channel_id: metadata[:channel_id], message_id: metadata[:temp_message_ts])
     rescue AdapterError => e
       Rails.logger.warn({ event: "interactions.update_summary.delete_temp_failed", error: e.message })
     end

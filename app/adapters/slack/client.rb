@@ -10,7 +10,48 @@ module Slack
     class ChannelExistsError < ApiError; end
     class ChannelNotFoundError < ApiError; end
     class AlreadyArchivedError < ApiError; end
+    class NotArchivedError < ApiError; end
+    class IsArchivedError < ApiError; end
+    class NotInChannelError < ApiError; end
     class AlreadyInChannelError < ApiError; end
+    class RestrictedActionError < ApiError; end
+    class ServerError < ApiError; end
+    class UnsafeDownloadHost < ApiError; end
+
+    class AuthRevokedError < ApiError
+      attr_reader :error_code
+
+      def initialize(error_code)
+        @error_code = error_code
+        super("Slack auth revoked: #{error_code}")
+      end
+    end
+
+    class RateLimitedError < ApiError
+      attr_reader :retry_after
+
+      def initialize(retry_after)
+        @retry_after = retry_after
+        super("Slack rate-limited; retry_after=#{retry_after}s")
+      end
+    end
+
+    SLACK_ERROR_CODES = {
+      "expired_trigger_id" => TriggerExpiredError,
+      "name_taken"         => ChannelExistsError,
+      "channel_not_found"  => ChannelNotFoundError,
+      "already_archived"   => AlreadyArchivedError,
+      "not_archived"       => NotArchivedError,
+      "is_archived"        => IsArchivedError,
+      "not_in_channel"     => NotInChannelError,
+      "already_in_channel" => AlreadyInChannelError,
+      "cant_invite_self"   => AlreadyInChannelError,
+      "restricted_action"  => RestrictedActionError,
+      "token_revoked"      => AuthRevokedError,
+      "account_inactive"   => AuthRevokedError,
+      "invalid_auth"       => AuthRevokedError,
+      "not_authed"         => AuthRevokedError
+    }.freeze
 
     # Open a modal in Slack
     #
@@ -21,7 +62,7 @@ module Slack
     # @raise [TriggerExpiredError] if trigger_id has expired
     # @raise [ApiError] if Slack API returns an error
     def self.open_modal(workspace:, trigger_id:, view:)
-      body = api_post(
+      api_post(
         workspace: workspace,
         endpoint: "views.open",
         payload: {
@@ -29,16 +70,10 @@ module Slack
           view: view
         }
       )
-
-      if !body[:ok] && body[:error] == "expired_trigger_id"
-        raise TriggerExpiredError, "Trigger ID expired"
-      end
-
-      body
     end
 
     def self.push_modal(workspace:, trigger_id:, view:)
-      body = api_post(
+      api_post(
         workspace: workspace,
         endpoint: "views.push",
         payload: {
@@ -46,12 +81,6 @@ module Slack
           view: view
         }
       )
-
-      if !body[:ok] && body[:error] == "expired_trigger_id"
-        raise TriggerExpiredError, "Trigger ID expired"
-      end
-
-      body
     end
 
     # Post a message to a Slack channel
@@ -107,7 +136,7 @@ module Slack
     # @raise [ApiError] if Slack API returns an error
     # @see https://api.slack.com/methods/conversations.create
     def self.create_channel(workspace:, name:, is_private: false)
-      body = api_post(
+      api_post(
         workspace: workspace,
         endpoint: "conversations.create",
         payload: {
@@ -115,15 +144,6 @@ module Slack
           is_private: is_private
         }
       )
-
-      body
-    rescue ApiError => e
-      # Check if this is a "channel already exists" error
-      if e.message.include?("name_taken")
-        raise ChannelExistsError, "Channel '#{name}' already exists"
-      else
-        raise # Re-raise other ApiErrors
-      end
     end
 
     # Set channel topic
@@ -184,12 +204,6 @@ module Slack
           users: users_str
         }
       )
-    rescue ApiError => e
-      if e.message.include?("already_in_channel") || e.message.include?("cant_invite_self")
-        raise AlreadyInChannelError, "User(s) already in channel '#{channel}'"
-      else
-        raise
-      end
     end
 
     # Pin a message in a channel
@@ -295,12 +309,6 @@ module Slack
           channel: channel
         }
       )
-    rescue ApiError => e
-      if e.message.include?("already_archived")
-        raise AlreadyArchivedError, "Channel '#{channel}' is already archived"
-      else
-        raise
-      end
     end
 
     def self.unarchive_channel(workspace:, channel:)
@@ -311,12 +319,8 @@ module Slack
           channel: channel
         }
       )
-    rescue ApiError => e
-      if e.message.include?("not_archived")
-        { ok: true }
-      else
-        raise
-      end
+    rescue NotArchivedError
+      { ok: true }
     end
 
     # List all channels in the workspace
@@ -392,12 +396,21 @@ module Slack
       api_get(workspace: workspace, endpoint: "users.info", params: { user: user_id })
     end
 
+    # Allowlist so the workspace's Bearer token can't leak to a hostile host
+    # via a forged `permalink_public` or misrouted URL.
+    ALLOWED_DOWNLOAD_HOST_SUFFIX = ".slack.com"
+
     def self.download_file(workspace:, url:)
       uri = URI(url)
+      host = uri.host.to_s.downcase
+      unless host == "slack.com" || host.end_with?(ALLOWED_DOWNLOAD_HOST_SUFFIX)
+        raise UnsafeDownloadHost, "refusing to send Slack token to host=#{host}"
+      end
+
       request = Net::HTTP::Get.new(uri)
       request["Authorization"] = "Bearer #{workspace.access_token}"
 
-      response = pool_request(uri, request)
+      response = pool_request(uri, request, endpoint: "files.download")
 
       unless response.code.to_i.between?(200, 299)
         raise ApiError, "Slack file download failed with status #{response.code}"
@@ -409,41 +422,115 @@ module Slack
       }
     end
 
-    # Persistent HTTP connection pool for Slack API.
-    # Reuses TCP+TLS sockets across calls, eliminating handshake overhead
-    # (~15-20ms per call) on the warm path. Net::HTTP::Persistent maintains
-    # per-thread connection caches internally, so the pool object is shared
-    # across Puma threads but each thread has its own socket cache.
+    # Persistent HTTP connection pool for Slack API. Per-thread socket caches
+    # are managed inside Net::HTTP::Persistent; the pool object is shared
+    # across Puma threads.
     #
-    # idle_timeout: 30s — safely under the typical AWS ALB / Slack edge idle
-    # window (~60s). Pairs with pool_request's stale-socket retry: if we ever
-    # do reuse a half-closed socket, the second attempt opens a fresh one.
-    STALE_SOCKET_ERRORS = [ EOFError, Errno::ECONNRESET, Errno::EPIPE, Net::HTTP::Persistent::Error ].freeze
+    # idle_timeout (30s): safely under typical AWS ALB / Slack edge idle
+    # window (~60s); pool_request retries once if we ever reuse a half-closed
+    # socket. open/read timeout: a wedged Slack endpoint can't pin a Puma
+    # thread forever.
+    OPEN_TIMEOUT_SECONDS    = 5
+    READ_TIMEOUT_SECONDS    = 10
+    IDLE_TIMEOUT_SECONDS    = 30
+    MAX_RETRY_ATTEMPTS      = 3
+    MAX_RATE_LIMIT_WAIT     = 5
+    STALE_SOCKET_ERRORS     = [ EOFError, Errno::ECONNRESET, Errno::EPIPE, Net::HTTP::Persistent::Error ].freeze
+    TRANSIENT_NETWORK_ERRORS = [ Net::ReadTimeout, Net::OpenTimeout, Errno::ECONNREFUSED, Errno::EHOSTUNREACH ].freeze
     HTTP_POOL_MUTEX = Mutex.new
 
     def self.http_pool
-      @http_pool || HTTP_POOL_MUTEX.synchronize do
+      @http_pool ||= HTTP_POOL_MUTEX.synchronize do
         @http_pool ||= Net::HTTP::Persistent.new(name: "slack_api").tap do |pool|
-          pool.idle_timeout = 30
+          pool.idle_timeout = IDLE_TIMEOUT_SECONDS
+          pool.open_timeout = OPEN_TIMEOUT_SECONDS
+          pool.read_timeout = READ_TIMEOUT_SECONDS
         end
       end
     end
 
-    # Wraps http_pool.request with a single retry on stale-socket errors.
-    # Net::HTTP::Persistent.retry_change_requests defaults to false, so it
-    # won't auto-retry POSTs — we do it here. One retry only: if both attempts
-    # die at the connection level the underlying issue isn't a stale socket.
-    def self.pool_request(uri, request)
-      attempts = 0
+    def self.pool_request(uri, request, endpoint: nil)
+      started_at  = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      attempts    = 0
+      retried_429 = false
+
       begin
         attempts += 1
-        http_pool.request(uri, request)
-      rescue *STALE_SOCKET_ERRORS => e
-        raise if attempts >= 2
+        response = http_pool.request(uri, request)
+        status   = response.code.to_i
 
-        Rails.logger.info({ event: "slack.client.stale_socket_retry", error_class: e.class.name, error: e.message })
-        retry
+        if status == 429
+          retry_after = parse_retry_after(response["retry-after"])
+          raise RateLimitedError.new(retry_after)
+        elsif status.between?(500, 599)
+          raise ServerError, "Slack API returned #{status}"
+        end
+
+        log_call(endpoint: endpoint, status: status, started_at: started_at, attempts: attempts)
+        response
+      rescue *STALE_SOCKET_ERRORS => e
+        if attempts < 2
+          Rails.logger.info({ event: "slack.client.stale_socket_retry", endpoint: endpoint, error_class: e.class.name })
+          retry
+        end
+        log_error(endpoint: endpoint, error: e, started_at: started_at, attempts: attempts)
+        raise
+      rescue *TRANSIENT_NETWORK_ERRORS, ServerError => e
+        if attempts < MAX_RETRY_ATTEMPTS
+          sleep(backoff_seconds(attempts))
+          Rails.logger.info({ event: "slack.client.retry", endpoint: endpoint, error_class: e.class.name, attempt: attempts })
+          retry
+        end
+        log_error(endpoint: endpoint, error: e, started_at: started_at, attempts: attempts)
+        raise
+      rescue RateLimitedError => e
+        unless retried_429
+          retried_429 = true
+          wait = [ e.retry_after, MAX_RATE_LIMIT_WAIT ].min
+          Rails.logger.info({ event: "slack.client.rate_limit_retry", endpoint: endpoint, retry_after: e.retry_after, wait: wait })
+          sleep(wait)
+          retry
+        end
+        log_error(endpoint: endpoint, error: e, started_at: started_at, attempts: attempts)
+        raise
       end
+    end
+
+    def self.parse_retry_after(header)
+      Integer(header.to_s.strip)
+    rescue ArgumentError, TypeError
+      1
+    end
+
+    # ±50% jitter so concurrent callers don't synchronize on retry.
+    def self.backoff_seconds(attempts)
+      base = 0.25 * (2**(attempts - 1))
+      base + (rand * base) - (base / 2.0)
+    end
+
+    def self.log_call(endpoint:, status:, started_at:, attempts:)
+      Rails.logger.info({
+        event:       "slack.client.call",
+        endpoint:    endpoint,
+        status:      status,
+        attempts:    attempts,
+        duration_ms: duration_ms_since(started_at)
+      })
+    end
+
+    def self.log_error(endpoint:, error:, started_at:, attempts:)
+      Rails.logger.warn({
+        event:       "slack.client.error",
+        endpoint:    endpoint,
+        error_class: error.class.name,
+        error:       error.message,
+        attempts:    attempts,
+        duration_ms: duration_ms_since(started_at)
+      })
+    end
+
+    def self.duration_ms_since(started_at)
+      ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round
     end
 
     private
@@ -481,17 +568,27 @@ module Slack
       request["Content-Type"] = "application/json"
       request.body = payload.to_json
 
-      response = pool_request(uri, request)
-      body = JSON.parse(response.body).with_indifferent_access
+      response = pool_request(uri, request, endpoint: endpoint)
 
-      unless body[:ok]
-        error_details = body.slice(:error, :response_metadata, :needed, :provided)
-        raise ApiError, "Slack API error: #{body[:error]} (details: #{error_details.to_json})"
-      end
+      body = parse_json_body(response.body)
+      return body if body[:ok]
 
-      body
+      raise typed_error_for(body[:error], body)
+    end
+
+    def self.parse_json_body(raw)
+      JSON.parse(raw).with_indifferent_access
     rescue JSON::ParserError => e
       raise ApiError, "Failed to parse Slack API response: #{e.message}"
+    end
+
+    def self.typed_error_for(error_code, body)
+      klass = SLACK_ERROR_CODES[error_code]
+      return AuthRevokedError.new(error_code) if klass == AuthRevokedError
+
+      details = body.slice(:error, :response_metadata, :needed, :provided)
+      message = "Slack API error: #{error_code} (details: #{details.to_json})"
+      (klass || ApiError).new(message)
     end
   end
 end

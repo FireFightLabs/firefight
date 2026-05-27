@@ -8,7 +8,7 @@ class IncidentUpdateService
 
     @workspace.adapter.update_incident_quick_actions(
       channel_id: incident.channel_id,
-      ts: incident.initial_message_ts,
+      message_id: incident.initial_message_ts,
       incident: incident
     )
   end
@@ -18,7 +18,7 @@ class IncidentUpdateService
 
     @workspace.adapter.update_incident_announcement(
       channel_id: @workspace.incidents_channel_id,
-      ts: incident.announcement_message_ts,
+      message_id: incident.announcement_message_ts,
       incident: incident
     )
   end
@@ -59,7 +59,7 @@ class IncidentUpdateService
 
     @workspace.adapter.post_resolution_announcement_thread(
       channel_id: @workspace.incidents_channel_id,
-      thread_ts: incident.announcement_message_ts,
+      parent_message_id: incident.announcement_message_ts,
       incident: incident,
       resolved_by_platform_user_id: resolved_by_platform_user_id
     )
@@ -79,7 +79,7 @@ class IncidentUpdateService
 
     @workspace.adapter.post_reopen_announcement_thread(
       channel_id: @workspace.incidents_channel_id,
-      thread_ts: incident.announcement_message_ts,
+      parent_message_id: incident.announcement_message_ts,
       incident: incident,
       reopened_by_platform_user_id: reopened_by_platform_user_id,
       reason: reason
@@ -101,7 +101,7 @@ class IncidentUpdateService
 
     @workspace.adapter.post_escalation_announcement_thread(
       channel_id: @workspace.incidents_channel_id,
-      thread_ts: incident.announcement_message_ts,
+      parent_message_id: incident.announcement_message_ts,
       incident: incident,
       escalated_by_platform_user_id: escalated_by_platform_user_id,
       escalated_to_platform_user_id: escalated_to_platform_user_id,
@@ -137,14 +137,12 @@ class IncidentUpdateService
       reason: reason
     )
 
-    unless incident.incident_events.where(event_type: IncidentEvent::ESCALATION_NUDGED).where("metadata @> ?", { details: { escalation_event_id: escalation_event_id } }.to_json).exists?
+    unless incident.incident_events.where(event_type: IncidentEvent::ESCALATION_NUDGED).where("metadata @> ?", { escalation_event_id: escalation_event_id }.to_json).exists?
       incident.incident_events.create!(
         event_type: IncidentEvent::ESCALATION_NUDGED,
         metadata: {
-          details: {
-            escalation_event_id: escalation_event_id,
-            escalated_to_platform_user_id: escalated_to_platform_user_id
-          }
+          escalation_event_id: escalation_event_id,
+          escalated_to_platform_user_id: escalated_to_platform_user_id
         }
       )
     end
@@ -155,7 +153,7 @@ class IncidentUpdateService
 
     @workspace.adapter.post_incident_update_announcement_thread(
       channel_id: @workspace.incidents_channel_id,
-      thread_ts: incident.announcement_message_ts,
+      parent_message_id: incident.announcement_message_ts,
       incident: incident,
       message: message,
       updated_by_platform_user_id: updated_by_platform_user_id,

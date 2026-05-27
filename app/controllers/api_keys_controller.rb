@@ -13,8 +13,8 @@ class ApiKeysController < InertiaController
       expires_at: params[:expires_at].present? ? Time.zone.parse(params[:expires_at]) : nil
     )
 
-    redirect_to settings_api_keys_path,
-      flash: { api_key_token: raw_token }
+    flash.inertia[:api_key_token] = raw_token
+    redirect_to settings_api_keys_path
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_api_keys_path,
       inertia: { errors: e.record.errors.to_hash }

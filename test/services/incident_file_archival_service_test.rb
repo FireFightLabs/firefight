@@ -8,10 +8,8 @@ class IncidentFileArchivalServiceTest < ActiveSupport::TestCase
     incident_event.update!(
       event_type: IncidentEvent::MESSAGE_FILE_SHARED,
       metadata: {
-        details: {
-          file_name: "runbook.png",
-          mime_type: "image/png"
-        }
+        file_name: "runbook.png",
+        mime_type: "image/png"
       }
     )
 
@@ -27,10 +25,10 @@ class IncidentFileArchivalServiceTest < ActiveSupport::TestCase
 
     IncidentFileArchivalService.archive!(incident_event: incident_event, slack_file: { "id" => "F123" })
 
-    details = incident_event.reload.details
-    assert_equal "artifacts/abc", details["object_key"]
-    assert_equal 123, details["blob_id"]
-    assert_equal 456, details["byte_size"]
-    assert_equal "xyz", details["checksum"]
+    metadata = incident_event.reload.metadata
+    assert_equal "artifacts/abc", metadata["object_key"]
+    assert_equal 123, metadata["blob_id"]
+    assert_equal 456, metadata["byte_size"]
+    assert_equal "xyz", metadata["checksum"]
   end
 end

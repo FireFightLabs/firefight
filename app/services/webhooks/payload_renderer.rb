@@ -11,6 +11,7 @@ class Webhooks::PayloadRenderer
     IncidentEvent::ACTION_PICKED_UP => "webhooks/events/action_picked_up",
     IncidentEvent::ACTION_COMPLETED => "webhooks/events/action_completed",
     IncidentEvent::POSTMORTEM_GENERATED => "webhooks/events/postmortem_generated",
+    IncidentEvent::POSTMORTEM_EDITED => "webhooks/events/postmortem_edited",
     IncidentEvent::RELATIONSHIP_CREATED => "webhooks/events/relationship_created",
     IncidentEvent::MARKED_DUPLICATE => "webhooks/events/marked_duplicate",
     IncidentEvent::MERGED_INTO => "webhooks/events/merged_into"

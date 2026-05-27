@@ -20,4 +20,11 @@ class WebhookDeliveriesController < InertiaController
       delivery: delivery.as_json(only: [ :id, :event_type, :state, :request_headers, :request_body, :response_code, :error_message, :delivered_at, :created_at ])
     }
   end
+
+  def replay
+    webhook = current_workspace.webhooks.find(params[:webhook_id])
+    delivery = webhook.webhook_deliveries.find(params[:id])
+    delivery.replay!
+    redirect_to settings_webhooks_path, notice: "Delivery replay queued"
+  end
 end

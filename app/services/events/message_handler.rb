@@ -35,17 +35,15 @@ module Events
           event_type: IncidentEvent::MESSAGE_FILE_SHARED,
           user: member,
           metadata: {
-            details: {
-              user_id: event["user"],
-              message_ts: message_ts,
-              channel_id: channel_id,
-              thread_ts: thread_ts,
-              permalink: permalink,
-              slack_file_id: file["id"],
-              file_name: file["name"],
-              mime_type: file["mimetype"],
-              object_key: nil
-            }
+            user_id: event["user"],
+            message_ts: message_ts,
+            channel_id: channel_id,
+            thread_ts: thread_ts,
+            permalink: permalink,
+            slack_file_id: file["id"],
+            file_name: file["name"],
+            mime_type: file["mimetype"],
+            object_key: nil
           }
         )
 
@@ -85,7 +83,7 @@ module Events
     private_class_method :normalize_file
 
     def self.fetch_permalink(workspace, channel_id, message_ts)
-      workspace.adapter.get_message_permalink(channel_id: channel_id, message_ts: message_ts)[:permalink]
+      workspace.adapter.get_message_permalink(channel_id: channel_id, message_id: message_ts)[:permalink]
     rescue AdapterError
       nil
     end

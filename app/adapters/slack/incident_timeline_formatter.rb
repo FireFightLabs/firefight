@@ -44,8 +44,7 @@ module Slack
     private_class_method :emoji_for
 
     def self.actor_mention_for(event)
-      details = event.details || {}
-      user_id = details["user_id"] || event.user&.platform_user_id
+      user_id = (event.metadata || {})["user_id"] || event.user&.platform_user_id
       user_id.present? ? "<@#{user_id}>" : "System"
     end
     private_class_method :actor_mention_for
@@ -81,7 +80,7 @@ module Slack
     end
 
     def self.details_for(event)
-      details = event.details || {}
+      details = event.metadata || {}
 
       case event.event_type
       when IncidentEvent::INCIDENT_ESCALATED
