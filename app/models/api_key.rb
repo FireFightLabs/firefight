@@ -28,6 +28,7 @@ class ApiKey < ApplicationRecord
   validates :name, presence: true
   validates :token_digest, presence: true, uniqueness: true
   validates :token_prefix, presence: true
+  validate :permissions_well_formed
 
   after_update :invalidate_cache!
 
@@ -102,5 +103,30 @@ class ApiKey < ApplicationRecord
 
   def invalidate_cache!
     Rails.cache.delete("#{CACHE_PREFIX}#{token_digest}")
+  end
+
+  private
+
+  # Permissions must be a hash of `{ resource_string => [action_strings] }`
+  # using only RESOURCES + ACTIONS values. Anything else (unknown resource,
+  # unknown action, non-array value) is rejected so a malicious or buggy
+  # caller can't write arbitrary jsonb.
+  def permissions_well_formed
+    return errors.add(:permissions, "must be a hash") unless permissions.is_a?(Hash)
+
+    permissions.each do |resource, actions|
+      unless RESOURCES.include?(resource.to_s)
+        return errors.add(:permissions, "unknown resource '#{resource}'")
+      end
+      unless actions.is_a?(Array)
+        return errors.add(:permissions, "actions for '#{resource}' must be an array")
+      end
+
+      actions.each do |action|
+        unless ACTIONS.include?(action.to_s)
+          return errors.add(:permissions, "unknown action '#{action}' for resource '#{resource}'")
+        end
+      end
+    end
   end
 end

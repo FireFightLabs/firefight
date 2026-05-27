@@ -74,4 +74,13 @@ class ChannelArchivalJobTest < ActiveSupport::TestCase
     @incident.reload
     assert_not_nil @incident.channel_archived_at
   end
+
+  test "re-raises AuthRevoked so the failure surfaces in SolidQueue" do
+    Slack::Client.expects(:archive_channel).raises(Slack::Client::AuthRevokedError.new("token_revoked"))
+    Slack::AuthRevokedNotifier.expects(:notify).at_least_once
+
+    assert_raises(AdapterError::AuthRevoked) do
+      ChannelArchivalJob.perform_now(@incident.id, @incident.resolved_at.iso8601)
+    end
+  end
 end

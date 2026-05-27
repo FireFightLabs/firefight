@@ -20,13 +20,21 @@ class ApiKeysController < InertiaController
       inertia: { errors: e.record.errors.to_hash }
   end
 
+  # Only touch fields the client explicitly passes. Without these guards,
+  # sending `permissions: {}` would wipe permissions (`{}` is truthy so the
+  # old `||` fallback never triggered) and omitting `active` would write nil
+  # into a NOT NULL column.
   def update
-    @api_key.update!(
-      name: params[:name],
-      permissions: params[:permissions]&.to_unsafe_h || @api_key.permissions,
-      active: ActiveModel::Type::Boolean.new.cast(params[:active])
-    )
+    attrs = {}
+    attrs[:name] = params[:name] if params.key?(:name)
+    attrs[:permissions] = params[:permissions].to_unsafe_h if params.key?(:permissions)
+    attrs[:active] = ActiveModel::Type::Boolean.new.cast(params[:active]) if params.key?(:active)
+
+    @api_key.update!(attrs)
     redirect_to settings_api_keys_path
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: settings_api_keys_path,
+      inertia: { errors: e.record.errors.to_hash }
   end
 
   def destroy
