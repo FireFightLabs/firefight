@@ -84,7 +84,7 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
         </div>
       </div>
 
-      <h1 className="text-[32px] leading-[1.15] font-semibold tracking-[-0.02em] text-foreground mb-4">
+      <h1 className="text-[28px] leading-[1.15] font-semibold tracking-[-0.02em] text-foreground mb-4">
         {incident.name}
       </h1>
 
@@ -99,7 +99,7 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
           {incident.lead ? (
             <div className="flex items-center gap-2">
               <Avatar className="size-5">
-                <AvatarFallback className="text-[10px] font-semibold">
+                <AvatarFallback className="text-[10px] font-semibold bg-primary/20 text-primary">
                   {incident.lead.initials}
                 </AvatarFallback>
               </Avatar>

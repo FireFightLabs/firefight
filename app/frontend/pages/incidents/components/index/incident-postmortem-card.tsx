@@ -59,24 +59,17 @@ export function IncidentPostmortemCard({
   }
 
   return (
-    <section className="rounded-xl border border-border bg-card px-5 py-5">
-      <div className="flex items-start gap-3">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-muted/70">
-          <IconFileText className="size-[17px] text-muted-foreground/80" strokeWidth={1.75} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-foreground">No postmortem yet</p>
-          <p className="mt-1 text-[12px] leading-[1.55] text-muted-foreground/90">
-            Capture what happened, why it happened, and what prevents it next time.
-          </p>
-        </div>
-      </div>
+    <section className="rounded-xl border border-primary/25 bg-card px-5 py-5">
+      <p className="text-[14px] font-semibold text-foreground">No postmortem yet</p>
+      <p className="mt-1 text-[13px] leading-[1.55] text-muted-foreground/90">
+        Capture what happened, why it happened, and what prevents it next time.
+      </p>
       <div className="mt-4 flex items-center gap-2">
         <Button size="sm" className="h-8 gap-1.5 px-3 text-[12px]">
           <IconSparkles className="size-3.5" strokeWidth={2} />
           Generate draft
         </Button>
-        <Button variant="ghost" size="sm" className="h-8 px-2.5 text-[12px] text-muted-foreground">
+        <Button variant="outline" size="sm" className="h-8 px-2.5 text-[12px] bg-transparent">
           Start blank
         </Button>
       </div>
