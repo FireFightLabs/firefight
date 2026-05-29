@@ -40,6 +40,12 @@ class WorkspaceMemberProvisioner
       platform_data: profile.is_a?(Hash) ? profile : {},
       joined_at: Time.current
     )
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+    # Lost a concurrent provision race for the same Slack user. The unique
+    # [workspace_id, platform_user_id] index (or its validation) rejected our
+    # insert; the winner's row exists now, so return it. Re-raise if nothing
+    # materialized — then it was a genuine validation failure, not the race.
+    workspace.workspace_memberships.find_by(platform_user_id: platform_user_id) || raise
   rescue AdapterError => e
     Rails.logger.warn({
       event: "workspace_member_provisioner.api_error",

@@ -5,9 +5,9 @@ module Catalogue
     end
 
     def create(type:, name:, raw_attributes:)
-      CatalogEntry.transaction do
-        provisioned_attrs = provision_member_attributes(type, raw_attributes)
+      provisioned_attrs = provision_member_attributes(type, raw_attributes)
 
+      CatalogEntry.transaction do
         entry = type.catalog_entries.new(
           workspace: @workspace,
           name: name,
@@ -22,9 +22,9 @@ module Catalogue
     end
 
     def update(entry, name: nil, raw_attributes: {})
-      CatalogEntry.transaction do
-        provisioned_attrs = provision_member_attributes(entry.catalog_type, raw_attributes)
+      provisioned_attrs = provision_member_attributes(entry.catalog_type, raw_attributes)
 
+      CatalogEntry.transaction do
         entry.name = name if name.present?
         _scalar_attrs, reference_attrs = entry.assign_validated_attributes!(provisioned_attrs)
         entry.save!
