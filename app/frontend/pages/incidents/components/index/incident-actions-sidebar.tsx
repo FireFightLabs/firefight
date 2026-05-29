@@ -5,11 +5,13 @@ import { ActionPanel } from "@/pages/incidents/components/index/action-panel"
 
 export function IncidentActionsSidebar({
   actions,
-  canAdd,
+  canAddAction,
+  canAddFollowup,
   incidentId,
 }: {
   actions: IncidentAction[]
-  canAdd: boolean
+  canAddAction: boolean
+  canAddFollowup: boolean
   incidentId: string
 }) {
   const actionItems = actions.filter((a) => a.actionType === "action")
@@ -17,8 +19,8 @@ export function IncidentActionsSidebar({
 
   return (
     <div className="flex flex-col gap-3">
-      <ActionPanel title="Actions" icon={IconCheckbox} items={actionItems} canAdd={canAdd} incidentId={incidentId} actionType="action" />
-      <ActionPanel title="Follow-ups" icon={IconChecks} items={followups} canAdd={canAdd} incidentId={incidentId} actionType="followup" />
+      <ActionPanel title="Actions" icon={IconCheckbox} items={actionItems} canAdd={canAddAction} incidentId={incidentId} actionType="action" disabledTooltip="Incident is closed" />
+      <ActionPanel title="Follow-ups" icon={IconChecks} items={followups} canAdd={canAddFollowup} incidentId={incidentId} actionType="followup" disabledTooltip="Available once incident is resolved" />
     </div>
   )
 }

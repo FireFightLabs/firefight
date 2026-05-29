@@ -35,10 +35,12 @@ export function AddActionDialog({
   disabled = false,
   incidentId,
   actionType,
+  disabledTooltip = "Not available",
 }: {
   disabled?: boolean
   incidentId: string
   actionType: "action" | "followup"
+  disabledTooltip?: string
 }) {
   const [open, setOpen] = useState(false)
   const { members, loadMembers } = useMemberSearch()
@@ -77,7 +79,7 @@ export function AddActionDialog({
           <TooltipTrigger asChild>
             <span>{trigger}</span>
           </TooltipTrigger>
-          <TooltipContent>Incident is closed</TooltipContent>
+          <TooltipContent>{disabledTooltip}</TooltipContent>
         </Tooltip>
       ) : (
         <DialogTrigger asChild>{trigger}</DialogTrigger>

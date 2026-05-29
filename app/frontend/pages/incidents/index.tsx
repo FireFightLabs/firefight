@@ -21,7 +21,8 @@ interface IncidentPageProps extends SharedProps {
 
 export default function IncidentPage() {
   const { incident, timelineEvents, actions, hasPostmortem, postmortemStatus } = usePage<IncidentPageProps>().props
-  const canAdd = ["triage", "active"].includes(incident.status.lifecycleStage)
+  const canAddAction = ["triage", "active"].includes(incident.status.lifecycleStage)
+  const canAddFollowup = ["closed", "canceled"].includes(incident.status.lifecycleStage)
 
   return (
     <AuthenticatedLayout title={incident.identifier}>
@@ -67,7 +68,7 @@ export default function IncidentPage() {
                 />
               </div>
               <Deferred data="actions" fallback={<ActionsSkeleton />}>
-                <IncidentActionsSidebar actions={actions ?? []} canAdd={canAdd} incidentId={incident.id} />
+                <IncidentActionsSidebar actions={actions ?? []} canAddAction={canAddAction} canAddFollowup={canAddFollowup} incidentId={incident.id} />
               </Deferred>
             </div>
           </aside>
