@@ -40,6 +40,8 @@ const eventAccent: Record<string, DotAccent> = {
   "incident.reopened": "amber",
   "incident.escalated": "rose",
   "lead.assigned": "violet",
+  "action.created": "primary",
+  "action.picked_up": "amber",
   "action.completed": "emerald",
   "postmortem.generated": "violet",
   "postmortem.edited": "violet",
@@ -47,10 +49,10 @@ const eventAccent: Record<string, DotAccent> = {
 
 const solidAccent: Record<DotAccent, string> = {
   primary: "border-primary/60 bg-primary/20 text-primary",
-  emerald: "border-emerald-400/60 bg-emerald-400/15 text-emerald-300",
-  amber: "border-amber-400/60 bg-amber-400/15 text-amber-300",
-  rose: "border-rose-400/60 bg-rose-400/15 text-rose-300",
-  violet: "border-violet-400/60 bg-violet-400/15 text-violet-300",
+  emerald: "border-emerald-500/60 bg-emerald-500/15 text-emerald-600 dark:border-emerald-400/60 dark:bg-emerald-400/15 dark:text-emerald-400",
+  amber: "border-amber-500/60 bg-amber-500/15 text-amber-600 dark:border-amber-400/60 dark:bg-amber-400/15 dark:text-amber-400",
+  rose: "border-rose-500/60 bg-rose-500/15 text-rose-600 dark:border-rose-400/60 dark:bg-rose-400/15 dark:text-rose-400",
+  violet: "border-violet-500/60 bg-violet-500/15 text-violet-600 dark:border-violet-400/60 dark:bg-violet-400/15 dark:text-violet-400",
   neutral: "border-border bg-card text-muted-foreground",
 }
 
@@ -102,7 +104,7 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
                   aria-hidden
                   className="absolute left-[13px] top-0 bottom-0 w-px bg-border"
                 />
-                <span className="relative z-10 -ml-14 inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                <span className="relative z-10 -ml-14 inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                   <span aria-hidden className="size-1 rounded-full bg-muted-foreground/60" />
                   {eventDate}
                 </span>
@@ -126,13 +128,13 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap text-[13px]">
+                <div className="flex items-center gap-2 flex-wrap text-sm">
                   <ActorAvatar name={event.actor} />
                   <span className={`font-medium ${highlight ? "text-foreground" : "text-foreground/95"}`}>
                     {event.actor}
                   </span>
                   <span className="text-muted-foreground">{event.description}</span>
-                  <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground/80">
+                  <span className="ml-auto shrink-0 font-mono text-xs tabular-nums text-muted-foreground/80">
                     {formatTime(event.createdAt)}
                   </span>
                 </div>
@@ -144,9 +146,9 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
                         {event.changes.map((change) => (
                           <div
                             key={change.field}
-                            className="flex items-center gap-2 text-[12px]"
+                            className="flex items-center gap-2 text-xs"
                           >
-                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
                               {change.field}
                             </span>
                             <span className="text-muted-foreground/80 line-through decoration-muted-foreground/40">
@@ -163,7 +165,7 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
 
                     {event.details && (
                       <p
-                        className={`text-[13px] leading-[1.6] text-muted-foreground ${event.changes && event.changes.length > 0 ? "mt-2 pt-2 border-t border-border" : ""}`}
+                        className={`text-sm leading-relaxed text-muted-foreground ${event.changes && event.changes.length > 0 ? "mt-2 pt-2 border-t border-border" : ""}`}
                       >
                         {event.details}
                       </p>
