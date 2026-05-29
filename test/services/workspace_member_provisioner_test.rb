@@ -70,6 +70,37 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
     end
   end
 
+  test "concurrent provision returns existing row instead of raising on the unique index" do
+    # Row created by a concurrent request after our existence check but before
+    # our insert. Forcing the top-level find_by to miss drives execution into
+    # create_or_find_by!, which must resolve the conflict to the existing row.
+    existing = WorkspaceMembership.create!(
+      workspace: @workspace,
+      user: users(:alice),
+      platform_user_id: "U_RACE",
+      role: :member,
+      joined_at: Time.current
+    )
+
+    # Top-level existence check misses (the row was created concurrently after
+    # it ran); the rescue's re-query then finds the winner's row.
+    @workspace.workspace_memberships.stubs(:find_by).returns(nil).then.returns(existing)
+    @adapter.stubs(:get_user_info).returns({ real_name: "Racer", email: "racer@example.com" })
+
+    membership = nil
+    assert_no_difference -> { @workspace.workspace_memberships.where(platform_user_id: "U_RACE").count } do
+      assert_nothing_raised do
+        membership = WorkspaceMemberProvisioner.find_or_provision!(
+          workspace: @workspace,
+          platform_user_id: "U_RACE",
+          adapter: @adapter
+        )
+      end
+    end
+
+    assert_equal "U_RACE", membership.platform_user_id
+  end
+
   test "returns nil on AdapterError" do
     @adapter.expects(:get_user_info).raises(AdapterError.new("boom"))
 

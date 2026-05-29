@@ -83,6 +83,8 @@ class CatalogueController < InertiaController
     entry = current_workspace.catalog_entries.where(deleted_at: nil).find(params[:id])
     entry_service.delete(entry)
     redirect_to catalogue_type_path(entry.catalog_type.slug)
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
+    redirect_back fallback_location: catalogue_path, inertia: { errors: { base: [ e.message ] } }
   end
 
   private
