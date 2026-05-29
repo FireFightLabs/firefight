@@ -64,11 +64,11 @@ export function AddActionDialog({
     <Button
       variant="ghost"
       size="icon"
-      className="size-7 text-muted-foreground/70 hover:text-foreground hover:bg-muted/50 disabled:opacity-40 disabled:pointer-events-none"
+      className="size-7 text-foreground/60 hover:text-foreground hover:bg-muted/50 disabled:opacity-40 disabled:pointer-events-none"
       aria-label="Add action item"
       disabled={disabled}
     >
-      <IconPlus className="size-3.5" />
+      <IconPlus className="size-4" />
     </Button>
   )
 

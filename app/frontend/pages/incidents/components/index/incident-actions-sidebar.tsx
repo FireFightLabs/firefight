@@ -1,5 +1,3 @@
-import { IconCheckbox, IconChecks } from "@tabler/icons-react"
-
 import type { IncidentAction } from "@/pages/incidents/types"
 import { ActionPanel } from "@/pages/incidents/components/index/action-panel"
 
@@ -19,8 +17,8 @@ export function IncidentActionsSidebar({
 
   return (
     <div className="flex flex-col gap-3">
-      <ActionPanel title="Actions" icon={IconCheckbox} items={actionItems} canAdd={canAddAction} incidentId={incidentId} actionType="action" disabledTooltip="Incident is closed" />
-      <ActionPanel title="Follow-ups" icon={IconChecks} items={followups} canAdd={canAddFollowup} incidentId={incidentId} actionType="followup" disabledTooltip="Available once incident is resolved" />
+      <ActionPanel title="Actions" items={actionItems} canAdd={canAddAction} incidentId={incidentId} actionType="action" disabledTooltip="Incident is closed" />
+      <ActionPanel title="Follow-ups" items={followups} canAdd={canAddFollowup} incidentId={incidentId} actionType="followup" disabledTooltip="Available once incident is resolved" />
     </div>
   )
 }
