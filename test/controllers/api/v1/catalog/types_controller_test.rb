@@ -5,7 +5,7 @@ class Api::V1::Catalog::TypesControllerTest < ActionDispatch::IntegrationTest
            :catalog_types, :catalog_attribute_definitions, :catalog_entries
 
   test "lists active types with attribute schema" do
-    get "/api/v1/catalog/types", headers: api_headers
+    get api_v1_catalog_types_path, headers: api_headers
     assert_response :success
 
     types = json_response["types"]
@@ -15,13 +15,13 @@ class Api::V1::Catalog::TypesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "shows a type by slug" do
-    get "/api/v1/catalog/types/service", headers: api_headers
+    get api_v1_catalog_type_path(slug: "service"), headers: api_headers
     assert_response :success
     assert_equal "service", json_response["slug"]
   end
 
   test "requires catalog:read" do
-    get "/api/v1/catalog/types", headers: api_headers(token: "ff_test_read_only_token_12345678")
+    get api_v1_catalog_types_path, headers: api_headers(token: "ff_test_read_only_token_12345678")
     assert_response :forbidden
   end
 end
