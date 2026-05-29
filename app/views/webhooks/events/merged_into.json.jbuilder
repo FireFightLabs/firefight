@@ -10,9 +10,9 @@ json.data do
     json.identifier @event.metadata["canonical_identifier"]
   end
 
-  if @event.user
+  if @event.actor
     json.actor do
-      json.partial! "webhooks/shared/actor", actor: @event.user
+      json.partial! "webhooks/shared/actor", actor: @event.actor
     end
   else
     json.actor nil

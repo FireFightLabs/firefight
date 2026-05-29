@@ -69,7 +69,7 @@ class Interactions::ReopenIncidentHandlerTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_REOPENED)
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
     assert_instance_of IncidentUpdate, event.eventable
     assert_equal IncidentUpdate::REOPENED, event.eventable.update_type
     assert_equal "Issue is still occurring", event.eventable.message

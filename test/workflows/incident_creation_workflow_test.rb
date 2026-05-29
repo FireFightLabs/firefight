@@ -83,7 +83,7 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_CREATED)
     assert_equal @incident, event.incident
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
     assert_instance_of IncidentUpdate, event.eventable
     assert_equal IncidentUpdate::CREATED, event.eventable.update_type
     assert_equal @incident.incident_severity, event.eventable.incident_severity

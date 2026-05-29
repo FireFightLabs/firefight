@@ -18,7 +18,7 @@ class IncidentActionUpdateTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.create!(
       event_type: IncidentEvent::ACTION_CREATED,
-      user: @member,
+      actor: @member,
       eventable: action_update
     )
 

@@ -53,7 +53,7 @@ class IncidentRelationshipService
   def record_relationship_event(incident, event_type, actor, other_incident)
     incident.incident_events.create!(
       event_type: event_type,
-      user: actor,
+      actor: actor,
       metadata: {
         related_incident_id: other_incident.id,
         related_identifier: other_incident.identifier

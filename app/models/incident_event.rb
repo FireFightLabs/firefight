@@ -77,7 +77,7 @@ class IncidentEvent < ApplicationRecord
   end
 
   belongs_to :incident
-  belongs_to :user, class_name: "WorkspaceMembership", optional: true
+  belongs_to :actor, polymorphic: true, optional: true
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate PostmortemUpdate], optional: true
   has_one_attached :artifact
 
@@ -107,7 +107,7 @@ class IncidentEvent < ApplicationRecord
   end
 
   def to_context_hash
-    { type: event_type, at: created_at.iso8601, by: user&.user&.name, description: description }
+    { type: event_type, at: created_at.iso8601, by: actor&.actor_display_name, description: description }
   end
 
   private
@@ -129,7 +129,8 @@ class IncidentEvent < ApplicationRecord
       "event_id" => id,
       "event_type" => event_type,
       "incident_id" => incident_id,
-      "user_id" => user_id,
+      "actor_type" => actor_type,
+      "actor_id" => actor_id,
       "data" => metadata,
       "occurred_at" => created_at.iso8601(6)
     )

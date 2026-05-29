@@ -27,9 +27,9 @@ json.data do
     json.changes({})
   end
 
-  if @event.user
+  if @event.actor
     json.actor do
-      json.partial! "webhooks/shared/actor", actor: @event.user
+      json.partial! "webhooks/shared/actor", actor: @event.actor
     end
   else
     json.actor nil
