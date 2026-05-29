@@ -10,13 +10,31 @@ class EscalationAcknowledgementReminderJob < ApplicationJob
     return if escalation_event.metadata&.dig("acknowledged_by_platform_user_id").present?
     return if EscalationAcknowledgementTracker.acknowledged?(workspace_id: incident.workspace_id, escalation_event_id: escalation_event.id)
 
-    service = IncidentUpdateService.new(incident.workspace)
-    service.post_escalation_nudge_direct_message(
+    IncidentUpdateService.new(incident.workspace).post_escalation_nudge_direct_message(
       incident,
       escalated_by_platform_user_id: escalated_by_platform_user_id,
       escalated_to_platform_user_id: escalated_to_platform_user_id,
       escalation_event_id: escalation_event.id,
       reason: reason
+    )
+
+    record_nudged_event(incident, escalation_event.id, escalated_to_platform_user_id)
+  end
+
+  private
+
+  def record_nudged_event(incident, escalation_event_id, escalated_to_platform_user_id)
+    return if incident.incident_events
+      .where(event_type: IncidentEvent::ESCALATION_NUDGED)
+      .where("metadata @> ?", { escalation_event_id: escalation_event_id }.to_json)
+      .exists?
+
+    incident.incident_events.create!(
+      event_type: IncidentEvent::ESCALATION_NUDGED,
+      metadata: {
+        escalation_event_id: escalation_event_id,
+        escalated_to_platform_user_id: escalated_to_platform_user_id
+      }
     )
   end
 end

@@ -5,12 +5,10 @@ class IncidentLifecycleService
     @workspace = workspace
   end
 
-  def create(attrs)
+  def create(create_channel_sync: false, **attrs)
     incident = Incident.create!(**attrs, workspace: workspace)
 
-    if incident.source == Incident::SOURCE_SLACK
-      IncidentCreationService.new(workspace).create_channel(incident)
-    end
+    IncidentCreationService.new(workspace).create_channel(incident) if create_channel_sync
 
     IncidentCreationWorkflow.start!(incident)
     incident
