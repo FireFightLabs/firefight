@@ -13,7 +13,7 @@ class TimelineEventSerializer < BaseSerializer
 
   type :string
   def actor
-    event.user&.user&.name || "System"
+    event.actor&.actor_display_name || "System"
   end
 
   type :string

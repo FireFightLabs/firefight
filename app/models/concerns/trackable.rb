@@ -44,7 +44,7 @@ module Trackable
 
     incident_owner.incident_events.create!(
       event_type: event_type,
-      user:       by,
+      actor:      by,
       eventable:  update,
       metadata:   event_metadata
     )

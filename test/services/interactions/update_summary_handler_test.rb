@@ -31,7 +31,7 @@ class Interactions::UpdateSummaryHandlerTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.updates.find_by!(event_type: IncidentEvent::INCIDENT_UPDATED)
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
     assert_instance_of IncidentUpdate, event.eventable
     assert event.changed?(:summary)
   end

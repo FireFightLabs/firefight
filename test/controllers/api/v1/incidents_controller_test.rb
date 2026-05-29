@@ -264,6 +264,19 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "API-driven update attributes the event to the API key, not the key creator" do
+    incident = incidents(:active_critical_ws1)
+    stub_successful_slack_workflow
+
+    patch api_v1_incident_url(incident),
+      params: { summary: "Updated via API" }.to_json,
+      headers: api_headers
+
+    event = incident.incident_events.where(event_type: IncidentEvent::INCIDENT_UPDATED).order(:created_at).last
+    assert_instance_of ApiKey, event.actor
+    assert_equal "Full Access Key", event.actor.actor_display_name
+  end
+
   test "closing via status triggers IncidentCloseWorkflow" do
     incident = incidents(:active_critical_ws1)
     resolved_status = @workspace.incident_statuses.closed.first

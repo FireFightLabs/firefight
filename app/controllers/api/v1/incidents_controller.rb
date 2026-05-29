@@ -82,7 +82,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     new_severity = current_workspace.incident_severities.active.find(params[:severity_id]) if params[:severity_id].present?
     new_type = current_workspace.incident_types.active.find(params[:incident_type_id]) if params[:incident_type_id].present?
     new_lead = current_workspace.workspace_memberships.find(params[:lead_id]) if params[:lead_id].present?
-    changed_by = Current.api_key.created_by
+    changed_by = Current.api_key
 
     if new_status && (new_status.incident_lifecycle_stage.closed? || new_status.incident_lifecycle_stage.canceled?)
       attrs = { incident_status: new_status }

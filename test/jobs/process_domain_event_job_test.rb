@@ -21,7 +21,7 @@ class ProcessDomainEventJobTest < ActiveJob::TestCase
     event_hash = {
       "event_type" => IncidentEvent::INCIDENT_CREATED,
       "incident_id" => @incident.id,
-      "user_id" => @member.id,
+      "actor_type" => "WorkspaceMembership", "actor_id" => @member.id,
       "data" => { "severity" => "critical" },
       "occurred_at" => Time.current.iso8601(6)
     }

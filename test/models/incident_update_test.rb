@@ -29,7 +29,7 @@ class IncidentUpdateTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.create!(
       event_type: IncidentEvent::INCIDENT_CREATED,
-      user: @member,
+      actor: @member,
       eventable: update
     )
 

@@ -54,7 +54,7 @@ class Interactions::CreateActionHandlerTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_CREATED)
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
     assert_instance_of IncidentActionUpdate, event.eventable
     assert_equal IncidentActionUpdate::CREATED, event.eventable.update_type
   end

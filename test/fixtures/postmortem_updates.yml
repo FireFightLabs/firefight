@@ -1,6 +1,7 @@
 postmortem_update_generated_ws1:
   postmortem: postmortem_resolved_ws1
   incident: resolved_minor_ws1
+  edited_by_type: WorkspaceMembership
   edited_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
   update_type: generated
   title: "INC-003 Postmortem: Image upload broken"

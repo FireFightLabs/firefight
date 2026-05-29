@@ -29,7 +29,7 @@ class Events::PinHandlersTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::MESSAGE_PINNED)
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
     assert_equal "1234567890.111111", event.metadata["message_ts"]
   end
 
@@ -41,7 +41,7 @@ class Events::PinHandlersTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::MESSAGE_UNPINNED)
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
   end
 
   private

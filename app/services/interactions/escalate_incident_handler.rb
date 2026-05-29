@@ -11,7 +11,7 @@ module Interactions
 
       escalation_event = incident.incident_events.create!(
         event_type: IncidentEvent::INCIDENT_ESCALATED,
-        user: member,
+        actor: member,
         metadata: {
           escalated_to_platform_user_id: escalated_to_user_id,
           reason: reason

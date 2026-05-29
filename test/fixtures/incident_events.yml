@@ -7,14 +7,16 @@
 inc1_created:
   incident: active_critical_ws1
   event_type: incident.created
-  user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  actor_type: WorkspaceMembership
+  actor_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
   created_at: <%= 2.hours.ago %>
   metadata: {}
 
 inc1_updated:
   incident: active_critical_ws1
   event_type: incident.updated
-  user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  actor_type: WorkspaceMembership
+  actor_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
   created_at: <%= 1.5.hours.ago %>
   metadata:
     message: "Production database hitting max connections"
@@ -22,7 +24,8 @@ inc1_updated:
 inc1_lead_assigned:
   incident: active_critical_ws1
   event_type: lead.assigned
-  user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  actor_type: WorkspaceMembership
+  actor_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
   created_at: <%= 1.hour.ago %>
   metadata:
     role: "incident_lead"
@@ -32,7 +35,8 @@ inc1_lead_assigned:
 inc2_created:
   incident: active_major_ws1
   event_type: incident.created
-  user_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  actor_type: WorkspaceMembership
+  actor_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
   created_at: <%= 1.hour.ago %>
   metadata: {}
 
@@ -40,7 +44,8 @@ inc2_created:
 inc3_resolved:
   incident: resolved_minor_ws1
   event_type: incident.resolved
-  user_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  actor_type: WorkspaceMembership
+  actor_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
   created_at: <%= 20.hours.ago %>
   metadata:
     resolution_time: 4
@@ -50,6 +55,7 @@ inc3_resolved:
 ws2_inc1_created:
   incident: active_p0_ws2
   event_type: incident.created
-  user_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
+  actor_type: WorkspaceMembership
+  actor_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
   created_at: <%= 15.minutes.ago %>
   metadata: {}

@@ -33,7 +33,7 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
     assert_enqueued_jobs 1, only: ArchiveIncidentFileJob
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::MESSAGE_FILE_SHARED)
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
     assert_equal "runbook.png", event.metadata["file_name"]
     assert_equal "image/png", event.metadata["mime_type"]
     assert_equal "1234567890.123456", event.metadata["message_ts"]

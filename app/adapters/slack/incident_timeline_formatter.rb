@@ -44,7 +44,7 @@ module Slack
     private_class_method :emoji_for
 
     def self.actor_mention_for(event)
-      user_id = (event.metadata || {})["user_id"] || event.user&.platform_user_id
+      user_id = (event.metadata || {})["user_id"] || event.actor&.platform_user_id
       user_id.present? ? "<@#{user_id}>" : "System"
     end
     private_class_method :actor_mention_for

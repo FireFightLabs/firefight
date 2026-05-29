@@ -7,9 +7,9 @@ json.data do
 
   json.details @event.metadata
 
-  if @event.user
+  if @event.actor
     json.actor do
-      json.partial! "webhooks/shared/actor", actor: @event.user
+      json.partial! "webhooks/shared/actor", actor: @event.actor
     end
   else
     json.actor nil

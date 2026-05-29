@@ -13,7 +13,7 @@ class Webhooks::DispatchJobTest < ActiveSupport::TestCase
       "event_id" => @event.id,
       "event_type" => @event.event_type,
       "incident_id" => @event.incident_id,
-      "user_id" => @event.user_id,
+      "actor_type" => @event.actor_id ? "WorkspaceMembership" : nil, "actor_id" => @event.actor_id,
       "data" => @event.metadata,
       "occurred_at" => @event.created_at.iso8601(6)
     }
@@ -43,7 +43,7 @@ class Webhooks::DispatchJobTest < ActiveSupport::TestCase
       "event_id" => event.id,
       "event_type" => IncidentEvent::LEAD_ASSIGNED,
       "incident_id" => event.incident_id,
-      "user_id" => event.user_id,
+      "actor_type" => event.actor_id ? "WorkspaceMembership" : nil, "actor_id" => event.actor_id,
       "data" => event.metadata,
       "occurred_at" => event.created_at.iso8601(6)
     }

@@ -23,7 +23,7 @@ module Events
 
       incident.incident_events.create!(
         event_type: event_type,
-        user: member,
+        actor: member,
         metadata: {
           user_id: event["user"],
           message_ts: message_ts,
