@@ -10,7 +10,7 @@ class PostmortemUpdate < ApplicationRecord
 
   belongs_to :postmortem
   belongs_to :incident
-  belongs_to :edited_by, class_name: "WorkspaceMembership"
+  belongs_to :edited_by, polymorphic: true
 
   validates :update_type, presence: true, inclusion: { in: UPDATE_TYPES }
   validates :title, presence: true

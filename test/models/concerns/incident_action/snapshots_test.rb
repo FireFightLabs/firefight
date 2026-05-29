@@ -59,7 +59,7 @@ class IncidentAction::SnapshotsTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_CREATED)
     assert_equal update, event.eventable
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
   end
 
   test "record_change! captures changed fields" do
@@ -77,7 +77,7 @@ class IncidentAction::SnapshotsTest < ActiveSupport::TestCase
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_PICKED_UP)
     assert_equal update, event.eventable
-    assert_equal @bob, event.user
+    assert_equal @bob, event.actor
   end
 
   test "record_change! detects only actually changed fields" do

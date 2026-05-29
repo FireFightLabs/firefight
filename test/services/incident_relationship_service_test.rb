@@ -37,7 +37,7 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
     end
 
     event1 = @incident1.incident_events.find_by!(event_type: IncidentEvent::RELATIONSHIP_CREATED)
-    assert_equal @member, event1.user
+    assert_equal @member, event1.actor
     assert_equal @incident2.id, event1.metadata["related_incident_id"]
 
     event2 = @incident2.incident_events.find_by!(event_type: IncidentEvent::RELATIONSHIP_CREATED)
@@ -90,7 +90,7 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
     @service.mark_duplicate(source: @incident1, canonical: @incident2, created_by: @member)
 
     event = @incident1.incident_events.find_by!(event_type: IncidentEvent::MERGED_INTO)
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
   end
 
   test "mark_duplicate creates MARKED_DUPLICATE event on canonical" do

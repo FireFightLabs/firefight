@@ -82,7 +82,7 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_CREATED)
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
     assert_instance_of IncidentActionUpdate, event.eventable
 
     action_update = event.eventable
@@ -143,7 +143,7 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_PICKED_UP)
-    assert_equal @bob, event.user
+    assert_equal @bob, event.actor
     assert_instance_of IncidentActionUpdate, event.eventable
 
     action_update = event.eventable
@@ -192,7 +192,7 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_COMPLETED)
-    assert_equal @bob, event.user
+    assert_equal @bob, event.actor
     assert_instance_of IncidentActionUpdate, event.eventable
 
     action_update = event.eventable

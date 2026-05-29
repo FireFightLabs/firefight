@@ -51,7 +51,7 @@ class Interactions::MarkActionDoneHandlerTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_COMPLETED)
-    assert_equal @bob, event.user
+    assert_equal @bob, event.actor
     assert_instance_of IncidentActionUpdate, event.eventable
     assert_equal IncidentActionUpdate::COMPLETED, event.eventable.update_type
   end

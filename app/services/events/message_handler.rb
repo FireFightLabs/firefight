@@ -33,7 +33,7 @@ module Events
 
         incident_event = incident.incident_events.create!(
           event_type: IncidentEvent::MESSAGE_FILE_SHARED,
-          user: member,
+          actor: member,
           metadata: {
             user_id: event["user"],
             message_ts: message_ts,

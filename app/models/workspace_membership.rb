@@ -21,6 +21,10 @@ class WorkspaceMembership < ApplicationRecord
     user.name
   end
 
+  # Actor interface (shared with ApiKey) for polymorphic event/snapshot attribution.
+  def actor_display_name = display_name
+  def actor_kind = "user"
+
   # Scopes
   scope :by_role, ->(role) { where(role: role) }
   scope :owners, -> { where(role: :owner) }

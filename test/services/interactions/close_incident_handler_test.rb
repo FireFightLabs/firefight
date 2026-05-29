@@ -110,7 +110,7 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_RESOLVED)
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
     assert_instance_of IncidentUpdate, event.eventable
     assert event.changed?(:status)
     assert event.changed?(:resolved_at)

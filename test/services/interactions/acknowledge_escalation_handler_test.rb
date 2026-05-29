@@ -12,7 +12,7 @@ class Interactions::AcknowledgeEscalationHandlerTest < ActiveSupport::TestCase
 
     @escalation_event = @incident.incident_events.create!(
       event_type: IncidentEvent::INCIDENT_ESCALATED,
-      user: @escalated_by,
+      actor: @escalated_by,
       metadata: {
         escalated_to_platform_user_id: @escalated_to.platform_user_id
       }

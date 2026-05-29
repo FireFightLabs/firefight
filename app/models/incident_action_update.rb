@@ -10,7 +10,7 @@ class IncidentActionUpdate < ApplicationRecord
 
   belongs_to :incident_action
   belongs_to :incident
-  belongs_to :actor, class_name: "WorkspaceMembership"
+  belongs_to :actor, polymorphic: true
   belongs_to :created_by, class_name: "WorkspaceMembership"
   belongs_to :assignee, class_name: "WorkspaceMembership", optional: true
 

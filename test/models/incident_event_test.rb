@@ -15,8 +15,8 @@ class IncidentEventTest < ActiveSupport::TestCase
 
   test "belongs to user workspace_membership" do
     event = incident_events(:inc1_created)
-    assert_instance_of WorkspaceMembership, event.user
-    assert_equal workspace_memberships(:alice_workspace_one), event.user
+    assert_instance_of WorkspaceMembership, event.actor
+    assert_equal workspace_memberships(:alice_workspace_one), event.actor
   end
 
   test "user is optional" do
@@ -24,7 +24,7 @@ class IncidentEventTest < ActiveSupport::TestCase
       incident: incidents(:active_critical_ws1),
       event_type: IncidentEvent::MESSAGE_PINNED
     )
-    assert_nil event.user
+    assert_nil event.actor
     assert event.valid?
   end
 
@@ -226,7 +226,7 @@ class IncidentEventTest < ActiveSupport::TestCase
 
     incident.incident_events.create!(
       event_type: IncidentEvent::INCIDENT_UPDATED,
-      user: member,
+      actor: member,
       eventable: update
     )
 
@@ -253,7 +253,7 @@ class IncidentEventTest < ActiveSupport::TestCase
 
     event = incident.incident_events.create!(
       event_type: IncidentEvent::ACTION_PICKED_UP,
-      user: member,
+      actor: member,
       eventable: action_update
     )
 
@@ -284,7 +284,7 @@ class IncidentEventTest < ActiveSupport::TestCase
 
     event = incident.incident_events.create!(
       event_type: IncidentEvent::INCIDENT_UPDATED,
-      user: member,
+      actor: member,
       eventable: update
     )
 

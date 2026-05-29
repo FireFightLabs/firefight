@@ -7,7 +7,7 @@ class EventRouterTest < ActiveSupport::TestCase
     @event = DomainEvent.new(
       event_type: IncidentEvent::INCIDENT_CREATED,
       incident_id: "fake-id",
-      user_id: "fake-user",
+      actor_id: "fake-user",
       data: { "severity" => "critical" },
       occurred_at: Time.current
     )

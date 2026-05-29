@@ -18,7 +18,7 @@ class IncidentUpdate < ApplicationRecord
   belongs_to :incident_type, optional: true
   belongs_to :declared_by, class_name: "WorkspaceMembership", optional: true
   belongs_to :lead, class_name: "WorkspaceMembership", optional: true
-  belongs_to :created_by, class_name: "WorkspaceMembership", optional: true
+  belongs_to :created_by, polymorphic: true, optional: true
 
   validates :update_type, presence: true, inclusion: { in: UPDATE_TYPES }
 

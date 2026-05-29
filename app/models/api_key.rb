@@ -81,6 +81,13 @@ class ApiKey < ApplicationRecord
     update_column(:last_used_at, Time.current)
   end
 
+  # Actor interface (shared with WorkspaceMembership) for polymorphic
+  # event/snapshot attribution. API keys are integrations, not people, so
+  # they have no platform_user_id (no Slack DM target).
+  def actor_display_name = name
+  def actor_kind = "api_key"
+  def platform_user_id = nil
+
   def activate!
     update!(active: true)
   end
