@@ -26,7 +26,7 @@ export function ActionPanel({
   const isEmpty = items.length === 0
 
   return (
-    <section className="rounded-xl border border-border bg-card overflow-hidden">
+    <section className={`rounded-xl border border-border bg-card overflow-hidden transition-opacity ${canAdd ? "" : "opacity-50"}`}>
       <header className="flex items-center justify-between px-4 pt-3.5 pb-2.5">
         <div className="flex items-center gap-2">
           <Icon className="size-3.5 text-muted-foreground" strokeWidth={1.75} />
