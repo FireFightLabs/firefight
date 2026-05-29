@@ -19,6 +19,17 @@ Rails.application.routes.draw do
       resources :severities, only: [ :index ]
       resources :statuses, only: [ :index ]
       resources :incident_types, only: [ :index ]
+      resources :custom_fields, only: [ :index ]
+
+      namespace :catalog do
+        get "types", to: "types#index", as: :types
+        get "types/:slug", to: "types#show", as: :type
+        get "types/:slug/entries", to: "entries#index", as: :type_entries
+        post "types/:slug/entries", to: "entries#create"
+        get "entries/:id", to: "entries#show", as: :entry
+        patch "entries/:id", to: "entries#update"
+        delete "entries/:id", to: "entries#destroy"
+      end
     end
   end
 
