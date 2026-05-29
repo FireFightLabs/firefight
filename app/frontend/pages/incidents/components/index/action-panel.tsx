@@ -9,10 +9,16 @@ export function ActionPanel({
   title,
   icon: Icon,
   items,
+  canAdd,
+  incidentId,
+  actionType,
 }: {
   title: string
   icon: TablerIcon
   items: IncidentAction[]
+  canAdd: boolean
+  incidentId: string
+  actionType: "action" | "followup"
 }) {
   const doneCount = items.filter((a) => a.status === "done").length
   const isEmpty = items.length === 0
@@ -26,7 +32,7 @@ export function ActionPanel({
             {title}
           </h3>
         </div>
-        <AddActionDialog />
+        <AddActionDialog disabled={!canAdd} incidentId={incidentId} actionType={actionType} />
       </header>
       <div className="px-4 pb-2">
         <ProgressRail done={doneCount} total={items.length} />

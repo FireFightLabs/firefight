@@ -86,6 +86,7 @@ Rails.application.routes.draw do
         patch :move_down
       end
     end
+    post "/incidents/:incident_id/actions", to: "incident_actions#create", as: :incident_actions
     get "/incidents/:id", to: "incidents#show", as: :incident
     get "/incidents/:incident_id/postmortem", to: "incidents#postmortem", as: :incident_postmortem
     patch "/incidents/:incident_id/postmortem", to: "incidents#update_postmortem"
