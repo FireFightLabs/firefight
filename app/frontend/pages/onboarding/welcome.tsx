@@ -45,7 +45,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
           <p>
             Firefight is simple to start and built to grow with you. Start
             small, add the workflows you need as your team learns what good
-            incident response looks like. We build in the open — the source
+            incident response looks like. We build in the open. The source
             is on GitHub, you can see what we&apos;re working on, and you
             can push back when something feels off. That&apos;s how dev
             tools should be built.

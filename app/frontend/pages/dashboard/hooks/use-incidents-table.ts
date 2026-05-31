@@ -39,6 +39,7 @@ export function useIncidentsTable(
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [searchInput, setSearchInput] = useState(filters.search ?? "")
+  const [prevServerSearch, setPrevServerSearch] = useState(filters.search ?? "")
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const searchInputRef = useRef(filters.search ?? "")
   const filtersRef = useRef(filters)
@@ -46,10 +47,12 @@ export function useIncidentsTable(
   const paginationRef = useRef(pagination)
   paginationRef.current = pagination
 
-  useEffect(() => {
-    setSearchInput(filters.search ?? "")
-    searchInputRef.current = filters.search ?? ""
-  }, [filters.search])
+  const serverSearch = filters.search ?? ""
+  if (serverSearch !== prevServerSearch) {
+    setPrevServerSearch(serverSearch)
+    setSearchInput(serverSearch)
+    searchInputRef.current = serverSearch
+  }
 
   useEffect(() => {
     return () => clearTimeout(searchTimerRef.current)

@@ -91,7 +91,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
 
   const availableFields = useMemo(() => {
     if (!selectedForm) return []
-    const attachedIds = new Set(selectedForm.fields.map((field) => field.incidentFieldDefinitionId).filter(Boolean))
+    const attachedIds = new Set(selectedForm.fields.flatMap((field) => field.incidentFieldDefinitionId ? [field.incidentFieldDefinitionId] : []))
     return customFields.filter((field) => !attachedIds.has(field.id))
   }, [customFields, selectedForm])
 

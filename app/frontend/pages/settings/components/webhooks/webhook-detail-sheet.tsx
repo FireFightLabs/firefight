@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { router } from "@inertiajs/react"
 import { IconCircleCheck, IconCircleX } from "@tabler/icons-react"
 
@@ -39,14 +39,15 @@ export function WebhookDetailSheet({
 }) {
   const [secretVisible, setSecretVisible] = useState(false)
 
-  useEffect(() => {
-    if (!open) setSecretVisible(false)
-  }, [open])
+  function handleOpenChange(next: boolean) {
+    if (!next) setSecretVisible(false)
+    onOpenChange(next)
+  }
 
   if (!webhook) return null
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent className="sm:max-w-lg overflow-y-auto">
         <SheetHeader>
           <div className="flex items-center gap-2">
