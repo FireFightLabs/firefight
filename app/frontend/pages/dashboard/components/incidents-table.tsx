@@ -49,7 +49,7 @@ export function IncidentsTable({ incidents, pagination, filters, severityOptions
           emptyMessage={
             filters.search || filters.severities.length > 0 || filters.statuses.length > 0
               ? "No incidents match your filters."
-              : "All clear — no incidents yet."
+              : "All clear. No incidents yet."
           }
         />
       </div>

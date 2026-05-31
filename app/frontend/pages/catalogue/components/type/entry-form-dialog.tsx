@@ -1,6 +1,6 @@
 import { router } from "@inertiajs/react"
 import type { FormDataConvertible } from "@inertiajs/core"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import type { CatalogEntry, CatalogType, ReferenceEntry, WorkspaceMember } from "@/pages/catalogue/types"
 import { AttributeField } from "@/pages/catalogue/components/type/attribute-field"
@@ -44,12 +44,13 @@ export function EntryFormDialog({
     (entry?.attributes as Record<string, FormDataConvertible>) ?? {}
   )
   const [processing, setProcessing] = useState(false)
-  const { members: slackMembers, channels: slackChannels, loadMembers, loadChannels } = useSlackData()
-
-  useEffect(() => {
+  const [prevEntry, setPrevEntry] = useState(entry)
+  if (entry !== prevEntry) {
+    setPrevEntry(entry)
     setName(entry?.name ?? "")
     setAttributes((entry?.attributes as Record<string, FormDataConvertible>) ?? {})
-  }, [entry])
+  }
+  const { members: slackMembers, channels: slackChannels, loadMembers, loadChannels } = useSlackData()
 
   const updateAttribute = (attrKey: string, value: FormDataConvertible) => {
     setAttributes((prev) => ({ ...prev, [attrKey]: value }))

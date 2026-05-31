@@ -54,7 +54,7 @@ export function PermissionsMatrix({
                       onCheckedChange={() => onToggle(resource.key, action)}
                     />
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">-</span>
                   )}
                 </TableCell>
               ))}

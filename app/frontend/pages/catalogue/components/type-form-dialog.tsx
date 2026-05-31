@@ -4,7 +4,7 @@ import {
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import type { AttributeDefinition, AttributeType, CatalogType } from "@/pages/catalogue/types"
 import { ATTRIBUTE_TYPES, ATTRIBUTE_TYPE_LABELS } from "@/pages/catalogue/lib/constants"
@@ -56,13 +56,14 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
     type?.attributeDefinitions ?? []
   )
   const [processing, setProcessing] = useState(false)
-
-  useEffect(() => {
+  const [prevType, setPrevType] = useState(type)
+  if (type !== prevType) {
+    setPrevType(type)
     setName(type?.name ?? "")
     setDescription(type?.description ?? "")
     setColor(type?.color ?? TYPE_COLORS[0])
     setAttributes(type?.attributeDefinitions ?? [])
-  }, [type])
+  }
 
   const addAttribute = () => {
     setAttributes((prev) => [
@@ -281,8 +282,10 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                             updateAttribute(attr.id, {
                               options: e.target.value
                                 .split(",")
-                                .map((s) => s.trim())
-                                .filter(Boolean),
+                                .flatMap((s) => {
+                                  const trimmed = s.trim()
+                                  return trimmed ? [trimmed] : []
+                                }),
                             })
                           }
                           placeholder="Comma-separated values..."

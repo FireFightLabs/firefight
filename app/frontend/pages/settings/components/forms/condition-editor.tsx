@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { IconFilter, IconX } from "@tabler/icons-react"
 
 import type {
@@ -87,11 +87,12 @@ export function ConditionEditor({ field, incidentTypes, severities, onSave }: {
   const [typeState, setTypeState] = useState<ConditionState>(() => stateFromCondition(existingType))
   const [severityState, setSeverityState] = useState<ConditionState>(() => stateFromCondition(existingSeverity))
   const [open, setOpen] = useState(false)
-
-  useEffect(() => {
+  const [prevConditions, setPrevConditions] = useState(field.conditions)
+  if (field.conditions !== prevConditions) {
+    setPrevConditions(field.conditions)
     setTypeState(stateFromCondition(field.conditions?.find((c) => c.conditionField === CONDITION_FIELD_INCIDENT_TYPE)))
     setSeverityState(stateFromCondition(field.conditions?.find((c) => c.conditionField === CONDITION_FIELD_SEVERITY)))
-  }, [field.conditions])
+  }
 
   function toggleId(state: ConditionState, setState: (next: ConditionState) => void, id: string) {
     const next = new Set(state.selectedIds)
