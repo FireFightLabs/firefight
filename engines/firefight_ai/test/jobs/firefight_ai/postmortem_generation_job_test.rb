@@ -58,4 +58,20 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
       FirefightAi::PostmortemGenerationJob.perform_now(SecureRandom.uuid, @member.id)
     end
   end
+
+  test "discards terminal AI errors without retry and notifies the requester" do
+    generator = mock("generator")
+    generator.stubs(:generate).raises(RubyLLM::ContextLengthExceededError.new("too long"))
+    FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
+
+    adapter = mock("adapter")
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+    adapter.expects(:post_ephemeral).with do |args|
+      args[:text].include?("ContextLengthExceeded") && args[:text].include?(@incident.identifier)
+    end.once
+
+    assert_nothing_raised do
+      FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+    end
+  end
 end
