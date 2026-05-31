@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { router } from "@inertiajs/react"
 
 import type { ApiKey as ApiKeyType } from "@/types/serializers"
@@ -30,14 +30,16 @@ export function ApiKeyEditSheet({
   const { perms: editPerms, togglePerm, replace: replacePerms } = usePermissionsMatrix()
   const [name, setName] = useState("")
   const [active, setActive] = useState(true)
-
-  useEffect(() => {
+  const [prevKeyId, setPrevKeyId] = useState<string | null>(null)
+  const editingKeyId = open && apiKey ? apiKey.id : null
+  if (editingKeyId !== prevKeyId) {
+    setPrevKeyId(editingKeyId)
     if (apiKey && open) {
       setName(apiKey.name)
       setActive(apiKey.active)
       replacePerms(apiKey.permissions)
     }
-  }, [apiKey, open, replacePerms])
+  }
 
   if (!apiKey) return null
 

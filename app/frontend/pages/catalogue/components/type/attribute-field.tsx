@@ -151,8 +151,10 @@ export function AttributeField({
             onChange(
               e.target.value
                 .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean)
+                .flatMap((s) => {
+                  const trimmed = s.trim()
+                  return trimmed ? [trimmed] : []
+                })
             )
           }
           placeholder="Comma-separated values..."
