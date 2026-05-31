@@ -32,7 +32,7 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     assert_equal Postmortem::STATUS_DRAFT, postmortem.status
     assert_equal @member, postmortem.generated_by
     assert_equal "INC-003 Postmortem: Image upload broken", postmortem.title
-    assert postmortem.sections.any?
+    assert postmortem.content["html"].present?
   end
 
   test "generate creates postmortem update snapshot" do
@@ -57,7 +57,7 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::POSTMORTEM_GENERATED)
-    assert_equal @member, event.user
+    assert_equal @member, event.actor
     assert_instance_of PostmortemUpdate, event.eventable
   end
 
@@ -101,5 +101,35 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     mock_chat.stubs(:with_schema).returns(mock_chat)
     mock_chat.stubs(:ask).returns(mock_response)
     RubyLLM.stubs(:chat).returns(mock_chat)
+  end
+
+  test "user_prompt caps transcript and signals elision" do
+    huge_transcript = Array.new(600) { |i| { at: "t#{i}", by: "alice", text: "message #{i}", replies: [] } }
+    data = {
+      identifier: "INC-X", name: "n", severity: "minor", status: "resolved",
+      declared_at: "x", declared_by: "alice",
+      transcript: huge_transcript
+    }
+
+    prompt = @generator.send(:user_prompt, data)
+
+    cap = FirefightAi::PostmortemGenerator::MAX_TRANSCRIPT_MESSAGES
+    assert_includes prompt, "#{600 - cap} earlier messages elided"
+    assert_includes prompt, "message #{600 - 1}"
+    assert_not_includes prompt, "message 0"
+  end
+
+  test "user_prompt caps timeline events" do
+    cap = FirefightAi::PostmortemGenerator::MAX_TIMELINE_EVENTS
+    events = Array.new(cap + 50) { |i| { at: "t#{i}", description: "event #{i}", by: "system" } }
+    data = {
+      identifier: "INC-X", name: "n", severity: "minor", status: "resolved",
+      declared_at: "x", declared_by: "alice",
+      timeline_events: events
+    }
+
+    prompt = @generator.send(:user_prompt, data)
+
+    assert_includes prompt, "50 earlier events elided"
   end
 end
