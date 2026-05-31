@@ -5,6 +5,27 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
            :incident_severities, :incident_lifecycle_stages,
            :workspace_memberships, :users
 
+  test "changes render aliased association names not raw field names" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    initial_status = incident.incident_status
+    new_status = incident_statuses(:resolved_ws1)
+
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) { }
+
+    incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, by: member) do
+      incident.update!(incident_status: new_status, resolved_at: Time.current)
+    end
+
+    event = incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_RESOLVED)
+    rendered = TimelineEventSerializer.one(event)
+
+    status_change = rendered[:changes].find { |c| c[:field] == "status" }
+    assert_not_nil status_change, "expected status to appear in changes"
+    assert_equal initial_status.name, status_change[:before]
+    assert_equal new_status.name, status_change[:after]
+  end
+
   test "file field is nil for non-file events" do
     event = incident_events(:inc1_created)
     rendered = TimelineEventSerializer.one(event)

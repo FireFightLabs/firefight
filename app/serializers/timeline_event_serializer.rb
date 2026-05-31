@@ -36,8 +36,8 @@ class TimelineEventSerializer < BaseSerializer
     event.changed_fields.map do |field|
       {
         field: field,
-        before: previous&.public_send(field).to_s,
-        after: current.public_send(field).to_s
+        before: previous&.display_value_for(field).to_s,
+        after: current.display_value_for(field).to_s
       }
     end
   end
