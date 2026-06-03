@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_29_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_03_093905) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -371,6 +371,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_29_120000) do
     t.index ["workspace_id", "position"], name: "index_incident_statuses_on_workspace_id_and_position", unique: true
     t.index ["workspace_id", "slug"], name: "index_incident_statuses_on_workspace_id_and_slug", unique: true
     t.index ["workspace_id"], name: "index_incident_statuses_on_workspace_id"
+  end
+
+  create_table "incident_transcript_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "incident_id", null: false
+    t.string "slack_ts", null: false
+    t.string "slack_thread_ts"
+    t.string "slack_user_id", null: false
+    t.uuid "workspace_membership_id"
+    t.text "content", null: false
+    t.datetime "posted_at", null: false
+    t.boolean "scrubbed", default: false, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["incident_id", "posted_at"], name: "idx_on_incident_id_posted_at_8123ad8ebd"
+    t.index ["incident_id"], name: "index_incident_transcript_messages_on_incident_id"
+    t.index ["workspace_id", "created_at"], name: "idx_on_workspace_id_created_at_8c0e76892b"
+    t.index ["workspace_id", "incident_id", "slack_ts"], name: "index_transcript_messages_on_workspace_incident_slack_ts", unique: true
+    t.index ["workspace_id", "slack_user_id"], name: "idx_on_workspace_id_slack_user_id_5d5d20d31d"
+    t.index ["workspace_id"], name: "index_incident_transcript_messages_on_workspace_id"
+    t.index ["workspace_membership_id"], name: "index_incident_transcript_messages_on_workspace_membership_id"
   end
 
   create_table "incident_types", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -977,6 +999,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_29_120000) do
   add_foreign_key "incident_severities", "workspaces"
   add_foreign_key "incident_statuses", "incident_lifecycle_stages"
   add_foreign_key "incident_statuses", "workspaces"
+  add_foreign_key "incident_transcript_messages", "incidents"
+  add_foreign_key "incident_transcript_messages", "workspace_memberships"
+  add_foreign_key "incident_transcript_messages", "workspaces"
   add_foreign_key "incident_types", "workspaces"
   add_foreign_key "incident_updates", "incident_severities"
   add_foreign_key "incident_updates", "incident_statuses"
