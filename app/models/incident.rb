@@ -33,6 +33,7 @@ class Incident < ApplicationRecord
   has_many :incident_relationships, dependent: :destroy
   has_many :inverse_incident_relationships, class_name: "IncidentRelationship",
            foreign_key: :related_incident_id, dependent: :destroy, inverse_of: :related_incident
+  has_many :incident_transcript_messages, dependent: :destroy
 
   after_destroy_commit :clear_transcript_cache
 
