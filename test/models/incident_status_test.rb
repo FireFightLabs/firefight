@@ -102,7 +102,7 @@ class IncidentStatusTest < ActiveSupport::TestCase
       incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Status 1",
       slug: "status_1",
-      position: 98,
+      position: 100,
       is_default: false
     )
     status2 = IncidentStatus.create!(
@@ -110,7 +110,7 @@ class IncidentStatusTest < ActiveSupport::TestCase
       incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Status 2",
       slug: "status_2",
-      position: 99,
+      position: 101,
       is_default: false
     )
     assert status1.persisted?

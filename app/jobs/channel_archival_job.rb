@@ -20,10 +20,15 @@ class ChannelArchivalJob < ApplicationJob
     })
   rescue AdapterError::AlreadyArchived
     incident.update!(channel_archived_at: Time.current, channel_archived_by: "system")
+  rescue AdapterError::AuthRevoked
+    # Notifier was already fired inside the adapter; re-raise so SolidQueue
+    # surfaces the failure instead of silently swallowing a broken integration.
+    raise
   rescue AdapterError => e
     Rails.logger.error({
       event: "channel_archival.failed",
       incident_id: incident_id,
+      error_class: e.class.name,
       error: e.message
     })
   end

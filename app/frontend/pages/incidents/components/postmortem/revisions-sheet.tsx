@@ -39,7 +39,7 @@ export function RevisionsSheet({
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open || revisions.length > 0) return
+    if (!open) return
 
     const controller = new AbortController()
     setLoading(true)
@@ -54,7 +54,7 @@ export function RevisionsSheet({
       })
 
     return () => controller.abort()
-  }, [open, incidentId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, incidentId])
 
   const selectedRevision = selectedId ? revisions.find((r) => r.id === selectedId) : null
   const selectedIndex = selectedRevision ? revisions.indexOf(selectedRevision) : -1

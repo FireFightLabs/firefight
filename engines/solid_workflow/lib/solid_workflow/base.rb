@@ -22,11 +22,12 @@ module SolidWorkflow
         @workflow_config || {}
       end
 
-      def step(name, depends_on: [], retry_config: nil)
+      def step(name, depends_on: [], retry_config: nil, queue: nil)
         steps << {
           name: name.to_s,
           depends_on: Array(depends_on).map(&:to_s),
-          retry_config: retry_config
+          retry_config: retry_config,
+          queue: queue&.to_s
         }
       end
 
@@ -40,10 +41,8 @@ module SolidWorkflow
         wf
       end
 
-      def start_inline!(subject, context: {})
+      def start_inline!(subject, context: {}, max_iterations: 100)
         wf = create_workflow!(subject, context)
-
-        max_iterations = 100
         iteration = 0
 
         loop do
@@ -93,12 +92,15 @@ module SolidWorkflow
           )
 
           steps.each_with_index do |step_def, index|
+            merged_retry = (step_def[:retry_config] || default_retry_config).dup
+            merged_retry["queue"] = step_def[:queue] if step_def[:queue]
+
             wf.steps.create!(
               name: step_def[:name],
               depends_on: step_def[:depends_on],
               status: :pending,
               position: index,
-              retry_config: step_def[:retry_config] || default_retry_config,
+              retry_config: merged_retry,
               max_attempts: step_def.dig(:retry_config, :max_attempts) || SolidWorkflow.max_default_attempts
             )
           end

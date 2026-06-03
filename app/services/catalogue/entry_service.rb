@@ -4,14 +4,16 @@ module Catalogue
       @workspace = workspace
     end
 
-    def create(type:, name:, raw_attributes:)
-      CatalogEntry.transaction do
-        provisioned_attrs = provision_member_attributes(type, raw_attributes)
+    def create(type:, name:, raw_attributes:, source: nil, external_id: nil)
+      provisioned_attrs = provision_member_attributes(type, raw_attributes)
 
+      CatalogEntry.transaction do
         entry = type.catalog_entries.new(
           workspace: @workspace,
           name: name,
-          slug: CatalogType.generate_slug(name)
+          slug: CatalogType.generate_slug(name),
+          source: source,
+          external_id: external_id
         )
 
         _scalar_attrs, reference_attrs = entry.assign_validated_attributes!(provisioned_attrs)
@@ -21,10 +23,23 @@ module Catalogue
       end
     end
 
-    def update(entry, name: nil, raw_attributes: {})
-      CatalogEntry.transaction do
-        provisioned_attrs = provision_member_attributes(entry.catalog_type, raw_attributes)
+    # External-sync entry point: when source + external_id identify an existing
+    # entry, update it; otherwise create. Lets integrations push the same
+    # entry repeatedly without duplicating (keyed on [workspace, source,
+    # external_id], enforced by a unique index).
+    def upsert(type:, name:, raw_attributes:, source: nil, external_id: nil)
+      if source.present? && external_id.present?
+        existing = type.catalog_entries.active.find_by(source: source, external_id: external_id)
+        return update(existing, name: name, raw_attributes: raw_attributes) if existing
+      end
 
+      create(type: type, name: name, raw_attributes: raw_attributes, source: source, external_id: external_id)
+    end
+
+    def update(entry, name: nil, raw_attributes: {})
+      provisioned_attrs = provision_member_attributes(entry.catalog_type, raw_attributes)
+
+      CatalogEntry.transaction do
         entry.name = name if name.present?
         _scalar_attrs, reference_attrs = entry.assign_validated_attributes!(provisioned_attrs)
         entry.save!

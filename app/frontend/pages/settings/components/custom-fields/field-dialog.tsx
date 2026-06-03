@@ -101,7 +101,10 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
       field_type: form.data.field_type,
       option_source: optionSource,
       options: showFixedOptions
-        ? form.data.options_text.split("\n").map((option) => option.trim()).filter(Boolean)
+        ? form.data.options_text.split("\n").flatMap((option) => {
+            const trimmed = option.trim()
+            return trimmed ? [trimmed] : []
+          })
         : [],
       catalog_type_id: showCatalogType ? form.data.catalog_type_id : null,
     }

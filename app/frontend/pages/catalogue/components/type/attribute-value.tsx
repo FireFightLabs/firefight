@@ -99,16 +99,18 @@ export function AttributeValue({
 
   if (attr.attributeType === "workspace_members" && Array.isArray(value)) {
     const resolvedMembers = (value as string[])
-      .map((id) => workspaceMembers.find((m) => m.id === id))
-      .filter(Boolean)
+      .flatMap((id) => {
+        const member = workspaceMembers.find((m) => m.id === id)
+        return member ? [member] : []
+      })
     return (
       <div className="flex flex-wrap gap-1.5">
         {resolvedMembers.map((member) => (
-          <Badge key={member!.id} variant="secondary" className="text-xs gap-1">
-            {member!.avatarUrl ? (
-              <img src={member!.avatarUrl} alt="" className="size-4 rounded-full" />
+          <Badge key={member.id} variant="secondary" className="text-xs gap-1">
+            {member.avatarUrl ? (
+              <img src={member.avatarUrl} alt="" className="size-4 rounded-full" />
             ) : null}
-            {member!.name}
+            {member.name}
           </Badge>
         ))}
       </div>

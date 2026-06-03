@@ -1,9 +1,10 @@
 class ApplicationJob < ActiveJob::Base
-  # Automatically retry jobs that encountered a deadlock
-  # retry_on ActiveRecord::Deadlocked
+  # Transient DB-level errors that should retry rather than fail the job.
+  retry_on ActiveRecord::Deadlocked, wait: :polynomially_longer, attempts: 3
 
-  # Most jobs are safe to ignore if the underlying records are no longer available
-  # discard_on ActiveJob::DeserializationError
+  # A job referencing a record that no longer exists has nothing to do; retrying
+  # it just wastes attempts and pollutes logs.
+  discard_on ActiveJob::DeserializationError
 
   def serialize
     super.merge("trace_id" => Current.trace_id)

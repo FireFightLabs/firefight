@@ -1,3 +1,4 @@
 json.id actor.id
-json.name actor.user.name
-json.email actor.user.email
+json.type actor.actor_kind
+json.name actor.actor_display_name
+json.email actor.respond_to?(:email) ? actor.email : nil

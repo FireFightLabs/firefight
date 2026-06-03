@@ -10,7 +10,7 @@ class IncidentsController < InertiaController
       incident: IncidentDetailSerializer.one(incident),
       timelineEvents: InertiaRails.defer {
         TimelineEventSerializer.many(
-          incident.incident_events.chronological.includes(user: :user, eventable: nil)
+          incident.incident_events.chronological.includes(:actor, eventable: nil)
         )
       },
       actions: InertiaRails.defer {

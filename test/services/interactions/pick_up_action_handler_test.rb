@@ -49,7 +49,7 @@ class Interactions::PickUpActionHandlerTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ACTION_PICKED_UP)
-    assert_equal @bob, event.user
+    assert_equal @bob, event.actor
     assert_instance_of IncidentActionUpdate, event.eventable
     assert_equal IncidentActionUpdate::PICKED_UP, event.eventable.update_type
   end

@@ -15,7 +15,7 @@ module SolidWorkflow
 
         scope :completed, -> { where(state: %w[succeeded failed cancelled]) }
         scope :active, -> { where(state: %w[pending running]) }
-        scope :stuck, ->(threshold = 5.minutes.ago) { active.where("updated_at < ?", threshold) }
+        scope :stuck, ->(threshold = SolidWorkflow.stuck_workflow_threshold.ago) { active.where("updated_at < ?", threshold) }
       end
 
       def transition_to!(new_state)

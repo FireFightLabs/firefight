@@ -51,7 +51,7 @@ class PostmortemUpdateTest < ActiveSupport::TestCase
 
     event = incident.incident_events.create!(
       event_type: IncidentEvent::POSTMORTEM_GENERATED,
-      user: member,
+      actor: member,
       eventable: update
     )
 

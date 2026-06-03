@@ -9,9 +9,12 @@ class ApiKey < ApplicationRecord
   RESOURCE_SEVERITIES = "severities"
   RESOURCE_STATUSES = "statuses"
   RESOURCE_INCIDENT_TYPES = "incident_types"
+  RESOURCE_CUSTOM_FIELDS = "custom_fields"
+  RESOURCE_CATALOG = "catalog"
 
   RESOURCES = [
-    RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES
+    RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
+    RESOURCE_CUSTOM_FIELDS, RESOURCE_CATALOG
   ].freeze
 
   # Actions
@@ -28,6 +31,7 @@ class ApiKey < ApplicationRecord
   validates :name, presence: true
   validates :token_digest, presence: true, uniqueness: true
   validates :token_prefix, presence: true
+  validate :permissions_well_formed
 
   after_update :invalidate_cache!
 
@@ -80,6 +84,13 @@ class ApiKey < ApplicationRecord
     update_column(:last_used_at, Time.current)
   end
 
+  # Actor interface (shared with WorkspaceMembership) for polymorphic
+  # event/snapshot attribution. API keys are integrations, not people, so
+  # they have no platform_user_id (no Slack DM target).
+  def actor_display_name = name
+  def actor_kind = "api_key"
+  def platform_user_id = nil
+
   def activate!
     update!(active: true)
   end
@@ -102,5 +113,30 @@ class ApiKey < ApplicationRecord
 
   def invalidate_cache!
     Rails.cache.delete("#{CACHE_PREFIX}#{token_digest}")
+  end
+
+  private
+
+  # Permissions must be a hash of `{ resource_string => [action_strings] }`
+  # using only RESOURCES + ACTIONS values. Anything else (unknown resource,
+  # unknown action, non-array value) is rejected so a malicious or buggy
+  # caller can't write arbitrary jsonb.
+  def permissions_well_formed
+    return errors.add(:permissions, "must be a hash") unless permissions.is_a?(Hash)
+
+    permissions.each do |resource, actions|
+      unless RESOURCES.include?(resource.to_s)
+        return errors.add(:permissions, "unknown resource '#{resource}'")
+      end
+      unless actions.is_a?(Array)
+        return errors.add(:permissions, "actions for '#{resource}' must be an array")
+      end
+
+      actions.each do |action|
+        unless ACTIONS.include?(action.to_s)
+          return errors.add(:permissions, "unknown action '#{action}' for resource '#{resource}'")
+        end
+      end
+    end
   end
 end

@@ -204,7 +204,7 @@ export default function PostmortemPage() {
         <main className="mx-auto max-w-3xl px-4 py-12 lg:px-6 print:px-0 print:py-0 print:max-w-none">
           <div className="hidden print:block mb-8">
             <h1 className="text-2xl font-bold">{postmortem.title}</h1>
-            <p className="text-sm text-muted-foreground mt-1">{incident.identifier} — {incident.name}</p>
+            <p className="text-sm text-muted-foreground mt-1">{incident.identifier}: {incident.name}</p>
           </div>
           <PostmortemEditor
             key={editorKey}

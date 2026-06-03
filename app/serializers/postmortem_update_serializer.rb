@@ -17,7 +17,7 @@ class PostmortemUpdateSerializer < BaseSerializer
 
   type :string
   def edited_by
-    update.edited_by.user.name
+    update.edited_by.actor_display_name
   end
 
   type :string

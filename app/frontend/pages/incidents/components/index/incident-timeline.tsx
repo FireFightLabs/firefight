@@ -8,12 +8,14 @@ import {
   IconFlame,
   IconHandGrab,
   IconLink,
+  IconPaperclip,
   IconRefresh,
   IconUserCheck,
 } from "@tabler/icons-react"
 
 import type { TimelineEvent } from "@/pages/incidents/types"
 import { ActorAvatar } from "@/pages/incidents/components/index/actor-avatar"
+import { TimelineFileAttachment } from "@/pages/incidents/components/index/timeline-file-attachment"
 
 const eventIcons: Record<string, typeof IconFlame> = {
   "incident.created": IconFlame,
@@ -29,6 +31,7 @@ const eventIcons: Record<string, typeof IconFlame> = {
   "postmortem.edited": IconFileText,
   "relationship.created": IconLink,
   "incident.marked_duplicate": IconCopy,
+  "message.file_shared": IconPaperclip,
 }
 
 type DotAccent = "primary" | "emerald" | "amber" | "rose" | "violet" | "neutral"
@@ -45,6 +48,7 @@ const eventAccent: Record<string, DotAccent> = {
   "action.completed": "emerald",
   "postmortem.generated": "violet",
   "postmortem.edited": "violet",
+  "message.file_shared": "primary",
 }
 
 const solidAccent: Record<DotAccent, string> = {
@@ -93,7 +97,7 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
         const showDate = eventDate !== prevDate
         const highlight = isHighlightEvent(event.eventType)
         const hasContent =
-          (event.changes && event.changes.length > 0) || Boolean(event.details)
+          (event.changes && event.changes.length > 0) || Boolean(event.details) || Boolean(event.file)
         const isLast = i === events.length - 1
 
         return (
@@ -169,6 +173,13 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
                       >
                         {event.details}
                       </p>
+                    )}
+
+                    {event.file && (
+                      <TimelineFileAttachment
+                        file={event.file}
+                        withDivider={Boolean((event.changes && event.changes.length > 0) || event.details)}
+                      />
                     )}
                   </div>
                 )}

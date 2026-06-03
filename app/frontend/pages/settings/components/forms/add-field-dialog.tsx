@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { router } from "@inertiajs/react"
 
 import type {
@@ -37,10 +37,12 @@ interface AddFieldDialogProps {
 
 export function AddFieldDialog({ open, onOpenChange, form, availableFields, allCustomFields, onNavigateToCustomFields }: AddFieldDialogProps) {
   const [selectedFieldId, setSelectedFieldId] = useState(availableFields[0]?.id ?? "")
-
-  useEffect(() => {
+  const resetKey = `${form.id}:${availableFields.map((f) => f.id).join(",")}`
+  const [prevResetKey, setPrevResetKey] = useState(resetKey)
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey)
     setSelectedFieldId(availableFields[0]?.id ?? "")
-  }, [availableFields, form.id])
+  }
 
   const attachedCustomFields = form.fields.filter((f) => f.fieldSourceKind === "custom")
 

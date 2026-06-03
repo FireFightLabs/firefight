@@ -1,4 +1,6 @@
 class IncidentSeverity < ApplicationRecord
+  include Positioned
+
   SLUG_CRITICAL = "critical"
 
   belongs_to :workspace

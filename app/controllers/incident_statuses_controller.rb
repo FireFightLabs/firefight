@@ -4,22 +4,19 @@ class IncidentStatusesController < InertiaController
 
   def create
     lifecycle_stage = IncidentLifecycleStage.find_by!(key: params.require(:lifecycle_stage_key))
-    max_position = current_workspace.incident_statuses.maximum(:position) || 0
 
     status = current_workspace.incident_statuses.new(
       incident_lifecycle_stage: lifecycle_stage,
       name: params.require(:name),
       slug: params.require(:name).parameterize(separator: "_"),
       description: params[:description],
-      color: params[:color] || "#6B7280",
-      position: max_position + 1
+      color: params[:color] || "#6B7280"
     )
 
-    if status.save
-      redirect_to settings_statuses_path
-    else
-      redirect_back fallback_location: settings_statuses_path, inertia: { errors: status.errors.to_hash }
-    end
+    status.save_in_position!
+    redirect_to settings_statuses_path
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: settings_statuses_path, inertia: { errors: e.record.errors.to_hash }
   end
 
   def update
@@ -41,7 +38,9 @@ class IncidentStatusesController < InertiaController
   end
 
   def destroy
-    return redirect_to settings_statuses_path if @status.incidents.exists?
+    if @status.incidents.exists?
+      return redirect_to settings_statuses_path, alert: "Can't delete a status that's in use by incidents. Disable it instead."
+    end
 
     @status.destroy!
     redirect_to settings_statuses_path

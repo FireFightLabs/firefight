@@ -1,4 +1,6 @@
 class IncidentRole < ApplicationRecord
+  include Positioned
+
   SLUG_INCIDENT_LEAD = "incident_lead"
 
   # Built-in roles the system depends on. The lead role is referenced by

@@ -39,8 +39,15 @@ module SolidWorkflow
           where(created_at: time_range).group(:state).count
         end
 
+        # Pushes the timeout check into Postgres so we don't materialize
+        # every active workflow into Ruby just to filter. timeout lives in
+        # workflow_config (jsonb) so the expression coerces it to int.
         def timed_out
-          active.select(&:timed_out?)
+          active.where(
+            "workflow_config->>'timeout' IS NOT NULL AND " \
+            "EXTRACT(EPOCH FROM (now() - COALESCE(started_at, created_at))) > " \
+            "(workflow_config->>'timeout')::int"
+          )
         end
       end
 
@@ -50,7 +57,7 @@ module SolidWorkflow
       end
 
       def stuck?
-        active? && updated_at < 30.minutes.ago
+        active? && updated_at < SolidWorkflow.stuck_workflow_threshold.ago
       end
 
       def timed_out?

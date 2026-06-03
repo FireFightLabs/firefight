@@ -1,4 +1,4 @@
-import { useEffect, type FormEvent } from "react"
+import { useState, type FormEvent } from "react"
 import { useForm } from "@inertiajs/react"
 
 import type { IncidentStatusSettings } from "@/types/serializers"
@@ -27,12 +27,13 @@ export function EditStatusDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const form = useForm({ name: status.name, description: status.description ?? "", color: status.color })
-
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) {
       form.setData({ name: status.name, description: status.description ?? "", color: status.color })
     }
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
