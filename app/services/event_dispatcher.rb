@@ -4,17 +4,17 @@ class EventDispatcher
     return unless event
 
     case event["type"]
-    when "reaction_added"
+    when Identifiers::EVENT_REACTION_ADDED
       Events::ReactionAddedHandler.execute(platform, payload)
-    when "message"
+    when Identifiers::EVENT_MESSAGE
       Events::MessageHandler.execute(platform, payload)
-    when "pin_added"
+    when Identifiers::EVENT_PIN_ADDED
       Events::PinAddedHandler.execute(platform, payload)
-    when "pin_removed"
+    when Identifiers::EVENT_PIN_REMOVED
       Events::PinRemovedHandler.execute(platform, payload)
-    when "app_mention"
+    when Identifiers::EVENT_APP_MENTION
       Events::AppMentionHandler.execute(platform, payload)
-    when "member_joined_channel"
+    when Identifiers::EVENT_MEMBER_JOINED
       Events::MemberJoinedChannelHandler.execute(platform, payload)
     else
       Rails.logger.info({

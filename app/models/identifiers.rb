@@ -84,4 +84,17 @@ module Identifiers
   SHOUTOUT_FROM_REACTION = "shoutout_from_reaction"
   INCIDENT_CREATION_SEVERITY_SELECT = "incident_creation_severity_select"
   INCIDENT_CREATION_TYPE_SELECT = "incident_creation_type_select"
+
+  # Slack event types (top-level Events API)
+  EVENT_REACTION_ADDED  = "reaction_added"
+  EVENT_MESSAGE         = "message"
+  EVENT_PIN_ADDED       = "pin_added"
+  EVENT_PIN_REMOVED     = "pin_removed"
+  EVENT_APP_MENTION     = "app_mention"
+  EVENT_MEMBER_JOINED   = "member_joined_channel"
+
+  # Slack message subtypes (event["subtype"])
+  MESSAGE_SUBTYPE_FILE_SHARE      = "file_share"
+  MESSAGE_SUBTYPE_MESSAGE_CHANGED = "message_changed"
+  MESSAGE_SUBTYPE_MESSAGE_DELETED = "message_deleted"
 end

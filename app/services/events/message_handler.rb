@@ -1,6 +1,6 @@
 module Events
   class MessageHandler
-    SUPPORTED_SUBTYPES = [ nil, "file_share" ].freeze
+    SUPPORTED_SUBTYPES = [ nil, Identifiers::MESSAGE_SUBTYPE_FILE_SHARE ].freeze
 
     def self.execute(platform, payload)
       event = payload["event"] || {}
