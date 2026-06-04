@@ -58,6 +58,99 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
     end
   end
 
+  test "scrubber replaces AWS key and flags scrubbed" do
+    message = build_message(content: "creds AKIAIOSFODNN7EXAMPLE leaked").tap(&:save!)
+    assert_equal "creds [REDACTED:aws_key] leaked", message.reload.content
+    assert message.scrubbed
+  end
+
+  test "scrubber replaces multiple distinct patterns in one pass" do
+    content = "aws AKIAIOSFODNN7EXAMPLE github ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    message = build_message(content: content).tap(&:save!)
+    decrypted = message.reload.content
+    assert_includes decrypted, "[REDACTED:aws_key]"
+    assert_includes decrypted, "[REDACTED:github_token]"
+    assert message.scrubbed
+  end
+
+  test "scrubber leaves clean content alone and does not flag scrubbed" do
+    message = build_message(content: "nothing sensitive here").tap(&:save!)
+    assert_equal "nothing sensitive here", message.reload.content
+    assert_not message.scrubbed
+  end
+
+  test "scrubber re-runs when content changes on update" do
+    message = build_message(content: "clean").tap(&:save!)
+    assert_not message.scrubbed
+
+    message.update!(content: "AKIAIOSFODNN7EXAMPLE pasted")
+    assert_equal "[REDACTED:aws_key] pasted", message.reload.content
+    assert message.scrubbed
+  end
+
+  test "scrubber does not re-run when content is unchanged" do
+    message = build_message(content: "clean").tap(&:save!)
+    message.update!(scrubbed: false)
+    message.update!(posted_at: 1.minute.from_now)
+    assert_not message.reload.scrubbed
+  end
+
+  test "scrubber catches OpenAI, Anthropic, and Stripe keys" do
+    samples = {
+      openai_key:     "sk-proj-#{"a" * 60}",
+      anthropic_key:  "sk-ant-api03-#{"X" * 90}",
+      stripe_key:     "sk_live_#{"A" * 30}",
+      stripe_webhook: "whsec_#{"b" * 40}"
+    }
+
+    samples.each do |label, secret|
+      message = build_message(slack_ts: "ts-#{label}", content: "leaked #{secret} here").tap(&:save!)
+      decrypted = message.reload.content
+      assert_includes decrypted, "[REDACTED:#{label}]", "expected #{label} to be scrubbed"
+      assert_not_includes decrypted, secret
+      assert message.scrubbed
+    end
+  end
+
+  test "scrubber catches Google, SendGrid, Twilio, and DigitalOcean keys" do
+    samples = {
+      google_api_key:     "AIza#{"A" * 35}",
+      sendgrid_key:       "SG.#{"a" * 22}.#{"b" * 43}",
+      twilio_key:         "SK#{"a" * 32}",
+      digitalocean_token: "dop_v1_#{"a" * 64}"
+    }
+
+    samples.each do |label, secret|
+      message = build_message(slack_ts: "ts-#{label}", content: "see #{secret}").tap(&:save!)
+      assert_includes message.reload.content, "[REDACTED:#{label}]"
+    end
+  end
+
+  test "scrubber catches npm, Hugging Face, and New Relic tokens" do
+    samples = {
+      npm_token:         "npm_#{"a" * 36}",
+      huggingface_token: "hf_#{"x" * 40}",
+      new_relic_key:     "NRAK-#{"A" * 27}"
+    }
+
+    samples.each do |label, secret|
+      message = build_message(slack_ts: "ts-#{label}", content: "token #{secret}").tap(&:save!)
+      assert_includes message.reload.content, "[REDACTED:#{label}]"
+    end
+  end
+
+  test "scrubber catches PEM private key blocks across variants" do
+    pem = <<~KEY.strip
+      -----BEGIN RSA PRIVATE KEY-----
+      MIIEpAIBAAKCAQEAxYz
+      -----END RSA PRIVATE KEY-----
+    KEY
+
+    message = build_message(content: "key dump: #{pem}").tap(&:save!)
+    assert_includes message.reload.content, "[REDACTED:private_key]"
+    assert_not_includes message.reload.content, "MIIEpAIBAAKCAQEAxYz"
+  end
+
   private
 
   def build_message(**overrides)

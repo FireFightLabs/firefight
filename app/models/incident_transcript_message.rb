@@ -1,4 +1,6 @@
 class IncidentTranscriptMessage < ApplicationRecord
+  include Scrubbing
+
   belongs_to :workspace
   belongs_to :workspace_membership, optional: true
   belongs_to :incident
