@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_03_093905) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_05_103128) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -496,6 +496,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_03_093905) do
     t.index ["workspace_id", "incident_status_id"], name: "index_incidents_on_workspace_id_and_incident_status_id"
     t.index ["workspace_id", "sequence_number"], name: "index_incidents_on_workspace_id_and_sequence_number", unique: true
     t.index ["workspace_id"], name: "index_incidents_on_workspace_id"
+  end
+
+  create_table "inferences", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "member_id"
+    t.uuid "api_key_id"
+    t.string "inferable_type"
+    t.uuid "inferable_id"
+    t.string "feature", null: false
+    t.string "provider", null: false
+    t.string "model", null: false
+    t.integer "input_tokens", default: 0, null: false
+    t.integer "output_tokens", default: 0, null: false
+    t.integer "cache_read_tokens", default: 0, null: false
+    t.integer "cache_write_tokens", default: 0, null: false
+    t.integer "cost_cents", default: 0, null: false
+    t.integer "latency_ms", default: 0, null: false
+    t.string "stop_reason"
+    t.string "provider_request_id"
+    t.string "status", null: false
+    t.string "error_class"
+    t.datetime "created_at", null: false
+    t.index ["api_key_id"], name: "index_inferences_on_api_key_id"
+    t.index ["inferable_type", "inferable_id"], name: "index_inferences_on_inferable"
+    t.index ["member_id"], name: "index_inferences_on_member_id"
+    t.index ["workspace_id", "created_at"], name: "index_inferences_on_workspace_id_and_created_at"
+    t.index ["workspace_id", "feature", "created_at"], name: "index_inferences_on_workspace_id_and_feature_and_created_at"
+    t.index ["workspace_id", "inferable_type", "inferable_id"], name: "idx_on_workspace_id_inferable_type_inferable_id_af35668ca4"
+    t.index ["workspace_id"], name: "index_inferences_on_workspace_id"
   end
 
   create_table "invite_codes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1016,6 +1045,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_03_093905) do
   add_foreign_key "incidents", "incident_types"
   add_foreign_key "incidents", "workspace_memberships", column: "declared_by_id"
   add_foreign_key "incidents", "workspaces"
+  add_foreign_key "inferences", "api_keys"
+  add_foreign_key "inferences", "workspace_memberships", column: "member_id"
+  add_foreign_key "inferences", "workspaces"
   add_foreign_key "invite_codes", "users", column: "redeemed_by_id"
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
