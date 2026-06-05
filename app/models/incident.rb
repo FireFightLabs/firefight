@@ -121,5 +121,4 @@ class Incident < ApplicationRecord
   def duplicates
     inverse_incident_relationships.duplicates.map(&:incident)
   end
-
 end
