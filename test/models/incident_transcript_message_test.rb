@@ -50,12 +50,19 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
     assert_equal false, build_message.tap(&:save!).reload.scrubbed
   end
 
-  test "requires workspace, incident, slack_ts, slack_user_id, content, posted_at" do
+  test "requires workspace, incident, slack_ts, slack_user_id, posted_at" do
     message = IncidentTranscriptMessage.new
     assert_not message.valid?
-    %i[workspace incident slack_ts slack_user_id content posted_at].each do |field|
+    %i[workspace incident slack_ts slack_user_id posted_at].each do |field|
       assert message.errors[field].any?, "expected presence error on #{field}"
     end
+  end
+
+  test "soft_delete! sets deleted_at" do
+    message = build_message.tap(&:save!)
+    assert_nil message.deleted_at
+    message.soft_delete!
+    assert_not_nil message.reload.deleted_at
   end
 
   test "scrubber replaces AWS key and flags scrubbed" do
