@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_05_103128) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_05_110110) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -371,6 +371,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_05_103128) do
     t.index ["workspace_id", "position"], name: "index_incident_statuses_on_workspace_id_and_position", unique: true
     t.index ["workspace_id", "slug"], name: "index_incident_statuses_on_workspace_id_and_slug", unique: true
     t.index ["workspace_id"], name: "index_incident_statuses_on_workspace_id"
+  end
+
+  create_table "incident_summaries", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "incident_id", null: false
+    t.uuid "workspace_id", null: false
+    t.uuid "inference_id"
+    t.text "content", null: false
+    t.string "summary_up_to_ts", null: false
+    t.datetime "generated_at", null: false
+    t.string "model", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["incident_id"], name: "index_incident_summaries_on_incident_id", unique: true
+    t.index ["inference_id"], name: "index_incident_summaries_on_inference_id"
+    t.index ["workspace_id", "generated_at"], name: "index_incident_summaries_on_workspace_id_and_generated_at"
+    t.index ["workspace_id"], name: "index_incident_summaries_on_workspace_id"
   end
 
   create_table "incident_transcript_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1028,6 +1044,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_05_103128) do
   add_foreign_key "incident_severities", "workspaces"
   add_foreign_key "incident_statuses", "incident_lifecycle_stages"
   add_foreign_key "incident_statuses", "workspaces"
+  add_foreign_key "incident_summaries", "incidents"
+  add_foreign_key "incident_summaries", "inferences"
+  add_foreign_key "incident_summaries", "workspaces"
   add_foreign_key "incident_transcript_messages", "incidents"
   add_foreign_key "incident_transcript_messages", "workspace_memberships"
   add_foreign_key "incident_transcript_messages", "workspaces"

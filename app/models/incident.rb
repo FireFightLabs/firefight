@@ -34,6 +34,7 @@ class Incident < ApplicationRecord
   has_many :inverse_incident_relationships, class_name: "IncidentRelationship",
            foreign_key: :related_incident_id, dependent: :destroy, inverse_of: :related_incident
   has_many :incident_transcript_messages, dependent: :destroy
+  has_one :incident_summary, dependent: :destroy
 
   validates :sequence_number, presence: true, uniqueness: { scope: :workspace_id }
   validates :identifier, presence: true, uniqueness: { scope: :workspace_id }
