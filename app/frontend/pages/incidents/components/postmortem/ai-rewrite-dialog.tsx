@@ -12,69 +12,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { incidentPostmortemAiRewritePath } from "@/lib/routes"
 
 interface AiRewriteDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  incidentId: string
-  selectedHtml: string
-  onRewritten: (rewrittenHtml: string) => void
+  onSubmit: (instruction: string) => void
 }
 
-export function AiRewriteDialog({
-  open,
-  onOpenChange,
-  incidentId,
-  selectedHtml,
-  onRewritten,
-}: AiRewriteDialogProps) {
+export function AiRewriteDialog({ open, onOpenChange, onSubmit }: AiRewriteDialogProps) {
   const [instruction, setInstruction] = useState("")
-  const [processing, setProcessing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [prevOpen, setPrevOpen] = useState(open)
   if (open !== prevOpen) {
     setPrevOpen(open)
-    if (open) {
-      setInstruction("")
-      setError(null)
-    }
+    if (open) setInstruction("")
   }
 
-  const handleSubmit = async (event: FormEvent) => {
+  const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
     if (!instruction.trim()) return
-
-    setProcessing(true)
-    setError(null)
-
-    const csrfToken = document
-      .querySelector('meta[name="csrf-token"]')
-      ?.getAttribute("content")
-
-    try {
-      const response = await fetch(incidentPostmortemAiRewritePath(incidentId), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
-        },
-        body: JSON.stringify({ selected_html: selectedHtml, instruction }),
-      })
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}))
-        throw new Error(body.error || "Failed to rewrite")
-      }
-
-      const { rewritten_html } = await response.json()
-      onRewritten(rewritten_html)
-      onOpenChange(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to rewrite")
-    } finally {
-      setProcessing(false)
-    }
+    onSubmit(instruction.trim())
   }
 
   return (
@@ -96,19 +52,15 @@ export function AiRewriteDialog({
             value={instruction}
             onChange={(e) => setInstruction(e.target.value)}
             placeholder="e.g. make this more concise, add a bulleted list of people involved, expand on the root cause..."
-            disabled={processing}
           />
-          {error && (
-            <p className="text-xs text-destructive">{error}</p>
-          )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" disabled={processing}>
+              <Button type="button" variant="outline">
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={processing || !instruction.trim()}>
-              {processing ? "Rewriting..." : "Rewrite"}
+            <Button type="submit" disabled={!instruction.trim()}>
+              Rewrite
             </Button>
           </DialogFooter>
         </form>

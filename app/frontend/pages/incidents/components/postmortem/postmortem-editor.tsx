@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useCallback, useRef, useState } from "react"
+import { toast } from "sonner"
 import {
   IconBold,
   IconCode,
@@ -20,6 +21,8 @@ import Typography from "@tiptap/extension-typography"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { AiRewriteDialog } from "@/pages/incidents/components/postmortem/ai-rewrite-dialog"
+import { AiPendingExtension, aiPendingKey } from "@/pages/incidents/components/postmortem/ai-pending-extension"
+import { incidentPostmortemAiRewritePath } from "@/lib/routes"
 
 interface PostmortemEditorProps {
   content?: string
@@ -29,6 +32,8 @@ interface PostmortemEditorProps {
 
 export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEditorProps) {
   const [aiSelection, setAiSelection] = useState<{ from: number; to: number; html: string } | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -46,6 +51,7 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
       TaskItem.configure({ nested: true }),
       UnderlineExt,
       Typography,
+      AiPendingExtension,
     ],
     content: content || "",
     editorProps: {
@@ -57,6 +63,58 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
       onUpdate?.(editor.getHTML())
     },
   })
+
+  const handleRewrite = useCallback(async (instruction: string) => {
+    if (!editor || !aiSelection || !incidentId) return
+
+    const { from, to, html } = aiSelection
+    setAiSelection(null)
+
+    editor.view.dispatch(editor.state.tr.setMeta(aiPendingKey, { range: { from, to } }))
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content")
+
+    try {
+      const response = await fetch(incidentPostmortemAiRewritePath(incidentId), {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
+        body: JSON.stringify({ selected_html: html, instruction }),
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || "Failed to rewrite")
+      }
+
+      const { rewritten_html } = await response.json()
+
+      const pluginState = aiPendingKey.getState(editor.view.state)
+      const currentRange = pluginState?.range
+      if (!currentRange) return
+
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: currentRange.from, to: currentRange.to })
+        .deleteSelection()
+        .insertContent(rewritten_html)
+        .run()
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return
+      editor.view.dispatch(editor.state.tr.setMeta(aiPendingKey, { range: null }))
+      toast.error(err instanceof Error ? err.message : "Failed to rewrite")
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null
+    }
+  }, [editor, aiSelection, incidentId])
 
   if (!editor) return null
 
@@ -140,23 +198,13 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
 
       <EditorContent editor={editor} />
 
-      {incidentId && aiSelection && (
+      {incidentId && (
         <AiRewriteDialog
-          open
+          open={aiSelection !== null}
           onOpenChange={(open) => {
             if (!open) setAiSelection(null)
           }}
-          incidentId={incidentId}
-          selectedHtml={aiSelection.html}
-          onRewritten={(rewrittenHtml) => {
-            editor
-              .chain()
-              .focus()
-              .setTextSelection({ from: aiSelection.from, to: aiSelection.to })
-              .deleteSelection()
-              .insertContent(rewrittenHtml)
-              .run()
-          }}
+          onSubmit={handleRewrite}
         />
       )}
     </div>
