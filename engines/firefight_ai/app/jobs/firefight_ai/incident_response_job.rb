@@ -4,9 +4,11 @@ module FirefightAi
 
     discard_on ActiveRecord::RecordNotFound
 
-    def perform(incident_id, channel_id, thread_ts, question)
+    def perform(incident_id, channel_id, thread_ts, question, scope_thread_ts = nil)
       incident = Incident.find(incident_id)
-      answer = IncidentResponder.new(incident.workspace).answer_question(incident, question: question)
+      answer = IncidentResponder.new(incident.workspace).answer_question(
+        incident, question: question, scope_thread_ts: scope_thread_ts
+      )
       adapter = incident.workspace.adapter
 
       if thread_ts

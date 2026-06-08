@@ -41,6 +41,14 @@ class Inference < ApplicationRecord
     end
   end
 
+  def self.provider_for(model)
+    case model
+    when /\Agpt-|\Ao\d/ then "openai"
+    when /\Aclaude-/   then "anthropic"
+    else "unknown"
+    end
+  end
+
   def self.cost_to_cents(cost)
     dollars = cost.respond_to?(:total) ? cost.total : cost
     ((dollars || 0).to_f * 100).round

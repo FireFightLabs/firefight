@@ -103,7 +103,7 @@ module FirefightAi
       Inference.track(
         workspace: @workspace,
         feature:   feature,
-        provider:  provider_for(model_id),
+        provider:  Inference.provider_for(model_id),
         model:     model_id,
         inferable: incident
       ) do
@@ -115,14 +115,6 @@ module FirefightAi
 
     def model_id
       @model_id ||= ENV.fetch("SUMMARY_AI_MODEL", "gpt-4o-mini")
-    end
-
-    def provider_for(model)
-      case model
-      when /\Agpt-|\Ao\d/ then "openai"
-      when /\Aclaude-/   then "anthropic"
-      else "unknown"
-      end
     end
 
     def system_prompt

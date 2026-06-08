@@ -4,19 +4,41 @@ module FirefightAi
       @workspace = workspace
     end
 
-    def answer_question(incident, question:)
-      context = incident.to_full_context(workspace: @workspace)
-      summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
-      call_ai(context, summary, question)
+    def answer_question(incident, question:, scope_thread_ts: nil)
+      if scope_thread_ts
+        thread_messages = thread_messages_for(incident, scope_thread_ts)
+        return "I don't see any messages in this thread yet to summarize." if thread_messages.empty?
+
+        call_ai(incident, build_thread_prompt(incident, thread_messages, question), feature: "thread_catchup")
+      else
+        context = incident.to_full_context(workspace: @workspace)
+        summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
+        call_ai(incident, build_incident_prompt(context, summary, question), feature: "incident_catchup")
+      end
     end
 
     private
 
-    def call_ai(context, summary, question)
-      chat = RubyLLM.chat(model: ai_model)
-      chat.with_instructions(system_prompt)
-      response = chat.ask(user_prompt(context, summary, question))
+    def call_ai(incident, prompt_text, feature:)
+      response, _ = Inference.track(
+        workspace: @workspace,
+        feature:   feature,
+        provider:  Inference.provider_for(ai_model),
+        model:     ai_model,
+        inferable: incident
+      ) do
+        chat = RubyLLM.chat(model: ai_model)
+        chat.with_instructions(system_prompt)
+        chat.ask(prompt_text)
+      end
       response.content
+    end
+
+    def thread_messages_for(incident, parent_ts)
+      incident.incident_transcript_messages.kept
+        .where("slack_ts = ? OR slack_thread_ts = ?", parent_ts, parent_ts)
+        .order(:posted_at)
+        .to_a
     end
 
     def system_prompt
@@ -38,7 +60,23 @@ module FirefightAi
       PROMPT
     end
 
-    def user_prompt(context, summary, question)
+    def build_thread_prompt(incident, messages, question)
+      parts = []
+      parts << "You are answering about a single thread in incident #{incident.identifier} — #{incident.name}."
+      parts << "Only the messages in this thread are provided. Do not invent context from outside the thread."
+      parts << ""
+      parts << "## Thread Messages"
+      messages.each do |m|
+        author = m.workspace_membership&.user&.name || m.slack_user_id
+        parts << "- [#{m.posted_at.iso8601}] #{author}: #{m.content}"
+      end
+      parts << ""
+      parts << "## Question"
+      parts << question
+      parts.join("\n")
+    end
+
+    def build_incident_prompt(context, summary, question)
       parts = []
       parts << "Here is the incident data:\n"
       parts << "## Incident"
