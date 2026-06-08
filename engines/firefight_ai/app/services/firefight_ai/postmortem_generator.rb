@@ -8,7 +8,7 @@ module FirefightAi
       prompt_data = incident.to_full_context(workspace: @workspace)
       summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
       ai_result = call_ai(prompt_data, summary)
-      postmortem = create_postmortem(incident, ai_result, generated_by: generated_by)
+      postmortem = save_postmortem(incident, ai_result, generated_by: generated_by)
       postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: generated_by)
       postmortem
     end
@@ -39,7 +39,7 @@ module FirefightAi
       response.content
     end
 
-    def create_postmortem(incident, ai_result, generated_by:)
+    def save_postmortem(incident, ai_result, generated_by:)
       html = Postmortem::SECTION_KEYS.filter_map do |key|
         body = ai_result[key.to_s] || ai_result[key.to_sym]
         next if body.blank?
@@ -49,15 +49,19 @@ module FirefightAi
         "<h2>#{heading}</h2>\n#{rendered}"
       end.join("\n")
 
-      Postmortem.create!(
-        incident: incident,
-        generated_by: generated_by,
+      attrs = {
         title: ai_result["title"] || ai_result[:title],
         summary: ai_result["summary"] || ai_result[:summary],
         status: Postmortem::STATUS_DRAFT,
         model_id: ai_model,
         content: { "html" => html }
-      )
+      }
+
+      if incident.postmortem
+        incident.postmortem.tap { |p| p.update!(attrs) }
+      else
+        Postmortem.create!(attrs.merge(incident: incident, generated_by: generated_by))
+      end
     end
 
     def ai_model

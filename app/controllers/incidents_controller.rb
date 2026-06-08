@@ -65,6 +65,45 @@ class IncidentsController < InertiaController
     render json: PostmortemUpdateSerializer.many(revisions)
   end
 
+  def generate_postmortem
+    incident = current_workspace.incidents.find(params[:incident_id])
+    return redirect_to incident_postmortem_path(incident), alert: "Postmortem already exists." if incident.postmortem.present?
+    return redirect_to incident_path(incident), alert: "Postmortems can be created once the incident is resolved." unless incident.incident_status.closed?
+
+    member = current_workspace.workspace_memberships.find_by!(user: current_user)
+
+    Postmortem.create!(
+      incident: incident,
+      generated_by: member,
+      title: "Generating postmortem for #{incident.identifier}…",
+      status: Postmortem::STATUS_IN_PROGRESS,
+      content: { "html" => "" }
+    )
+
+    FirefightAi::PostmortemGenerationJob.perform_later(incident.id, member.id)
+
+    redirect_to incident_postmortem_path(incident)
+  end
+
+  def start_blank_postmortem
+    incident = current_workspace.incidents.find(params[:incident_id])
+    return redirect_to incident_postmortem_path(incident) if incident.postmortem.present?
+    return redirect_to incident_path(incident), alert: "Postmortems can be created once the incident is resolved." unless incident.incident_status.closed?
+
+    member = current_workspace.workspace_memberships.find_by!(user: current_user)
+
+    postmortem = Postmortem.create!(
+      incident: incident,
+      generated_by: member,
+      title: "#{incident.identifier} Postmortem: #{incident.name}",
+      status: Postmortem::STATUS_DRAFT,
+      content: { "html" => "" }
+    )
+    postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: member)
+
+    redirect_to incident_postmortem_path(incident)
+  end
+
   def ai_rewrite_postmortem
     incident = current_workspace.incidents.find(params[:incident_id])
     incident.postmortem or raise ActiveRecord::RecordNotFound
