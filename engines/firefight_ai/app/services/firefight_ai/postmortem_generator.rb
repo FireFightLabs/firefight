@@ -7,7 +7,7 @@ module FirefightAi
     def generate(incident, generated_by:)
       prompt_data = incident.to_full_context(workspace: @workspace)
       summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
-      ai_result = call_ai(prompt_data, summary)
+      ai_result = call_ai(incident, prompt_data, summary)
       postmortem = save_postmortem(incident, ai_result, generated_by: generated_by)
       postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: generated_by)
       postmortem
@@ -31,11 +31,19 @@ module FirefightAi
 
     private
 
-    def call_ai(prompt_data, summary)
-      chat = RubyLLM.chat(model: ai_model)
-      chat.with_instructions(system_prompt)
-      chat.with_schema(Schemas::Postmortem)
-      response = chat.ask(user_prompt(prompt_data, summary))
+    def call_ai(incident, prompt_data, summary)
+      response, _ = Inference.track(
+        workspace: @workspace,
+        feature:   "postmortem_generate",
+        provider:  Inference.provider_for(ai_model),
+        model:     ai_model,
+        inferable: incident
+      ) do
+        chat = RubyLLM.chat(model: ai_model)
+        chat.with_instructions(system_prompt)
+        chat.with_schema(Schemas::Postmortem)
+        chat.ask(user_prompt(prompt_data, summary))
+      end
       response.content
     end
 

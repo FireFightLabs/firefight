@@ -23,7 +23,7 @@ class Inference < ApplicationRecord
         output_tokens:       response.try(:output_tokens).to_i,
         cache_read_tokens:   response.try(:cache_read_tokens).to_i,
         cache_write_tokens:  response.try(:cache_write_tokens).to_i,
-        cost_cents:          cost_to_cents(response.try(:cost)),
+        cost_micros:         cost_to_micros(response.try(:cost)),
         latency_ms:          elapsed_ms_since(started),
         stop_reason:         response.try(:stop_reason),
         provider_request_id: response.try(:id),
@@ -49,11 +49,11 @@ class Inference < ApplicationRecord
     end
   end
 
-  def self.cost_to_cents(cost)
+  def self.cost_to_micros(cost)
     dollars = cost.respond_to?(:total) ? cost.total : cost
-    ((dollars || 0).to_f * 100).round
+    ((dollars || 0).to_f * 1_000_000).round
   end
-  private_class_method :cost_to_cents
+  private_class_method :cost_to_micros
 
   def self.monotonic_now
     Process.clock_gettime(Process::CLOCK_MONOTONIC)

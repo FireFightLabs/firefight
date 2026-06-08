@@ -101,6 +101,29 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
     assert @incident.incident_transcript_messages.exists?(slack_ts: "1234567890.123456")
   end
 
+  test "bot messages skip transcript ingest" do
+    payload = text_message_payload
+    payload["event"]["bot_id"] = "B_RUNAWAY_BOT"
+
+    assert_no_difference "IncidentTranscriptMessage.count" do
+      Events::MessageHandler.execute(Platforms::SLACK, payload)
+    end
+  end
+
+  test "bot file uploads still create the file event and archival job" do
+    stub_get_permalink
+    payload = file_message_payload
+    payload["event"]["bot_id"] = "B_INTEGRATION"
+
+    assert_no_difference "IncidentTranscriptMessage.count" do
+      assert_difference "IncidentEvent.count", 1 do
+        Events::MessageHandler.execute(Platforms::SLACK, payload)
+      end
+    end
+
+    assert_enqueued_jobs 1, only: ArchiveIncidentFileJob
+  end
+
   test "ignores truly unsupported subtype" do
     payload = text_message_payload
     payload["event"]["subtype"] = "channel_topic"

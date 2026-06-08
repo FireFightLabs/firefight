@@ -99,7 +99,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
 
   # ---- Error handling ----
 
-  test "LLM error records an error inference and re-raises" do
+  test "LLM error during cold-start records error inference and returns nil" do
     add_message(slack_ts: "1.001", content: "first")
 
     chat = mock("chat")
@@ -108,10 +108,25 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
     RubyLLM.stubs(:chat).returns(chat)
 
     assert_difference "Inference.count", 1 do
-      assert_raises(StandardError) { @service.fetch_or_refresh(@incident) }
+      result = @service.fetch_or_refresh(@incident)
+      assert_nil result
     end
 
     assert_equal Inference::STATUS_ERROR, Inference.order(:created_at).last.status
+  end
+
+  test "LLM error during incremental refresh falls back to existing summary" do
+    add_message(slack_ts: "1.001", content: "first")
+    seed_summary(content: "prior body", up_to_ts: "1.001", generated_at: 30.minutes.ago)
+    add_message(slack_ts: "1.002", content: "new context")
+
+    chat = mock("chat")
+    chat.stubs(:with_instructions).returns(chat)
+    chat.stubs(:ask).raises(StandardError, "kaboom")
+    RubyLLM.stubs(:chat).returns(chat)
+
+    result = @service.fetch_or_refresh(@incident)
+    assert_equal "prior body", result.content
   end
 
   private

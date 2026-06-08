@@ -6,7 +6,6 @@ import {
   IconClock,
   IconDotsVertical,
   IconFlame,
-  IconSparkles,
 } from "@tabler/icons-react"
 
 import TurndownService from "turndown"
@@ -218,11 +217,6 @@ export default function PostmortemPage() {
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => window.print()}>Export as PDF</DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportMarkdown}>Export as Markdown</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <IconSparkles className="size-4" />
-                    AI Rewrite
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   {postmortem.status !== "completed" ? (
                     <DropdownMenuItem onClick={() => router.patch(incidentPostmortemStatusPath(incident.id), { status: "completed" })}>

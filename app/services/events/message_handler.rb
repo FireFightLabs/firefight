@@ -34,15 +34,23 @@ module Events
       message_ts = event["ts"]
       member = workspace.workspace_memberships.find_by(platform_user_id: event["user"])
 
-      incident.incident_transcript_messages.create!(
-        workspace: workspace,
-        slack_ts: message_ts,
-        slack_thread_ts: event["thread_ts"],
-        slack_user_id: event["user"],
-        workspace_membership: member,
-        content: event["text"].to_s,
-        posted_at: Time.at(message_ts.to_f)
-      )
+      # Skip transcript ingest for bot messages -- they're better captured by
+      # the structured timeline (our own bot's announcements) or by
+      # integration-specific event handlers (Datadog alerts, PagerDuty acks).
+      # Including bot prose in the transcript pollutes the Layer 2 narrative
+      # summary. File uploads from bots still flow through handle_files so
+      # archival + timeline events work.
+      unless event["bot_id"].present? || event["app_id"].present?
+        incident.incident_transcript_messages.create!(
+          workspace: workspace,
+          slack_ts: message_ts,
+          slack_thread_ts: event["thread_ts"],
+          slack_user_id: event["user"],
+          workspace_membership: member,
+          content: event["text"].to_s,
+          posted_at: Time.at(message_ts.to_f)
+        )
+      end
 
       handle_files(workspace, channel_id, incident, event, member)
     rescue ActiveRecord::RecordNotUnique

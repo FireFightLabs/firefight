@@ -42,7 +42,7 @@ class InferenceTest < ActiveSupport::TestCase
     assert_equal 300, inference.output_tokens
     assert_equal 800, inference.cache_read_tokens
     assert_equal 0, inference.cache_write_tokens
-    assert_equal 0, inference.cost_cents  # 0.0045 dollars -> 0 cents rounded
+    assert_equal 4500, inference.cost_micros  # 0.0045 dollars -> 4500 micros
     assert_equal "end_turn", inference.stop_reason
     assert_equal "msg_01ABC", inference.provider_request_id
     assert_equal Inference::STATUS_SUCCESS, inference.status
@@ -50,10 +50,10 @@ class InferenceTest < ActiveSupport::TestCase
     assert inference.latency_ms >= 0
   end
 
-  test "track rounds cost from dollars to cents" do
+  test "track stores cost as integer micros (millionths of a dollar)" do
     response = stub_response(cost: 1.235)
     Inference.track(@context) { response }
-    assert_equal 124, Inference.order(:created_at).last.cost_cents
+    assert_equal 1_235_000, Inference.order(:created_at).last.cost_micros
   end
 
   test "track records error and re-raises when block raises" do
@@ -71,7 +71,7 @@ class InferenceTest < ActiveSupport::TestCase
     assert_equal Inference::STATUS_ERROR, inference.status
     assert_equal "BoomError", inference.error_class
     assert_equal 0, inference.input_tokens
-    assert_equal 0, inference.cost_cents
+    assert_equal 0, inference.cost_micros
   end
 
   test "track works without inferable, member, or api_key" do

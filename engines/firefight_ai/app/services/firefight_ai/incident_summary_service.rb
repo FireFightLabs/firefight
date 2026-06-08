@@ -16,14 +16,41 @@ module FirefightAi
       latest_ts = latest_message_ts(incident)
 
       return nil if latest_ts.nil?
-      return full_generate(incident) if summary.nil?
+      return safe_full_generate(incident) if summary.nil?
       return summary if summary.summary_up_to_ts == latest_ts
       return summary if summary.generated_at > FRESHNESS_WINDOW.ago
 
-      incremental_refresh(incident, summary)
+      safe_incremental_refresh(incident, summary) || summary
     end
 
     private
+
+    # Wrap the two paths that touch the LLM so a failure (rate limit, timeout,
+    # transient provider error) degrades to "no summary this time" rather than
+    # killing the consumer (catchup, postmortem). Cache hits (paths 1 + 2) are
+    # NOT wrapped — they don't touch the LLM and must not be swallowed.
+    def safe_full_generate(incident)
+      full_generate(incident)
+    rescue StandardError => e
+      log_failure(incident, e)
+      nil
+    end
+
+    def safe_incremental_refresh(incident, summary)
+      incremental_refresh(incident, summary)
+    rescue StandardError => e
+      log_failure(incident, e)
+      nil
+    end
+
+    def log_failure(incident, error)
+      Rails.logger.warn({
+        event: "incident_summary.failed",
+        incident_id: incident.id,
+        error_class: error.class.name,
+        error: error.message
+      }.to_json)
+    end
 
     def latest_message_ts(incident)
       incident.incident_transcript_messages.kept.maximum(:slack_ts)
@@ -82,7 +109,9 @@ module FirefightAi
         { parent: parent, replies: replies }
       end
 
-      latest_ts = delta.last&.slack_ts || summary_up_to_ts
+      # Use the max slack_ts (lex-ordered), since the next refresh's
+      # `where("slack_ts > ?", ...)` filter compares against this column.
+      latest_ts = delta.map(&:slack_ts).max || summary_up_to_ts
       [ top_level, affected, latest_ts ]
     end
 
@@ -97,6 +126,9 @@ module FirefightAi
       )
       summary.save!
       summary
+    rescue ActiveRecord::RecordNotUnique
+      # Concurrent fetch_or_refresh won the race; return the persisted winner.
+      incident.reload.incident_summary
     end
 
     def call_llm(incident, prompt_text, feature:)

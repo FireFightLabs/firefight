@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_05_110110) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_08_130256) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -527,7 +527,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_05_110110) do
     t.integer "output_tokens", default: 0, null: false
     t.integer "cache_read_tokens", default: 0, null: false
     t.integer "cache_write_tokens", default: 0, null: false
-    t.integer "cost_cents", default: 0, null: false
+    t.integer "cost_micros", default: 0, null: false
     t.integer "latency_ms", default: 0, null: false
     t.string "stop_reason"
     t.string "provider_request_id"

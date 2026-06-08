@@ -135,12 +135,12 @@ module Slack
 
       # Convert standard markdown (what LLMs default to) into Slack mrkdwn.
       # - **bold**   -> *bold*
-      # - *italic*   -> _italic_ (only single asterisks not adjacent to others)
       # - __bold__   -> *bold*
-      # - _italic_   -> _italic_ (already correct)
       # - # / ## / ### headers   -> *bold line*
       # - [text](url) links      -> <url|text>
       # Bullet syntax (- and *) is left intact -- Slack renders both.
+      # Single-asterisk italic is NOT converted (would collide with Slack's
+      # *bold* syntax); ask the LLM to use underscores instead.
       def self.markdown_to_mrkdwn(text)
         return "" if text.nil?
 

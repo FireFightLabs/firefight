@@ -61,6 +61,18 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     assert_instance_of PostmortemUpdate, event.eventable
   end
 
+  test "generate records Inference row with postmortem_generate feature" do
+    stub_ruby_llm_response
+
+    assert_difference "Inference.count", 1 do
+      @generator.generate(@incident, generated_by: @member)
+    end
+
+    inference = Inference.order(:created_at).last
+    assert_equal "postmortem_generate", inference.feature
+    assert_equal @incident, inference.inferable
+  end
+
   test "post_message posts and pins message" do
     stub_ruby_llm_response
     @generator.generate(@incident, generated_by: @member)
