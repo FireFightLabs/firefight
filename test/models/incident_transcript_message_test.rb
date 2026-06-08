@@ -65,62 +65,6 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
     assert_not_nil message.reload.deleted_at
   end
 
-  test "grouped_for returns empty when no messages" do
-    assert_equal [], IncidentTranscriptMessage.grouped_for(@incident, workspace: @workspace)
-  end
-
-  test "grouped_for returns chronological top-level messages with member name" do
-    build_message(slack_ts: "1.001", content: "first", posted_at: 2.minutes.ago).save!
-    build_message(slack_ts: "1.002", content: "second", posted_at: 1.minute.ago).save!
-
-    result = IncidentTranscriptMessage.grouped_for(@incident, workspace: @workspace)
-
-    assert_equal 2, result.size
-    assert_equal "first", result[0][:text]
-    assert_equal "second", result[1][:text]
-    assert_equal @member.user.name, result[0][:by]
-  end
-
-  test "grouped_for groups thread replies under their parent" do
-    build_message(slack_ts: "100.0", content: "parent", posted_at: 3.minutes.ago).save!
-    build_message(slack_ts: "100.1", slack_thread_ts: "100.0", content: "reply A", posted_at: 2.minutes.ago).save!
-    build_message(slack_ts: "100.2", slack_thread_ts: "100.0", content: "reply B", posted_at: 1.minute.ago).save!
-
-    result = IncidentTranscriptMessage.grouped_for(@incident, workspace: @workspace)
-
-    assert_equal 1, result.size
-    assert_equal "parent", result[0][:text]
-    assert_equal [ "reply A", "reply B" ], result[0][:replies].map { |r| r[:text] }
-  end
-
-  test "grouped_for treats thread parents (thread_ts == ts) as top-level" do
-    build_message(slack_ts: "200.0", slack_thread_ts: "200.0", content: "parent that got reply").save!
-
-    result = IncidentTranscriptMessage.grouped_for(@incident, workspace: @workspace)
-
-    assert_equal 1, result.size
-    assert_equal "parent that got reply", result[0][:text]
-    assert_nil result[0][:replies]
-  end
-
-  test "grouped_for falls back to slack_user_id when no membership match" do
-    build_message(slack_ts: "1.001", slack_user_id: "U_UNKNOWN", workspace_membership: nil).save!
-
-    result = IncidentTranscriptMessage.grouped_for(@incident, workspace: @workspace)
-
-    assert_equal "U_UNKNOWN", result[0][:by]
-  end
-
-  test "grouped_for excludes soft-deleted rows" do
-    build_message(slack_ts: "1.001", content: "alive").save!
-    build_message(slack_ts: "1.002", content: "gone", deleted_at: Time.current).save!
-
-    result = IncidentTranscriptMessage.grouped_for(@incident, workspace: @workspace)
-
-    assert_equal 1, result.size
-    assert_equal "alive", result[0][:text]
-  end
-
   test "scrubber replaces AWS key and flags scrubbed" do
     message = build_message(content: "creds AKIAIOSFODNN7EXAMPLE leaked").tap(&:save!)
     assert_equal "creds [REDACTED:aws_key] leaked", message.reload.content

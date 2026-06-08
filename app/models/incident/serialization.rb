@@ -20,7 +20,6 @@ module Incident::Serialization
     {
       **to_context_hash,
       timeline_events: incident_events.chronological.includes(:actor).map(&:to_context_hash),
-      transcript: IncidentTranscriptMessage.grouped_for(self, workspace: workspace),
       actions: incident_actions.active.map(&:to_context_hash),
       shoutouts: shoutouts.map(&:to_context_hash)
     }

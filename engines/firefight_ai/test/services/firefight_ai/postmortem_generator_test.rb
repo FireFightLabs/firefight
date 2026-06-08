@@ -81,6 +81,8 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
   private
 
   def stub_ruby_llm_response
+    FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
+
     ai_result = {
       "title" => "INC-003 Postmortem: Image upload broken",
       "summary" => "**Problem**: Image uploads returning 500 errors.",
@@ -103,20 +105,28 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     RubyLLM.stubs(:chat).returns(mock_chat)
   end
 
-  test "user_prompt caps transcript and signals elision" do
-    huge_transcript = Array.new(600) { |i| { at: "t#{i}", by: "alice", text: "message #{i}", replies: [] } }
+  test "user_prompt includes Narrative Summary section when summary is present" do
+    summary_stub = OpenStruct.new(content: "Team rolled back deploy 4f2a")
     data = {
       identifier: "INC-X", name: "n", severity: "minor", status: "resolved",
-      declared_at: "x", declared_by: "alice",
-      transcript: huge_transcript
+      declared_at: "x", declared_by: "alice"
     }
 
-    prompt = @generator.send(:user_prompt, data)
+    prompt = @generator.send(:user_prompt, data, summary_stub)
 
-    cap = FirefightAi::PostmortemGenerator::MAX_TRANSCRIPT_MESSAGES
-    assert_includes prompt, "#{600 - cap} earlier messages elided"
-    assert_includes prompt, "message #{600 - 1}"
-    assert_not_includes prompt, "message 0"
+    assert_includes prompt, "Narrative Summary"
+    assert_includes prompt, "rolled back deploy 4f2a"
+  end
+
+  test "user_prompt omits Narrative Summary when summary is nil" do
+    data = {
+      identifier: "INC-X", name: "n", severity: "minor", status: "resolved",
+      declared_at: "x", declared_by: "alice"
+    }
+
+    prompt = @generator.send(:user_prompt, data, nil)
+
+    assert_not_includes prompt, "Narrative Summary"
   end
 
   test "user_prompt caps timeline events" do
@@ -128,7 +138,7 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
       timeline_events: events
     }
 
-    prompt = @generator.send(:user_prompt, data)
+    prompt = @generator.send(:user_prompt, data, nil)
 
     assert_includes prompt, "50 earlier events elided"
   end

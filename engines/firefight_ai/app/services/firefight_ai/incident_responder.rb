@@ -6,15 +6,16 @@ module FirefightAi
 
     def answer_question(incident, question:)
       context = incident.to_full_context(workspace: @workspace)
-      call_ai(context, question)
+      summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
+      call_ai(context, summary, question)
     end
 
     private
 
-    def call_ai(context, question)
+    def call_ai(context, summary, question)
       chat = RubyLLM.chat(model: ai_model)
       chat.with_instructions(system_prompt)
-      response = chat.ask(user_prompt(context, question))
+      response = chat.ask(user_prompt(context, summary, question))
       response.content
     end
 
@@ -33,7 +34,7 @@ module FirefightAi
       PROMPT
     end
 
-    def user_prompt(context, question)
+    def user_prompt(context, summary, question)
       parts = []
       parts << "Here is the incident data:\n"
       parts << "## Incident"
@@ -56,14 +57,9 @@ module FirefightAi
         end
       end
 
-      if context[:transcript].present?
-        parts << "\n## Channel Transcript (#{context[:transcript].size} messages)"
-        context[:transcript].each do |msg|
-          parts << "- [#{msg[:at]}] #{msg[:by]}: #{msg[:text]}"
-          (msg[:replies] || []).each do |reply|
-            parts << "  - [#{reply[:at]}] #{reply[:by]} (thread reply): #{reply[:text]}"
-          end
-        end
+      if summary&.content.present?
+        parts << "\n## Narrative Summary"
+        parts << summary.content
       end
 
       if context[:actions].present?

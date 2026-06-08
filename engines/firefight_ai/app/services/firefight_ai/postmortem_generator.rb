@@ -6,7 +6,8 @@ module FirefightAi
 
     def generate(incident, generated_by:)
       prompt_data = incident.to_full_context(workspace: @workspace)
-      ai_result = call_ai(prompt_data)
+      summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
+      ai_result = call_ai(prompt_data, summary)
       postmortem = create_postmortem(incident, ai_result, generated_by: generated_by)
       postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: generated_by)
       postmortem
@@ -30,11 +31,11 @@ module FirefightAi
 
     private
 
-    def call_ai(prompt_data)
+    def call_ai(prompt_data, summary)
       chat = RubyLLM.chat(model: ai_model)
       chat.with_instructions(system_prompt)
       chat.with_schema(Schemas::Postmortem)
-      response = chat.ask(user_prompt(prompt_data))
+      response = chat.ask(user_prompt(prompt_data, summary))
       response.content
     end
 
@@ -78,14 +79,9 @@ module FirefightAi
       PROMPT
     end
 
-    # Defensive bounds on the AI prompt. Stops a runaway incident (huge cached
-    # transcript) from blowing the model context window or burning tokens on
-    # every retry. The long-term fix is the Layer 2 running summary in the AI
-    # cost discipline RFC; this is the floor.
-    MAX_TRANSCRIPT_MESSAGES = 400
     MAX_TIMELINE_EVENTS = 200
 
-    def user_prompt(data)
+    def user_prompt(data, summary)
       parts = []
       parts << "Generate a postmortem document for the following incident:\n"
       parts << "## Incident Details"
@@ -115,18 +111,9 @@ module FirefightAi
         end
       end
 
-      if data[:transcript].present?
-        messages, elided = capped(data[:transcript], MAX_TRANSCRIPT_MESSAGES)
-        header = "\n## Channel Transcript (#{messages.size} messages"
-        header += "; #{elided} earlier messages elided for length" if elided.positive?
-        header += ")"
-        parts << header
-        messages.each do |msg|
-          parts << "- [#{msg[:at]}] #{msg[:by]}: #{msg[:text]}"
-          (msg[:replies] || []).each do |reply|
-            parts << "  - [#{reply[:at]}] #{reply[:by]} (thread reply): #{reply[:text]}"
-          end
-        end
+      if summary&.content.present?
+        parts << "\n## Narrative Summary"
+        parts << summary.content
       end
 
       if data[:actions].present?
@@ -148,8 +135,6 @@ module FirefightAi
       parts.join("\n")
     end
 
-    # Returns [kept, elided_count]. Keeps the tail because for postmortems the
-    # closing context (resolution, decisions, final state) matters most.
     def capped(collection, limit)
       return [ collection, 0 ] if collection.size <= limit
 
