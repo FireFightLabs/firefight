@@ -26,11 +26,11 @@ class InferenceTest < ActiveSupport::TestCase
     )
 
     inference = nil
+    returned_response = nil
     assert_difference "Inference.count", 1 do
-      result = Inference.track(@context) { response }
-      assert_equal response, result
-      inference = Inference.order(:created_at).last
+      returned_response, inference = Inference.track(@context) { response }
     end
+    assert_equal response, returned_response
 
     assert_equal @workspace, inference.workspace
     assert_equal @incident, inference.inferable

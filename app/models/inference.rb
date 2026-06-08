@@ -17,7 +17,7 @@ class Inference < ApplicationRecord
 
     begin
       response = yield
-      create!(
+      inference = create!(
         **attrs,
         input_tokens:        response.try(:input_tokens).to_i,
         output_tokens:       response.try(:output_tokens).to_i,
@@ -29,7 +29,7 @@ class Inference < ApplicationRecord
         provider_request_id: response.try(:id),
         status:              STATUS_SUCCESS
       )
-      response
+      [ response, inference ]
     rescue StandardError => e
       create!(
         **attrs,
