@@ -85,19 +85,20 @@ export function AddActionDialog({
         <DialogTrigger asChild>{trigger}</DialogTrigger>
       )}
 
-      <DialogContent>
+      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add Action Item</DialogTitle>
-            <DialogDescription>Create a new action item for this incident.</DialogDescription>
+            <DialogDescription>Describe what needs to be done and optionally assign it.</DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-4 py-4">
+          <div className="flex flex-col gap-3 py-3">
             <div className="flex flex-col gap-2">
               <Label htmlFor="action-desc">Description</Label>
               <Textarea
                 id="action-desc"
                 placeholder="What needs to be done?"
-                rows={2}
+                rows={3}
+                className="resize-none focus-visible:ring-1 focus-visible:ring-ring/20"
                 value={data.description}
                 onChange={(e) => setData("description", e.target.value)}
                 required
@@ -118,9 +119,9 @@ export function AddActionDialog({
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" disabled={processing}>Cancel</Button>
+              <Button type="button" variant="outline" size="sm" className="bg-muted hover:bg-muted/70 border-border" disabled={processing}>Cancel</Button>
             </DialogClose>
-            <Button type="submit" disabled={processing || !data.description.trim()}>
+            <Button type="submit" size="sm" disabled={processing || !data.description.trim()}>
               {processing ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>

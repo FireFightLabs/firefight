@@ -47,7 +47,7 @@ export function SearchableSelect({
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) onOpen?.() }}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal data-[state=open]:ring-1 data-[state=open]:ring-ring/20">
           {selected ? (
             renderSelected?.(selected) ?? defaultRender(selected)
           ) : (
@@ -56,9 +56,11 @@ export function SearchableSelect({
           <IconChevronDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <Command className="py-3 outline-none">
+          <div className="mx-2 my-1 rounded-md border border-input focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/20 transition-[color,box-shadow] [&_[data-slot=command-input-wrapper]]:border-0">
+            <CommandInput placeholder={searchPlaceholder} className="!border-0 !outline-none !shadow-none !ring-0 focus:!border-0 focus:!outline-none focus:!shadow-none focus:!ring-0" />
+          </div>
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
