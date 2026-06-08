@@ -6,7 +6,6 @@ module FirefightAi
 
     FEATURE_FULL        = "summary_full"
     FEATURE_INCREMENTAL = "summary_incremental"
-    PROVIDER            = "anthropic"
 
     def initialize(workspace)
       @workspace = workspace
@@ -104,7 +103,7 @@ module FirefightAi
       Inference.track(
         workspace: @workspace,
         feature:   feature,
-        provider:  PROVIDER,
+        provider:  provider_for(model_id),
         model:     model_id,
         inferable: incident
       ) do
@@ -115,7 +114,15 @@ module FirefightAi
     end
 
     def model_id
-      @model_id ||= ENV.fetch("SUMMARY_AI_MODEL", FirefightAi.configuration.default_model)
+      @model_id ||= ENV.fetch("SUMMARY_AI_MODEL", "gpt-4o-mini")
+    end
+
+    def provider_for(model)
+      case model
+      when /\Agpt-|\Ao\d/ then "openai"
+      when /\Aclaude-/   then "anthropic"
+      else "unknown"
+      end
     end
 
     def system_prompt

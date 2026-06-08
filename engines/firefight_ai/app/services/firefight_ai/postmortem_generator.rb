@@ -61,7 +61,7 @@ module FirefightAi
     end
 
     def ai_model
-      @ai_model ||= ENV.fetch("POSTMORTEM_AI_MODEL", FirefightAi.configuration.default_model)
+      @ai_model ||= ENV.fetch("POSTMORTEM_AI_MODEL", "gpt-4o")
     end
 
     def system_prompt

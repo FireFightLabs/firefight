@@ -31,6 +31,10 @@ module FirefightAi
 
         Use Slack mrkdwn formatting: *bold*, _italic_, bullet points, and `code` where appropriate.
         Do not use markdown headers (#) — use *bold text* instead.
+
+        Do not invite follow-up questions or offer further help. End on the
+        last fact, not on conversational closers like "let me know if you have
+        questions" or "feel free to reach out".
       PROMPT
     end
 
@@ -77,7 +81,7 @@ module FirefightAi
     end
 
     def ai_model
-      @ai_model ||= ENV.fetch("INCIDENT_AI_MODEL", FirefightAi.configuration.default_model)
+      @ai_model ||= ENV.fetch("INCIDENT_AI_MODEL", "gpt-4o-mini")
     end
   end
 end
