@@ -210,6 +210,7 @@ export default function PostmortemPage() {
             key={editorKey}
             content={editorContentRef.current || undefined}
             onUpdate={handleContentUpdate}
+            incidentId={incident.id}
           />
         </main>
       </div>

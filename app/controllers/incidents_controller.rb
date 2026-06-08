@@ -64,4 +64,20 @@ class IncidentsController < InertiaController
     revisions = postmortem.postmortem_updates.order(created_at: :desc).includes(edited_by: :user)
     render json: PostmortemUpdateSerializer.many(revisions)
   end
+
+  def ai_rewrite_postmortem
+    incident = current_workspace.incidents.find(params[:incident_id])
+    incident.postmortem or raise ActiveRecord::RecordNotFound
+
+    selected_html = params[:selected_html].to_s
+    instruction = params[:instruction].to_s
+
+    return render json: { error: "selected_html and instruction are required" }, status: :unprocessable_entity if selected_html.blank? || instruction.blank?
+
+    rewritten = FirefightAi::PostmortemSectionRewriter
+      .new(current_workspace)
+      .rewrite(incident, selected_html: selected_html, instruction: instruction)
+
+    render json: { rewritten_html: rewritten }
+  end
 end

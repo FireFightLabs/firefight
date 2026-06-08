@@ -1,12 +1,15 @@
+import { useState } from "react"
 import {
   IconBold,
   IconCode,
   IconItalic,
+  IconSparkles,
   IconStrikethrough,
   IconUnderline,
 } from "@tabler/icons-react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import { BubbleMenu } from "@tiptap/react/menus"
+import { DOMSerializer } from "@tiptap/pm/model"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
 import TaskList from "@tiptap/extension-task-list"
@@ -16,13 +19,16 @@ import Typography from "@tiptap/extension-typography"
 
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { AiRewriteDialog } from "@/pages/incidents/components/postmortem/ai-rewrite-dialog"
 
 interface PostmortemEditorProps {
   content?: string
   onUpdate?: (html: string) => void
+  incidentId?: string
 }
 
-export function PostmortemEditor({ content, onUpdate }: PostmortemEditorProps) {
+export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEditorProps) {
+  const [aiSelection, setAiSelection] = useState<{ from: number; to: number; html: string } | null>(null)
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -106,9 +112,53 @@ export function PostmortemEditor({ content, onUpdate }: PostmortemEditorProps) {
         >
           <IconCode className="size-3.5" />
         </Button>
+        {incidentId && (
+          <>
+            <Separator orientation="vertical" className="mx-0.5 h-4" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-primary"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                const { from, to } = editor.state.selection
+                if (from === to) return
+                const slice = editor.state.doc.slice(from, to)
+                const serializer = DOMSerializer.fromSchema(editor.schema)
+                const container = document.createElement("div")
+                container.appendChild(serializer.serializeFragment(slice.content))
+                setAiSelection({ from, to, html: container.innerHTML })
+              }}
+              type="button"
+              aria-label="Rewrite with AI"
+            >
+              <IconSparkles className="size-3.5" />
+            </Button>
+          </>
+        )}
       </BubbleMenu>
 
       <EditorContent editor={editor} />
+
+      {incidentId && aiSelection && (
+        <AiRewriteDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setAiSelection(null)
+          }}
+          incidentId={incidentId}
+          selectedHtml={aiSelection.html}
+          onRewritten={(rewrittenHtml) => {
+            editor
+              .chain()
+              .focus()
+              .setTextSelection({ from: aiSelection.from, to: aiSelection.to })
+              .deleteSelection()
+              .insertContent(rewrittenHtml)
+              .run()
+          }}
+        />
+      )}
     </div>
   )
 }
