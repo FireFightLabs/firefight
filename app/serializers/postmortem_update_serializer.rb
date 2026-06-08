@@ -10,11 +10,6 @@ class PostmortemUpdateSerializer < BaseSerializer
     update_type: { type: '"generated" | "edited" | "ai_edited"' }
   )
 
-  type "string[]"
-  def changed_sections
-    update.changed_sections || []
-  end
-
   type :string
   def edited_by
     update.edited_by.actor_display_name
