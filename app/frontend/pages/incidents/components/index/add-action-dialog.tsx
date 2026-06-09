@@ -91,7 +91,7 @@ export function AddActionDialog({
             <DialogTitle>Add Action Item</DialogTitle>
             <DialogDescription>Describe what needs to be done and optionally assign it.</DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-3 py-3">
+          <div className="flex flex-col gap-4 pt-3 pb-5">
             <div className="flex flex-col gap-2">
               <Label htmlFor="action-desc">Description</Label>
               <Textarea

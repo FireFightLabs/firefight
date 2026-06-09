@@ -69,6 +69,7 @@ export function SearchableSelect({
                   key={option.value}
                   value={option.label}
                   onSelect={() => { onValueChange(option.value); setOpen(false) }}
+                  className="cursor-pointer"
                 >
                   {renderOption?.(option) ?? defaultRender(option)}
                   {option.value === value && <IconCheck className="ml-auto size-4" />}
