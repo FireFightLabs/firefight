@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_29_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_08_130256) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -373,6 +373,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_29_120000) do
     t.index ["workspace_id"], name: "index_incident_statuses_on_workspace_id"
   end
 
+  create_table "incident_summaries", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "incident_id", null: false
+    t.uuid "workspace_id", null: false
+    t.uuid "inference_id"
+    t.text "content", null: false
+    t.string "summary_up_to_ts", null: false
+    t.datetime "generated_at", null: false
+    t.string "model", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["incident_id"], name: "index_incident_summaries_on_incident_id", unique: true
+    t.index ["inference_id"], name: "index_incident_summaries_on_inference_id"
+    t.index ["workspace_id", "generated_at"], name: "index_incident_summaries_on_workspace_id_and_generated_at"
+    t.index ["workspace_id"], name: "index_incident_summaries_on_workspace_id"
+  end
+
+  create_table "incident_transcript_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "incident_id", null: false
+    t.string "slack_ts", null: false
+    t.string "slack_thread_ts"
+    t.string "slack_user_id", null: false
+    t.uuid "workspace_membership_id"
+    t.text "content", null: false
+    t.datetime "posted_at", null: false
+    t.boolean "scrubbed", default: false, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["incident_id", "posted_at"], name: "idx_on_incident_id_posted_at_8123ad8ebd"
+    t.index ["incident_id"], name: "index_incident_transcript_messages_on_incident_id"
+    t.index ["workspace_id", "created_at"], name: "idx_on_workspace_id_created_at_8c0e76892b"
+    t.index ["workspace_id", "incident_id", "slack_ts"], name: "index_transcript_messages_on_workspace_incident_slack_ts", unique: true
+    t.index ["workspace_id", "slack_user_id"], name: "idx_on_workspace_id_slack_user_id_5d5d20d31d"
+    t.index ["workspace_id"], name: "index_incident_transcript_messages_on_workspace_id"
+    t.index ["workspace_membership_id"], name: "index_incident_transcript_messages_on_workspace_membership_id"
+  end
+
   create_table "incident_types", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workspace_id", null: false
     t.string "name", null: false
@@ -474,6 +512,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_29_120000) do
     t.index ["workspace_id", "incident_status_id"], name: "index_incidents_on_workspace_id_and_incident_status_id"
     t.index ["workspace_id", "sequence_number"], name: "index_incidents_on_workspace_id_and_sequence_number", unique: true
     t.index ["workspace_id"], name: "index_incidents_on_workspace_id"
+  end
+
+  create_table "inferences", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "member_id"
+    t.uuid "api_key_id"
+    t.string "inferable_type"
+    t.uuid "inferable_id"
+    t.string "feature", null: false
+    t.string "provider", null: false
+    t.string "model", null: false
+    t.integer "input_tokens", default: 0, null: false
+    t.integer "output_tokens", default: 0, null: false
+    t.integer "cache_read_tokens", default: 0, null: false
+    t.integer "cache_write_tokens", default: 0, null: false
+    t.integer "cost_micros", default: 0, null: false
+    t.integer "latency_ms", default: 0, null: false
+    t.string "stop_reason"
+    t.string "provider_request_id"
+    t.string "status", null: false
+    t.string "error_class"
+    t.datetime "created_at", null: false
+    t.index ["api_key_id"], name: "index_inferences_on_api_key_id"
+    t.index ["inferable_type", "inferable_id"], name: "index_inferences_on_inferable"
+    t.index ["member_id"], name: "index_inferences_on_member_id"
+    t.index ["workspace_id", "created_at"], name: "index_inferences_on_workspace_id_and_created_at"
+    t.index ["workspace_id", "feature", "created_at"], name: "index_inferences_on_workspace_id_and_feature_and_created_at"
+    t.index ["workspace_id", "inferable_type", "inferable_id"], name: "idx_on_workspace_id_inferable_type_inferable_id_af35668ca4"
+    t.index ["workspace_id"], name: "index_inferences_on_workspace_id"
   end
 
   create_table "invite_codes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -977,6 +1044,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_29_120000) do
   add_foreign_key "incident_severities", "workspaces"
   add_foreign_key "incident_statuses", "incident_lifecycle_stages"
   add_foreign_key "incident_statuses", "workspaces"
+  add_foreign_key "incident_summaries", "incidents"
+  add_foreign_key "incident_summaries", "inferences"
+  add_foreign_key "incident_summaries", "workspaces"
+  add_foreign_key "incident_transcript_messages", "incidents"
+  add_foreign_key "incident_transcript_messages", "workspace_memberships"
+  add_foreign_key "incident_transcript_messages", "workspaces"
   add_foreign_key "incident_types", "workspaces"
   add_foreign_key "incident_updates", "incident_severities"
   add_foreign_key "incident_updates", "incident_statuses"
@@ -991,6 +1064,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_29_120000) do
   add_foreign_key "incidents", "incident_types"
   add_foreign_key "incidents", "workspace_memberships", column: "declared_by_id"
   add_foreign_key "incidents", "workspaces"
+  add_foreign_key "inferences", "api_keys"
+  add_foreign_key "inferences", "workspace_memberships", column: "member_id"
+  add_foreign_key "inferences", "workspaces"
   add_foreign_key "invite_codes", "users", column: "redeemed_by_id"
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"

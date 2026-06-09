@@ -3,7 +3,7 @@ class StatusCompactSerializer < BaseSerializer
 
   attributes(name: { type: :string }, color: { type: :string })
 
-  type :string
+  type '"triage" | "active" | "closed" | "canceled"'
   def lifecycle_stage
     status.incident_lifecycle_stage.key
   end

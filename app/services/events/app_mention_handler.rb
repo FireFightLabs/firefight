@@ -18,11 +18,15 @@ module Events
 
       acknowledge(workspace, channel_id, event["ts"])
 
+      parent_thread_ts = event["thread_ts"]
+      reply_thread_ts = parent_thread_ts || event["ts"]
+
       FirefightAi::IncidentResponseJob.perform_later(
         incident.id,
         channel_id,
-        event["ts"],
-        user_text
+        reply_thread_ts,
+        user_text,
+        parent_thread_ts
       )
     rescue StandardError => e
       Rails.logger.warn({ event: "events.app_mention.failed", error: e.message, team_id: payload["team_id"] }.to_json)

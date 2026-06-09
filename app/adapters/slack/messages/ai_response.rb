@@ -12,7 +12,7 @@ module Slack
           { type: "divider" }
         ]
 
-        answer.to_s.split("\n\n").each do |paragraph|
+        Formatting.markdown_to_mrkdwn(answer.to_s).split("\n\n").each do |paragraph|
           stripped = paragraph.strip
           next if stripped.empty?
 
