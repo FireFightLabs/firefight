@@ -1,12 +1,16 @@
+import { useCallback, useRef, useState } from "react"
+import { toast } from "sonner"
 import {
   IconBold,
   IconCode,
   IconItalic,
+  IconSparkles,
   IconStrikethrough,
   IconUnderline,
 } from "@tabler/icons-react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import { BubbleMenu } from "@tiptap/react/menus"
+import { DOMSerializer } from "@tiptap/pm/model"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
 import TaskList from "@tiptap/extension-task-list"
@@ -16,13 +20,20 @@ import Typography from "@tiptap/extension-typography"
 
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { AiRewriteDialog } from "@/pages/incidents/components/postmortem/ai-rewrite-dialog"
+import { AiPendingExtension, aiPendingKey } from "@/pages/incidents/components/postmortem/ai-pending-extension"
+import { incidentPostmortemAiRewritePath } from "@/lib/routes"
 
 interface PostmortemEditorProps {
   content?: string
   onUpdate?: (html: string) => void
+  incidentId?: string
 }
 
-export function PostmortemEditor({ content, onUpdate }: PostmortemEditorProps) {
+export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEditorProps) {
+  const [aiSelection, setAiSelection] = useState<{ from: number; to: number; html: string } | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -40,6 +51,7 @@ export function PostmortemEditor({ content, onUpdate }: PostmortemEditorProps) {
       TaskItem.configure({ nested: true }),
       UnderlineExt,
       Typography,
+      AiPendingExtension,
     ],
     content: content || "",
     editorProps: {
@@ -51,6 +63,58 @@ export function PostmortemEditor({ content, onUpdate }: PostmortemEditorProps) {
       onUpdate?.(editor.getHTML())
     },
   })
+
+  const handleRewrite = useCallback(async (instruction: string) => {
+    if (!editor || !aiSelection || !incidentId) return
+
+    const { from, to, html } = aiSelection
+    setAiSelection(null)
+
+    editor.view.dispatch(editor.state.tr.setMeta(aiPendingKey, { range: { from, to } }))
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content")
+
+    try {
+      const response = await fetch(incidentPostmortemAiRewritePath(incidentId), {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
+        body: JSON.stringify({ selected_html: html, instruction }),
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || "Failed to rewrite")
+      }
+
+      const { rewritten_html } = await response.json()
+
+      const pluginState = aiPendingKey.getState(editor.view.state)
+      const currentRange = pluginState?.range
+      if (!currentRange) return
+
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: currentRange.from, to: currentRange.to })
+        .deleteSelection()
+        .insertContent(rewritten_html)
+        .run()
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return
+      editor.view.dispatch(editor.state.tr.setMeta(aiPendingKey, { range: null }))
+      toast.error(err instanceof Error ? err.message : "Failed to rewrite")
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null
+    }
+  }, [editor, aiSelection, incidentId])
 
   if (!editor) return null
 
@@ -106,9 +170,43 @@ export function PostmortemEditor({ content, onUpdate }: PostmortemEditorProps) {
         >
           <IconCode className="size-3.5" />
         </Button>
+        {incidentId && (
+          <>
+            <Separator orientation="vertical" className="mx-0.5 h-4" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-primary"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                const { from, to } = editor.state.selection
+                if (from === to) return
+                const slice = editor.state.doc.slice(from, to)
+                const serializer = DOMSerializer.fromSchema(editor.schema)
+                const container = document.createElement("div")
+                container.appendChild(serializer.serializeFragment(slice.content))
+                setAiSelection({ from, to, html: container.innerHTML })
+              }}
+              type="button"
+              aria-label="Rewrite with AI"
+            >
+              <IconSparkles className="size-3.5" />
+            </Button>
+          </>
+        )}
       </BubbleMenu>
 
       <EditorContent editor={editor} />
+
+      {incidentId && (
+        <AiRewriteDialog
+          open={aiSelection !== null}
+          onOpenChange={(open) => {
+            if (!open) setAiSelection(null)
+          }}
+          onSubmit={handleRewrite}
+        />
+      )}
     </div>
   )
 }

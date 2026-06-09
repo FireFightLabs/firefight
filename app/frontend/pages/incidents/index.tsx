@@ -65,6 +65,7 @@ export default function IncidentPage() {
                   incidentId={incident.id}
                   hasPostmortem={hasPostmortem}
                   postmortemStatus={postmortemStatus}
+                  incidentLifecycleStage={incident.status.lifecycleStage}
                 />
               </div>
               <Deferred data="actions" fallback={<ActionsSkeleton />}>
@@ -77,4 +78,3 @@ export default function IncidentPage() {
     </AuthenticatedLayout>
   )
 }
-

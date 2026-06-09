@@ -33,8 +33,8 @@ class Incident < ApplicationRecord
   has_many :incident_relationships, dependent: :destroy
   has_many :inverse_incident_relationships, class_name: "IncidentRelationship",
            foreign_key: :related_incident_id, dependent: :destroy, inverse_of: :related_incident
-
-  after_destroy_commit :clear_transcript_cache
+  has_many :incident_transcript_messages, dependent: :destroy
+  has_one :incident_summary, dependent: :destroy
 
   validates :sequence_number, presence: true, uniqueness: { scope: :workspace_id }
   validates :identifier, presence: true, uniqueness: { scope: :workspace_id }
@@ -121,11 +121,5 @@ class Incident < ApplicationRecord
 
   def duplicates
     inverse_incident_relationships.duplicates.map(&:incident)
-  end
-
-  private
-
-  def clear_transcript_cache
-    IncidentTranscriptCache.clear!(self)
   end
 end

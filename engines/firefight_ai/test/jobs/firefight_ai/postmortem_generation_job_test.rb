@@ -29,7 +29,7 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
     FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
   end
 
-  test "skips if postmortem already exists" do
+  test "skips when an already-filled postmortem exists" do
     incident = Incident.create!(
       workspace: @workspace,
       declared_by: @member,
@@ -45,11 +45,48 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
       incident: incident,
       generated_by: @member,
       title: "Existing",
-      content: { "sections" => [] }
+      status: Postmortem::STATUS_DRAFT,
+      content: { "html" => "already filled" }
     )
 
     FirefightAi::PostmortemGenerator.expects(:new).never
     FirefightAi::PostmortemGenerationJob.perform_now(incident.id, @member.id)
+  end
+
+  test "fills an in_progress placeholder when one exists" do
+    Postmortem.create!(
+      incident: @incident,
+      generated_by: @member,
+      title: "Generating placeholder",
+      status: Postmortem::STATUS_IN_PROGRESS,
+      content: { "html" => "" }
+    )
+
+    generator = mock("generator")
+    generator.expects(:generate).once
+    generator.expects(:post_message).once
+    FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
+
+    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+  end
+
+  test "destroys the in_progress placeholder on terminal AI failure" do
+    Postmortem.create!(
+      incident: @incident,
+      generated_by: @member,
+      title: "Generating placeholder",
+      status: Postmortem::STATUS_IN_PROGRESS,
+      content: { "html" => "" }
+    )
+
+    generator = mock("generator")
+    generator.stubs(:generate).raises(RubyLLM::ContextLengthExceededError.new("too long"))
+    FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
+    WorkspaceAdapter.stubs(:for).returns(stub(post_ephemeral: nil))
+
+    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+
+    assert_nil @incident.reload.postmortem
   end
 
   test "discards on record not found" do

@@ -133,13 +133,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     assert_equal resolved_status, @incident.reload.incident_status
   end
 
-  test "close expires transcript cache" do
-    resolved_status = @workspace.incident_statuses.closed.first
-    IncidentTranscriptCache.expects(:expire_after_close!).with(@incident)
-
-    @service.close(@incident, { incident_status: resolved_status }, changed_by: @member)
-  end
-
   test "close starts IncidentCloseWorkflow" do
     resolved_status = @workspace.incident_statuses.closed.first
 
@@ -180,15 +173,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     end
 
     assert @incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_REOPENED)
-  end
-
-  test "reopen clears transcript cache expiry" do
-    close_incident!
-
-    default_status = @workspace.incident_statuses.live.find_by(is_default: true)
-    IncidentTranscriptCache.expects(:clear_expiry!).with(@incident)
-
-    @service.reopen(@incident, { incident_status: default_status }, changed_by: @member)
   end
 
   test "reopen stores reason in event details" do

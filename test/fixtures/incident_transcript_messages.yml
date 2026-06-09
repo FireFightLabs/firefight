@@ -1,0 +1,3 @@
+# Encrypted content cannot be expressed cleanly in YAML fixtures.
+# Tests that need IncidentTranscriptMessage rows build them inline via
+# IncidentTranscriptMessage.create!(...) so encryption runs on write.

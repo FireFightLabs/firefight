@@ -6,8 +6,9 @@ module FirefightAi
 
     def generate(incident, generated_by:)
       prompt_data = incident.to_full_context(workspace: @workspace)
-      ai_result = call_ai(prompt_data)
-      postmortem = create_postmortem(incident, ai_result, generated_by: generated_by)
+      summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
+      ai_result = call_ai(incident, prompt_data, summary)
+      postmortem = save_postmortem(incident, ai_result, generated_by: generated_by)
       postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: generated_by)
       postmortem
     end
@@ -30,15 +31,23 @@ module FirefightAi
 
     private
 
-    def call_ai(prompt_data)
-      chat = RubyLLM.chat(model: ai_model)
-      chat.with_instructions(system_prompt)
-      chat.with_schema(Schemas::Postmortem)
-      response = chat.ask(user_prompt(prompt_data))
+    def call_ai(incident, prompt_data, summary)
+      response, _ = Inference.track(
+        workspace: @workspace,
+        feature:   "postmortem_generate",
+        provider:  Inference.provider_for(ai_model),
+        model:     ai_model,
+        inferable: incident
+      ) do
+        chat = RubyLLM.chat(model: ai_model)
+        chat.with_instructions(system_prompt)
+        chat.with_schema(Schemas::Postmortem)
+        chat.ask(user_prompt(prompt_data, summary))
+      end
       response.content
     end
 
-    def create_postmortem(incident, ai_result, generated_by:)
+    def save_postmortem(incident, ai_result, generated_by:)
       html = Postmortem::SECTION_KEYS.filter_map do |key|
         body = ai_result[key.to_s] || ai_result[key.to_sym]
         next if body.blank?
@@ -48,19 +57,23 @@ module FirefightAi
         "<h2>#{heading}</h2>\n#{rendered}"
       end.join("\n")
 
-      Postmortem.create!(
-        incident: incident,
-        generated_by: generated_by,
+      attrs = {
         title: ai_result["title"] || ai_result[:title],
         summary: ai_result["summary"] || ai_result[:summary],
         status: Postmortem::STATUS_DRAFT,
         model_id: ai_model,
         content: { "html" => html }
-      )
+      }
+
+      if incident.postmortem
+        incident.postmortem.tap { |p| p.update!(attrs) }
+      else
+        Postmortem.create!(attrs.merge(incident: incident, generated_by: generated_by))
+      end
     end
 
     def ai_model
-      @ai_model ||= ENV.fetch("POSTMORTEM_AI_MODEL", FirefightAi.configuration.default_model)
+      @ai_model ||= ENV.fetch("POSTMORTEM_AI_MODEL", "gpt-4o")
     end
 
     def system_prompt
@@ -78,14 +91,9 @@ module FirefightAi
       PROMPT
     end
 
-    # Defensive bounds on the AI prompt. Stops a runaway incident (huge cached
-    # transcript) from blowing the model context window or burning tokens on
-    # every retry. The long-term fix is the Layer 2 running summary in the AI
-    # cost discipline RFC; this is the floor.
-    MAX_TRANSCRIPT_MESSAGES = 400
     MAX_TIMELINE_EVENTS = 200
 
-    def user_prompt(data)
+    def user_prompt(data, summary)
       parts = []
       parts << "Generate a postmortem document for the following incident:\n"
       parts << "## Incident Details"
@@ -115,18 +123,9 @@ module FirefightAi
         end
       end
 
-      if data[:transcript].present?
-        messages, elided = capped(data[:transcript], MAX_TRANSCRIPT_MESSAGES)
-        header = "\n## Channel Transcript (#{messages.size} messages"
-        header += "; #{elided} earlier messages elided for length" if elided.positive?
-        header += ")"
-        parts << header
-        messages.each do |msg|
-          parts << "- [#{msg[:at]}] #{msg[:by]}: #{msg[:text]}"
-          (msg[:replies] || []).each do |reply|
-            parts << "  - [#{reply[:at]}] #{reply[:by]} (thread reply): #{reply[:text]}"
-          end
-        end
+      if summary&.content.present?
+        parts << "\n## Narrative Summary"
+        parts << summary.content
       end
 
       if data[:actions].present?
@@ -148,8 +147,6 @@ module FirefightAi
       parts.join("\n")
     end
 
-    # Returns [kept, elided_count]. Keeps the tail because for postmortems the
-    # closing context (resolution, decisions, final state) matters most.
     def capped(collection, limit)
       return [ collection, 0 ] if collection.size <= limit
 

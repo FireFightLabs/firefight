@@ -1,8 +1,15 @@
-import { Link } from "@inertiajs/react"
+import { Link, router } from "@inertiajs/react"
 import { IconArrowRight, IconFileText, IconSparkles } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { incidentPostmortemPath } from "@/lib/routes"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { LIFECYCLE_STAGES, type LifecycleStageKey } from "@/lib/constants"
+import {
+  incidentPostmortemGeneratePath,
+  incidentPostmortemPath,
+  incidentPostmortemStartBlankPath,
+} from "@/lib/routes"
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",
@@ -22,20 +29,24 @@ export function IncidentPostmortemCard({
   incidentId,
   hasPostmortem,
   postmortemStatus,
+  incidentLifecycleStage,
 }: {
   incidentId: string
   hasPostmortem: boolean
   postmortemStatus?: string
+  incidentLifecycleStage: LifecycleStageKey
 }) {
+  const canCreate = incidentLifecycleStage === LIFECYCLE_STAGES.CLOSED
+  const lockedReason = "Postmortems can be created once the incident is resolved."
   if (hasPostmortem) {
     const status = postmortemStatus ?? "draft"
     return (
       <Link
         href={incidentPostmortemPath(incidentId)}
-        className="group block rounded-xl border border-border bg-card px-4 py-4 transition-colors hover:border-border/80 hover:bg-accent"
+        className="group block rounded-xl border border-primary/25 bg-card px-4 py-4 transition-colors hover:border-primary/45 hover:bg-accent"
       >
         <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 ring-1 ring-primary/20">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/20">
             <IconFileText className="size-[17px] text-primary" strokeWidth={1.75} />
           </div>
           <div className="flex-1 min-w-0">
@@ -59,19 +70,57 @@ export function IncidentPostmortemCard({
   }
 
   return (
-    <section className="rounded-xl border border-border bg-card px-5 pt-6 pb-7">
-      <p className="mb-1 text-[14px] font-semibold text-foreground">No postmortem yet</p>
-      <p className="mt-1 text-[12px] text-muted-foreground/90">
-        Document what happened and how to prevent it.
-      </p>
+    <section className="rounded-xl border border-border bg-card px-5 py-5">
+      <div className="flex items-start gap-3">
+        <div className="flex size-9 items-center justify-center rounded-lg bg-muted/70">
+          <IconFileText className="size-[17px] text-muted-foreground/80" strokeWidth={1.75} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-semibold text-foreground">No postmortem yet</p>
+          <p className="mt-1 text-[12px] leading-[1.55] text-muted-foreground/90">
+            Capture what happened, why it happened, and what prevents it next time.
+          </p>
+        </div>
+      </div>
       <div className="mt-4 flex items-center gap-2">
-        <Button size="sm" className="h-8 gap-1.5 rounded-md px-3 text-[12px]">
-          <IconSparkles className="size-3.5" strokeWidth={2} />
-          Generate draft
-        </Button>
-        <Button variant="outline" size="sm" className="h-8 rounded-md px-2.5 text-[12px] bg-muted hover:bg-muted/70 border-border">
-          Start blank
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={canCreate ? "" : "cursor-not-allowed"}>
+              <Button
+                size="sm"
+                className="h-8 gap-1.5 px-3 text-[12px]"
+                disabled={!canCreate}
+                onClick={() => {
+                  router.post(incidentPostmortemGeneratePath(incidentId), {}, {
+                    preserveScroll: true,
+                    onSuccess: () => toast.success("Generating postmortem. This usually takes under a minute."),
+                    onError: () => toast.error("Failed to start generation."),
+                  })
+                }}
+              >
+                <IconSparkles className="size-3.5" strokeWidth={2} />
+                Generate draft
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {!canCreate && <TooltipContent>{lockedReason}</TooltipContent>}
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={canCreate ? "" : "cursor-not-allowed"}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2.5 text-[12px] text-muted-foreground"
+                disabled={!canCreate}
+                onClick={() => router.post(incidentPostmortemStartBlankPath(incidentId))}
+              >
+                Start blank
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {!canCreate && <TooltipContent>{lockedReason}</TooltipContent>}
+        </Tooltip>
       </div>
     </section>
   )

@@ -2,6 +2,7 @@ export const LIFECYCLE_STAGES = {
   TRIAGE: "triage",
   ACTIVE: "active",
   CLOSED: "closed",
+  CANCELED: "canceled",
 } as const
 
 export type LifecycleStageKey = (typeof LIFECYCLE_STAGES)[keyof typeof LIFECYCLE_STAGES]

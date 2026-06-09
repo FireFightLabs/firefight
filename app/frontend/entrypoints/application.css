@@ -273,4 +273,23 @@
     pointer-events: none;
     opacity: 0.5;
   }
+
+}
+
+.ai-pending {
+  background-color: color-mix(in oklch, var(--primary) 35%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary) 55%, transparent);
+  border-radius: 3px;
+  animation: ai-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ai-pulse {
+  0%, 100% {
+    background-color: color-mix(in oklch, var(--primary) 25%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary) 35%, transparent);
+  }
+  50% {
+    background-color: color-mix(in oklch, var(--primary) 55%, transparent);
+    box-shadow: 0 0 6px 1px color-mix(in oklch, var(--primary) 65%, transparent);
+  }
 }
