@@ -7,7 +7,7 @@ export function ActorAvatar({ name }: { name: string }) {
     .slice(0, 2)
 
   return (
-    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground/90">
+    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground/70">
       {initials}
     </span>
   )

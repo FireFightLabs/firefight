@@ -38,25 +38,19 @@ type DotAccent = "primary" | "emerald" | "amber" | "rose" | "violet" | "neutral"
 
 const eventAccent: Record<string, DotAccent> = {
   "incident.created": "primary",
-  "incident.updated": "primary",
   "incident.resolved": "emerald",
   "incident.reopened": "amber",
   "incident.escalated": "rose",
   "lead.assigned": "violet",
-  "action.created": "primary",
-  "action.picked_up": "amber",
   "action.completed": "emerald",
-  "postmortem.generated": "violet",
-  "postmortem.edited": "violet",
-  "message.file_shared": "primary",
 }
 
 const solidAccent: Record<DotAccent, string> = {
-  primary: "border-primary/60 bg-primary/20 text-primary",
-  emerald: "border-emerald-500/60 bg-emerald-500/15 text-emerald-600 dark:border-emerald-400/60 dark:bg-emerald-400/15 dark:text-emerald-400",
-  amber: "border-amber-500/60 bg-amber-500/15 text-amber-600 dark:border-amber-400/60 dark:bg-amber-400/15 dark:text-amber-400",
-  rose: "border-rose-500/60 bg-rose-500/15 text-rose-600 dark:border-rose-400/60 dark:bg-rose-400/15 dark:text-rose-400",
-  violet: "border-violet-500/60 bg-violet-500/15 text-violet-600 dark:border-violet-400/60 dark:bg-violet-400/15 dark:text-violet-400",
+  primary: "border-primary/50 bg-primary/8 text-primary",
+  emerald: "border-emerald-500/50 bg-emerald-500/8 text-emerald-600 dark:border-emerald-400/50 dark:bg-emerald-400/8 dark:text-emerald-400",
+  amber: "border-amber-500/50 bg-amber-500/8 text-amber-600 dark:border-amber-400/50 dark:bg-amber-400/8 dark:text-amber-400",
+  rose: "border-rose-500/50 bg-rose-500/8 text-rose-600 dark:border-rose-400/50 dark:bg-rose-400/8 dark:text-rose-400",
+  violet: "border-violet-500/50 bg-violet-500/8 text-violet-600 dark:border-violet-400/50 dark:bg-violet-400/8 dark:text-violet-400",
   neutral: "border-border bg-card text-muted-foreground",
 }
 
@@ -103,87 +97,86 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
         return (
           <li key={event.id} className="relative">
             {showDate && (
-              <div className="relative flex items-center py-3 pl-14">
+              <div className="relative flex items-center py-6 pl-14">
                 <div
                   aria-hidden
-                  className="absolute left-[13px] top-0 bottom-0 w-px bg-border"
+                  className="absolute left-[14px] top-0 bottom-0 w-px bg-border"
                 />
-                <span className="relative z-10 -ml-14 inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  <span aria-hidden className="size-1 rounded-full bg-muted-foreground/60" />
+                <span className="relative z-10 -ml-14 inline-flex items-center rounded-full bg-background px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
                   {eventDate}
                 </span>
               </div>
             )}
 
-            <div className="relative flex gap-4 pb-5">
+            <div className="relative pb-5">
               {!isLast && (
                 <div
                   aria-hidden
-                  className="absolute left-[13px] top-7 bottom-0 w-px bg-border"
+                  className="absolute left-[14px] top-7 bottom-0 w-px bg-border"
                 />
               )}
 
-              <div className="relative z-10 shrink-0 pt-0.5">
-                <div
-                  className={`flex size-[26px] items-center justify-center rounded-full border ${dotClasses}`}
-                >
-                  <Icon className="size-[13px]" strokeWidth={2} />
+              <div className="flex items-center gap-4">
+                <div className="relative z-10 shrink-0">
+                  <div
+                    className={`flex size-[28px] items-center justify-center rounded-full border ${dotClasses}`}
+                  >
+                    <Icon className="size-[13px]" strokeWidth={1.5} />
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap text-sm">
+                <div className="flex flex-1 min-w-0 items-center gap-2 flex-wrap text-sm">
                   <ActorAvatar name={event.actor} />
                   <span className={`font-medium ${highlight ? "text-foreground" : "text-foreground/95"}`}>
                     {event.actor}
                   </span>
                   <span className="text-muted-foreground">{event.description}</span>
-                  <span className="ml-auto shrink-0 font-mono text-xs tabular-nums text-muted-foreground/80">
+                  <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground/80">
                     {formatTime(event.createdAt)}
                   </span>
                 </div>
-
-                {hasContent && (
-                  <div className="mt-2.5 rounded-lg border border-border bg-card px-3.5 py-2.5">
-                    {event.changes && event.changes.length > 0 && (
-                      <div className="flex flex-col gap-1.5">
-                        {event.changes.map((change) => (
-                          <div
-                            key={change.field}
-                            className="flex items-center gap-2 text-xs"
-                          >
-                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                              {change.field}
-                            </span>
-                            <span className="text-muted-foreground/80 line-through decoration-muted-foreground/40">
-                              {change.before}
-                            </span>
-                            <IconArrowRight className="size-3 text-muted-foreground/60" />
-                            <span className="font-medium text-foreground">
-                              {change.after}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {event.details && (
-                      <p
-                        className={`text-sm leading-relaxed text-muted-foreground ${event.changes && event.changes.length > 0 ? "mt-2 pt-2 border-t border-border" : ""}`}
-                      >
-                        {event.details}
-                      </p>
-                    )}
-
-                    {event.file && (
-                      <TimelineFileAttachment
-                        file={event.file}
-                        withDivider={Boolean((event.changes && event.changes.length > 0) || event.details)}
-                      />
-                    )}
-                  </div>
-                )}
               </div>
+
+              {hasContent && (
+                <div className="ml-[44px] mt-2.5 rounded-lg border border-border bg-card px-3.5 py-2.5">
+                  {event.changes && event.changes.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                      {event.changes.map((change) => (
+                        <div
+                          key={change.field}
+                          className="flex items-center gap-2 text-xs"
+                        >
+                          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                            {change.field}
+                          </span>
+                          <span className="text-muted-foreground/80 line-through decoration-muted-foreground/40">
+                            {change.before}
+                          </span>
+                          <IconArrowRight className="size-3 text-muted-foreground/60" />
+                          <span className="font-medium text-foreground">
+                            {change.after}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {event.details && (
+                    <p
+                      className={`text-sm leading-relaxed text-muted-foreground ${event.changes && event.changes.length > 0 ? "mt-2 pt-2 border-t border-border" : ""}`}
+                    >
+                      {event.details}
+                    </p>
+                  )}
+
+                  {event.file && (
+                    <TimelineFileAttachment
+                      file={event.file}
+                      withDivider={Boolean((event.changes && event.changes.length > 0) || event.details)}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           </li>
         )
