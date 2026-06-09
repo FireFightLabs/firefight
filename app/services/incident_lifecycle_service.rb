@@ -40,8 +40,6 @@ class IncidentLifecycleService
       incident.lead = lead if lead
     end
 
-    IncidentTranscriptCache.expire_after_close!(incident)
-
     IncidentCloseWorkflow.start!(incident, context: {
       resolved_by_platform_user_id: changed_by&.platform_user_id
     })
@@ -61,8 +59,6 @@ class IncidentLifecycleService
     ) do
       incident.update!(attrs)
     end
-
-    IncidentTranscriptCache.clear_expiry!(incident)
 
     if incident.channel_archived_at.present?
       workspace.adapter.unarchive_channel(channel_id: incident.channel_id)

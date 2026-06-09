@@ -11,6 +11,7 @@ module FirefightAi
              Net::ReadTimeout,
              Faraday::TimeoutError,
              wait: :polynomially_longer, attempts: 3 do |job, error|
+      job.cleanup_in_progress!
       job.notify_failure(error, terminal: false)
     end
 
@@ -22,6 +23,7 @@ module FirefightAi
                RubyLLM::ForbiddenError,
                RubyLLM::PaymentRequiredError,
                RubyLLM::ModelNotFoundError do |job, error|
+      job.cleanup_in_progress!
       job.notify_failure(error, terminal: true)
     end
 
@@ -30,11 +32,18 @@ module FirefightAi
     def perform(incident_id, generated_by_id)
       incident = Incident.find(incident_id)
       member = WorkspaceMembership.find(generated_by_id)
-      return if incident.postmortem.present?
+      return if incident.postmortem && incident.postmortem.status != ::Postmortem::STATUS_IN_PROGRESS
 
       generator = PostmortemGenerator.new(incident.workspace)
       generator.generate(incident, generated_by: member)
       generator.post_message(incident)
+    end
+
+    # Drop the in_progress placeholder so the user can retry from the dashboard.
+    def cleanup_in_progress!
+      incident_id, = arguments
+      postmortem = Incident.find_by(id: incident_id)&.postmortem
+      postmortem.destroy if postmortem&.status == ::Postmortem::STATUS_IN_PROGRESS
     end
 
     def notify_failure(error, terminal:)

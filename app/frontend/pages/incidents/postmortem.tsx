@@ -6,7 +6,6 @@ import {
   IconClock,
   IconDotsVertical,
   IconFlame,
-  IconSparkles,
 } from "@tabler/icons-react"
 
 import TurndownService from "turndown"
@@ -14,6 +13,7 @@ import TurndownService from "turndown"
 import type { SharedProps } from "@/types"
 import type { Postmortem } from "@/types/serializers"
 import { PostmortemEditor } from "@/pages/incidents/components/postmortem/postmortem-editor"
+import { PostmortemGeneratingSkeleton } from "@/pages/incidents/components/postmortem/postmortem-generating-skeleton"
 import { RevisionsSheet } from "@/pages/incidents/components/postmortem/revisions-sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -115,6 +115,24 @@ export default function PostmortemPage() {
     }
   }, [incident.id])
 
+  const isGenerating = postmortem?.status === "in_progress"
+  useEffect(() => {
+    if (!isGenerating) return
+    const interval = setInterval(() => {
+      router.reload({ only: ["postmortem"], preserveScroll: true })
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [isGenerating])
+
+  const wasGeneratingRef = useRef(isGenerating)
+  useEffect(() => {
+    if (wasGeneratingRef.current && !isGenerating && postmortem?.htmlContent) {
+      editorContentRef.current = postmortem.htmlContent
+      setEditorKey((k) => k + 1)
+    }
+    wasGeneratingRef.current = isGenerating
+  }, [isGenerating, postmortem?.htmlContent])
+
   if (!postmortem) {
     return (
       <>
@@ -126,6 +144,25 @@ export default function PostmortemPage() {
               Back to incident
             </Link>
           </div>
+        </div>
+      </>
+    )
+  }
+
+  if (isGenerating) {
+    return (
+      <>
+        <Head title={`Postmortem — ${incident.identifier}`} />
+        <div className="min-h-screen bg-background">
+          <header className="sticky top-0 z-50 border-b bg-background print:hidden">
+            <div className="mx-auto flex h-12 max-w-4xl items-center gap-3 px-4 lg:px-6">
+              <Link href={incidentPath(incident.id)} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <IconArrowLeft className="size-3.5" />
+                Back to incident
+              </Link>
+            </div>
+          </header>
+          <PostmortemGeneratingSkeleton />
         </div>
       </>
     )
@@ -181,11 +218,6 @@ export default function PostmortemPage() {
                   <DropdownMenuItem onClick={() => window.print()}>Export as PDF</DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportMarkdown}>Export as Markdown</DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <IconSparkles className="size-4" />
-                    AI Rewrite
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
                   {postmortem.status !== "completed" ? (
                     <DropdownMenuItem onClick={() => router.patch(incidentPostmortemStatusPath(incident.id), { status: "completed" })}>
                       Mark as Completed
@@ -210,6 +242,7 @@ export default function PostmortemPage() {
             key={editorKey}
             content={editorContentRef.current || undefined}
             onUpdate={handleContentUpdate}
+            incidentId={incident.id}
           />
         </main>
       </div>

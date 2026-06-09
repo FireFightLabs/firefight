@@ -132,6 +132,25 @@ module Slack
       def self.severity_emoji_for(_slug)
         ":fire:"
       end
+
+      # Convert standard markdown (what LLMs default to) into Slack mrkdwn.
+      # - **bold**   -> *bold*
+      # - __bold__   -> *bold*
+      # - # / ## / ### headers   -> *bold line*
+      # - [text](url) links      -> <url|text>
+      # Bullet syntax (- and *) is left intact -- Slack renders both.
+      # Single-asterisk italic is NOT converted (would collide with Slack's
+      # *bold* syntax); ask the LLM to use underscores instead.
+      def self.markdown_to_mrkdwn(text)
+        return "" if text.nil?
+
+        out = text.dup
+        out.gsub!(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/, "<\\2|\\1>")
+        out.gsub!(/^\#{1,6}\s+(.+)$/, "*\\1*")
+        out.gsub!(/\*\*(.+?)\*\*/m, "*\\1*")
+        out.gsub!(/__(.+?)__/m, "*\\1*")
+        out
+      end
     end
   end
 end

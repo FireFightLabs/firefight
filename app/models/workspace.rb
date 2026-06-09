@@ -18,6 +18,7 @@ class Workspace < ApplicationRecord
   has_many :api_keys, dependent: :destroy
   has_many :catalog_types
   has_many :catalog_entries
+  has_many :incident_transcript_messages, dependent: :destroy
 
   encrypts :access_token, :refresh_token, deterministic: false
 
