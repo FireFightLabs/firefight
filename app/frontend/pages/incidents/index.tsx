@@ -45,14 +45,13 @@ export default function IncidentPage() {
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
           <div className="min-w-0 flex-1">
             <Deferred data="timelineEvents" fallback={<TimelineSkeleton />}>
-              <div className="mb-6 flex items-baseline gap-3">
+              <div className="mb-2 flex items-baseline gap-3">
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/90">
                   Timeline
                 </h2>
-                <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70">
+                <span className="text-[11px] tabular-nums text-muted-foreground/70">
                   {(timelineEvents ?? []).length}
                 </span>
-                <div className="flex-1 h-px bg-border/50" />
               </div>
               <IncidentTimeline events={timelineEvents ?? []} />
             </Deferred>

@@ -14,7 +14,6 @@ import {
 } from "@tabler/icons-react"
 
 import type { TimelineEvent } from "@/pages/incidents/types"
-import { ActorAvatar } from "@/pages/incidents/components/index/actor-avatar"
 import { TimelineFileAttachment } from "@/pages/incidents/components/index/timeline-file-attachment"
 
 const eventIcons: Record<string, typeof IconFlame> = {
@@ -97,12 +96,16 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
         return (
           <li key={event.id} className="relative">
             {showDate && (
-              <div className="relative flex items-center py-6 pl-14">
+              <div className="relative flex items-center py-6">
                 <div
                   aria-hidden
                   className="absolute left-[14px] top-0 bottom-0 w-px bg-border"
                 />
-                <span className="relative z-10 -ml-14 inline-flex items-center rounded-full bg-background px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                <div
+                  aria-hidden
+                  className="relative z-10 ml-[7.5px] size-3.5 rounded-full border border-border bg-muted-foreground"
+                />
+                <span className="ml-3 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
                   {eventDate}
                 </span>
               </div>
@@ -126,7 +129,6 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
                 </div>
 
                 <div className="flex flex-1 min-w-0 items-center gap-2 flex-wrap text-sm">
-                  <ActorAvatar name={event.actor} />
                   <span className={`font-medium ${highlight ? "text-foreground" : "text-foreground/95"}`}>
                     {event.actor}
                   </span>
