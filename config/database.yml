@@ -27,17 +27,20 @@ development:
   primary:
     <<: *default
     database: firefight_development
+  # Solid Queue/Cache/Cable each get their own database, mirroring production.
+  # Sharing one database makes every `schema:dump` see all tables and write the
+  # full app schema into every *_schema.rb file.
   cache:
     <<: *default
-    database: firefight_development
+    database: firefight_development_cache
     migrations_paths: db/cache_migrate
   queue:
     <<: *default
-    database: firefight_development
+    database: firefight_development_queue
     migrations_paths: db/queue_migrate
   cable:
     <<: *default
-    database: firefight_development
+    database: firefight_development_cable
     migrations_paths: db/cable_migrate
   # The specified database role being used to connect to PostgreSQL.
   # To create additional roles in PostgreSQL see `$ createuser --help`.
