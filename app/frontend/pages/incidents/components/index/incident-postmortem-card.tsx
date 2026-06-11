@@ -72,7 +72,7 @@ export function IncidentPostmortemCard({
       <section className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3">
         <IconFileText className="size-4 shrink-0 text-muted-foreground/60" strokeWidth={1.75} />
         <span className="text-[12px] text-muted-foreground">
-          Postmortem · Available after resolution
+          Postmortem · Generate once resolved
         </span>
       </section>
     )
