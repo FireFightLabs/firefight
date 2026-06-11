@@ -107,6 +107,12 @@ module SolidWorkflow
           )
 
           if rows_updated > 0
+            SolidWorkflow::Step.where(workflow_id: id, status: :pending).update_all(
+              status: :cancelled,
+              completed_at: current_time,
+              updated_at: current_time
+            )
+
             reload
             record_event(SolidWorkflow::Events::Workflow::FAILED)
           end

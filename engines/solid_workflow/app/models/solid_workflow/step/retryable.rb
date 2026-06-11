@@ -66,7 +66,8 @@ module SolidWorkflow
 
       # Manual retry/skip on a step of a failed workflow must bring the
       # workflow back to running, otherwise orchestration short-circuits on
-      # completed? and the step sits pending forever.
+      # completed? and the step sits pending forever. Siblings cancelled by
+      # the failure go back to pending so the revived run can complete.
       def revive_workflow!
         return unless workflow.failed?
 
@@ -75,6 +76,13 @@ module SolidWorkflow
           completed_at: nil,
           state_timestamps: (workflow.state_timestamps || {}).merge("running" => Time.current.iso8601)
         )
+
+        SolidWorkflow::Step.where(workflow_id: workflow.id, status: :cancelled).where.not(id: id).update_all(
+          status: :pending,
+          completed_at: nil,
+          updated_at: Time.current
+        )
+
         workflow.record_event(SolidWorkflow::Events::Workflow::RUNNING, reason: "step_recovery")
       end
 

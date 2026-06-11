@@ -123,6 +123,46 @@ class SolidWorkflow::EngineHardeningTest < ActiveSupport::TestCase
     assert workflow.reload.failed?
   end
 
+  test "workflow failure cancels pending sibling steps and manual retry revives them" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(state: :running)
+    failed_step, *siblings = workflow.steps.ordered.to_a
+    failed_step.update!(status: :failed, attempts: 5, completed_at: Time.current)
+
+    workflow.enqueue_next_steps
+    assert workflow.reload.failed?
+    siblings.each { |s| assert s.reload.cancelled? }
+
+    failed_step.retry_now!
+    assert_not workflow.reload.failed?
+    siblings.each { |s| assert s.reload.pending? }
+  end
+
+  test "pause metadata lives in dedicated columns, not workflow_config" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.pause!(reason: "maintenance", by: "admin")
+
+    assert_equal "maintenance", workflow.pause_reason
+    assert_equal "admin", workflow.paused_by
+    assert_not workflow.workflow_config.key?("paused_at")
+
+    workflow.resume!(by: "admin")
+    assert workflow.resumed_at.present?
+    assert workflow.paused_duration >= 0
+  end
+
+  test "timed_out tolerates non-numeric timeout values" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(
+      state: :running,
+      workflow_config: workflow.workflow_config.merge("timeout" => "5m"),
+      started_at: 10.seconds.ago
+    )
+
+    assert_not_includes SolidWorkflow::Workflow.timed_out.pluck(:id), workflow.id
+    assert_not workflow.timed_out?
+  end
+
   test "retry_now! revives a failed workflow" do
     workflow = ExampleCalculationWorkflow.start_inline!(@user, context: { numbers: [ 1, 2, 3 ] })
     step = workflow.steps.first

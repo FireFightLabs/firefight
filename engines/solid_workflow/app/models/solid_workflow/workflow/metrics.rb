@@ -41,10 +41,11 @@ module SolidWorkflow
 
         # Pushes the timeout check into Postgres so we don't materialize
         # every active workflow into Ruby just to filter. timeout lives in
-        # workflow_config (jsonb) so the expression coerces it to int.
+        # workflow_config (jsonb); the regex guard keeps one non-numeric
+        # value from raising and breaking the sweep for every workflow.
         def timed_out
           active.where(
-            "workflow_config->>'timeout' IS NOT NULL AND " \
+            "workflow_config->>'timeout' ~ '^[0-9]+$' AND " \
             "EXTRACT(EPOCH FROM (now() - COALESCE(started_at, created_at))) > " \
             "(workflow_config->>'timeout')::int"
           )
@@ -62,9 +63,10 @@ module SolidWorkflow
 
       def timed_out?
         return false unless active?
-        return false unless workflow_config.dig("timeout")
 
-        timeout_seconds = workflow_config["timeout"].to_i
+        timeout_seconds = Integer(workflow_config["timeout"].to_s, exception: false)
+        return false unless timeout_seconds
+
         running_duration = Time.current - (started_at || created_at)
         running_duration > timeout_seconds
       end

@@ -44,7 +44,7 @@ module SolidWorkflow
     end
 
     def sweep_timed_out_workflows
-      SolidWorkflow::Workflow.timed_out.each do |workflow|
+      SolidWorkflow::Workflow.timed_out.find_each do |workflow|
         Rails.logger.warn({
           event: "workflow.sweeper.timeout",
           workflow_id: workflow.id,
