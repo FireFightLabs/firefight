@@ -19,19 +19,32 @@ module SolidWorkflow
 
     def sweep_orphaned_steps
       SolidWorkflow::Step.orphaned.find_each do |step|
-        Rails.logger.warn({ event: "workflow.sweeper.resetting_orphan", step_id: step.id })
+        if step.attempts >= step.max_attempts
+          Rails.logger.warn({ event: "workflow.sweeper.failing_orphan", step_id: step.id, attempts: step.attempts })
 
-        step.update!(
-          status: :pending,
-          last_error: "Step was running but worker appears to have crashed (reset by sweeper)"
-        )
+          step.update!(
+            status: :failed,
+            completed_at: Time.current,
+            last_error: "Step crashed the worker on every attempt (failed by sweeper after #{step.attempts} attempts)"
+          )
 
-        step.workflow.record_event(SolidWorkflow::Events::Step::RESET, step: step, reason: "sweeper")
+          step.workflow.record_event(SolidWorkflow::Events::Step::FAILED, step: step, reason: "sweeper_max_attempts")
+          step.workflow.enqueue_next_steps_later
+        else
+          Rails.logger.warn({ event: "workflow.sweeper.resetting_orphan", step_id: step.id })
+
+          step.update!(
+            status: :pending,
+            last_error: "Step was running but worker appears to have crashed (reset by sweeper)"
+          )
+
+          step.workflow.record_event(SolidWorkflow::Events::Step::RESET, step: step, reason: "sweeper")
+        end
       end
     end
 
     def sweep_timed_out_workflows
-      SolidWorkflow::Workflow.timed_out.each do |workflow|
+      SolidWorkflow::Workflow.timed_out.find_each do |workflow|
         Rails.logger.warn({
           event: "workflow.sweeper.timeout",
           workflow_id: workflow.id,
