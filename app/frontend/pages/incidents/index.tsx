@@ -59,7 +59,10 @@ export default function IncidentPage() {
 
           <aside className="w-full shrink-0 lg:w-[336px]">
             <div className="lg:sticky lg:top-[calc(var(--header-height)+1.75rem)]">
-              <div className="mb-3">
+              <Deferred data="actions" fallback={<ActionsSkeleton />}>
+                <IncidentActionsSidebar actions={actions ?? []} canAddAction={canAddAction} canAddFollowup={canAddFollowup} incidentId={incident.id} />
+              </Deferred>
+              <div className="mt-3">
                 <IncidentPostmortemCard
                   incidentId={incident.id}
                   hasPostmortem={hasPostmortem}
@@ -67,9 +70,6 @@ export default function IncidentPage() {
                   incidentLifecycleStage={incident.status.lifecycleStage}
                 />
               </div>
-              <Deferred data="actions" fallback={<ActionsSkeleton />}>
-                <IncidentActionsSidebar actions={actions ?? []} canAddAction={canAddAction} canAddFollowup={canAddFollowup} incidentId={incident.id} />
-              </Deferred>
             </div>
           </aside>
         </div>
