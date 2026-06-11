@@ -7,28 +7,17 @@ module SolidWorkflow
       BACKOFF_LINEAR = "linear"
       BACKOFF_FIXED = "fixed"
 
-      # Retrying these is pointless — the next attempt produces the same
-      # outcome. Engine surfaces them as terminal so callers see the real
-      # cause instead of a generic max-attempts exhaustion.
-      TERMINAL_ERROR_CLASSES = %w[
-        ActiveRecord::RecordNotFound
-        ActiveRecord::RecordInvalid
-        ArgumentError
-        NoMethodError
-        TypeError
-        AdapterError::AuthRevoked
-        AdapterError::UnsafeDownloadHost
-        AdapterError::RestrictedAction
-      ].freeze
-
       def should_retry?
         return false if terminal_error?
         attempts < max_attempts
       end
 
+      # Terminal errors are never retried — the next attempt produces the
+      # same outcome. The class list is engine config so host apps register
+      # their own (see SolidWorkflow.terminal_error_classes).
       def terminal_error?
         return false if last_error.blank?
-        TERMINAL_ERROR_CLASSES.any? { |klass| last_error.start_with?("#{klass}:") }
+        SolidWorkflow.terminal_error_classes.any? { |klass| last_error.start_with?("#{klass}:") }
       end
 
       def schedule_retry!
@@ -51,6 +40,7 @@ module SolidWorkflow
             run_at: nil
           )
 
+          revive_workflow!
           workflow.record_event(SolidWorkflow::Events::Step::MANUAL_RETRY, step: self)
         end
 
@@ -65,6 +55,7 @@ module SolidWorkflow
             completed_at: Time.current
           )
 
+          revive_workflow!
           workflow.record_event(SolidWorkflow::Events::Step::MANUAL_SKIP, step: self, reason: reason)
         end
 
@@ -72,6 +63,20 @@ module SolidWorkflow
       end
 
       private
+
+      # Manual retry/skip on a step of a failed workflow must bring the
+      # workflow back to running, otherwise orchestration short-circuits on
+      # completed? and the step sits pending forever.
+      def revive_workflow!
+        return unless workflow.failed?
+
+        workflow.update!(
+          state: :running,
+          completed_at: nil,
+          state_timestamps: (workflow.state_timestamps || {}).merge("running" => Time.current.iso8601)
+        )
+        workflow.record_event(SolidWorkflow::Events::Workflow::RUNNING, reason: "step_recovery")
+      end
 
       def calculate_backoff
         strategy = retry_config&.dig("backoff") || BACKOFF_EXPONENTIAL

@@ -110,6 +110,112 @@ class SolidWorkflow::EngineHardeningTest < ActiveSupport::TestCase
     assert_includes SolidWorkflow::Workflow.timed_out.pluck(:id), workflow.id
   end
 
+  test "terminal-error step failure fails the workflow even with retry budget left" do
+    workflow = ExampleCalculationWorkflow.start_inline!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(state: :running, completed_at: nil)
+    step = workflow.steps.first
+    step.update!(status: :running, attempts: 1, max_attempts: 5)
+
+    step.mark_failed!(ActiveRecord::RecordNotFound.new("Couldn't find Foo"))
+    assert step.reload.failed?
+
+    workflow.enqueue_next_steps
+    assert workflow.reload.failed?
+  end
+
+  test "retry_now! revives a failed workflow" do
+    workflow = ExampleCalculationWorkflow.start_inline!(@user, context: { numbers: [ 1, 2, 3 ] })
+    step = workflow.steps.first
+    step.update!(status: :failed, attempts: 5, completed_at: Time.current)
+    workflow.update!(state: :failed, completed_at: Time.current)
+
+    step.retry_now!
+
+    assert_not workflow.reload.failed?
+    assert_nil workflow.completed_at
+  end
+
+  test "skip! revives a failed workflow" do
+    workflow = ExampleCalculationWorkflow.start_inline!(@user, context: { numbers: [ 1, 2, 3 ] })
+    step = workflow.steps.first
+    step.update!(status: :failed, attempts: 5, completed_at: Time.current)
+    workflow.update!(state: :failed, completed_at: Time.current)
+
+    step.skip!(reason: "manual")
+
+    assert step.reload.skipped?
+    assert_not workflow.reload.failed?
+  end
+
+  test "sweeper fails an orphaned step that exhausted attempts instead of resetting it" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(state: :running)
+    step = workflow.steps.first
+    step.update!(status: :running, attempts: 5, max_attempts: 5)
+    step.update_column(:updated_at, (SolidWorkflow.orphaned_step_threshold + 1.minute).ago)
+
+    SolidWorkflow::SweeperJob.new.send(:sweep_orphaned_steps)
+
+    assert step.reload.failed?
+    assert_includes step.last_error, "failed by sweeper"
+  end
+
+  test "sweeper still resets an orphaned step with attempts remaining" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(state: :running)
+    step = workflow.steps.first
+    step.update!(status: :running, attempts: 1, max_attempts: 5)
+    step.update_column(:updated_at, (SolidWorkflow.orphaned_step_threshold + 1.minute).ago)
+
+    SolidWorkflow::SweeperJob.new.send(:sweep_orphaned_steps)
+
+    assert step.reload.pending?
+  end
+
+  test "terminal_error_classes is engine config extended by the app initializer" do
+    assert_includes SolidWorkflow.terminal_error_classes, "ActiveRecord::RecordNotFound"
+    assert_includes SolidWorkflow.terminal_error_classes, "AdapterError::AuthRevoked"
+  end
+
+  class DuplicateStepWorkflow < SolidWorkflow::Base
+    workflow_name "dummy.duplicate.v1"
+    step :do_work
+    step :do_work
+
+    def do_work(workflow:, step:, input:) = { ok: true }
+  end
+
+  class UnknownDepWorkflow < SolidWorkflow::Base
+    workflow_name "dummy.unknown_dep.v1"
+    step :do_work, depends_on: [ :no_such_step ]
+
+    def do_work(workflow:, step:, input:) = { ok: true }
+  end
+
+  class CyclicWorkflow < SolidWorkflow::Base
+    workflow_name "dummy.cyclic.v1"
+    step :a, depends_on: [ :b ]
+    step :b, depends_on: [ :a ]
+
+    def a(workflow:, step:, input:) = { ok: true }
+    def b(workflow:, step:, input:) = { ok: true }
+  end
+
+  test "start! raises on duplicate step names" do
+    error = assert_raises(ArgumentError) { DuplicateStepWorkflow.start!(@user) }
+    assert_includes error.message, "duplicate step names: do_work"
+  end
+
+  test "start! raises on unknown dependency" do
+    error = assert_raises(ArgumentError) { UnknownDepWorkflow.start!(@user) }
+    assert_includes error.message, "unknown step(s): no_such_step"
+  end
+
+  test "start! raises on dependency cycle" do
+    error = assert_raises(ArgumentError) { CyclicWorkflow.start!(@user) }
+    assert_includes error.message, "dependency cycle"
+  end
+
   private
 
   def build_step(attributes = {})

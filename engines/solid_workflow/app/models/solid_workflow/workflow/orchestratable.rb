@@ -92,7 +92,7 @@ module SolidWorkflow
             record_event(SolidWorkflow::Events::Workflow::SUCCEEDED)
           end
 
-        elsif all_steps.any? { |s| s.failed? && s.attempts >= s.max_attempts }
+        elsif all_steps.any?(&:failed?)
           current_time = Time.current
           current_updated_at = updated_at
           rows_updated = SolidWorkflow::Workflow.where(
