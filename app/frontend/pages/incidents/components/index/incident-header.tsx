@@ -94,7 +94,7 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
         </p>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border rounded-xl border border-border bg-card">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-4">
         <MetaCell label="Lead">
           {incident.lead ? (
             <div className="flex items-center gap-2">

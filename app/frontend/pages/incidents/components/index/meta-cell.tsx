@@ -8,7 +8,7 @@ export function MetaCell({
   children: ReactNode
 }) {
   return (
-    <div className="px-5 py-3 min-w-0">
+    <div className="min-w-0">
       <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
         {label}
       </div>

@@ -25,7 +25,7 @@ export default function IncidentPage() {
   const canAddFollowup = ["closed", "canceled"].includes(incident.status.lifecycleStage)
 
   return (
-    <AuthenticatedLayout title={incident.identifier}>
+    <AuthenticatedLayout title={incident.name}>
       <Head title={`${incident.identifier} — ${incident.name}`} />
 
       <div className="mx-auto w-full max-w-6xl px-6 py-4 md:py-6 lg:px-10">

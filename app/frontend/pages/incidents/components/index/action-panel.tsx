@@ -21,6 +21,17 @@ export function ActionPanel({
   const doneCount = items.filter((a) => a.status === "done").length
   const isEmpty = items.length === 0
 
+  if (isEmpty) {
+    return (
+      <section className={`flex items-center justify-between rounded-xl border border-border bg-card px-4 py-2 transition-opacity ${canAdd ? "" : "opacity-50"}`}>
+        <span className="text-[12px] text-muted-foreground">
+          {title} · None yet
+        </span>
+        <AddActionDialog disabled={!canAdd} incidentId={incidentId} actionType={actionType} disabledTooltip={disabledTooltip} />
+      </section>
+    )
+  }
+
   return (
     <section className={`rounded-xl border border-border bg-card overflow-hidden transition-opacity ${canAdd ? "" : "opacity-50"}`}>
       <header className="flex items-center justify-between px-5 pt-6 pb-2.5">
@@ -29,23 +40,14 @@ export function ActionPanel({
         </h3>
         <AddActionDialog disabled={!canAdd} incidentId={incidentId} actionType={actionType} disabledTooltip={disabledTooltip} />
       </header>
-      {!isEmpty && (
-        <div className="px-5 pb-2">
-          <ProgressRail done={doneCount} total={items.length} />
-        </div>
-      )}
-      {!isEmpty && (
-        <div className="px-5 pt-0 pb-5">
-          {items.map((action) => (
-            <ActionItem key={action.id} action={action} />
-          ))}
-        </div>
-      )}
-      {isEmpty && (
-        <div className="px-5 pb-6 text-[12px] text-muted-foreground/70">
-          None yet.
-        </div>
-      )}
+      <div className="px-5 pb-2">
+        <ProgressRail done={doneCount} total={items.length} />
+      </div>
+      <div className="px-5 pt-0 pb-5">
+        {items.map((action) => (
+          <ActionItem key={action.id} action={action} />
+        ))}
+      </div>
     </section>
   )
 }
