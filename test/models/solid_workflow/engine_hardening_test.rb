@@ -110,6 +110,152 @@ class SolidWorkflow::EngineHardeningTest < ActiveSupport::TestCase
     assert_includes SolidWorkflow::Workflow.timed_out.pluck(:id), workflow.id
   end
 
+  test "terminal-error step failure fails the workflow even with retry budget left" do
+    workflow = ExampleCalculationWorkflow.start_inline!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(state: :running, completed_at: nil)
+    step = workflow.steps.first
+    step.update!(status: :running, attempts: 1, max_attempts: 5)
+
+    step.mark_failed!(ActiveRecord::RecordNotFound.new("Couldn't find Foo"))
+    assert step.reload.failed?
+
+    workflow.enqueue_next_steps
+    assert workflow.reload.failed?
+  end
+
+  test "workflow failure cancels pending sibling steps and manual retry revives them" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(state: :running)
+    failed_step, *siblings = workflow.steps.ordered.to_a
+    failed_step.update!(status: :failed, attempts: 5, completed_at: Time.current)
+
+    workflow.enqueue_next_steps
+    assert workflow.reload.failed?
+    siblings.each { |s| assert s.reload.cancelled? }
+
+    failed_step.retry_now!
+    assert_not workflow.reload.failed?
+    siblings.each { |s| assert s.reload.pending? }
+  end
+
+  test "pause metadata lives in dedicated columns, not workflow_config" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.pause!(reason: "maintenance", by: "admin")
+
+    assert_equal "maintenance", workflow.pause_reason
+    assert_equal "admin", workflow.paused_by
+    assert_not workflow.workflow_config.key?("paused_at")
+
+    workflow.resume!(by: "admin")
+    assert workflow.resumed_at.present?
+    assert workflow.paused_duration >= 0
+  end
+
+  test "timed_out tolerates non-numeric timeout values" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(
+      state: :running,
+      workflow_config: workflow.workflow_config.merge("timeout" => "5m"),
+      started_at: 10.seconds.ago
+    )
+
+    assert_not_includes SolidWorkflow::Workflow.timed_out.pluck(:id), workflow.id
+    assert_not workflow.timed_out?
+  end
+
+  test "retry_now! revives a failed workflow" do
+    workflow = ExampleCalculationWorkflow.start_inline!(@user, context: { numbers: [ 1, 2, 3 ] })
+    step = workflow.steps.first
+    step.update!(status: :failed, attempts: 5, completed_at: Time.current)
+    workflow.update!(state: :failed, completed_at: Time.current)
+
+    step.retry_now!
+
+    assert_not workflow.reload.failed?
+    assert_nil workflow.completed_at
+  end
+
+  test "skip! revives a failed workflow" do
+    workflow = ExampleCalculationWorkflow.start_inline!(@user, context: { numbers: [ 1, 2, 3 ] })
+    step = workflow.steps.first
+    step.update!(status: :failed, attempts: 5, completed_at: Time.current)
+    workflow.update!(state: :failed, completed_at: Time.current)
+
+    step.skip!(reason: "manual")
+
+    assert step.reload.skipped?
+    assert_not workflow.reload.failed?
+  end
+
+  test "sweeper fails an orphaned step that exhausted attempts instead of resetting it" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(state: :running)
+    step = workflow.steps.first
+    step.update!(status: :running, attempts: 5, max_attempts: 5)
+    step.update_column(:updated_at, (SolidWorkflow.orphaned_step_threshold + 1.minute).ago)
+
+    SolidWorkflow::SweeperJob.new.send(:sweep_orphaned_steps)
+
+    assert step.reload.failed?
+    assert_includes step.last_error, "failed by sweeper"
+  end
+
+  test "sweeper still resets an orphaned step with attempts remaining" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(state: :running)
+    step = workflow.steps.first
+    step.update!(status: :running, attempts: 1, max_attempts: 5)
+    step.update_column(:updated_at, (SolidWorkflow.orphaned_step_threshold + 1.minute).ago)
+
+    SolidWorkflow::SweeperJob.new.send(:sweep_orphaned_steps)
+
+    assert step.reload.pending?
+  end
+
+  test "terminal_error_classes is engine config extended by the app initializer" do
+    assert_includes SolidWorkflow.terminal_error_classes, "ActiveRecord::RecordNotFound"
+    assert_includes SolidWorkflow.terminal_error_classes, "AdapterError::AuthRevoked"
+  end
+
+  class DuplicateStepWorkflow < SolidWorkflow::Base
+    workflow_name "dummy.duplicate.v1"
+    step :do_work
+    step :do_work
+
+    def do_work(workflow:, step:, input:) = { ok: true }
+  end
+
+  class UnknownDepWorkflow < SolidWorkflow::Base
+    workflow_name "dummy.unknown_dep.v1"
+    step :do_work, depends_on: [ :no_such_step ]
+
+    def do_work(workflow:, step:, input:) = { ok: true }
+  end
+
+  class CyclicWorkflow < SolidWorkflow::Base
+    workflow_name "dummy.cyclic.v1"
+    step :a, depends_on: [ :b ]
+    step :b, depends_on: [ :a ]
+
+    def a(workflow:, step:, input:) = { ok: true }
+    def b(workflow:, step:, input:) = { ok: true }
+  end
+
+  test "start! raises on duplicate step names" do
+    error = assert_raises(ArgumentError) { DuplicateStepWorkflow.start!(@user) }
+    assert_includes error.message, "duplicate step names: do_work"
+  end
+
+  test "start! raises on unknown dependency" do
+    error = assert_raises(ArgumentError) { UnknownDepWorkflow.start!(@user) }
+    assert_includes error.message, "unknown step(s): no_such_step"
+  end
+
+  test "start! raises on dependency cycle" do
+    error = assert_raises(ArgumentError) { CyclicWorkflow.start!(@user) }
+    assert_includes error.message, "dependency cycle"
+  end
+
   private
 
   def build_step(attributes = {})

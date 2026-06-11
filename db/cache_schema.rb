@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_08_130256) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_11_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -848,7 +848,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_08_130256) do
     t.index ["run_at"], name: "index_solid_workflow_steps_on_run_at"
     t.index ["status", "updated_at"], name: "index_solid_workflow_steps_on_status_and_updated_at"
     t.index ["status"], name: "index_solid_workflow_steps_on_status"
-    t.index ["workflow_id", "name"], name: "index_solid_workflow_steps_on_workflow_id_and_name"
+    t.index ["workflow_id", "name"], name: "index_solid_workflow_steps_on_workflow_id_and_name", unique: true
     t.index ["workflow_id", "status"], name: "index_solid_workflow_steps_on_workflow_id_and_status"
     t.index ["workflow_id"], name: "index_solid_workflow_steps_on_workflow_id"
   end
@@ -868,6 +868,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_08_130256) do
     t.string "workflow_class", null: false
     t.jsonb "workflow_config", default: {}
     t.jsonb "state_timestamps", default: {}, null: false
+    t.datetime "paused_at"
+    t.string "paused_by"
+    t.text "pause_reason"
+    t.datetime "resumed_at"
+    t.string "resumed_by"
     t.index ["created_at"], name: "index_solid_workflow_workflows_on_created_at"
     t.index ["state", "updated_at"], name: "index_solid_workflow_workflows_on_state_and_updated_at"
     t.index ["state"], name: "index_solid_workflow_workflows_on_state"
