@@ -33,6 +33,13 @@ bin/rails db:prepare
 bin/rails db:prepare RAILS_ENV=test
 ```
 
+Development uses four databases on this one Postgres server — the primary plus
+separate `cache`, `queue`, and `cable` databases for Solid Cache/Queue/Cable,
+mirroring production. `db:prepare` creates all of them automatically and loads
+each from its own schema file (`db/schema.rb`, `db/cache_schema.rb`,
+`db/queue_schema.rb`, `db/cable_schema.rb`) — no manual `createdb` needed. Test
+runs on a single database.
+
 ## Environment variables
 
 Copy `.env.example` to `.env` and fill in the values. At minimum you need the Slack credentials and Active Record encryption keys.
