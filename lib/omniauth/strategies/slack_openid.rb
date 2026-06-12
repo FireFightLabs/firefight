@@ -11,9 +11,9 @@ module OmniAuth
     end
 
     # Slack sign-in strategy. Uses OAuth v2 with an empty bot `scope` and
-    # `user_scope=openid,profile,email` — the same approach incident.io uses.
-    # This triggers Slack's native workspace picker and consent screen, returns
-    # user identity only, and does NOT install a bot.
+    # `user_scope=openid,profile,email`. This triggers Slack's native
+    # workspace picker and consent screen, returns user identity only,
+    # and does NOT install a bot.
     #
     # Pairs with the regular `slack` strategy: this one establishes user
     # identity, the other handles bot installation.
