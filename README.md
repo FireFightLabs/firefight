@@ -23,6 +23,12 @@
   <a href="https://github.com/FireFightLabs/firefight/blob/main/CONTRIBUTING.md">
     <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs welcome" />
   </a>
+  <a href="https://firefight.app/slack">
+    <img src="https://img.shields.io/badge/chat-on%20Slack-blueviolet" alt="Chat with the Firefight community on Slack" />
+  </a>
+  <a href="https://x.com/FireFight_app">
+    <img src="https://img.shields.io/twitter/follow/FireFight_app?label=Follow" alt="Follow Firefight on X" />
+  </a>
 </h4>
 
 <!-- TODO before going public: add hero screenshot
