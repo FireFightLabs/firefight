@@ -1,0 +1,11 @@
+changelog:
+  categories:
+    - title: Schema migrations
+      labels:
+        - migration
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Changes
+      labels:
+        - "*"
