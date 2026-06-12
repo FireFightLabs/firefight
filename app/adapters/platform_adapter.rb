@@ -18,9 +18,6 @@
 # Errors: every method raises `AdapterError` (or a subclass) when the
 # platform call fails. Subclasses use `translate_errors` to convert
 # platform-specific errors into the shared `AdapterError` hierarchy.
-#
-# See `docs/PLATFORM_ADAPTER.md` for the full semantic specification of
-# each method, including expected error behavior and return shapes.
 class PlatformAdapter
   class NotImplemented < NotImplementedError
     def initialize(method_name, adapter_class)
