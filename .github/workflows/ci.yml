@@ -87,7 +87,9 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
           # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           # REDIS_URL: redis://localhost:6379/0
-        run: bin/rails db:test:prepare test
+        # Name both paths: the default runner only globs test/, so the
+        # engines/firefight_ai/test suite must be listed or it never runs.
+        run: bin/rails db:test:prepare test test engines/firefight_ai/test
 
   system-test:
     runs-on: ubuntu-latest
