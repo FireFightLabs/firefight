@@ -15,6 +15,7 @@ module Events
       user_text = strip_mention(event["text"])
       return if user_text.blank?
       return unless defined?(FirefightAi)
+      return unless Entitlements.allows?(workspace, Entitlements::AI)
 
       acknowledge(workspace, channel_id, event["ts"])
 
