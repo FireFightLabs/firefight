@@ -36,6 +36,16 @@ class Commands::GeneratePostmortemTest < ActiveSupport::TestCase
     end
   end
 
+  test "blocked entitlement returns the denial message and enqueues no job" do
+    message = deny_entitlements!("Your trial has ended — upgrade to keep using AI.")
+
+    assert_no_enqueued_jobs do
+      result = Commands::GeneratePostmortem.execute(build_command(channel_id: @incident.channel_id))
+      assert_equal Command::EPHEMERAL, result[:response_type]
+      assert_equal message, result[:text]
+    end
+  end
+
   test "returns error when not in closed incident channel" do
     result = Commands::GeneratePostmortem.execute(
       build_command(channel_id: "C_NOT_INCIDENT")

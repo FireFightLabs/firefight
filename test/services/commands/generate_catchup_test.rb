@@ -41,6 +41,16 @@ class Commands::GenerateCatchupTest < ActiveSupport::TestCase
     assert_includes result[:text], "active incident channel"
   end
 
+  test "blocked entitlement returns the denial message and enqueues no job" do
+    message = deny_entitlements!("Your trial has ended — upgrade to keep using AI.")
+
+    assert_no_enqueued_jobs do
+      result = Commands::GenerateCatchup.execute(build_command(channel_id: @incident.channel_id))
+      assert_equal Command::EPHEMERAL, result[:response_type]
+      assert_equal message, result[:text]
+    end
+  end
+
   test "returns error when workspace not found" do
     command = Command.new(
       platform: Platforms::SLACK,

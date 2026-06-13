@@ -111,6 +111,9 @@ class IncidentsController < InertiaController
     incident = current_workspace.incidents.find(params[:incident_id])
     incident.postmortem or raise ActiveRecord::RecordNotFound
 
+    gate = Entitlements.check(current_workspace, Entitlements::AI)
+    return render json: { error: gate.message }, status: :payment_required if gate.blocked?
+
     selected_html = params[:selected_html].to_s
     instruction = params[:instruction].to_s
 

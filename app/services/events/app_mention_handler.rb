@@ -15,7 +15,9 @@ module Events
       user_text = strip_mention(event["text"])
       return if user_text.blank?
       return unless defined?(FirefightAi)
-      return unless Entitlements.allows?(workspace, Entitlements::AI)
+
+      gate = Entitlements.check(workspace, Entitlements::AI)
+      return notify_blocked(workspace, channel_id, event["user"], gate.message) if gate.blocked?
 
       acknowledge(workspace, channel_id, event["ts"])
 
@@ -44,5 +46,18 @@ module Events
       Rails.logger.info({ event: "events.app_mention.reaction_failed", error: e.message }.to_json)
     end
     private_class_method :acknowledge
+
+    # The entitlement backend (Cloud) denies with user-facing upgrade copy.
+    # Surface it to the asker as an ephemeral so the mention isn't silently
+    # dropped. Only fires under a denying backend; the open-source default
+    # never blocks.
+    def self.notify_blocked(workspace, channel_id, user_id, message)
+      return if message.blank?
+
+      workspace.adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: message)
+    rescue AdapterError => e
+      Rails.logger.info({ event: "events.app_mention.blocked_notice_failed", error: e.message }.to_json)
+    end
+    private_class_method :notify_blocked
   end
 end
