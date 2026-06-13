@@ -89,7 +89,9 @@ jobs:
           # REDIS_URL: redis://localhost:6379/0
         # Name both paths: the default runner only globs test/, so the
         # engines/firefight_ai/test suite must be listed or it never runs.
-        run: bin/rails db:test:prepare test test engines/firefight_ai/test
+        run: |
+          bin/rails db:test:prepare
+          bin/rails test test engines/firefight_ai/test
 
   system-test:
     runs-on: ubuntu-latest
