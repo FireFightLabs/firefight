@@ -1,0 +1,21 @@
+name: Notify Cloud of release
+
+# When a release is published, tell the private firefight_cloud repo to rebuild
+# against this tag. Requires a CLOUD_DISPATCH_TOKEN secret (a token with dispatch
+# access to FireFightLabs/firefight_cloud). Runs only on published releases —
+# never on forks or pull requests, so fork CI stays secret-free.
+on:
+  release:
+    types: [published]
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch firefight-release to firefight_cloud
+        env:
+          GH_TOKEN: ${{ secrets.CLOUD_DISPATCH_TOKEN }}
+        run: |
+          gh api repos/FireFightLabs/firefight_cloud/dispatches \
+            -f event_type=firefight-release \
+            -f "client_payload[ref]=${{ github.event.release.tag_name }}"
