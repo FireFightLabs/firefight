@@ -8,8 +8,7 @@ CI.run do
   step "Security: Gem audit", "bin/bundler-audit"
   step "Security: Brakeman code analysis", "bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error"
 
-  # Explicit paths: the default runner only globs the host test/ dir, so the
-  # engines/firefight_ai/test suite must be named or it never runs.
+  # Engine suite must be named explicitly; the default runner only globs test/.
   step "Tests: Rails", "bin/rails test test engines/firefight_ai/test"
   step "Tests: System", "bin/rails test:system"
   step "Tests: Seeds", "env RAILS_ENV=test bin/rails db:seed:replant"
