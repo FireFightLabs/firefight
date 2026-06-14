@@ -22,32 +22,32 @@
 module Entitlements
   AI = "ai"
 
-  class << self
-    attr_writer :backend
+  def self.backend
+    @backend ||= OpenSourceBackend.new
+  end
 
-    def backend
-      @backend ||= OpenSourceBackend.new
-    end
+  def self.backend=(backend)
+    @backend = backend
+  end
 
-    # Restore the open-source default. For tests that swap the backend.
-    def reset_backend!
-      @backend = OpenSourceBackend.new
-    end
+  # Restore the open-source default. For tests that swap the backend.
+  def self.reset_backend!
+    @backend = OpenSourceBackend.new
+  end
 
-    def check(workspace, feature)
-      backend.check(workspace, feature)
-    end
+  def self.check(workspace, feature)
+    backend.check(workspace, feature)
+  end
 
-    def allows?(workspace, feature)
-      check(workspace, feature).allowed?
-    end
+  def self.allows?(workspace, feature)
+    check(workspace, feature).allowed?
+  end
 
-    def allow
-      Result.new(true, nil)
-    end
+  def self.allow
+    Result.new(true, nil)
+  end
 
-    def deny(message)
-      Result.new(false, message)
-    end
+  def self.deny(message)
+    Result.new(false, message)
   end
 end
