@@ -4,6 +4,9 @@ module Commands
       return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
       return Command.ephemeral("AI features are not available.") unless defined?(FirefightAi)
 
+      gate = Entitlements.check(command.workspace, Entitlements::AI)
+      return Command.ephemeral(gate.message) if gate.blocked?
+
       incident = command.workspace.incidents.closed.in_channel(command.channel_id).first
       return Command.ephemeral("This command must be run from a closed incident channel.") unless incident
       return Command.ephemeral("A postmortem has already been generated for #{incident.identifier}.") if incident.postmortem.present?

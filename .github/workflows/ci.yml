@@ -85,9 +85,9 @@ jobs:
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-          # REDIS_URL: redis://localhost:6379/0
-        run: bin/rails db:test:prepare test
+        run: |
+          bin/rails db:test:prepare
+          bin/rails test test engines/firefight_ai/test
 
   system-test:
     runs-on: ubuntu-latest
@@ -124,8 +124,6 @@ jobs:
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-          # REDIS_URL: redis://localhost:6379/0
         run: bin/rails db:test:prepare test:system
 
       - name: Keep screenshots from failed system tests
