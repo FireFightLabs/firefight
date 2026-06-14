@@ -47,10 +47,6 @@ module Events
     end
     private_class_method :acknowledge
 
-    # The entitlement backend (Cloud) denies with user-facing upgrade copy.
-    # Surface it to the asker as an ephemeral so the mention isn't silently
-    # dropped. Only fires under a denying backend; the open-source default
-    # never blocks.
     def self.notify_blocked(workspace, channel_id, user_id, message)
       return if message.blank?
 

@@ -34,9 +34,6 @@ module FirefightAi
       member = WorkspaceMembership.find(generated_by_id)
       return if incident.postmortem && incident.postmortem.status != ::Postmortem::STATUS_IN_PROGRESS
 
-      # Execution-time entitlement gate. Enqueue-time gating can't catch a
-      # workspace whose trial/credits lapse between enqueue and run, or between
-      # retries. Returning (not raising) clears the placeholder and stops retries.
       unless Entitlements.allows?(incident.workspace, Entitlements::AI)
         cleanup_in_progress!
         Rails.logger.info({ event: "postmortem_generation.entitlement_blocked", incident_id: incident_id, workspace_id: incident.workspace_id })

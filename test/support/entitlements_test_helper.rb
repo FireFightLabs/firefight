@@ -11,8 +11,6 @@ module EntitlementsTestHelper
     end
   end
 
-  # Swap in a backend that denies every feature with `message`, simulating the
-  # Cloud engine's trial-ended / credits-exhausted state. Reset in teardown.
   def deny_entitlements!(message = "Your trial has ended.")
     Entitlements.backend = DenyingBackend.new(message)
     message
