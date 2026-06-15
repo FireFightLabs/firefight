@@ -6,6 +6,17 @@ on:
     branches: [ main ]
 
 jobs:
+  lockfile_guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Gemfile.lock must not reference the private cloud gem
+        run: |
+          if grep -q "firefight_cloud" Gemfile.lock; then
+            echo "::error::Gemfile.lock references firefight_cloud — the private cloud gem must never be committed to the public lock. Re-run 'bundle install' without FIREFIGHT_CLOUD set."
+            exit 1
+          fi
+
   scan_ruby:
     runs-on: ubuntu-latest
 
