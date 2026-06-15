@@ -40,7 +40,18 @@ COPY Gemfile Gemfile.lock vendor ./
 COPY engines/solid_workflow engines/solid_workflow
 COPY engines/firefight_ai engines/firefight_ai
 
-RUN bundle install && \
+# Off for self-host/GHCR; the cloud build sets these to install the private
+# firefight_cloud gem (git_token authenticates the clone of the private repo).
+ARG FIREFIGHT_CLOUD=""
+ARG FIREFIGHT_CLOUD_REF=""
+
+RUN --mount=type=secret,id=git_token \
+    if [ -n "$FIREFIGHT_CLOUD" ]; then \
+      export FIREFIGHT_CLOUD=1 FIREFIGHT_CLOUD_REF="$FIREFIGHT_CLOUD_REF" BUNDLE_DEPLOYMENT=0; \
+      TOKEN="$(cat /run/secrets/git_token 2>/dev/null || true)"; \
+      [ -n "$TOKEN" ] && git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"; \
+    fi; \
+    bundle install && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
     # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
     bundle exec bootsnap precompile -j 1 --gemfile
