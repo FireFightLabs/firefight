@@ -100,7 +100,7 @@ end
 
 gem "rack-attack"
 
-gem "inertia_rails", "~> 3.19"
+gem "inertia_rails", "~> 3.21"
 
 gem "rails_semantic_logger"
 
