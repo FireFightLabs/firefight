@@ -73,6 +73,11 @@ module Interactions
         return { response_action: "errors", errors: { "action_select_block" => "AI features are not available." } }
       end
 
+      gate = Entitlements.check(workspace, Entitlements::AI)
+      if gate.blocked?
+        return { response_action: "errors", errors: { "action_select_block" => gate.message } }
+      end
+
       member = workspace.workspace_memberships.find_by(platform_user_id: user_id)
       FirefightAi::PostmortemGenerationJob.perform_later(incident.id, member.id) if member
       { response_action: "clear" }

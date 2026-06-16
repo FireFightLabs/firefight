@@ -61,6 +61,17 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
     end
   end
 
+  test "blocked entitlement posts the denial message and enqueues no job" do
+    message = deny_entitlements!("Your trial has ended — upgrade to keep using AI.")
+    Slack::Client.expects(:post_ephemeral).with(
+      has_entries(workspace: @workspace, channel: @incident.channel_id, user: @member.platform_user_id, text: message)
+    ).once
+
+    assert_no_enqueued_jobs do
+      Events::AppMentionHandler.execute(Platforms::SLACK, payload)
+    end
+  end
+
   test "skips when text is empty after stripping mention" do
     assert_no_enqueued_jobs do
       Events::AppMentionHandler.execute(Platforms::SLACK, payload(text: "<@U99999999>"))

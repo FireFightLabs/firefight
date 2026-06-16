@@ -80,6 +80,8 @@ module SolidWorkflow
           raise ArgumentError, "#{name} must define at least one step. Use the 'step' DSL method to define workflow steps."
         end
 
+        validate_steps!
+
         SolidWorkflow::Workflow.transaction do
           wf = SolidWorkflow::Workflow.create!(
             name: workflow_name,
@@ -112,6 +114,43 @@ module SolidWorkflow
 
       def default_retry_config
         { max_attempts: SolidWorkflow.max_default_attempts, backoff: SolidWorkflow::Step::Retryable::BACKOFF_EXPONENTIAL }
+      end
+
+      # A duplicate name corrupts the dependency map (index_by(&:name)), an
+      # unknown or cyclic dependency hangs the workflow forever instead of
+      # erroring — catch all three at start! time.
+      def validate_steps!
+        names = steps.map { |s| s[:name] }
+
+        duplicates = names.tally.select { |_, count| count > 1 }.keys
+        raise ArgumentError, "#{name} defines duplicate step names: #{duplicates.join(', ')}" if duplicates.any?
+
+        steps.each do |step_def|
+          unknown = step_def[:depends_on] - names
+          raise ArgumentError, "#{name} step '#{step_def[:name]}' depends on unknown step(s): #{unknown.join(', ')}" if unknown.any?
+        end
+
+        detect_dependency_cycle!
+      end
+
+      def detect_dependency_cycle!
+        deps = steps.to_h { |s| [ s[:name], s[:depends_on] ] }
+        visited = Set.new
+        visiting = Set.new
+
+        visit = lambda do |step_name, path|
+          return if visited.include?(step_name)
+          if visiting.include?(step_name)
+            raise ArgumentError, "#{name} has a dependency cycle: #{(path + [ step_name ]).join(' → ')}"
+          end
+
+          visiting << step_name
+          deps[step_name].each { |dep| visit.call(dep, path + [ step_name ]) }
+          visiting.delete(step_name)
+          visited << step_name
+        end
+
+        deps.each_key { |step_name| visit.call(step_name, []) }
       end
     end
 

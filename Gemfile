@@ -32,7 +32,7 @@ gem "kamal", require: false
 gem "thruster", require: false
 
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
-gem "image_processing", "~> 1.2"
+gem "image_processing", "~> 2.0"
 gem "aws-sdk-s3", require: false
 
 # Authentication with OmniAuth
@@ -51,6 +51,16 @@ gem "net-http-persistent"
 
 # AI intelligence layer (postmortem generation, incident Q&A, integrations)
 gem "firefight_ai", path: "engines/firefight_ai"
+
+# Proprietary cloud layer — present only when the cloud build sets FIREFIGHT_CLOUD.
+# Never bundled or locked for self-hosters; the app runs without it. Pins to a
+# ref when FIREFIGHT_CLOUD_REF is set (prod), else tracks the main branch (dev).
+if ENV["FIREFIGHT_CLOUD"]
+  cloud_ref = ENV["FIREFIGHT_CLOUD_REF"]
+  gem "firefight_cloud",
+      git: "https://github.com/FireFightLabs/firefight_cloud.git",
+      **(cloud_ref ? { ref: cloud_ref } : { branch: "main" })
+end
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

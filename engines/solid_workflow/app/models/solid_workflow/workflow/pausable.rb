@@ -10,11 +10,11 @@ module SolidWorkflow
           current_time = Time.current
           update!(
             state: :paused,
-            workflow_config: workflow_config.merge(
-              paused_at: current_time.iso8601,
-              paused_by: by,
-              pause_reason: reason
-            ),
+            paused_at: current_time,
+            paused_by: by,
+            pause_reason: reason,
+            resumed_at: nil,
+            resumed_by: nil,
             state_timestamps: (state_timestamps || {}).merge("paused" => current_time.iso8601)
           )
 
@@ -37,10 +37,8 @@ module SolidWorkflow
           current_time = Time.current
           update!(
             state: :running,
-            workflow_config: workflow_config.merge(
-              resumed_at: current_time.iso8601,
-              resumed_by: by
-            ),
+            resumed_at: current_time,
+            resumed_by: by,
             state_timestamps: (state_timestamps || {}).merge("running" => current_time.iso8601)
           )
 
@@ -59,24 +57,21 @@ module SolidWorkflow
       end
 
       def pause_metadata
-        return nil unless workflow_config["paused_at"]
+        return nil unless paused_at
 
         {
-          paused_at: Time.parse(workflow_config["paused_at"]),
-          paused_by: workflow_config["paused_by"],
-          pause_reason: workflow_config["pause_reason"],
-          resumed_at: workflow_config["resumed_at"] ? Time.parse(workflow_config["resumed_at"]) : nil,
-          resumed_by: workflow_config["resumed_by"]
+          paused_at: paused_at,
+          paused_by: paused_by,
+          pause_reason: pause_reason,
+          resumed_at: resumed_at,
+          resumed_by: resumed_by
         }
       end
 
       def paused_duration
-        return nil unless workflow_config["paused_at"]
+        return nil unless paused_at
 
-        paused_at = Time.parse(workflow_config["paused_at"])
-        resumed_at = workflow_config["resumed_at"] ? Time.parse(workflow_config["resumed_at"]) : Time.current
-
-        (resumed_at - paused_at).to_f
+        ((resumed_at || Time.current) - paused_at).to_f
       end
     end
   end

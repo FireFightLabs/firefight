@@ -30,6 +30,16 @@ class FirefightAi::IncidentResponseJobTest < ActiveSupport::TestCase
     )
   end
 
+  test "blocked entitlement posts nothing and runs no responder" do
+    deny_entitlements!
+    FirefightAi::IncidentResponder.expects(:new).never
+    Slack::Client.expects(:post_message).never
+
+    FirefightAi::IncidentResponseJob.perform_now(
+      @incident.id, @incident.channel_id, "1234567890.123456", "what's going on?"
+    )
+  end
+
   test "discards on record not found" do
     FirefightAi::IncidentResponder.expects(:new).never
     assert_nothing_raised do

@@ -16,6 +16,9 @@ module Events
       return if user_text.blank?
       return unless defined?(FirefightAi)
 
+      gate = Entitlements.check(workspace, Entitlements::AI)
+      return notify_blocked(workspace, channel_id, event["user"], gate.message) if gate.blocked?
+
       acknowledge(workspace, channel_id, event["ts"])
 
       parent_thread_ts = event["thread_ts"]
@@ -43,5 +46,14 @@ module Events
       Rails.logger.info({ event: "events.app_mention.reaction_failed", error: e.message }.to_json)
     end
     private_class_method :acknowledge
+
+    def self.notify_blocked(workspace, channel_id, user_id, message)
+      return if message.blank?
+
+      workspace.adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: message)
+    rescue AdapterError => e
+      Rails.logger.info({ event: "events.app_mention.blocked_notice_failed", error: e.message }.to_json)
+    end
+    private_class_method :notify_blocked
   end
 end

@@ -1,0 +1,6 @@
+migration:
+  - changed-files:
+      - any-glob-to-any-file:
+          - db/migrate/**
+          - db/*_schema.rb
+          - engines/*/db/migrate/**

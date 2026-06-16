@@ -30,6 +30,7 @@ module ActiveSupport
     include SlackClientStubHelper
     include ApiTestHelper
     include InertiaTestHelper
+    include EntitlementsTestHelper
 
     # Add more helper methods to be used by all tests here...
   end

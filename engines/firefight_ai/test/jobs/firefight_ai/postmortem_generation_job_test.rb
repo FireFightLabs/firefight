@@ -89,6 +89,23 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
     assert_nil @incident.reload.postmortem
   end
 
+  test "blocked entitlement runs no generation and clears the in_progress placeholder" do
+    deny_entitlements!
+    Postmortem.create!(
+      incident: @incident,
+      generated_by: @member,
+      title: "Generating placeholder",
+      status: Postmortem::STATUS_IN_PROGRESS,
+      content: { "html" => "" }
+    )
+
+    FirefightAi::PostmortemGenerator.expects(:new).never
+
+    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+
+    assert_nil @incident.reload.postmortem
+  end
+
   test "discards on record not found" do
     FirefightAi::PostmortemGenerator.expects(:new).never
     assert_nothing_raised do

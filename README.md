@@ -1,103 +1,118 @@
-# Firefight
+<h1 align="center">
+  Firefight
+</h1>
+<p align="center">
+  <b>Open-source, AI-first incident management.</b><br />
+  Declare, coordinate, and resolve incidents from Slack, with AI that writes your catchups and postmortems, an audit-grade timeline, and a web dashboard for everything in between.
+</p>
 
-Incident management platform built with Rails 8.1.
+<h4 align="center">
+  <a href="https://firefight.app">Website</a> ·
+  <a href="#self-hosting">Self-hosting</a> ·
+  <a href="#local-development">Local development</a> ·
+  <a href="https://github.com/FireFightLabs/firefight/releases">Releases</a>
+</h4>
 
-## Requirements
+<h4 align="center">
+  <a href="https://github.com/FireFightLabs/firefight/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Firefight is released under the AGPL-3.0 license" />
+  </a>
+  <a href="https://github.com/FireFightLabs/firefight/actions/workflows/ci.yml">
+    <img src="https://github.com/FireFightLabs/firefight/actions/workflows/ci.yml/badge.svg" alt="CI status" />
+  </a>
+  <a href="https://github.com/FireFightLabs/firefight/blob/main/CONTRIBUTING.md">
+    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs welcome" />
+  </a>
+  <a href="https://firefight.app/slack">
+    <img src="https://img.shields.io/badge/chat-on%20Slack-blueviolet" alt="Chat with the Firefight community on Slack" />
+  </a>
+  <a href="https://x.com/FireFight_app">
+    <img src="https://img.shields.io/twitter/follow/FireFight_app?label=Follow" alt="Follow Firefight on X" />
+  </a>
+</h4>
 
-We use [mise](https://mise.jdx.dev/) to pin language and tool versions. After installing mise, run `mise install` from the repo root to get the right Ruby.
+<!-- TODO before going public: add hero screenshot
+<img src=".github/assets/readme-hero.png" width="100%" alt="Firefight incident dashboard" />
+-->
 
-- Ruby 3.4.7 (pinned in `.ruby-version`)
-- PostgreSQL 18.3
-- Node (for the frontend toolchain)
+## What is Firefight?
 
-## PostgreSQL via Docker
+Firefight is an incident management platform built for the way teams actually respond: in Slack, under pressure, at 3am. Declare an incident with a slash command and Firefight creates the channel, posts the announcement, assigns the lead, tracks every status change, and keeps stakeholders updated, then generates the postmortem when it's over.
 
-Production runs PostgreSQL 18.3, so we run the same version locally to keep dev/prod parity. Start it with:
+Everything that happens is recorded as an immutable, audit-grade event timeline, visible in a clean web dashboard alongside your service catalog, custom fields, and API keys.
+
+## Features
+
+### Incident response
+- **Slack-native flow**: declare, update status and severity, assign a lead, invite responders, escalate, and close without leaving Slack
+- **Incident channels**: created automatically with pinned quick actions, topic metadata, and announcement threads
+- **Audit-grade timeline**: every state change is an immutable event with full attribution
+- **Custom fields and incident types**: model your organization's process, not ours
+- **Incident relationships**: link related and duplicate incidents
+
+### AI built in
+- **AI postmortems**: a structured draft generated from the incident's full timeline and channel transcript, ready for human editing
+- **AI catchups**: joining an incident late? Get a summary of what's happened so far
+- **Cost-tracked inference**: every AI call is logged with tokens, latency, and cost
+
+### Platform
+- **Web dashboard**: incident list with server-side filtering, incident detail with timeline, postmortem editor, settings
+- **Service catalog**: services, teams, environments, and functionality with typed attributes and relationships
+- **REST API**: incident CRUD with bearer-token auth, granular per-key permissions, and idempotency keys
+- **Outbound webhooks**: subscribe external systems to incident events, with delivery tracking and retries
+- **Workflow engine**: durable, step-based orchestration with retries, crash recovery, and a full execution audit trail
+
+### On the roadmap
+- Alert ingestion API (Datadog, PagerDuty, Grafana, and a generic webhook) with rule-based routing
+- AI SRE investigator: autonomous, permission-gated incident investigation with evidence-backed findings
+- On-call scheduling and escalation policies
+- Microsoft Teams support
+
+## Getting started
+
+| | |
+|---|---|
+| **Firefight Cloud** | The fastest way to get started: managed hosting with AI features included. Coming soon at [firefight.app](https://firefight.app). |
+| **Self-hosting** | Run Firefight on your own infrastructure. See [Self-hosting](#self-hosting) below. |
+
+## Self-hosting
+
+Firefight ships as a Docker image with every release:
 
 ```sh
-docker run -d \
-  --name firefight-postgres \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  -v firefight-postgres-data:/var/lib/postgresql \
-  postgres:18.3
+docker pull ghcr.io/firefightlabs/firefight:latest
 ```
 
-Stop and start it later with `docker stop firefight-postgres` and `docker start firefight-postgres`. The named volume `firefight-postgres-data` keeps your data across restarts.
+You'll need PostgreSQL 18+, a Slack app, and the environment variables documented in [`.env.example`](.env.example). Each [release](https://github.com/FireFightLabs/firefight/releases) includes upgrade notes; upgrading is `docker pull` plus `bin/rails db:prepare`.
 
-Then create the development and test databases:
+## Local development
 
 ```sh
-bin/rails db:prepare
-bin/rails db:prepare RAILS_ENV=test
+mise install                          # Ruby + Node toolchain
+docker run -d --name firefight-postgres -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres -p 5432:5432 \
+  -v firefight-postgres-data:/var/lib/postgresql postgres:18.3
+bundle install
+bin/rails db:prepare && bin/rails db:prepare RAILS_ENV=test
+bin/dev
 ```
 
-## Environment variables
+Full setup (Slack app creation, environment variables, the local tunnel for Slack callbacks, and how the multi-database layout works) is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Copy `.env.example` to `.env` and fill in the values. At minimum you need the Slack credentials and Active Record encryption keys.
+## Open source vs. paid
 
-Generate the encryption keys (run once per developer machine):
+This repository is licensed under [AGPL-3.0](LICENSE): free to use, self-host, and modify; if you run a modified version as a service, you must share your changes under the same license.
 
-```sh
-bin/rails db:encryption:init
-```
+Firefight Cloud is our managed offering: hosting, upgrades, and AI features with usage included in the plan. Self-hosters bring their own LLM API key for the AI features.
 
-Copy the three output values into your `.env`:
+## Security
 
-```sh
-ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=<primary_key>
-ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=<deterministic_key>
-ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=<key_derivation_salt>
-```
+Found a vulnerability? Please report it privately; see [SECURITY.md](SECURITY.md). Do not open a public issue for security problems.
 
-These keys encrypt sensitive columns (OAuth tokens). Each developer generates their own local keys — they do not need to match across machines.
+## Contributing
 
-## Local development tunnel (Cloudflare Tunnel)
+Contributions are welcome: bug reports, fixes, and features. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and conventions. Fork PRs run the full CI suite, no secrets required.
 
-Slack needs a public URL to deliver slash commands and interactions to your local Rails server. We use [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) since we're already on Cloudflare for R2.
+## License
 
-Quick start (ephemeral hostname, rotates each run):
-
-```sh
-brew install cloudflared
-cloudflared tunnel --url http://localhost:3000
-```
-
-Copy the printed `*.trycloudflare.com` URL into your Slack app manifest's request URLs.
-
-For day-to-day dev, prefer a named tunnel so the hostname stays stable across restarts (no need to re-paste URLs into the Slack manifest each session):
-
-```sh
-cloudflared tunnel login                          # authenticate, pick a Cloudflare-managed domain
-cloudflared tunnel create firefight-dev           # creates a tunnel + credentials file
-cloudflared tunnel route dns firefight-dev dev.<your-domain>
-cloudflared tunnel run --url http://localhost:3000 firefight-dev
-```
-
-Then point your dev Slack manifest at `https://dev.<your-domain>/api/v1/commands` and `/api/v1/interactions`.
-
-Rails blocks unknown hosts by default, so add your tunnel hostname to `.env`:
-
-```sh
-ALLOWED_HOSTS=dev.<your-domain>,*.trycloudflare.com
-```
-
-`config/environments/development.rb` reads `ALLOWED_HOSTS` (comma-separated) and appends each entry to `config.hosts`.
-
-## Running the test suite
-
-`bin/ci` runs rubocop, bundler-audit, brakeman, the test suite (parallel), system tests, and seeds.
-
-## Active Storage (Cloudflare R2)
-
-Set these environment variables to archive incident files to R2:
-
-- `ACTIVE_STORAGE_SERVICE=r2`
-- `R2_ACCESS_KEY_ID`
-- `R2_SECRET_ACCESS_KEY`
-- `R2_ENDPOINT` (for example `https://<account-id>.r2.cloudflarestorage.com`)
-- `R2_BUCKET`
-- `R2_REGION` (use `auto` for R2)
-- `R2_REQUEST_CHECKSUM_CALCULATION` (recommended: `when_required`)
-- `R2_RESPONSE_CHECKSUM_VALIDATION` (recommended: `when_required`)
+[AGPL-3.0](LICENSE) © Firefight Labs
