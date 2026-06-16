@@ -1,5 +1,7 @@
 import { useCallback, useState } from "react"
 
+import { catalogueSearchMembersPath } from "@/lib/routes"
+
 export interface SlackMember {
   id: string
   name: string
@@ -12,7 +14,7 @@ export function useMemberSearch() {
 
   const loadMembers = useCallback(async () => {
     if (loaded) return
-    const response = await fetch("/app/catalogue/search/members")
+    const response = await fetch(catalogueSearchMembersPath())
     const data = await response.json() as SlackMember[]
     setMembers(data)
     setLoaded(true)

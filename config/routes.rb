@@ -114,8 +114,8 @@ Rails.application.routes.draw do
     post "/catalogue/:type_slug/entries", to: "catalogue#create_entry"
     patch "/catalogue/entries/:id", to: "catalogue#update_entry"
     delete "/catalogue/entries/:id", to: "catalogue#destroy_entry"
-    get "/catalogue/search/members", to: "catalogue#search_members"
-    get "/catalogue/search/channels", to: "catalogue#search_channels"
+    get "/catalogue/search/members", to: "catalogue#search_members", as: :catalogue_search_members
+    get "/catalogue/search/channels", to: "catalogue#search_channels", as: :catalogue_search_channels
 
     resources :webhooks, only: [ :create, :update, :destroy ] do
       member do

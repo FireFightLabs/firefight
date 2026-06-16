@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { useMemberSearch } from "@/hooks/use-member-search"
+import { incidentActionsPath } from "@/lib/routes"
 
 function memberOptions(members: { id: string; name: string; avatarUrl?: string }[]): SearchableSelectOption[] {
   const unassigned: SearchableSelectOption = { value: "", label: "Unassigned" }
@@ -52,7 +53,7 @@ export function AddActionDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    post(`/app/incidents/${incidentId}/actions`, {
+    post(incidentActionsPath(incidentId), {
       onSuccess: () => {
         setOpen(false)
         reset()
