@@ -3,6 +3,7 @@ module Slack
     EVENT_STYLE = {
       IncidentEvent::INCIDENT_CREATED => { emoji: ":rotating_light:", title: "Incident declared" },
       IncidentEvent::INCIDENT_UPDATED => { emoji: ":memo:", title: "Incident updated" },
+      IncidentEvent::INCIDENT_ACCEPTED => { emoji: ":white_check_mark:", title: "Incident accepted" },
       IncidentEvent::LEAD_ASSIGNED => { emoji: ":firefighter:", title: "Lead assigned" },
       IncidentEvent::INCIDENT_ESCALATED => { emoji: ":rotating_light:", title: "Incident escalated" },
       IncidentEvent::INCIDENT_RESOLVED => { emoji: ":white_check_mark:", title: "Incident resolved" },
@@ -13,6 +14,8 @@ module Slack
       IncidentEvent::ACTION_CREATED => { emoji: ":clipboard:", title: "Action created" },
       IncidentEvent::ACTION_PICKED_UP => { emoji: ":raised_hands:", title: "Action picked up" },
       IncidentEvent::ACTION_COMPLETED => { emoji: ":white_check_mark:", title: "Action completed" },
+      IncidentEvent::POSTMORTEM_GENERATED => { emoji: ":scroll:", title: "Postmortem generated" },
+      IncidentEvent::POSTMORTEM_EDITED => { emoji: ":pencil2:", title: "Postmortem edited" },
       IncidentEvent::MESSAGE_PINNED => { emoji: ":pushpin:", title: "Message pinned" },
       IncidentEvent::MESSAGE_UNPINNED => { emoji: ":round_pushpin:", title: "Message unpinned" },
       IncidentEvent::MESSAGE_FILE_SHARED => { emoji: ":paperclip:", title: "File shared" },

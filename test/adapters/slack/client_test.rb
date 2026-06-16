@@ -183,6 +183,25 @@ class Slack::ClientTest < ActiveSupport::TestCase
     Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
   end
 
+  test "get_user_info sends a GET request with user as a query parameter" do
+    captured_request = nil
+    pool = mock_pool
+    pool.expects(:request).with { |_uri, req| captured_request = req; true }
+      .returns(http_response(200, { ok: true, user: { id: "U123" } }.to_json))
+
+    Slack::Client.get_user_info(workspace: @workspace, user_id: "U123")
+
+    assert_instance_of Net::HTTP::Get, captured_request
+    assert_includes captured_request.path, "user=U123"
+  end
+
+  test "get_user_info raises ApiError on Slack error response" do
+    stub_ok_false_response("user_not_found")
+    assert_raises(Slack::Client::ApiError) do
+      Slack::Client.get_user_info(workspace: @workspace, user_id: "U_MISSING")
+    end
+  end
+
   private
 
   def mock_pool

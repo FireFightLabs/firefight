@@ -43,11 +43,7 @@ export interface ReferenceEntry {
   typeId: string
 }
 
-export interface SlackMember {
-  id: string
-  name: string
-  avatarUrl?: string
-}
+export type { SlackMember } from "@/hooks/use-member-search"
 
 export interface SlackChannel {
   id: string

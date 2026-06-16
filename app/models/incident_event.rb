@@ -30,26 +30,26 @@ class IncidentEvent < ApplicationRecord
   ].freeze
 
   EVENT_DESCRIPTIONS = {
-    INCIDENT_CREATED => "Incident was created",
-    INCIDENT_UPDATED => "Incident was updated",
-    LEAD_ASSIGNED => "Incident lead was assigned",
-    ACTION_CREATED => "Action item was created",
-    ACTION_PICKED_UP => "Action item was picked up",
-    ACTION_COMPLETED => "Action item was completed",
-    INCIDENT_ACCEPTED => "Incident was accepted from triage",
-    INCIDENT_ESCALATED => "Incident was escalated",
-    INCIDENT_RESOLVED => "Incident was resolved",
-    INCIDENT_REOPENED => "Incident was reopened",
-    POSTMORTEM_GENERATED => "Postmortem was generated",
-    POSTMORTEM_EDITED => "Postmortem was edited",
-    RELATIONSHIP_CREATED => "Incident linked as related",
-    MARKED_DUPLICATE => "Incident marked as duplicate",
-    MERGED_INTO => "Incident merged into another",
-    MESSAGE_PINNED => "Message was pinned",
-    MESSAGE_UNPINNED => "Message was unpinned",
-    MESSAGE_FILE_SHARED => "File was shared",
-    ESCALATION_ACKNOWLEDGED => "Escalation was acknowledged",
-    ESCALATION_NUDGED => "Escalation reminder was sent"
+    INCIDENT_CREATED => "created the incident",
+    INCIDENT_UPDATED => "updated the incident",
+    LEAD_ASSIGNED => "assigned a lead",
+    ACTION_CREATED => "created an action item",
+    ACTION_PICKED_UP => "picked up an action item",
+    ACTION_COMPLETED => "completed an action item",
+    INCIDENT_ACCEPTED => "accepted the incident from triage",
+    INCIDENT_ESCALATED => "escalated the incident",
+    INCIDENT_RESOLVED => "resolved the incident",
+    INCIDENT_REOPENED => "reopened the incident",
+    POSTMORTEM_GENERATED => "generated the postmortem",
+    POSTMORTEM_EDITED => "edited the postmortem",
+    RELATIONSHIP_CREATED => "linked a related incident",
+    MARKED_DUPLICATE => "marked the incident as duplicate",
+    MERGED_INTO => "merged the incident",
+    MESSAGE_PINNED => "pinned a message",
+    MESSAGE_UNPINNED => "unpinned a message",
+    MESSAGE_FILE_SHARED => "shared a file",
+    ESCALATION_ACKNOWLEDGED => "acknowledged the escalation",
+    ESCALATION_NUDGED => "sent an escalation reminder"
   }.freeze
 
   # Only events backed by a Recordable snapshot appear here. Action-only events

@@ -393,11 +393,7 @@ module Slack
     end
 
     def self.get_user_info(workspace:, user_id:)
-      api_post(
-        workspace: workspace,
-        endpoint: "users.info",
-        payload: { user: user_id }
-      )
+      api_get(workspace: workspace, endpoint: "users.info", params: { user: user_id })
     end
 
     # Allowlist so the workspace's Bearer token can't leak to a hostile host
@@ -416,13 +412,31 @@ module Slack
 
       response = pool_request(uri, request, endpoint: "files.download")
 
+      # Slack private file URLs redirect to a presigned CDN URL. Follow the
+      # redirect without the Bearer token — the presigned URL carries its own auth.
+      # Auth failures redirect back to the Slack login page (same host, ?redir= param).
+      if response.code.to_i.between?(301, 302) && response["location"].present?
+        redirect_location = response["location"]
+        redirect_uri = URI(redirect_location)
+
+        if redirect_uri.query.to_s.include?("redir=")
+          raise ApiError, "Slack file download redirected to auth page — bot may be missing files:read scope"
+        end
+
+        redirect_request = Net::HTTP::Get.new(redirect_uri)
+        response = pool_request(redirect_uri, redirect_request, endpoint: "files.download.redirect")
+      end
+
       unless response.code.to_i.between?(200, 299)
         raise ApiError, "Slack file download failed with status #{response.code}"
       end
 
+      content_type = response["content-type"].to_s.split(";").first.strip
+      raise ApiError, "Slack file download returned HTML — bot may be missing files:read scope" if content_type == "text/html"
+
       {
         body: response.body,
-        content_type: response["content-type"]
+        content_type: content_type
       }
     end
 
@@ -546,6 +560,25 @@ module Slack
     # @param payload [Hash] Request payload
     # @return [Hash] Parsed JSON response with indifferent access
     # @raise [ApiError] if request fails or Slack returns an error
+    def self.api_get(workspace:, endpoint:, params: {})
+      uri = URI("#{SLACK_API_BASE}/#{endpoint}")
+      uri.query = URI.encode_www_form(params) if params.any?
+      request = Net::HTTP::Get.new(uri)
+      request["Authorization"] = "Bearer #{workspace.access_token}"
+
+      response = pool_request(uri, request)
+      body = JSON.parse(response.body).with_indifferent_access
+
+      unless body[:ok]
+        error_details = body.slice(:error, :response_metadata, :needed, :provided)
+        raise ApiError, "Slack API error: #{body[:error]} (details: #{error_details.to_json})"
+      end
+
+      body
+    rescue JSON::ParserError => e
+      raise ApiError, "Failed to parse Slack API response: #{e.message}"
+    end
+
     def self.api_post(workspace:, endpoint:, payload:)
       uri = URI("#{SLACK_API_BASE}/#{endpoint}")
       request = Net::HTTP::Post.new(uri)

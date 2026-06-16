@@ -22,7 +22,7 @@ module Auth
     def slack
       outcome = SlackAuthenticationService.new.handle_install(
         auth_hash,
-        user: pending_user,
+        user: pending_user || current_user,
         invite_code: claimed_invite_code,
         pending_team_id: session[:pending_team_id]
       )

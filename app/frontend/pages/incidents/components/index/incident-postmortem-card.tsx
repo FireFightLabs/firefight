@@ -3,7 +3,6 @@ import { IconArrowRight, IconFileText, IconSparkles } from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { LIFECYCLE_STAGES, type LifecycleStageKey } from "@/lib/constants"
 import {
   incidentPostmortemGeneratePath,
@@ -37,7 +36,6 @@ export function IncidentPostmortemCard({
   incidentLifecycleStage: LifecycleStageKey
 }) {
   const canCreate = incidentLifecycleStage === LIFECYCLE_STAGES.CLOSED
-  const lockedReason = "Postmortems can be created once the incident is resolved."
   if (hasPostmortem) {
     const status = postmortemStatus ?? "draft"
     return (
@@ -69,6 +67,17 @@ export function IncidentPostmortemCard({
     )
   }
 
+  if (!canCreate) {
+    return (
+      <section className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3">
+        <IconFileText className="size-4 shrink-0 text-muted-foreground/60" strokeWidth={1.75} />
+        <span className="text-[12px] text-muted-foreground">
+          Postmortem · Generate once resolved
+        </span>
+      </section>
+    )
+  }
+
   return (
     <section className="rounded-xl border border-border bg-card px-5 py-5">
       <div className="flex items-start gap-3">
@@ -83,44 +92,28 @@ export function IncidentPostmortemCard({
         </div>
       </div>
       <div className="mt-4 flex items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className={canCreate ? "" : "cursor-not-allowed"}>
-              <Button
-                size="sm"
-                className="h-8 gap-1.5 px-3 text-[12px]"
-                disabled={!canCreate}
-                onClick={() => {
-                  router.post(incidentPostmortemGeneratePath(incidentId), {}, {
-                    preserveScroll: true,
-                    onSuccess: () => toast.success("Generating postmortem. This usually takes under a minute."),
-                    onError: () => toast.error("Failed to start generation."),
-                  })
-                }}
-              >
-                <IconSparkles className="size-3.5" strokeWidth={2} />
-                Generate draft
-              </Button>
-            </span>
-          </TooltipTrigger>
-          {!canCreate && <TooltipContent>{lockedReason}</TooltipContent>}
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className={canCreate ? "" : "cursor-not-allowed"}>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2.5 text-[12px] text-muted-foreground"
-                disabled={!canCreate}
-                onClick={() => router.post(incidentPostmortemStartBlankPath(incidentId))}
-              >
-                Start blank
-              </Button>
-            </span>
-          </TooltipTrigger>
-          {!canCreate && <TooltipContent>{lockedReason}</TooltipContent>}
-        </Tooltip>
+        <Button
+          size="sm"
+          className="h-8 gap-1.5 px-3 text-[12px]"
+          onClick={() => {
+            router.post(incidentPostmortemGeneratePath(incidentId), {}, {
+              preserveScroll: true,
+              onSuccess: () => toast.success("Generating postmortem. This usually takes under a minute."),
+              onError: () => toast.error("Failed to start generation."),
+            })
+          }}
+        >
+          <IconSparkles className="size-3.5" strokeWidth={2} />
+          Generate draft
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2.5 text-[12px] text-muted-foreground"
+          onClick={() => router.post(incidentPostmortemStartBlankPath(incidentId))}
+        >
+          Start blank
+        </Button>
       </div>
     </section>
   )
