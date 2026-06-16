@@ -85,8 +85,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Push release branch (triggers Northflank cloud build + deploy)
-        run: git push origin "main:refs/heads/release/${{ steps.v.outputs.tag }}"
+      - name: Advance release branch (triggers Northflank cloud build + deploy)
+        run: git push origin --force "main:refs/heads/release"
 
       - name: Draft GitHub release with upgrade notes template
         env:
