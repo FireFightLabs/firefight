@@ -1,20 +1,56 @@
 name: Release
 
 on:
-  push:
-    tags: [ "v*" ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, semver without the v (e.g. 0.1.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
   packages: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  build_image:
+  release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout main
         uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve and validate version
+        id: v
+        run: |
+          VERSION="${{ inputs.version }}"
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version must be semver like 0.1.0 (no leading v)"
+            exit 1
+          fi
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Tag the release
+        run: |
+          git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.tag }}"
+          git push origin "${{ steps.v.outputs.tag }}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -35,11 +71,10 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.v.outputs.version }}
             type=raw,value=latest
 
-      - name: Build and push image
+      - name: Build and push self-host image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -50,18 +85,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  draft_release:
-    runs-on: ubuntu-latest
-    needs: build_image
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - name: Push release branch (triggers Northflank cloud build + deploy)
+        run: git push origin "main:refs/heads/release/${{ steps.v.outputs.tag }}"
 
       - name: Draft GitHub release with upgrade notes template
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
         run: |
           cat > /tmp/upgrade-notes.md <<'NOTES'
           ## Upgrade notes
@@ -73,11 +102,11 @@ jobs:
           ## Image
 
           ```
-          docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          docker pull ghcr.io/${{ github.repository }}:${{ steps.v.outputs.version }}
           ```
           NOTES
-          gh release create "$TAG" \
+          gh release create "${{ steps.v.outputs.tag }}" \
             --draft \
             --generate-notes \
             --notes-file /tmp/upgrade-notes.md \
-            --title "$TAG"
+            --title "${{ steps.v.outputs.tag }}"
