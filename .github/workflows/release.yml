@@ -47,7 +47,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Tag the release
+      - name: Tag the release (triggers the Northflank deploy release flow)
         run: |
           git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.tag }}"
           git push origin "${{ steps.v.outputs.tag }}"
@@ -84,9 +84,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Push release branch (triggers Northflank cloud build + deploy)
-        run: git push origin "main:refs/heads/release/${{ steps.v.outputs.tag }}"
 
       - name: Draft GitHub release with upgrade notes template
         env:
