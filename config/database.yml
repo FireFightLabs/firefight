@@ -154,6 +154,10 @@ production:
     username: <%= ENV["FIREFIGHT_DATABASE_USERNAME"] %>
     password: <%= ENV["FIREFIGHT_DATABASE_PASSWORD"] %>
     sslmode: <%= ENV.fetch("FIREFIGHT_DATABASE_SSLMODE", "require") %>
+    # Verify against the OS trust store by default (PlanetScale's cert chains to
+    # a public CA), so verify-full needs no cert file. Override with a path for
+    # a private CA.
+    sslrootcert: <%= ENV.fetch("FIREFIGHT_DATABASE_SSLROOTCERT", "system") %>
   cache:
     <<: *primary_production
     database: <%= ENV["FIREFIGHT_DATABASE_CACHE"] %>
