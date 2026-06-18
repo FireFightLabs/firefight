@@ -89,6 +89,11 @@ RUN bundle exec vite build
 # Final stage for app image
 FROM base
 
+# Bake the cloud flag into the runtime so the Gemfile matches the lock baked at
+# build time: set on cloud images, empty on self-host images.
+ARG FIREFIGHT_CLOUD=""
+ENV FIREFIGHT_CLOUD=${FIREFIGHT_CLOUD}
+
 # Run and own only the runtime files as a non-root user for security
 RUN groupadd --system --gid 1000 rails && \
     useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash

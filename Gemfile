@@ -55,7 +55,7 @@ gem "firefight_ai", path: "engines/firefight_ai"
 # Proprietary cloud layer — present only when the cloud build sets FIREFIGHT_CLOUD.
 # Never bundled or locked for self-hosters; the app runs without it. Pins to a
 # ref when FIREFIGHT_CLOUD_REF is set (prod), else tracks the main branch (dev).
-if ENV["FIREFIGHT_CLOUD"]
+unless ENV["FIREFIGHT_CLOUD"].to_s.empty?
   cloud_ref = ENV["FIREFIGHT_CLOUD_REF"]
   cloud_ref = nil if cloud_ref.to_s.empty?
   gem "firefight_cloud",
