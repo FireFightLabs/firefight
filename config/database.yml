@@ -154,10 +154,11 @@ production:
     username: <%= ENV["FIREFIGHT_DATABASE_USERNAME"] %>
     password: <%= ENV["FIREFIGHT_DATABASE_PASSWORD"] %>
     sslmode: <%= ENV.fetch("FIREFIGHT_DATABASE_SSLMODE", "require") %>
-    # Verify against the OS trust store by default (PlanetScale's cert chains to
-    # a public CA), so verify-full needs no cert file. Override with a path for
-    # a private CA.
-    sslrootcert: <%= ENV.fetch("FIREFIGHT_DATABASE_SSLROOTCERT", "system") %>
+    # PlanetScale signs with a public CA, so verify-full validates against the
+    # Debian system bundle (the libpq "system" keyword doesn't reliably resolve
+    # here). Override per distro: Alpine /etc/ssl/cert.pem, RHEL
+    # /etc/pki/tls/certs/ca-bundle.crt.
+    sslrootcert: <%= ENV.fetch("FIREFIGHT_DATABASE_SSLROOTCERT", "/etc/ssl/certs/ca-certificates.crt") %>
   cache:
     <<: *primary_production
     database: <%= ENV["FIREFIGHT_DATABASE_CACHE"] %>
