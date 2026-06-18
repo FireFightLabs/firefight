@@ -59,6 +59,18 @@ RUN --mount=type=secret,id=git_token \
 # Copy application code
 COPY . .
 
+# COPY above restored the committed Gemfile.lock, which intentionally excludes
+# firefight_cloud. Re-resolve for the cloud build so the in-image lock matches
+# the Gemfile and the frozen bundler commands below succeed.
+RUN --mount=type=secret,id=git_token \
+    if [ -n "$FIREFIGHT_CLOUD" ]; then \
+      export FIREFIGHT_CLOUD=1 FIREFIGHT_CLOUD_REF="$FIREFIGHT_CLOUD_REF" BUNDLE_DEPLOYMENT=0; \
+      TOKEN="$(cat /run/secrets/git_token 2>/dev/null || true)"; \
+      [ -n "$TOKEN" ] && git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"; \
+      bundle install && \
+      rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git; \
+    fi
+
 # Precompile bootsnap code for faster boot times.
 # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
 RUN bundle exec bootsnap precompile -j 1 app/ lib/
