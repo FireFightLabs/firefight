@@ -57,6 +57,7 @@ gem "firefight_ai", path: "engines/firefight_ai"
 # ref when FIREFIGHT_CLOUD_REF is set (prod), else tracks the main branch (dev).
 if ENV["FIREFIGHT_CLOUD"]
   cloud_ref = ENV["FIREFIGHT_CLOUD_REF"]
+  cloud_ref = nil if cloud_ref.to_s.empty?
   gem "firefight_cloud",
       git: "https://github.com/FireFightLabs/firefight_cloud.git",
       **(cloud_ref ? { ref: cloud_ref } : { branch: "main" })
