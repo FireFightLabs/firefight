@@ -94,6 +94,12 @@ FROM base
 ARG FIREFIGHT_CLOUD=""
 ENV FIREFIGHT_CLOUD=${FIREFIGHT_CLOUD}
 
+# Stamp the deployed version onto every OpenTelemetry span (service.version).
+# Northflank passes this build arg from the git ref/commit of the build;
+# defaults to "dev" for local/manual builds without it.
+ARG SERVICE_VERSION="dev"
+ENV OTEL_SERVICE_VERSION=${SERVICE_VERSION}
+
 # Run and own only the runtime files as a non-root user for security
 RUN groupadd --system --gid 1000 rails && \
     useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash
