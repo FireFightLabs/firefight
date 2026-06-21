@@ -58,3 +58,6 @@ node_modules
 # Local knowledge-graph artifacts from /understand
 /.understand-anything/
 
+# Infisical CLI project config (may reference workspace/secret identifiers)
+/.infisical.json
+
