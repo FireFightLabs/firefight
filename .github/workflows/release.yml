@@ -100,15 +100,20 @@ jobs:
             -d "{\"name\":\"${RUN_NAME}\",\"overrides\":{\"build-1\":{\"branch\":\"main\",\"sha\":\"${SHA}\"}}}" \
             -o /dev/null -w "Northflank deploy triggered: HTTP %{http_code}\n"
 
-      # The image below is the self-host distribution image (no cloud gem) that
-      # open-source users pull and run themselves.
+      # Self-host distribution image (no cloud gem) for open-source users to pull.
+      # Only built when the repo is public — while private nobody can pull it, and
+      # the multi-arch (arm64-via-QEMU) build adds ~10min for no one. These steps
+      # skip until open-source, then run automatically.
       - name: Set up QEMU
+        if: github.event.repository.visibility == 'public'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
+        if: github.event.repository.visibility == 'public'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
+        if: github.event.repository.visibility == 'public'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -117,6 +122,7 @@ jobs:
 
       - name: Extract image metadata
         id: meta
+        if: github.event.repository.visibility == 'public'
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
@@ -125,6 +131,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push self-host image
+        if: github.event.repository.visibility == 'public'
         uses: docker/build-push-action@v6
         with:
           context: .
