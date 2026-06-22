@@ -89,15 +89,15 @@ jobs:
           # Northflank run names allow alphanumerics + dashes only, so the tag's
           # dots (v0.0.3) must be sanitized to dashes (v0-0-3).
           RUN_NAME="$(printf '%s' "$TAG" | tr -c 'a-zA-Z0-9' '-')"
-          # The build node reads ${refs.firefight.branch}/.sha, which are empty on
-          # an API-triggered run — supply them via overrides so it knows what to
-          # build (the commit we just tagged).
+          # The build node (ref build-1) reads ${refs.firefight.branch}/.sha, which
+          # are empty on an API-triggered run. Overrides target the NODE ref, so
+          # set build-1's branch/sha to the commit we just tagged.
           SHA="$(git rev-parse HEAD)"
           curl -fsS -X POST \
             "https://api.northflank.com/v1/projects/firefight/workflows/release/runs" \
             -H "Authorization: Bearer ${NF_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"name\":\"${RUN_NAME}\",\"overrides\":{\"firefight\":{\"branch\":\"main\",\"sha\":\"${SHA}\"}}}" \
+            -d "{\"name\":\"${RUN_NAME}\",\"overrides\":{\"build-1\":{\"branch\":\"main\",\"sha\":\"${SHA}\"}}}" \
             -o /dev/null -w "Northflank deploy triggered: HTTP %{http_code}\n"
 
       # The image below is the self-host distribution image (no cloud gem) that
