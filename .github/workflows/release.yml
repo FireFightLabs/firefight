@@ -72,25 +72,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Tag the release
-        id: tag
         run: |
           git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.tag }}"
           git push origin "${{ steps.v.outputs.tag }}"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      # Northflank git triggers fire on branch pushes, not tags, so kick the
-      # release flow explicitly via its webhook. Auth is the token embedded in the
-      # webhook URL (stored as a secret) — no separate API key. The `firefight`
-      # git trigger's branch/sha are overridden via query params (dots in the
-      # param names are URL-encoded as %2E per Northflank's webhook docs).
-      - name: Trigger Northflank release flow
-        env:
-          WEBHOOK_URL: ${{ secrets.NORTHFLANK_RELEASE_WEBHOOK_URL }}
-        run: |
-          set -euo pipefail
-          curl -fsS -X POST \
-            "${WEBHOOK_URL}?firefight%2Ebranch=main&firefight%2Esha=${{ steps.tag.outputs.sha }}&name=${{ steps.v.outputs.tag }}" \
-            -o /dev/null -w "Northflank release triggered: HTTP %{http_code}\n"
 
       # The image below is the self-host distribution image (no cloud gem) that
       # open-source users pull and run themselves.
