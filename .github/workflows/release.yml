@@ -76,6 +76,22 @@ jobs:
           git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.tag }}"
           git push origin "${{ steps.v.outputs.tag }}"
 
+      # Run the Northflank `release` template (build + migrate + deploy prod).
+      # Auth is a Northflank API token; the template builds the latest main, which
+      # is the commit we just tagged. Remove this once deploys move to a pipeline
+      # promotion model (dev -> prod).
+      - name: Trigger Northflank deploy
+        env:
+          NF_TOKEN: ${{ secrets.NORTHFLANK_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsS -X POST \
+            "https://api.northflank.com/v1/templates/release/runs" \
+            -H "Authorization: Bearer ${NF_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            -o /dev/null -w "Northflank deploy triggered: HTTP %{http_code}\n"
+
       # The image below is the self-host distribution image (no cloud gem) that
       # open-source users pull and run themselves.
       - name: Set up QEMU
