@@ -83,13 +83,17 @@ jobs:
       - name: Trigger Northflank deploy
         env:
           NF_TOKEN: ${{ secrets.NORTHFLANK_API_TOKEN }}
+          TAG: ${{ steps.v.outputs.tag }}
         run: |
           set -euo pipefail
+          # Northflank run names allow alphanumerics + dashes only, so the tag's
+          # dots (v0.0.3) must be sanitized to dashes (v0-0-3).
+          RUN_NAME="$(printf '%s' "$TAG" | tr -c 'a-zA-Z0-9' '-')"
           curl -fsS -X POST \
-            "https://api.northflank.com/v1/projects/firefight/workflows/release/runs" \
+            "https://api.northflank.com/v1/projects/firefight/workflows/release/run" \
             -H "Authorization: Bearer ${NF_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d '{"name":"${{ steps.v.outputs.tag }}"}' \
+            -d "{\"name\":\"${RUN_NAME}\"}" \
             -o /dev/null -w "Northflank deploy triggered: HTTP %{http_code}\n"
 
       # The image below is the self-host distribution image (no cloud gem) that
