@@ -90,7 +90,7 @@ jobs:
           # dots (v0.0.3) must be sanitized to dashes (v0-0-3).
           RUN_NAME="$(printf '%s' "$TAG" | tr -c 'a-zA-Z0-9' '-')"
           curl -fsS -X POST \
-            "https://api.northflank.com/v1/projects/firefight/workflows/release/run" \
+            "https://api.northflank.com/v1/projects/firefight/workflows/release/runs" \
             -H "Authorization: Bearer ${NF_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "{\"name\":\"${RUN_NAME}\"}" \
