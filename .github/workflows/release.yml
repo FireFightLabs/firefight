@@ -86,10 +86,10 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsS -X POST \
-            "https://api.northflank.com/v1/templates/release/runs" \
+            "https://api.northflank.com/v1/projects/firefight/workflows/release/runs" \
             -H "Authorization: Bearer ${NF_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d '{}' \
+            -d '{"name":"${{ steps.v.outputs.tag }}"}' \
             -o /dev/null -w "Northflank deploy triggered: HTTP %{http_code}\n"
 
       # The image below is the self-host distribution image (no cloud gem) that
