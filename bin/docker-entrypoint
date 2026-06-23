@@ -1,11 +1,22 @@
 #!/bin/bash -e
 
-# Optional: auto-migrate on boot for simple single-container deploys.
-# Leave RUN_MIGRATIONS unset for production setups that run migrations
-# separately (Kamal pre-deploy hook, Kubernetes init container, etc.)
-# to avoid races when multiple web containers start in parallel.
-if [ "$RUN_MIGRATIONS" = "true" ] && [ "${@: -2:1}" = "./bin/rails" ] && [ "${@: -1:1}" = "server" ]; then
-  ./bin/rails db:migrate
+# Optional DB setup on boot, only for `./bin/rails server`.
+#
+# RUN_DB_PREPARE=true  -> db:prepare (creates missing databases + loads schema +
+#                        migrates). Safe ONLY for single-container deploys (e.g.
+#                        dev); never set this on multi-container prod web.
+# RUN_MIGRATIONS=true  -> db:migrate (assumes databases already exist). For
+#                        single-container prod where migrations aren't run by a
+#                        separate job/hook. Avoid on multi-container web (race).
+#
+# Leave both unset for setups that run migrations separately (a dedicated
+# migrate job/pre-deploy hook).
+if [ "${@: -2:1}" = "./bin/rails" ] && [ "${@: -1:1}" = "server" ]; then
+  if [ "$RUN_DB_PREPARE" = "true" ]; then
+    ./bin/rails db:prepare
+  elif [ "$RUN_MIGRATIONS" = "true" ]; then
+    ./bin/rails db:migrate
+  fi
 fi
 
 exec "${@}"
