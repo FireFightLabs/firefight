@@ -62,6 +62,7 @@ Rails.application.routes.draw do
   # Authenticated application routes
   scope :app do
     get "/", to: "dashboard#index", as: :dashboard
+    post "/workspace-switch", to: "workspace_switches#create", as: :workspace_switch
     get "/settings", to: "settings#index", as: :settings
     get "/settings/roles", to: "settings#roles", as: :settings_roles
     get "/settings/statuses", to: "settings#statuses", as: :settings_statuses

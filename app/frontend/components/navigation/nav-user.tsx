@@ -1,4 +1,4 @@
-import { IconDotsVertical, IconLogout } from "@tabler/icons-react"
+import { IconCheck, IconDotsVertical, IconLogout } from "@tabler/icons-react"
 import { router } from "@inertiajs/react"
 
 import {
@@ -20,16 +20,23 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { logoutPath } from "@/lib/routes"
+import { logoutPath, workspaceSwitchPath } from "@/lib/routes"
+import type { CurrentWorkspace } from "@/types/serializers"
+
+type WorkspaceOption = Pick<CurrentWorkspace, "id" | "name" | "avatarUrl">
 
 export function NavUser({
   user,
+  workspaces,
+  currentWorkspaceId,
 }: {
   user: {
     name: string
     email: string
     avatar?: string
   }
+  workspaces: WorkspaceOption[]
+  currentWorkspaceId?: string
 }) {
   const { isMobile } = useSidebar()
 
@@ -41,6 +48,11 @@ export function NavUser({
 
   const handleLogout = () => {
     router.delete(logoutPath())
+  }
+
+  const handleSwitch = (workspaceId: string) => {
+    if (workspaceId === currentWorkspaceId) return
+    router.post(workspaceSwitchPath(), { workspace_id: workspaceId })
   }
 
   return (
@@ -90,6 +102,31 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {workspaces.length > 1 && (
+              <>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  Workspaces
+                </DropdownMenuLabel>
+                {workspaces.map((workspace) => (
+                  <DropdownMenuItem
+                    key={workspace.id}
+                    onClick={() => handleSwitch(workspace.id)}
+                  >
+                    <Avatar className="h-5 w-5 rounded">
+                      <AvatarImage src={workspace.avatarUrl} alt={workspace.name} />
+                      <AvatarFallback className="rounded text-[10px]">
+                        {workspace.name.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="truncate">{workspace.name}</span>
+                    {workspace.id === currentWorkspaceId && (
+                      <IconCheck className="ml-auto size-4" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem onClick={handleLogout}>
               <IconLogout />
               Log out

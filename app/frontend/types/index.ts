@@ -11,6 +11,7 @@ export type FlashData = {
 export type SharedProps = PageProps & {
   currentUser?: CurrentUser
   currentWorkspace?: CurrentWorkspace
+  availableWorkspaces?: CurrentWorkspace[]
 }
 
 export interface Pagination {

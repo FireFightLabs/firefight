@@ -19,7 +19,18 @@ class ApplicationController < ActionController::Base
 
   def current_workspace
     return @current_workspace if defined?(@current_workspace)
-    @current_workspace = session[:workspace_id] ? Workspace.find_by(id: session[:workspace_id]) : nil
+    @current_workspace = current_user && resolve_current_workspace
+  end
+
+  # Resolve through the user's memberships so session[:workspace_id] can never
+  # grant access to a workspace they don't belong to. Falls back to the most
+  # recently joined membership (session is fresh, or points at a workspace they
+  # have since left) and self-heals the session.
+  def resolve_current_workspace
+    workspace = current_user.workspaces.find_by(id: session[:workspace_id]) ||
+                current_user.workspace_memberships.order(joined_at: :desc).first&.workspace
+    session[:workspace_id] = workspace.id if workspace && session[:workspace_id] != workspace.id
+    workspace
   end
 
   def user_signed_in?

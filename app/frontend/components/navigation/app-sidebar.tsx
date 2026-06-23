@@ -78,7 +78,8 @@ const navSections = [
 ]
 
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
-  const { currentUser } = usePage<SharedProps>().props
+  const { currentUser, currentWorkspace, availableWorkspaces } =
+    usePage<SharedProps>().props
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -108,6 +109,8 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
               email: currentUser.email,
               avatar: currentUser.avatarUrl,
             }}
+            workspaces={availableWorkspaces ?? []}
+            currentWorkspaceId={currentWorkspace?.id}
           />
         )}
       </SidebarFooter>
