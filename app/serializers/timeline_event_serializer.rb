@@ -44,6 +44,9 @@ class TimelineEventSerializer < BaseSerializer
 
   type :string, optional: true
   def details
+    eventable = event.eventable
+    return eventable.message if eventable.respond_to?(:message) && eventable.message.present?
+
     d = event.metadata["message"] || event.metadata[:message]
     d.is_a?(String) ? d : nil
   end

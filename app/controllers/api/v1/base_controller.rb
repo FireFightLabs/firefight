@@ -3,6 +3,9 @@ class Api::V1::BaseController < ActionController::API
   # Controllers can skip with: skip_before_action :verify_slack_signature!
   before_action :verify_slack_signature!
 
+  # Registered first so the more specific handlers below take precedence
+  # (Rails matches rescue_from handlers last-defined-first).
+  rescue_from StandardError, with: :server_error
   rescue_from ActiveRecord::RecordNotFound, with: :not_found
   rescue_from ActionController::ParameterMissing, with: :bad_request
   rescue_from Slack::SignatureVerifier::InvalidSignatureError,
@@ -52,6 +55,18 @@ class Api::V1::BaseController < ActionController::API
   end
 
   def server_error(exception)
+    Rails.logger.error({
+      event: "api.unhandled_exception",
+      path: request.path,
+      error_class: exception.class.name,
+      error: exception.message,
+      backtrace: exception.backtrace&.first(20)
+    })
+
+    span = OpenTelemetry::Trace.current_span
+    span.record_exception(exception)
+    span.status = OpenTelemetry::Trace::Status.error(exception.message)
+
     render json: { error: "Internal server error" }, status: :internal_server_error
   end
 end

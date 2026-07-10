@@ -26,6 +26,20 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
     assert_equal new_status.name, status_change[:after]
   end
 
+  test "details surfaces the update message stored on the eventable" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    message = "Confirmed ~32% checkout error rate across all regions"
+
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member, message: message)
+
+    update = IncidentUpdate.find_by!(message: message)
+    event = update.incident_event
+    rendered = TimelineEventSerializer.one(event)
+
+    assert_equal message, rendered[:details]
+  end
+
   test "file field is nil for non-file events" do
     event = incident_events(:inc1_created)
     rendered = TimelineEventSerializer.one(event)

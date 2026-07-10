@@ -9,11 +9,11 @@ features:
     always_online: true
   slash_commands:
     - command: /firefight
-      url: https://ff.bugrewind.com/api/v1/commands
+      url: https://dev.firefight.app/api/v1/commands
       description: "Manage incidents and coordinate response"
       should_escape: false
     - command: /ff
-      url: https://ff.bugrewind.com/api/v1/commands
+      url: https://dev.firefight.app/api/v1/commands
       description: "Manage incidents (short alias for /firefight)"
       should_escape: false
   shortcuts:
@@ -24,8 +24,8 @@ features:
 
 oauth_config:
   redirect_urls:
-    - https://ff.bugrewind.com/auth/slack/callback
-    - https://ff.bugrewind.com/auth/slack_openid/callback
+    - https://dev.firefight.app/auth/slack/callback
+    - https://dev.firefight.app/auth/slack_openid/callback
   scopes:
     user:
       - openid # OIDC: triggers Slack's native workspace picker on sign-in
@@ -56,7 +56,7 @@ oauth_config:
 
 settings:
   event_subscriptions:
-    request_url: https://ff.bugrewind.com/api/v1/events
+    request_url: https://dev.firefight.app/api/v1/events
     bot_events:
       - app_mention
       - reaction_added
@@ -67,7 +67,7 @@ settings:
       - member_joined_channel
   interactivity:
     is_enabled: true
-    request_url: https://ff.bugrewind.com/api/v1/interactions
+    request_url: https://dev.firefight.app/api/v1/interactions
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: true
