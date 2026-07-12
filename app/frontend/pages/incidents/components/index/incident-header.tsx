@@ -7,7 +7,7 @@ import {
 import type { Incident } from "@/pages/incidents/types"
 import { severityBadgeClass } from "@/lib/constants"
 import { formatDuration } from "@/lib/formatters"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -99,6 +99,9 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
           {incident.lead ? (
             <div className="flex items-center gap-2">
               <Avatar className="size-5">
+                {incident.lead.avatarUrl ? (
+                  <AvatarImage src={incident.lead.avatarUrl} alt={incident.lead.name} />
+                ) : null}
                 <AvatarFallback className="text-[10px] font-semibold bg-primary/20 text-primary">
                   {incident.lead.initials}
                 </AvatarFallback>

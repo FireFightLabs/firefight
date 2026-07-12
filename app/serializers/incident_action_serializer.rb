@@ -17,6 +17,11 @@ class IncidentActionSerializer < BaseSerializer
     action.assignee&.user&.name
   end
 
+  type :string, optional: true
+  def assignee_avatar_url
+    action.assignee&.user&.avatar_url
+  end
+
   type :string
   def created_by
     action.created_by.user.name
