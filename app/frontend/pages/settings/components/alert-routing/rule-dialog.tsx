@@ -37,8 +37,10 @@ interface ConditionRow {
   value: string
 }
 
-function toRows(rule: PolicyRule | null): ConditionRow[] {
-  if (!rule) return []
+function toRows(rule: PolicyRule | null, prefillSource: string | null): ConditionRow[] {
+  if (!rule) {
+    return prefillSource ? [ { field: "source", operator: "is_one_of", value: prefillSource } ] : []
+  }
 
   return rule.conditions.map((c) => ({
     field: c.field,
@@ -51,12 +53,14 @@ export function RuleDialog({
   rule,
   severities,
   onClose,
+  prefillSource = null,
 }: {
   rule: PolicyRule | null
   severities: IncidentSeveritySettings[]
   onClose: () => void
+  prefillSource?: string | null
 }) {
-  const [conditions, setConditions] = useState<ConditionRow[]>(() => toRows(rule))
+  const [conditions, setConditions] = useState<ConditionRow[]>(() => toRows(rule, prefillSource))
   const [action, setAction] = useState<OutcomeAction>((rule?.outcome.action as OutcomeAction) ?? "auto_create_incident")
   const [severityId, setSeverityId] = useState(rule?.outcome.severityId ?? NONE_SEVERITY)
   const [channel, setChannel] = useState(rule?.outcome.channel ?? "")

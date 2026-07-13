@@ -1,9 +1,9 @@
 import { useState } from "react"
-import { IconBellRinging, IconCheck, IconCopy } from "@tabler/icons-react"
-import { router } from "@inertiajs/react"
+import { IconBellRinging, IconCheck, IconCopy, IconRoute } from "@tabler/icons-react"
+import { Link, router } from "@inertiajs/react"
 
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
-import { alertSourcePath } from "@/lib/routes"
+import { alertSourcePath, settingsAlertRoutingPath } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -56,7 +56,15 @@ export function AlertSourcesTab({
                 Endpoints your monitoring tools POST alerts to. Each source has its own URL and secret token.
               </CardDescription>
             </div>
-            <AddSourceDialog />
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={settingsAlertRoutingPath()}>
+                  <IconRoute className="size-4" />
+                  Routing rules
+                </Link>
+              </Button>
+              <AddSourceDialog />
+            </div>
           </div>
         </CardHeader>
         {alertSources.length > 0 ? (
@@ -109,10 +117,18 @@ export function AlertSourcesTab({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <RowActions
-                        onEdit={() => setEditingSource(source)}
-                        onDelete={() => handleDelete(source)}
-                      />
+                      <div className="flex items-center justify-end gap-1">
+                        <Button asChild variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-muted-foreground">
+                          <Link href={`${settingsAlertRoutingPath()}?source=${encodeURIComponent(source.name)}`}>
+                            <IconRoute className="size-3.5" />
+                            Routing
+                          </Link>
+                        </Button>
+                        <RowActions
+                          onEdit={() => setEditingSource(source)}
+                          onDelete={() => handleDelete(source)}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

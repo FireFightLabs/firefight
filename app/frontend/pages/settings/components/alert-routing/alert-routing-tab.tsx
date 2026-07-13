@@ -47,12 +47,14 @@ function conditionsSummary(rule: PolicyRule): string {
 export function AlertRoutingTab({
   policy,
   severities,
+  prefillSource = null,
 }: {
   policy: AlertRoutingPolicy | null
   severities: IncidentSeveritySettings[]
+  prefillSource?: string | null
 }) {
   const [editingRule, setEditingRule] = useState<PolicyRule | null>(null)
-  const [addingRule, setAddingRule] = useState(false)
+  const [addingRule, setAddingRule] = useState(() => Boolean(prefillSource))
   const rules = policy?.rules ?? []
 
   function togglePolicy(enabled: boolean) {
@@ -148,6 +150,7 @@ export function AlertRoutingTab({
         <RuleDialog
           rule={editingRule}
           severities={severities}
+          prefillSource={editingRule ? null : prefillSource}
           onClose={() => {
             setAddingRule(false)
             setEditingRule(null)
