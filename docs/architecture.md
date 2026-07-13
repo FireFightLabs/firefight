@@ -23,6 +23,8 @@ API:    Controller                        → IncidentLifecycleService → Workf
 Teams:  (future)   → ...                  → IncidentLifecycleService → Workflows
 ```
 
+There is a third inbound path for Slack **events** (messages, reactions, pins, mentions) — see [Slack Events](#slack-events-third-entry-path) below. It follows the same boundary rules.
+
 ### What entry points do (boundary concerns only)
 1. **Normalize input** — parse platform-specific payload into resolved records (Slack: dig into interaction values, resolve slugs; API: parse JSON params, resolve UUIDs)
 2. **Call shared service** — `IncidentLifecycleService.new(workspace).create(...)` / `.update(...)` / `.close(...)` etc.
@@ -142,6 +144,21 @@ Platform-specific payloads are normalized into platform-agnostic POJOs at the bo
 
 Dispatchers and handlers only receive normalized objects — never raw payloads. Handlers access normalized fields (`interaction.user_id`, `command.trigger_id`).
 
+## Slack Events (third entry path)
+
+Alongside commands and interactions, Slack pushes **events** (channel messages, reactions, pins, app mentions, member joins). Unlike commands, events have no 3-second response budget — the controller acks immediately and all work is async:
+
+```
+Api::V1::EventsController → ProcessEventJob → EventDispatcher → Events::<Type>Handler
+```
+
+- `EventsController` handles `url_verification` inline, then enqueues `ProcessEventJob` with the raw payload and returns `head :ok`.
+- `EventDispatcher` routes on `Identifiers::EVENT_*` to handlers in `app/services/events/` (`MessageHandler`, `ReactionAddedHandler`, `PinAddedHandler`, `PinRemovedHandler`, `AppMentionHandler`, `MemberJoinedChannelHandler`). Unknown types are logged and dropped.
+- These handlers power transcript capture (`MessageHandler` → `IncidentTranscriptMessage`), reaction-to-action/followup/shoutout creation, pin timeline events, and AI responses to @mentions.
+- Slack does **not** redeliver events after the 200 ack, so `ProcessEventJob` retries transient DB failures itself — a dropped job loses the event.
+
+Events handlers follow the same thinness rules as command/interaction handlers.
+
 ## Services
 
 Encapsulate business logic. Each method is independently callable (from workflows, console, or controllers). Use adapters for platform operations.
@@ -222,6 +239,33 @@ Adding a new trackable model: create the snapshot table (mirroring tracked colum
 
 **Events without a recordable** (`MESSAGE_PINNED`, `INCIDENT_ESCALATED`, `ESCALATION_ACKNOWLEDGED`, `RELATIONSHIP_CREATED`, etc.) are still created directly with `incident.incident_events.create!(event_type:, user:, metadata:)`. They have no eventable; their payload lives flat in `metadata` (no `details:` nesting).
 
+## Outbound Webhooks
+
+Domain events fan out to customer-configured webhooks:
+
+```
+IncidentEvent commit → ProcessDomainEventJob → EventRouter → Webhooks::DispatchJob
+                     → WebhookDelivery (row per attempt) → Webhooks::DeliveryService
+```
+
+- `EventRouter` maps each `IncidentEvent::*` type to subscribers (`SUBSCRIBERS` table); webhook-worthy events route to `Webhooks::EventSubscriber`, internal-only events map to `[]`. New event types must be added to this table explicitly.
+- `Webhooks::DispatchJob` finds the workspace's webhooks subscribed to the event type (`triggered_by` scope) and creates a `WebhookDelivery` per webhook. The payload is **snapshotted at dispatch time** (`Webhooks::PayloadRenderer`, shared jbuilder partials in `app/views/shared/`) so retries resend identical bytes.
+- `Webhooks::DeliveryService` sends it: timestamped HMAC signing (scheme `v1`), 7s endpoint timeout, 100KB response cap, and `Webhooks::SsrfProtector` blocks private/internal targets.
+- `WebhookDelinquencyTracker` counts consecutive failures per webhook; sustained failure (threshold 10 over 1h) deactivates the webhook and `Webhooks::DeactivationNotifier` informs the workspace. `Webhooks::CleanupJob` prunes old deliveries.
+
+## Entitlements (open-core seam)
+
+Paid/cloud features are gated through `Entitlements` (`app/models/entitlements.rb`), never hardcoded flags:
+
+```ruby
+Entitlements.allows?(workspace, Entitlements::AI)   # → true/false
+Entitlements.check(workspace, feature)              # → Result (allowed? + message)
+```
+
+- The default backend is `Entitlements::OpenSourceBackend`, which **always allows** — self-hosters get every core feature with zero configuration.
+- The proprietary cloud build swaps in its own backend (trial state, credit caps) via `Entitlements.backend=`. That code lives in the private `firefight_cloud` gem, loaded only when the Gemfile's `FIREFIGHT_CLOUD` env flag is set at build time — it is never bundled or locked for self-hosters, and the app must always run without it.
+- Rules: gate new premium-capable features through `Entitlements.allows?` with a new feature constant; never reference `firefight_cloud` from app code; never make core behavior depend on the gem's presence.
+
 ## Identifiers
 
 All callback_ids, action_ids, and subcommand strings are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, `Identifiers::SUBCOMMAND_CLOSE`, etc.
@@ -234,11 +278,19 @@ app/adapters/
   workspace_adapter.rb                # Factory: WorkspaceAdapter.for(workspace)
   slack/
     client.rb                         # Slack API wrapper (Net::HTTP::Persistent pool, see http_pool)
-    workspace_adapter.rb              # Slack adapter (low-level + high-level methods)
+    workspace_adapter.rb              # Slack adapter (low-level methods + includes the concerns below)
+    workspace_adapter/                # High-level methods, split by concern
+      incident_messaging.rb           #   post/update announcements, quick actions, resolutions, reminders
+      incident_modals.rb              #   open/update incident modals
+      user_operations.rb              #   user lookups, DMs
+      workspace_setup.rb              #   install-time channel + welcome flow
+    messages/                         # Block Kit message builders (Announcement, QuickActions, Action,
+                                      #   Resolution, AiResponse, Escalation, Shoutout, ... + Formatting)
+    modals/                           # Block Kit modal builders (IncidentCreation, IncidentUpdate, Lead, ...)
     interaction_parser.rb             # Raw payload → Interaction POJO
     command_parser.rb                 # Raw payload → Command POJO
-    modal_builder.rb                  # Block Kit modal definitions (internal to adapter)
-    incident_message_builder.rb       # Incident Block Kit messages (internal to adapter)
+    signature_verifier.rb             # Slack request signature verification
+    token_manager.rb                  # Token refresh/rotation
 
 app/models/
   command.rb                          # Platform-agnostic command (ActiveModel)
