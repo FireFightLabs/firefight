@@ -7,9 +7,9 @@
 #   - the entry's scalar attributes as "<field>.<attribute>"
 #     (e.g. "service.tier" => "Critical")
 # Explicit input fields are never overwritten.
-class PolicyContextBuilder
+class Policy::ContextBuilder
   def self.build(workspace:, fields:)
-    context = PolicyRouter.normalize_context(fields)
+    context = Policy.normalize_context(fields)
 
     CatalogType::SYSTEM_KEYS.each do |system_key|
       slug = context[system_key]

@@ -9,20 +9,20 @@ class PolicyContextBuilderTest < ActiveSupport::TestCase
   end
 
   test "resolves service to its owning team via relationships" do
-    context = PolicyContextBuilder.build(workspace: @workspace, fields: { service: "auth_service" })
+    context = Policy::ContextBuilder.build(workspace: @workspace, fields: { service: "auth_service" })
 
     assert_equal "auth_service", context["service"]
     assert_equal "platform_team", context["team"]
   end
 
   test "flattens scalar entry attributes under the field prefix" do
-    context = PolicyContextBuilder.build(workspace: @workspace, fields: { service: "auth_service" })
+    context = Policy::ContextBuilder.build(workspace: @workspace, fields: { service: "auth_service" })
 
     assert_equal "Critical", context["service.tier"]
   end
 
   test "does not overwrite explicitly provided fields" do
-    context = PolicyContextBuilder.build(
+    context = Policy::ContextBuilder.build(
       workspace: @workspace,
       fields: { service: "auth_service", team: "override_team" }
     )
@@ -31,20 +31,20 @@ class PolicyContextBuilderTest < ActiveSupport::TestCase
   end
 
   test "unknown slug passes fields through unchanged" do
-    context = PolicyContextBuilder.build(workspace: @workspace, fields: { service: "nope", title: "x" })
+    context = Policy::ContextBuilder.build(workspace: @workspace, fields: { service: "nope", title: "x" })
 
     assert_equal({ "service" => "nope", "title" => "x" }, context)
   end
 
   test "ignores deleted entries" do
-    context = PolicyContextBuilder.build(workspace: @workspace, fields: { team: "old_team" })
+    context = Policy::ContextBuilder.build(workspace: @workspace, fields: { team: "old_team" })
 
     assert_equal "old_team", context["team"]
     assert_nil context["team.description"]
   end
 
   test "normalizes non-string values" do
-    context = PolicyContextBuilder.build(workspace: @workspace, fields: { severity: 1 })
+    context = Policy::ContextBuilder.build(workspace: @workspace, fields: { severity: 1 })
 
     assert_equal "1", context["severity"]
   end

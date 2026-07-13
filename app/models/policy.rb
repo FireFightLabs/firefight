@@ -1,4 +1,6 @@
 class Policy < ApplicationRecord
+  include Policy::Evaluation
+
   DOMAIN_ALERT_ROUTING = "alert_routing"
   DOMAIN_AUTO_INVESTIGATE = "auto_investigate"
   DOMAINS = [ DOMAIN_ALERT_ROUTING, DOMAIN_AUTO_INVESTIGATE ].freeze

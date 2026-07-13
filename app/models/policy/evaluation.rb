@@ -1,8 +1,10 @@
-# Generic first-match-wins rules engine. Evaluation is pure (no side effects)
-# and returns a full trace, so the same call powers routing, the route-tester
-# UI, and future read-only MCP tools. Domain consumers interpret the outcome;
-# the engine never does.
-class PolicyRouter
+# First-match-wins rule evaluation. Pure (no side effects) and returns a full
+# trace, so the same call powers routing, the route-tester UI, and future
+# read-only MCP tools. Domain consumers interpret the outcome; evaluation
+# never does.
+module Policy::Evaluation
+  extend ActiveSupport::Concern
+
   REGEX_TIMEOUT_SECONDS = 0.1
 
   Result = Struct.new(:matched_rule, :outcome, :trace, keyword_init: true) do
@@ -11,13 +13,21 @@ class PolicyRouter
     end
   end
 
-  def self.evaluate(policy, context)
-    return Result.new(matched_rule: nil, outcome: nil, trace: []) unless policy.enabled?
+  class_methods do
+    def normalize_context(context)
+      context.each_with_object({}) do |(key, value), normalized|
+        normalized[key.to_s] = value.nil? ? nil : value.to_s
+      end
+    end
+  end
 
-    normalized = normalize_context(context)
+  def evaluate(context)
+    return Result.new(matched_rule: nil, outcome: nil, trace: []) unless enabled?
+
+    normalized = self.class.normalize_context(context)
     trace = []
 
-    policy.ordered_rules.each do |rule|
+    ordered_rules.each do |rule|
       condition_results = rule.conditions.map { |condition| evaluate_condition(condition, normalized) }
       matched = condition_results.all? { |result| result[:matched] }
 
@@ -34,13 +44,9 @@ class PolicyRouter
     Result.new(matched_rule: nil, outcome: nil, trace: trace)
   end
 
-  def self.normalize_context(context)
-    context.each_with_object({}) do |(key, value), normalized|
-      normalized[key.to_s] = value.nil? ? nil : value.to_s
-    end
-  end
+  private
 
-  def self.evaluate_condition(condition, context)
+  def evaluate_condition(condition, context)
     condition = condition.with_indifferent_access
     field = condition[:field].to_s
     operator = condition[:operator]
@@ -68,7 +74,7 @@ class PolicyRouter
 
   # Timeout guards against ReDoS from user-authored patterns; invalid patterns
   # are also rejected at write time by PolicyRule validation.
-  def self.regex_match?(pattern, actual)
+  def regex_match?(pattern, actual)
     Regexp.new(pattern, timeout: REGEX_TIMEOUT_SECONDS).match?(actual)
   rescue RegexpError, Regexp::TimeoutError
     false
