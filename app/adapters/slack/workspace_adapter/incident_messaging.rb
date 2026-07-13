@@ -5,6 +5,21 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   TIMELINE_PAGE_SIZE = 15
   TIMELINE_MAX_EVENTS = 45
 
+  def post_alert_message(channel_id:, alert:)
+    blocks = Slack::Messages::Alert.build(alert)
+    post_message(channel_id: channel_id, text: alert.title, blocks: blocks)
+  end
+
+  def update_alert_message(channel_id:, message_id:, alert:)
+    blocks = Slack::Messages::Alert.build(alert)
+    update_message(
+      channel_id: channel_id,
+      message_id: message_id,
+      text: alert.title,
+      blocks: blocks
+    )
+  end
+
   def update_incident_quick_actions(channel_id:, message_id:, incident:)
     blocks = Slack::Messages::QuickActions.build(incident)
     update_message(

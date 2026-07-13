@@ -19,6 +19,8 @@ class IncidentEvent < ApplicationRecord
   INCIDENT_ACCEPTED = "incident.accepted"
   ESCALATION_ACKNOWLEDGED = "incident.escalation_acknowledged"
   ESCALATION_NUDGED = "incident.escalation_nudged"
+  ALERT_ATTACHED = "alert.attached"
+  ALERT_RESOLVED = "alert.resolved"
 
   EVENT_TYPES = [
     INCIDENT_CREATED, INCIDENT_UPDATED, INCIDENT_ACCEPTED, LEAD_ASSIGNED,
@@ -26,7 +28,8 @@ class IncidentEvent < ApplicationRecord
     INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, POSTMORTEM_GENERATED, POSTMORTEM_EDITED,
     RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
     MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED,
-    ESCALATION_ACKNOWLEDGED, ESCALATION_NUDGED
+    ESCALATION_ACKNOWLEDGED, ESCALATION_NUDGED,
+    ALERT_ATTACHED, ALERT_RESOLVED
   ].freeze
 
   EVENT_DESCRIPTIONS = {
@@ -49,7 +52,9 @@ class IncidentEvent < ApplicationRecord
     MESSAGE_UNPINNED => "unpinned a message",
     MESSAGE_FILE_SHARED => "shared a file",
     ESCALATION_ACKNOWLEDGED => "acknowledged the escalation",
-    ESCALATION_NUDGED => "sent an escalation reminder"
+    ESCALATION_NUDGED => "sent an escalation reminder",
+    ALERT_ATTACHED => "attached an alert",
+    ALERT_RESOLVED => "marked an alert resolved"
   }.freeze
 
   # Only events backed by a Recordable snapshot appear here. Action-only events

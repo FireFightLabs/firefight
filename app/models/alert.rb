@@ -1,0 +1,51 @@
+class Alert < ApplicationRecord
+  STATUS_FIRING = "firing"
+  STATUS_RESOLVED = "resolved"
+  STATUSES = [ STATUS_FIRING, STATUS_RESOLVED ].freeze
+
+  ROUTING_PENDING = "pending"
+  ROUTING_ROUTED = "routed"
+  ROUTING_UNMATCHED = "unmatched"
+  ROUTING_STATES = [ ROUTING_PENDING, ROUTING_ROUTED, ROUTING_UNMATCHED ].freeze
+
+  belongs_to :workspace
+  belongs_to :alert_source
+  belongs_to :incident, optional: true
+  belongs_to :alert_group, optional: true
+
+  # Uniqueness of (alert_source_id, external_id) is enforced by the DB index —
+  # the ingest path relies on RecordNotUnique as its idempotency check.
+  validates :external_id, presence: true
+  validates :fingerprint, presence: true
+  validates :status, inclusion: { in: STATUSES }
+  validates :routing_state, inclusion: { in: ROUTING_STATES }
+
+  scope :open_status, -> { where(status: STATUS_FIRING) }
+  scope :pending_routing, -> { where(routing_state: ROUTING_PENDING) }
+
+  def self.fallback_fingerprint(alert_source_id, fields)
+    Digest::SHA256.hexdigest([ alert_source_id, fields["service"], fields["title"] ].join("\n"))
+  end
+
+  def title
+    fields["title"].presence || "Alert from #{alert_source.name}"
+  end
+
+  def firing?
+    status == STATUS_FIRING
+  end
+
+  def record_firing!(now = Time.current)
+    increment(:event_count)
+    self.last_seen_at = now
+    if status == STATUS_RESOLVED
+      self.status = STATUS_FIRING
+      self.resolved_at = nil
+    end
+    save!
+  end
+
+  def resolve!(now = Time.current)
+    update!(status: STATUS_RESOLVED, resolved_at: now, last_seen_at: now)
+  end
+end

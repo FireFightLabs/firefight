@@ -3,6 +3,7 @@ class Incident < ApplicationRecord
   VISIBILITY_PRIVATE = "private"
 
   SOURCE_SLACK = "slack"
+  SOURCE_ALERT = "alert"
 
   DEFAULT_PER_PAGE = 20
   MAX_PER_PAGE = 50

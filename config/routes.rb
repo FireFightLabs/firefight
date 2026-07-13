@@ -18,6 +18,9 @@ Rails.application.routes.draw do
       post "interactions", to: "interactions#create"
       post "events", to: "events#create"
 
+      # Alert ingest (per-source secret auth via provider adapter)
+      post "alerts/:endpoint_path", to: "alerts#create", as: :alert_ingest
+
       # Public API (Bearer token auth)
       resources :incidents, only: [ :index, :show, :create, :update ]
       resources :severities, only: [ :index ]
