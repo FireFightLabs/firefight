@@ -37,6 +37,7 @@ Controller → Dispatcher → Handler → Service → Adapter → Slack::Client
 ```
 
 - Each layer has a single responsibility. **Never skip layers.**
+- **`app/services/` is ONLY for cross-platform orchestration** — code that coordinates model writes with adapter calls, workflow starts, cache expiry, or job scheduling. **Pure domain logic that only touches a model's own data is a model method or a concern in `app/models/<model>/` — never a service.** Litmus test before creating anything in `app/services/`: does it call an adapter, start a workflow, or touch another system? If no, it belongs on the model (e.g. `Policy::Evaluation` concern, not a `PolicyRouter` service; `Postmortem#update_content!`, not a `PostmortemUpdateService`).
 - Slack and the Public API are thin **entry points** into the same system — business logic and side effects live in shared services, never in entry points. All incident writes go through `IncidentLifecycleService`.
 - Handlers are thin (guards, routing, delegation) and stateless. No DB queries beyond `command.workspace`/`command.incident`, no Block Kit, no business logic.
 - Commands dispatch synchronously; a handler enqueues its own job only for heavy work (AI calls, paginated Slack lookups, >~1.5s). Anything opening a modal must stay sync — `trigger_id` expires in 3s.

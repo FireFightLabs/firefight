@@ -182,6 +182,8 @@ Services are not a generic "service layer." They exist because Firefight bridges
 
 Don't create a service class that wraps a single model call. That's unnecessary indirection, not architecture.
 
+**Litmus test before creating anything in `app/services/`:** does it call an adapter, start a workflow, or touch another system (cache, jobs, external API)? If no, it is domain logic and belongs on the model or a concern in `app/models/<model>/` — no matter how algorithm-shaped it looks. Example: policy rule evaluation is a pure function over `Policy`/`PolicyRule` data, so it lives in `Policy::Evaluation` (`app/models/policy/evaluation.rb`), not in a `PolicyRouter` service.
+
 ## Adapters
 
 Platform abstraction layer. `WorkspaceAdapter.for(workspace)` is the factory — returns platform-specific adapter (e.g., `Slack::WorkspaceAdapter`). Always use the factory, never instantiate platform adapters directly.
