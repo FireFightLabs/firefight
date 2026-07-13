@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout main
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
@@ -85,15 +85,15 @@ jobs:
       # skip until open-source, then run automatically.
       - name: Set up QEMU
         if: github.event.repository.visibility == 'public'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         if: github.event.repository.visibility == 'public'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
         if: github.event.repository.visibility == 'public'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -102,7 +102,7 @@ jobs:
       - name: Extract image metadata
         id: meta
         if: github.event.repository.visibility == 'public'
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -111,7 +111,7 @@ jobs:
 
       - name: Build and push self-host image
         if: github.event.repository.visibility == 'public'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
