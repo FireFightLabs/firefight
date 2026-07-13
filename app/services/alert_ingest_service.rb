@@ -138,7 +138,7 @@ class AlertIngestService
       .order(window_expires_at: :desc)
       .first
     return nil unless group
-    return nil if group.incident.incident_status.incident_lifecycle_stage.closed?
+    return nil if group.incident.closed?
 
     alert.alert_group = group
     group.incident

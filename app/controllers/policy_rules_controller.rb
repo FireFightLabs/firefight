@@ -1,0 +1,68 @@
+class PolicyRulesController < InertiaController
+  before_action :require_authentication
+  before_action :set_rule, only: [ :update, :destroy, :move_up, :move_down ]
+
+  def create
+    policy = find_or_create_policy
+    rule = policy.policy_rules.new(rule_params)
+    rule.priority = (policy.policy_rules.maximum(:priority) || 0) + 1
+
+    if rule.save
+      redirect_to settings_alert_routing_path
+    else
+      redirect_back fallback_location: settings_alert_routing_path, inertia: { errors: rule.errors.to_hash }
+    end
+  end
+
+  def update
+    if @rule.update(rule_params)
+      redirect_to settings_alert_routing_path
+    else
+      redirect_back fallback_location: settings_alert_routing_path, inertia: { errors: @rule.errors.to_hash }
+    end
+  end
+
+  def destroy
+    @rule.destroy!
+    redirect_to settings_alert_routing_path
+  end
+
+  def move_up
+    swap_with(@rule.policy.ordered_rules.where("priority < ?", @rule.priority).last)
+  end
+
+  def move_down
+    swap_with(@rule.policy.ordered_rules.where("priority > ?", @rule.priority).first)
+  end
+
+  private
+
+  def set_rule
+    @rule = PolicyRule.joins(:policy).where(policies: { workspace_id: current_workspace.id }).find(params[:id])
+  end
+
+  def find_or_create_policy
+    current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).first ||
+      current_workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Alert routing")
+  end
+
+  def swap_with(other)
+    if other
+      PolicyRule.transaction do
+        a, b = @rule.priority, other.priority
+        # Two-step through a temporary priority to satisfy the unique index.
+        @rule.update_columns(priority: -1)
+        other.update_columns(priority: a)
+        @rule.update_columns(priority: b)
+      end
+    end
+    redirect_to settings_alert_routing_path
+  end
+
+  def rule_params
+    params.require(:rule).permit(
+      outcome: [ :action, :severity_id, :channel, :channel_context_key ],
+      conditions: [ :field, :operator, :value, { value: [] } ]
+    )
+  end
+end

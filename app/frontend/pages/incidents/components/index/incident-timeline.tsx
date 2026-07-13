@@ -1,6 +1,8 @@
 import {
   IconAlertTriangle,
   IconArrowRight,
+  IconBellCheck,
+  IconBellRinging,
   IconCircleCheck,
   IconCirclePlus,
   IconCopy,
@@ -31,6 +33,8 @@ const eventIcons: Record<string, typeof IconFlame> = {
   "relationship.created": IconLink,
   "incident.marked_duplicate": IconCopy,
   "message.file_shared": IconPaperclip,
+  "alert.attached": IconBellRinging,
+  "alert.resolved": IconBellCheck,
 }
 
 type DotAccent = "primary" | "emerald" | "amber" | "rose" | "violet" | "neutral"
@@ -42,6 +46,8 @@ const eventAccent: Record<string, DotAccent> = {
   "incident.escalated": "rose",
   "lead.assigned": "violet",
   "action.completed": "emerald",
+  "alert.attached": "amber",
+  "alert.resolved": "emerald",
 }
 
 const solidAccent: Record<DotAccent, string> = {

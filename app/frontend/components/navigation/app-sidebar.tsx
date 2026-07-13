@@ -4,12 +4,14 @@ import {
   IconCategory,
   IconChecklist,
   IconForms,
+  IconBellRinging,
   IconKey,
   IconListDetails,
   IconPlug,
   IconUrgent,
   IconUsers,
   IconUserShield,
+  IconRoute,
   IconWebhook,
 } from "@tabler/icons-react"
 import type { ComponentProps } from "react"
@@ -31,6 +33,8 @@ import { SharedProps } from "@/types"
 import {
   cataloguePath,
   dashboardPath,
+  settingsAlertRoutingPath,
+  settingsAlertSourcesPath,
   settingsApiKeysPath,
   settingsCustomFieldsPath,
   settingsFormsPath,
@@ -58,6 +62,8 @@ const navSections = [
       { title: "Forms", url: settingsFormsPath(), icon: IconChecklist },
       { title: "Custom Fields", url: settingsCustomFieldsPath(), icon: IconForms },
       { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
+      { title: "Alert Sources", url: settingsAlertSourcesPath(), icon: IconBellRinging },
+      { title: "Alert Routing", url: settingsAlertRoutingPath(), icon: IconRoute },
       { title: "Integrations", url: "#", icon: IconPlug },
     ],
   },

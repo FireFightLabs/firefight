@@ -83,6 +83,28 @@ class SettingsController < InertiaController
     }
   end
 
+  def alert_sources
+    render inertia: "settings/alert-sources", props: {
+      alertSources: AlertSourceSettingsSerializer.many(
+        current_workspace.alert_sources.order(:created_at)
+      ),
+      severities: IncidentSeveritySettingsSerializer.many(
+        current_workspace.incident_severities.active.ordered
+      )
+    }
+  end
+
+  def alert_routing
+    policy = current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).first
+
+    render inertia: "settings/alert-routing", props: {
+      policy: policy ? AlertRoutingPolicySerializer.one(policy) : nil,
+      severities: IncidentSeveritySettingsSerializer.many(
+        current_workspace.incident_severities.active.ordered
+      )
+    }
+  end
+
   private
 
   def build_lifecycle_stages
