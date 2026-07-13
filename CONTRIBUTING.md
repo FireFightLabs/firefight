@@ -120,7 +120,7 @@ All of these must pass before a PR is ready for review. Fork PRs run the full CI
 
 ## Conventions
 
-- **Architecture**: read `CLAUDE.md` at the repo root — it documents the layer hierarchy (controller → dispatcher → handler → service → adapter), the entry-point rules, and the frontend structure. PRs that skip layers or duplicate entry-point logic will be asked to restructure.
+- **Architecture**: read `CLAUDE.md` at the repo root for the core rules, then the relevant deep dive in `docs/` — [architecture](docs/architecture.md) (layer hierarchy, entry points, services, adapters), [frontend](docs/frontend.md), [workflows](docs/workflows.md), and [api](docs/api.md). PRs that skip layers or duplicate entry-point logic will be asked to restructure.
 - **Code style**: enforced by rubocop and ESLint. No unnecessary comments; no magic strings (use the constants in `Identifiers` and model constants).
 - **Tests**: every behavior change comes with tests. Never use `Model.last` in tests (parallel execution); build platform objects (`Command`, `Interaction`) instead of raw hashes.
 - **Schema changes**: PRs touching `db/migrate` are auto-labeled `migration` and surface in release notes. Migrations must be safe to run with `bin/rails db:prepare` and never require manual SQL.
