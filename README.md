@@ -31,9 +31,9 @@
   </a>
 </h4>
 
-<!-- TODO before going public: add hero screenshot
-<img src=".github/assets/readme-hero.png" width="100%" alt="Firefight incident dashboard" />
--->
+<p align="center">
+  <img src=".github/assets/readme-hero.png" width="100%" alt="Firefight: declare and resolve incidents in Slack, tracked in a full web dashboard" />
+</p>
 
 ## What is Firefight?
 

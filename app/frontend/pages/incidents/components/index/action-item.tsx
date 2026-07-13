@@ -43,7 +43,15 @@ export function ActionItem({ action }: { action: IncidentAction }) {
       <div className="mt-1 flex items-center gap-1.5 pl-[27px] text-xs text-muted-foreground/60">
         {action.assignee ? (
           <span className="inline-flex items-center gap-1.5">
-            <IconUser className="size-3" />
+            {action.assigneeAvatarUrl ? (
+              <img
+                src={action.assigneeAvatarUrl}
+                alt=""
+                className="size-3.5 rounded-full object-cover"
+              />
+            ) : (
+              <IconUser className="size-3" />
+            )}
             {action.assignee}
           </span>
         ) : (

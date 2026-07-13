@@ -122,9 +122,17 @@ export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
               <div className="flex items-center gap-4">
                 <div className="relative z-10 shrink-0">
                   <div
-                    className={`flex size-[28px] items-center justify-center rounded-full border ${dotClasses}`}
+                    className={`flex size-[28px] items-center justify-center overflow-hidden rounded-full border ${dotClasses}`}
                   >
-                    <Icon className="size-[13px]" strokeWidth={1.5} />
+                    {event.actorAvatarUrl ? (
+                      <img
+                        src={event.actorAvatarUrl}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <Icon className="size-[13px]" strokeWidth={1.5} />
+                    )}
                   </div>
                 </div>
 

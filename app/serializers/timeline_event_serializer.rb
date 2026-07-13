@@ -16,6 +16,14 @@ class TimelineEventSerializer < BaseSerializer
     event.actor&.actor_display_name || "System"
   end
 
+  type :string, optional: true
+  def actor_avatar_url
+    actor = event.actor
+    return nil unless actor.respond_to?(:user)
+
+    actor.user&.avatar_url
+  end
+
   type :string
   def created_at
     event.created_at.utc.iso8601
