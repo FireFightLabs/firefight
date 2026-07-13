@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_11_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_13_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -554,6 +554,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_11_000002) do
     t.index ["redeemed_by_id"], name: "index_invite_codes_on_redeemed_by_id"
   end
 
+  create_table "policies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "domain", null: false
+    t.string "name", null: false
+    t.boolean "enabled", default: true, null: false
+    t.jsonb "domain_config", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workspace_id", "domain", "name"], name: "index_policies_on_workspace_id_and_domain_and_name", unique: true
+    t.index ["workspace_id", "domain"], name: "index_policies_on_workspace_id_and_domain"
+    t.index ["workspace_id"], name: "index_policies_on_workspace_id"
+  end
+
+  create_table "policy_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "policy_id", null: false
+    t.integer "priority", null: false
+    t.jsonb "conditions", default: [], null: false
+    t.jsonb "outcome", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["policy_id", "priority"], name: "index_policy_rules_on_policy_id_and_priority", unique: true
+    t.index ["policy_id"], name: "index_policy_rules_on_policy_id"
+  end
+
   create_table "postmortem_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "postmortem_id", null: false
     t.uuid "incident_id", null: false
@@ -931,6 +955,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_11_000002) do
   add_foreign_key "inferences", "workspace_memberships", column: "member_id"
   add_foreign_key "inferences", "workspaces"
   add_foreign_key "invite_codes", "users", column: "redeemed_by_id"
+  add_foreign_key "policies", "workspaces"
+  add_foreign_key "policy_rules", "policies"
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortems", "incidents"
