@@ -16,14 +16,26 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+const PROVIDERS = [
+  { value: "generic", label: "Generic webhook" },
+  { value: "northflank", label: "Northflank" },
+] as const
 
 export function AddSourceDialog() {
   const [open, setOpen] = useState(false)
-  const form = useForm<{ name: string }>({ name: "" })
+  const form = useForm<{ name: string; provider: string }>({ name: "", provider: "generic" })
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    form.transform(() => ({ alert_source: { name: form.data.name } }))
+    form.transform(() => ({ alert_source: { name: form.data.name, provider: form.data.provider } }))
     form.post(alertSourcesPath(), {
       onSuccess: () => {
         setOpen(false)
@@ -48,16 +60,31 @@ export function AddSourceDialog() {
               Creates a unique ingest URL and secret token for one monitoring tool.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-2 py-4">
-            <Label htmlFor="source-name">Name</Label>
-            <Input
-              id="source-name"
-              value={form.data.name}
-              onChange={(e) => form.setData("name", e.target.value)}
-              placeholder="e.g. Grafana production"
-              autoFocus
-            />
-            {form.errors.name && <p className="text-sm text-destructive">{form.errors.name}</p>}
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="source-name">Name</Label>
+              <Input
+                id="source-name"
+                value={form.data.name}
+                onChange={(e) => form.setData("name", e.target.value)}
+                placeholder="e.g. Northflank production"
+                autoFocus
+              />
+              {form.errors.name && <p className="text-sm text-destructive">{form.errors.name}</p>}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Provider</Label>
+              <Select value={form.data.provider} onValueChange={(value) => form.setData("provider", value)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROVIDERS.map((provider) => (
+                    <SelectItem key={provider.value} value={provider.value}>{provider.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <DialogClose asChild>

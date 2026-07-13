@@ -39,6 +39,7 @@ class CreateAlertIngestion < ActiveRecord::Migration[8.1]
       t.datetime :routed_at
       t.references :incident, foreign_key: true, type: :uuid
       t.references :alert_group, foreign_key: true, type: :uuid
+      t.string :channel_id
       t.string :channel_message_id
       t.datetime :last_notified_at
       t.timestamps

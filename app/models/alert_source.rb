@@ -1,6 +1,7 @@
 class AlertSource < ApplicationRecord
   PROVIDER_GENERIC = "generic"
-  PROVIDERS = [ PROVIDER_GENERIC ].freeze
+  PROVIDER_NORTHFLANK = "northflank"
+  PROVIDERS = [ PROVIDER_GENERIC, PROVIDER_NORTHFLANK ].freeze
 
   DEFAULT_RATE_LIMIT_PER_MINUTE = 60
 

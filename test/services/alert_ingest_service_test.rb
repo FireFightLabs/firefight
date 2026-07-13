@@ -133,6 +133,33 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     assert_equal 0, Incident.where(source: Incident::SOURCE_ALERT).count
   end
 
+  test "batched items without external ids persist as distinct alerts" do
+    shared_payload = { "alerts" => [ { "n" => 1 }, { "n" => 2 } ] }
+
+    first = @service.ingest(firing_fields("title" => "Pod A crash", "service" => "pod-a"), shared_payload)
+    second = @service.ingest(firing_fields("title" => "Pod B crash", "service" => "pod-b"), shared_payload)
+
+    assert_not_equal first.id, second.id
+    assert_equal 2, @source.alerts.count
+  end
+
+  test "notify_only digest updates in place on refire and resolve" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "channel" => "C999" })
+    stub_post_message
+    stub_update_message
+
+    alert = @service.ingest(firing_fields, {})
+    assert_equal "C999", alert.channel_id
+    alert.update!(last_notified_at: 2.minutes.ago)
+
+    refired = @service.ingest(firing_fields, {})
+    assert_equal alert.id, refired.id
+    assert refired.last_notified_at > 1.minute.ago, "refire should update the digest message"
+
+    resolved = @service.ingest(firing_fields("status" => Alert::STATUS_RESOLVED), {})
+    assert_equal Alert::STATUS_RESOLVED, resolved.status
+  end
+
   test "routing failure leaves the alert pending for the sweep" do
     routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE })
     Policy.any_instance.stubs(:evaluate).raises(StandardError, "boom")

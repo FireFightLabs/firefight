@@ -89,7 +89,7 @@ class AlertIngestService
   end
 
   def persist(fields, payload, fingerprint, now)
-    external_id = fields["external_id"].presence || Digest::SHA256.hexdigest(payload.to_json)
+    external_id = fields["external_id"].presence || fallback_external_id(fields, payload)
 
     @source.alerts.create!(
       workspace: @workspace,
@@ -104,6 +104,13 @@ class AlertIngestService
   rescue ActiveRecord::RecordNotUnique
     # Duplicate provider delivery — the earlier insert already won.
     @source.alerts.find_by!(external_id: external_id)
+  end
+
+  # Must be unique per item within a batched delivery (Alertmanager posts
+  # arrays), yet stable across redeliveries of the same body — so hash the
+  # normalized fields together with the raw payload.
+  def fallback_external_id(fields, payload)
+    Digest::SHA256.hexdigest("#{payload.to_json}\n#{fields.to_json}")
   end
 
   def routing_policy
@@ -182,7 +189,7 @@ class AlertIngestService
     return if channel_id.blank?
 
     result = WorkspaceAdapter.for(@workspace).post_alert_message(channel_id: channel_id, alert: alert)
-    alert.update!(channel_message_id: result[:message_id], last_notified_at: Time.current)
+    alert.update!(channel_id: channel_id, channel_message_id: result[:message_id], last_notified_at: Time.current)
   rescue AdapterError => e
     Rails.logger.warn({ event: "alert_notify.failed", alert_id: alert.id, error: e.message }.to_json)
   end
@@ -218,7 +225,7 @@ class AlertIngestService
   # Slack digest throttling: one message per alert that gets updated, never a
   # post per firing. Status transitions (attach/resolve) bypass the interval.
   def notify_digest(alert, force: false)
-    channel_id = alert.incident&.channel_id
+    channel_id = alert.incident&.channel_id || alert.channel_id
     return if channel_id.blank?
 
     adapter = WorkspaceAdapter.for(@workspace)
@@ -230,7 +237,7 @@ class AlertIngestService
       alert.update!(last_notified_at: Time.current)
     else
       result = adapter.post_alert_message(channel_id: channel_id, alert: alert)
-      alert.update!(channel_message_id: result[:message_id], last_notified_at: Time.current)
+      alert.update!(channel_id: channel_id, channel_message_id: result[:message_id], last_notified_at: Time.current)
     end
   rescue AdapterError => e
     Rails.logger.warn({ event: "alert_digest.failed", alert_id: alert.id, error: e.message }.to_json)

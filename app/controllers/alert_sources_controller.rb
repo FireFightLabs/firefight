@@ -5,7 +5,7 @@ class AlertSourcesController < InertiaController
   def create
     source = current_workspace.alert_sources.new(
       name: params.dig(:alert_source, :name),
-      provider: AlertSource::PROVIDER_GENERIC
+      provider: params.dig(:alert_source, :provider).presence || AlertSource::PROVIDER_GENERIC
     )
 
     if source.save

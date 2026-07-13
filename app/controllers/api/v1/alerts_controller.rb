@@ -14,6 +14,9 @@ class Api::V1::AlertsController < ActionController::API
 
     payload = JSON.parse(raw_body)
     normalized = source.adapter.normalize(payload, source: source)
+    if normalized.empty?
+      return render json: { ok: false, error: "unrecognized payload for provider #{source.provider}" }, status: :unprocessable_entity
+    end
 
     service = AlertIngestService.new(source)
     normalized.each { |fields| service.ingest(fields, payload) }

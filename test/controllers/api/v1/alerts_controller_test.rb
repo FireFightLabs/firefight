@@ -70,6 +70,39 @@ class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
+  test "unrecognizable payload returns 422" do
+    post "/api/v1/alerts/#{@source.endpoint_path}",
+         params: [ 1, 2 ].to_json,
+         headers: { "Content-Type" => "application/json", "Authorization" => "Bearer #{@source.secret_token}" }
+
+    assert_response :unprocessable_entity
+    assert_equal 0, @source.alerts.count
+  end
+
+  test "northflank source authenticates via its token header and normalizes the event" do
+    source = AlertSource.create!(workspace: @workspace, name: "Northflank", provider: AlertSource::PROVIDER_NORTHFLANK)
+    payload = {
+      "event" => "container:crash",
+      "data" => {
+        "service" => { "id" => "website", "name" => "Website" },
+        "project" => { "id" => "blog", "name" => "Blog" }
+      }
+    }
+
+    post "/api/v1/alerts/#{source.endpoint_path}",
+         params: payload.to_json,
+         headers: {
+           "Content-Type" => "application/json",
+           AlertProviders::Northflank::TOKEN_HEADER => source.secret_token
+         }
+
+    assert_response :success
+    alert = source.alerts.sole
+    assert_equal "container:crash", alert.fields["event"]
+    assert_equal "website", alert.fields["service"]
+    assert_equal "Container crash — Website (Blog)", alert.title
+  end
+
   test "rate limit returns 429 before verification work" do
     Rails.cache.stubs(:increment).returns(AlertSource::DEFAULT_RATE_LIMIT_PER_MINUTE + 1)
 

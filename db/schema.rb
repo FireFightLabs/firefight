@@ -86,6 +86,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_13_150000) do
     t.datetime "routed_at"
     t.uuid "incident_id"
     t.uuid "alert_group_id"
+    t.string "channel_id"
     t.string "channel_message_id"
     t.datetime "last_notified_at"
     t.datetime "created_at", null: false

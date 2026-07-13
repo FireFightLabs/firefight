@@ -3,7 +3,8 @@
 # provider payload into an array of Alert field hashes.
 module AlertProviders
   ADAPTERS = {
-    AlertSource::PROVIDER_GENERIC => "AlertProviders::Generic"
+    AlertSource::PROVIDER_GENERIC => "AlertProviders::Generic",
+    AlertSource::PROVIDER_NORTHFLANK => "AlertProviders::Northflank"
   }.freeze
 
   def self.for(provider)
