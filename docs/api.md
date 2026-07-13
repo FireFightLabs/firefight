@@ -17,6 +17,8 @@ REST API at `/api/v1/` with Bearer token authentication via `ApiKey` model. API 
 app/controllers/concerns/api_authentication.rb  # Bearer token auth + permission checking
 app/controllers/api/v1/api_controller.rb        # Base controller (error handling, pagination)
 app/controllers/api/v1/incidents_controller.rb   # Incident CRUD
+app/controllers/api/v1/custom_fields_controller.rb # Custom field values
+app/controllers/api/v1/catalog/                  # Catalogue read/write endpoints
 app/controllers/api/v1/severities_controller.rb  # Read-only
 app/controllers/api/v1/statuses_controller.rb    # Read-only
 app/controllers/api/v1/incident_types_controller.rb # Read-only
@@ -24,3 +26,5 @@ app/models/api_key.rb                            # Token auth, permissions, cach
 app/models/idempotency_key.rb                    # Deduplication
 app/views/api/v1/                                # Jbuilder response templates
 ```
+
+**Namespace gotcha**: `commands_controller.rb`, `interactions_controller.rb`, and `events_controller.rb` also live under `app/controllers/api/v1/`, but they are the **Slack entry points** (inherit `Api::V1::BaseController`, Slack signature verification) — not part of the public API.

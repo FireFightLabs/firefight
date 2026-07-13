@@ -190,7 +190,7 @@ Adapters have two levels of methods:
 - **Low-level**: generic operations (`post_message`, `open_modal`, `pin_message`, `post_ephemeral`)
 - **High-level**: intent-based operations that encapsulate UI building (`open_incident_creation_modal`, `open_home_modal`, `update_home_modal`, `post_incident_quick_actions`, `post_incident_announcement`)
 
-Handlers and services call high-level adapter methods — never reference platform-specific builders (`Slack::ModalBuilder`, `Slack::IncidentMessageBuilder`) directly. UI building stays inside the adapter layer.
+Handlers and services call high-level adapter methods — never reference platform-specific builders (`Slack::Messages::*`, `Slack::Modals::*`) directly. UI building stays inside the adapter layer.
 
 Adapters catch platform-specific errors and re-raise as `AdapterError` subclasses:
 - `Slack::Client::TriggerExpiredError` → `AdapterError::TriggerExpired`
@@ -298,12 +298,11 @@ app/models/
   identifiers.rb                      # Platform-agnostic callback_ids/action_ids
   incident.rb                         # AR model with concerns (Sequencing, ChannelNaming, etc.)
 
-app/serializers/
+app/serializers/                      # (representative — one serializer per Inertia prop shape)
   base_serializer.rb                  # Oj::Serializer base with camelCase keys + TS generation
+  incident_detail_serializer.rb       # Incident → incident detail page props
   incident_list_item_serializer.rb    # Incident → dashboard list props (auto-generates TS)
-  severity_compact_serializer.rb      # IncidentSeverity → {name, rank}
-  status_compact_serializer.rb        # IncidentStatus → {name, lifecycleStage}
-  severity_option_serializer.rb       # IncidentSeverity → {name, slug}
+  timeline_event_serializer.rb        # IncidentEvent → timeline entries
 
 app/services/
   incident_lifecycle_service.rb       # Shared write operations (create, update, close, reopen, lead)
@@ -321,8 +320,8 @@ app/views/shared/
   _incident.json.jbuilder             # Shared incident serialization (used by API + webhooks)
   _actor.json.jbuilder                # Shared actor serialization (used by API + webhooks)
 
-app/workflows/
-  base.rb                             # Workflow engine with step DSL
+app/workflows/                        # All inherit SolidWorkflow::Base (engine: engines/solid_workflow/)
   incident_creation_workflow.rb       # Thin delegates to IncidentCreationService
+  incident_close_workflow.rb          # + update/reopen/escalation/link/lead/summary workflows
   slack_workspace_setup_workflow.rb   # Thin delegates to WorkspaceSetupService
 ```

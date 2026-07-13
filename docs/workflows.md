@@ -5,9 +5,11 @@ Built on the SolidWorkflow engine (`engines/solid_workflow/`). Workflows are thi
 ## Step DSL
 
 ```ruby
-class IncidentCreationWorkflow < Base
+class IncidentCreationWorkflow < SolidWorkflow::Base
+  workflow_name "incident.creation.v1"
+
   step :create_slack_channel
-  step :set_channel_metadata, depends_on: [:create_slack_channel]
+  step :set_channel_metadata, depends_on: [ :create_slack_channel ]
   step :notify, retry_config: { max_attempts: 3, backoff: "fixed" }
 
   def create_slack_channel(workflow:, step:, input:)

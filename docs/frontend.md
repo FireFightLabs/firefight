@@ -11,11 +11,11 @@ React 19 + TypeScript + Inertia.js (server-driven routing) + Vite + Tailwind CSS
 `oj_serializers` serialize data for Inertia props (and eventually API responses). `types_from_serializers` auto-generates TypeScript interfaces from serializer definitions — no manual type maintenance.
 
 ```
-app/serializers/
+app/serializers/                  # one serializer per Inertia prop shape; representative examples:
   base_serializer.rb              # Oj::Serializer + TypesFromSerializers::DSL, transform_keys :camelize
+  incident_detail_serializer.rb     # Incident → incident detail page
   incident_list_item_serializer.rb  # Incident → dashboard list view
-  severity_compact_serializer.rb    # IncidentSeverity → {name, rank}
-  status_compact_serializer.rb      # IncidentStatus → {name, lifecycleStage}
+  timeline_event_serializer.rb      # IncidentEvent → timeline entries
   severity_option_serializer.rb     # IncidentSeverity → {name, slug}
 ```
 
@@ -106,8 +106,10 @@ app/frontend/
     incidents/
       index.tsx            # /incidents/:id
       postmortem.tsx       # /incidents/:id/postmortem
-      components/          # incident-header, timeline, actions, postmortem-card, postmortem-editor
-      types.ts             # Incident, IncidentAction, TimelineEvent
+      components/
+        index/             # incident-header, incident-timeline, action-panel, ... (detail page only)
+        postmortem/        # postmortem-editor, ai-rewrite-dialog, revisions-sheet (postmortem page only)
+      types.ts             # Re-exports Incident, IncidentAction, TimelineEvent from @/types/serializers
     catalogue/
       index.tsx            # /catalogue
       type.tsx             # /catalogue/:type_slug
