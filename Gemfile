@@ -121,7 +121,7 @@ gem "opentelemetry-sdk", require: false
 gem "opentelemetry-exporter-otlp", require: false
 gem "opentelemetry-instrumentation-all", require: false
 
-gem "vite_rails", "~> 3.0"
+gem "vite_rails", "~> 3.11"
 
 gem "oj_serializers"
 gem "types_from_serializers"
