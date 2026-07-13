@@ -160,6 +160,28 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     assert_equal Alert::STATUS_RESOLVED, resolved.status
   end
 
+  test "source-scoped policy takes precedence over the workspace-wide fallback" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE })
+    scoped = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Scoped", scoped_to: @source)
+    scoped.policy_rules.create!(priority: 1, conditions: [], outcome: { "action" => AlertIngestService::ACTION_DROP })
+
+    alert = @service.ingest(firing_fields, {})
+
+    assert_equal Alert::ROUTING_ROUTED, alert.routing_state
+    assert_nil alert.incident, "scoped drop rule should win over workspace auto-create"
+  end
+
+  test "disabled source-scoped policy falls back to the workspace-wide policy" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_DROP })
+    scoped = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Scoped", scoped_to: @source, enabled: false)
+    scoped.policy_rules.create!(priority: 1, conditions: [], outcome: { "action" => AlertIngestService::ACTION_AUTO_CREATE })
+
+    alert = @service.ingest(firing_fields, {})
+
+    assert_equal Alert::ROUTING_ROUTED, alert.routing_state
+    assert_nil alert.incident
+  end
+
   test "routing failure leaves the alert pending for the sweep" do
     routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE })
     Policy.any_instance.stubs(:evaluate).raises(StandardError, "boom")

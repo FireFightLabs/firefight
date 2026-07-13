@@ -119,7 +119,7 @@ export function AlertSourcesTab({
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
                         <Button asChild variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-muted-foreground">
-                          <Link href={`${settingsAlertRoutingPath()}?source=${encodeURIComponent(source.name)}`}>
+                          <Link href={`${settingsAlertRoutingPath()}?source_id=${source.id}`}>
                             <IconRoute className="size-3.5" />
                             Routing
                           </Link>

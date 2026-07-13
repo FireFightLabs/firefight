@@ -39,7 +39,7 @@ interface TestResult {
   trace: TraceEntry[]
 }
 
-export function RouteTester({ hasPolicy }: { hasPolicy: boolean }) {
+export function RouteTester({ hasPolicy, alertSourceId = null }: { hasPolicy: boolean; alertSourceId?: string | null }) {
   const [fields, setFields] = useState<TesterField[]>([
     { key: "service", value: "" },
     { key: "title", value: "" },
@@ -61,7 +61,7 @@ export function RouteTester({ hasPolicy }: { hasPolicy: boolean }) {
           "Content-Type": "application/json",
           "X-CSRF-Token": csrfToken(),
         },
-        body: JSON.stringify({ fields: payload }),
+        body: JSON.stringify({ fields: payload, alert_source_id: alertSourceId }),
       })
       setResult(response.ok ? await response.json() : null)
     } finally {

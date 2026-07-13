@@ -9,6 +9,8 @@ class AlertSource < ApplicationRecord
 
   belongs_to :workspace
   has_many :alerts, dependent: :destroy
+  has_one :routing_policy, -> { for_domain(Policy::DOMAIN_ALERT_ROUTING) },
+          class_name: "Policy", as: :scoped_to, dependent: :destroy
 
   before_validation :generate_credentials, on: :create
 
@@ -21,6 +23,14 @@ class AlertSource < ApplicationRecord
 
   def adapter
     AlertProviders.for(provider)
+  end
+
+  # This source's own policy wins; the workspace-wide policy is the shared
+  # fallback for sources without one.
+  def effective_routing_policy
+    [ routing_policy,
+      workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first ]
+      .compact.detect(&:enabled?)
   end
 
   def rate_limit_per_minute

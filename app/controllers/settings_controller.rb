@@ -95,10 +95,18 @@ class SettingsController < InertiaController
   end
 
   def alert_routing
-    policy = current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).first
+    source = current_workspace.alert_sources.find(params[:source_id]) if params[:source_id].present?
+    policy =
+      if source
+        source.routing_policy
+      else
+        current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first
+      end
 
     render inertia: "settings/alert-routing", props: {
       policy: policy ? AlertRoutingPolicySerializer.one(policy) : nil,
+      alertSource: source ? { id: source.id, name: source.name } : nil,
+      hasWorkspaceFallback: current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.exists?,
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.active.ordered
       )

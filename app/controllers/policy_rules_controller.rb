@@ -8,7 +8,7 @@ class PolicyRulesController < InertiaController
     rule.priority = (policy.policy_rules.maximum(:priority) || 0) + 1
 
     if rule.save
-      redirect_to settings_alert_routing_path
+      redirect_to routing_path_for(policy)
     else
       redirect_back fallback_location: settings_alert_routing_path, inertia: { errors: rule.errors.to_hash }
     end
@@ -16,7 +16,7 @@ class PolicyRulesController < InertiaController
 
   def update
     if @rule.update(rule_params)
-      redirect_to settings_alert_routing_path
+      redirect_to routing_path_for(@rule.policy)
     else
       redirect_back fallback_location: settings_alert_routing_path, inertia: { errors: @rule.errors.to_hash }
     end
@@ -24,7 +24,7 @@ class PolicyRulesController < InertiaController
 
   def destroy
     @rule.destroy!
-    redirect_to settings_alert_routing_path
+    redirect_to routing_path_for(@rule.policy)
   end
 
   def move_up
@@ -42,8 +42,14 @@ class PolicyRulesController < InertiaController
   end
 
   def find_or_create_policy
-    current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).first ||
-      current_workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Alert routing")
+    if params[:alert_source_id].present?
+      source = current_workspace.alert_sources.find(params[:alert_source_id])
+      source.routing_policy ||
+        current_workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Alert routing", scoped_to: source)
+    else
+      current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first ||
+        current_workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Alert routing")
+    end
   end
 
   def swap_with(other)
@@ -56,7 +62,15 @@ class PolicyRulesController < InertiaController
         @rule.update_columns(priority: b)
       end
     end
-    redirect_to settings_alert_routing_path
+    redirect_to routing_path_for(@rule.policy)
+  end
+
+  def routing_path_for(policy)
+    if policy.scoped_to_type == AlertSource.name
+      settings_alert_routing_path(source_id: policy.scoped_to_id)
+    else
+      settings_alert_routing_path
+    end
   end
 
   def rule_params

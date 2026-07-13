@@ -10,16 +10,17 @@ import type { SharedProps } from "@/types"
 interface AlertRoutingPageProps extends SharedProps {
   [key: string]: unknown
   policy: AlertRoutingPolicy | null
+  alertSource: { id: string; name: string } | null
+  hasWorkspaceFallback: boolean
   severities: IncidentSeveritySettings[]
 }
 
 export default function AlertRouting() {
-  const { policy, severities } = usePage<AlertRoutingPageProps>().props
-  const prefillSource = new URLSearchParams(window.location.search).get("source")
+  const { policy, alertSource, hasWorkspaceFallback, severities } = usePage<AlertRoutingPageProps>().props
 
   return (
     <AuthenticatedLayout title="Alert Routing">
-      <Head title="Alert Routing" />
+      <Head title={alertSource ? `Alert Routing — ${alertSource.name}` : "Alert Routing"} />
       <div className="flex flex-col gap-4 px-4 py-4 md:py-6 lg:px-6">
         <Link
           href={settingsAlertSourcesPath()}
@@ -28,7 +29,12 @@ export default function AlertRouting() {
           <IconArrowLeft className="size-3.5" />
           Alert Sources
         </Link>
-        <AlertRoutingTab policy={policy} severities={severities} prefillSource={prefillSource} />
+        <AlertRoutingTab
+          policy={policy}
+          severities={severities}
+          alertSource={alertSource}
+          hasWorkspaceFallback={hasWorkspaceFallback}
+        />
       </div>
     </AuthenticatedLayout>
   )

@@ -37,6 +37,20 @@ class PolicyRulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, policy.policy_rules.count
   end
 
+  test "create with alert_source_id creates a source-scoped policy" do
+    source = @workspace.alert_sources.create!(name: "Northflank", provider: AlertSource::PROVIDER_NORTHFLANK)
+
+    post policy_rules_url, params: {
+      alert_source_id: source.id,
+      rule: { conditions: [], outcome: { action: AlertIngestService::ACTION_DROP } }
+    }
+
+    policy = source.reload.routing_policy
+    assert policy.present?
+    assert_equal 1, policy.policy_rules.count
+    assert_redirected_to settings_alert_routing_path(source_id: source.id)
+  end
+
   test "move_up swaps priorities" do
     policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
     first = create_rule!(policy, 1)

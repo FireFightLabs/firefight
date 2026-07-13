@@ -114,7 +114,9 @@ class AlertIngestService
   end
 
   def routing_policy
-    @routing_policy ||= @workspace.policies.enabled.for_domain(Policy::DOMAIN_ALERT_ROUTING).first
+    return @routing_policy if defined?(@routing_policy)
+
+    @routing_policy = @source.effective_routing_policy
   end
 
   def routing_context(alert)

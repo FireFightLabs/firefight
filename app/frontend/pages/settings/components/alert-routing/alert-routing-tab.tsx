@@ -47,18 +47,20 @@ function conditionsSummary(rule: PolicyRule): string {
 export function AlertRoutingTab({
   policy,
   severities,
-  prefillSource = null,
+  alertSource = null,
+  hasWorkspaceFallback = false,
 }: {
   policy: AlertRoutingPolicy | null
   severities: IncidentSeveritySettings[]
-  prefillSource?: string | null
+  alertSource?: { id: string; name: string } | null
+  hasWorkspaceFallback?: boolean
 }) {
   const [editingRule, setEditingRule] = useState<PolicyRule | null>(null)
-  const [addingRule, setAddingRule] = useState(() => Boolean(prefillSource))
+  const [addingRule, setAddingRule] = useState(false)
   const rules = policy?.rules ?? []
 
   function togglePolicy(enabled: boolean) {
-    router.patch(alertRoutingPath(), { policy: { enabled } })
+    router.patch(alertRoutingPath(), { policy: { enabled }, alert_source_id: alertSource?.id })
   }
 
   return (
@@ -67,10 +69,11 @@ export function AlertRoutingTab({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Alert routing</CardTitle>
+              <CardTitle>{alertSource ? `Alert routing — ${alertSource.name}` : "Default alert routing"}</CardTitle>
               <CardDescription className="mt-1">
-                Ordered rules evaluated top to bottom; the first match decides what happens to an alert.
-                Unmatched alerts are stored but create nothing.
+                {alertSource
+                  ? `Ordered rules for alerts from ${alertSource.name}; the first match wins. If none match, the workspace default routing applies.`
+                  : "Fallback rules for sources without their own routing; the first match wins. Unmatched alerts are stored but create nothing."}
               </CardDescription>
             </div>
             <div className="flex items-center gap-4">
@@ -144,13 +147,16 @@ export function AlertRoutingTab({
         )}
       </Card>
 
-      <RouteTester hasPolicy={Boolean(policy)} />
+      <RouteTester
+        hasPolicy={Boolean(policy) || (Boolean(alertSource) && hasWorkspaceFallback)}
+        alertSourceId={alertSource?.id ?? null}
+      />
 
       {(addingRule || editingRule) && (
         <RuleDialog
           rule={editingRule}
           severities={severities}
-          prefillSource={editingRule ? null : prefillSource}
+          alertSourceId={alertSource?.id ?? null}
           onClose={() => {
             setAddingRule(false)
             setEditingRule(null)
