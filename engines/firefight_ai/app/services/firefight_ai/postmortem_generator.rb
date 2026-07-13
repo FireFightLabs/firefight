@@ -82,7 +82,7 @@ module FirefightAi
 
         Your writing should be:
         - Factual and precise — use specific timestamps, metrics, and names from the data provided
-        - Blameless — focus on systems and processes, never blame individuals
+        - blameless — focus on systems and processes, never blame individuals
         - Actionable — contributing factors and action items should lead to concrete improvements
         - Clear — write for a technical audience but keep language accessible
 
