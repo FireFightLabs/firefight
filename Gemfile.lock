@@ -724,7 +724,7 @@ GEM
     thruster (0.1.22-x86_64-linux)
     timeout (0.6.1)
     tsort (0.2.0)
-    types_from_serializers (2.6.0)
+    types_from_serializers (2.6.1)
       listen (~> 3.2)
       oj_serializers (>= 2.0.2)
       railties (>= 5.1)
