@@ -1,15 +1,24 @@
 import { useState } from "react"
-import { IconArrowDown, IconArrowUp, IconRoute } from "@tabler/icons-react"
+import { IconArrowDown, IconArrowUp, IconFlask, IconRoute } from "@tabler/icons-react"
 import { router } from "@inertiajs/react"
 
 import type { AlertRoutingPolicy, IncidentSeveritySettings, PolicyRule, WorkspaceMembership } from "@/types/serializers"
 import {
   alertRoutingPath,
+  alertRoutingTestPath,
   moveDownPolicyRulePath,
   moveUpPolicyRulePath,
   policyRulePath,
 } from "@/lib/routes"
-import { ACTION_LABELS, type CatalogOptionMap, type SlackChannel, type TestResult } from "@/pages/settings/lib/alerts"
+import {
+  ACTION_LABELS,
+  csrfToken,
+  sampleFieldsFor,
+  type CatalogOptionMap,
+  type RuleCondition,
+  type SlackChannel,
+  type TestResult,
+} from "@/pages/settings/lib/alerts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,7 +40,7 @@ import {
 } from "@/components/ui/table"
 import { RowActions } from "@/pages/settings/components/row-actions"
 import { RuleDialog } from "@/pages/settings/components/alert-routing/rule-dialog"
-import { RouteTester } from "@/pages/settings/components/alert-routing/route-tester"
+import { CustomTestDialog } from "@/pages/settings/components/alert-routing/custom-test-dialog"
 
 function conditionsSummary(rule: PolicyRule): string {
   if (rule.conditions.length === 0) return "Always matches (catch-all)"
@@ -49,7 +58,7 @@ function TestOutcomeBadge({ rule, testResult }: { rule: PolicyRule; testResult: 
   if (!entry) return null
 
   if (entry.matched) {
-    return <Badge className="ml-2">✓ matched</Badge>
+    return <Badge className="ml-2">✓ fires</Badge>
   }
   if (entry.skipped) {
     return <span className="ml-2 text-xs text-muted-foreground/60">skipped (disabled)</span>
@@ -77,7 +86,32 @@ export function AlertRoutingTab({
   const [editingRule, setEditingRule] = useState<PolicyRule | null>(null)
   const [addingRule, setAddingRule] = useState(false)
   const [testResult, setTestResult] = useState<TestResult | null>(null)
+  const [testedRuleId, setTestedRuleId] = useState<string | null>(null)
   const rules = policy?.rules ?? []
+  const canTest = Boolean(policy) || (Boolean(alertSource) && hasWorkspaceFallback)
+
+  async function runTest(fields: Record<string, string>): Promise<TestResult | null> {
+    const response = await fetch(alertRoutingTestPath(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+      body: JSON.stringify({ fields, alert_source_id: alertSource?.id ?? null }),
+    })
+    const parsed: TestResult | null = response.ok ? await response.json() : null
+    setTestResult(parsed)
+    return parsed
+  }
+
+  function testRule(rule: PolicyRule) {
+    setTestedRuleId(rule.id)
+    void runTest(sampleFieldsFor(rule.conditions as RuleCondition[]))
+  }
+
+  function shadowNote(rule: PolicyRule): string | null {
+    if (!testResult || testedRuleId !== rule.id) return null
+    const winnerIndex = testResult.trace.findIndex((t) => t.matched)
+    if (winnerIndex === -1 || testResult.trace[winnerIndex]?.rule_id === rule.id) return null
+    return `a sample for this rule is captured by rule ${winnerIndex + 1} first`
+  }
 
   function togglePolicy(enabled: boolean) {
     router.patch(alertRoutingPath(), { policy: { enabled }, alert_source_id: alertSource?.id })
@@ -107,6 +141,7 @@ export function AlertRoutingTab({
                   <Switch id="routing-enabled" checked={policy.enabled} onCheckedChange={togglePolicy} />
                 </div>
               )}
+              <CustomTestDialog disabled={!canTest} onRun={runTest} />
               <Button size="sm" onClick={() => setAddingRule(true)}>Add Rule</Button>
             </div>
           </div>
@@ -130,6 +165,9 @@ export function AlertRoutingTab({
                     <TableCell className="max-w-md text-sm">
                       <span className="truncate">{conditionsSummary(rule)}</span>
                       <TestOutcomeBadge rule={rule} testResult={testResult} />
+                      {shadowNote(rule) && (
+                        <span className="ml-2 text-xs text-amber-500/80">⚠ {shadowNote(rule)}</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{ACTION_LABELS[rule.outcome.action] ?? rule.outcome.action}</Badge>
@@ -139,6 +177,16 @@ export function AlertRoutingTab({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-muted-foreground"
+                          title="Test this rule"
+                          disabled={!canTest}
+                          onClick={() => testRule(rule)}
+                        >
+                          <IconFlask className="size-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -177,12 +225,6 @@ export function AlertRoutingTab({
           </CardContent>
         )}
       </Card>
-
-      <RouteTester
-        hasPolicy={Boolean(policy) || (Boolean(alertSource) && hasWorkspaceFallback)}
-        alertSourceId={alertSource?.id ?? null}
-        onResult={setTestResult}
-      />
 
       {(addingRule || editingRule) && (
         <RuleDialog

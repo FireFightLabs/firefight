@@ -56,6 +56,18 @@ export interface TestResult {
   resolution?: { invite: string[]; notify: string | null; notes: string[] } | null
 }
 
+// Derive a sample alert that should satisfy a rule's own conditions, so a
+// per-rule test exercises the real first-match evaluation with plausible input.
+export function sampleFieldsFor(conditions: RuleCondition[]): Record<string, string> {
+  const fields: Record<string, string> = {}
+  for (const condition of conditions) {
+    if (condition.operator === "is_empty") continue
+    const value = Array.isArray(condition.value) ? condition.value[0] : condition.value
+    if (value) fields[condition.field] = value
+  }
+  return fields
+}
+
 export function csrfToken(): string {
   return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? ""
 }
