@@ -245,6 +245,40 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     assert event.metadata["unresolved_targets"].any?
   end
 
+  test "custom fingerprint fields change what dedups together" do
+    @source.update!(config: { "fingerprint_fields" => [ "service" ] })
+    routing_policy!({ "action" => AlertIngestService::ACTION_DROP })
+
+    first = @service.ingest(firing_fields("title" => "One"), {})
+    second = @service.ingest(firing_fields("title" => "Completely different"), {})
+
+    assert_equal first.id, second.id
+    assert_equal 2, second.reload.event_count
+  end
+
+  test "a zero flap window disables reopening" do
+    @source.update!(config: { "flap_window_minutes" => 0 })
+    routing_policy!({ "action" => AlertIngestService::ACTION_DROP })
+    first = @service.ingest(firing_fields("external_id" => "e1"), {})
+    @service.ingest(firing_fields("external_id" => "e1", "status" => Alert::STATUS_RESOLVED), {})
+
+    fresh = @service.ingest(firing_fields("external_id" => "e2"), {})
+
+    assert_not_equal first.id, fresh.id
+  end
+
+  test "grouping window and content match fields come from the policy domain_config" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE },
+                    domain_config: { "grouping_window_minutes" => 30, "content_match_fields" => [ "environment" ] })
+
+    first = @service.ingest(firing_fields("external_id" => "e1", "environment" => "prod", "service" => "a"), {})
+    second = @service.ingest(firing_fields("external_id" => "e2", "environment" => "prod", "service" => "b", "title" => "Other"), {})
+
+    assert_equal first.incident, second.incident
+    group = AlertGroup.find_by!(incident: first.incident)
+    assert_in_delta 30.minutes.from_now.to_i, group.window_expires_at.to_i, 10
+  end
+
   test "losing the open-fingerprint insert race folds into the winner" do
     routing_policy!({ "action" => AlertIngestService::ACTION_DROP })
     winner, created = @service.send(:persist, firing_fields("external_id" => "a"), {}, "fp-1", Time.current)

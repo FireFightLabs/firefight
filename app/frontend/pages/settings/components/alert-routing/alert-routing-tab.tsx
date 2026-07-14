@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/table"
 import { RowActions } from "@/pages/settings/components/row-actions"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { GroupingSettings } from "@/pages/settings/components/alert-routing/grouping-settings"
 import { RuleDialog } from "@/pages/settings/components/alert-routing/rule-dialog"
 import { CustomTestDialog } from "@/pages/settings/components/alert-routing/custom-test-dialog"
 import { TestOutcomeBadge } from "@/pages/settings/components/alert-routing/test-outcome-badge"
@@ -297,6 +298,8 @@ export function AlertRoutingTab({
           </CardContent>
         )}
       </Card>
+
+      {policy && <GroupingSettings policy={policy} alertSourceId={alertSource?.id ?? null} />}
 
       {(addingRule || editingRule) && (
         <RuleDialog

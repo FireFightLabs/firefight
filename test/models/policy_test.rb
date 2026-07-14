@@ -52,4 +52,16 @@ class PolicyTest < ActiveSupport::TestCase
 
     assert_equal [ early, late ], policy.ordered_rules.to_a
   end
+
+  test "alert routing domain_config validates grouping knobs" do
+    policy = Policy.new(workspace: workspaces(:slack_workspace_one), domain: Policy::DOMAIN_ALERT_ROUTING,
+                        name: "Knobs", domain_config: { "grouping_window_minutes" => 2 })
+    assert_not policy.valid?
+
+    policy.domain_config = { "grouping_window_minutes" => 30, "content_match_fields" => [ "service" ] }
+    assert policy.valid?
+
+    policy.domain_config = { "content_match_fields" => "service" }
+    assert_not policy.valid?
+  end
 end

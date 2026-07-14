@@ -79,6 +79,7 @@ Rails.application.routes.draw do
     resources :alert_sources, only: [ :create, :update, :destroy ], path: "settings/alert-sources" do
       member do
         post :token
+        get :sample_payload
       end
     end
     get "/settings/alerts", to: "settings#alerts", as: :settings_alerts

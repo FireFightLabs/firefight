@@ -18,6 +18,14 @@ class AlertRoutingControllerTest < ActionDispatch::IntegrationTest
     assert_not policy.enabled
   end
 
+  test "update writes grouping knobs into domain_config" do
+    patch alert_routing_url, params: { policy: { grouping_window_minutes: 45, content_match_fields: [ "service", "environment" ] } }
+
+    policy = @workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).first
+    assert_equal 45, policy.domain_config["grouping_window_minutes"]
+    assert_equal [ "service", "environment" ], policy.domain_config["content_match_fields"]
+  end
+
   test "test evaluates fields against the policy with a trace" do
     policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
     policy.policy_rules.create!(

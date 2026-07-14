@@ -11,9 +11,9 @@ class AlertTest < ActiveSupport::TestCase
   test "fallback fingerprint is deterministic over source, service and title" do
     fields = { "service" => "api", "title" => "DB down" }
 
-    assert_equal Alert.fallback_fingerprint(@source.id, fields), Alert.fallback_fingerprint(@source.id, fields)
-    assert_not_equal Alert.fallback_fingerprint(@source.id, fields),
-                     Alert.fallback_fingerprint(@source.id, fields.merge("title" => "Other"))
+    assert_equal Alert.fallback_fingerprint(@source, fields), Alert.fallback_fingerprint(@source, fields)
+    assert_not_equal Alert.fallback_fingerprint(@source, fields),
+                     Alert.fallback_fingerprint(@source, fields.merge("title" => "Other"))
   end
 
   test "record_firing! bumps the counter and reopens a resolved alert" do

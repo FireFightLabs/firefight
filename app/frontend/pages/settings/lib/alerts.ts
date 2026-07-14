@@ -31,6 +31,19 @@ export const PROVIDER_LABELS: Record<string, string> = {
   northflank: "Northflank",
 }
 
+// Mirrors AlertProviders::Base::NORMALIZED_FIELDS.
+export const NORMALIZED_FIELDS = [
+  "title",
+  "description",
+  "service",
+  "severity_raw",
+  "status",
+  "external_id",
+  "fingerprint",
+  "team",
+  "environment",
+] as const
+
 export interface RuleCondition {
   field: string
   operator: ConditionOperator

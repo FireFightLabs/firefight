@@ -4,6 +4,9 @@ class AlertSource < ApplicationRecord
   PROVIDERS = [ PROVIDER_GENERIC, PROVIDER_NORTHFLANK ].freeze
 
   DEFAULT_RATE_LIMIT_PER_MINUTE = 60
+  DEFAULT_FINGERPRINT_FIELDS = %w[service title].freeze
+  DEFAULT_FLAP_WINDOW_MINUTES = 5
+  FLAP_WINDOW_MINUTES_RANGE = (0..60).freeze
 
   encrypts :secret_token
 
@@ -48,6 +51,16 @@ class AlertSource < ApplicationRecord
 
   def rate_limit_per_minute
     config.fetch("rate_limit_per_minute", DEFAULT_RATE_LIMIT_PER_MINUTE).to_i
+  end
+
+  # Which normalized fields identify "the same alert" when the provider sends
+  # no fingerprint of its own.
+  def fingerprint_fields
+    Array(config["fingerprint_fields"]).presence || DEFAULT_FINGERPRINT_FIELDS
+  end
+
+  def flap_window
+    config.fetch("flap_window_minutes", DEFAULT_FLAP_WINDOW_MINUTES).to_i.minutes
   end
 
   # Per-source static map ({"critical" => severity_id}) with the workspace

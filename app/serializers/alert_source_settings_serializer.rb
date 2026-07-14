@@ -37,6 +37,26 @@ class AlertSourceSettingsSerializer < BaseSerializer
     alert_source.config.fetch("severity_map", {})
   end
 
+  type "Record<string, string>"
+  def field_map
+    alert_source.config.fetch("field_map", {})
+  end
+
+  type :string, optional: true
+  def items_path
+    alert_source.config["items_path"]
+  end
+
+  type "string[]"
+  def fingerprint_fields
+    alert_source.fingerprint_fields
+  end
+
+  type :number
+  def flap_window_minutes
+    alert_source.config.fetch("flap_window_minutes", AlertSource::DEFAULT_FLAP_WINDOW_MINUTES).to_i
+  end
+
   type :string
   def created_at
     alert_source.created_at.utc.iso8601

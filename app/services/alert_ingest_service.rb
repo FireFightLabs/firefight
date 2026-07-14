@@ -12,10 +12,7 @@
 #   a storm of distinct alerts creates exactly one incident.
 # - Slack calls happen after the routing transaction commits.
 class AlertIngestService
-  FLAP_WINDOW = 5.minutes
   NOTIFY_MIN_INTERVAL = 60.seconds
-  DEFAULT_GROUPING_WINDOW_MINUTES = 10
-  DEFAULT_CONTENT_MATCH_FIELDS = [ "service" ].freeze
   MAX_ROUTING_ATTEMPTS = 10
 
   ACTION_AUTO_CREATE = PolicyRule::AlertRoutingOutcome::ACTION_AUTO_CREATE
@@ -35,7 +32,7 @@ class AlertIngestService
       return handle_resolved(fields, now)
     end
 
-    fingerprint = fields["fingerprint"].presence || Alert.fallback_fingerprint(@source.id, fields)
+    fingerprint = fields["fingerprint"].presence || Alert.fallback_fingerprint(@source, fields)
 
     # Dedup: a firing for an already-open fingerprint is one indexed UPDATE;
     # no new row, no new incident, no new channel.
@@ -88,7 +85,7 @@ class AlertIngestService
   private
 
   def handle_resolved(fields, now)
-    fingerprint = fields["fingerprint"].presence || Alert.fallback_fingerprint(@source.id, fields)
+    fingerprint = fields["fingerprint"].presence || Alert.fallback_fingerprint(@source, fields)
     alert = @source.alerts.open_status.find_by(fingerprint: fingerprint)
     return nil unless alert
 
@@ -101,7 +98,7 @@ class AlertIngestService
   def recently_resolved(fingerprint, now)
     @source.alerts
       .where(status: Alert::STATUS_RESOLVED, fingerprint: fingerprint)
-      .where("resolved_at > ?", now - FLAP_WINDOW)
+      .where("resolved_at > ?", now - @source.flap_window)
       .order(resolved_at: :desc)
       .first
   end
@@ -286,11 +283,11 @@ class AlertIngestService
   end
 
   def content_match_fields
-    routing_policy&.domain_config&.fetch("content_match_fields", nil).presence || DEFAULT_CONTENT_MATCH_FIELDS
+    routing_policy&.domain_config&.fetch("content_match_fields", nil).presence || AlertGroup::DEFAULT_CONTENT_MATCH_FIELDS
   end
 
   def grouping_window
-    minutes = routing_policy&.domain_config&.fetch("grouping_window_minutes", nil).presence || DEFAULT_GROUPING_WINDOW_MINUTES
+    minutes = routing_policy&.domain_config&.fetch("grouping_window_minutes", nil).presence || AlertGroup::DEFAULT_WINDOW_MINUTES
     minutes.to_i.minutes
   end
 

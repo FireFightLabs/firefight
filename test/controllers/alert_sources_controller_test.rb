@@ -54,6 +54,36 @@ class AlertSourcesControllerTest < ActionDispatch::IntegrationTest
     assert_equal source.secret_token, JSON.parse(response.body)["token"]
   end
 
+  test "update persists extraction and dedup config" do
+    source = @workspace.alert_sources.create!(name: "Custom", provider: AlertSource::PROVIDER_GENERIC)
+
+    patch alert_source_url(source), params: { alert_source: {
+      field_map: { title: "alert.name", bogus: "x" },
+      items_path: "alerts",
+      fingerprint_fields: [ "service", "" ],
+      flap_window_minutes: 999
+    } }
+
+    source.reload
+    assert_equal({ "title" => "alert.name" }, source.config["field_map"])
+    assert_equal "alerts", source.config["items_path"]
+    assert_equal [ "service" ], source.fingerprint_fields
+    assert_equal AlertSource::FLAP_WINDOW_MINUTES_RANGE.max, source.config["flap_window_minutes"]
+  end
+
+  test "sample_payload returns the latest alert's raw payload" do
+    source = @workspace.alert_sources.create!(name: "Custom", provider: AlertSource::PROVIDER_GENERIC)
+    source.alerts.create!(workspace: @workspace, external_id: "a", fingerprint: "f1",
+                          payload: { "old" => true }, fields: {}, received_at: 1.hour.ago, last_seen_at: 1.hour.ago)
+    source.alerts.create!(workspace: @workspace, external_id: "b", fingerprint: "f2",
+                          payload: { "new" => true }, fields: {}, received_at: Time.current, last_seen_at: Time.current)
+
+    get sample_payload_alert_source_url(source)
+
+    assert_response :success
+    assert_equal({ "new" => true }, JSON.parse(response.body)["payload"])
+  end
+
   test "cannot touch another workspace's source" do
     other = workspaces(:slack_workspace_two)
     source = other.alert_sources.create!(name: "Theirs", provider: AlertSource::PROVIDER_GENERIC)

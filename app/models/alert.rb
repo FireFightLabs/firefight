@@ -25,8 +25,9 @@ class Alert < ApplicationRecord
   scope :open_status, -> { where(status: STATUS_FIRING) }
   scope :pending_routing, -> { where(routing_state: ROUTING_PENDING) }
 
-  def self.fallback_fingerprint(alert_source_id, fields)
-    Digest::SHA256.hexdigest([ alert_source_id, fields["service"], fields["title"] ].join("\n"))
+  def self.fallback_fingerprint(source, fields)
+    values = source.fingerprint_fields.map { |field| fields[field].to_s }
+    Digest::SHA256.hexdigest([ source.id, *values ].join("\n"))
   end
 
   def title

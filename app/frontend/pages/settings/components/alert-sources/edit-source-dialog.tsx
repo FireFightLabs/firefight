@@ -4,6 +4,7 @@ import { IconPlus, IconTrash } from "@tabler/icons-react"
 
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
 import { alertSourcePath } from "@/lib/routes"
+import { FieldMappingEditor, type MappingRow } from "@/pages/settings/components/alert-sources/field-mapping-editor"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -45,6 +46,12 @@ export function EditSourceDialog({
   )
   const [errors, setErrors] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [fingerprintFields, setFingerprintFields] = useState(source.fingerprintFields.join(", "))
+  const [flapWindow, setFlapWindow] = useState(String(source.flapWindowMinutes))
+  const [itemsPath, setItemsPath] = useState(source.itemsPath ?? "")
+  const [mappingRows, setMappingRows] = useState<MappingRow[]>(() =>
+    Object.entries(source.fieldMap).map(([field, path]) => ({ field, path }))
+  )
 
   function updateMapping(index: number, patch: Partial<SeverityMapping>) {
     setMappings((prev) => prev.map((m, i) => (i === index ? { ...m, ...patch } : m)))
@@ -55,11 +62,24 @@ export function EditSourceDialog({
     const severityMap = Object.fromEntries(
       mappings.filter((m) => m.raw.trim() && m.severityId).map((m) => [m.raw.trim(), m.severityId])
     )
+    const fieldMap = Object.fromEntries(
+      mappingRows.filter((row) => row.field && row.path.trim()).map((row) => [row.field, row.path.trim()])
+    )
     setErrors([])
     setSaving(true)
     router.patch(
       alertSourcePath(source.id),
-      { alert_source: { name, enabled, severity_map: severityMap } },
+      {
+        alert_source: {
+          name,
+          enabled,
+          severity_map: severityMap,
+          field_map: fieldMap,
+          items_path: itemsPath.trim(),
+          fingerprint_fields: fingerprintFields.split(",").map((f) => f.trim()).filter(Boolean),
+          flap_window_minutes: flapWindow,
+        },
+      },
       {
         onSuccess: onClose,
         onError: (errorBag: Record<string, string | string[]>) => setErrors(Object.values(errorBag).flat()),
@@ -75,7 +95,7 @@ export function EditSourceDialog({
 
   return (
     <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Edit alert source</DialogTitle>
@@ -100,6 +120,44 @@ export function EditSourceDialog({
               <Label htmlFor="edit-source-enabled">Enabled</Label>
               <Switch id="edit-source-enabled" checked={enabled} onCheckedChange={setEnabled} />
             </div>
+
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex min-w-56 flex-1 flex-col gap-2">
+                <Label htmlFor="fingerprint-fields">Deduplicate by fields</Label>
+                <Input
+                  id="fingerprint-fields"
+                  value={fingerprintFields}
+                  onChange={(e) => setFingerprintFields(e.target.value)}
+                  placeholder="service, title"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="flap-window">Flap window (min)</Label>
+                <Input
+                  id="flap-window"
+                  type="number"
+                  min={0}
+                  max={60}
+                  value={flapWindow}
+                  onChange={(e) => setFlapWindow(e.target.value)}
+                  className="w-28"
+                />
+              </div>
+            </div>
+            <p className="-mt-3 text-xs text-muted-foreground">
+              Repeat firings with the same values for these fields update one alert instead of creating new
+              ones; a re-fire within the flap window reopens the alert it just resolved.
+            </p>
+
+            {source.provider === "generic" && (
+              <FieldMappingEditor
+                sourceId={source.id}
+                rows={mappingRows}
+                onRowsChange={setMappingRows}
+                itemsPath={itemsPath}
+                onItemsPathChange={setItemsPath}
+              />
+            )}
 
             <div className="flex flex-col gap-2">
               <Label>Severity map</Label>
