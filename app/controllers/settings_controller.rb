@@ -1,4 +1,6 @@
 class SettingsController < InertiaController
+  RECENT_ALERTS_LIMIT = 50
+
   before_action :require_authentication
 
   def index
@@ -91,6 +93,17 @@ class SettingsController < InertiaController
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.active.ordered
       )
+    }
+  end
+
+  def alerts
+    scope = current_workspace.alerts.includes(:alert_source, :incident).order(last_seen_at: :desc)
+    scope = scope.where(alert_source_id: params[:source_id]) if params[:source_id].present?
+
+    render inertia: "settings/alerts", props: {
+      alerts: AlertSettingsSerializer.many(scope.limit(RECENT_ALERTS_LIMIT)),
+      alertSources: current_workspace.alert_sources.order(:name).map { |s| { id: s.id, name: s.name } },
+      sourceId: params[:source_id].presence
     }
   end
 

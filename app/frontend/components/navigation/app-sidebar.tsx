@@ -1,5 +1,6 @@
 import {
   IconAlertTriangle,
+  IconBell,
   IconBook2,
   IconCategory,
   IconChecklist,
@@ -37,6 +38,7 @@ import {
   settingsCustomFieldsPath,
   settingsFormsPath,
   settingsMembersPath,
+  settingsAlertsPath,
   settingsRolesPath,
   settingsSeveritiesPath,
   settingsStatusesPath,
@@ -49,6 +51,7 @@ const navSections = [
     label: "Respond",
     items: [
       { title: "Incidents", url: dashboardPath(), icon: IconUrgent },
+      { title: "Alerts", url: settingsAlertsPath(), icon: IconBell },
     ],
   },
   {

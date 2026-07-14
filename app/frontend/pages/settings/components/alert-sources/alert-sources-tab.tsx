@@ -3,7 +3,7 @@ import { IconBellRinging, IconCheck, IconCopy, IconRoute } from "@tabler/icons-r
 import { Link, router } from "@inertiajs/react"
 
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
-import { alertSourcePath, settingsAlertRoutingPath } from "@/lib/routes"
+import { alertSourcePath, settingsAlertRoutingPath, settingsAlertsPath } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -57,6 +57,12 @@ export function AlertSourcesTab({
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={settingsAlertsPath()}>
+                  <IconBellRinging className="size-4" />
+                  Recent alerts
+                </Link>
+              </Button>
               <Button asChild variant="outline" size="sm">
                 <Link href={settingsAlertRoutingPath()}>
                   <IconRoute className="size-4" />

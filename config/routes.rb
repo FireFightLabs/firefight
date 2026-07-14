@@ -77,6 +77,7 @@ Rails.application.routes.draw do
     get "/settings/webhooks", to: "settings#webhooks", as: :settings_webhooks
     get "/settings/alert-sources", to: "settings#alert_sources", as: :settings_alert_sources
     resources :alert_sources, only: [ :create, :update, :destroy ], path: "settings/alert-sources"
+    get "/settings/alerts", to: "settings#alerts", as: :settings_alerts
     get "/settings/alert-routing", to: "settings#alert_routing", as: :settings_alert_routing
     patch "/settings/alert-routing", to: "alert_routing#update", as: :alert_routing
     post "/settings/alert-routing/test", to: "alert_routing#test", as: :alert_routing_test
