@@ -39,13 +39,33 @@ class AlertRoutingController < InertiaController
   private
 
   # Dry-run target resolution so the tester shows who would actually be
-  # invited/notified. Pure lookups, zero side effects.
+  # invited/notified. Pure lookups plus one best-effort Slack channel-name
+  # lookup for display; nothing is posted.
   def resolution_preview(outcome, fields)
     resolver = Alert::TargetResolver.new(current_workspace, fields)
     invitees = resolver.memberships_for(outcome["invite"]).map { |m| m.user.name }
-    notify = resolver.channel_for(outcome["notify"])
+    notify = notify_label(outcome["notify"], resolver)
 
     { invite: invitees, notify: notify, notes: resolver.notes }
+  end
+
+  def notify_label(target, resolver)
+    resolved = resolver.channel_for(target)
+    return nil if resolved.blank?
+
+    if target&.dig("type") == PolicyRule::AlertRoutingOutcome::TARGET_MEMBER
+      member = current_workspace.workspace_memberships.find_by(id: target["member_id"])
+      return member ? "#{member.user.name} (DM)" : resolved
+    end
+
+    channel = channel_name(resolved)
+    channel ? "##{channel}" : resolved
+  end
+
+  def channel_name(channel_id)
+    WorkspaceAdapter.for(current_workspace).list_channels.find { |c| c[:id] == channel_id }&.dig(:name)
+  rescue AdapterError
+    nil
   end
 
   def scoped_source
