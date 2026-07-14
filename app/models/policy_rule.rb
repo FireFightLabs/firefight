@@ -15,10 +15,23 @@ class PolicyRule < ApplicationRecord
 
   belongs_to :policy
 
+  # Outcome contracts per policy domain; domains without a contract accept any object.
+  OUTCOME_VALIDATORS = {
+    Policy::DOMAIN_ALERT_ROUTING => PolicyRule::AlertRoutingOutcome
+  }.freeze
+
   validates :priority, presence: true, uniqueness: { scope: :policy_id }
   validate :conditions_are_well_formed
+  validate :outcome_matches_domain_contract
 
   private
+
+  def outcome_matches_domain_contract
+    validator = OUTCOME_VALIDATORS[policy&.domain]
+    return unless validator
+
+    validator.errors_for(outcome).each { |message| errors.add(:outcome, message) }
+  end
 
   def conditions_are_well_formed
     unless conditions.is_a?(Array)

@@ -31,11 +31,22 @@ class AlertRoutingController < InertiaController
       matched: result.matched?,
       outcome: result.outcome,
       context: context,
-      trace: result.trace
+      trace: result.trace,
+      resolution: result.matched? ? resolution_preview(result.outcome, fields) : nil
     }
   end
 
   private
+
+  # Dry-run target resolution so the tester shows who would actually be
+  # invited/notified. Pure lookups, zero side effects.
+  def resolution_preview(outcome, fields)
+    resolver = Alert::TargetResolver.new(current_workspace, fields)
+    invitees = resolver.memberships_for(outcome["invite"]).map { |m| m.user.name }
+    notify = resolver.channel_for(outcome["notify"])
+
+    { invite: invitees, notify: notify, notes: resolver.notes }
+  end
 
   def scoped_source
     return nil if params[:alert_source_id].blank?

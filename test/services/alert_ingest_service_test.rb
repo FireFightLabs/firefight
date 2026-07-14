@@ -3,7 +3,8 @@ require "test_helper"
 class AlertIngestServiceTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
            :incident_statuses, :incident_severities, :incident_types, :incident_roles,
-           :incidents, :incident_events
+           :incidents, :incident_events, :catalog_types, :catalog_attribute_definitions,
+           :catalog_entries, :catalog_entry_relationships
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -78,7 +79,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
   end
 
   test "notify_only posts the digest to the outcome channel" do
-    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "channel" => "C999" })
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => "channel", "channel_id" => "C999" } })
     stub_post_message
 
     alert = @service.ingest(firing_fields, {})
@@ -144,7 +145,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
   end
 
   test "notify_only digest updates in place on refire and resolve" do
-    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "channel" => "C999" })
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => "channel", "channel_id" => "C999" } })
     stub_post_message
     stub_update_message
 
@@ -185,7 +186,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
 
   test "notify_only can target a person via DM" do
     member = workspace_memberships(:alice_workspace_one)
-    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "member_id" => member.id })
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => "member", "member_id" => member.id } })
     stub_post_message
 
     alert = @service.ingest(firing_fields, {})
@@ -193,6 +194,35 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     assert_equal Alert::ROUTING_ROUTED, alert.routing_state
     assert alert.channel_message_id.present?
     assert alert.channel_id.present?
+  end
+
+  test "auto_create with owning-team invite resolves members into workflow context" do
+    manager = workspace_memberships(:alice_workspace_one)
+    team = catalog_entries(:platform_team)
+    team.update_column(:attributes, { "manager" => manager.id })
+    routing_policy!({
+      "action" => AlertIngestService::ACTION_AUTO_CREATE,
+      "invite" => [ { "type" => "owning_team", "of" => "service" } ]
+    })
+
+    alert = @service.ingest(firing_fields("service" => "auth_service"), {})
+
+    workflow = SolidWorkflow::Workflow.order(:created_at).last
+    assert_equal alert.incident.id, workflow.subject_id
+    assert_equal [ manager.id ], workflow.context["invite_membership_ids"]
+  end
+
+  test "unresolvable invite targets soft-fail onto the attach event" do
+    routing_policy!({
+      "action" => AlertIngestService::ACTION_AUTO_CREATE,
+      "invite" => [ { "type" => "owning_team", "of" => "service" } ]
+    })
+
+    alert = @service.ingest(firing_fields("service" => "not-in-catalog"), {})
+
+    assert alert.incident.present?, "incident must be created despite resolution misses"
+    event = alert.incident.incident_events.find_by!(event_type: IncidentEvent::ALERT_ATTACHED)
+    assert event.metadata["unresolved_targets"].any?
   end
 
   test "routing failure leaves the alert pending for the sweep" do

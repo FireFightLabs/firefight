@@ -51,6 +51,7 @@ export interface TestResult {
   matched: boolean
   outcome: { action?: string } | null
   trace: TraceEntry[]
+  resolution?: { invite: string[]; notify: string | null; notes: string[] } | null
 }
 
 export function csrfToken(): string {

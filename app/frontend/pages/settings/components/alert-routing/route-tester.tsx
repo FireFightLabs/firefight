@@ -126,6 +126,19 @@ export function RouteTester({
                 </span>
               )}
             </div>
+            {result.resolution && (
+              <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+                {result.resolution.invite.length > 0 && (
+                  <span>would invite: <span className="text-foreground">{result.resolution.invite.join(", ")}</span></span>
+                )}
+                {result.resolution.notify && (
+                  <span>would notify: <span className="text-foreground">{result.resolution.notify}</span></span>
+                )}
+                {result.resolution.notes.map((note, i) => (
+                  <span key={i} className="text-amber-500/80">⚠ {note}</span>
+                ))}
+              </div>
+            )}
             <ol className="flex flex-col gap-1 text-xs text-muted-foreground">
               {result.trace.map((entry, index) => (
                 <li key={entry.rule_id} className="flex flex-wrap items-center gap-1.5">

@@ -8,10 +8,10 @@ class AlertIngestService
   DEFAULT_GROUPING_WINDOW_MINUTES = 10
   DEFAULT_CONTENT_MATCH_FIELDS = [ "service" ].freeze
 
-  ACTION_AUTO_CREATE = "auto_create_incident"
-  ACTION_ATTACH = "attach_to_incident"
-  ACTION_NOTIFY_ONLY = "notify_only"
-  ACTION_DROP = "drop"
+  ACTION_AUTO_CREATE = PolicyRule::AlertRoutingOutcome::ACTION_AUTO_CREATE
+  ACTION_ATTACH = PolicyRule::AlertRoutingOutcome::ACTION_ATTACH
+  ACTION_NOTIFY_ONLY = PolicyRule::AlertRoutingOutcome::ACTION_NOTIFY_ONLY
+  ACTION_DROP = PolicyRule::AlertRoutingOutcome::ACTION_DROP
 
   def initialize(alert_source)
     @source = alert_source
@@ -157,13 +157,18 @@ class AlertIngestService
     severity = outcome_severity(outcome) || @source.resolve_severity(alert.fields["severity_raw"])
     raise ArgumentError, "no severity resolvable for alert #{alert.id} (set a workspace default severity)" unless severity
 
+    resolver = target_resolver(alert)
+    invitee_ids = resolver.memberships_for(outcome["invite"]).map(&:id)
+    @resolution_notes = resolver.notes
+
     incident = IncidentLifecycleService.new(@workspace).create(
       declared_by: nil,
       incident_status: @workspace.incident_statuses.default_status,
       incident_severity: severity,
       name: alert.title.truncate(120),
       summary: alert.fields["description"],
-      source: Incident::SOURCE_ALERT
+      source: Incident::SOURCE_ALERT,
+      workflow_context: invitee_ids.any? ? { invite_membership_ids: invitee_ids } : {}
     )
 
     AlertGroup.create!(
@@ -184,10 +189,10 @@ class AlertIngestService
   end
 
   # notify_only posts the digest without an incident — to a channel, a member
-  # (DM via their platform user id), or a catalog-resolved context key
-  # (e.g. channel_context_key: "team.channel").
+  # (DM via their platform user id), or the owning team's channel resolved
+  # from the catalog at fire time.
   def notify_channel(alert, outcome)
-    target = notify_target(alert, outcome)
+    target = target_resolver(alert).channel_for(outcome["notify"])
     return if target.blank?
 
     result = WorkspaceAdapter.for(@workspace).post_alert_message(channel_id: target, alert: alert)
@@ -200,12 +205,8 @@ class AlertIngestService
     Rails.logger.warn({ event: "alert_notify.failed", alert_id: alert.id, error: e.message }.to_json)
   end
 
-  def notify_target(alert, outcome)
-    if outcome["member_id"].present?
-      @workspace.workspace_memberships.find_by(id: outcome["member_id"])&.platform_user_id
-    else
-      outcome["channel"].presence || routing_context(alert)[outcome["channel_context_key"].to_s]
-    end
+  def target_resolver(alert)
+    Alert::TargetResolver.new(@workspace, alert.fields)
   end
 
   def outcome_severity(outcome)
@@ -230,10 +231,13 @@ class AlertIngestService
   def record_incident_event(alert, event_type)
     return unless alert.incident
 
-    alert.incident.incident_events.create!(
-      event_type: event_type,
-      metadata: { alert_id: alert.id, title: alert.title, source: @source.name, event_count: alert.event_count }
-    )
+    metadata = { alert_id: alert.id, title: alert.title, source: @source.name, event_count: alert.event_count }
+    if @resolution_notes.present?
+      metadata[:unresolved_targets] = @resolution_notes
+      @resolution_notes = nil
+    end
+
+    alert.incident.incident_events.create!(event_type: event_type, metadata: metadata)
   end
 
   # Slack digest throttling: one message per alert that gets updated, never a

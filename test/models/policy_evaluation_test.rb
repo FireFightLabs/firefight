@@ -8,7 +8,7 @@ class PolicyEvaluationTest < ActiveSupport::TestCase
     @policy = Policy.create!(workspace: @workspace, domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
   end
 
-  def rule!(priority, conditions, outcome = { action: "auto_create_incident" })
+  def rule!(priority, conditions, outcome = { "action" => "auto_create_incident" })
     @policy.policy_rules.create!(priority: priority, conditions: conditions, outcome: outcome)
   end
 

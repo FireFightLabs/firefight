@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react"
 import { router } from "@inertiajs/react"
-import { IconPlus, IconTrash } from "@tabler/icons-react"
+import { IconPlus, IconTrash, IconX } from "@tabler/icons-react"
 
 import type { IncidentSeveritySettings, PolicyRule, WorkspaceMembership } from "@/types/serializers"
 import { policyRulePath, policyRulesPath } from "@/lib/routes"
@@ -11,6 +11,7 @@ import {
   type OutcomeAction,
   type SlackChannel,
 } from "@/pages/settings/lib/alerts"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -29,8 +30,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 
 const NONE_SEVERITY = "none"
+
+type NotifyKind = "channel" | "person" | "owning_team"
 
 interface ConditionRow {
   field: string
@@ -63,15 +67,48 @@ export function RuleDialog({
   onClose: () => void
   alertSourceId?: string | null
 }) {
+  const outcome = rule?.outcome
   const [conditions, setConditions] = useState<ConditionRow[]>(() => toRows(rule))
-  const [action, setAction] = useState<OutcomeAction>((rule?.outcome.action as OutcomeAction) ?? "auto_create_incident")
-  const [severityId, setSeverityId] = useState(rule?.outcome.severityId ?? NONE_SEVERITY)
-  const [targetKind, setTargetKind] = useState<"channel" | "person">(rule?.outcome.memberId ? "person" : "channel")
-  const [channel, setChannel] = useState(rule?.outcome.channel ?? "")
-  const [memberId, setMemberId] = useState(rule?.outcome.memberId ?? "")
+  const [action, setAction] = useState<OutcomeAction>((outcome?.action as OutcomeAction) ?? "auto_create_incident")
+  const [severityId, setSeverityId] = useState(outcome?.severityId ?? NONE_SEVERITY)
+
+  const [notifyKind, setNotifyKind] = useState<NotifyKind>(() => {
+    if (outcome?.notify?.type === "member") return "person"
+    if (outcome?.notify?.type === "owning_team") return "owning_team"
+    return "channel"
+  })
+  const [notifyChannel, setNotifyChannel] = useState(outcome?.notify?.channelId ?? "")
+  const [notifyMemberId, setNotifyMemberId] = useState(outcome?.notify?.memberId ?? "")
+
+  const [inviteOwningTeam, setInviteOwningTeam] = useState(
+    () => outcome?.invite?.some((t) => t.type === "owning_team") ?? false
+  )
+  const [inviteMemberIds, setInviteMemberIds] = useState<string[]>(
+    () => outcome?.invite?.filter((t) => t.type === "member").map((t) => t.memberId as string) ?? []
+  )
+
+  const isIncidentAction = action === "auto_create_incident" || action === "attach_to_incident"
+  const availableMembers = members.filter((m) => !inviteMemberIds.includes(m.id))
 
   function updateCondition(index: number, patch: Partial<ConditionRow>) {
     setConditions((prev) => prev.map((c, i) => (i === index ? { ...c, ...patch } : c)))
+  }
+
+  function buildNotify() {
+    if (action !== "notify_only") return {}
+    if (notifyKind === "owning_team") return { notify: { type: "owning_team", of: "service" } }
+    if (notifyKind === "person" && notifyMemberId) return { notify: { type: "member", member_id: notifyMemberId } }
+    if (notifyKind === "channel" && notifyChannel.trim()) return { notify: { type: "channel", channel_id: notifyChannel.trim() } }
+    return {}
+  }
+
+  function buildInvite() {
+    if (!isIncidentAction) return {}
+    const targets = [
+      ...(inviteOwningTeam ? [{ type: "owning_team", of: "service" }] : []),
+      ...inviteMemberIds.map((id) => ({ type: "member", member_id: id })),
+    ]
+    return targets.length > 0 ? { invite: targets } : {}
   }
 
   function handleSubmit(e: FormEvent) {
@@ -94,8 +131,8 @@ export function RuleDialog({
         outcome: {
           action,
           ...(severityId !== NONE_SEVERITY ? { severity_id: severityId } : {}),
-          ...(action === "notify_only" && targetKind === "channel" && channel.trim() ? { channel: channel.trim() } : {}),
-          ...(action === "notify_only" && targetKind === "person" && memberId ? { member_id: memberId } : {}),
+          ...buildNotify(),
+          ...buildInvite(),
         },
       },
     }
@@ -186,7 +223,7 @@ export function RuleDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                {(action === "auto_create_incident" || action === "attach_to_incident") && (
+                {isIncidentAction && (
                   <Select value={severityId} onValueChange={setSeverityId}>
                     <SelectTrigger className="w-48">
                       <SelectValue placeholder="Severity" />
@@ -199,55 +236,108 @@ export function RuleDialog({
                     </SelectContent>
                   </Select>
                 )}
-                {action === "notify_only" && (
-                  <Select value={targetKind} onValueChange={(value) => setTargetKind(value as "channel" | "person")}>
-                    <SelectTrigger className="w-32">
+              </div>
+            </div>
+
+            {action === "notify_only" && (
+              <div className="flex flex-col gap-2">
+                <Label>Notify</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={notifyKind} onValueChange={(value) => setNotifyKind(value as NotifyKind)}>
+                    <SelectTrigger className="w-48">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="channel">Channel</SelectItem>
-                      <SelectItem value="person">Person</SelectItem>
+                      <SelectItem value="person">Person (DM)</SelectItem>
+                      <SelectItem value="owning_team">Owning team's channel</SelectItem>
                     </SelectContent>
                   </Select>
-                )}
-                {action === "notify_only" && targetKind === "channel" && (
-                  channels.length > 0 ? (
-                    <Select value={channel} onValueChange={setChannel}>
+                  {notifyKind === "channel" && (
+                    channels.length > 0 ? (
+                      <Select value={notifyChannel} onValueChange={setNotifyChannel}>
+                        <SelectTrigger className="w-52">
+                          <SelectValue placeholder="Pick a channel" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {channels.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>#{c.name}</SelectItem>
+                          ))}
+                          {notifyChannel && !channels.some((c) => c.id === notifyChannel) && (
+                            <SelectItem value={notifyChannel}>{notifyChannel}</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={notifyChannel}
+                        onChange={(e) => setNotifyChannel(e.target.value)}
+                        placeholder="Slack channel ID"
+                        className="w-52"
+                      />
+                    )
+                  )}
+                  {notifyKind === "person" && (
+                    <Select value={notifyMemberId} onValueChange={setNotifyMemberId}>
                       <SelectTrigger className="w-52">
-                        <SelectValue placeholder="Pick a channel" />
+                        <SelectValue placeholder="Pick a person" />
                       </SelectTrigger>
                       <SelectContent>
-                        {channels.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>#{c.name}</SelectItem>
+                        {members.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                         ))}
-                        {channel && !channels.some((c) => c.id === channel) && (
-                          <SelectItem value={channel}>{channel}</SelectItem>
-                        )}
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <Input
-                      value={channel}
-                      onChange={(e) => setChannel(e.target.value)}
-                      placeholder="Slack channel ID"
-                      className="w-52"
-                    />
-                  )
-                )}
-                {action === "notify_only" && targetKind === "person" && (
-                  <Select value={memberId} onValueChange={setMemberId}>
-                    <SelectTrigger className="w-52">
-                      <SelectValue placeholder="Pick a person" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {members.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                  )}
+                  {notifyKind === "owning_team" && (
+                    <span className="text-xs text-muted-foreground">
+                      Service's channel, else its owning team's — resolved from the catalog
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
+
+            {isIncidentAction && (
+              <div className="flex flex-col gap-2">
+                <Label>Invite to the incident channel</Label>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Owning team (members + manager, resolved from the alert's service)
+                  </span>
+                  <Switch checked={inviteOwningTeam} onCheckedChange={setInviteOwningTeam} />
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {inviteMemberIds.map((id) => {
+                    const member = members.find((m) => m.id === id)
+                    return (
+                      <Badge key={id} variant="secondary" className="gap-1">
+                        {member?.name ?? id}
+                        <button
+                          type="button"
+                          onClick={() => setInviteMemberIds((prev) => prev.filter((v) => v !== id))}
+                          className="ml-0.5"
+                        >
+                          <IconX className="size-3" />
+                        </button>
+                      </Badge>
+                    )
+                  })}
+                  {availableMembers.length > 0 && (
+                    <Select value="" onValueChange={(id) => setInviteMemberIds((prev) => [...prev, id])}>
+                      <SelectTrigger className="h-7 w-40 text-xs">
+                        <SelectValue placeholder="Add person…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableMembers.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

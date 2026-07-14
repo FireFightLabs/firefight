@@ -16,8 +16,8 @@ class PolicyRuleSerializer < BaseSerializer
     rule.conditions
   end
 
-  type "{ action: string; severityId?: string; channel?: string; memberId?: string; channelContextKey?: string }"
+  type "{ action: string; severityId?: string; notify?: { type: string; channelId?: string; memberId?: string; entryId?: string; of?: string }; invite?: { type: string; memberId?: string; entryId?: string; of?: string }[] }"
   def outcome
-    rule.outcome.transform_keys { |key| key.to_s.camelize(:lower) }
+    rule.outcome.deep_transform_keys { |key| key.to_s.camelize(:lower) }
   end
 end
