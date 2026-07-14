@@ -278,12 +278,17 @@ module Slack
       end
     end
 
+    # Cached briefly: this backs pickers and display-name lookups that can be
+    # hit several times per settings interaction, and conversations.list is
+    # Tier 2 rate limited.
     def list_channels
-      translate_errors do
-        raw_channels = Slack::Client.list_conversations(workspace: @workspace)
+      Rails.cache.fetch("slack:channels:#{@workspace.id}", expires_in: 1.minute) do
+        translate_errors do
+          raw_channels = Slack::Client.list_conversations(workspace: @workspace)
 
-        raw_channels.map do |c|
-          { id: c[:id], name: c[:name] }
+          raw_channels.map do |c|
+            { id: c[:id], name: c[:name] }
+          end
         end
       end
     end

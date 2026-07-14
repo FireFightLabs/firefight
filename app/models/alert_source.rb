@@ -28,9 +28,22 @@ class AlertSource < ApplicationRecord
   # This source's own policy wins; the workspace-wide policy is the shared
   # fallback for sources without one.
   def effective_routing_policy
-    [ routing_policy,
-      workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first ]
-      .compact.detect(&:enabled?)
+    [ routing_policy, workspace.alert_routing_fallback_policy ].compact.detect(&:enabled?)
+  end
+
+  def find_or_create_routing_policy!
+    routing_policy ||
+      workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: Policy::DEFAULT_ALERT_ROUTING_NAME, scoped_to: self)
+  end
+
+  # Ingest diagnostics for the sources UI; update_columns keeps the hot path
+  # free of callbacks and updated_at churn.
+  def record_received!
+    update_columns(last_received_at: Time.current)
+  end
+
+  def record_rejection!(reason)
+    update_columns(last_rejected_at: Time.current, last_rejection_reason: reason)
   end
 
   def rate_limit_per_minute

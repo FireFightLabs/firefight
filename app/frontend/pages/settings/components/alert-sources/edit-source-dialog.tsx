@@ -43,6 +43,8 @@ export function EditSourceDialog({
   const [mappings, setMappings] = useState<SeverityMapping[]>(() =>
     Object.entries(source.severityMap).map(([raw, severityId]) => ({ raw, severityId }))
   )
+  const [errors, setErrors] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
 
   function updateMapping(index: number, patch: Partial<SeverityMapping>) {
     setMappings((prev) => prev.map((m, i) => (i === index ? { ...m, ...patch } : m)))
@@ -53,12 +55,23 @@ export function EditSourceDialog({
     const severityMap = Object.fromEntries(
       mappings.filter((m) => m.raw.trim() && m.severityId).map((m) => [m.raw.trim(), m.severityId])
     )
+    setErrors([])
+    setSaving(true)
     router.patch(
       alertSourcePath(source.id),
       { alert_source: { name, enabled, severity_map: severityMap } },
-      { onSuccess: onClose }
+      {
+        onSuccess: onClose,
+        onError: (errorBag: Record<string, string | string[]>) => setErrors(Object.values(errorBag).flat()),
+        onFinish: () => setSaving(false),
+      }
     )
   }
+
+  const setupInstructions =
+    source.provider === "northflank"
+      ? "In Northflank, create a webhook notification integration with this URL and paste the token into its integration token field (sent as X-Northflank-Notification-Integration-Token)."
+      : "Send alerts as POST requests with the token in an Authorization: Bearer header (or X-Firefight-Token)."
 
   return (
     <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -72,6 +85,12 @@ export function EditSourceDialog({
           </DialogHeader>
 
           <div className="flex flex-col gap-5 py-4">
+            <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <p className="mb-1 font-medium text-foreground">Setup</p>
+              <p className="break-all font-mono">{`${window.location.origin}${source.ingestPath}`}</p>
+              <p className="mt-1.5">{setupInstructions}</p>
+            </div>
+
             <div className="flex flex-col gap-2">
               <Label htmlFor="edit-source-name">Name</Label>
               <Input id="edit-source-name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -131,9 +150,17 @@ export function EditSourceDialog({
             </div>
           </div>
 
+          {errors.length > 0 && (
+            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+              {errors.map((message, i) => (
+                <p key={i}>{message}</p>
+              ))}
+            </div>
+          )}
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" disabled={saving}>Save</Button>
           </DialogFooter>
         </form>
       </DialogContent>

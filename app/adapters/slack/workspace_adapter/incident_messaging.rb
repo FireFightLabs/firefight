@@ -7,7 +7,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   def post_alert_message(channel_id:, alert:)
     blocks = Slack::Messages::Alert.build(alert)
-    post_message(channel_id: channel_id, text: alert.title, blocks: blocks)
+    post_message(channel_id: channel_id, text: Slack::Mrkdwn.escape(alert.title), blocks: blocks)
   end
 
   def post_routing_test_message(channel_id:, description:)
@@ -26,7 +26,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     update_message(
       channel_id: channel_id,
       message_id: message_id,
-      text: alert.title,
+      text: Slack::Mrkdwn.escape(alert.title),
       blocks: blocks
     )
   end

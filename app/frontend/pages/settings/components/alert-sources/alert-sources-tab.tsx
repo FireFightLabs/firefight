@@ -3,7 +3,9 @@ import { IconBellRinging, IconCheck, IconCopy, IconRoute } from "@tabler/icons-r
 import { Link, router } from "@inertiajs/react"
 
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
-import { alertSourcePath, settingsAlertRoutingPath, settingsAlertsPath } from "@/lib/routes"
+import { alertSourcePath, settingsAlertRoutingPath, settingsAlertsPath, tokenAlertSourcePath } from "@/lib/routes"
+import { formatDateTime } from "@/lib/formatters"
+import { csrfToken, PROVIDER_LABELS } from "@/pages/settings/lib/alerts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,7 +25,25 @@ import {
 } from "@/components/ui/table"
 import { AddSourceDialog } from "@/pages/settings/components/alert-sources/add-source-dialog"
 import { EditSourceDialog } from "@/pages/settings/components/alert-sources/edit-source-dialog"
+import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
+
+function LastEventCell({ source }: { source: AlertSourceSettings }) {
+  const received = source.lastReceivedAt ? Date.parse(source.lastReceivedAt) : 0
+  const rejected = source.lastRejectedAt ? Date.parse(source.lastRejectedAt) : 0
+
+  if (rejected > received) {
+    return (
+      <span className="text-xs text-amber-500/90" title={`Last rejected ${formatDateTime(source.lastRejectedAt!)}`}>
+        Rejected: {source.lastRejectionReason}
+      </span>
+    )
+  }
+  if (received > 0) {
+    return <span className="text-xs text-muted-foreground">{formatDateTime(source.lastReceivedAt!)}</span>
+  }
+  return <span className="text-xs text-muted-foreground/60">Never</span>
+}
 
 export function AlertSourcesTab({
   alertSources,
@@ -33,16 +53,37 @@ export function AlertSourcesTab({
   severities: IncidentSeveritySettings[]
 }) {
   const [editingSource, setEditingSource] = useState<AlertSourceSettings | null>(null)
+  const [deletingSource, setDeletingSource] = useState<AlertSourceSettings | null>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
 
-  function handleCopy(value: string, key: string) {
-    navigator.clipboard.writeText(value)
+  function markCopied(key: string) {
     setCopiedField(key)
     setTimeout(() => setCopiedField(null), 1500)
   }
 
-  function handleDelete(source: AlertSourceSettings) {
-    router.delete(alertSourcePath(source.id))
+  function handleCopy(value: string, key: string) {
+    void navigator.clipboard.writeText(value).then(() => markCopied(key))
+  }
+
+  // The secret is fetched on demand so it never ships in page props.
+  async function handleCopyToken(source: AlertSourceSettings) {
+    try {
+      const response = await fetch(tokenAlertSourcePath(source.id), {
+        method: "POST",
+        headers: { "X-CSRF-Token": csrfToken() },
+      })
+      if (!response.ok) return
+      const { token } = (await response.json()) as { token: string }
+      handleCopy(token, `token-${source.id}`)
+    } catch {
+      // leave the button unchanged; the user can retry
+    }
+  }
+
+  function confirmDelete() {
+    if (!deletingSource) return
+    router.delete(alertSourcePath(deletingSource.id))
+    setDeletingSource(null)
   }
 
   return (
@@ -81,6 +122,7 @@ export function AlertSourcesTab({
                   <TableHead>Source</TableHead>
                   <TableHead className="hidden md:table-cell">Ingest URL</TableHead>
                   <TableHead className="hidden lg:table-cell">Token</TableHead>
+                  <TableHead className="hidden w-40 lg:table-cell">Last received</TableHead>
                   <TableHead className="w-24 text-center">Status</TableHead>
                   <TableHead className="w-12" />
                 </TableRow>
@@ -92,7 +134,9 @@ export function AlertSourcesTab({
                       <div className="flex items-center gap-2.5">
                         <IconBellRinging className="size-4 text-muted-foreground" />
                         <span className="font-medium">{source.name}</span>
-                        <span className="text-xs text-muted-foreground/70">{source.provider}</span>
+                        <span className="text-xs text-muted-foreground/70">
+                          {PROVIDER_LABELS[source.provider] ?? source.provider}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
@@ -111,11 +155,14 @@ export function AlertSourcesTab({
                         variant="ghost"
                         size="sm"
                         className="h-7 gap-1.5 px-2 font-mono text-xs text-muted-foreground"
-                        onClick={() => handleCopy(source.secretToken, `token-${source.id}`)}
+                        onClick={() => void handleCopyToken(source)}
                       >
                         {copiedField === `token-${source.id}` ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
                         Copy token
                       </Button>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <LastEventCell source={source} />
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant={source.enabled ? "default" : "secondary"}>
@@ -125,20 +172,20 @@ export function AlertSourcesTab({
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
                         <Button asChild variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-muted-foreground">
-                          <Link href={`${settingsAlertsPath()}?source_id=${source.id}`}>
+                          <Link href={settingsAlertsPath({ source_id: source.id })}>
                             <IconBellRinging className="size-3.5" />
                             Alerts
                           </Link>
                         </Button>
                         <Button asChild variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-muted-foreground">
-                          <Link href={`${settingsAlertRoutingPath()}?source_id=${source.id}`}>
+                          <Link href={settingsAlertRoutingPath({ source_id: source.id })}>
                             <IconRoute className="size-3.5" />
                             Routing
                           </Link>
                         </Button>
                         <RowActions
                           onEdit={() => setEditingSource(source)}
-                          onDelete={() => handleDelete(source)}
+                          onDelete={() => setDeletingSource(source)}
                         />
                       </div>
                     </TableCell>
@@ -163,6 +210,14 @@ export function AlertSourcesTab({
           onClose={() => setEditingSource(null)}
         />
       )}
+
+      <ConfirmDeleteDialog
+        open={Boolean(deletingSource)}
+        title={`Delete ${deletingSource?.name ?? "this source"}?`}
+        description="Its ingest URL and token stop working immediately: anything still sending alerts here will be rejected. Its alerts and routing rules are deleted too."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeletingSource(null)}
+      />
     </div>
   )
 }

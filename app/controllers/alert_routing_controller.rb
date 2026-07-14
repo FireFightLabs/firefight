@@ -39,21 +39,11 @@ class AlertRoutingController < InertiaController
     return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless policy
 
     fields = params.fetch(:fields, {}).to_unsafe_h
-    result = policy.evaluate(Policy::ContextBuilder.build(workspace: current_workspace, fields: fields))
-    target = result.matched? ? result.outcome["notify"] : nil
-    return render json: { error: "The test fields must match a rule with a notify target" }, status: :unprocessable_entity if target.blank?
+    result = AlertRoutingTestService.new(current_workspace).deliver(policy, fields)
+    return render json: { error: result.error }, status: :unprocessable_entity unless result.sent
 
     resolver = Alert::TargetResolver.new(current_workspace, fields)
-    channel = resolver.channel_for(target)
-    return render json: { error: resolver.notes.last || "The notify target could not be resolved" }, status: :unprocessable_entity if channel.blank?
-
-    WorkspaceAdapter.for(current_workspace).post_routing_test_message(
-      channel_id: channel,
-      description: "your test alert matched rule #{result.matched_rule.priority} and this conversation would be notified"
-    )
-    render json: { sent: true, notify: notify_label(target, resolver) }
-  rescue AdapterError => e
-    render json: { error: "Delivery failed: #{e.message}" }, status: :unprocessable_entity
+    render json: { sent: true, notify: notify_label(result.target, resolver) }
   end
 
   private
@@ -62,7 +52,7 @@ class AlertRoutingController < InertiaController
     if scoped_source
       scoped_source.effective_routing_policy
     else
-      current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first
+      current_workspace.alert_routing_fallback_policy
     end
   end
 
@@ -103,12 +93,6 @@ class AlertRoutingController < InertiaController
   end
 
   def find_or_create_policy(source)
-    if source
-      source.routing_policy ||
-        current_workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Alert routing", scoped_to: source)
-    else
-      current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first ||
-        current_workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Alert routing")
-    end
+    source ? source.find_or_create_routing_policy! : current_workspace.find_or_create_alert_routing_fallback_policy!
   end
 end

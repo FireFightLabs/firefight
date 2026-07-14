@@ -36,7 +36,7 @@ module AlertProviders
       end
       fields["status"] = normalize_status(fields["status"])
 
-      [ fields ]
+      [ item(fields, payload) ]
     end
   end
 end

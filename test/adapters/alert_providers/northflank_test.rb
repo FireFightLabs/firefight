@@ -32,17 +32,20 @@ class AlertProviders::NorthflankTest < ActiveSupport::TestCase
   end
 
   test "normalizes event payloads with service, title and stable fingerprint" do
-    fields = AlertProviders::Northflank.normalize(northflank_payload, source: @source).first
+    item = AlertProviders::Northflank.normalize(northflank_payload, source: @source).first
+    fields = item[:fields]
+
+    assert_equal northflank_payload, item[:payload]
 
     assert_equal "container:crash", fields["event"]
     assert_equal "website", fields["service"]
     assert_equal "Container crash: Website (Personal Blog)", fields["title"]
     assert_equal Alert::STATUS_FIRING, fields["status"]
 
-    again = AlertProviders::Northflank.normalize(northflank_payload, source: @source).first
+    again = AlertProviders::Northflank.normalize(northflank_payload, source: @source).first[:fields]
     assert_equal fields["fingerprint"], again["fingerprint"]
 
-    other_event = AlertProviders::Northflank.normalize(northflank_payload(event: "build:failure"), source: @source).first
+    other_event = AlertProviders::Northflank.normalize(northflank_payload(event: "build:failure"), source: @source).first[:fields]
     assert_not_equal fields["fingerprint"], other_event["fingerprint"]
   end
 

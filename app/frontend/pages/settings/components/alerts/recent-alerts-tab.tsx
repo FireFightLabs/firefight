@@ -2,9 +2,8 @@ import { IconBellRinging, IconRoute } from "@tabler/icons-react"
 import { Link, router } from "@inertiajs/react"
 
 import type { AlertSettings } from "@/types/serializers"
-import { incidentPath, settingsAlertRoutingPath, settingsAlertsPath, settingsAlertSourcesPath } from "@/lib/routes"
+import { settingsAlertsPath, settingsAlertSourcesPath } from "@/lib/routes"
 import { formatDateTime } from "@/lib/formatters"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -28,47 +27,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { StatusBadge } from "@/pages/settings/components/alerts/status-badge"
+import { RoutingCell } from "@/pages/settings/components/alerts/routing-cell"
+import { MatchedRuleCell } from "@/pages/settings/components/alerts/matched-rule-cell"
 
 const ALL = "all"
-
-function StatusBadge({ status }: { status: string }) {
-  if (status === "firing") return <Badge variant="destructive">Firing</Badge>
-  return <Badge variant="secondary">Resolved</Badge>
-}
-
-function RoutingCell({ alert }: { alert: AlertSettings }) {
-  if (alert.routingState === "routed") {
-    if (alert.incidentId && alert.incidentIdentifier) {
-      return (
-        <Link href={incidentPath(alert.incidentId)} className="text-sm font-medium hover:underline">
-          {alert.incidentIdentifier}
-        </Link>
-      )
-    }
-    return <Badge variant="outline">Routed</Badge>
-  }
-  if (alert.routingState === "unmatched") {
-    return <span className="text-xs text-amber-500/90">Unmatched</span>
-  }
-  return <span className="text-xs text-muted-foreground/60">Pending</span>
-}
-
-function MatchedRuleCell({ alert }: { alert: AlertSettings }) {
-  if (!alert.matchedRulePriority) {
-    return <span className="text-xs text-muted-foreground/40">–</span>
-  }
-
-  const routingUrl = alert.matchedRuleSourceId
-    ? `${settingsAlertRoutingPath()}?source_id=${alert.matchedRuleSourceId}`
-    : settingsAlertRoutingPath()
-
-  return (
-    <Link href={routingUrl} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
-      Rule {alert.matchedRulePriority}
-      {!alert.matchedRuleSourceId && <span className="text-muted-foreground/60"> (default)</span>}
-    </Link>
-  )
-}
 
 export function RecentAlertsTab({
   alerts,
@@ -176,7 +139,7 @@ export function RecentAlertsTab({
                   <TableCell className="hidden text-center font-mono text-xs text-muted-foreground md:table-cell">
                     {alert.eventCount}x
                   </TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">
+                  <TableCell className="text-right text-xs text-muted-foreground" title={alert.lastSeenAt}>
                     {formatDateTime(alert.lastSeenAt)}
                   </TableCell>
                 </TableRow>
@@ -186,9 +149,14 @@ export function RecentAlertsTab({
         </CardContent>
       ) : (
         <CardContent>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <IconBellRinging className="size-4" />
-            No alerts received yet. Point a monitoring tool at one of your alert source URLs and its alerts will show up here.
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <IconBellRinging className="size-4" />
+              No alerts received yet. Point a monitoring tool at one of your alert source URLs and its alerts will show up here.
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link href={settingsAlertSourcesPath()}>Set up a source</Link>
+            </Button>
           </div>
         </CardContent>
       )}

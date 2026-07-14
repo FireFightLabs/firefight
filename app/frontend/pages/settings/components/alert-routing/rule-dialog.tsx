@@ -7,6 +7,9 @@ import { policyRulePath, policyRulesPath } from "@/lib/routes"
 import {
   CONDITION_OPERATORS,
   OUTCOME_ACTIONS,
+  TARGET_CHANNEL,
+  TARGET_MEMBER,
+  TARGET_OWNING_TEAM,
   type CatalogOptionMap,
   type ConditionOperator,
   type OutcomeAction,
@@ -76,19 +79,21 @@ export function RuleDialog({
   const [severityId, setSeverityId] = useState(outcome?.severityId ?? NONE_SEVERITY)
 
   const [notifyKind, setNotifyKind] = useState<NotifyKind>(() => {
-    if (outcome?.notify?.type === "member") return "person"
-    if (outcome?.notify?.type === "owning_team") return "owning_team"
+    if (outcome?.notify?.type === TARGET_MEMBER) return "person"
+    if (outcome?.notify?.type === TARGET_OWNING_TEAM) return "owning_team"
     return "channel"
   })
   const [notifyChannel, setNotifyChannel] = useState(outcome?.notify?.channelId ?? "")
   const [notifyMemberId, setNotifyMemberId] = useState(outcome?.notify?.memberId ?? "")
 
   const [inviteOwningTeam, setInviteOwningTeam] = useState(
-    () => outcome?.invite?.some((t) => t.type === "owning_team") ?? false
+    () => outcome?.invite?.some((t) => t.type === TARGET_OWNING_TEAM) ?? false
   )
   const [inviteMemberIds, setInviteMemberIds] = useState<string[]>(
-    () => outcome?.invite?.filter((t) => t.type === "member").map((t) => t.memberId as string) ?? []
+    () => outcome?.invite?.filter((t) => t.type === TARGET_MEMBER).map((t) => t.memberId as string) ?? []
   )
+  const [errors, setErrors] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
 
   const isIncidentAction = action === "auto_create_incident" || action === "attach_to_incident"
   const availableMembers = members.filter((m) => !inviteMemberIds.includes(m.id))
@@ -113,17 +118,17 @@ export function RuleDialog({
 
   function buildNotify() {
     if (action !== "notify_only") return {}
-    if (notifyKind === "owning_team") return { notify: { type: "owning_team", of: "service" } }
-    if (notifyKind === "person" && notifyMemberId) return { notify: { type: "member", member_id: notifyMemberId } }
-    if (notifyKind === "channel" && notifyChannel.trim()) return { notify: { type: "channel", channel_id: notifyChannel.trim() } }
+    if (notifyKind === "owning_team") return { notify: { type: TARGET_OWNING_TEAM, of: "service" } }
+    if (notifyKind === "person" && notifyMemberId) return { notify: { type: TARGET_MEMBER, member_id: notifyMemberId } }
+    if (notifyKind === "channel" && notifyChannel.trim()) return { notify: { type: TARGET_CHANNEL, channel_id: notifyChannel.trim() } }
     return {}
   }
 
   function buildInvite() {
     if (!isIncidentAction) return {}
     const targets = [
-      ...(inviteOwningTeam ? [{ type: "owning_team", of: "service" }] : []),
-      ...inviteMemberIds.map((id) => ({ type: "member", member_id: id })),
+      ...(inviteOwningTeam ? [{ type: TARGET_OWNING_TEAM, of: "service" }] : []),
+      ...inviteMemberIds.map((id) => ({ type: TARGET_MEMBER, member_id: id })),
     ]
     return targets.length > 0 ? { invite: targets } : {}
   }
@@ -154,10 +159,19 @@ export function RuleDialog({
       },
     }
 
+    setErrors([])
+    setSaving(true)
+    const options = {
+      onSuccess: onClose,
+      onError: (errorBag: Record<string, string | string[]>) => {
+        setErrors(Object.values(errorBag).flat())
+      },
+      onFinish: () => setSaving(false),
+    }
     if (rule) {
-      router.patch(policyRulePath(rule.id), payload, { onSuccess: onClose })
+      router.patch(policyRulePath(rule.id), payload, options)
     } else {
-      router.post(policyRulesPath(), payload, { onSuccess: onClose })
+      router.post(policyRulesPath(), payload, options)
     }
   }
 
@@ -203,7 +217,7 @@ export function RuleDialog({
                         return (
                           <Badge key={slug} variant="secondary" className="gap-1">
                             {option?.name ?? slug}
-                            <button type="button" onClick={() => removeConditionValue(index, slug)} className="ml-0.5">
+                            <button type="button" aria-label={`Remove ${option?.name ?? slug}`} onClick={() => removeConditionValue(index, slug)} className="ml-0.5">
                               <IconX className="size-3" />
                             </button>
                           </Badge>
@@ -235,6 +249,7 @@ export function RuleDialog({
                     variant="ghost"
                     size="icon"
                     className="size-8 text-muted-foreground"
+                    aria-label="Remove condition"
                     onClick={() => setConditions((prev) => prev.filter((_, i) => i !== index))}
                   >
                     <IconTrash className="size-4" />
@@ -358,6 +373,7 @@ export function RuleDialog({
                         {member?.name ?? id}
                         <button
                           type="button"
+                          aria-label={`Remove ${member?.name ?? id}`}
                           onClick={() => setInviteMemberIds((prev) => prev.filter((v) => v !== id))}
                           className="ml-0.5"
                         >
@@ -383,9 +399,17 @@ export function RuleDialog({
             )}
           </div>
 
+          {errors.length > 0 && (
+            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+              {errors.map((message, i) => (
+                <p key={i}>{message}</p>
+              ))}
+            </div>
+          )}
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit">{rule ? "Save rule" : "Create rule"}</Button>
+            <Button type="submit" disabled={saving}>{rule ? "Save rule" : "Create rule"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

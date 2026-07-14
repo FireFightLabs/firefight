@@ -99,7 +99,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
   end
 
   test "notify_only posts the digest to the outcome channel" do
-    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => "channel", "channel_id" => "C999" } })
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL, "channel_id" => "C999" } })
     stub_post_message
 
     alert = @service.ingest(firing_fields, {})
@@ -165,7 +165,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
   end
 
   test "notify_only digest updates in place on refire and resolve" do
-    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => "channel", "channel_id" => "C999" } })
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL, "channel_id" => "C999" } })
     stub_post_message
     stub_update_message
 
@@ -206,7 +206,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
 
   test "notify_only can target a person via DM" do
     member = workspace_memberships(:alice_workspace_one)
-    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => "member", "member_id" => member.id } })
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_MEMBER, "member_id" => member.id } })
     stub_post_message
 
     alert = @service.ingest(firing_fields, {})
@@ -222,12 +222,12 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     team.update_column(:attributes, { "manager" => manager.id })
     routing_policy!({
       "action" => AlertIngestService::ACTION_AUTO_CREATE,
-      "invite" => [ { "type" => "owning_team", "of" => "service" } ]
+      "invite" => [ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" } ]
     })
 
     alert = @service.ingest(firing_fields("service" => "auth_service"), {})
 
-    workflow = SolidWorkflow::Workflow.order(:created_at).last
+    workflow = SolidWorkflow::Workflow.find_by!(subject_id: alert.incident.id)
     assert_equal alert.incident.id, workflow.subject_id
     assert_equal [ manager.id ], workflow.context["invite_membership_ids"]
   end
@@ -235,7 +235,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
   test "unresolvable invite targets soft-fail onto the attach event" do
     routing_policy!({
       "action" => AlertIngestService::ACTION_AUTO_CREATE,
-      "invite" => [ { "type" => "owning_team", "of" => "service" } ]
+      "invite" => [ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" } ]
     })
 
     alert = @service.ingest(firing_fields("service" => "not-in-catalog"), {})
@@ -243,6 +243,79 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     assert alert.incident.present?, "incident must be created despite resolution misses"
     event = alert.incident.incident_events.find_by!(event_type: IncidentEvent::ALERT_ATTACHED)
     assert event.metadata["unresolved_targets"].any?
+  end
+
+  test "losing the open-fingerprint insert race folds into the winner" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_DROP })
+    winner, created = @service.send(:persist, firing_fields("external_id" => "a"), {}, "fp-1", Time.current)
+    assert created
+
+    loser, loser_created = @service.send(:persist, firing_fields("external_id" => "b"), {}, "fp-1", Time.current)
+
+    assert_not loser_created
+    assert_equal winner.id, loser.id
+    assert_equal 2, loser.reload.event_count
+    assert_equal 1, @source.alerts.count
+  end
+
+  test "byte-identical redelivery neither re-counts nor re-routes" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_DROP })
+    first = @service.ingest(firing_fields("external_id" => "dup-1", "fingerprint" => "fp-a"), {})
+    first.update!(status: Alert::STATUS_RESOLVED, resolved_at: 1.hour.ago, last_seen_at: 1.hour.ago)
+
+    again = @service.ingest(firing_fields("external_id" => "dup-1", "fingerprint" => "fp-a"), {})
+
+    assert_equal first.id, again.id
+    assert_equal 1, again.reload.event_count
+  end
+
+  test "flap reopen onto a closed incident detaches and re-routes" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE })
+    alert = @service.ingest(firing_fields, {})
+    incident = alert.incident
+    incident.update_column(:incident_status_id, incident_statuses(:resolved_ws1).id)
+    @service.ingest(firing_fields("status" => Alert::STATUS_RESOLVED), {})
+
+    reopened = @service.ingest(firing_fields, {})
+
+    assert_equal alert.id, reopened.id
+    assert_not_equal incident.id, reopened.incident&.id
+    assert_equal Alert::ROUTING_ROUTED, reopened.routing_state
+  end
+
+  test "sweep retry of notify_only never double-posts the digest" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL, "channel_id" => "C999" } })
+    stub_post_message
+    alert = @service.ingest(firing_fields, {})
+    assert alert.channel_message_id.present?
+
+    Slack::WorkspaceAdapter.any_instance.expects(:post_alert_message).never
+    @service.send(:notify_channel, alert.reload, { "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL, "channel_id" => "C999" } })
+  end
+
+  test "repeated routing failures escalate to the failed state" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE, "severity_id" => SecureRandom.uuid })
+    @workspace.incident_severities.update_all(is_default: false)
+
+    alert = @service.ingest(firing_fields, {})
+    assert_equal Alert::ROUTING_PENDING, alert.reload.routing_state
+    assert_equal 1, alert.routing_attempts
+
+    (AlertIngestService::MAX_ROUTING_ATTEMPTS - 1).times { @service.route(alert.reload) }
+
+    assert_equal Alert::ROUTING_FAILED, alert.reload.routing_state
+  end
+
+  test "a failed digest attempt still stamps last_notified_at" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL, "channel_id" => "C999" } })
+    stub_post_message
+    alert = @service.ingest(firing_fields, {})
+    alert.update!(last_notified_at: 5.minutes.ago)
+
+    Slack::WorkspaceAdapter.any_instance.stubs(:update_alert_message).raises(AdapterError::NotInChannel.new("not_in_channel"))
+    @service.ingest(firing_fields, {})
+
+    assert alert.reload.last_notified_at > 1.minute.ago
   end
 
   test "routing failure leaves the alert pending for the sweep" do

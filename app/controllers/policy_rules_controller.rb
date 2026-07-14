@@ -43,12 +43,9 @@ class PolicyRulesController < InertiaController
 
   def find_or_create_policy
     if params[:alert_source_id].present?
-      source = current_workspace.alert_sources.find(params[:alert_source_id])
-      source.routing_policy ||
-        current_workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Alert routing", scoped_to: source)
+      current_workspace.alert_sources.find(params[:alert_source_id]).find_or_create_routing_policy!
     else
-      current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first ||
-        current_workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Alert routing")
+      current_workspace.find_or_create_alert_routing_fallback_policy!
     end
   end
 

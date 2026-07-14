@@ -74,7 +74,7 @@ class SettingsAlertsTest < ActionDispatch::IntegrationTest
     assert_response :success
     labels = inertia_props["ruleOptions"].map { |r| r["label"] }
     assert_includes labels, "Northflank · rule 1 · event contains crash"
-    assert_includes labels, "rule 1 · catch-all"
+    assert_includes labels, "rule 1 · always matches"
   end
 
   test "does not leak alerts from other workspaces" do

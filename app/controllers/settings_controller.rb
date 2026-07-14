@@ -115,17 +115,12 @@ class SettingsController < InertiaController
 
   def alert_routing
     source = current_workspace.alert_sources.find(params[:source_id]) if params[:source_id].present?
-    policy =
-      if source
-        source.routing_policy
-      else
-        current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first
-      end
+    policy = source ? source.routing_policy : current_workspace.alert_routing_fallback_policy
 
     render inertia: "settings/alert-routing", props: {
       policy: policy ? AlertRoutingPolicySerializer.one(policy) : nil,
       alertSource: source ? { id: source.id, name: source.name } : nil,
-      hasWorkspaceFallback: current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.exists?,
+      hasWorkspaceFallback: current_workspace.alert_routing_fallback_policy.present?,
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.active.ordered
       ),
@@ -152,14 +147,14 @@ class SettingsController < InertiaController
 
     policies.flat_map do |policy|
       scope_label = policy.scoped_to.respond_to?(:name) ? policy.scoped_to.name : nil
-      policy.ordered_rules.map do |rule|
+      policy.policy_rules.sort_by(&:priority).map do |rule|
         { id: rule.id, label: [ scope_label, "rule #{rule.priority}", rule_conditions_label(rule) ].compact.join(" · ") }
       end
     end
   end
 
   def rule_conditions_label(rule)
-    return "catch-all" if rule.conditions.blank?
+    return "always matches" if rule.conditions.blank?
 
     rule.conditions
       .map { |c| [ c["field"], c["operator"].tr("_", " "), Array(c["value"]).join(", ") ].reject(&:blank?).join(" ") }

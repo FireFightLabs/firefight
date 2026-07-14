@@ -15,14 +15,14 @@ class PolicyRuleAlertRoutingOutcomeTest < ActiveSupport::TestCase
   test "valid create outcome with owning-team invite" do
     assert rule({
       "action" => PolicyRule::AlertRoutingOutcome::ACTION_AUTO_CREATE,
-      "invite" => [ { "type" => "owning_team", "of" => "service" }, { "type" => "member", "member_id" => SecureRandom.uuid } ]
+      "invite" => [ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" }, { "type" => PolicyRule::AlertRoutingOutcome::TARGET_MEMBER, "member_id" => SecureRandom.uuid } ]
     }).valid?
   end
 
   test "valid notify outcome" do
     assert rule({
       "action" => PolicyRule::AlertRoutingOutcome::ACTION_NOTIFY_ONLY,
-      "notify" => { "type" => "channel", "channel_id" => "C1" }
+      "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL, "channel_id" => "C1" }
     }).valid?
   end
 
@@ -35,7 +35,7 @@ class PolicyRuleAlertRoutingOutcomeTest < ActiveSupport::TestCase
   test "rejects notify on incident-creating actions" do
     r = rule({
       "action" => PolicyRule::AlertRoutingOutcome::ACTION_AUTO_CREATE,
-      "notify" => { "type" => "channel", "channel_id" => "C1" }
+      "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL, "channel_id" => "C1" }
     })
     assert_not r.valid?
   end
@@ -43,7 +43,7 @@ class PolicyRuleAlertRoutingOutcomeTest < ActiveSupport::TestCase
   test "rejects invite on notify_only" do
     r = rule({
       "action" => PolicyRule::AlertRoutingOutcome::ACTION_NOTIFY_ONLY,
-      "invite" => [ { "type" => "member", "member_id" => SecureRandom.uuid } ]
+      "invite" => [ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_MEMBER, "member_id" => SecureRandom.uuid } ]
     })
     assert_not r.valid?
   end
@@ -51,7 +51,7 @@ class PolicyRuleAlertRoutingOutcomeTest < ActiveSupport::TestCase
   test "rejects targets missing their required key" do
     r = rule({
       "action" => PolicyRule::AlertRoutingOutcome::ACTION_NOTIFY_ONLY,
-      "notify" => { "type" => "channel" }
+      "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL }
     })
     assert_not r.valid?
     assert_includes r.errors[:outcome].join, "requires channel_id"
@@ -60,7 +60,7 @@ class PolicyRuleAlertRoutingOutcomeTest < ActiveSupport::TestCase
   test "rejects channel targets in invite" do
     r = rule({
       "action" => PolicyRule::AlertRoutingOutcome::ACTION_AUTO_CREATE,
-      "invite" => [ { "type" => "channel", "channel_id" => "C1" } ]
+      "invite" => [ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL, "channel_id" => "C1" } ]
     })
     assert_not r.valid?
   end

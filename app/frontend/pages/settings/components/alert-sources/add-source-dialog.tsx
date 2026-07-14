@@ -3,6 +3,7 @@ import { useForm } from "@inertiajs/react"
 import { IconPlus } from "@tabler/icons-react"
 
 import { alertSourcesPath } from "@/lib/routes"
+import { PROVIDER_LABELS } from "@/pages/settings/lib/alerts"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -24,10 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-const PROVIDERS = [
-  { value: "generic", label: "Generic webhook" },
-  { value: "northflank", label: "Northflank" },
-] as const
 
 export function AddSourceDialog() {
   const [open, setOpen] = useState(false)
@@ -49,7 +46,7 @@ export function AddSourceDialog() {
       <DialogTrigger asChild>
         <Button size="sm">
           <IconPlus className="size-4" />
-          Add Source
+          Add source
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -79,8 +76,8 @@ export function AddSourceDialog() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PROVIDERS.map((provider) => (
-                    <SelectItem key={provider.value} value={provider.value}>{provider.label}</SelectItem>
+                  {Object.entries(PROVIDER_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

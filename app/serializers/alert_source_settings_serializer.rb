@@ -9,13 +9,27 @@ class AlertSourceSettingsSerializer < BaseSerializer
   attributes(
     name: { type: :string },
     provider: { type: :string },
-    enabled: { type: :boolean },
-    secret_token: { type: :string }
+    enabled: { type: :boolean }
   )
+
+  type :string, optional: true
+  def last_received_at
+    alert_source.last_received_at&.utc&.iso8601
+  end
+
+  type :string, optional: true
+  def last_rejected_at
+    alert_source.last_rejected_at&.utc&.iso8601
+  end
+
+  type :string, optional: true
+  def last_rejection_reason
+    alert_source.last_rejection_reason
+  end
 
   type :string
   def ingest_path
-    "/api/v1/alerts/#{alert_source.endpoint_path}"
+    Rails.application.routes.url_helpers.api_v1_alert_ingest_path(endpoint_path: alert_source.endpoint_path)
   end
 
   type "Record<string, string>"

@@ -14,9 +14,12 @@ import {
 import {
   ACTION_LABELS,
   csrfToken,
+  describeSample,
+  needsCustomSample,
   sampleFieldsFor,
   type CatalogOptionMap,
   type RuleCondition,
+  type RunTestOutcome,
   type SendTestResult,
   type SlackChannel,
   type TestResult,
@@ -41,11 +44,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { RowActions } from "@/pages/settings/components/row-actions"
+import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { RuleDialog } from "@/pages/settings/components/alert-routing/rule-dialog"
 import { CustomTestDialog } from "@/pages/settings/components/alert-routing/custom-test-dialog"
+import { TestOutcomeBadge } from "@/pages/settings/components/alert-routing/test-outcome-badge"
 
 function conditionsSummary(rule: PolicyRule): string {
-  if (rule.conditions.length === 0) return "Always matches (catch-all)"
+  if (rule.conditions.length === 0) return "Always matches"
 
   return rule.conditions
     .map((c) => {
@@ -53,19 +58,6 @@ function conditionsSummary(rule: PolicyRule): string {
       return value ? `${c.field} ${c.operator.replace(/_/g, " ")} ${value}` : `${c.field} ${c.operator.replace(/_/g, " ")}`
     })
     .join(" AND ")
-}
-
-function TestOutcomeBadge({ rule, testResult }: { rule: PolicyRule; testResult: TestResult | null }) {
-  const entry = testResult?.trace.find((t) => t.rule_id === rule.id)
-  if (!entry) return null
-
-  if (entry.matched) {
-    return <Badge className="ml-2">✓ fires</Badge>
-  }
-  if (entry.skipped) {
-    return <span className="ml-2 text-xs text-muted-foreground/60">skipped (disabled)</span>
-  }
-  return <span className="ml-2 text-xs text-muted-foreground/60">✗ no match</span>
 }
 
 export function AlertRoutingTab({
@@ -87,34 +79,65 @@ export function AlertRoutingTab({
 }) {
   const [editingRule, setEditingRule] = useState<PolicyRule | null>(null)
   const [addingRule, setAddingRule] = useState(false)
+  const [deletingRule, setDeletingRule] = useState<PolicyRule | null>(null)
   const [testResult, setTestResult] = useState<TestResult | null>(null)
+  const [testError, setTestError] = useState<string | null>(null)
   const [testedRuleId, setTestedRuleId] = useState<string | null>(null)
+  const [testedSample, setTestedSample] = useState<string | null>(null)
   const rules = policy?.rules ?? []
   const canTest = Boolean(policy) || (Boolean(alertSource) && hasWorkspaceFallback)
 
-  async function runTest(fields: Record<string, string>): Promise<TestResult | null> {
-    const response = await fetch(alertRoutingTestPath(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
-      body: JSON.stringify({ fields, alert_source_id: alertSource?.id ?? null }),
-    })
-    const parsed: TestResult | null = response.ok ? await response.json() : null
-    setTestResult(parsed)
-    return parsed
+  function clearTest() {
+    setTestResult(null)
+    setTestError(null)
+    setTestedRuleId(null)
+    setTestedSample(null)
   }
 
-  async function sendTest(fields: Record<string, string>): Promise<SendTestResult | null> {
-    const response = await fetch(alertRoutingSendTestPath(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
-      body: JSON.stringify({ fields, alert_source_id: alertSource?.id ?? null }),
-    })
-    return (await response.json()) as SendTestResult
+  async function runTest(fields: Record<string, string>): Promise<RunTestOutcome> {
+    try {
+      const response = await fetch(alertRoutingTestPath(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+        body: JSON.stringify({ fields, alert_source_id: alertSource?.id ?? null }),
+      })
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null
+        const error = body?.error ?? "The test request failed; try again."
+        setTestResult(null)
+        setTestError(error)
+        return { result: null, error }
+      }
+      const parsed = (await response.json()) as TestResult
+      setTestResult(parsed)
+      setTestError(null)
+      return { result: parsed, error: null }
+    } catch {
+      const error = "The test request failed; try again."
+      setTestResult(null)
+      setTestError(error)
+      return { result: null, error }
+    }
+  }
+
+  async function sendTest(fields: Record<string, string>): Promise<SendTestResult> {
+    try {
+      const response = await fetch(alertRoutingSendTestPath(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+        body: JSON.stringify({ fields, alert_source_id: alertSource?.id ?? null }),
+      })
+      return (await response.json()) as SendTestResult
+    } catch {
+      return { error: "The request failed; try again." }
+    }
   }
 
   function testRule(rule: PolicyRule) {
+    const sample = sampleFieldsFor(rule.conditions as RuleCondition[])
     setTestedRuleId(rule.id)
-    void runTest(sampleFieldsFor(rule.conditions as RuleCondition[]))
+    setTestedSample(describeSample(sample))
+    void runTest(sample)
   }
 
   function shadowNote(rule: PolicyRule): string | null {
@@ -125,11 +148,25 @@ export function AlertRoutingTab({
   }
 
   function togglePolicy(enabled: boolean) {
+    clearTest()
     router.patch(alertRoutingPath(), { policy: { enabled }, alert_source_id: alertSource?.id })
   }
 
   function toggleRule(rule: PolicyRule, enabled: boolean) {
+    clearTest()
     router.patch(policyRulePath(rule.id), { rule: { enabled } })
+  }
+
+  function moveRule(rule: PolicyRule, direction: "up" | "down") {
+    clearTest()
+    router.patch(direction === "up" ? moveUpPolicyRulePath(rule.id) : moveDownPolicyRulePath(rule.id))
+  }
+
+  function confirmDeleteRule() {
+    if (!deletingRule) return
+    clearTest()
+    router.delete(policyRulePath(deletingRule.id))
+    setDeletingRule(null)
   }
 
   return (
@@ -153,9 +190,18 @@ export function AlertRoutingTab({
                 </div>
               )}
               <CustomTestDialog disabled={!canTest} onRun={runTest} onSend={sendTest} />
-              <Button size="sm" onClick={() => setAddingRule(true)}>Add Rule</Button>
+              <Button size="sm" onClick={() => setAddingRule(true)}>Add rule</Button>
             </div>
           </div>
+          {(testedSample || testError) && (
+            <div className="mt-2 text-xs">
+              {testError ? (
+                <span className="text-destructive">{testError}</span>
+              ) : (
+                <span className="text-muted-foreground">Tested with {testedSample}</span>
+              )}
+            </div>
+          )}
         </CardHeader>
         {rules.length > 0 ? (
           <CardContent className="p-0">
@@ -170,68 +216,83 @@ export function AlertRoutingTab({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rules.map((rule, index) => (
-                  <TableRow key={rule.id} className={rule.enabled ? "" : "opacity-50"}>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{index + 1}</TableCell>
-                    <TableCell className="max-w-md text-sm">
-                      <span className="truncate">{conditionsSummary(rule)}</span>
-                      <TestOutcomeBadge rule={rule} testResult={testResult} />
-                      {shadowNote(rule) && (
-                        <span className="ml-2 text-xs text-amber-500/80">⚠ {shadowNote(rule)}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{ACTION_LABELS[rule.outcome.action] ?? rule.outcome.action}</Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Switch checked={rule.enabled} onCheckedChange={(enabled) => toggleRule(rule, enabled)} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-0.5">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-muted-foreground"
-                          title="Test this rule"
-                          disabled={!canTest}
-                          onClick={() => testRule(rule)}
-                        >
-                          <IconFlask className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-muted-foreground"
-                          disabled={index === 0}
-                          onClick={() => router.patch(moveUpPolicyRulePath(rule.id))}
-                        >
-                          <IconArrowUp className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-muted-foreground"
-                          disabled={index === rules.length - 1}
-                          onClick={() => router.patch(moveDownPolicyRulePath(rule.id))}
-                        >
-                          <IconArrowDown className="size-4" />
-                        </Button>
-                        <RowActions
-                          onEdit={() => setEditingRule(rule)}
-                          onDelete={() => router.delete(policyRulePath(rule.id))}
+                {rules.map((rule, index) => {
+                  const regexRule = needsCustomSample(rule.conditions as RuleCondition[])
+                  return (
+                    <TableRow key={rule.id} className={rule.enabled ? "" : "opacity-50"}>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{index + 1}</TableCell>
+                      <TableCell className="max-w-md text-sm">
+                        <span className="truncate">{conditionsSummary(rule)}</span>
+                        <TestOutcomeBadge rule={rule} testResult={testResult} />
+                        {shadowNote(rule) && (
+                          <span className="ml-2 text-xs text-amber-500/80">⚠ {shadowNote(rule)}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{ACTION_LABELS[rule.outcome.action] ?? rule.outcome.action}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Switch
+                          checked={rule.enabled}
+                          onCheckedChange={(enabled) => toggleRule(rule, enabled)}
+                          aria-label={`Rule ${index + 1} enabled`}
                         />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-muted-foreground"
+                            title={regexRule ? "Regex rules need a real sample value; use Test custom alert" : "Test this rule"}
+                            aria-label="Test this rule"
+                            disabled={!canTest || regexRule}
+                            onClick={() => testRule(rule)}
+                          >
+                            <IconFlask className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-muted-foreground"
+                            title="Move up"
+                            aria-label="Move rule up"
+                            disabled={index === 0}
+                            onClick={() => moveRule(rule, "up")}
+                          >
+                            <IconArrowUp className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-muted-foreground"
+                            title="Move down"
+                            aria-label="Move rule down"
+                            disabled={index === rules.length - 1}
+                            onClick={() => moveRule(rule, "down")}
+                          >
+                            <IconArrowDown className="size-4" />
+                          </Button>
+                          <RowActions
+                            onEdit={() => setEditingRule(rule)}
+                            onDelete={() => setDeletingRule(rule)}
+                          />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </CardContent>
         ) : (
           <CardContent>
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <IconRoute className="size-4" />
-              No routing rules yet. Without a matching rule, incoming alerts are stored but never create incidents.
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <IconRoute className="size-4" />
+                No routing rules yet. Without a matching rule, incoming alerts are stored but never create incidents.
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setAddingRule(true)}>Add your first rule</Button>
             </div>
           </CardContent>
         )}
@@ -246,11 +307,20 @@ export function AlertRoutingTab({
           catalogOptions={catalogOptions}
           alertSourceId={alertSource?.id ?? null}
           onClose={() => {
+            clearTest()
             setAddingRule(false)
             setEditingRule(null)
           }}
         />
       )}
+
+      <ConfirmDeleteDialog
+        open={Boolean(deletingRule)}
+        title="Delete this rule?"
+        description="Alerts that only this rule matches will fall through to later rules, or go unmatched and create nothing."
+        onConfirm={confirmDeleteRule}
+        onCancel={() => setDeletingRule(null)}
+      />
     </div>
   )
 }

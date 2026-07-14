@@ -66,8 +66,8 @@ class PolicyRuleTest < ActiveSupport::TestCase
   end
 
   test "priority is unique per policy" do
-    @policy.policy_rules.create!(priority: 1, conditions: [], outcome: { "action" => "drop" })
-    duplicate = @policy.policy_rules.build(priority: 1, conditions: [], outcome: { "action" => "drop" })
+    @policy.policy_rules.create!(priority: 1, conditions: [], outcome: { "action" => PolicyRule::AlertRoutingOutcome::ACTION_DROP })
+    duplicate = @policy.policy_rules.build(priority: 1, conditions: [], outcome: { "action" => PolicyRule::AlertRoutingOutcome::ACTION_DROP })
     assert_not duplicate.valid?
   end
 end

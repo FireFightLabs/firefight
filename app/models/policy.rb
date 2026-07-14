@@ -5,6 +5,8 @@ class Policy < ApplicationRecord
   DOMAIN_AUTO_INVESTIGATE = "auto_investigate"
   DOMAINS = [ DOMAIN_ALERT_ROUTING, DOMAIN_AUTO_INVESTIGATE ].freeze
 
+  DEFAULT_ALERT_ROUTING_NAME = "Alert routing".freeze
+
   belongs_to :workspace
   belongs_to :scoped_to, polymorphic: true, optional: true
   has_many :policy_rules, dependent: :destroy

@@ -21,6 +21,16 @@ export const ACTION_LABELS: Record<string, string> = Object.fromEntries(
   OUTCOME_ACTIONS.map((action) => [action.value, action.label])
 )
 
+export const TARGET_MEMBER = "member"
+export const TARGET_TEAM = "team"
+export const TARGET_OWNING_TEAM = "owning_team"
+export const TARGET_CHANNEL = "channel"
+
+export const PROVIDER_LABELS: Record<string, string> = {
+  generic: "Generic webhook",
+  northflank: "Northflank",
+}
+
 export interface RuleCondition {
   field: string
   operator: ConditionOperator
@@ -62,6 +72,11 @@ export interface SendTestResult {
   error?: string
 }
 
+export interface RunTestOutcome {
+  result: TestResult | null
+  error: string | null
+}
+
 // Derive a sample alert that should satisfy a rule's own conditions, so a
 // per-rule test exercises the real first-match evaluation with plausible input.
 export function sampleFieldsFor(conditions: RuleCondition[]): Record<string, string> {
@@ -72,6 +87,17 @@ export function sampleFieldsFor(conditions: RuleCondition[]): Record<string, str
     if (value) fields[condition.field] = value
   }
   return fields
+}
+
+// A regex pattern used verbatim as a field value generally won't match itself,
+// so a derived sample would mislead; those rules need the custom tester.
+export function needsCustomSample(conditions: RuleCondition[]): boolean {
+  return conditions.some((condition) => condition.operator === "matches_regex")
+}
+
+export function describeSample(fields: Record<string, string>): string {
+  const pairs = Object.entries(fields).map(([key, value]) => `${key}=${value}`)
+  return pairs.length > 0 ? pairs.join(", ") : "an empty alert"
 }
 
 export function csrfToken(): string {

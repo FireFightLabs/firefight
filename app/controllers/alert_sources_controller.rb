@@ -1,6 +1,6 @@
 class AlertSourcesController < InertiaController
   before_action :require_authentication
-  before_action :set_alert_source, only: [ :update, :destroy ]
+  before_action :set_alert_source, only: [ :update, :destroy, :token ]
 
   def create
     source = current_workspace.alert_sources.new(
@@ -29,6 +29,12 @@ class AlertSourcesController < InertiaController
   def destroy
     @alert_source.destroy!
     redirect_to settings_alert_sources_path
+  end
+
+  # The secret is fetched on demand (copy button), never embedded in page
+  # props, mirroring how API keys avoid shipping credentials on every render.
+  def token
+    render json: { token: @alert_source.secret_token }
   end
 
   private

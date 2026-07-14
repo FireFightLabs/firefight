@@ -19,7 +19,7 @@ class AlertTargetResolverTest < ActiveSupport::TestCase
     other = @workspace.workspace_memberships.where.not(id: @alice.id).first
     @team.update_column(:attributes, { "manager" => @alice.id, "members" => [ @alice.id, other.id ] })
 
-    memberships = resolver.memberships_for([ { "type" => "owning_team", "of" => "service" } ])
+    memberships = resolver.memberships_for([ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" } ])
 
     assert_equal [ @alice, other ].map(&:id).sort, memberships.map(&:id).sort
   end
@@ -27,8 +27,8 @@ class AlertTargetResolverTest < ActiveSupport::TestCase
   test "explicit member target resolves, unknown member is a note" do
     r = resolver
     memberships = r.memberships_for([
-      { "type" => "member", "member_id" => @alice.id },
-      { "type" => "member", "member_id" => SecureRandom.uuid }
+      { "type" => PolicyRule::AlertRoutingOutcome::TARGET_MEMBER, "member_id" => @alice.id },
+      { "type" => PolicyRule::AlertRoutingOutcome::TARGET_MEMBER, "member_id" => SecureRandom.uuid }
     ])
 
     assert_equal [ @alice ], memberships
@@ -39,23 +39,23 @@ class AlertTargetResolverTest < ActiveSupport::TestCase
     @service_entry.update_column(:attributes, { "slack_channel" => "C_SERVICE" })
     @team.update_column(:attributes, { "slack_channel" => "C_TEAM" })
 
-    assert_equal "C_SERVICE", resolver.channel_for({ "type" => "owning_team", "of" => "service" })
+    assert_equal "C_SERVICE", resolver.channel_for({ "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" })
   end
 
   test "owning_team notify falls back to the team channel" do
     @team.update_column(:attributes, { "slack_channel" => "C_TEAM" })
 
-    assert_equal "C_TEAM", resolver.channel_for({ "type" => "owning_team", "of" => "service" })
+    assert_equal "C_TEAM", resolver.channel_for({ "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" })
   end
 
   test "member notify resolves to the platform user id (DM)" do
-    assert_equal @alice.platform_user_id, resolver.channel_for({ "type" => "member", "member_id" => @alice.id })
+    assert_equal @alice.platform_user_id, resolver.channel_for({ "type" => PolicyRule::AlertRoutingOutcome::TARGET_MEMBER, "member_id" => @alice.id })
   end
 
   test "service missing from catalog notes the miss and resolves nothing" do
     r = resolver({ "service" => "ghost" })
 
-    assert_empty r.memberships_for([ { "type" => "owning_team", "of" => "service" } ])
+    assert_empty r.memberships_for([ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" } ])
     assert r.notes.any? { |n| n.include?("not in the catalog") }
   end
 
@@ -63,7 +63,7 @@ class AlertTargetResolverTest < ActiveSupport::TestCase
     @team.update_column(:attributes, {})
     r = resolver
 
-    assert_empty r.memberships_for([ { "type" => "owning_team", "of" => "service" } ])
+    assert_empty r.memberships_for([ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" } ])
     assert r.notes.any? { |n| n.include?("no members or manager") }
   end
 end

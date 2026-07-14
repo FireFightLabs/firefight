@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_14_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_15_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -65,6 +65,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_120000) do
     t.boolean "enabled", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "last_received_at"
+    t.datetime "last_rejected_at"
+    t.string "last_rejection_reason"
     t.index ["endpoint_path"], name: "index_alert_sources_on_endpoint_path", unique: true
     t.index ["workspace_id", "name"], name: "index_alert_sources_on_workspace_id_and_name", unique: true
     t.index ["workspace_id"], name: "index_alert_sources_on_workspace_id"
@@ -92,12 +95,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.uuid "matched_policy_rule_id"
+    t.integer "routing_attempts", default: 0, null: false
     t.index ["alert_group_id"], name: "index_alerts_on_alert_group_id"
     t.index ["alert_source_id", "external_id"], name: "index_alerts_on_alert_source_id_and_external_id", unique: true
     t.index ["alert_source_id", "fingerprint", "status"], name: "index_alerts_on_alert_source_id_and_fingerprint_and_status"
+    t.index ["alert_source_id", "fingerprint"], name: "index_alerts_on_open_fingerprint", unique: true, where: "((status)::text = 'firing'::text)"
     t.index ["alert_source_id"], name: "index_alerts_on_alert_source_id"
     t.index ["incident_id"], name: "index_alerts_on_incident_id"
     t.index ["matched_policy_rule_id"], name: "index_alerts_on_matched_policy_rule_id"
+    t.index ["received_at"], name: "index_alerts_on_pending_received_at", where: "((routing_state)::text = 'pending'::text)"
+    t.index ["workspace_id", "last_seen_at"], name: "index_alerts_on_workspace_id_and_last_seen_at"
     t.index ["workspace_id", "routing_state"], name: "index_alerts_on_workspace_id_and_routing_state"
     t.index ["workspace_id"], name: "index_alerts_on_workspace_id"
   end

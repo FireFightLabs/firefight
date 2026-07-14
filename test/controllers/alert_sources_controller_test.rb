@@ -45,6 +45,15 @@ class AlertSourcesControllerTest < ActionDispatch::IntegrationTest
     assert_nil AlertSource.find_by(id: source.id)
   end
 
+  test "token endpoint returns the secret on demand" do
+    source = @workspace.alert_sources.create!(name: "Grafana", provider: AlertSource::PROVIDER_GENERIC)
+
+    post token_alert_source_url(source)
+
+    assert_response :success
+    assert_equal source.secret_token, JSON.parse(response.body)["token"]
+  end
+
   test "cannot touch another workspace's source" do
     other = workspaces(:slack_workspace_two)
     source = other.alert_sources.create!(name: "Theirs", provider: AlertSource::PROVIDER_GENERIC)

@@ -7,7 +7,7 @@ module Slack
         emoji = alert.firing? ? ":rotating_light:" : ":white_check_mark:"
 
         [
-          { type: "section", text: { type: "mrkdwn", text: "#{emoji}  *#{alert.title}*" } },
+          { type: "section", text: { type: "mrkdwn", text: "#{emoji}  *#{Slack::Mrkdwn.escape(alert.title)}*" } },
           {
             type: "context",
             elements: [

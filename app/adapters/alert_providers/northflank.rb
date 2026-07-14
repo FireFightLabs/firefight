@@ -32,7 +32,7 @@ module AlertProviders
       fields["service"] = service.to_s if service.present?
       fields["environment"] = data.dig("environment", "id").to_s if data.dig("environment", "id").present?
 
-      [ fields ]
+      [ item(fields, payload) ]
     end
 
     def self.title_for(event, data, project)

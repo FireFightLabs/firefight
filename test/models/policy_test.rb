@@ -47,8 +47,8 @@ class PolicyTest < ActiveSupport::TestCase
 
   test "ordered_rules sorts by priority" do
     policy = Policy.create!(workspace: @workspace, domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
-    late = policy.policy_rules.create!(priority: 20, conditions: [], outcome: { "action" => "drop" })
-    early = policy.policy_rules.create!(priority: 10, conditions: [], outcome: { "action" => "drop" })
+    late = policy.policy_rules.create!(priority: 20, conditions: [], outcome: { "action" => PolicyRule::AlertRoutingOutcome::ACTION_DROP })
+    early = policy.policy_rules.create!(priority: 10, conditions: [], outcome: { "action" => PolicyRule::AlertRoutingOutcome::ACTION_DROP })
 
     assert_equal [ early, late ], policy.ordered_rules.to_a
   end

@@ -6,7 +6,8 @@ class Alert < ApplicationRecord
   ROUTING_PENDING = "pending"
   ROUTING_ROUTED = "routed"
   ROUTING_UNMATCHED = "unmatched"
-  ROUTING_STATES = [ ROUTING_PENDING, ROUTING_ROUTED, ROUTING_UNMATCHED ].freeze
+  ROUTING_FAILED = "failed"
+  ROUTING_STATES = [ ROUTING_PENDING, ROUTING_ROUTED, ROUTING_UNMATCHED, ROUTING_FAILED ].freeze
 
   belongs_to :workspace
   belongs_to :alert_source
@@ -36,14 +37,13 @@ class Alert < ApplicationRecord
     status == STATUS_FIRING
   end
 
+  # One atomic UPDATE so concurrent firings never lose event_count increments.
   def record_firing!(now = Time.current)
-    increment(:event_count)
-    self.last_seen_at = now
-    if status == STATUS_RESOLVED
-      self.status = STATUS_FIRING
-      self.resolved_at = nil
-    end
-    save!
+    self.class.where(id: id).update_all([
+      "event_count = event_count + 1, last_seen_at = ?, status = ?, resolved_at = NULL, updated_at = ?",
+      now, STATUS_FIRING, Time.current
+    ])
+    reload
   end
 
   def resolve!(now = Time.current)
