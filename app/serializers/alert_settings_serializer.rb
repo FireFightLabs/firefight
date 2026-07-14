@@ -37,6 +37,23 @@ class AlertSettingsSerializer < BaseSerializer
     alert.incident&.identifier
   end
 
+  type :string, optional: true
+  def matched_rule_id
+    alert.matched_policy_rule_id
+  end
+
+  type :number, optional: true
+  def matched_rule_priority
+    alert.matched_policy_rule&.priority
+  end
+
+  # The alert source the matched rule's policy is scoped to; null means the
+  # workspace default policy matched.
+  type :string, optional: true
+  def matched_rule_source_id
+    alert.matched_policy_rule&.policy&.scoped_to_id
+  end
+
   type :string
   def received_at
     alert.received_at.utc.iso8601

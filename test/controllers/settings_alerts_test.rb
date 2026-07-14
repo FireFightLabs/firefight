@@ -38,6 +38,45 @@ class SettingsAlertsTest < ActionDispatch::IntegrationTest
     assert_equal @source.id, inertia_props["sourceId"]
   end
 
+  test "filters by matched rule and offers only the selected source's rules" do
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "NF routing", scoped_to: @source)
+    rule = policy.policy_rules.create!(priority: 1, conditions: [],
+                                       outcome: { "action" => AlertIngestService::ACTION_DROP })
+    other_policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Default routing")
+    other_policy.policy_rules.create!(priority: 1, conditions: [],
+                                      outcome: { "action" => AlertIngestService::ACTION_DROP })
+
+    matched = create_alert(@source, external_id: "a1", title: "Disk full")
+    matched.update!(matched_policy_rule: rule, routing_state: Alert::ROUTING_ROUTED)
+    create_alert(@source, external_id: "a2", title: "Container crash")
+
+    get settings_alerts_url(source_id: @source.id, rule_id: rule.id), headers: inertia_headers
+
+    assert_response :success
+    alerts = inertia_props["alerts"]
+    assert_equal [ matched.id ], alerts.map { |a| a["id"] }
+    assert_equal 1, alerts.first["matchedRulePriority"]
+    assert_equal @source.id, alerts.first["matchedRuleSourceId"]
+    assert_equal [ rule.id ], inertia_props["ruleOptions"].map { |r| r["id"] }
+  end
+
+  test "without a source filter rule options span all policies with scope labels" do
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "NF routing", scoped_to: @source)
+    policy.policy_rules.create!(priority: 1,
+                                conditions: [ { field: "event", operator: PolicyRule::OPERATOR_CONTAINS, value: "crash" } ],
+                                outcome: { "action" => AlertIngestService::ACTION_DROP })
+    fallback = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Default routing")
+    fallback.policy_rules.create!(priority: 1, conditions: [],
+                                  outcome: { "action" => AlertIngestService::ACTION_DROP })
+
+    get settings_alerts_url, headers: inertia_headers
+
+    assert_response :success
+    labels = inertia_props["ruleOptions"].map { |r| r["label"] }
+    assert_includes labels, "Northflank · rule 1 · event contains crash"
+    assert_includes labels, "rule 1 · catch-all"
+  end
+
   test "does not leak alerts from other workspaces" do
     other_workspace = workspaces(:slack_workspace_two)
     foreign_source = other_workspace.alert_sources.create!(name: "Foreign", provider: AlertSource::PROVIDER_GENERIC)

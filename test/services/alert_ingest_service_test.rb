@@ -78,6 +78,26 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     assert_nil alert.incident
   end
 
+  test "routing records which rule matched" do
+    policy = routing_policy!({ "action" => AlertIngestService::ACTION_DROP },
+                             conditions: [ { field: "service", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "checkout" ] } ])
+    rule = policy.policy_rules.find_by!(priority: 1)
+
+    alert = @service.ingest(firing_fields, {})
+
+    assert_equal rule, alert.matched_policy_rule
+  end
+
+  test "unmatched alerts record no matched rule" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_DROP },
+                    conditions: [ { field: "service", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "other" ] } ])
+
+    alert = @service.ingest(firing_fields, {})
+
+    assert_equal Alert::ROUTING_UNMATCHED, alert.routing_state
+    assert_nil alert.matched_policy_rule
+  end
+
   test "notify_only posts the digest to the outcome channel" do
     routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => "channel", "channel_id" => "C999" } })
     stub_post_message

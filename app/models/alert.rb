@@ -12,6 +12,7 @@ class Alert < ApplicationRecord
   belongs_to :alert_source
   belongs_to :incident, optional: true
   belongs_to :alert_group, optional: true
+  belongs_to :matched_policy_rule, class_name: "PolicyRule", optional: true
 
   # Uniqueness of (alert_source_id, external_id) is enforced by the DB index;
   # the ingest path relies on RecordNotUnique as its idempotency check.

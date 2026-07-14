@@ -62,7 +62,7 @@ class AlertIngestService
     end
 
     apply_outcome(alert, result.outcome)
-    alert.update!(routing_state: Alert::ROUTING_ROUTED, routed_at: Time.current)
+    alert.update!(routing_state: Alert::ROUTING_ROUTED, routed_at: Time.current, matched_policy_rule: result.matched_rule)
   rescue StandardError => e
     Rails.logger.error({ event: "alert_routing.failed", alert_id: alert.id, error: e.message }.to_json)
   end

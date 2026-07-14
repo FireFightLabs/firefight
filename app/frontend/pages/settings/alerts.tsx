@@ -10,16 +10,24 @@ interface AlertsPageProps extends SharedProps {
   alerts: AlertSettings[]
   alertSources: { id: string; name: string }[]
   sourceId: string | null
+  ruleId: string | null
+  ruleOptions: { id: string; label: string }[]
 }
 
 export default function Alerts() {
-  const { alerts, alertSources, sourceId } = usePage<AlertsPageProps>().props
+  const { alerts, alertSources, sourceId, ruleId, ruleOptions } = usePage<AlertsPageProps>().props
 
   return (
     <AuthenticatedLayout title="Alerts">
       <Head title="Alerts" />
       <div className="flex flex-col gap-6 px-4 py-4 md:py-6 lg:px-6">
-        <RecentAlertsTab alerts={alerts} alertSources={alertSources} sourceId={sourceId} />
+        <RecentAlertsTab
+          alerts={alerts}
+          alertSources={alertSources}
+          sourceId={sourceId}
+          ruleId={ruleId}
+          ruleOptions={ruleOptions}
+        />
       </div>
     </AuthenticatedLayout>
   )

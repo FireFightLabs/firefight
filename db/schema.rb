@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_14_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_14_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -91,11 +91,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_080000) do
     t.datetime "last_notified_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "matched_policy_rule_id"
     t.index ["alert_group_id"], name: "index_alerts_on_alert_group_id"
     t.index ["alert_source_id", "external_id"], name: "index_alerts_on_alert_source_id_and_external_id", unique: true
     t.index ["alert_source_id", "fingerprint", "status"], name: "index_alerts_on_alert_source_id_and_fingerprint_and_status"
     t.index ["alert_source_id"], name: "index_alerts_on_alert_source_id"
     t.index ["incident_id"], name: "index_alerts_on_incident_id"
+    t.index ["matched_policy_rule_id"], name: "index_alerts_on_matched_policy_rule_id"
     t.index ["workspace_id", "routing_state"], name: "index_alerts_on_workspace_id_and_routing_state"
     t.index ["workspace_id"], name: "index_alerts_on_workspace_id"
   end
@@ -962,6 +964,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_080000) do
   add_foreign_key "alerts", "alert_groups"
   add_foreign_key "alerts", "alert_sources"
   add_foreign_key "alerts", "incidents"
+  add_foreign_key "alerts", "policy_rules", column: "matched_policy_rule_id", on_delete: :nullify
   add_foreign_key "alerts", "workspaces"
   add_foreign_key "api_keys", "workspace_memberships", column: "created_by_id"
   add_foreign_key "api_keys", "workspaces"

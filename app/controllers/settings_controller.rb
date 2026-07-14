@@ -97,13 +97,19 @@ class SettingsController < InertiaController
   end
 
   def alerts
-    scope = current_workspace.alerts.includes(:alert_source, :incident).order(last_seen_at: :desc)
-    scope = scope.where(alert_source_id: params[:source_id]) if params[:source_id].present?
+    source = current_workspace.alert_sources.find(params[:source_id]) if params[:source_id].present?
+    scope = current_workspace.alerts
+      .includes(:alert_source, :incident, matched_policy_rule: :policy)
+      .order(last_seen_at: :desc)
+    scope = scope.where(alert_source: source) if source
+    scope = scope.where(matched_policy_rule_id: params[:rule_id]) if params[:rule_id].present?
 
     render inertia: "settings/alerts", props: {
       alerts: AlertSettingsSerializer.many(scope.limit(RECENT_ALERTS_LIMIT)),
       alertSources: current_workspace.alert_sources.order(:name).map { |s| { id: s.id, name: s.name } },
-      sourceId: params[:source_id].presence
+      sourceId: source&.id,
+      ruleId: params[:rule_id].presence,
+      ruleOptions: routing_rule_options(source)
     }
   end
 
@@ -132,6 +138,33 @@ class SettingsController < InertiaController
   end
 
   private
+
+  # Rule filter options follow the source filter: a selected source offers the
+  # rules of its effective policy; no selection offers every routing rule in
+  # the workspace, prefixed with its scope.
+  def routing_rule_options(source)
+    policies =
+      if source
+        [ source.effective_routing_policy ].compact
+      else
+        current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).includes(:scoped_to, :policy_rules)
+      end
+
+    policies.flat_map do |policy|
+      scope_label = policy.scoped_to.respond_to?(:name) ? policy.scoped_to.name : nil
+      policy.ordered_rules.map do |rule|
+        { id: rule.id, label: [ scope_label, "rule #{rule.priority}", rule_conditions_label(rule) ].compact.join(" · ") }
+      end
+    end
+  end
+
+  def rule_conditions_label(rule)
+    return "catch-all" if rule.conditions.blank?
+
+    rule.conditions
+      .map { |c| [ c["field"], c["operator"].tr("_", " "), Array(c["value"]).join(", ") ].reject(&:blank?).join(" ") }
+      .join(" AND ").truncate(60)
+  end
 
   # Catalog entries grouped by system key so condition values on catalog-backed
   # fields are picked, not typed.
