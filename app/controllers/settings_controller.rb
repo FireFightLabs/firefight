@@ -113,11 +113,23 @@ class SettingsController < InertiaController
       channels: workspace_channels,
       members: WorkspaceMembershipSerializer.many(
         current_workspace.workspace_memberships.includes(:user)
-      )
+      ),
+      catalogOptions: catalog_condition_options
     }
   end
 
   private
+
+  # Catalog entries grouped by system key so condition values on catalog-backed
+  # fields are picked, not typed.
+  def catalog_condition_options
+    CatalogEntry.active.joins(:catalog_type)
+      .where(workspace: current_workspace, catalog_types: { system_key: CatalogType::SYSTEM_KEYS })
+      .order(:name)
+      .pluck("catalog_types.system_key", :slug, :name)
+      .group_by(&:first)
+      .transform_values { |rows| rows.map { |_, slug, name| { slug: slug, name: name } } }
+  end
 
   # Best-effort: the notify-target picker degrades to a manual ID input when
   # Slack can't be reached.

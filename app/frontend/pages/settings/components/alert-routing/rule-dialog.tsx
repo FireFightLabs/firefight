@@ -7,6 +7,7 @@ import { policyRulePath, policyRulesPath } from "@/lib/routes"
 import {
   CONDITION_OPERATORS,
   OUTCOME_ACTIONS,
+  type CatalogOptionMap,
   type ConditionOperator,
   type OutcomeAction,
   type SlackChannel,
@@ -57,6 +58,7 @@ export function RuleDialog({
   severities,
   channels,
   members,
+  catalogOptions,
   onClose,
   alertSourceId = null,
 }: {
@@ -64,6 +66,7 @@ export function RuleDialog({
   severities: IncidentSeveritySettings[]
   channels: SlackChannel[]
   members: WorkspaceMembership[]
+  catalogOptions: CatalogOptionMap
   onClose: () => void
   alertSourceId?: string | null
 }) {
@@ -92,6 +95,20 @@ export function RuleDialog({
 
   function updateCondition(index: number, patch: Partial<ConditionRow>) {
     setConditions((prev) => prev.map((c, i) => (i === index ? { ...c, ...patch } : c)))
+  }
+
+  function conditionValues(condition: ConditionRow): string[] {
+    return condition.value.split(",").map((v) => v.trim()).filter(Boolean)
+  }
+
+  function addConditionValue(index: number, slug: string) {
+    const condition = conditions[index]
+    updateCondition(index, { value: [ ...conditionValues(condition), slug ].join(", ") })
+  }
+
+  function removeConditionValue(index: number, slug: string) {
+    const condition = conditions[index]
+    updateCondition(index, { value: conditionValues(condition).filter((v) => v !== slug).join(", ") })
   }
 
   function buildNotify() {
@@ -179,7 +196,33 @@ export function RuleDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  {condition.operator !== "is_empty" && (
+                  {condition.operator === "is_one_of" && catalogOptions[condition.field.trim()] ? (
+                    <div className="flex flex-1 flex-wrap items-center gap-1.5">
+                      {conditionValues(condition).map((slug) => {
+                        const option = catalogOptions[condition.field.trim()].find((o) => o.slug === slug)
+                        return (
+                          <Badge key={slug} variant="secondary" className="gap-1">
+                            {option?.name ?? slug}
+                            <button type="button" onClick={() => removeConditionValue(index, slug)} className="ml-0.5">
+                              <IconX className="size-3" />
+                            </button>
+                          </Badge>
+                        )
+                      })}
+                      <Select value="" onValueChange={(slug) => addConditionValue(index, slug)}>
+                        <SelectTrigger className="h-7 w-40 text-xs">
+                          <SelectValue placeholder="Add from catalogue…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {catalogOptions[condition.field.trim()]
+                            .filter((o) => !conditionValues(condition).includes(o.slug))
+                            .map((o) => (
+                              <SelectItem key={o.slug} value={o.slug}>{o.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : condition.operator !== "is_empty" && (
                     <Input
                       value={condition.value}
                       onChange={(e) => updateCondition(index, { value: e.target.value })}

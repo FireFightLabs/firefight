@@ -9,7 +9,7 @@ import {
   moveUpPolicyRulePath,
   policyRulePath,
 } from "@/lib/routes"
-import { ACTION_LABELS, type SlackChannel, type TestResult } from "@/pages/settings/lib/alerts"
+import { ACTION_LABELS, type CatalogOptionMap, type SlackChannel, type TestResult } from "@/pages/settings/lib/alerts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -62,6 +62,7 @@ export function AlertRoutingTab({
   severities,
   channels,
   members,
+  catalogOptions,
   alertSource = null,
   hasWorkspaceFallback = false,
 }: {
@@ -69,6 +70,7 @@ export function AlertRoutingTab({
   severities: IncidentSeveritySettings[]
   channels: SlackChannel[]
   members: WorkspaceMembership[]
+  catalogOptions: CatalogOptionMap
   alertSource?: { id: string; name: string } | null
   hasWorkspaceFallback?: boolean
 }) {
@@ -188,6 +190,7 @@ export function AlertRoutingTab({
           severities={severities}
           channels={channels}
           members={members}
+          catalogOptions={catalogOptions}
           alertSourceId={alertSource?.id ?? null}
           onClose={() => {
             setAddingRule(false)

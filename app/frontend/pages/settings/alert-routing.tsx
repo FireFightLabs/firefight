@@ -5,7 +5,7 @@ import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { settingsAlertSourcesPath } from "@/lib/routes"
 import { AlertRoutingTab } from "@/pages/settings/components/alert-routing/alert-routing-tab"
 import type { AlertRoutingPolicy, IncidentSeveritySettings, WorkspaceMembership } from "@/types/serializers"
-import type { SlackChannel } from "@/pages/settings/lib/alerts"
+import type { CatalogOptionMap, SlackChannel } from "@/pages/settings/lib/alerts"
 import type { SharedProps } from "@/types"
 
 interface AlertRoutingPageProps extends SharedProps {
@@ -16,10 +16,11 @@ interface AlertRoutingPageProps extends SharedProps {
   severities: IncidentSeveritySettings[]
   channels: SlackChannel[]
   members: WorkspaceMembership[]
+  catalogOptions: CatalogOptionMap
 }
 
 export default function AlertRouting() {
-  const { policy, alertSource, hasWorkspaceFallback, severities, channels, members } = usePage<AlertRoutingPageProps>().props
+  const { policy, alertSource, hasWorkspaceFallback, severities, channels, members, catalogOptions } = usePage<AlertRoutingPageProps>().props
 
   return (
     <AuthenticatedLayout title="Alert Routing">
@@ -37,6 +38,7 @@ export default function AlertRouting() {
           severities={severities}
           channels={channels}
           members={members}
+          catalogOptions={catalogOptions}
           alertSource={alertSource}
           hasWorkspaceFallback={hasWorkspaceFallback}
         />

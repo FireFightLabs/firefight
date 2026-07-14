@@ -27,6 +27,8 @@ export interface RuleCondition {
   value?: string | string[]
 }
 
+export type CatalogOptionMap = Record<string, { slug: string; name: string }[]>
+
 export interface SlackChannel {
   id: string
   name: string
