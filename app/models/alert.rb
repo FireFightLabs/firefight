@@ -13,7 +13,7 @@ class Alert < ApplicationRecord
   belongs_to :incident, optional: true
   belongs_to :alert_group, optional: true
 
-  # Uniqueness of (alert_source_id, external_id) is enforced by the DB index —
+  # Uniqueness of (alert_source_id, external_id) is enforced by the DB index;
   # the ingest path relies on RecordNotUnique as its idempotency check.
   validates :external_id, presence: true
   validates :fingerprint, presence: true

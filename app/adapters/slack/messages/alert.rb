@@ -1,6 +1,6 @@
 module Slack
   module Messages
-    # Digest message for an alert — posted once and updated in place as the
+    # Digest message for an alert: posted once and updated in place as the
     # alert re-fires or resolves (never one message per firing).
     module Alert
       def self.build(alert)

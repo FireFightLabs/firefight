@@ -1,4 +1,4 @@
-# Resolves outcome targets against the catalog at fire time — never stored,
+# Resolves outcome targets against the catalog at fire time, never stored,
 # so routing follows catalog reorgs. Resolution is pure lookups and soft-fails:
 # every miss is a note, never an exception; the incident must always win.
 #

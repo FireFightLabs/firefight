@@ -32,7 +32,7 @@ class AlertRoutingController < InertiaController
   end
 
   # Delivers one labeled test message to the resolved notify target so the
-  # user can verify the bot can actually reach it. Re-evaluates server-side —
+  # user can verify the bot can actually reach it. Re-evaluates server-side;
   # the client never picks the destination.
   def send_test
     policy = routing_policy

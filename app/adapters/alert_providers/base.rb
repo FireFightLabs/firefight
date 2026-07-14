@@ -2,7 +2,7 @@ module AlertProviders
   # Adapter contract: verify the request came from the configured source, then
   # normalize the provider payload into an ARRAY of field hashes (providers
   # like Alertmanager batch multiple alerts per POST). Adapters are thin
-  # boundary normalizers — no business logic, no persistence.
+  # boundary normalizers: no business logic, no persistence.
   class Base
     NORMALIZED_FIELDS = %w[external_id fingerprint status title description service severity_raw team environment].freeze
 

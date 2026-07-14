@@ -79,7 +79,7 @@ export function CustomTestDialog({
         <DialogHeader>
           <DialogTitle>Test a custom alert</DialogTitle>
           <DialogDescription>
-            Enter the fields a real alert would carry. Pure evaluation — nothing is created, and the rules
+            Enter the fields a real alert would carry. Pure evaluation: nothing is created, and the rules
             table shows which rule wins.
           </DialogDescription>
         </DialogHeader>

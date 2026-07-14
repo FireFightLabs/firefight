@@ -334,7 +334,7 @@ export function RuleDialog({
                   )}
                   {notifyKind === "owning_team" && (
                     <span className="text-xs text-muted-foreground">
-                      Service's channel, else its owning team's — resolved from the catalog
+                      Service's channel, else its owning team's, resolved from the catalog
                     </span>
                   )}
                 </div>

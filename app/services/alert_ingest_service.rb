@@ -27,7 +27,7 @@ class AlertIngestService
 
     fingerprint = fields["fingerprint"].presence || Alert.fallback_fingerprint(@source.id, fields)
 
-    # Dedup: a firing for an already-open fingerprint is one indexed UPDATE —
+    # Dedup: a firing for an already-open fingerprint is one indexed UPDATE;
     # no new row, no new incident, no new channel.
     if (open_alert = @source.alerts.open_status.find_by(fingerprint: fingerprint))
       open_alert.record_firing!(now)
@@ -51,7 +51,7 @@ class AlertIngestService
   end
 
   # Routing failures leave the alert in routing_state: pending for the sweep
-  # job — the alert itself is already safe, so ingestion never surfaces a 500
+  # job; the alert itself is already safe, so ingestion never surfaces a 500
   # for a routing problem.
   def route(alert)
     result = routing_policy&.evaluate(routing_context(alert))
@@ -102,12 +102,12 @@ class AlertIngestService
       last_seen_at: now
     )
   rescue ActiveRecord::RecordNotUnique
-    # Duplicate provider delivery — the earlier insert already won.
+    # Duplicate provider delivery; the earlier insert already won.
     @source.alerts.find_by!(external_id: external_id)
   end
 
   # Must be unique per item within a batched delivery (Alertmanager posts
-  # arrays), yet stable across redeliveries of the same body — so hash the
+  # arrays), yet stable across redeliveries of the same body, so hash the
   # normalized fields together with the raw payload.
   def fallback_external_id(fields, payload)
     Digest::SHA256.hexdigest("#{payload.to_json}\n#{fields.to_json}")
@@ -188,7 +188,7 @@ class AlertIngestService
     notify_digest(alert, force: true)
   end
 
-  # notify_only posts the digest without an incident — to a channel, a member
+  # notify_only posts the digest without an incident: to a channel, a member
   # (DM via their platform user id), or the owning team's channel resolved
   # from the catalog at fire time.
   def notify_channel(alert, outcome)

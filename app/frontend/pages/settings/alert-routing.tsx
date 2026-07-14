@@ -24,7 +24,7 @@ export default function AlertRouting() {
 
   return (
     <AuthenticatedLayout title="Alert Routing">
-      <Head title={alertSource ? `Alert Routing — ${alertSource.name}` : "Alert Routing"} />
+      <Head title={alertSource ? `Alert Routing - ${alertSource.name}` : "Alert Routing"} />
       <div className="flex flex-col gap-4 px-4 py-4 md:py-6 lg:px-6">
         <Link
           href={settingsAlertSourcesPath()}

@@ -38,7 +38,7 @@ module AlertProviders
     def self.title_for(event, data, project)
       subject = data.dig("service", "name") || data.dig("job", "name") || data.dig("addon", "name")
       label = event.tr(":", " ").humanize
-      [ label, subject, project && "(#{project})" ].compact.join(" — ").sub(" — (", " (")
+      [ label, subject, project && "(#{project})" ].compact.join(": ").sub(": (", " (")
     end
   end
 end

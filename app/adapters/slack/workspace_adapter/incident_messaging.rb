@@ -12,13 +12,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   def post_routing_test_message(channel_id:, description:)
     blocks = [
-      { type: "section", text: { type: "mrkdwn", text: ":test_tube:  *Routing test* — #{description}" } },
+      { type: "section", text: { type: "mrkdwn", text: ":test_tube:  *Routing test:* #{description}" } },
       {
         type: "context",
         elements: [ { type: "mrkdwn", text: "Sent from the alert routing tester. No incident was created and no action is needed." } ]
       }
     ]
-    post_message(channel_id: channel_id, text: "Routing test — #{description}", blocks: blocks)
+    post_message(channel_id: channel_id, text: "Routing test: #{description}", blocks: blocks)
   end
 
   def update_alert_message(channel_id:, message_id:, alert:)

@@ -138,7 +138,7 @@ export function AlertRoutingTab({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>{alertSource ? `Alert routing — ${alertSource.name}` : "Default alert routing"}</CardTitle>
+              <CardTitle>{alertSource ? `Alert routing for ${alertSource.name}` : "Default alert routing"}</CardTitle>
               <CardDescription className="mt-1">
                 {alertSource
                   ? `Ordered rules for alerts from ${alertSource.name}; the first match wins. If none match, the workspace default routing applies.`

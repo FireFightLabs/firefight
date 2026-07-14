@@ -37,7 +37,7 @@ class AlertSourcesController < InertiaController
     @alert_source = current_workspace.alert_sources.find(params[:id])
   end
 
-  # {"critical" => severity_id} — keys are free-form provider strings, values
+  # {"critical" => severity_id}; keys are free-form provider strings, values
   # must be severities of this workspace.
   def severity_map
     raw = params.dig(:alert_source, :severity_map).to_unsafe_h

@@ -1,6 +1,6 @@
 module AlertProviders
   # Generic webhook adapter. Verification is a shared-secret token compare
-  # (Authorization: Bearer <token> or X-Firefight-Token header — every tool
+  # (Authorization: Bearer <token> or X-Firefight-Token header; every tool
   # can set one of those). Field extraction uses dot-path lookups into the
   # payload, overridable per source via config["field_map"]
   # (e.g. { "title" => "alert.name" }).

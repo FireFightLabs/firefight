@@ -100,7 +100,7 @@ class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
     alert = source.alerts.sole
     assert_equal "container:crash", alert.fields["event"]
     assert_equal "website", alert.fields["service"]
-    assert_equal "Container crash — Website (Blog)", alert.title
+    assert_equal "Container crash: Website (Blog)", alert.title
   end
 
   test "rate limit returns 429 before verification work" do

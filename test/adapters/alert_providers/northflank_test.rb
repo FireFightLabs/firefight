@@ -36,7 +36,7 @@ class AlertProviders::NorthflankTest < ActiveSupport::TestCase
 
     assert_equal "container:crash", fields["event"]
     assert_equal "website", fields["service"]
-    assert_equal "Container crash — Website (Personal Blog)", fields["title"]
+    assert_equal "Container crash: Website (Personal Blog)", fields["title"]
     assert_equal Alert::STATUS_FIRING, fields["status"]
 
     again = AlertProviders::Northflank.normalize(northflank_payload, source: @source).first
