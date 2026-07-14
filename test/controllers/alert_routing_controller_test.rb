@@ -77,7 +77,57 @@ class AlertRoutingControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "send_test delivers a routing test message to the resolved target" do
+    membership = workspace_memberships(:alice_workspace_one)
+    create_notify_policy(membership)
+    Slack::WorkspaceAdapter.any_instance.expects(:post_routing_test_message)
+      .with(channel_id: membership.platform_user_id, description: regexp_matches(/matched rule 1/))
+      .returns({ message_id: "123.456", channel_id: "D123" })
+
+    post alert_routing_send_test_url, params: { fields: { service: "checkout" } }, as: :json
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert body["sent"]
+    assert_equal "#{membership.user.name} (DM)", body["notify"]
+  end
+
+  test "send_test refuses when no rule with a notify target matches" do
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
+    policy.policy_rules.create!(priority: 1, conditions: [],
+                                outcome: { "action" => AlertIngestService::ACTION_AUTO_CREATE })
+
+    post alert_routing_send_test_url, params: { fields: { service: "checkout" } }, as: :json
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body)["error"], "notify target"
+  end
+
+  test "send_test surfaces delivery failures" do
+    create_notify_policy(workspace_memberships(:alice_workspace_one))
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_routing_test_message)
+      .raises(AdapterError::NotInChannel.new("not_in_channel"))
+
+    post alert_routing_send_test_url, params: { fields: { service: "checkout" } }, as: :json
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body)["error"], "Delivery failed"
+  end
+
   private
+
+  def create_notify_policy(membership)
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: [],
+      outcome: {
+        "action" => AlertIngestService::ACTION_NOTIFY_ONLY,
+        "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_MEMBER, "member_id" => membership.id }
+      }
+    )
+    policy
+  end
 
   def sign_in(user, workspace)
     ApplicationController.any_instance.stubs(:current_user).returns(user)

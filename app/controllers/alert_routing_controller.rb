@@ -14,12 +14,7 @@ class AlertRoutingController < InertiaController
   # Route tester: pure evaluation with a full trace, zero side effects.
   # Mirrors ingest resolution: the source's policy with workspace fallback.
   def test
-    policy =
-      if scoped_source
-        scoped_source.effective_routing_policy
-      else
-        current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first
-      end
+    policy = routing_policy
     return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless policy
 
     # Free-form field hash; only ever fed to pure evaluation, never assigned to a model.
@@ -36,7 +31,40 @@ class AlertRoutingController < InertiaController
     }
   end
 
+  # Delivers one labeled test message to the resolved notify target so the
+  # user can verify the bot can actually reach it. Re-evaluates server-side —
+  # the client never picks the destination.
+  def send_test
+    policy = routing_policy
+    return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless policy
+
+    fields = params.fetch(:fields, {}).to_unsafe_h
+    result = policy.evaluate(Policy::ContextBuilder.build(workspace: current_workspace, fields: fields))
+    target = result.matched? ? result.outcome["notify"] : nil
+    return render json: { error: "The test fields must match a rule with a notify target" }, status: :unprocessable_entity if target.blank?
+
+    resolver = Alert::TargetResolver.new(current_workspace, fields)
+    channel = resolver.channel_for(target)
+    return render json: { error: resolver.notes.last || "The notify target could not be resolved" }, status: :unprocessable_entity if channel.blank?
+
+    WorkspaceAdapter.for(current_workspace).post_routing_test_message(
+      channel_id: channel,
+      description: "your test alert matched rule #{result.matched_rule.priority} and this conversation would be notified"
+    )
+    render json: { sent: true, notify: notify_label(target, resolver) }
+  rescue AdapterError => e
+    render json: { error: "Delivery failed: #{e.message}" }, status: :unprocessable_entity
+  end
+
   private
+
+  def routing_policy
+    if scoped_source
+      scoped_source.effective_routing_policy
+    else
+      current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first
+    end
+  end
 
   # Dry-run target resolution so the tester shows who would actually be
   # invited/notified. Pure lookups plus one best-effort Slack channel-name

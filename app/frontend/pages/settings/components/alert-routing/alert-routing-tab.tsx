@@ -5,6 +5,7 @@ import { router } from "@inertiajs/react"
 import type { AlertRoutingPolicy, IncidentSeveritySettings, PolicyRule, WorkspaceMembership } from "@/types/serializers"
 import {
   alertRoutingPath,
+  alertRoutingSendTestPath,
   alertRoutingTestPath,
   moveDownPolicyRulePath,
   moveUpPolicyRulePath,
@@ -16,6 +17,7 @@ import {
   sampleFieldsFor,
   type CatalogOptionMap,
   type RuleCondition,
+  type SendTestResult,
   type SlackChannel,
   type TestResult,
 } from "@/pages/settings/lib/alerts"
@@ -101,6 +103,15 @@ export function AlertRoutingTab({
     return parsed
   }
 
+  async function sendTest(fields: Record<string, string>): Promise<SendTestResult | null> {
+    const response = await fetch(alertRoutingSendTestPath(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+      body: JSON.stringify({ fields, alert_source_id: alertSource?.id ?? null }),
+    })
+    return (await response.json()) as SendTestResult
+  }
+
   function testRule(rule: PolicyRule) {
     setTestedRuleId(rule.id)
     void runTest(sampleFieldsFor(rule.conditions as RuleCondition[]))
@@ -141,7 +152,7 @@ export function AlertRoutingTab({
                   <Switch id="routing-enabled" checked={policy.enabled} onCheckedChange={togglePolicy} />
                 </div>
               )}
-              <CustomTestDialog disabled={!canTest} onRun={runTest} />
+              <CustomTestDialog disabled={!canTest} onRun={runTest} onSend={sendTest} />
               <Button size="sm" onClick={() => setAddingRule(true)}>Add Rule</Button>
             </div>
           </div>

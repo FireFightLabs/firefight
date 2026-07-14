@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { IconFlask, IconPlus, IconTrash } from "@tabler/icons-react"
+import { IconFlask, IconPlus, IconSend, IconTrash } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { ACTION_LABELS, type TestResult } from "@/pages/settings/lib/alerts"
+import { ACTION_LABELS, type SendTestResult, type TestResult } from "@/pages/settings/lib/alerts"
 
 interface TesterField {
   key: string
@@ -22,9 +22,11 @@ interface TesterField {
 export function CustomTestDialog({
   disabled,
   onRun,
+  onSend,
 }: {
   disabled: boolean
   onRun: (fields: Record<string, string>) => Promise<TestResult | null>
+  onSend: (fields: Record<string, string>) => Promise<SendTestResult | null>
 }) {
   const [open, setOpen] = useState(false)
   const [fields, setFields] = useState<TesterField[]>([
@@ -33,20 +35,37 @@ export function CustomTestDialog({
   ])
   const [result, setResult] = useState<TestResult | null>(null)
   const [testing, setTesting] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState<SendTestResult | null>(null)
 
   function updateField(index: number, patch: Partial<TesterField>) {
     setFields((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)))
   }
 
+  function fieldsPayload(): Record<string, string> {
+    return Object.fromEntries(fields.filter((f) => f.key.trim()).map((f) => [f.key.trim(), f.value]))
+  }
+
   async function runTest() {
     setTesting(true)
+    setSendResult(null)
     try {
-      const payload = Object.fromEntries(fields.filter((f) => f.key.trim()).map((f) => [f.key.trim(), f.value]))
-      setResult(await onRun(payload))
+      setResult(await onRun(fieldsPayload()))
     } finally {
       setTesting(false)
     }
   }
+
+  async function sendTest() {
+    setSending(true)
+    try {
+      setSendResult(await onSend(fieldsPayload()))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const canSend = Boolean(result?.matched && result.resolution?.notify)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -131,6 +150,20 @@ export function CustomTestDialog({
                 {result.resolution.notes.map((note, i) => (
                   <span key={i} className="text-amber-500/80">⚠ {note}</span>
                 ))}
+              </div>
+            )}
+            {canSend && (
+              <div className="mt-1 flex items-center gap-2 border-t border-border pt-2">
+                <Button size="sm" variant="outline" onClick={sendTest} disabled={sending || Boolean(sendResult?.sent)}>
+                  <IconSend className="size-4" />
+                  {sendResult?.sent ? "Sent" : "Send test message"}
+                </Button>
+                {sendResult?.sent && (
+                  <span className="text-muted-foreground">
+                    delivered to <span className="text-foreground">{sendResult.notify}</span>
+                  </span>
+                )}
+                {sendResult?.error && <span className="text-destructive">{sendResult.error}</span>}
               </div>
             )}
           </div>

@@ -56,6 +56,12 @@ export interface TestResult {
   resolution?: { invite: string[]; notify: string | null; notes: string[] } | null
 }
 
+export interface SendTestResult {
+  sent?: boolean
+  notify?: string | null
+  error?: string
+}
+
 // Derive a sample alert that should satisfy a rule's own conditions, so a
 // per-rule test exercises the real first-match evaluation with plausible input.
 export function sampleFieldsFor(conditions: RuleCondition[]): Record<string, string> {
