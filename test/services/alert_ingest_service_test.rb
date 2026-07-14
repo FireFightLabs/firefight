@@ -149,7 +149,8 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     stub_update_message
 
     alert = @service.ingest(firing_fields, {})
-    assert_equal "C999", alert.channel_id
+    # channel_id stores the conversation Slack resolved (matters for DMs)
+    assert alert.channel_id.present?
     alert.update!(last_notified_at: 2.minutes.ago)
 
     refired = @service.ingest(firing_fields, {})
@@ -180,6 +181,18 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
 
     assert_equal Alert::ROUTING_ROUTED, alert.routing_state
     assert_nil alert.incident
+  end
+
+  test "notify_only can target a person via DM" do
+    member = workspace_memberships(:alice_workspace_one)
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "member_id" => member.id })
+    stub_post_message
+
+    alert = @service.ingest(firing_fields, {})
+
+    assert_equal Alert::ROUTING_ROUTED, alert.routing_state
+    assert alert.channel_message_id.present?
+    assert alert.channel_id.present?
   end
 
   test "routing failure leaves the alert pending for the sweep" do

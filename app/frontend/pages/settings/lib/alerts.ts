@@ -27,6 +27,32 @@ export interface RuleCondition {
   value?: string | string[]
 }
 
+export interface SlackChannel {
+  id: string
+  name: string
+}
+
+export interface TraceCondition {
+  field: string
+  operator: string
+  actual: string | null
+  matched: boolean
+}
+
+export interface TraceEntry {
+  rule_id: string
+  priority: number
+  matched: boolean
+  skipped?: boolean
+  conditions: TraceCondition[]
+}
+
+export interface TestResult {
+  matched: boolean
+  outcome: { action?: string } | null
+  trace: TraceEntry[]
+}
+
 export function csrfToken(): string {
   return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? ""
 }

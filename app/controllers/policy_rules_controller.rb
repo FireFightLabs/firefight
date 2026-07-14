@@ -75,7 +75,8 @@ class PolicyRulesController < InertiaController
 
   def rule_params
     params.require(:rule).permit(
-      outcome: [ :action, :severity_id, :channel, :channel_context_key ],
+      :enabled,
+      outcome: [ :action, :severity_id, :channel, :member_id, :channel_context_key ],
       conditions: [ :field, :operator, :value, { value: [] } ]
     )
   end

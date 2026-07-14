@@ -2,13 +2,14 @@ import { useState, type FormEvent } from "react"
 import { router } from "@inertiajs/react"
 import { IconPlus, IconTrash } from "@tabler/icons-react"
 
-import type { IncidentSeveritySettings, PolicyRule } from "@/types/serializers"
+import type { IncidentSeveritySettings, PolicyRule, WorkspaceMembership } from "@/types/serializers"
 import { policyRulePath, policyRulesPath } from "@/lib/routes"
 import {
   CONDITION_OPERATORS,
   OUTCOME_ACTIONS,
   type ConditionOperator,
   type OutcomeAction,
+  type SlackChannel,
 } from "@/pages/settings/lib/alerts"
 import { Button } from "@/components/ui/button"
 import {
@@ -50,18 +51,24 @@ function toRows(rule: PolicyRule | null): ConditionRow[] {
 export function RuleDialog({
   rule,
   severities,
+  channels,
+  members,
   onClose,
   alertSourceId = null,
 }: {
   rule: PolicyRule | null
   severities: IncidentSeveritySettings[]
+  channels: SlackChannel[]
+  members: WorkspaceMembership[]
   onClose: () => void
   alertSourceId?: string | null
 }) {
   const [conditions, setConditions] = useState<ConditionRow[]>(() => toRows(rule))
   const [action, setAction] = useState<OutcomeAction>((rule?.outcome.action as OutcomeAction) ?? "auto_create_incident")
   const [severityId, setSeverityId] = useState(rule?.outcome.severityId ?? NONE_SEVERITY)
+  const [targetKind, setTargetKind] = useState<"channel" | "person">(rule?.outcome.memberId ? "person" : "channel")
   const [channel, setChannel] = useState(rule?.outcome.channel ?? "")
+  const [memberId, setMemberId] = useState(rule?.outcome.memberId ?? "")
 
   function updateCondition(index: number, patch: Partial<ConditionRow>) {
     setConditions((prev) => prev.map((c, i) => (i === index ? { ...c, ...patch } : c)))
@@ -87,7 +94,8 @@ export function RuleDialog({
         outcome: {
           action,
           ...(severityId !== NONE_SEVERITY ? { severity_id: severityId } : {}),
-          ...(action === "notify_only" && channel.trim() ? { channel: channel.trim() } : {}),
+          ...(action === "notify_only" && targetKind === "channel" && channel.trim() ? { channel: channel.trim() } : {}),
+          ...(action === "notify_only" && targetKind === "person" && memberId ? { member_id: memberId } : {}),
         },
       },
     }
@@ -192,12 +200,51 @@ export function RuleDialog({
                   </Select>
                 )}
                 {action === "notify_only" && (
-                  <Input
-                    value={channel}
-                    onChange={(e) => setChannel(e.target.value)}
-                    placeholder="Slack channel ID"
-                    className="w-48"
-                  />
+                  <Select value={targetKind} onValueChange={(value) => setTargetKind(value as "channel" | "person")}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="channel">Channel</SelectItem>
+                      <SelectItem value="person">Person</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                {action === "notify_only" && targetKind === "channel" && (
+                  channels.length > 0 ? (
+                    <Select value={channel} onValueChange={setChannel}>
+                      <SelectTrigger className="w-52">
+                        <SelectValue placeholder="Pick a channel" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {channels.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>#{c.name}</SelectItem>
+                        ))}
+                        {channel && !channels.some((c) => c.id === channel) && (
+                          <SelectItem value={channel}>{channel}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={channel}
+                      onChange={(e) => setChannel(e.target.value)}
+                      placeholder="Slack channel ID"
+                      className="w-52"
+                    />
+                  )
+                )}
+                {action === "notify_only" && targetKind === "person" && (
+                  <Select value={memberId} onValueChange={setMemberId}>
+                    <SelectTrigger className="w-52">
+                      <SelectValue placeholder="Pick a person" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {members.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
               </div>
             </div>

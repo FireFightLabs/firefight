@@ -183,17 +183,29 @@ class AlertIngestService
     notify_digest(alert, force: true)
   end
 
-  # notify_only posts the digest to a channel without an incident — an
-  # explicit channel id on the outcome, or a catalog-resolved context key
+  # notify_only posts the digest without an incident — to a channel, a member
+  # (DM via their platform user id), or a catalog-resolved context key
   # (e.g. channel_context_key: "team.channel").
   def notify_channel(alert, outcome)
-    channel_id = outcome["channel"].presence || routing_context(alert)[outcome["channel_context_key"].to_s]
-    return if channel_id.blank?
+    target = notify_target(alert, outcome)
+    return if target.blank?
 
-    result = WorkspaceAdapter.for(@workspace).post_alert_message(channel_id: channel_id, alert: alert)
-    alert.update!(channel_id: channel_id, channel_message_id: result[:message_id], last_notified_at: Time.current)
+    result = WorkspaceAdapter.for(@workspace).post_alert_message(channel_id: target, alert: alert)
+    alert.update!(
+      channel_id: result[:channel_id] || target,
+      channel_message_id: result[:message_id],
+      last_notified_at: Time.current
+    )
   rescue AdapterError => e
     Rails.logger.warn({ event: "alert_notify.failed", alert_id: alert.id, error: e.message }.to_json)
+  end
+
+  def notify_target(alert, outcome)
+    if outcome["member_id"].present?
+      @workspace.workspace_memberships.find_by(id: outcome["member_id"])&.platform_user_id
+    else
+      outcome["channel"].presence || routing_context(alert)[outcome["channel_context_key"].to_s]
+    end
   end
 
   def outcome_severity(outcome)

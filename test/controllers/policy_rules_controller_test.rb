@@ -62,6 +62,19 @@ class PolicyRulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, second.reload.priority
   end
 
+  test "update toggles enabled without touching conditions" do
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
+    rule = policy.policy_rules.create!(priority: 1,
+      conditions: [ { field: "event", operator: PolicyRule::OPERATOR_CONTAINS, value: "crash" } ],
+      outcome: { "action" => AlertIngestService::ACTION_DROP })
+
+    patch policy_rule_url(rule), params: { rule: { enabled: false } }
+
+    rule.reload
+    assert_not rule.enabled
+    assert_equal 1, rule.conditions.size
+  end
+
   test "destroy removes the rule" do
     policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
     rule = create_rule!(policy, 1)

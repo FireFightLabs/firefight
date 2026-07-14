@@ -109,11 +109,23 @@ class SettingsController < InertiaController
       hasWorkspaceFallback: current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.exists?,
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.active.ordered
+      ),
+      channels: workspace_channels,
+      members: WorkspaceMembershipSerializer.many(
+        current_workspace.workspace_memberships.includes(:user)
       )
     }
   end
 
   private
+
+  # Best-effort: the notify-target picker degrades to a manual ID input when
+  # Slack can't be reached.
+  def workspace_channels
+    WorkspaceAdapter.for(current_workspace).list_channels
+  rescue AdapterError
+    []
+  end
 
   def build_lifecycle_stages
     statuses_by_stage = current_workspace.incident_statuses

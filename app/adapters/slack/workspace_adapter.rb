@@ -80,7 +80,7 @@ module Slack
           blocks: blocks
         )
 
-        { message_id: result[:ts] }
+        { message_id: result[:ts], channel_id: result[:channel] }
       end
     end
 

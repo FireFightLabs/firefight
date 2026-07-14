@@ -7,7 +7,8 @@ class PolicyRuleSerializer < BaseSerializer
   end
 
   attributes(
-    priority: { type: :number }
+    priority: { type: :number },
+    enabled: { type: :boolean }
   )
 
   type "{ field: string; operator: string; value?: string | string[] }[]"
@@ -15,7 +16,7 @@ class PolicyRuleSerializer < BaseSerializer
     rule.conditions
   end
 
-  type "{ action: string; severityId?: string; channel?: string; channelContextKey?: string }"
+  type "{ action: string; severityId?: string; channel?: string; memberId?: string; channelContextKey?: string }"
   def outcome
     rule.outcome.transform_keys { |key| key.to_s.camelize(:lower) }
   end

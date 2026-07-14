@@ -2,7 +2,7 @@ import { useState } from "react"
 import { IconFlask, IconPlus, IconTrash } from "@tabler/icons-react"
 
 import { alertRoutingTestPath } from "@/lib/routes"
-import { ACTION_LABELS, csrfToken } from "@/pages/settings/lib/alerts"
+import { ACTION_LABELS, csrfToken, type TestResult } from "@/pages/settings/lib/alerts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,27 +19,15 @@ interface TesterField {
   value: string
 }
 
-interface TraceCondition {
-  field: string
-  operator: string
-  actual: string | null
-  matched: boolean
-}
-
-interface TraceEntry {
-  rule_id: string
-  priority: number
-  matched: boolean
-  conditions: TraceCondition[]
-}
-
-interface TestResult {
-  matched: boolean
-  outcome: { action?: string } | null
-  trace: TraceEntry[]
-}
-
-export function RouteTester({ hasPolicy, alertSourceId = null }: { hasPolicy: boolean; alertSourceId?: string | null }) {
+export function RouteTester({
+  hasPolicy,
+  alertSourceId = null,
+  onResult,
+}: {
+  hasPolicy: boolean
+  alertSourceId?: string | null
+  onResult?: (result: TestResult | null) => void
+}) {
   const [fields, setFields] = useState<TesterField[]>([
     { key: "service", value: "" },
     { key: "title", value: "" },
@@ -63,7 +51,9 @@ export function RouteTester({ hasPolicy, alertSourceId = null }: { hasPolicy: bo
         },
         body: JSON.stringify({ fields: payload, alert_source_id: alertSourceId }),
       })
-      setResult(response.ok ? await response.json() : null)
+      const parsed = response.ok ? await response.json() : null
+      setResult(parsed)
+      onResult?.(parsed)
     } finally {
       setTesting(false)
     }

@@ -66,6 +66,19 @@ class PolicyEvaluationTest < ActiveSupport::TestCase
     assert @policy.evaluate({ severity: 1 }).matched?
   end
 
+  test "disabled rules are skipped but appear in the trace" do
+    disabled = rule!(1, [], { action: "drop" })
+    disabled.update!(enabled: false)
+    live = rule!(2, [], { action: "notify_only" })
+
+    result = @policy.evaluate({})
+
+    assert_equal live, result.matched_rule
+    skipped_entry = result.trace.find { |t| t[:rule_id] == disabled.id }
+    assert skipped_entry[:skipped]
+    assert_not skipped_entry[:matched]
+  end
+
   test "disabled policy never matches" do
     rule!(1, [], { action: "notify_only" })
     @policy.update!(enabled: false)

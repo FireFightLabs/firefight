@@ -4,7 +4,8 @@ import { IconArrowLeft } from "@tabler/icons-react"
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { settingsAlertSourcesPath } from "@/lib/routes"
 import { AlertRoutingTab } from "@/pages/settings/components/alert-routing/alert-routing-tab"
-import type { AlertRoutingPolicy, IncidentSeveritySettings } from "@/types/serializers"
+import type { AlertRoutingPolicy, IncidentSeveritySettings, WorkspaceMembership } from "@/types/serializers"
+import type { SlackChannel } from "@/pages/settings/lib/alerts"
 import type { SharedProps } from "@/types"
 
 interface AlertRoutingPageProps extends SharedProps {
@@ -13,10 +14,12 @@ interface AlertRoutingPageProps extends SharedProps {
   alertSource: { id: string; name: string } | null
   hasWorkspaceFallback: boolean
   severities: IncidentSeveritySettings[]
+  channels: SlackChannel[]
+  members: WorkspaceMembership[]
 }
 
 export default function AlertRouting() {
-  const { policy, alertSource, hasWorkspaceFallback, severities } = usePage<AlertRoutingPageProps>().props
+  const { policy, alertSource, hasWorkspaceFallback, severities, channels, members } = usePage<AlertRoutingPageProps>().props
 
   return (
     <AuthenticatedLayout title="Alert Routing">
@@ -32,6 +35,8 @@ export default function AlertRouting() {
         <AlertRoutingTab
           policy={policy}
           severities={severities}
+          channels={channels}
+          members={members}
           alertSource={alertSource}
           hasWorkspaceFallback={hasWorkspaceFallback}
         />

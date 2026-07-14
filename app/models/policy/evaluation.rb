@@ -28,6 +28,11 @@ module Policy::Evaluation
     trace = []
 
     ordered_rules.each do |rule|
+      unless rule.enabled?
+        trace << { rule_id: rule.id, priority: rule.priority, matched: false, skipped: true, conditions: [] }
+        next
+      end
+
       condition_results = rule.conditions.map { |condition| evaluate_condition(condition, normalized) }
       matched = condition_results.all? { |result| result[:matched] }
 
@@ -35,6 +40,7 @@ module Policy::Evaluation
         rule_id: rule.id,
         priority: rule.priority,
         matched: matched,
+        skipped: false,
         conditions: condition_results
       }
 
