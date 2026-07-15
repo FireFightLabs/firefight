@@ -18,6 +18,9 @@ Rails.application.routes.draw do
       post "interactions", to: "interactions#create"
       post "events", to: "events#create"
 
+      # Alert ingest (per-source secret auth via provider adapter)
+      post "alerts/:endpoint_path", to: "alerts#create", as: :alert_ingest
+
       # Public API (Bearer token auth)
       resources :incidents, only: [ :index, :show, :create, :update ]
       resources :severities, only: [ :index ]
@@ -72,6 +75,24 @@ Rails.application.routes.draw do
     get "/settings/custom-fields", to: "settings#custom_fields", as: :settings_custom_fields
     get "/settings/forms", to: "settings#forms", as: :settings_forms
     get "/settings/webhooks", to: "settings#webhooks", as: :settings_webhooks
+    get "/settings/alert-sources", to: "settings#alert_sources", as: :settings_alert_sources
+    resources :alert_sources, only: [ :create, :update, :destroy ], path: "settings/alert-sources" do
+      member do
+        post :token
+        get :sample_payload
+      end
+    end
+    get "/settings/alerts", to: "settings#alerts", as: :settings_alerts
+    get "/settings/alert-routing", to: "settings#alert_routing", as: :settings_alert_routing
+    patch "/settings/alert-routing", to: "alert_routing#update", as: :alert_routing
+    post "/settings/alert-routing/test", to: "alert_routing#test", as: :alert_routing_test
+    post "/settings/alert-routing/send-test", to: "alert_routing#send_test", as: :alert_routing_send_test
+    resources :policy_rules, only: [ :create, :update, :destroy ], path: "settings/alert-routing/rules" do
+      member do
+        patch :move_up
+        patch :move_down
+      end
+    end
     get "/settings/api-keys", to: "settings#api_keys", as: :settings_api_keys
     resources :api_keys, only: [ :create, :update, :destroy ], path: "settings/api-keys"
     resources :incident_severities, only: [ :create, :update, :destroy ], path: "settings/severities" do

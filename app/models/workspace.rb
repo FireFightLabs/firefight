@@ -19,6 +19,9 @@ class Workspace < ApplicationRecord
   has_many :catalog_types
   has_many :catalog_entries
   has_many :incident_transcript_messages, dependent: :destroy
+  has_many :policies, dependent: :destroy
+  has_many :alert_sources, dependent: :destroy
+  has_many :alerts, dependent: :destroy
 
   encrypts :access_token, :refresh_token, deterministic: false
 
@@ -28,6 +31,15 @@ class Workspace < ApplicationRecord
   scope :by_platform, ->(platform) { where(platform: platform) }
   scope :slack_platform, -> { where(platform: Platforms::SLACK) }
   scope :recent, -> { order(created_at: :desc) }
+
+  def alert_routing_fallback_policy
+    policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first
+  end
+
+  def find_or_create_alert_routing_fallback_policy!
+    alert_routing_fallback_policy ||
+      policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: Policy::DEFAULT_ALERT_ROUTING_NAME)
+  end
 
   def adapter
     WorkspaceAdapter.for(self)

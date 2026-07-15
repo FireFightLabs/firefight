@@ -28,8 +28,27 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     workflow = IncidentCreationWorkflow.start_inline!(@incident)
 
     assert_equal "succeeded", workflow.state
-    assert_equal 6, workflow.steps.count
+    assert_equal 7, workflow.steps.count
     assert workflow.steps.all? { |s| s.succeeded? || s.skipped? }
+  end
+
+  test "invite_responders invites resolved members and no-ops without context" do
+    stub_successful_slack_workflow
+    stub_invite_to_channel
+    member = workspace_memberships(:alice_workspace_one)
+
+    workflow = IncidentCreationWorkflow.start_inline!(@incident, context: { invite_membership_ids: [ member.id ] })
+    step = workflow.steps.find_by!(name: "invite_responders")
+    assert step.succeeded?
+    assert_equal [ member.platform_user_id ], step.output["invited_users"]
+
+    bare_incident = @incident.dup.tap do |incident|
+      incident.assign_attributes(sequence_number: @incident.sequence_number + 1,
+                                 identifier: "INC-#{@incident.sequence_number + 1}", channel_id: nil)
+      incident.save!
+    end
+    bare = IncidentCreationWorkflow.start_inline!(bare_incident)
+    assert_equal({ "skipped" => true }, bare.steps.find_by!(name: "invite_responders").output)
   end
 
   test "creates channel and updates incident" do

@@ -6,6 +6,7 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
   step :post_quick_actions_message, depends_on: [ :set_channel_metadata ]
   step :post_announcement, depends_on: [ :create_slack_channel ]
   step :invite_declarer, depends_on: [ :post_quick_actions_message ]
+  step :invite_responders, depends_on: [ :create_slack_channel ]
   step :create_incident_event
 
   def create_slack_channel(workflow:, step:, input:)
@@ -26,6 +27,10 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
 
   def invite_declarer(workflow:, step:, input:)
     service(workflow).invite_declarer(workflow.subject)
+  end
+
+  def invite_responders(workflow:, step:, input:)
+    service(workflow).invite_members(workflow.subject, workflow.context["invite_membership_ids"])
   end
 
   def create_incident_event(workflow:, step:, input:)

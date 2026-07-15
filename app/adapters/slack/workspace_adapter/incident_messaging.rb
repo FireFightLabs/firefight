@@ -5,6 +5,32 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   TIMELINE_PAGE_SIZE = 15
   TIMELINE_MAX_EVENTS = 45
 
+  def post_alert_message(channel_id:, alert:)
+    blocks = Slack::Messages::Alert.build(alert)
+    post_message(channel_id: channel_id, text: Slack::Mrkdwn.escape(alert.title), blocks: blocks)
+  end
+
+  def post_routing_test_message(channel_id:, description:)
+    blocks = [
+      { type: "section", text: { type: "mrkdwn", text: ":test_tube:  *Routing test:* #{description}" } },
+      {
+        type: "context",
+        elements: [ { type: "mrkdwn", text: "Sent from the alert routing tester. No incident was created and no action is needed." } ]
+      }
+    ]
+    post_message(channel_id: channel_id, text: "Routing test: #{description}", blocks: blocks)
+  end
+
+  def update_alert_message(channel_id:, message_id:, alert:)
+    blocks = Slack::Messages::Alert.build(alert)
+    update_message(
+      channel_id: channel_id,
+      message_id: message_id,
+      text: Slack::Mrkdwn.escape(alert.title),
+      blocks: blocks
+    )
+  end
+
   def update_incident_quick_actions(channel_id:, message_id:, incident:)
     blocks = Slack::Messages::QuickActions.build(incident)
     update_message(

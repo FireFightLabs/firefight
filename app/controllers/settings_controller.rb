@@ -1,4 +1,6 @@
 class SettingsController < InertiaController
+  RECENT_ALERTS_LIMIT = 50
+
   before_action :require_authentication
 
   def index
@@ -83,7 +85,100 @@ class SettingsController < InertiaController
     }
   end
 
+  def alert_sources
+    render inertia: "settings/alert-sources", props: {
+      alertSources: AlertSourceSettingsSerializer.many(
+        current_workspace.alert_sources.order(:created_at)
+      ),
+      severities: IncidentSeveritySettingsSerializer.many(
+        current_workspace.incident_severities.active.ordered
+      )
+    }
+  end
+
+  def alerts
+    source = current_workspace.alert_sources.find(params[:source_id]) if params[:source_id].present?
+    scope = current_workspace.alerts
+      .includes(:alert_source, :incident, matched_policy_rule: :policy)
+      .order(last_seen_at: :desc)
+    scope = scope.where(alert_source: source) if source
+    scope = scope.where(matched_policy_rule_id: params[:rule_id]) if params[:rule_id].present?
+
+    render inertia: "settings/alerts", props: {
+      alerts: AlertSettingsSerializer.many(scope.limit(RECENT_ALERTS_LIMIT)),
+      alertSources: current_workspace.alert_sources.order(:name).map { |s| { id: s.id, name: s.name } },
+      sourceId: source&.id,
+      ruleId: params[:rule_id].presence,
+      ruleOptions: routing_rule_options(source)
+    }
+  end
+
+  def alert_routing
+    source = current_workspace.alert_sources.find(params[:source_id]) if params[:source_id].present?
+    policy = source ? source.routing_policy : current_workspace.alert_routing_fallback_policy
+
+    render inertia: "settings/alert-routing", props: {
+      policy: policy ? AlertRoutingPolicySerializer.one(policy) : nil,
+      alertSource: source ? { id: source.id, name: source.name } : nil,
+      hasWorkspaceFallback: current_workspace.alert_routing_fallback_policy.present?,
+      severities: IncidentSeveritySettingsSerializer.many(
+        current_workspace.incident_severities.active.ordered
+      ),
+      channels: workspace_channels,
+      members: WorkspaceMembershipSerializer.many(
+        current_workspace.workspace_memberships.includes(:user)
+      ),
+      catalogOptions: catalog_condition_options
+    }
+  end
+
   private
+
+  # Rule filter options follow the source filter: a selected source offers the
+  # rules of its effective policy; no selection offers every routing rule in
+  # the workspace, prefixed with its scope.
+  def routing_rule_options(source)
+    policies =
+      if source
+        [ source.effective_routing_policy ].compact
+      else
+        current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).includes(:scoped_to, :policy_rules)
+      end
+
+    policies.flat_map do |policy|
+      scope_label = policy.scoped_to.respond_to?(:name) ? policy.scoped_to.name : nil
+      policy.policy_rules.sort_by(&:priority).map do |rule|
+        { id: rule.id, label: [ scope_label, "rule #{rule.priority}", rule_conditions_label(rule) ].compact.join(" · ") }
+      end
+    end
+  end
+
+  def rule_conditions_label(rule)
+    return "always matches" if rule.conditions.blank?
+
+    rule.conditions
+      .map { |c| [ c["field"], c["operator"].tr("_", " "), Array(c["value"]).join(", ") ].reject(&:blank?).join(" ") }
+      .join(" AND ").truncate(60)
+  end
+
+  # Catalog entries grouped by system key so condition values on catalog-backed
+  # fields are picked, not typed.
+  def catalog_condition_options
+    CatalogEntry.active.joins(:catalog_type)
+      .where(workspace: current_workspace, catalog_types: { system_key: CatalogType::SYSTEM_KEYS })
+      .order(:name)
+      .pluck("catalog_types.system_key", :slug, :name)
+      .group_by(&:first)
+      .transform_values { |rows| rows.map { |_, slug, name| { slug: slug, name: name } } }
+  end
+
+  # Best-effort: the notify-target picker degrades to a manual ID input when
+  # Slack can't be reached.
+  def workspace_channels
+    WorkspaceAdapter.for(current_workspace).list_channels
+  rescue AdapterError
+    []
+  end
 
   def build_lifecycle_stages
     statuses_by_stage = current_workspace.incident_statuses

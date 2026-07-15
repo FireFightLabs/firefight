@@ -57,4 +57,10 @@ class IncidentDetailSerializer < BaseSerializer
     fields = incident.custom_fields
     fields.presence
   end
+
+  has_many :alerts, serializer: IncidentAlertSerializer
+
+  def alerts
+    incident.alerts.includes(:alert_source).order(:received_at)
+  end
 end

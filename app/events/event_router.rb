@@ -21,7 +21,9 @@ class EventRouter
     IncidentEvent::MESSAGE_UNPINNED => [],
     IncidentEvent::MESSAGE_FILE_SHARED => [],
     IncidentEvent::ESCALATION_ACKNOWLEDGED => [],
-    IncidentEvent::ESCALATION_NUDGED => []
+    IncidentEvent::ESCALATION_NUDGED => [],
+    IncidentEvent::ALERT_ATTACHED => [],
+    IncidentEvent::ALERT_RESOLVED => []
   }.freeze
 
   def self.route(event)

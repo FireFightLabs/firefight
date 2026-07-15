@@ -330,16 +330,22 @@ module Slack
     # @return [Array<Hash>] Array of channel objects
     # @raise [ApiError] if Slack API returns an error
     def self.list_conversations(workspace:, types: "public_channel")
-      body = api_post(
-        workspace: workspace,
-        endpoint: "conversations.list",
-        payload: {
-          types: types,
-          exclude_archived: true
-        }
-      )
+      channels = []
+      cursor = nil
 
-      body[:channels] || []
+      # Paginate with a hard cap; conversations.list is Tier 2 rate limited.
+      10.times do
+        payload = { types: types, exclude_archived: true, limit: 200 }
+        payload[:cursor] = cursor if cursor.present?
+
+        body = api_post(workspace: workspace, endpoint: "conversations.list", payload: payload)
+        channels.concat(body[:channels] || [])
+
+        cursor = body.dig(:response_metadata, :next_cursor)
+        break if cursor.blank?
+      end
+
+      channels
     end
 
     def self.list_users(workspace:)

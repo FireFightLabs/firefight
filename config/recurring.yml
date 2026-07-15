@@ -10,6 +10,10 @@
 #     schedule: at 5am every day
 
 development:
+  alert_routing_sweep:
+    class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
+    queue: events
+    schedule: every 2 minutes
   refresh_slack_tokens:
     class: RefreshSlackTokensJob
     schedule: every hour
@@ -23,6 +27,10 @@ development:
     schedule: at 4am every day
 
 staging:
+  alert_routing_sweep:
+    class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
+    queue: events
+    schedule: every 2 minutes
   cleanup_idempotency_keys:
     class: CleanupIdempotencyKeysJob
     schedule: at 3am every day
@@ -46,6 +54,10 @@ staging:
     schedule: at 4am every day
 
 production:
+  alert_routing_sweep:
+    class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
+    queue: events
+    schedule: every 2 minutes
   cleanup_idempotency_keys:
     class: CleanupIdempotencyKeysJob
     schedule: at 3am every day

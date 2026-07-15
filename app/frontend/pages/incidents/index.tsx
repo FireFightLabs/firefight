@@ -2,6 +2,7 @@ import { Deferred, Head, Link, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { ActionsSkeleton } from "@/pages/incidents/components/index/actions-skeleton"
+import { AlertsPanel } from "@/pages/incidents/components/index/alerts-panel"
 import { IncidentHeader } from "@/pages/incidents/components/index/incident-header"
 import { IncidentTimeline } from "@/pages/incidents/components/index/incident-timeline"
 import { IncidentActionsSidebar } from "@/pages/incidents/components/index/incident-actions-sidebar"
@@ -62,6 +63,9 @@ export default function IncidentPage() {
               <Deferred data="actions" fallback={<ActionsSkeleton />}>
                 <IncidentActionsSidebar actions={actions ?? []} canAddAction={canAddAction} canAddFollowup={canAddFollowup} incidentId={incident.id} />
               </Deferred>
+              <div className="mt-3">
+                <AlertsPanel alerts={incident.alerts} />
+              </div>
               <div className="mt-3">
                 <IncidentPostmortemCard
                   incidentId={incident.id}

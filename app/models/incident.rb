@@ -3,6 +3,7 @@ class Incident < ApplicationRecord
   VISIBILITY_PRIVATE = "private"
 
   SOURCE_SLACK = "slack"
+  SOURCE_ALERT = "alert"
 
   DEFAULT_PER_PAGE = 20
   MAX_PER_PAGE = 50
@@ -35,6 +36,7 @@ class Incident < ApplicationRecord
            foreign_key: :related_incident_id, dependent: :destroy, inverse_of: :related_incident
   has_many :incident_transcript_messages, dependent: :destroy
   has_one :incident_summary, dependent: :destroy
+  has_many :alerts, dependent: :nullify
 
   validates :sequence_number, presence: true, uniqueness: { scope: :workspace_id }
   validates :identifier, presence: true, uniqueness: { scope: :workspace_id }

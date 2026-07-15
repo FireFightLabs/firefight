@@ -60,9 +60,26 @@ class IncidentCreationService
   end
 
   def invite_declarer(incident)
+    return { skipped: true } unless incident.declared_by
+
     @workspace.adapter.invite_user(channel_id: incident.channel_id, user_id: incident.declared_by.platform_user_id)
   rescue AdapterError::AlreadyInChannel
     { invited_user: incident.declared_by.platform_user_id, already_in_channel: true }
+  end
+
+  # Alert-routed incidents: put the resolved responders in the room. They are
+  # invited, not assigned; leadership is taken via the existing quick action,
+  # never imposed on someone who has not acknowledged.
+  def invite_members(incident, membership_ids)
+    return { skipped: true } if membership_ids.blank?
+
+    user_ids = @workspace.workspace_memberships.where(id: membership_ids).pluck(:platform_user_id)
+    return { skipped: true } if user_ids.empty?
+
+    @workspace.adapter.invite_users(channel_id: incident.channel_id, user_ids: user_ids)
+    { invited_users: user_ids }
+  rescue AdapterError::AlreadyInChannel
+    { invited_users: user_ids, already_in_channel: true }
   end
 
   def create_incident_event(incident)

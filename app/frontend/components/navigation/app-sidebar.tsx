@@ -1,9 +1,11 @@
 import {
   IconAlertTriangle,
+  IconBell,
   IconBook2,
   IconCategory,
   IconChecklist,
   IconForms,
+  IconBellRinging,
   IconKey,
   IconListDetails,
   IconPlug,
@@ -31,10 +33,12 @@ import { SharedProps } from "@/types"
 import {
   cataloguePath,
   dashboardPath,
+  settingsAlertSourcesPath,
   settingsApiKeysPath,
   settingsCustomFieldsPath,
   settingsFormsPath,
   settingsMembersPath,
+  settingsAlertsPath,
   settingsRolesPath,
   settingsSeveritiesPath,
   settingsStatusesPath,
@@ -47,6 +51,7 @@ const navSections = [
     label: "Respond",
     items: [
       { title: "Incidents", url: dashboardPath(), icon: IconUrgent },
+      { title: "Alerts", url: settingsAlertsPath(), icon: IconBell },
     ],
   },
   {
@@ -58,6 +63,7 @@ const navSections = [
       { title: "Forms", url: settingsFormsPath(), icon: IconChecklist },
       { title: "Custom Fields", url: settingsCustomFieldsPath(), icon: IconForms },
       { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
+      { title: "Alert Sources", url: settingsAlertSourcesPath(), icon: IconBellRinging },
       { title: "Integrations", url: "#", icon: IconPlug },
     ],
   },

@@ -8,7 +8,7 @@ class PolicyEvaluationTest < ActiveSupport::TestCase
     @policy = Policy.create!(workspace: @workspace, domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
   end
 
-  def rule!(priority, conditions, outcome = { action: "auto_create_incident" })
+  def rule!(priority, conditions, outcome = { "action" => PolicyRule::AlertRoutingOutcome::ACTION_AUTO_CREATE })
     @policy.policy_rules.create!(priority: priority, conditions: conditions, outcome: outcome)
   end
 
@@ -64,6 +64,19 @@ class PolicyEvaluationTest < ActiveSupport::TestCase
   test "context keys and values are normalized to strings" do
     rule!(1, [ { field: "severity", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "1" ] } ])
     assert @policy.evaluate({ severity: 1 }).matched?
+  end
+
+  test "disabled rules are skipped but appear in the trace" do
+    disabled = rule!(1, [], { action: "drop" })
+    disabled.update!(enabled: false)
+    live = rule!(2, [], { action: "notify_only" })
+
+    result = @policy.evaluate({})
+
+    assert_equal live, result.matched_rule
+    skipped_entry = result.trace.find { |t| t[:rule_id] == disabled.id }
+    assert skipped_entry[:skipped]
+    assert_not skipped_entry[:matched]
   end
 
   test "disabled policy never matches" do

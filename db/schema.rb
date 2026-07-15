@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_13_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_15_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -41,6 +41,72 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_13_120000) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "alert_groups", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "incident_id", null: false
+    t.string "content_signature", null: false
+    t.datetime "window_expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["incident_id"], name: "index_alert_groups_on_incident_id"
+    t.index ["workspace_id", "content_signature", "window_expires_at"], name: "index_alert_groups_on_signature_window"
+    t.index ["workspace_id"], name: "index_alert_groups_on_workspace_id"
+  end
+
+  create_table "alert_sources", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "name", null: false
+    t.string "provider", null: false
+    t.string "endpoint_path", null: false
+    t.string "secret_token", null: false
+    t.jsonb "config", default: {}, null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "last_received_at"
+    t.datetime "last_rejected_at"
+    t.string "last_rejection_reason"
+    t.index ["endpoint_path"], name: "index_alert_sources_on_endpoint_path", unique: true
+    t.index ["workspace_id", "name"], name: "index_alert_sources_on_workspace_id_and_name", unique: true
+    t.index ["workspace_id"], name: "index_alert_sources_on_workspace_id"
+  end
+
+  create_table "alerts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "alert_source_id", null: false
+    t.string "external_id", null: false
+    t.string "fingerprint", null: false
+    t.string "status", default: "firing", null: false
+    t.jsonb "fields", default: {}, null: false
+    t.jsonb "payload", default: {}, null: false
+    t.integer "event_count", default: 1, null: false
+    t.string "routing_state", default: "pending", null: false
+    t.datetime "received_at", null: false
+    t.datetime "last_seen_at", null: false
+    t.datetime "resolved_at"
+    t.datetime "routed_at"
+    t.uuid "incident_id"
+    t.uuid "alert_group_id"
+    t.string "channel_id"
+    t.string "channel_message_id"
+    t.datetime "last_notified_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "matched_policy_rule_id"
+    t.integer "routing_attempts", default: 0, null: false
+    t.index ["alert_group_id"], name: "index_alerts_on_alert_group_id"
+    t.index ["alert_source_id", "external_id"], name: "index_alerts_on_alert_source_id_and_external_id", unique: true
+    t.index ["alert_source_id", "fingerprint", "status"], name: "index_alerts_on_alert_source_id_and_fingerprint_and_status"
+    t.index ["alert_source_id", "fingerprint"], name: "index_alerts_on_open_fingerprint", unique: true, where: "((status)::text = 'firing'::text)"
+    t.index ["alert_source_id"], name: "index_alerts_on_alert_source_id"
+    t.index ["incident_id"], name: "index_alerts_on_incident_id"
+    t.index ["matched_policy_rule_id"], name: "index_alerts_on_matched_policy_rule_id"
+    t.index ["received_at"], name: "index_alerts_on_pending_received_at", where: "((routing_state)::text = 'pending'::text)"
+    t.index ["workspace_id", "last_seen_at"], name: "index_alerts_on_workspace_id_and_last_seen_at"
+    t.index ["workspace_id", "routing_state"], name: "index_alerts_on_workspace_id_and_routing_state"
+    t.index ["workspace_id"], name: "index_alerts_on_workspace_id"
   end
 
   create_table "api_keys", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -562,7 +628,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_13_120000) do
     t.jsonb "domain_config", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["workspace_id", "domain", "name"], name: "index_policies_on_workspace_id_and_domain_and_name", unique: true
+    t.string "scoped_to_type"
+    t.uuid "scoped_to_id"
+    t.index ["scoped_to_type", "scoped_to_id"], name: "index_policies_on_scoped_to_type_and_scoped_to_id"
+    t.index ["workspace_id", "domain", "scoped_to_type", "scoped_to_id", "name"], name: "index_policies_on_scope_and_name", unique: true
     t.index ["workspace_id", "domain"], name: "index_policies_on_workspace_id_and_domain"
     t.index ["workspace_id"], name: "index_policies_on_workspace_id"
   end
@@ -574,6 +643,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_13_120000) do
     t.jsonb "outcome", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "enabled", default: true, null: false
     t.index ["policy_id", "priority"], name: "index_policy_rules_on_policy_id_and_priority", unique: true
     t.index ["policy_id"], name: "index_policy_rules_on_policy_id"
   end
@@ -895,6 +965,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_13_120000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "alert_groups", "incidents"
+  add_foreign_key "alert_groups", "workspaces"
+  add_foreign_key "alert_sources", "workspaces"
+  add_foreign_key "alerts", "alert_groups"
+  add_foreign_key "alerts", "alert_sources"
+  add_foreign_key "alerts", "incidents"
+  add_foreign_key "alerts", "policy_rules", column: "matched_policy_rule_id", on_delete: :nullify
+  add_foreign_key "alerts", "workspaces"
   add_foreign_key "api_keys", "workspace_memberships", column: "created_by_id"
   add_foreign_key "api_keys", "workspaces"
   add_foreign_key "catalog_attribute_definitions", "catalog_types"
