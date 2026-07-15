@@ -1,5 +1,6 @@
 class IncidentSeveritiesController < InertiaController
   before_action :require_authentication
+  before_action :require_admin!
   before_action :set_severity, only: [ :update, :disable, :enable, :destroy ]
 
   def create

@@ -8,16 +8,17 @@ import type { SharedProps } from "@/types"
 interface ApiKeysPageProps extends SharedProps {
   [key: string]: unknown
   apiKeys: ApiKey[]
+  canManageServiceKeys: boolean
 }
 
 export default function ApiKeys() {
-  const { apiKeys } = usePage<ApiKeysPageProps>().props
+  const { apiKeys, canManageServiceKeys } = usePage<ApiKeysPageProps>().props
 
   return (
     <AuthenticatedLayout title="API Keys">
       <Head title="API Keys" />
       <div className="flex flex-col gap-6 px-4 py-4 md:py-6 lg:px-6">
-        <ApiKeysTab apiKeys={apiKeys} />
+        <ApiKeysTab apiKeys={apiKeys} canManageServiceKeys={canManageServiceKeys} />
       </div>
     </AuthenticatedLayout>
   )

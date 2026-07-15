@@ -43,9 +43,10 @@ function formatRelative(d: string | null | undefined, now: number) {
 
 interface ApiKeysTabProps {
   apiKeys: ApiKeyType[]
+  canManageServiceKeys: boolean
 }
 
-export function ApiKeysTab({ apiKeys }: ApiKeysTabProps) {
+export function ApiKeysTab({ apiKeys, canManageServiceKeys }: ApiKeysTabProps) {
   // `flash` (not `props.flash`) — Inertia Rails 3.17+ exposes flash natively on the page.
   // Custom keys flow through `flash.inertia[:key]` on the server (see ApiKeysController#create).
   const { flash } = usePage()
@@ -77,7 +78,7 @@ export function ApiKeysTab({ apiKeys }: ApiKeysTabProps) {
                 Manage API keys for programmatic access. Keys use Bearer token authentication.
               </CardDescription>
             </div>
-            <CreateKeyDialog />
+            <CreateKeyDialog canManageServiceKeys={canManageServiceKeys} />
           </div>
         </CardHeader>
         {apiKeys.length > 0 ? (
@@ -110,14 +111,20 @@ export function ApiKeysTab({ apiKeys }: ApiKeysTabProps) {
                       </code>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <div className="flex flex-wrap gap-1">
-                        {Object.entries(apiKey.permissions).map(([resource, actions]) => (
-                          <Badge key={resource} variant="outline" className="text-xs gap-1">
-                            {resource}
-                            <span className="text-muted-foreground">({actions.length})</span>
-                          </Badge>
-                        ))}
-                      </div>
+                      {apiKey.kind === "personal" ? (
+                        <Badge variant="secondary" className="text-xs">
+                          Personal · {apiKey.ownerName}
+                        </Badge>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(apiKey.permissions).map(([resource, actions]) => (
+                            <Badge key={resource} variant="outline" className="text-xs gap-1">
+                              {resource}
+                              <span className="text-muted-foreground">({actions.length})</span>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                       {formatRelative(apiKey.lastUsedAt, now)}

@@ -33,13 +33,32 @@ class ApplicationController < ActionController::Base
     workspace
   end
 
+  def current_membership
+    return @current_membership if defined?(@current_membership)
+
+    @current_membership = current_user && current_workspace &&
+      current_workspace.workspace_memberships.find_by(user: current_user)
+  end
+
   def user_signed_in?
     current_user.present?
   end
 
   def require_authentication
-    return if user_signed_in?
+    return redirect_unauthenticated unless user_signed_in?
 
+    Current.principal = current_membership
+  end
+
+  # Settings mutations and credential reads are admin territory; responders
+  # keep full incident access through Slack and the app regardless.
+  def require_admin!
+    return if current_membership&.admin_access?
+
+    redirect_to dashboard_path, alert: "You need admin access to manage workspace settings"
+  end
+
+  def redirect_unauthenticated
     session[:return_to] = request.fullpath if request.get? && request.fullpath.start_with?("/app/")
     redirect_to login_path, alert: "Please sign in to continue"
   end

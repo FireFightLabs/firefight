@@ -1,5 +1,6 @@
 class PolicyRulesController < InertiaController
   before_action :require_authentication
+  before_action :require_admin!
   before_action :set_rule, only: [ :update, :destroy, :move_up, :move_down ]
 
   def create

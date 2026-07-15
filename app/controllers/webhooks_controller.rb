@@ -1,5 +1,6 @@
 class WebhooksController < InertiaController
   before_action :require_authentication
+  before_action :require_admin!, except: [ :sample_payload ]
   before_action :set_webhook, only: [ :update, :destroy, :test, :activate, :deactivate ]
 
   def create

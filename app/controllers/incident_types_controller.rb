@@ -1,5 +1,6 @@
 class IncidentTypesController < InertiaController
   before_action :require_authentication
+  before_action :require_admin!
   before_action :set_incident_type, only: [ :update, :destroy ]
 
   def create

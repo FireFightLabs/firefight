@@ -1,5 +1,6 @@
 class IncidentFieldDefinitionsController < InertiaController
   before_action :require_authentication
+  before_action :require_admin!
 
   def create
     field_definition_service.create(**field_definition_params)

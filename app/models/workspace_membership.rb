@@ -1,10 +1,15 @@
 class WorkspaceMembership < ApplicationRecord
+  include Principal
+
   # Enums - Use strings for better readability
   enum :role, { member: "member", admin: "admin", owner: "owner" }, suffix: true
 
   # Associations
   belongs_to :user
   belongs_to :workspace
+  # A departed member's personal tokens die with the membership.
+  has_many :personal_api_keys, class_name: "ApiKey", foreign_key: :workspace_membership_id,
+           dependent: :destroy, inverse_of: :on_behalf_of
 
   # Encryptions
   encrypts :access_token, :refresh_token, deterministic: false
@@ -24,6 +29,10 @@ class WorkspaceMembership < ApplicationRecord
   # Actor interface (shared with ApiKey) for polymorphic event/snapshot attribution.
   def actor_display_name = display_name
   def actor_kind = "user"
+
+  def admin_access?
+    admin_role? || owner_role?
+  end
 
   # Scopes
   scope :by_role, ->(role) { where(role: role) }

@@ -28,6 +28,71 @@ class ApiKeyTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
+  # PRINCIPALS
+  # ============================================================================
+
+  test "personal token resolves to the human principal; service key to itself" do
+    membership = workspace_memberships(:alice_workspace_one)
+    personal, _ = ApiKey.create_with_token!(
+      workspace: workspaces(:slack_workspace_one), created_by: membership,
+      on_behalf_of: membership, name: "Alice's Claude Code"
+    )
+    service, _ = ApiKey.create_with_token!(
+      workspace: workspaces(:slack_workspace_one), created_by: membership, name: "CI"
+    )
+
+    assert personal.personal?
+    assert_equal membership, personal.principal
+    assert service.service?
+    assert_equal service, service.principal
+  end
+
+  test "personal tokens read everything and write nothing" do
+    membership = workspace_memberships(:alice_workspace_one)
+    key, _ = ApiKey.create_with_token!(
+      workspace: workspaces(:slack_workspace_one), created_by: membership,
+      on_behalf_of: membership, name: "Personal"
+    )
+
+    ApiKey::RESOURCES.each do |resource|
+      assert key.has_permission?(resource, ApiKey::ACTION_READ)
+      assert_not key.has_permission?(resource, ApiKey::ACTION_CREATE)
+      assert_not key.has_permission?(resource, ApiKey::ACTION_DELETE)
+    end
+  end
+
+  test "on_behalf_of must belong to the same workspace" do
+    other_member = workspace_memberships(:alice_workspace_two)
+    key = ApiKey.new(
+      workspace: workspaces(:slack_workspace_one),
+      created_by: workspace_memberships(:alice_workspace_one),
+      on_behalf_of: other_member, name: "X",
+      token_digest: "d", token_prefix: "p"
+    )
+
+    assert_not key.valid?
+    assert key.errors[:on_behalf_of].any?
+  end
+
+  test "destroying a membership revokes its personal tokens" do
+    user = User.create!(name: "Temp Member", email: "temp-member@example.com")
+    membership = WorkspaceMembership.create!(
+      user: user, workspace: workspaces(:slack_workspace_one),
+      platform_user_id: "U_TEMP_MEMBER", role: :member, joined_at: Time.current
+    )
+    key, raw = ApiKey.create_with_token!(
+      workspace: workspaces(:slack_workspace_one), created_by: membership,
+      on_behalf_of: membership, name: "Bob's token"
+    )
+    assert_equal key, ApiKey.authenticate(raw)
+
+    membership.destroy!
+
+    assert_nil ApiKey.find_by(id: key.id)
+    assert_nil ApiKey.authenticate(raw)
+  end
+
+  # ============================================================================
   # AUTHENTICATION
   # ============================================================================
 
