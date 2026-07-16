@@ -57,13 +57,14 @@ Everything that happens is recorded as an immutable, audit-grade event timeline,
 
 ### Platform
 - **Web dashboard**: incident list with server-side filtering, incident detail with timeline, postmortem editor, settings
+- **Alert ingestion and routing**: point your monitoring at a per-source endpoint, then route with first-match-wins rules that open an incident, attach to an open one, notify a team, or drop it, with deduplication, flap handling, and storm grouping so an alert storm becomes one incident
 - **Service catalog**: services, teams, environments, and functionality with typed attributes and relationships
 - **REST API**: incident CRUD with bearer-token auth, granular per-key permissions, and idempotency keys
 - **Outbound webhooks**: subscribe external systems to incident events, with delivery tracking and retries
 - **Workflow engine**: durable, step-based orchestration with retries, crash recovery, and a full execution audit trail
 
 ### On the roadmap
-- Alert ingestion API (Datadog, PagerDuty, Grafana, and a generic webhook) with rule-based routing
+- First-class alert adapters for Datadog, PagerDuty, and Grafana (any tool that can POST JSON works today through the generic webhook adapter)
 - AI SRE investigator: autonomous, permission-gated incident investigation with evidence-backed findings
 - On-call scheduling and escalation policies
 - Microsoft Teams support
