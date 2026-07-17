@@ -40,6 +40,10 @@ Rails.application.routes.draw do
     end
   end
 
+  # MCP server (stateless Streamable HTTP; Bearer ApiKey auth)
+  post "/mcp", to: "mcp#create", as: :mcp
+  match "/mcp", to: "mcp#method_not_allowed", via: [ :get, :delete, :put, :patch ]
+
   # Public routes
   root to: "sessions#new"
   get "/login", to: "sessions#new", as: :login
