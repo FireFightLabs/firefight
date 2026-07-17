@@ -16,10 +16,9 @@ import {
   runRoutingTest,
   sampleFieldsFor,
   type CatalogOptionMap,
-  type RuleCondition,
-  type SlackChannel,
   type TestResult,
 } from "@/pages/settings/lib/alerts"
+import type { SlackChannel } from "@/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -63,17 +62,18 @@ export function AlertRoutingTab({
   channels,
   members,
   catalogOptions,
-  alertSource = null,
-  hasWorkspaceFallback = false,
+  alertSource,
+  hasWorkspaceFallback,
 }: {
   policy: AlertRoutingPolicy | null
   severities: IncidentSeveritySettings[]
   channels: SlackChannel[]
   members: WorkspaceMembership[]
   catalogOptions: CatalogOptionMap
-  alertSource?: { id: string; name: string } | null
-  hasWorkspaceFallback?: boolean
+  alertSource: { id: string; name: string } | null
+  hasWorkspaceFallback: boolean
 }) {
+  const alertSourceId = alertSource?.id ?? null
   const [editingRule, setEditingRule] = useState<PolicyRule | null>(null)
   const [addingRule, setAddingRule] = useState(false)
   const [deletingRule, setDeletingRule] = useState<PolicyRule | null>(null)
@@ -92,10 +92,10 @@ export function AlertRoutingTab({
   }
 
   async function testRule(rule: PolicyRule) {
-    const sample = sampleFieldsFor(rule.conditions as RuleCondition[])
+    const sample = sampleFieldsFor(rule.conditions)
     setTestedRuleId(rule.id)
     setTestedSample(describeSample(sample))
-    const { result, error } = await runRoutingTest(sample, alertSource?.id ?? null)
+    const { result, error } = await runRoutingTest(sample, alertSourceId)
     setTestResult(result)
     setTestError(error)
   }
@@ -109,7 +109,7 @@ export function AlertRoutingTab({
 
   function togglePolicy(enabled: boolean) {
     clearTest()
-    router.patch(alertRoutingPath(), { policy: { enabled }, alert_source_id: alertSource?.id })
+    router.patch(alertRoutingPath(), { policy: { enabled }, alert_source_id: alertSourceId })
   }
 
   function toggleRule(rule: PolicyRule, enabled: boolean) {
@@ -149,7 +149,7 @@ export function AlertRoutingTab({
                   <Switch id="routing-enabled" checked={policy.enabled} onCheckedChange={togglePolicy} />
                 </div>
               )}
-              <CustomTestDialog disabled={!canTest} alertSourceId={alertSource?.id ?? null} />
+              <CustomTestDialog disabled={!canTest} alertSourceId={alertSourceId} />
               <Button size="sm" onClick={() => setAddingRule(true)}>Add rule</Button>
             </div>
           </div>
@@ -177,7 +177,7 @@ export function AlertRoutingTab({
               </TableHeader>
               <TableBody>
                 {rules.map((rule, index) => {
-                  const regexRule = needsCustomSample(rule.conditions as RuleCondition[])
+                  const regexRule = needsCustomSample(rule.conditions)
                   return (
                     <TableRow key={rule.id} className={rule.enabled ? "" : "opacity-50"}>
                       <TableCell className="font-mono text-xs text-muted-foreground">{index + 1}</TableCell>
@@ -258,7 +258,7 @@ export function AlertRoutingTab({
         )}
       </Card>
 
-      {policy && <GroupingSettings policy={policy} alertSourceId={alertSource?.id ?? null} />}
+      {policy && <GroupingSettings policy={policy} alertSourceId={alertSourceId} />}
 
       {(addingRule || editingRule) && (
         <RuleDialog
@@ -267,7 +267,7 @@ export function AlertRoutingTab({
           channels={channels}
           members={members}
           catalogOptions={catalogOptions}
-          alertSourceId={alertSource?.id ?? null}
+          alertSourceId={alertSourceId}
           onClose={() => {
             clearTest()
             setAddingRule(false)

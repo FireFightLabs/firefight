@@ -5,7 +5,8 @@ import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { settingsAlertSourcesPath } from "@/lib/routes"
 import { AlertRoutingTab } from "@/pages/settings/components/alert-routing/alert-routing-tab"
 import type { AlertRoutingPolicy, IncidentSeveritySettings, WorkspaceMembership } from "@/types/serializers"
-import type { CatalogOptionMap, SlackChannel } from "@/pages/settings/lib/alerts"
+import type { SlackChannel } from "@/types"
+import type { CatalogOptionMap } from "@/pages/settings/lib/alerts"
 import type { SharedProps } from "@/types"
 
 interface AlertRoutingPageProps extends SharedProps {

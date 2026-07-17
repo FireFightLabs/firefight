@@ -15,6 +15,14 @@ export function formatDateTime(dateStr: string): string {
   })
 }
 
+export function formatTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+}
+
 export function formatDuration(start: string, end: string | null | undefined): string {
   const startTime = new Date(start)
   const endTime = end ? new Date(end) : new Date()

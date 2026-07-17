@@ -4,8 +4,8 @@ import { Link, router } from "@inertiajs/react"
 
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
 import { alertSourcePath, settingsAlertRoutingPath, settingsAlertsPath, tokenAlertSourcePath } from "@/lib/routes"
-import { formatDateTime } from "@/lib/formatters"
-import { csrfToken, PROVIDER_LABELS } from "@/pages/settings/lib/alerts"
+import { postJson } from "@/lib/http"
+import { PROVIDER_LABELS } from "@/pages/settings/lib/alerts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,25 +25,9 @@ import {
 } from "@/components/ui/table"
 import { AddSourceDialog } from "@/pages/settings/components/alert-sources/add-source-dialog"
 import { EditSourceDialog } from "@/pages/settings/components/alert-sources/edit-source-dialog"
+import { LastEventCell } from "@/pages/settings/components/alert-sources/last-event-cell"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
-
-function LastEventCell({ source }: { source: AlertSourceSettings }) {
-  const received = source.lastReceivedAt ? Date.parse(source.lastReceivedAt) : 0
-  const rejected = source.lastRejectedAt ? Date.parse(source.lastRejectedAt) : 0
-
-  if (rejected > received) {
-    return (
-      <span className="text-xs text-amber-500/90" title={`Last rejected ${formatDateTime(source.lastRejectedAt!)}`}>
-        Rejected: {source.lastRejectionReason}
-      </span>
-    )
-  }
-  if (received > 0) {
-    return <span className="text-xs text-muted-foreground">{formatDateTime(source.lastReceivedAt!)}</span>
-  }
-  return <span className="text-xs text-muted-foreground/60">Never</span>
-}
 
 export function AlertSourcesTab({
   alertSources,
@@ -68,13 +52,8 @@ export function AlertSourcesTab({
   // The secret is fetched on demand so it never ships in page props.
   async function handleCopyToken(source: AlertSourceSettings) {
     try {
-      const response = await fetch(tokenAlertSourcePath(source.id), {
-        method: "POST",
-        headers: { "X-CSRF-Token": csrfToken() },
-      })
-      if (!response.ok) return
-      const { token } = (await response.json()) as { token: string }
-      handleCopy(token, `token-${source.id}`)
+      const { ok, data } = await postJson<{ token: string }>(tokenAlertSourcePath(source.id))
+      if (ok && data) handleCopy(data.token, `token-${source.id}`)
     } catch {
       // leave the button unchanged; the user can retry
     }

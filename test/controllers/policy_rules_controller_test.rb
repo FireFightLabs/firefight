@@ -30,7 +30,7 @@ class PolicyRulesControllerTest < ActionDispatch::IntegrationTest
 
   test "invalid conditions redirect back with errors" do
     post policy_rules_url, params: {
-      rule: { conditions: [ { field: "service", operator: "equals", value: "x" } ], outcome: { action: "drop" } }
+      rule: { conditions: [ { field: "service", operator: "equals", value: "x" } ], outcome: { action: AlertIngestService::ACTION_DROP } }
     }
 
     policy = @workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).first
@@ -93,13 +93,5 @@ class PolicyRulesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
     assert PolicyRule.exists?(rule.id)
-  end
-
-  private
-
-  def sign_in(user, workspace)
-    ApplicationController.any_instance.stubs(:current_user).returns(user)
-    ApplicationController.any_instance.stubs(:current_workspace).returns(workspace)
-    ApplicationController.any_instance.stubs(:user_signed_in?).returns(true)
   end
 end

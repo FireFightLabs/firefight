@@ -1,7 +1,8 @@
 import type { InertiaFormProps } from "@inertiajs/react"
 
 import type { IncidentSeveritySettings, WorkspaceMembership } from "@/types/serializers"
-import { OUTCOME_ACTIONS, type OutcomeAction, type SlackChannel } from "@/pages/settings/lib/alerts"
+import type { SlackChannel } from "@/types"
+import { OUTCOME_ACTIONS, type OutcomeAction } from "@/pages/settings/lib/alerts"
 import {
   NONE_SEVERITY,
   isIncidentAction,

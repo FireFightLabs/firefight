@@ -3,7 +3,8 @@ import { useForm } from "@inertiajs/react"
 
 import type { IncidentSeveritySettings, PolicyRule, WorkspaceMembership } from "@/types/serializers"
 import { policyRulePath, policyRulesPath } from "@/lib/routes"
-import { type CatalogOptionMap, type SlackChannel } from "@/pages/settings/lib/alerts"
+import type { SlackChannel } from "@/types"
+import { type CatalogOptionMap } from "@/pages/settings/lib/alerts"
 import { rowListOps } from "@/pages/settings/lib/row-list"
 import {
   ruleFormData,
@@ -33,7 +34,7 @@ export function RuleDialog({
   members,
   catalogOptions,
   onClose,
-  alertSourceId = null,
+  alertSourceId,
 }: {
   rule: PolicyRule | null
   severities: IncidentSeveritySettings[]
@@ -41,7 +42,7 @@ export function RuleDialog({
   members: WorkspaceMembership[]
   catalogOptions: CatalogOptionMap
   onClose: () => void
-  alertSourceId?: string | null
+  alertSourceId: string | null
 }) {
   const form = useForm<RuleFormData>(ruleFormData(rule))
   const conditions = rowListOps<ConditionRow>(form.data.conditions, (rows) => form.setData("conditions", rows))

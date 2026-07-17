@@ -44,10 +44,10 @@ export function ruleFormData(rule: PolicyRule | null): RuleFormData {
   return {
     conditions: (rule?.conditions ?? []).map((c) => ({
       field: c.field,
-      operator: c.operator as ConditionOperator,
+      operator: c.operator,
       value: Array.isArray(c.value) ? c.value.join(", ") : (c.value ?? ""),
     })),
-    action: (outcome?.action as OutcomeAction) ?? "auto_create_incident",
+    action: outcome?.action ?? "auto_create_incident",
     severityId: outcome?.severityId ?? NONE_SEVERITY,
     notifyKind:
       outcome?.notify?.type === TARGET_MEMBER
@@ -58,7 +58,7 @@ export function ruleFormData(rule: PolicyRule | null): RuleFormData {
     notifyChannel: outcome?.notify?.channelId ?? "",
     notifyMemberId: outcome?.notify?.memberId ?? "",
     inviteOwningTeam: outcome?.invite?.some((t) => t.type === TARGET_OWNING_TEAM) ?? false,
-    inviteMemberIds: outcome?.invite?.filter((t) => t.type === TARGET_MEMBER).map((t) => t.memberId as string) ?? [],
+    inviteMemberIds: outcome?.invite?.flatMap((t) => (t.type === TARGET_MEMBER && t.memberId ? [ t.memberId ] : [])) ?? [],
   }
 }
 

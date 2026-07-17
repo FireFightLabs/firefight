@@ -1,4 +1,6 @@
+import type { PolicyRule } from "@/types/serializers"
 import { alertRoutingSendTestPath, alertRoutingTestPath } from "@/lib/routes"
+import { postJson } from "@/lib/http"
 
 export const CONDITION_OPERATORS = [
   { value: "is_one_of", label: "is one of" },
@@ -46,18 +48,9 @@ export const NORMALIZED_FIELDS = [
   "environment",
 ] as const
 
-export interface RuleCondition {
-  field: string
-  operator: ConditionOperator
-  value?: string | string[]
-}
+export type RuleCondition = PolicyRule["conditions"][number]
 
 export type CatalogOptionMap = Record<string, { slug: string; name: string }[]>
-
-export interface SlackChannel {
-  id: string
-  name: string
-}
 
 export interface TraceCondition {
   field: string
@@ -91,19 +84,13 @@ export async function runRoutingTest(
   fields: Record<string, string>,
   alertSourceId: string | null
 ): Promise<{ result: TestResult | null; error: string | null }> {
+  const fallback = "The test request failed; try again."
   try {
-    const response = await fetch(alertRoutingTestPath(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
-      body: JSON.stringify({ fields, alert_source_id: alertSourceId }),
-    })
-    if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as { error?: string } | null
-      return { result: null, error: body?.error ?? "The test request failed; try again." }
-    }
-    return { result: (await response.json()) as TestResult, error: null }
+    const { ok, data } = await postJson<TestResult>(alertRoutingTestPath(), { fields, alert_source_id: alertSourceId })
+    if (!ok || !data) return { result: null, error: (data as { error?: string } | null)?.error ?? fallback }
+    return { result: data, error: null }
   } catch {
-    return { result: null, error: "The test request failed; try again." }
+    return { result: null, error: fallback }
   }
 }
 
@@ -112,12 +99,8 @@ export async function sendRoutingTest(
   alertSourceId: string | null
 ): Promise<SendTestResult> {
   try {
-    const response = await fetch(alertRoutingSendTestPath(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
-      body: JSON.stringify({ fields, alert_source_id: alertSourceId }),
-    })
-    return (await response.json()) as SendTestResult
+    const { data } = await postJson<SendTestResult>(alertRoutingSendTestPath(), { fields, alert_source_id: alertSourceId })
+    return data ?? { error: "The request failed; try again." }
   } catch {
     return { error: "The request failed; try again." }
   }
@@ -144,8 +127,4 @@ export function needsCustomSample(conditions: RuleCondition[]): boolean {
 export function describeSample(fields: Record<string, string>): string {
   const pairs = Object.entries(fields).map(([key, value]) => `${key}=${value}`)
   return pairs.length > 0 ? pairs.join(", ") : "an empty alert"
-}
-
-export function csrfToken(): string {
-  return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? ""
 }

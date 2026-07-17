@@ -1,14 +1,7 @@
 import { IconBellRinging } from "@tabler/icons-react"
 
 import type { Incident } from "@/pages/incidents/types"
-
-function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-}
+import { formatTime } from "@/lib/formatters"
 
 export function AlertsPanel({ alerts }: { alerts: Incident["alerts"] }) {
   if (alerts.length === 0) return null

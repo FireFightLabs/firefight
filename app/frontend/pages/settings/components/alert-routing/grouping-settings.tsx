@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react"
+import { toast } from "sonner"
 
 import type { AlertRoutingPolicy } from "@/types/serializers"
 import { alertRoutingPath } from "@/lib/routes"
@@ -37,7 +38,12 @@ export function GroupingSettings({
         content_match_fields: data.matchFields.split(",").map((f) => f.trim()).filter(Boolean),
       },
     }))
-    form.patch(alertRoutingPath(), { onSuccess: () => form.setDefaults() })
+    form.patch(alertRoutingPath(), {
+      onSuccess: () => {
+        form.setDefaults()
+        toast.success("Grouping settings saved")
+      },
+    })
   }
 
   return (
@@ -73,7 +79,7 @@ export function GroupingSettings({
             />
           </div>
           <Button size="sm" onClick={save} disabled={form.processing || !form.isDirty}>
-            {form.wasSuccessful && !form.isDirty ? "Saved" : "Save"}
+            Save
           </Button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
