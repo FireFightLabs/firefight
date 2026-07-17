@@ -1,0 +1,31 @@
+<h1>Connect <%= @pre_auth.client.name %>?</h1>
+
+<p>
+  <strong class="who"><%= @pre_auth.client.name %></strong> wants read-only access to
+  <strong class="who"><%= current_resource_owner.workspace.name %></strong>
+  as <strong class="who"><%= current_resource_owner.display_name %></strong>.
+</p>
+
+<ul>
+  <li>Read incidents, timelines and postmortem status</li>
+  <li>Read alerts and how they routed</li>
+  <li>Read the service catalog</li>
+  <li>Dry-run alert routing rules</li>
+</ul>
+
+<p>It can never change anything. Revoke access anytime under Settings &rarr; API keys.</p>
+
+<div class="actions">
+  <%= form_tag oauth_authorization_path, method: :post do %>
+    <% oauth_pre_auth_fields(@pre_auth).each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+    <button type="submit" class="authorize">Authorize</button>
+  <% end %>
+  <%= form_tag oauth_authorization_path, method: :delete do %>
+    <% oauth_pre_auth_fields(@pre_auth).each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+    <button type="submit" class="deny">Deny</button>
+  <% end %>
+</div>

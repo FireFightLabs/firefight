@@ -28,6 +28,8 @@ import { ApiKeyEditSheet } from "@/pages/settings/components/api-keys/api-key-ed
 import { CreateKeyDialog } from "@/pages/settings/components/api-keys/create-key-dialog"
 import { TokenRevealedDialog } from "@/pages/settings/components/api-keys/token-revealed-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
+import { ConnectedAgentsCard } from "@/pages/settings/components/api-keys/connected-agents-card"
+import type { ConnectedAgent } from "@/pages/settings/api-keys"
 
 
 function formatRelative(d: string | null | undefined, now: number) {
@@ -44,9 +46,10 @@ function formatRelative(d: string | null | undefined, now: number) {
 interface ApiKeysTabProps {
   apiKeys: ApiKeyType[]
   canManageServiceKeys: boolean
+  connectedAgents: ConnectedAgent[]
 }
 
-export function ApiKeysTab({ apiKeys, canManageServiceKeys }: ApiKeysTabProps) {
+export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: ApiKeysTabProps) {
   // `flash` (not `props.flash`) — Inertia Rails 3.17+ exposes flash natively on the page.
   // Custom keys flow through `flash.inertia[:key]` on the server (see ApiKeysController#create).
   const { flash } = usePage()
@@ -163,6 +166,9 @@ export function ApiKeysTab({ apiKeys, canManageServiceKeys }: ApiKeysTabProps) {
           </CardContent>
         )}
       </Card>
+
+      <ConnectedAgentsCard agents={connectedAgents} />
+
       <ApiKeyEditSheet
         apiKey={editingKey}
         open={editingKey !== null}

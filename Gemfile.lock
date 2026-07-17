@@ -182,6 +182,8 @@ GEM
     debug (1.11.1)
       irb (~> 1.10)
       reline (>= 0.3.8)
+    doorkeeper (5.9.3)
+      railties (>= 5)
     dotenv (3.2.0)
     dotenv-rails (3.2.0)
       dotenv (= 3.2.0)
@@ -815,6 +817,7 @@ DEPENDENCIES
   capybara
   commonmarker (~> 2.7)
   debug
+  doorkeeper
   dotenv-rails
   firefight_ai!
   httparty

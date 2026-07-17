@@ -9,7 +9,15 @@ Mint a token under **Settings → API keys**:
 - **Personal token** ("acts as you") — reads everything you can see. For your own agent sessions.
 - **Service key** with read scopes (`incidents`, `alerts`, `catalog`, `policies`) — for headless agents and CI.
 
-**Claude Code**
+**Claude Code (OAuth — recommended)**
+
+```sh
+claude mcp add --transport http firefight https://<your-host>/mcp
+```
+
+On first use your browser opens Firefight's consent screen ("<client> wants read-only access to <workspace> as <you>") — click Authorize and you're connected. The client self-registers via dynamic client registration; tokens are short-lived with refresh rotation, PKCE (S256) is required, and you can revoke any connection under **Settings → API keys → Connected agents**.
+
+**Claude Code (header token — for automation)**
 
 ```sh
 claude mcp add --transport http firefight https://<your-host>/mcp \
@@ -29,7 +37,7 @@ claude mcp add --transport http firefight https://<your-host>/mcp \
 }
 ```
 
-Any other client: Streamable HTTP transport, `Authorization: Bearer` header. OAuth-based connect (browser consent, claude.ai web connectors) is planned; header tokens remain the automation path.
+Any other client: Streamable HTTP transport with either OAuth (discovery via `/.well-known/oauth-protected-resource`, RFC 7591 registration, PKCE required) or an `Authorization: Bearer` header token. Headless agents and CI should use header tokens — machines can't click consent screens.
 
 ## Tools (all read-only)
 

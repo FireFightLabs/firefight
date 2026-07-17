@@ -43,6 +43,10 @@ gem "omniauth-rails_csrf_protection"
 # Generate JavaScript routes from Rails routes
 gem "js-routes", "~> 2.3"
 
+# OAuth 2.1 provider for MCP client connections (consent flow); we add the
+# MCP-required metadata + dynamic client registration endpoints ourselves
+gem "doorkeeper"
+
 # MCP server (official Model Context Protocol SDK) — stateless dispatch from McpController
 gem "mcp"
 
