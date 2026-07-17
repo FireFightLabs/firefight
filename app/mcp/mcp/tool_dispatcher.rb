@@ -14,9 +14,8 @@ module Mcp
     def self.call(tool:, server_context:, args:)
       tool_name = tool.name_value
       resource = RESOURCE_BY_TOOL.fetch(tool_name)
-      api_key = server_context[:api_key]
 
-      unless api_key.has_permission?(resource, ApiKey::ACTION_READ)
+      unless server_context[:principal].mcp_readable?(resource)
         return error_response("This token lacks '#{resource}:#{ApiKey::ACTION_READ}' permission.")
       end
 

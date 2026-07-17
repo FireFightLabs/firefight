@@ -94,6 +94,10 @@ class ApiKey < ApplicationRecord
     on_behalf_of || self
   end
 
+  def mcp_readable?(resource)
+    has_permission?(resource, ACTION_READ)
+  end
+
   # Personal tokens carry the member's authority: read everything a member
   # sees, write nothing. Service keys use their explicit permission scopes.
   def has_permission?(resource, action)

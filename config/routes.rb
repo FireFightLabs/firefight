@@ -40,6 +40,17 @@ Rails.application.routes.draw do
     end
   end
 
+  # OAuth 2.1 provider for MCP clients: authorize/token/revoke from Doorkeeper,
+  # discovery metadata (RFC 8414/9728) and dynamic client registration
+  # (RFC 7591) are ours. No application-management UI is exposed.
+  use_doorkeeper do
+    skip_controllers :applications, :authorized_applications
+  end
+  post "/oauth/register", to: "oauth/registrations#create", as: :oauth_register
+  get "/.well-known/oauth-authorization-server", to: "oauth/metadata#authorization_server"
+  get "/.well-known/oauth-protected-resource", to: "oauth/metadata#protected_resource"
+  get "/.well-known/oauth-protected-resource/mcp", to: "oauth/metadata#protected_resource"
+
   # MCP server (stateless Streamable HTTP; Bearer ApiKey auth)
   post "/mcp", to: "mcp#create", as: :mcp
   match "/mcp", to: "mcp#method_not_allowed", via: [ :get, :delete, :put, :patch ]
@@ -98,6 +109,7 @@ Rails.application.routes.draw do
       end
     end
     get "/settings/api-keys", to: "settings#api_keys", as: :settings_api_keys
+    delete "/settings/connected-agents/:id", to: "connected_agents#destroy", as: :connected_agent
     resources :api_keys, only: [ :create, :update, :destroy ], path: "settings/api-keys"
     resources :incident_severities, only: [ :create, :update, :destroy ], path: "settings/severities" do
       member do

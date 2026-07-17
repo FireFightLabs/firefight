@@ -8,9 +8,9 @@ class McpController < ActionController::API
                  "alerts, the service catalog, and alert-routing dry runs. All data is scoped " \
                  "to the token's workspace.".freeze
 
-  rate_limit to: 1000, within: 1.minute, by: -> { Current.api_key&.id }, with: :rate_limit_exceeded
-
   before_action :authenticate!, only: :create
+  # Declared after authenticate! so the per-principal bucket is populated.
+  rate_limit to: 1000, within: 1.minute, by: -> { Current.principal&.id }, with: :rate_limit_exceeded
 
   def create
     response_json = mcp_server.handle_json(request.raw_post)
@@ -25,19 +25,52 @@ class McpController < ActionController::API
 
   private
 
+  # Two credential kinds resolve to one principal model: ff_-prefixed API
+  # tokens (either mode) and OAuth access tokens minted by the consent flow
+  # (resource owner = the consenting membership).
   def authenticate!
     token = request.headers["Authorization"]&.match(/\ABearer (.+)\z/)&.captures&.first
-    api_key = ApiKey.authenticate(token)
-    unless api_key
-      response.set_header("WWW-Authenticate", "Bearer realm=\"Firefight MCP\"")
-      return render json: { error: "unauthorized", message: "Provide a Firefight API token as 'Authorization: Bearer ff_...'" }, status: :unauthorized
+    return unauthorized! if token.blank?
+
+    if token.start_with?(ApiKey::TOKEN_PREFIX)
+      authenticate_api_key!(token)
+    else
+      authenticate_oauth_token!(token)
     end
+  end
+
+  def authenticate_api_key!(token)
+    api_key = ApiKey.authenticate(token)
+    return unauthorized! unless api_key
 
     Current.workspace = api_key.workspace
     Current.api_key = api_key
     Current.principal = api_key.principal
     api_key.touch_last_used!
     annotate_trace
+  end
+
+  def authenticate_oauth_token!(token)
+    access_token = Doorkeeper::AccessToken.by_token(token)
+    return unauthorized! unless access_token&.acceptable?(Doorkeeper.config.default_scopes.to_a)
+
+    membership = WorkspaceMembership.find_by(id: access_token.resource_owner_id)
+    return unauthorized! unless membership
+
+    Current.workspace = membership.workspace
+    Current.principal = membership
+    annotate_trace
+  end
+
+  def unauthorized!
+    response.set_header(
+      "WWW-Authenticate",
+      "Bearer realm=\"Firefight MCP\", resource_metadata=\"#{request.base_url}/.well-known/oauth-protected-resource\""
+    )
+    render json: {
+      error: "unauthorized",
+      message: "Authenticate with a Firefight API token ('Authorization: Bearer ff_...') or connect via OAuth."
+    }, status: :unauthorized
   end
 
   def mcp_server

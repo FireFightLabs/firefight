@@ -83,7 +83,8 @@ class SettingsController < InertiaController
 
     render inertia: "settings/api-keys", props: {
       apiKeys: ApiKeySerializer.many(scope.ordered.includes(created_by: :user)),
-      canManageServiceKeys: current_membership.admin_access?
+      canManageServiceKeys: current_membership.admin_access?,
+      connectedAgents: connected_agents
     }
   end
 
@@ -136,6 +137,22 @@ class SettingsController < InertiaController
   end
 
   private
+
+  # MCP clients this member authorized via OAuth consent; one row per
+  # application with a live (non-revoked) token or refresh chain.
+  def connected_agents
+    Doorkeeper::AccessToken
+      .where(resource_owner_id: current_membership.id, revoked_at: nil)
+      .includes(:application)
+      .group_by(&:application)
+      .map do |application, tokens|
+        {
+          id: application.id,
+          name: application.name,
+          connectedAt: tokens.map(&:created_at).min.utc.iso8601
+        }
+      end
+  end
 
   # Rule filter options follow the source filter: a selected source offers the
   # rules of its effective policy; no selection offers every routing rule in
