@@ -26,6 +26,7 @@ export interface RuleFormData {
   severityId: string
   notifyKind: NotifyKind
   notifyChannel: string
+  notifyChannelName: string
   notifyMemberId: string
   inviteOwningTeam: boolean
   inviteMemberIds: string[]
@@ -56,6 +57,7 @@ export function ruleFormData(rule: PolicyRule | null): RuleFormData {
           ? "owning_team"
           : "channel",
     notifyChannel: outcome?.notify?.channelId ?? "",
+    notifyChannelName: outcome?.notify?.channelName ?? "",
     notifyMemberId: outcome?.notify?.memberId ?? "",
     inviteOwningTeam: outcome?.invite?.some((t) => t.type === TARGET_OWNING_TEAM) ?? false,
     inviteMemberIds: outcome?.invite?.flatMap((t) => (t.type === TARGET_MEMBER && t.memberId ? [ t.memberId ] : [])) ?? [],
@@ -76,7 +78,14 @@ function notifyPayload(data: RuleFormData) {
     return { notify: { type: TARGET_MEMBER, member_id: data.notifyMemberId } }
   }
   if (data.notifyKind === "channel" && data.notifyChannel.trim()) {
-    return { notify: { type: TARGET_CHANNEL, channel_id: data.notifyChannel.trim() } }
+    return {
+      notify: {
+        type: TARGET_CHANNEL,
+        channel_id: data.notifyChannel.trim(),
+        // Display-only label captured at config time; the ID stays canonical.
+        ...(data.notifyChannelName.trim() ? { channel_name: data.notifyChannelName.trim() } : {}),
+      },
+    }
   }
   return {}
 }

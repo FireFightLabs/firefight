@@ -1,14 +1,4 @@
-<div class="pill">Read-only access</div>
-
 <h1>Connect <%= @pre_auth.client.name %>?</h1>
-
-<p>
-  It will be able to read incidents, alerts and the service catalog in
-  <span class="who"><%= current_resource_owner.workspace.name %></span>
-  as <span class="who"><%= current_resource_owner.display_name %></span>.
-</p>
-
-<p class="fine">It can never change anything. Revoke anytime under Settings &rarr; API keys.</p>
 
 <div class="actions">
   <%= form_tag oauth_authorization_path, method: :post do %>
