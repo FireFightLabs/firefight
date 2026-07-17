@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_15_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_15_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -122,10 +122,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_090000) do
     t.datetime "deleted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "workspace_membership_id"
     t.index ["created_by_id"], name: "index_api_keys_on_created_by_id"
     t.index ["token_digest"], name: "index_api_keys_on_token_digest", unique: true
     t.index ["workspace_id", "deleted_at"], name: "index_api_keys_on_workspace_id_and_deleted_at"
     t.index ["workspace_id"], name: "index_api_keys_on_workspace_id"
+    t.index ["workspace_membership_id"], name: "index_api_keys_on_workspace_membership_id"
   end
 
   create_table "catalog_attribute_definitions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -973,6 +975,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_090000) do
   add_foreign_key "alerts", "incidents"
   add_foreign_key "alerts", "policy_rules", column: "matched_policy_rule_id", on_delete: :nullify
   add_foreign_key "alerts", "workspaces"
+  add_foreign_key "api_keys", "workspace_memberships"
   add_foreign_key "api_keys", "workspace_memberships", column: "created_by_id"
   add_foreign_key "api_keys", "workspaces"
   add_foreign_key "catalog_attribute_definitions", "catalog_types"

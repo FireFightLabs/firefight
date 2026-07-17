@@ -55,6 +55,34 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "incidents" => [ "read" ] }, api_key.reload.permissions)
   end
 
+  test "a member can mint a personal token but not a service key" do
+    sign_in(users(:bob), @workspace)
+
+    assert_difference -> { ApiKey.count }, 1 do
+      post api_keys_url, params: { kind: "personal", name: "Bob's Claude Code" }
+    end
+    key = ApiKey.find_by!(name: "Bob's Claude Code")
+    assert key.personal?
+    assert_equal workspace_memberships(:bob_workspace_one), key.on_behalf_of
+
+    assert_no_difference -> { ApiKey.count } do
+      post api_keys_url, params: { name: "Sneaky service key", permissions: { incidents: [ "read" ] } }
+    end
+    assert_redirected_to dashboard_path
+  end
+
+  test "a member cannot touch another principal's key" do
+    admin_key = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one), name: "Admin key"
+    ).first
+    sign_in(users(:bob), @workspace)
+
+    delete api_key_url(admin_key)
+
+    assert_response :not_found
+    assert_nil admin_key.reload.deleted_at
+  end
+
   private
 
   def sign_in(user, workspace)

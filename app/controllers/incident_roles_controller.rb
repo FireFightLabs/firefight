@@ -1,5 +1,6 @@
 class IncidentRolesController < InertiaController
   before_action :require_authentication
+  before_action :require_admin!
   before_action :set_role, only: [ :disable, :enable, :destroy ]
 
   def create

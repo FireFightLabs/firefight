@@ -78,10 +78,12 @@ class SettingsController < InertiaController
   end
 
   def api_keys
+    scope = current_workspace.api_keys.where(deleted_at: nil)
+    scope = scope.where(workspace_membership_id: current_membership.id) unless current_membership.admin_access?
+
     render inertia: "settings/api-keys", props: {
-      apiKeys: ApiKeySerializer.many(
-        current_workspace.api_keys.where(deleted_at: nil).ordered.includes(created_by: :user)
-      )
+      apiKeys: ApiKeySerializer.many(scope.ordered.includes(created_by: :user)),
+      canManageServiceKeys: current_membership.admin_access?
     }
   end
 

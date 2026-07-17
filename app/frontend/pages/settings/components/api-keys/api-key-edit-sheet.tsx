@@ -88,12 +88,15 @@ export function ApiKeyEditSheet({
             <Switch id="edit-key-active" checked={active} onCheckedChange={setActive} />
           </div>
 
-          <Separator />
-
-          <div className="flex flex-col gap-3">
-            <Label className="text-sm font-medium">Permissions</Label>
-            <PermissionsMatrix perms={editPerms} onToggle={togglePerm} />
-          </div>
+          {apiKey.kind === "service" && (
+            <>
+              <Separator />
+              <div className="flex flex-col gap-3">
+                <Label className="text-sm font-medium">Permissions</Label>
+                <PermissionsMatrix perms={editPerms} onToggle={togglePerm} />
+              </div>
+            </>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>

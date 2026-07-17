@@ -1,15 +1,21 @@
 class ApiKeysController < InertiaController
+  KIND_PERSONAL = "personal"
+
   before_action :require_authentication
   before_action :set_api_key, only: [ :update, :destroy ]
 
+  # Personal tokens are self-service (any member can mint their own, GitHub
+  # PAT style); service keys carry workspace-wide scopes and need an admin.
   def create
-    member = current_workspace.workspace_memberships.find_by!(user: current_user)
+    personal = params[:kind] == KIND_PERSONAL
+    return require_admin! unless personal || current_membership.admin_access?
 
     api_key, raw_token = ApiKey.create_with_token!(
       workspace: current_workspace,
-      created_by: member,
+      created_by: current_membership,
+      on_behalf_of: personal ? current_membership : nil,
       name: params.require(:name),
-      permissions: params[:permissions]&.to_unsafe_h || {},
+      permissions: personal ? {} : params[:permissions]&.to_unsafe_h || {},
       expires_at: params[:expires_at].present? ? Time.zone.parse(params[:expires_at]) : nil
     )
 
@@ -44,7 +50,10 @@ class ApiKeysController < InertiaController
 
   private
 
+  # Admins manage every key; members only their own personal tokens.
   def set_api_key
-    @api_key = current_workspace.api_keys.where(deleted_at: nil).find(params[:id])
+    scope = current_workspace.api_keys.where(deleted_at: nil)
+    scope = scope.where(workspace_membership_id: current_membership.id) unless current_membership.admin_access?
+    @api_key = scope.find(params[:id])
   end
 end

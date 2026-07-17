@@ -16,6 +16,7 @@ module ApiAuthentication
 
     Current.workspace = api_key.workspace
     Current.api_key = api_key
+    Current.principal = api_key.principal
     api_key.touch_last_used!
   end
 

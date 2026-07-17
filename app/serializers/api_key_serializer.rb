@@ -18,6 +18,16 @@ class ApiKeySerializer < BaseSerializer
   end
 
   type :string
+  def kind
+    key.personal? ? "personal" : "service"
+  end
+
+  type :string, optional: true
+  def owner_name
+    key.on_behalf_of&.display_name
+  end
+
+  type :string
   def created_by
     key.created_by.user.name
   end

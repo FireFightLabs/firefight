@@ -1,4 +1,6 @@
 class ApiKey < ApplicationRecord
+  include Principal
+
   TOKEN_PREFIX = "ff_"
   TOKEN_LENGTH = 36
   CACHE_TTL = 24.hours
@@ -11,10 +13,12 @@ class ApiKey < ApplicationRecord
   RESOURCE_INCIDENT_TYPES = "incident_types"
   RESOURCE_CUSTOM_FIELDS = "custom_fields"
   RESOURCE_CATALOG = "catalog"
+  RESOURCE_ALERTS = "alerts"
+  RESOURCE_POLICIES = "policies"
 
   RESOURCES = [
     RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
-    RESOURCE_CUSTOM_FIELDS, RESOURCE_CATALOG
+    RESOURCE_CUSTOM_FIELDS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES
   ].freeze
 
   # Actions
@@ -27,13 +31,18 @@ class ApiKey < ApplicationRecord
 
   belongs_to :workspace
   belongs_to :created_by, class_name: "WorkspaceMembership"
+  # Personal token: acts with this human's authority; nil = service key.
+  belongs_to :on_behalf_of, class_name: "WorkspaceMembership",
+             foreign_key: :workspace_membership_id, optional: true, inverse_of: :personal_api_keys
 
   validates :name, presence: true
   validates :token_digest, presence: true, uniqueness: true
   validates :token_prefix, presence: true
   validate :permissions_well_formed
+  validate :on_behalf_of_same_workspace
 
   after_update :invalidate_cache!
+  after_destroy :invalidate_cache!
 
   scope :active, -> { where(active: true, deleted_at: nil) }
   scope :not_expired, -> { where("expires_at IS NULL OR expires_at > ?", Time.current) }
@@ -71,7 +80,25 @@ class ApiKey < ApplicationRecord
     [ api_key, raw_token ]
   end
 
+  def personal?
+    workspace_membership_id.present?
+  end
+
+  def service?
+    !personal?
+  end
+
+  # Who this request is authorized AS: the human behind a personal token,
+  # or the key itself for a service key.
+  def principal
+    on_behalf_of || self
+  end
+
+  # Personal tokens carry the member's authority: read everything a member
+  # sees, write nothing. Service keys use their explicit permission scopes.
   def has_permission?(resource, action)
+    return action.to_s == ACTION_READ if personal?
+
     resource_permissions = permissions[resource.to_s]
     return false unless resource_permissions.is_a?(Array)
 
@@ -116,6 +143,12 @@ class ApiKey < ApplicationRecord
   end
 
   private
+
+  def on_behalf_of_same_workspace
+    return if on_behalf_of.nil? || on_behalf_of.workspace_id == workspace_id
+
+    errors.add(:on_behalf_of, "must belong to the same workspace")
+  end
 
   # Permissions must be a hash of `{ resource_string => [action_strings] }`
   # using only RESOURCES + ACTIONS values. Anything else (unknown resource,

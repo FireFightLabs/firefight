@@ -17,6 +17,21 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
   # AUTHENTICATION
   # ============================================================================
 
+  test "a personal token reads incidents but cannot create them" do
+    membership = workspace_memberships(:alice_workspace_one)
+    _, raw = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: membership, on_behalf_of: membership, name: "Personal"
+    )
+    headers = { "Authorization" => "Bearer #{raw}" }
+
+    get api_v1_incidents_url, headers: headers, as: :json
+    assert_response :success
+
+    post api_v1_incidents_url, headers: headers,
+         params: { incident: { name: "Nope", severity_id: @severity.id } }, as: :json
+    assert_response :forbidden
+  end
+
   test "returns 401 without authorization" do
     get api_v1_incidents_url
     assert_response :unauthorized
