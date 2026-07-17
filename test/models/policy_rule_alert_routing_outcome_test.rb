@@ -57,6 +57,15 @@ class PolicyRuleAlertRoutingOutcomeTest < ActiveSupport::TestCase
     assert_includes r.errors[:outcome].join, "requires channel_id"
   end
 
+  test "team targets require entry_id" do
+    r = rule({
+      "action" => PolicyRule::AlertRoutingOutcome::ACTION_AUTO_CREATE,
+      "invite" => [ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_TEAM } ]
+    })
+    assert_not r.valid?
+    assert_includes r.errors[:outcome].join, "requires entry_id"
+  end
+
   test "rejects channel targets in invite" do
     r = rule({
       "action" => PolicyRule::AlertRoutingOutcome::ACTION_AUTO_CREATE,

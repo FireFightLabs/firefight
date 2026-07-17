@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react"
-import { IconPlus, IconTrash } from "@tabler/icons-react"
 
 import { samplePayloadAlertSourcePath } from "@/lib/routes"
 import { NORMALIZED_FIELDS } from "@/pages/settings/lib/alerts"
+import { rowListOps } from "@/pages/settings/lib/row-list"
+import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -56,6 +56,7 @@ export function FieldMappingEditor({
 }) {
   const [payloadKeys, setPayloadKeys] = useState<PayloadKey[]>([])
   const [activeRow, setActiveRow] = useState<number | null>(null)
+  const mappingRows = rowListOps<MappingRow>(rows, onRowsChange)
 
   useEffect(() => {
     let cancelled = false
@@ -70,15 +71,11 @@ export function FieldMappingEditor({
     }
   }, [sourceId])
 
-  function updateRow(index: number, patch: Partial<MappingRow>) {
-    onRowsChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
-  }
-
   function pickKey(path: string) {
     if (activeRow !== null && rows[activeRow]) {
-      updateRow(activeRow, { path })
+      mappingRows.update(activeRow, { path })
     } else {
-      onRowsChange([...rows, { field: "", path }])
+      mappingRows.append({ field: "", path })
       setActiveRow(rows.length)
     }
   }
@@ -102,7 +99,7 @@ export function FieldMappingEditor({
         <Label>Field mapping</Label>
         {rows.map((row, index) => (
           <div key={index} className="flex items-center gap-2">
-            <Select value={row.field} onValueChange={(field) => updateRow(index, { field })}>
+            <Select value={row.field} onValueChange={(field) => mappingRows.update(index, { field })}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Field" />
               </SelectTrigger>
@@ -114,33 +111,15 @@ export function FieldMappingEditor({
             </Select>
             <Input
               value={row.path}
-              onChange={(e) => updateRow(index, { path: e.target.value })}
+              onChange={(e) => mappingRows.update(index, { path: e.target.value })}
               onFocus={() => setActiveRow(index)}
               placeholder="payload path, e.g. alert.name"
               className="flex-1 font-mono text-xs"
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground"
-              aria-label="Remove mapping"
-              onClick={() => onRowsChange(rows.filter((_, i) => i !== index))}
-            >
-              <IconTrash className="size-4" />
-            </Button>
+            <RemoveRowButton label="Remove mapping" onClick={() => mappingRows.remove(index)} />
           </div>
         ))}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="self-start"
-          onClick={() => onRowsChange([...rows, { field: "", path: "" }])}
-        >
-          <IconPlus className="size-4" />
-          Add mapping
-        </Button>
+        <AddRowButton label="Add mapping" onClick={() => mappingRows.append({ field: "", path: "" })} />
       </div>
 
       {payloadKeys.length > 0 && (

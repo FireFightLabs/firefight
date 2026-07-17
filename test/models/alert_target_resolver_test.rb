@@ -59,6 +59,34 @@ class AlertTargetResolverTest < ActiveSupport::TestCase
     assert r.notes.any? { |n| n.include?("not in the catalog") }
   end
 
+  test "explicit team target resolves members and channel" do
+    other = @workspace.workspace_memberships.where.not(id: @alice.id).first
+    @team.update_column(:attributes, { "manager" => @alice.id, "members" => [ other.id ], "slack_channel" => "C_TEAM" })
+    r = resolver
+
+    memberships = r.memberships_for([ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_TEAM, "entry_id" => @team.id } ])
+
+    assert_equal [ @alice, other ].map(&:id).sort, memberships.map(&:id).sort
+    assert_equal "C_TEAM", r.channel_for({ "type" => PolicyRule::AlertRoutingOutcome::TARGET_TEAM, "entry_id" => @team.id })
+  end
+
+  test "unknown team entry is a note" do
+    r = resolver
+
+    assert_empty r.memberships_for([ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_TEAM, "entry_id" => SecureRandom.uuid } ])
+    assert r.notes.any? { |n| n.include?("not found") }
+  end
+
+  test "vanished team member references are noted" do
+    @team.update_column(:attributes, { "members" => [ @alice.id, SecureRandom.uuid ] })
+    r = resolver
+
+    memberships = r.memberships_for([ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" } ])
+
+    assert_equal [ @alice ], memberships
+    assert r.notes.any? { |n| n.include?("no longer exist") }
+  end
+
   test "team without people notes the miss" do
     @team.update_column(:attributes, {})
     r = resolver

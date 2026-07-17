@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator"
 import { AiRewriteDialog } from "@/pages/incidents/components/postmortem/ai-rewrite-dialog"
 import { AiPendingExtension, aiPendingKey } from "@/pages/incidents/components/postmortem/ai-pending-extension"
 import { incidentPostmortemAiRewritePath } from "@/lib/routes"
+import { postJson } from "@/lib/http"
 
 interface PostmortemEditorProps {
   content?: string
@@ -76,25 +77,15 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
     const controller = new AbortController()
     abortRef.current = controller
 
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content")
-
     try {
-      const response = await fetch(incidentPostmortemAiRewritePath(incidentId), {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          "Content-Type": "application/json",
-          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
-        },
-        body: JSON.stringify({ selected_html: html, instruction }),
-      })
+      const { ok, data } = await postJson<{ rewritten_html: string; error?: string }>(
+        incidentPostmortemAiRewritePath(incidentId),
+        { selected_html: html, instruction },
+        { signal: controller.signal }
+      )
+      if (!ok || !data) throw new Error(data?.error || "Failed to rewrite")
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}))
-        throw new Error(body.error || "Failed to rewrite")
-      }
-
-      const { rewritten_html } = await response.json()
+      const { rewritten_html } = data
 
       const pluginState = aiPendingKey.getState(editor.view.state)
       const currentRange = pluginState?.range

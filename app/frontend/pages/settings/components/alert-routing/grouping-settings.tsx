@@ -1,8 +1,9 @@
-import { useState } from "react"
-import { router } from "@inertiajs/react"
+import { useForm } from "@inertiajs/react"
+import { toast } from "sonner"
 
 import type { AlertRoutingPolicy } from "@/types/serializers"
 import { alertRoutingPath } from "@/lib/routes"
+import { FormErrors } from "@/pages/settings/components/form-errors"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -24,35 +25,25 @@ export function GroupingSettings({
   policy: AlertRoutingPolicy
   alertSourceId: string | null
 }) {
-  const [windowMinutes, setWindowMinutes] = useState(String(policy.groupingWindowMinutes))
-  const [matchFields, setMatchFields] = useState(policy.contentMatchFields.join(", "))
-  const [errors, setErrors] = useState<string[]>([])
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  const dirty =
-    windowMinutes !== String(policy.groupingWindowMinutes) ||
-    matchFields !== policy.contentMatchFields.join(", ")
+  const form = useForm({
+    windowMinutes: String(policy.groupingWindowMinutes),
+    matchFields: policy.contentMatchFields.join(", "),
+  })
 
   function save() {
-    setErrors([])
-    setSaving(true)
-    setSaved(false)
-    router.patch(
-      alertRoutingPath(),
-      {
-        alert_source_id: alertSourceId,
-        policy: {
-          grouping_window_minutes: Number(windowMinutes),
-          content_match_fields: matchFields.split(",").map((f) => f.trim()).filter(Boolean),
-        },
+    form.transform((data) => ({
+      alert_source_id: alertSourceId,
+      policy: {
+        grouping_window_minutes: Number(data.windowMinutes),
+        content_match_fields: data.matchFields.split(",").map((f) => f.trim()).filter(Boolean),
       },
-      {
-        onSuccess: () => setSaved(true),
-        onError: (errorBag: Record<string, string | string[]>) => setErrors(Object.values(errorBag).flat()),
-        onFinish: () => setSaving(false),
-      }
-    )
+    }))
+    form.patch(alertRoutingPath(), {
+      onSuccess: () => {
+        form.setDefaults()
+        toast.success("Grouping settings saved")
+      },
+    })
   }
 
   return (
@@ -73,8 +64,8 @@ export function GroupingSettings({
               type="number"
               min={MIN_WINDOW_MINUTES}
               max={MAX_WINDOW_MINUTES}
-              value={windowMinutes}
-              onChange={(e) => setWindowMinutes(e.target.value)}
+              value={form.data.windowMinutes}
+              onChange={(e) => form.setData("windowMinutes", e.target.value)}
               className="w-32"
             />
           </div>
@@ -82,25 +73,19 @@ export function GroupingSettings({
             <Label htmlFor="grouping-fields">Group by fields</Label>
             <Input
               id="grouping-fields"
-              value={matchFields}
-              onChange={(e) => setMatchFields(e.target.value)}
+              value={form.data.matchFields}
+              onChange={(e) => form.setData("matchFields", e.target.value)}
               placeholder="service"
             />
           </div>
-          <Button size="sm" onClick={save} disabled={saving || !dirty}>
-            {saved && !dirty ? "Saved" : "Save"}
+          <Button size="sm" onClick={save} disabled={form.processing || !form.isDirty}>
+            Save
           </Button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           Comma-separated alert fields; two alerts group when all of these values match. 5 minutes to 7 days.
         </p>
-        {errors.length > 0 && (
-          <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-            {errors.map((message, i) => (
-              <p key={i}>{message}</p>
-            ))}
-          </div>
-        )}
+        <FormErrors errors={form.errors} className="mt-3" />
       </CardContent>
     </Card>
   )

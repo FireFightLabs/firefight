@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { IconFlask, IconPlus, IconSend, IconTrash } from "@tabler/icons-react"
+import { IconFlask, IconSend } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,10 +14,14 @@ import {
 import { Input } from "@/components/ui/input"
 import {
   ACTION_LABELS,
-  type RunTestOutcome,
+  runRoutingTest,
+  sendRoutingTest,
   type SendTestResult,
   type TestResult,
 } from "@/pages/settings/lib/alerts"
+import { rowListOps } from "@/pages/settings/lib/row-list"
+import { FormErrors } from "@/pages/settings/components/form-errors"
+import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 
 interface TesterField {
   key: string
@@ -31,12 +35,10 @@ function matchedRuleNumber(result: TestResult): number | null {
 
 export function CustomTestDialog({
   disabled,
-  onRun,
-  onSend,
+  alertSourceId,
 }: {
   disabled: boolean
-  onRun: (fields: Record<string, string>) => Promise<RunTestOutcome>
-  onSend: (fields: Record<string, string>) => Promise<SendTestResult>
+  alertSourceId: string | null
 }) {
   const [open, setOpen] = useState(false)
   const [fields, setFields] = useState<TesterField[]>([
@@ -49,6 +51,11 @@ export function CustomTestDialog({
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<SendTestResult | null>(null)
 
+  const fieldRows = rowListOps<TesterField>(fields, (rows) => {
+    setSendResult(null)
+    setFields(rows)
+  })
+
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (next) {
@@ -56,11 +63,6 @@ export function CustomTestDialog({
       setError(null)
       setSendResult(null)
     }
-  }
-
-  function updateField(index: number, patch: Partial<TesterField>) {
-    setSendResult(null)
-    setFields((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)))
   }
 
   function fieldsPayload(): Record<string, string> {
@@ -71,7 +73,7 @@ export function CustomTestDialog({
     setTesting(true)
     setSendResult(null)
     try {
-      const outcome = await onRun(fieldsPayload())
+      const outcome = await runRoutingTest(fieldsPayload(), alertSourceId)
       setResult(outcome.result)
       setError(outcome.error)
     } finally {
@@ -82,7 +84,7 @@ export function CustomTestDialog({
   async function sendTest() {
     setSending(true)
     try {
-      setSendResult(await onSend(fieldsPayload()))
+      setSendResult(await sendRoutingTest(fieldsPayload(), alertSourceId))
     } finally {
       setSending(false)
     }
@@ -113,38 +115,21 @@ export function CustomTestDialog({
             <div key={index} className="flex items-center gap-2">
               <Input
                 value={field.key}
-                onChange={(e) => updateField(index, { key: e.target.value })}
+                onChange={(e) => fieldRows.update(index, { key: e.target.value })}
                 placeholder="field"
                 className="w-36"
               />
               <Input
                 value={field.value}
-                onChange={(e) => updateField(index, { value: e.target.value })}
+                onChange={(e) => fieldRows.update(index, { value: e.target.value })}
                 placeholder="value"
                 className="flex-1"
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8 text-muted-foreground"
-                aria-label="Remove field"
-                onClick={() => setFields((prev) => prev.filter((_, i) => i !== index))}
-              >
-                <IconTrash className="size-4" />
-              </Button>
+              <RemoveRowButton label="Remove field" onClick={() => fieldRows.remove(index)} />
             </div>
           ))}
           <div className="flex items-center justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setFields((prev) => [...prev, { key: "", value: "" }])}
-            >
-              <IconPlus className="size-4" />
-              Add field
-            </Button>
+            <AddRowButton label="Add field" onClick={() => fieldRows.append({ key: "", value: "" })} />
             <Button size="sm" onClick={runTest} disabled={testing}>
               <IconFlask className="size-4" />
               Run test
@@ -152,11 +137,7 @@ export function CustomTestDialog({
           </div>
         </div>
 
-        {error && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-            {error}
-          </div>
-        )}
+        <FormErrors errors={error} />
 
         {result && (
           <div className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-xs">

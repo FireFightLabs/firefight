@@ -72,9 +72,11 @@ class SettingsAlertsTest < ActionDispatch::IntegrationTest
     get settings_alerts_url, headers: inertia_headers
 
     assert_response :success
-    labels = inertia_props["ruleOptions"].map { |r| r["label"] }
-    assert_includes labels, "Northflank · rule 1 · event contains crash"
-    assert_includes labels, "rule 1 · always matches"
+    options = inertia_props["ruleOptions"].index_by { |r| r["id"] }
+    scoped_label = options.fetch(policy.policy_rules.find_by!(priority: 1).id)["label"]
+    fallback_label = options.fetch(fallback.policy_rules.find_by!(priority: 1).id)["label"]
+    assert_includes scoped_label, @source.name
+    assert_not_includes fallback_label, @source.name
   end
 
   test "does not leak alerts from other workspaces" do
@@ -107,11 +109,5 @@ class SettingsAlertsTest < ActionDispatch::IntegrationTest
 
   def inertia_props
     JSON.parse(response.body)["props"]
-  end
-
-  def sign_in(user, workspace)
-    ApplicationController.any_instance.stubs(:current_user).returns(user)
-    ApplicationController.any_instance.stubs(:current_workspace).returns(workspace)
-    ApplicationController.any_instance.stubs(:user_signed_in?).returns(true)
   end
 end

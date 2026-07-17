@@ -42,11 +42,13 @@ class PolicyRulesController < InertiaController
   end
 
   def find_or_create_policy
-    if params[:alert_source_id].present?
-      current_workspace.alert_sources.find(params[:alert_source_id]).find_or_create_routing_policy!
-    else
-      current_workspace.find_or_create_alert_routing_fallback_policy!
-    end
+    scope =
+      if params[:alert_source_id].present?
+        current_workspace.alert_sources.find(params[:alert_source_id])
+      else
+        current_workspace
+      end
+    scope.find_or_create_alert_routing_policy!
   end
 
   def swap_with(other)
@@ -63,11 +65,7 @@ class PolicyRulesController < InertiaController
   end
 
   def routing_path_for(policy)
-    if policy.scoped_to_type == AlertSource.name
-      settings_alert_routing_path(source_id: policy.scoped_to_id)
-    else
-      settings_alert_routing_path
-    end
+    settings_alert_routing_path(source_id: policy.scoped_to_id)
   end
 
   def rule_params

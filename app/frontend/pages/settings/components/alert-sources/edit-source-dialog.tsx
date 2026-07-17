@@ -1,10 +1,12 @@
-import { useState, type FormEvent } from "react"
-import { router } from "@inertiajs/react"
-import { IconPlus, IconTrash } from "@tabler/icons-react"
+import { type FormEvent } from "react"
+import { useForm } from "@inertiajs/react"
 
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
 import { alertSourcePath } from "@/lib/routes"
+import { rowListOps } from "@/pages/settings/lib/row-list"
 import { FieldMappingEditor, type MappingRow } from "@/pages/settings/components/alert-sources/field-mapping-editor"
+import { FormErrors } from "@/pages/settings/components/form-errors"
+import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -30,6 +32,16 @@ interface SeverityMapping {
   severityId: string
 }
 
+interface SourceFormData {
+  name: string
+  enabled: boolean
+  fingerprintFields: string
+  flapWindow: string
+  itemsPath: string
+  mappings: SeverityMapping[]
+  mappingRows: MappingRow[]
+}
+
 export function EditSourceDialog({
   source,
   severities,
@@ -39,53 +51,35 @@ export function EditSourceDialog({
   severities: IncidentSeveritySettings[]
   onClose: () => void
 }) {
-  const [name, setName] = useState(source.name)
-  const [enabled, setEnabled] = useState(source.enabled)
-  const [mappings, setMappings] = useState<SeverityMapping[]>(() =>
-    Object.entries(source.severityMap).map(([raw, severityId]) => ({ raw, severityId }))
-  )
-  const [errors, setErrors] = useState<string[]>([])
-  const [saving, setSaving] = useState(false)
-  const [fingerprintFields, setFingerprintFields] = useState(source.fingerprintFields.join(", "))
-  const [flapWindow, setFlapWindow] = useState(String(source.flapWindowMinutes))
-  const [itemsPath, setItemsPath] = useState(source.itemsPath ?? "")
-  const [mappingRows, setMappingRows] = useState<MappingRow[]>(() =>
-    Object.entries(source.fieldMap).map(([field, path]) => ({ field, path }))
-  )
-
-  function updateMapping(index: number, patch: Partial<SeverityMapping>) {
-    setMappings((prev) => prev.map((m, i) => (i === index ? { ...m, ...patch } : m)))
-  }
+  const form = useForm<SourceFormData>({
+    name: source.name,
+    enabled: source.enabled,
+    fingerprintFields: source.fingerprintFields.join(", "),
+    flapWindow: String(source.flapWindowMinutes),
+    itemsPath: source.itemsPath ?? "",
+    mappings: Object.entries(source.severityMap).map(([raw, severityId]) => ({ raw, severityId })),
+    mappingRows: Object.entries(source.fieldMap).map(([field, path]) => ({ field, path })),
+  })
+  const mappings = rowListOps<SeverityMapping>(form.data.mappings, (rows) => form.setData("mappings", rows))
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    const severityMap = Object.fromEntries(
-      mappings.filter((m) => m.raw.trim() && m.severityId).map((m) => [m.raw.trim(), m.severityId])
-    )
-    const fieldMap = Object.fromEntries(
-      mappingRows.filter((row) => row.field && row.path.trim()).map((row) => [row.field, row.path.trim()])
-    )
-    setErrors([])
-    setSaving(true)
-    router.patch(
-      alertSourcePath(source.id),
-      {
-        alert_source: {
-          name,
-          enabled,
-          severity_map: severityMap,
-          field_map: fieldMap,
-          items_path: itemsPath.trim(),
-          fingerprint_fields: fingerprintFields.split(",").map((f) => f.trim()).filter(Boolean),
-          flap_window_minutes: flapWindow,
-        },
+    form.transform((data) => ({
+      alert_source: {
+        name: data.name,
+        enabled: data.enabled,
+        severity_map: Object.fromEntries(
+          data.mappings.filter((m) => m.raw.trim() && m.severityId).map((m) => [m.raw.trim(), m.severityId])
+        ),
+        field_map: Object.fromEntries(
+          data.mappingRows.filter((row) => row.field && row.path.trim()).map((row) => [row.field, row.path.trim()])
+        ),
+        items_path: data.itemsPath.trim(),
+        fingerprint_fields: data.fingerprintFields.split(",").map((f) => f.trim()).filter(Boolean),
+        flap_window_minutes: data.flapWindow,
       },
-      {
-        onSuccess: onClose,
-        onError: (errorBag: Record<string, string | string[]>) => setErrors(Object.values(errorBag).flat()),
-        onFinish: () => setSaving(false),
-      }
-    )
+    }))
+    form.patch(alertSourcePath(source.id), { onSuccess: onClose })
   }
 
   const setupInstructions =
@@ -113,12 +107,12 @@ export function EditSourceDialog({
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="edit-source-name">Name</Label>
-              <Input id="edit-source-name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input id="edit-source-name" value={form.data.name} onChange={(e) => form.setData("name", e.target.value)} />
             </div>
 
             <div className="flex items-center justify-between">
               <Label htmlFor="edit-source-enabled">Enabled</Label>
-              <Switch id="edit-source-enabled" checked={enabled} onCheckedChange={setEnabled} />
+              <Switch id="edit-source-enabled" checked={form.data.enabled} onCheckedChange={(checked) => form.setData("enabled", checked)} />
             </div>
 
             <div className="flex flex-wrap items-end gap-4">
@@ -126,8 +120,8 @@ export function EditSourceDialog({
                 <Label htmlFor="fingerprint-fields">Deduplicate by fields</Label>
                 <Input
                   id="fingerprint-fields"
-                  value={fingerprintFields}
-                  onChange={(e) => setFingerprintFields(e.target.value)}
+                  value={form.data.fingerprintFields}
+                  onChange={(e) => form.setData("fingerprintFields", e.target.value)}
                   placeholder="service, title"
                 />
               </div>
@@ -138,8 +132,8 @@ export function EditSourceDialog({
                   type="number"
                   min={0}
                   max={60}
-                  value={flapWindow}
-                  onChange={(e) => setFlapWindow(e.target.value)}
+                  value={form.data.flapWindow}
+                  onChange={(e) => form.setData("flapWindow", e.target.value)}
                   className="w-28"
                 />
               </div>
@@ -152,26 +146,26 @@ export function EditSourceDialog({
             {source.provider === "generic" && (
               <FieldMappingEditor
                 sourceId={source.id}
-                rows={mappingRows}
-                onRowsChange={setMappingRows}
-                itemsPath={itemsPath}
-                onItemsPathChange={setItemsPath}
+                rows={form.data.mappingRows}
+                onRowsChange={(rows) => form.setData("mappingRows", rows)}
+                itemsPath={form.data.itemsPath}
+                onItemsPathChange={(path) => form.setData("itemsPath", path)}
               />
             )}
 
             <div className="flex flex-col gap-2">
               <Label>Severity map</Label>
-              {mappings.map((mapping, index) => (
+              {form.data.mappings.map((mapping, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <Input
                     value={mapping.raw}
-                    onChange={(e) => updateMapping(index, { raw: e.target.value })}
+                    onChange={(e) => mappings.update(index, { raw: e.target.value })}
                     placeholder="provider value, e.g. critical"
                     className="flex-1"
                   />
                   <Select
                     value={mapping.severityId}
-                    onValueChange={(value) => updateMapping(index, { severityId: value })}
+                    onValueChange={(value) => mappings.update(index, { severityId: value })}
                   >
                     <SelectTrigger className="w-40">
                       <SelectValue placeholder="Severity" />
@@ -184,41 +178,18 @@ export function EditSourceDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground"
-                    onClick={() => setMappings((prev) => prev.filter((_, i) => i !== index))}
-                  >
-                    <IconTrash className="size-4" />
-                  </Button>
+                  <RemoveRowButton label="Remove mapping" onClick={() => mappings.remove(index)} />
                 </div>
               ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="self-start"
-                onClick={() => setMappings((prev) => [...prev, { raw: "", severityId: "" }])}
-              >
-                <IconPlus className="size-4" />
-                Add mapping
-              </Button>
+              <AddRowButton label="Add mapping" onClick={() => mappings.append({ raw: "", severityId: "" })} />
             </div>
           </div>
 
-          {errors.length > 0 && (
-            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-              {errors.map((message, i) => (
-                <p key={i}>{message}</p>
-              ))}
-            </div>
-          )}
+          <FormErrors errors={form.errors} className="mb-3" />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={saving}>Save</Button>
+            <Button type="submit" disabled={form.processing}>Save</Button>
           </DialogFooter>
         </form>
       </DialogContent>

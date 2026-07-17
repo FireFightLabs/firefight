@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 import { incidentPath, incidentPostmortemPath, incidentPostmortemStatusPath } from "@/lib/routes"
+import { requestJson } from "@/lib/http"
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",
@@ -96,14 +97,9 @@ export default function PostmortemPage() {
       clearTimeout(saveTimerRef.current)
       saveTimerRef.current = undefined
 
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-      fetch(incidentPostmortemPath(incident.id), {
+      void requestJson(incidentPostmortemPath(incident.id), {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-        },
-        body: JSON.stringify({ html_content: editorContentRef.current }),
+        body: { html_content: editorContentRef.current },
         keepalive: true,
       })
     }

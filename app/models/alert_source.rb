@@ -12,7 +12,7 @@ class AlertSource < ApplicationRecord
 
   belongs_to :workspace
   has_many :alerts, dependent: :destroy
-  has_one :routing_policy, -> { for_domain(Policy::DOMAIN_ALERT_ROUTING) },
+  has_one :alert_routing_policy, -> { for_domain(Policy::DOMAIN_ALERT_ROUTING) },
           class_name: "Policy", as: :scoped_to, dependent: :destroy
 
   before_validation :generate_credentials, on: :create
@@ -28,14 +28,15 @@ class AlertSource < ApplicationRecord
     AlertProviders.for(provider)
   end
 
-  # This source's own policy wins; the workspace-wide policy is the shared
-  # fallback for sources without one.
-  def effective_routing_policy
-    [ routing_policy, workspace.alert_routing_fallback_policy ].compact.detect(&:enabled?)
+  # What fires at ingest: this source's own policy wins; the workspace-wide
+  # policy is the shared fallback for sources without one. For the policy
+  # being edited (never the inherited fallback), use alert_routing_policy.
+  def effective_alert_routing_policy
+    [ alert_routing_policy, workspace.alert_routing_policy ].compact.detect(&:enabled?)
   end
 
-  def find_or_create_routing_policy!
-    routing_policy ||
+  def find_or_create_alert_routing_policy!
+    alert_routing_policy ||
       workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: Policy::DEFAULT_ALERT_ROUTING_NAME, scoped_to: self)
   end
 

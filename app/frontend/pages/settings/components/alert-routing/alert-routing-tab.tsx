@@ -5,25 +5,20 @@ import { router } from "@inertiajs/react"
 import type { AlertRoutingPolicy, IncidentSeveritySettings, PolicyRule, WorkspaceMembership } from "@/types/serializers"
 import {
   alertRoutingPath,
-  alertRoutingSendTestPath,
-  alertRoutingTestPath,
   moveDownPolicyRulePath,
   moveUpPolicyRulePath,
   policyRulePath,
 } from "@/lib/routes"
 import {
   ACTION_LABELS,
-  csrfToken,
   describeSample,
   needsCustomSample,
+  runRoutingTest,
   sampleFieldsFor,
   type CatalogOptionMap,
-  type RuleCondition,
-  type RunTestOutcome,
-  type SendTestResult,
-  type SlackChannel,
   type TestResult,
 } from "@/pages/settings/lib/alerts"
+import type { SlackChannel } from "@/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -67,17 +62,18 @@ export function AlertRoutingTab({
   channels,
   members,
   catalogOptions,
-  alertSource = null,
-  hasWorkspaceFallback = false,
+  alertSource,
+  hasWorkspaceFallback,
 }: {
   policy: AlertRoutingPolicy | null
   severities: IncidentSeveritySettings[]
   channels: SlackChannel[]
   members: WorkspaceMembership[]
   catalogOptions: CatalogOptionMap
-  alertSource?: { id: string; name: string } | null
-  hasWorkspaceFallback?: boolean
+  alertSource: { id: string; name: string } | null
+  hasWorkspaceFallback: boolean
 }) {
+  const alertSourceId = alertSource?.id ?? null
   const [editingRule, setEditingRule] = useState<PolicyRule | null>(null)
   const [addingRule, setAddingRule] = useState(false)
   const [deletingRule, setDeletingRule] = useState<PolicyRule | null>(null)
@@ -95,50 +91,13 @@ export function AlertRoutingTab({
     setTestedSample(null)
   }
 
-  async function runTest(fields: Record<string, string>): Promise<RunTestOutcome> {
-    try {
-      const response = await fetch(alertRoutingTestPath(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
-        body: JSON.stringify({ fields, alert_source_id: alertSource?.id ?? null }),
-      })
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null
-        const error = body?.error ?? "The test request failed; try again."
-        setTestResult(null)
-        setTestError(error)
-        return { result: null, error }
-      }
-      const parsed = (await response.json()) as TestResult
-      setTestResult(parsed)
-      setTestError(null)
-      return { result: parsed, error: null }
-    } catch {
-      const error = "The test request failed; try again."
-      setTestResult(null)
-      setTestError(error)
-      return { result: null, error }
-    }
-  }
-
-  async function sendTest(fields: Record<string, string>): Promise<SendTestResult> {
-    try {
-      const response = await fetch(alertRoutingSendTestPath(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
-        body: JSON.stringify({ fields, alert_source_id: alertSource?.id ?? null }),
-      })
-      return (await response.json()) as SendTestResult
-    } catch {
-      return { error: "The request failed; try again." }
-    }
-  }
-
-  function testRule(rule: PolicyRule) {
-    const sample = sampleFieldsFor(rule.conditions as RuleCondition[])
+  async function testRule(rule: PolicyRule) {
+    const sample = sampleFieldsFor(rule.conditions)
     setTestedRuleId(rule.id)
     setTestedSample(describeSample(sample))
-    void runTest(sample)
+    const { result, error } = await runRoutingTest(sample, alertSourceId)
+    setTestResult(result)
+    setTestError(error)
   }
 
   function shadowNote(rule: PolicyRule): string | null {
@@ -150,7 +109,7 @@ export function AlertRoutingTab({
 
   function togglePolicy(enabled: boolean) {
     clearTest()
-    router.patch(alertRoutingPath(), { policy: { enabled }, alert_source_id: alertSource?.id })
+    router.patch(alertRoutingPath(), { policy: { enabled }, alert_source_id: alertSourceId })
   }
 
   function toggleRule(rule: PolicyRule, enabled: boolean) {
@@ -190,7 +149,7 @@ export function AlertRoutingTab({
                   <Switch id="routing-enabled" checked={policy.enabled} onCheckedChange={togglePolicy} />
                 </div>
               )}
-              <CustomTestDialog disabled={!canTest} onRun={runTest} onSend={sendTest} />
+              <CustomTestDialog disabled={!canTest} alertSourceId={alertSourceId} />
               <Button size="sm" onClick={() => setAddingRule(true)}>Add rule</Button>
             </div>
           </div>
@@ -218,7 +177,7 @@ export function AlertRoutingTab({
               </TableHeader>
               <TableBody>
                 {rules.map((rule, index) => {
-                  const regexRule = needsCustomSample(rule.conditions as RuleCondition[])
+                  const regexRule = needsCustomSample(rule.conditions)
                   return (
                     <TableRow key={rule.id} className={rule.enabled ? "" : "opacity-50"}>
                       <TableCell className="font-mono text-xs text-muted-foreground">{index + 1}</TableCell>
@@ -248,7 +207,7 @@ export function AlertRoutingTab({
                             title={regexRule ? "Regex rules need a real sample value; use Test custom alert" : "Test this rule"}
                             aria-label="Test this rule"
                             disabled={!canTest || regexRule}
-                            onClick={() => testRule(rule)}
+                            onClick={() => void testRule(rule)}
                           >
                             <IconFlask className="size-4" />
                           </Button>
@@ -299,7 +258,7 @@ export function AlertRoutingTab({
         )}
       </Card>
 
-      {policy && <GroupingSettings policy={policy} alertSourceId={alertSource?.id ?? null} />}
+      {policy && <GroupingSettings policy={policy} alertSourceId={alertSourceId} />}
 
       {(addingRule || editingRule) && (
         <RuleDialog
@@ -308,7 +267,7 @@ export function AlertRoutingTab({
           channels={channels}
           members={members}
           catalogOptions={catalogOptions}
-          alertSourceId={alertSource?.id ?? null}
+          alertSourceId={alertSourceId}
           onClose={() => {
             clearTest()
             setAddingRule(false)

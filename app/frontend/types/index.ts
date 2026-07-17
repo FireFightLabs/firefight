@@ -14,6 +14,11 @@ export type SharedProps = PageProps & {
   availableWorkspaces?: CurrentWorkspace[]
 }
 
+export interface SlackChannel {
+  id: string
+  name: string
+}
+
 export interface Pagination {
   page: number
   perPage: number

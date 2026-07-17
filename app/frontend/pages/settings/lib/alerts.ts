@@ -1,3 +1,7 @@
+import type { PolicyRule } from "@/types/serializers"
+import { alertRoutingSendTestPath, alertRoutingTestPath } from "@/lib/routes"
+import { postJson } from "@/lib/http"
+
 export const CONDITION_OPERATORS = [
   { value: "is_one_of", label: "is one of" },
   { value: "contains", label: "contains" },
@@ -44,18 +48,9 @@ export const NORMALIZED_FIELDS = [
   "environment",
 ] as const
 
-export interface RuleCondition {
-  field: string
-  operator: ConditionOperator
-  value?: string | string[]
-}
+export type RuleCondition = PolicyRule["conditions"][number]
 
 export type CatalogOptionMap = Record<string, { slug: string; name: string }[]>
-
-export interface SlackChannel {
-  id: string
-  name: string
-}
 
 export interface TraceCondition {
   field: string
@@ -85,9 +80,30 @@ export interface SendTestResult {
   error?: string
 }
 
-export interface RunTestOutcome {
-  result: TestResult | null
-  error: string | null
+export async function runRoutingTest(
+  fields: Record<string, string>,
+  alertSourceId: string | null
+): Promise<{ result: TestResult | null; error: string | null }> {
+  const fallback = "The test request failed; try again."
+  try {
+    const { ok, data } = await postJson<TestResult>(alertRoutingTestPath(), { fields, alert_source_id: alertSourceId })
+    if (!ok || !data) return { result: null, error: (data as { error?: string } | null)?.error ?? fallback }
+    return { result: data, error: null }
+  } catch {
+    return { result: null, error: fallback }
+  }
+}
+
+export async function sendRoutingTest(
+  fields: Record<string, string>,
+  alertSourceId: string | null
+): Promise<SendTestResult> {
+  try {
+    const { data } = await postJson<SendTestResult>(alertRoutingSendTestPath(), { fields, alert_source_id: alertSourceId })
+    return data ?? { error: "The request failed; try again." }
+  } catch {
+    return { error: "The request failed; try again." }
+  }
 }
 
 // Derive a sample alert that should satisfy a rule's own conditions, so a
@@ -111,8 +127,4 @@ export function needsCustomSample(conditions: RuleCondition[]): boolean {
 export function describeSample(fields: Record<string, string>): string {
   const pairs = Object.entries(fields).map(([key, value]) => `${key}=${value}`)
   return pairs.length > 0 ? pairs.join(", ") : "an empty alert"
-}
-
-export function csrfToken(): string {
-  return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? ""
 }

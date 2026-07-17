@@ -2,7 +2,7 @@ class AlertRoutingController < InertiaController
   before_action :require_authentication
 
   def update
-    policy = find_or_create_policy(scoped_source)
+    policy = routing_scope.find_or_create_alert_routing_policy!
 
     if policy.update(policy_attrs(policy))
       redirect_to settings_alert_routing_path(source_id: params[:alert_source_id].presence)
@@ -48,12 +48,9 @@ class AlertRoutingController < InertiaController
 
   private
 
+  # The tester mirrors ingest: the scope's effective policy, enabled only.
   def routing_policy
-    if scoped_source
-      scoped_source.effective_routing_policy
-    else
-      current_workspace.alert_routing_fallback_policy
-    end
+    routing_scope.effective_alert_routing_policy
   end
 
   # Dry-run target resolution so the tester shows who would actually be
@@ -92,8 +89,8 @@ class AlertRoutingController < InertiaController
     @scoped_source ||= current_workspace.alert_sources.find(params[:alert_source_id])
   end
 
-  def find_or_create_policy(source)
-    source ? source.find_or_create_routing_policy! : current_workspace.find_or_create_alert_routing_fallback_policy!
+  def routing_scope
+    scoped_source || current_workspace
   end
 
   def policy_attrs(policy)
@@ -102,12 +99,10 @@ class AlertRoutingController < InertiaController
     attrs[:enabled] = enabled unless enabled.nil?
 
     if params.dig(:policy, :grouping_window_minutes).present? || params[:policy]&.key?(:content_match_fields)
-      config = policy.domain_config.dup
-      config["grouping_window_minutes"] = params.dig(:policy, :grouping_window_minutes).to_i if params.dig(:policy, :grouping_window_minutes).present?
-      fields = Array(params.dig(:policy, :content_match_fields)).map { |f| f.to_s.strip }.reject(&:empty?)
-      config["content_match_fields"] = fields if params[:policy]&.key?(:content_match_fields)
-      config.delete("content_match_fields") if config["content_match_fields"] == []
-      attrs[:domain_config] = config
+      attrs[:domain_config] = policy.domain_config_merging(
+        window_minutes: params.dig(:policy, :grouping_window_minutes),
+        match_fields: params[:policy]&.key?(:content_match_fields) ? Array(params.dig(:policy, :content_match_fields)) : nil
+      )
     end
 
     attrs

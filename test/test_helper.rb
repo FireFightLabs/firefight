@@ -31,6 +31,7 @@ module ActiveSupport
     include ApiTestHelper
     include InertiaTestHelper
     include EntitlementsTestHelper
+    include SessionTestHelper
 
     # Add more helper methods to be used by all tests here...
   end

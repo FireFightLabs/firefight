@@ -27,12 +27,11 @@ class AlertIngestService
 
   def ingest(fields, payload)
     now = Time.current
+    fingerprint = fields["fingerprint"].presence || Alert.fallback_fingerprint(@source, fields)
 
     if fields["status"] == Alert::STATUS_RESOLVED
-      return handle_resolved(fields, now)
+      return handle_resolved(fingerprint, now)
     end
-
-    fingerprint = fields["fingerprint"].presence || Alert.fallback_fingerprint(@source, fields)
 
     # Dedup: a firing for an already-open fingerprint is one indexed UPDATE;
     # no new row, no new incident, no new channel.
@@ -84,8 +83,7 @@ class AlertIngestService
 
   private
 
-  def handle_resolved(fields, now)
-    fingerprint = fields["fingerprint"].presence || Alert.fallback_fingerprint(@source, fields)
+  def handle_resolved(fingerprint, now)
     alert = @source.alerts.open_status.find_by(fingerprint: fingerprint)
     return nil unless alert
 
@@ -120,9 +118,10 @@ class AlertIngestService
   end
 
   def persist(fields, payload, fingerprint, now)
+    external_id = fields["external_id"].presence || fallback_external_id(fields, payload)
     alert = @source.alerts.create!(
       workspace: @workspace,
-      external_id: fields["external_id"].presence || fallback_external_id(fields, payload),
+      external_id: external_id,
       fingerprint: fingerprint,
       status: Alert::STATUS_FIRING,
       fields: fields,
@@ -133,7 +132,7 @@ class AlertIngestService
     [ alert, true ]
   rescue ActiveRecord::RecordNotUnique
     # Same external_id: byte-identical redelivery, already counted.
-    if (duplicate = @source.alerts.find_by(external_id: fields["external_id"].presence || fallback_external_id(fields, payload)))
+    if (duplicate = @source.alerts.find_by(external_id: external_id))
       [ duplicate, false ]
     else
       # Lost the open-fingerprint insert race: the winner's row is
@@ -155,7 +154,7 @@ class AlertIngestService
   def routing_policy
     return @routing_policy if defined?(@routing_policy)
 
-    @routing_policy = @source.effective_routing_policy
+    @routing_policy = @source.effective_alert_routing_policy
   end
 
   def routing_context(alert)
@@ -176,9 +175,14 @@ class AlertIngestService
     when ACTION_AUTO_CREATE, ACTION_ATTACH
       lock_signature!(alert)
       incident = grouped_incident(alert)
-      incident ||= create_incident(alert, outcome) if outcome["action"] == ACTION_AUTO_CREATE
+      notes = nil
+      if incident.nil? && outcome["action"] == ACTION_AUTO_CREATE
+        resolver = target_resolver(alert)
+        incident = create_incident(alert, outcome, resolver)
+        notes = resolver.notes
+      end
       if incident
-        attach(alert, incident)
+        attach(alert, incident, unresolved_targets: notes)
         -> { notify_digest(alert, force: true) }
       end
     else
@@ -207,13 +211,11 @@ class AlertIngestService
     group.incident
   end
 
-  def create_incident(alert, outcome)
+  def create_incident(alert, outcome, resolver)
     severity = outcome_severity(outcome) || @source.resolve_severity(alert.fields["severity_raw"])
     raise ArgumentError, "no severity resolvable for alert #{alert.id} (set a workspace default severity)" unless severity
 
-    resolver = target_resolver(alert)
     invitee_ids = resolver.memberships_for(outcome["invite"]).map(&:id)
-    @resolution_notes = resolver.notes
 
     incident = IncidentLifecycleService.new(@workspace).create(
       declared_by: nil,
@@ -235,10 +237,10 @@ class AlertIngestService
     incident
   end
 
-  def attach(alert, incident)
+  def attach(alert, incident, unresolved_targets: nil)
     alert.incident = incident
     alert.save!
-    record_incident_event(alert, IncidentEvent::ALERT_ATTACHED)
+    record_incident_event(alert, IncidentEvent::ALERT_ATTACHED, unresolved_targets: unresolved_targets)
   end
 
   # notify_only posts the digest without an incident: to a channel, a member
@@ -283,51 +285,46 @@ class AlertIngestService
   end
 
   def content_match_fields
-    routing_policy&.domain_config&.fetch("content_match_fields", nil).presence || AlertGroup::DEFAULT_CONTENT_MATCH_FIELDS
+    routing_policy&.content_match_fields || AlertGroup::DEFAULT_CONTENT_MATCH_FIELDS
   end
 
   def grouping_window
-    minutes = routing_policy&.domain_config&.fetch("grouping_window_minutes", nil).presence || AlertGroup::DEFAULT_WINDOW_MINUTES
-    minutes.to_i.minutes
+    (routing_policy&.grouping_window_minutes || AlertGroup::DEFAULT_WINDOW_MINUTES).minutes
   end
 
-  def record_incident_event(alert, event_type)
+  def record_incident_event(alert, event_type, unresolved_targets: nil)
     return unless alert.incident
 
     metadata = { alert_id: alert.id, title: alert.title, source: @source.name, event_count: alert.event_count }
-    if @resolution_notes.present?
-      metadata[:unresolved_targets] = @resolution_notes
-      @resolution_notes = nil
-    end
+    metadata[:unresolved_targets] = unresolved_targets if unresolved_targets.present?
 
     alert.incident.incident_events.create!(event_type: event_type, metadata: metadata)
   end
 
   # Slack digest throttling: one message per alert that gets updated, never a
   # post per firing. Status transitions (attach/resolve) bypass the interval.
-  # Runs under the alert's row lock so concurrent firings can't double-post,
-  # and a failed attempt still stamps last_notified_at so a storm into a
-  # broken channel doesn't retry on every delivery.
+  # The send is claimed with one conditional UPDATE on last_notified_at (the
+  # same CAS shape as routing), so concurrent firings race on an indexed
+  # write instead of queuing behind a row lock for the Slack call; the claim
+  # sticking even when the send fails means a storm into a broken channel
+  # doesn't retry on every delivery.
   def notify_digest(alert, force: false)
-    alert.with_lock do
-      channel_id = alert.incident&.channel_id || alert.channel_id
-      next if channel_id.blank?
-      next if !force && alert.last_notified_at.present? && alert.last_notified_at > NOTIFY_MIN_INTERVAL.ago
+    channel_id = alert.incident&.channel_id || alert.channel_id
+    return if channel_id.blank?
 
-      adapter = WorkspaceAdapter.for(@workspace)
+    claim = Alert.where(id: alert.id)
+    claim = claim.where("last_notified_at IS NULL OR last_notified_at <= ?", NOTIFY_MIN_INTERVAL.ago) unless force
+    return if claim.update_all(last_notified_at: Time.current, updated_at: Time.current).zero?
 
-      begin
-        if alert.channel_message_id.present?
-          adapter.update_alert_message(channel_id: channel_id, message_id: alert.channel_message_id, alert: alert)
-          alert.update!(last_notified_at: Time.current)
-        else
-          result = adapter.post_alert_message(channel_id: channel_id, alert: alert)
-          alert.update!(channel_id: channel_id, channel_message_id: result[:message_id], last_notified_at: Time.current)
-        end
-      rescue AdapterError => e
-        alert.update!(last_notified_at: Time.current)
-        Rails.logger.warn({ event: "alert_digest.failed", alert_id: alert.id, error: e.message }.to_json)
-      end
+    alert.reload
+    adapter = WorkspaceAdapter.for(@workspace)
+    if alert.channel_message_id.present?
+      adapter.update_alert_message(channel_id: channel_id, message_id: alert.channel_message_id, alert: alert)
+    else
+      result = adapter.post_alert_message(channel_id: channel_id, alert: alert)
+      alert.update!(channel_id: channel_id, channel_message_id: result[:message_id])
     end
+  rescue AdapterError => e
+    Rails.logger.warn({ event: "alert_digest.failed", alert_id: alert.id, error: e.message }.to_json)
   end
 end
