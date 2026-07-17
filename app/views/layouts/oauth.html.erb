@@ -5,33 +5,44 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <%= csrf_meta_tags %>
     <link rel="icon" href="/firefight-favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-      :root { color-scheme: dark; }
+      /* Mirrors the app's dark theme tokens (app/frontend/entrypoints/application.css). */
+      :root {
+        color-scheme: dark;
+        --background: #04111D;
+        --foreground: #F8FAFC;
+        --muted-foreground: #9AB8CC;
+        --primary: #73D3EE;
+        --primary-foreground: #04111D;
+        --border: #143247;
+        --radius: 0.625rem;
+      }
       body { margin: 0; min-height: 100vh; display: grid; place-items: center;
-             background: #0b121c; color: #e6ecf4;
-             font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
-      .card { width: min(400px, calc(100vw - 48px)); text-align: center; padding: 24px; }
-      .logo { width: 40px; height: 40px; margin-bottom: 28px; }
-      .pill { display: inline-block; font-size: 12px; letter-spacing: 0.04em;
-              color: #38d3e3; border: 1px solid #1d4b53; background: #0e2229;
-              border-radius: 999px; padding: 4px 12px; margin-bottom: 18px; }
-      h1 { font-size: 24px; font-weight: 600; margin: 0 0 14px; letter-spacing: -0.01em; }
-      p { margin: 0 0 10px; font-size: 15px; line-height: 1.6; color: #9daabc; }
-      .who { color: #e6ecf4; font-weight: 600; }
-      .fine { font-size: 13px; color: #6b7a8f; margin-top: 14px; }
-      .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 32px; }
-      button { width: 100%; padding: 12px 0; border-radius: 8px; border: 1px solid transparent;
-               font-size: 15px; font-weight: 600; cursor: pointer; }
-      .authorize { background: #38d3e3; color: #08222a; }
-      .authorize:hover { background: #5cdcea; }
-      .deny { background: transparent; color: #9daabc; border-color: #223145; }
-      .deny:hover { color: #e6ecf4; border-color: #35496a; }
-      .error { color: #ff8080; }
+             background: var(--background); color: var(--foreground);
+             font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+      .card { width: min(380px, calc(100vw - 48px)); text-align: center; padding: 24px; }
+      .logo { width: 44px; height: 44px; margin-bottom: 24px; }
+      h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; line-height: 1.35; }
+      .error { margin-top: 12px; font-size: 14px; color: #ff8080; }
+      .actions { display: flex; gap: 12px; margin-top: 32px; }
+      .actions form { flex: 1; }
+      button { width: 100%; padding: 10px 0; border-radius: var(--radius); border: 1px solid transparent;
+               font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+      .authorize { background: var(--primary); color: var(--primary-foreground); }
+      .authorize:hover { filter: brightness(1.08); }
+      .deny { background: transparent; color: var(--muted-foreground); border-color: var(--border); }
+      .deny:hover { color: var(--foreground); }
     </style>
   </head>
   <body>
     <div class="card">
-      <img class="logo" src="/firefight-favicon.svg" alt="Firefight">
+      <svg class="logo" viewBox="20 20 34 39" fill="#73D3EE" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M50.8096 30.2171C52.7322 32.9637 53.8622 36.3063 53.8623 39.9134L53.8564 40.3509C53.6246 49.4995 46.1351 56.8448 36.9307 56.845L36.4941 56.8392C35.8569 56.823 35.2282 56.7705 34.6104 56.6858L36.0596 54.3177C36.3476 54.3348 36.6383 54.345 36.9307 54.345C44.9005 54.3448 51.3623 47.8833 51.3623 39.9134C51.3622 37.2371 50.632 34.7317 49.3623 32.5833L50.8096 30.2171ZM36.9307 22.9827C38.8085 22.9828 40.6147 23.2894 42.3027 23.8538L40.7695 26.0003C39.5471 25.6637 38.26 25.4827 36.9307 25.4827C28.961 25.4829 22.5003 31.9437 22.5 39.9134C22.5 42.9326 23.4275 45.735 25.0127 48.052L23.4805 50.1966C21.2976 47.3457 20 43.7813 20 39.9134C20.0003 30.563 27.5803 22.9829 36.9307 22.9827Z" />
+        <path d="M23.336 59L51.2016 20L27.6572 58.4694L23.336 59Z" />
+      </svg>
       <%= yield %>
     </div>
   </body>

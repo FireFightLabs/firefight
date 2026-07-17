@@ -39,10 +39,41 @@ module Mcp
         respond(
           matched: result.matched?,
           matched_rule_priority: result.matched_rule&.priority,
-          outcome: result.outcome,
+          outcome: enriched_outcome(workspace, result.outcome),
           context: context,
           trace: result.trace
         )
+      end
+
+      # Outcome targets store bare IDs; resolve display names at read time so
+      # MCP clients see who is notified/invited, not opaque UUIDs. Channel
+      # names are stored on the target at config time and pass through as-is.
+      def self.enriched_outcome(workspace, outcome)
+        return outcome unless outcome.is_a?(Hash)
+
+        outcome = outcome.deep_dup
+        if outcome["severity_id"].present?
+          severity = workspace.incident_severities.find_by(id: outcome["severity_id"])
+          outcome["severity_name"] = severity.name if severity
+        end
+        outcome["notify"] = enriched_target(workspace, outcome["notify"])
+        outcome["invite"] = outcome["invite"].map { |target| enriched_target(workspace, target) } if outcome["invite"].is_a?(Array)
+        outcome.compact
+      end
+
+      def self.enriched_target(workspace, target)
+        return target unless target.is_a?(Hash)
+
+        case target["type"]
+        when PolicyRule::AlertRoutingOutcome::TARGET_MEMBER
+          member = workspace.workspace_memberships.find_by(id: target["member_id"])
+          member ? target.merge("member_name" => member.display_name) : target
+        when PolicyRule::AlertRoutingOutcome::TARGET_TEAM
+          entry = workspace.catalog_entries.active.find_by(id: target["entry_id"])
+          entry ? target.merge("entry_name" => entry.name, "entry_slug" => entry.slug) : target
+        else
+          target
+        end
       end
     end
   end

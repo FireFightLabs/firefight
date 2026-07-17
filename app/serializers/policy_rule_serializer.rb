@@ -23,7 +23,7 @@ class PolicyRuleSerializer < BaseSerializer
     rule.conditions
   end
 
-  type "{ action: #{ACTION_UNION}; severityId?: string; notify?: { type: #{NOTIFY_TARGET_UNION}; channelId?: string; memberId?: string; entryId?: string; of?: string }; invite?: { type: #{INVITE_TARGET_UNION}; memberId?: string; entryId?: string; of?: string }[] }"
+  type "{ action: #{ACTION_UNION}; severityId?: string; notify?: { type: #{NOTIFY_TARGET_UNION}; channelId?: string; channelName?: string; memberId?: string; entryId?: string; of?: string }; invite?: { type: #{INVITE_TARGET_UNION}; memberId?: string; entryId?: string; of?: string }[] }"
   def outcome
     rule.outcome.deep_transform_keys { |key| key.to_s.camelize(:lower) }
   end

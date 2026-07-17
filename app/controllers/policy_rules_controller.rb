@@ -74,7 +74,7 @@ class PolicyRulesController < InertiaController
       :enabled,
       outcome: [
         :action, :severity_id,
-        { notify: [ :type, :channel_id, :member_id, :entry_id, :of ] },
+        { notify: [ :type, :channel_id, :channel_name, :member_id, :entry_id, :of ] },
         { invite: [ :type, :member_id, :entry_id, :of ] }
       ],
       conditions: [ :field, :operator, :value, { value: [] } ]

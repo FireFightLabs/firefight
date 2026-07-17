@@ -64,7 +64,6 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
     get oauth_authorization_path(authorize_params(client_id))
     assert_response :success
     assert_includes response.body, "Claude Code"
-    assert_includes response.body, @workspace.name
 
     # Authorize → redirect back to the client with a code
     post oauth_authorization_path, params: authorize_params(client_id)
