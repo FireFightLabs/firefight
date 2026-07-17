@@ -10,22 +10,29 @@
       body { margin: 0; min-height: 100vh; display: grid; place-items: center;
              background: #0b121c; color: #e6ecf4;
              font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
-      .card { width: min(420px, calc(100vw - 48px)); background: #111b29;
-              border: 1px solid #223145; border-radius: 12px; padding: 28px; }
-      h1 { font-size: 19px; margin: 0 0 6px; }
-      p { margin: 8px 0; font-size: 14px; line-height: 1.5; color: #9daabc; }
-      .who { color: #e6ecf4; }
-      ul { margin: 10px 0; padding-left: 18px; font-size: 14px; color: #9daabc; }
-      .actions { display: flex; gap: 10px; margin-top: 20px; }
-      .actions form { flex: 1; }
-      button { width: 100%; padding: 10px 0; border-radius: 8px; border: 1px solid transparent;
-               font-size: 14px; font-weight: 600; cursor: pointer; }
+      .card { width: min(400px, calc(100vw - 48px)); text-align: center; padding: 24px; }
+      .logo { width: 40px; height: 40px; margin-bottom: 28px; }
+      .pill { display: inline-block; font-size: 12px; letter-spacing: 0.04em;
+              color: #38d3e3; border: 1px solid #1d4b53; background: #0e2229;
+              border-radius: 999px; padding: 4px 12px; margin-bottom: 18px; }
+      h1 { font-size: 24px; font-weight: 600; margin: 0 0 14px; letter-spacing: -0.01em; }
+      p { margin: 0 0 10px; font-size: 15px; line-height: 1.6; color: #9daabc; }
+      .who { color: #e6ecf4; font-weight: 600; }
+      .fine { font-size: 13px; color: #6b7a8f; margin-top: 14px; }
+      .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 32px; }
+      button { width: 100%; padding: 12px 0; border-radius: 8px; border: 1px solid transparent;
+               font-size: 15px; font-weight: 600; cursor: pointer; }
       .authorize { background: #38d3e3; color: #08222a; }
+      .authorize:hover { background: #5cdcea; }
       .deny { background: transparent; color: #9daabc; border-color: #223145; }
+      .deny:hover { color: #e6ecf4; border-color: #35496a; }
       .error { color: #ff8080; }
     </style>
   </head>
   <body>
-    <div class="card"><%= yield %></div>
+    <div class="card">
+      <img class="logo" src="/firefight-favicon.svg" alt="Firefight">
+      <%= yield %>
+    </div>
   </body>
 </html>
