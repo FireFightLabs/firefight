@@ -182,6 +182,34 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     assert_equal Alert::STATUS_RESOLVED, resolved.status
   end
 
+  test "route on an already-routed alert is a no-op (CAS)" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE })
+
+    alert = @service.ingest(firing_fields, {})
+    assert_equal Alert::ROUTING_ROUTED, alert.routing_state
+    matched_rule = alert.matched_policy_rule
+
+    @service.route(alert.reload)
+
+    assert_equal 1, Incident.where(source: Incident::SOURCE_ALERT).count
+    assert_equal matched_rule, alert.reload.matched_policy_rule
+  end
+
+  test "refire inside the notify interval makes no Slack call" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_NOTIFY_ONLY, "notify" => { "type" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL, "channel_id" => "C999" } })
+    stub_post_message
+
+    alert = @service.ingest(firing_fields, {})
+    notified_at = alert.reload.last_notified_at
+    assert notified_at.present?
+
+    Slack::WorkspaceAdapter.any_instance.expects(:update_alert_message).never
+    refired = @service.ingest(firing_fields, {})
+
+    assert_equal alert.id, refired.id
+    assert_equal notified_at, refired.last_notified_at
+  end
+
   test "source-scoped policy takes precedence over the workspace-wide fallback" do
     routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE })
     scoped = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Scoped", scoped_to: @source)

@@ -45,7 +45,7 @@ class PolicyRulesControllerTest < ActionDispatch::IntegrationTest
       rule: { conditions: [], outcome: { action: AlertIngestService::ACTION_DROP } }
     }
 
-    policy = source.reload.routing_policy
+    policy = source.reload.alert_routing_policy
     assert policy.present?
     assert_equal 1, policy.policy_rules.count
     assert_redirected_to settings_alert_routing_path(source_id: source.id)

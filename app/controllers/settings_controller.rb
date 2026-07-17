@@ -115,12 +115,13 @@ class SettingsController < InertiaController
 
   def alert_routing
     source = current_workspace.alert_sources.find(params[:source_id]) if params[:source_id].present?
-    policy = source ? source.routing_policy : current_workspace.alert_routing_fallback_policy
+    # The policy being edited is the scope's own, never the inherited fallback.
+    policy = (source || current_workspace).alert_routing_policy
 
     render inertia: "settings/alert-routing", props: {
       policy: policy ? AlertRoutingPolicySerializer.one(policy) : nil,
       alertSource: source ? { id: source.id, name: source.name } : nil,
-      hasWorkspaceFallback: current_workspace.alert_routing_fallback_policy.present?,
+      hasWorkspaceFallback: current_workspace.alert_routing_policy.present?,
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.active.ordered
       ),
@@ -140,7 +141,7 @@ class SettingsController < InertiaController
   def routing_rule_options(source)
     policies =
       if source
-        [ source.effective_routing_policy ].compact
+        [ source.effective_alert_routing_policy ].compact
       else
         current_workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).includes(:scoped_to, :policy_rules)
       end

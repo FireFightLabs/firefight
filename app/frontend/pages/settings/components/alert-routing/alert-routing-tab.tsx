@@ -5,22 +5,18 @@ import { router } from "@inertiajs/react"
 import type { AlertRoutingPolicy, IncidentSeveritySettings, PolicyRule, WorkspaceMembership } from "@/types/serializers"
 import {
   alertRoutingPath,
-  alertRoutingSendTestPath,
-  alertRoutingTestPath,
   moveDownPolicyRulePath,
   moveUpPolicyRulePath,
   policyRulePath,
 } from "@/lib/routes"
 import {
   ACTION_LABELS,
-  csrfToken,
   describeSample,
   needsCustomSample,
+  runRoutingTest,
   sampleFieldsFor,
   type CatalogOptionMap,
   type RuleCondition,
-  type RunTestOutcome,
-  type SendTestResult,
   type SlackChannel,
   type TestResult,
 } from "@/pages/settings/lib/alerts"
@@ -95,50 +91,13 @@ export function AlertRoutingTab({
     setTestedSample(null)
   }
 
-  async function runTest(fields: Record<string, string>): Promise<RunTestOutcome> {
-    try {
-      const response = await fetch(alertRoutingTestPath(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
-        body: JSON.stringify({ fields, alert_source_id: alertSource?.id ?? null }),
-      })
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null
-        const error = body?.error ?? "The test request failed; try again."
-        setTestResult(null)
-        setTestError(error)
-        return { result: null, error }
-      }
-      const parsed = (await response.json()) as TestResult
-      setTestResult(parsed)
-      setTestError(null)
-      return { result: parsed, error: null }
-    } catch {
-      const error = "The test request failed; try again."
-      setTestResult(null)
-      setTestError(error)
-      return { result: null, error }
-    }
-  }
-
-  async function sendTest(fields: Record<string, string>): Promise<SendTestResult> {
-    try {
-      const response = await fetch(alertRoutingSendTestPath(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
-        body: JSON.stringify({ fields, alert_source_id: alertSource?.id ?? null }),
-      })
-      return (await response.json()) as SendTestResult
-    } catch {
-      return { error: "The request failed; try again." }
-    }
-  }
-
-  function testRule(rule: PolicyRule) {
+  async function testRule(rule: PolicyRule) {
     const sample = sampleFieldsFor(rule.conditions as RuleCondition[])
     setTestedRuleId(rule.id)
     setTestedSample(describeSample(sample))
-    void runTest(sample)
+    const { result, error } = await runRoutingTest(sample, alertSource?.id ?? null)
+    setTestResult(result)
+    setTestError(error)
   }
 
   function shadowNote(rule: PolicyRule): string | null {
@@ -190,7 +149,7 @@ export function AlertRoutingTab({
                   <Switch id="routing-enabled" checked={policy.enabled} onCheckedChange={togglePolicy} />
                 </div>
               )}
-              <CustomTestDialog disabled={!canTest} onRun={runTest} onSend={sendTest} />
+              <CustomTestDialog disabled={!canTest} alertSourceId={alertSource?.id ?? null} />
               <Button size="sm" onClick={() => setAddingRule(true)}>Add rule</Button>
             </div>
           </div>
@@ -248,7 +207,7 @@ export function AlertRoutingTab({
                             title={regexRule ? "Regex rules need a real sample value; use Test custom alert" : "Test this rule"}
                             aria-label="Test this rule"
                             disabled={!canTest || regexRule}
-                            onClick={() => testRule(rule)}
+                            onClick={() => void testRule(rule)}
                           >
                             <IconFlask className="size-4" />
                           </Button>

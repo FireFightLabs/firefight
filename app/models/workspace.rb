@@ -32,12 +32,22 @@ class Workspace < ApplicationRecord
   scope :slack_platform, -> { where(platform: Platforms::SLACK) }
   scope :recent, -> { order(created_at: :desc) }
 
-  def alert_routing_fallback_policy
+  # The workspace-wide policy: edited directly at workspace scope and the
+  # shared fallback for sources without their own. Mirrors the AlertSource
+  # methods of the same names so callers can treat (source || workspace) as
+  # one routing scope.
+  def alert_routing_policy
     policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first
   end
 
-  def find_or_create_alert_routing_fallback_policy!
-    alert_routing_fallback_policy ||
+  # What fires at ingest for this scope; nil when the policy is disabled,
+  # matching AlertSource#effective_alert_routing_policy.
+  def effective_alert_routing_policy
+    [ alert_routing_policy ].compact.detect(&:enabled?)
+  end
+
+  def find_or_create_alert_routing_policy!
+    alert_routing_policy ||
       policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: Policy::DEFAULT_ALERT_ROUTING_NAME)
   end
 

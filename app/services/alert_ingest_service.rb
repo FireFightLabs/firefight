@@ -155,7 +155,7 @@ class AlertIngestService
   def routing_policy
     return @routing_policy if defined?(@routing_policy)
 
-    @routing_policy = @source.effective_routing_policy
+    @routing_policy = @source.effective_alert_routing_policy
   end
 
   def routing_context(alert)
@@ -283,12 +283,11 @@ class AlertIngestService
   end
 
   def content_match_fields
-    routing_policy&.domain_config&.fetch("content_match_fields", nil).presence || AlertGroup::DEFAULT_CONTENT_MATCH_FIELDS
+    routing_policy&.content_match_fields || AlertGroup::DEFAULT_CONTENT_MATCH_FIELDS
   end
 
   def grouping_window
-    minutes = routing_policy&.domain_config&.fetch("grouping_window_minutes", nil).presence || AlertGroup::DEFAULT_WINDOW_MINUTES
-    minutes.to_i.minutes
+    (routing_policy&.grouping_window_minutes || AlertGroup::DEFAULT_WINDOW_MINUTES).minutes
   end
 
   def record_incident_event(alert, event_type)

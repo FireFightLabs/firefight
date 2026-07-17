@@ -12,12 +12,12 @@ class AlertRoutingPolicySerializer < BaseSerializer
 
   type :number
   def grouping_window_minutes
-    policy.domain_config.fetch("grouping_window_minutes", AlertGroup::DEFAULT_WINDOW_MINUTES).to_i
+    policy.grouping_window_minutes
   end
 
   type "string[]"
   def content_match_fields
-    Array(policy.domain_config.fetch("content_match_fields", AlertGroup::DEFAULT_CONTENT_MATCH_FIELDS))
+    policy.content_match_fields
   end
 
   has_many :rules, serializer: PolicyRuleSerializer

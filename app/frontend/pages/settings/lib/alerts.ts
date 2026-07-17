@@ -1,3 +1,5 @@
+import { alertRoutingSendTestPath, alertRoutingTestPath } from "@/lib/routes"
+
 export const CONDITION_OPERATORS = [
   { value: "is_one_of", label: "is one of" },
   { value: "contains", label: "contains" },
@@ -85,9 +87,40 @@ export interface SendTestResult {
   error?: string
 }
 
-export interface RunTestOutcome {
-  result: TestResult | null
-  error: string | null
+export async function runRoutingTest(
+  fields: Record<string, string>,
+  alertSourceId: string | null
+): Promise<{ result: TestResult | null; error: string | null }> {
+  try {
+    const response = await fetch(alertRoutingTestPath(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+      body: JSON.stringify({ fields, alert_source_id: alertSourceId }),
+    })
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null
+      return { result: null, error: body?.error ?? "The test request failed; try again." }
+    }
+    return { result: (await response.json()) as TestResult, error: null }
+  } catch {
+    return { result: null, error: "The test request failed; try again." }
+  }
+}
+
+export async function sendRoutingTest(
+  fields: Record<string, string>,
+  alertSourceId: string | null
+): Promise<SendTestResult> {
+  try {
+    const response = await fetch(alertRoutingSendTestPath(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+      body: JSON.stringify({ fields, alert_source_id: alertSourceId }),
+    })
+    return (await response.json()) as SendTestResult
+  } catch {
+    return { error: "The request failed; try again." }
+  }
 }
 
 // Derive a sample alert that should satisfy a rule's own conditions, so a
