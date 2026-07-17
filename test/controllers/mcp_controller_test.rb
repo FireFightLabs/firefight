@@ -1,0 +1,140 @@
+require "test_helper"
+
+class McpControllerTest < ActionDispatch::IntegrationTest
+  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
+           :incident_statuses, :incident_severities, :incidents, :incident_events,
+           :incident_roles, :incident_role_assignments, :catalog_types,
+           :catalog_attribute_definitions, :catalog_entries, :catalog_entry_relationships
+
+  setup do
+    @workspace = workspaces(:slack_workspace_one)
+    @membership = workspace_memberships(:alice_workspace_one)
+    _, @personal_token = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: @membership, on_behalf_of: @membership, name: "Personal"
+    )
+  end
+
+  def rpc(method, params = {}, id: 1, token: @personal_token)
+    post mcp_path,
+         params: { jsonrpc: "2.0", id: id, method: method, params: params }.to_json,
+         headers: { "Content-Type" => "application/json", "Authorization" => "Bearer #{token}" }
+    JSON.parse(response.body)
+  end
+
+  def call_tool(name, arguments = {}, token: @personal_token)
+    body = rpc("tools/call", { name: name, arguments: arguments }, token: token)
+    result = body.fetch("result")
+    [ result["structuredContent"] || {}, result["isError"] ]
+  end
+
+  test "requires a bearer token and advertises how to authenticate" do
+    post mcp_path, params: { jsonrpc: "2.0", id: 1, method: "ping" }.to_json,
+         headers: { "Content-Type" => "application/json" }
+
+    assert_response :unauthorized
+    assert_includes response.headers["WWW-Authenticate"], "Firefight MCP"
+  end
+
+  test "only POST is allowed" do
+    get "/mcp", headers: { "Authorization" => "Bearer #{@personal_token}" }
+    assert_response :method_not_allowed
+
+    delete "/mcp", headers: { "Authorization" => "Bearer #{@personal_token}" }
+    assert_response :method_not_allowed
+  end
+
+  test "initialize negotiates and tools/list exposes the read-only surface" do
+    body = rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } })
+    assert_equal McpController::SERVER_NAME, body.dig("result", "serverInfo", "name")
+
+    body = rpc("tools/list")
+    tools = body.dig("result", "tools")
+    assert_equal [ Mcp::Tools::EVALUATE_ROUTING, Mcp::Tools::GET_INCIDENT, Mcp::Tools::SEARCH_ALERTS,
+                   Mcp::Tools::SEARCH_CATALOG, Mcp::Tools::SEARCH_INCIDENTS ].sort,
+                 tools.map { |t| t["name"] }.sort
+    assert tools.all? { |t| t.dig("annotations", "readOnlyHint") }
+  end
+
+  test "search_incidents returns workspace incidents with filters and caps" do
+    content, is_error = call_tool(Mcp::Tools::SEARCH_INCIDENTS, { limit: 2 })
+
+    assert_not is_error
+    assert_equal 2, content["incidents"].size
+    assert content["truncated"]
+    assert content["incidents"].first.key?("identifier")
+
+    content, _ = call_tool(Mcp::Tools::SEARCH_INCIDENTS, { query: incidents(:active_critical_ws1).identifier })
+    assert_equal [ incidents(:active_critical_ws1).identifier ], content["incidents"].map { |i| i["identifier"] }
+  end
+
+  test "get_incident resolves by identifier with timeline" do
+    incident = incidents(:active_critical_ws1)
+
+    content, is_error = call_tool(Mcp::Tools::GET_INCIDENT, { incident: incident.identifier })
+
+    assert_not is_error
+    assert_equal incident.identifier, content["identifier"]
+    assert content["timeline"].is_a?(Array)
+  end
+
+  test "cross-workspace incidents are invisible" do
+    foreign = Incident.where(workspace: workspaces(:slack_workspace_two)).first
+
+    _, is_error = call_tool(Mcp::Tools::GET_INCIDENT, { incident: foreign.id })
+
+    assert is_error
+  end
+
+  test "search_alerts reflects routing state and matched rule" do
+    source = @workspace.alert_sources.create!(name: "Grafana", provider: AlertSource::PROVIDER_GENERIC)
+    source.alerts.create!(workspace: @workspace, external_id: "a1", fingerprint: "f1",
+                          fields: { "title" => "Disk full" }, routing_state: Alert::ROUTING_UNMATCHED,
+                          received_at: Time.current, last_seen_at: Time.current)
+
+    content, is_error = call_tool(Mcp::Tools::SEARCH_ALERTS, { routing_state: Alert::ROUTING_UNMATCHED })
+
+    assert_not is_error
+    assert_equal [ "Disk full" ], content["alerts"].map { |a| a["title"] }
+    assert_equal "Grafana", content["alerts"].first["source"]
+  end
+
+  test "search_catalog returns entries with relationships" do
+    content, is_error = call_tool(Mcp::Tools::SEARCH_CATALOG, { slug: catalog_entries(:auth_service).slug })
+
+    assert_not is_error
+    entry = content["entries"].first
+    assert_equal catalog_entries(:auth_service).slug, entry["slug"]
+    assert entry["relationships"].any? { |r| r["target_slug"] == catalog_entries(:platform_team).slug }
+  end
+
+  test "evaluate_routing dry-runs the workspace policy with a trace" do
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: "service", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "checkout" ] } ],
+      outcome: { "action" => AlertIngestService::ACTION_AUTO_CREATE }
+    )
+
+    content, is_error = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+
+    assert_not is_error
+    assert content["matched"]
+    assert_equal 1, content["matched_rule_priority"]
+    assert_equal AlertIngestService::ACTION_AUTO_CREATE, content.dig("outcome", "action")
+    assert content["trace"].is_a?(Array)
+  end
+
+  test "service keys are scoped per tool resource" do
+    _, alerts_token = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: @membership, name: "Alerts only",
+      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
+    )
+
+    _, is_error = call_tool(Mcp::Tools::SEARCH_ALERTS, {}, token: alerts_token)
+    assert_not is_error
+
+    result, is_error = call_tool(Mcp::Tools::SEARCH_INCIDENTS, {}, token: alerts_token)
+    assert is_error
+    assert_empty result
+  end
+end

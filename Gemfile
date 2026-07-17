@@ -43,6 +43,9 @@ gem "omniauth-rails_csrf_protection"
 # Generate JavaScript routes from Rails routes
 gem "js-routes", "~> 2.3"
 
+# MCP server (official Model Context Protocol SDK) — stateless dispatch from McpController
+gem "mcp"
+
 # HTTP client for API requests
 gem "httparty"
 
