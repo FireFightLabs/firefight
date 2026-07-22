@@ -5,6 +5,7 @@ import { RunbooksTab } from "@/pages/settings/components/runbooks/runbooks-tab"
 import type {
   IncidentSeveritySettings,
   IncidentTypeSettings,
+  RunbookCustomField,
   RunbookSettings,
 } from "@/types/serializers"
 import type { SharedProps } from "@/types"
@@ -14,10 +15,11 @@ interface RunbooksPageProps extends SharedProps {
   runbooks: RunbookSettings[]
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
+  customFields: RunbookCustomField[]
 }
 
 export default function Runbooks() {
-  const { runbooks, incidentTypes, severities } = usePage<RunbooksPageProps>().props
+  const { runbooks, incidentTypes, severities, customFields } = usePage<RunbooksPageProps>().props
 
   return (
     <AuthenticatedLayout title="Runbooks">
@@ -27,6 +29,7 @@ export default function Runbooks() {
           runbooks={runbooks}
           incidentTypes={incidentTypes}
           severities={severities}
+          customFields={customFields}
         />
       </div>
     </AuthenticatedLayout>

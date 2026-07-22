@@ -45,6 +45,10 @@ class SettingsController < InertiaController
       ),
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.ordered
+      ),
+      customFields: RunbookCustomFieldSerializer.many(
+        current_workspace.incident_field_definitions.active.ordered
+          .where(field_type: IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES)
       )
     }
   end

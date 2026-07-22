@@ -92,6 +92,75 @@ class IncidentConditionTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
+  # CUSTOM FIELD VALIDATIONS
+  # ============================================================================
+
+  test "valid custom_field condition with a supported field definition" do
+    condition = IncidentCondition.new(
+      workspace: @workspace,
+      conditionable: @form_field,
+      condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+      incident_field_definition: incident_field_definitions(:customer_tier_ws1),
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ "Enterprise" ]
+    )
+    assert condition.valid?
+  end
+
+  test "custom_field condition requires an incident_field_definition" do
+    condition = IncidentCondition.new(
+      workspace: @workspace,
+      conditionable: @form_field,
+      condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ "Enterprise" ]
+    )
+    assert_not condition.valid?
+    assert_includes condition.errors[:incident_field_definition], "can't be blank"
+  end
+
+  test "non custom_field condition must not have an incident_field_definition" do
+    condition = IncidentCondition.new(
+      workspace: @workspace,
+      conditionable: @form_field,
+      condition_field: IncidentCondition::FIELD_SEVERITY,
+      incident_field_definition: incident_field_definitions(:customer_tier_ws1),
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ "id" ]
+    )
+    assert_not condition.valid?
+    assert_includes condition.errors[:incident_field_definition], "must be blank unless condition is on a custom field"
+  end
+
+  test "custom_field condition rejects unsupported field definition types" do
+    text_definition = @workspace.incident_field_definitions.create!(
+      key: "root_cause_notes",
+      name: "Root Cause Notes",
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE,
+      position: 99
+    )
+
+    condition = IncidentCondition.new(
+      workspace: @workspace,
+      conditionable: @form_field,
+      condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+      incident_field_definition: text_definition,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ "anything" ]
+    )
+    assert_not condition.valid?
+    assert_includes condition.errors[:incident_field_definition], "field type is not supported for conditions"
+  end
+
+  test "supported custom field types constant" do
+    assert_includes IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES, IncidentFieldDefinition::TYPE_SINGLE_SELECT
+    assert_includes IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES, IncidentFieldDefinition::TYPE_MULTI_SELECT
+    assert_includes IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES, IncidentFieldDefinition::TYPE_CATALOG_REFERENCE
+    assert_includes IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES, IncidentFieldDefinition::TYPE_CATALOG_MULTI_REFERENCE
+  end
+
+  # ============================================================================
   # CONSTANTS
   # ============================================================================
 

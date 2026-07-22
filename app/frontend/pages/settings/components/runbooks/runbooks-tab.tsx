@@ -9,6 +9,7 @@ import {
 import type {
   IncidentSeveritySettings,
   IncidentTypeSettings,
+  RunbookCustomField,
   RunbookSettings,
 } from "@/types/serializers"
 import { runbookPath } from "@/lib/routes"
@@ -37,9 +38,10 @@ interface RunbooksTabProps {
   runbooks: RunbookSettings[]
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
+  customFields: RunbookCustomField[]
 }
 
-export function RunbooksTab({ runbooks, incidentTypes, severities }: RunbooksTabProps) {
+export function RunbooksTab({ runbooks, incidentTypes, severities, customFields }: RunbooksTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRunbook, setEditingRunbook] = useState<RunbookSettings | null>(null)
 
@@ -81,6 +83,7 @@ export function RunbooksTab({ runbooks, incidentTypes, severities }: RunbooksTab
       runbook={editingRunbook}
       incidentTypes={incidentTypes}
       severities={severities}
+      customFields={customFields}
     />
   )
 
@@ -123,7 +126,7 @@ export function RunbooksTab({ runbooks, incidentTypes, severities }: RunbooksTab
           </TableHeader>
           <TableBody>
             {runbooks.map((runbook) => {
-              const summary = conditionSummary(runbook.conditions ?? [], incidentTypes, severities)
+              const summary = conditionSummary(runbook.conditions ?? [], incidentTypes, severities, customFields)
 
               return (
                 <TableRow key={runbook.id}>

@@ -2,7 +2,8 @@ require "test_helper"
 
 class RunbooksControllerTest < ActionDispatch::IntegrationTest
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incident_types, :incidents
+           :incident_statuses, :incident_severities, :incident_types, :incidents,
+           :incident_field_definitions
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -46,6 +47,50 @@ class RunbooksControllerTest < ActionDispatch::IntegrationTest
     condition = runbook.incident_conditions.sole
     assert_equal IncidentCondition::FIELD_INCIDENT_TYPE, condition.condition_field
     assert_equal [ incident_types(:service_outage_ws1).id ], condition.values
+  end
+
+  test "create with a custom field condition" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+
+    post runbooks_url(format: :html), params: {
+      name: "Enterprise escalation",
+      conditions: [
+        {
+          condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+          operator: IncidentCondition::OPERATOR_ONE_OF,
+          values: [ "Enterprise" ],
+          incident_field_definition_id: definition.id
+        }
+      ]
+    }
+    assert_response :redirect
+
+    runbook = Runbook.find_by!(slug: "enterprise_escalation", workspace: @workspace)
+    condition = runbook.incident_conditions.sole
+    assert_equal IncidentCondition::FIELD_CUSTOM_FIELD, condition.condition_field
+    assert_equal definition.id, condition.incident_field_definition_id
+    assert_equal [ "Enterprise" ], condition.values
+  end
+
+  test "update to a custom field condition" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+
+    patch runbook_url(@runbook), params: {
+      name: "Existing",
+      conditions: [
+        {
+          condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+          operator: IncidentCondition::OPERATOR_ONE_OF,
+          values: [ "Pro" ],
+          incident_field_definition_id: definition.id
+        }
+      ]
+    }
+    assert_response :redirect
+
+    condition = @runbook.reload.incident_conditions.sole
+    assert_equal IncidentCondition::FIELD_CUSTOM_FIELD, condition.condition_field
+    assert_equal definition.id, condition.incident_field_definition_id
   end
 
   test "update replaces steps and conditions" do

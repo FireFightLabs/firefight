@@ -20,7 +20,7 @@ class Runbook < ApplicationRecord
   end
 
   def self.matching(workspace, context)
-    workspace.runbooks.active.ordered.includes(:incident_conditions).select do |runbook|
+    workspace.runbooks.active.ordered.includes(incident_conditions: :incident_field_definition).select do |runbook|
       IncidentConditionEvaluator.match?(runbook.incident_conditions, context)
     end
   end
@@ -46,7 +46,8 @@ class Runbook < ApplicationRecord
           workspace: workspace,
           condition_field: cp[:condition_field],
           operator: cp[:operator],
-          values: cp[:values]
+          values: cp[:values],
+          incident_field_definition_id: cp[:incident_field_definition_id]
         )
       end
     end

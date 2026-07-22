@@ -6,6 +6,7 @@ class IncidentUpdateWorkflow < SolidWorkflow::Base
   step :update_announcement
   step :post_update_message
   step :post_announcement_thread
+  step :attach_runbooks
 
   def update_channel_topic(workflow:, step:, input:)
     service(workflow).update_channel_topic(workflow.subject)
@@ -35,6 +36,10 @@ class IncidentUpdateWorkflow < SolidWorkflow::Base
         **update_params(workflow)
       )
     end
+  end
+
+  def attach_runbooks(workflow:, step:, input:)
+    RunbookAttachmentService.new(workflow.subject.workspace).auto_attach(workflow.subject)
   end
 
   private

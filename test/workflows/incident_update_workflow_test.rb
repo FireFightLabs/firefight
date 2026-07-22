@@ -30,7 +30,7 @@ class IncidentUpdateWorkflowTest < ActiveSupport::TestCase
     workflow = IncidentUpdateWorkflow.start_inline!(@incident, context: workflow_context)
 
     assert_equal "succeeded", workflow.state
-    assert_equal 5, workflow.steps.count
+    assert_equal 6, workflow.steps.count
     assert workflow.steps.all?(&:succeeded?)
   end
 
@@ -72,7 +72,52 @@ class IncidentUpdateWorkflowTest < ActiveSupport::TestCase
     assert_equal "Critical", workflow.context["previous_severity_name"]
   end
 
+  test "attaches a matching runbook on update" do
+    stub_all_side_effects
+    runbook = matching_runbook
+
+    IncidentUpdateWorkflow.start_inline!(@incident, context: workflow_context)
+
+    assert_includes @incident.incident_runbooks.reload.map(&:runbook), runbook
+  end
+
+  test "does not attach a non-matching runbook on update" do
+    stub_all_side_effects
+    runbook = @workspace.runbooks.create!(name: "Only for majors")
+    runbook.incident_conditions.create!(
+      workspace: @workspace,
+      condition_field: IncidentCondition::FIELD_SEVERITY,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ incident_severities(:major_ws1).id ]
+    )
+
+    IncidentUpdateWorkflow.start_inline!(@incident, context: workflow_context)
+
+    assert_not_includes @incident.incident_runbooks.reload.map(&:runbook), runbook
+  end
+
+  test "does not duplicate an already-attached runbook on update" do
+    stub_all_side_effects
+    runbook = matching_runbook
+    RunbookAttachmentService.new(@workspace).attach(incident: @incident, runbook: runbook)
+
+    IncidentUpdateWorkflow.start_inline!(@incident, context: workflow_context)
+
+    assert_equal 1, @incident.incident_runbooks.where(runbook: runbook).count
+  end
+
   private
+
+  def matching_runbook
+    runbook = @workspace.runbooks.create!(name: "Critical response")
+    runbook.incident_conditions.create!(
+      workspace: @workspace,
+      condition_field: IncidentCondition::FIELD_SEVERITY,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ @severity.id ]
+    )
+    runbook
+  end
 
   def workflow_context(previous_status_name: nil, previous_severity_name: nil)
     {
