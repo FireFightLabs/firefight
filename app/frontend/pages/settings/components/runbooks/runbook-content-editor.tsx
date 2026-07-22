@@ -113,7 +113,7 @@ export function RunbookContentEditor({ value, onChange, placeholder }: RunbookCo
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm dark:prose-invert max-w-none min-h-32 px-3 py-2 focus:outline-none",
+          "prose prose-sm dark:prose-invert max-w-none min-h-56 px-3 py-2 focus:outline-none",
       },
     },
     onUpdate: ({ editor }) => {

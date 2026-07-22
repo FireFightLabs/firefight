@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { RunbookContentEditor } from "@/pages/settings/components/runbooks/runbook-content-editor"
 import {
   RunbookStepsEditor,
@@ -192,11 +193,12 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
 
             <div className="space-y-2">
               <Label htmlFor="runbook-summary">Summary</Label>
-              <Input
+              <Textarea
                 id="runbook-summary"
+                rows={2}
                 value={model.summary}
                 onChange={(e) => patch({ summary: e.target.value })}
-                placeholder="One-line description of when to use this runbook"
+                placeholder="Short description of when to use this runbook"
               />
             </div>
 
