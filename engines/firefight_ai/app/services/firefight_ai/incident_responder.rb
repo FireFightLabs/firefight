@@ -112,6 +112,19 @@ module FirefightAi
         end
       end
 
+      if context[:runbooks].present?
+        parts << "\n## Attached Runbooks"
+        context[:runbooks].each do |runbook|
+          parts << "### #{runbook[:name]}"
+          parts << runbook[:summary] if runbook[:summary].present?
+          parts << "Link: #{runbook[:external_url]}" if runbook[:external_url].present?
+          runbook[:steps].each_with_index do |step, idx|
+            instruction = step[:instruction].present? ? " — #{step[:instruction]}" : ""
+            parts << "#{idx + 1}. #{step[:title]}#{instruction}"
+          end
+        end
+      end
+
       parts << "\n## Question"
       parts << question
 

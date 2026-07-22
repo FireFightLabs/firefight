@@ -49,8 +49,9 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
     body = rpc("tools/list")
     tools = body.dig("result", "tools")
-    assert_equal [ Mcp::Tools::EVALUATE_ROUTING, Mcp::Tools::GET_INCIDENT, Mcp::Tools::SEARCH_ALERTS,
-                   Mcp::Tools::SEARCH_CATALOG, Mcp::Tools::SEARCH_INCIDENTS ].sort,
+    assert_equal [ Mcp::Tools::EVALUATE_ROUTING, Mcp::Tools::GET_INCIDENT, Mcp::Tools::GET_RUNBOOK,
+                   Mcp::Tools::SEARCH_ALERTS, Mcp::Tools::SEARCH_CATALOG, Mcp::Tools::SEARCH_INCIDENTS,
+                   Mcp::Tools::SEARCH_RUNBOOKS ].sort,
                  tools.map { |t| t["name"] }.sort
     assert tools.all? { |t| t.dig("annotations", "readOnlyHint") }
   end

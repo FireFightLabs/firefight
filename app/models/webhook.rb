@@ -12,6 +12,8 @@ class Webhook < ApplicationRecord
     IncidentEvent::ACTION_CREATED,
     IncidentEvent::ACTION_PICKED_UP,
     IncidentEvent::ACTION_COMPLETED,
+    IncidentEvent::RUNBOOK_ATTACHED,
+    IncidentEvent::RUNBOOK_APPLIED,
     IncidentEvent::POSTMORTEM_GENERATED,
     IncidentEvent::POSTMORTEM_EDITED,
     IncidentEvent::RELATIONSHIP_CREATED,

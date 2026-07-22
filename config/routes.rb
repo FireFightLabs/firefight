@@ -27,6 +27,7 @@ Rails.application.routes.draw do
       resources :statuses, only: [ :index ]
       resources :incident_types, only: [ :index ]
       resources :custom_fields, only: [ :index ]
+      resources :runbooks, only: [ :index, :show ]
 
       namespace :catalog do
         get "types", to: "types#index", as: :types
@@ -87,6 +88,8 @@ Rails.application.routes.draw do
     get "/settings/severities", to: "settings#severities", as: :settings_severities
     get "/settings/types", to: "settings#types", as: :settings_types
     resources :incident_types, only: [ :create, :update, :destroy ], path: "settings/types"
+    get "/settings/runbooks", to: "settings#runbooks", as: :settings_runbooks
+    resources :runbooks, only: [ :create, :update, :destroy ], path: "settings/runbooks"
     get "/settings/custom-fields", to: "settings#custom_fields", as: :settings_custom_fields
     get "/settings/forms", to: "settings#forms", as: :settings_forms
     get "/settings/webhooks", to: "settings#webhooks", as: :settings_webhooks

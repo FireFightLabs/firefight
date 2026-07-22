@@ -10,6 +10,8 @@ class Webhooks::PayloadRenderer
     IncidentEvent::ACTION_CREATED => "webhooks/events/action_created",
     IncidentEvent::ACTION_PICKED_UP => "webhooks/events/action_picked_up",
     IncidentEvent::ACTION_COMPLETED => "webhooks/events/action_completed",
+    IncidentEvent::RUNBOOK_ATTACHED => "webhooks/events/runbook_attached",
+    IncidentEvent::RUNBOOK_APPLIED => "webhooks/events/runbook_applied",
     IncidentEvent::POSTMORTEM_GENERATED => "webhooks/events/postmortem_generated",
     IncidentEvent::POSTMORTEM_EDITED => "webhooks/events/postmortem_edited",
     IncidentEvent::RELATIONSHIP_CREATED => "webhooks/events/relationship_created",

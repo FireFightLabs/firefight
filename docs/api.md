@@ -22,6 +22,7 @@ app/controllers/api/v1/catalog/                  # Catalogue read/write endpoint
 app/controllers/api/v1/severities_controller.rb  # Read-only
 app/controllers/api/v1/statuses_controller.rb    # Read-only
 app/controllers/api/v1/incident_types_controller.rb # Read-only
+app/controllers/api/v1/runbooks_controller.rb    # Read-only (index + show by slug or id)
 app/models/api_key.rb                            # Token auth, permissions, caching
 app/models/idempotency_key.rb                    # Deduplication
 app/views/api/v1/                                # Jbuilder response templates

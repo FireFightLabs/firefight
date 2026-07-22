@@ -7,6 +7,7 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
   step :post_announcement, depends_on: [ :create_slack_channel ]
   step :invite_declarer, depends_on: [ :post_quick_actions_message ]
   step :invite_responders, depends_on: [ :create_slack_channel ]
+  step :attach_runbooks, depends_on: [ :post_quick_actions_message ]
   step :create_incident_event
 
   def create_slack_channel(workflow:, step:, input:)
@@ -31,6 +32,10 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
 
   def invite_responders(workflow:, step:, input:)
     service(workflow).invite_members(workflow.subject, workflow.context["invite_membership_ids"])
+  end
+
+  def attach_runbooks(workflow:, step:, input:)
+    RunbookAttachmentService.new(workflow.subject.workspace).auto_attach(workflow.subject)
   end
 
   def create_incident_event(workflow:, step:, input:)

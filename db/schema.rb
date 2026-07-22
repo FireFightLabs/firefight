@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_17_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_21_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -401,6 +401,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090000) do
     t.index ["workspace_id"], name: "index_incident_roles_on_workspace_id"
   end
 
+  create_table "incident_runbooks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "incident_id", null: false
+    t.uuid "runbook_id", null: false
+    t.uuid "workspace_id", null: false
+    t.uuid "attached_by_id"
+    t.datetime "applied_at"
+    t.uuid "applied_by_id"
+    t.string "message_ts"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["applied_by_id"], name: "index_incident_runbooks_on_applied_by_id"
+    t.index ["attached_by_id"], name: "index_incident_runbooks_on_attached_by_id"
+    t.index ["incident_id", "runbook_id"], name: "index_incident_runbooks_on_incident_id_and_runbook_id", unique: true
+    t.index ["incident_id"], name: "index_incident_runbooks_on_incident_id"
+    t.index ["runbook_id"], name: "index_incident_runbooks_on_runbook_id"
+    t.index ["workspace_id"], name: "index_incident_runbooks_on_workspace_id"
+  end
+
   create_table "incident_severities", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workspace_id", null: false
     t.string "name", null: false
@@ -742,6 +760,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090000) do
     t.index ["workspace_id"], name: "index_product_areas_on_workspace_id"
   end
 
+  create_table "runbook_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "runbook_id", null: false
+    t.string "title", null: false
+    t.text "instruction"
+    t.integer "position", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runbook_id"], name: "index_runbook_steps_on_runbook_id"
+  end
+
+  create_table "runbooks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.string "summary"
+    t.text "content"
+    t.string "external_url"
+    t.integer "position", null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workspace_id", "slug"], name: "index_runbooks_on_workspace_id_and_slug", unique: true
+    t.index ["workspace_id"], name: "index_runbooks_on_workspace_id"
+  end
+
   create_table "service_dependencies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "service_id", null: false
     t.uuid "dependency_id", null: false
@@ -1052,6 +1095,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090000) do
   add_foreign_key "incident_role_assignments", "workspace_memberships"
   add_foreign_key "incident_role_assignments", "workspace_memberships", column: "assigned_by_id"
   add_foreign_key "incident_roles", "workspaces"
+  add_foreign_key "incident_runbooks", "incidents"
+  add_foreign_key "incident_runbooks", "runbooks"
+  add_foreign_key "incident_runbooks", "workspace_memberships", column: "applied_by_id"
+  add_foreign_key "incident_runbooks", "workspace_memberships", column: "attached_by_id"
+  add_foreign_key "incident_runbooks", "workspaces"
   add_foreign_key "incident_severities", "workspaces"
   add_foreign_key "incident_statuses", "incident_lifecycle_stages"
   add_foreign_key "incident_statuses", "workspaces"
@@ -1090,6 +1138,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090000) do
   add_foreign_key "postmortems", "incidents"
   add_foreign_key "postmortems", "workspace_memberships", column: "generated_by_id"
   add_foreign_key "product_areas", "workspaces"
+  add_foreign_key "runbook_steps", "runbooks"
+  add_foreign_key "runbooks", "workspaces"
   add_foreign_key "service_dependencies", "services"
   add_foreign_key "service_dependencies", "services", column: "dependency_id"
   add_foreign_key "service_environments", "environments"

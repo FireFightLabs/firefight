@@ -1,0 +1,64 @@
+require "test_helper"
+
+class RunbookTest < ActiveSupport::TestCase
+  fixtures :workspaces, :incident_severities, :incident_types
+
+  setup do
+    @workspace = workspaces(:slack_workspace_one)
+    @critical = incident_severities(:critical_ws1)
+    @major = incident_severities(:major_ws1)
+
+    @scoped_runbook = @workspace.runbooks.create!(
+      name: "Database outage response",
+      summary: "Steps to triage a database outage",
+      external_url: "https://runbooks.example.com/db"
+    )
+    @scoped_runbook.runbook_steps.create!(title: "Check connection pool", position: 1)
+    @scoped_runbook.runbook_steps.create!(title: "Failover to replica", position: 2)
+
+    @generic_runbook = @workspace.runbooks.create!(name: "Generic incident checklist")
+
+    @deleted_runbook = @workspace.runbooks.create!(name: "Retired runbook")
+    @deleted_runbook.update!(deleted_at: 1.day.ago)
+  end
+
+  test "generates slug from name on create" do
+    runbook = @workspace.runbooks.create!(name: "Payments Are Down!")
+
+    assert_equal "payments_are_down", runbook.slug
+  end
+
+  test "assigns position on create" do
+    assert @generic_runbook.position.present?
+  end
+
+  test "active scope excludes soft-deleted runbooks" do
+    assert_includes @workspace.runbooks.active, @generic_runbook
+    assert_not_includes @workspace.runbooks.active, @deleted_runbook
+  end
+
+  test "runbook_steps returns steps ordered by position" do
+    assert_equal [ "Check connection pool", "Failover to replica" ], @scoped_runbook.runbook_steps.map(&:title)
+  end
+
+  test "matching returns runbook whose one_of severity condition matches" do
+    @scoped_runbook.incident_conditions.create!(
+      workspace: @workspace,
+      condition_field: IncidentCondition::FIELD_SEVERITY,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ @critical.id ]
+    )
+
+    assert_includes Runbook.matching(@workspace, { severity: @critical.id }), @scoped_runbook
+    assert_not_includes Runbook.matching(@workspace, { severity: @major.id }), @scoped_runbook
+  end
+
+  test "matching returns runbooks with no conditions for any context" do
+    assert_includes Runbook.matching(@workspace, { severity: @critical.id }), @generic_runbook
+    assert_includes Runbook.matching(@workspace, {}), @generic_runbook
+  end
+
+  test "matching excludes soft-deleted runbooks" do
+    assert_not_includes Runbook.matching(@workspace, {}), @deleted_runbook
+  end
+end

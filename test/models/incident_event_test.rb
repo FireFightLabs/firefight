@@ -161,7 +161,8 @@ class IncidentEventTest < ActiveSupport::TestCase
       "relationship.created", "incident.marked_duplicate", "incident.merged_into",
       "message.pinned", "message.unpinned", "message.file_shared",
       "incident.escalation_acknowledged", "incident.escalation_nudged",
-      "alert.attached", "alert.resolved"
+      "alert.attached", "alert.resolved",
+      "runbook.attached", "runbook.applied"
     ]
     assert_equal expected_types.sort, IncidentEvent::EVENT_TYPES.sort
   end

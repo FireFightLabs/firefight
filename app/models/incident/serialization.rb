@@ -21,7 +21,24 @@ module Incident::Serialization
       **to_context_hash,
       timeline_events: incident_events.chronological.includes(:actor).map(&:to_context_hash),
       actions: incident_actions.active.map(&:to_context_hash),
-      shoutouts: shoutouts.map(&:to_context_hash)
+      shoutouts: shoutouts.map(&:to_context_hash),
+      runbooks: runbooks_context
     }
+  end
+
+  private
+
+  def runbooks_context
+    incident_runbooks.includes(runbook: :runbook_steps).order(:created_at).filter_map do |incident_runbook|
+      runbook = incident_runbook.runbook
+      next unless runbook.deleted_at.nil?
+
+      {
+        name: runbook.name,
+        summary: runbook.summary,
+        external_url: runbook.external_url,
+        steps: runbook.runbook_steps.map { |step| { title: step.title, instruction: step.instruction } }
+      }
+    end
   end
 end

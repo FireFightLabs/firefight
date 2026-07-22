@@ -1,6 +1,6 @@
 # MCP Server
 
-Firefight ships a read-only [Model Context Protocol](https://modelcontextprotocol.io) server at `POST /mcp`, so any MCP client — Claude Code, Cursor, or your own agents — can query incidents, alerts, the service catalog, and dry-run alert routing.
+Firefight ships a read-only [Model Context Protocol](https://modelcontextprotocol.io) server at `POST /mcp`, so any MCP client — Claude Code, Cursor, or your own agents — can query incidents, alerts, the service catalog, runbooks, and dry-run alert routing.
 
 ## Connecting
 
@@ -48,6 +48,8 @@ Any other client: Streamable HTTP transport with either OAuth (discovery via `/.
 | `search_alerts` | "What's firing and how did it route?" — source, routing state, matched rule, incident link |
 | `search_catalog` | "Who owns checkout?" — entries, attributes, relationships |
 | `evaluate_routing` | "If this alert arrived, what would happen?" — matched rule, outcome, per-condition trace |
+| `search_runbooks` | "Is there a runbook for this?" — incident response procedures by name/summary |
+| `get_runbook` | "Walk me through the DB failover runbook" — full content and ordered steps |
 
 Results are workspace-scoped to the token, capped at 50 items with explicit `truncated` markers, and returned as structured JSON.
 
@@ -55,4 +57,4 @@ Results are workspace-scoped to the token, capped at 50 items with explicit `tru
 
 `McpController` (entry point: Bearer auth → `Current.principal`, API rate limit, stateless `handle_json` dispatch — no sessions/SSE, multi-worker safe) → `Mcp::ToolDispatcher` (per-tool resource permission check, telemetry — the single seam the future Ability Gateway wraps) → tool classes in `app/mcp/` (workspace-scoped reads + formatting only; no business logic, no writes, no adapter calls; tool names from `Mcp::Tools` constants).
 
-Personal tokens pass all tools; service keys need `<resource>:read` per tool (`search_incidents`/`get_incident` → `incidents`, `search_alerts` → `alerts`, `search_catalog` → `catalog`, `evaluate_routing` → `policies`).
+Personal tokens pass all tools; service keys need `<resource>:read` per tool (`search_incidents`/`get_incident` → `incidents`, `search_alerts` → `alerts`, `search_catalog` → `catalog`, `evaluate_routing` → `policies`, `search_runbooks`/`get_runbook` → `runbooks`).

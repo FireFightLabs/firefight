@@ -1,6 +1,7 @@
 import {
   IconAlertTriangle,
   IconBell,
+  IconBook,
   IconBook2,
   IconCategory,
   IconChecklist,
@@ -40,6 +41,7 @@ import {
   settingsMembersPath,
   settingsAlertsPath,
   settingsRolesPath,
+  settingsRunbooksPath,
   settingsSeveritiesPath,
   settingsStatusesPath,
   settingsTypesPath,
@@ -62,6 +64,7 @@ const navSections = [
       { title: "Types", url: settingsTypesPath(), icon: IconCategory },
       { title: "Forms", url: settingsFormsPath(), icon: IconChecklist },
       { title: "Custom Fields", url: settingsCustomFieldsPath(), icon: IconForms },
+      { title: "Runbooks", url: settingsRunbooksPath(), icon: IconBook },
       { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
       { title: "Alert Sources", url: settingsAlertSourcesPath(), icon: IconBellRinging },
       { title: "Integrations", url: "#", icon: IconPlug },

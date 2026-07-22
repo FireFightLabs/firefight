@@ -8,6 +8,8 @@ export const subscribableEvents = [
   { value: "action.created", label: "Action created" },
   { value: "action.picked_up", label: "Action picked up" },
   { value: "action.completed", label: "Action completed" },
+  { value: "runbook.attached", label: "Runbook attached" },
+  { value: "runbook.applied", label: "Runbook applied" },
   { value: "postmortem.generated", label: "Postmortem generated" },
   { value: "relationship.created", label: "Relationship created" },
   { value: "incident.marked_duplicate", label: "Incident marked duplicate" },

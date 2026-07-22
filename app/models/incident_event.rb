@@ -21,6 +21,8 @@ class IncidentEvent < ApplicationRecord
   ESCALATION_NUDGED = "incident.escalation_nudged"
   ALERT_ATTACHED = "alert.attached"
   ALERT_RESOLVED = "alert.resolved"
+  RUNBOOK_ATTACHED = "runbook.attached"
+  RUNBOOK_APPLIED = "runbook.applied"
 
   EVENT_TYPES = [
     INCIDENT_CREATED, INCIDENT_UPDATED, INCIDENT_ACCEPTED, LEAD_ASSIGNED,
@@ -29,7 +31,8 @@ class IncidentEvent < ApplicationRecord
     RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
     MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED,
     ESCALATION_ACKNOWLEDGED, ESCALATION_NUDGED,
-    ALERT_ATTACHED, ALERT_RESOLVED
+    ALERT_ATTACHED, ALERT_RESOLVED,
+    RUNBOOK_ATTACHED, RUNBOOK_APPLIED
   ].freeze
 
   EVENT_DESCRIPTIONS = {
@@ -54,7 +57,9 @@ class IncidentEvent < ApplicationRecord
     ESCALATION_ACKNOWLEDGED => "acknowledged the escalation",
     ESCALATION_NUDGED => "sent an escalation reminder",
     ALERT_ATTACHED => "attached an alert",
-    ALERT_RESOLVED => "marked an alert resolved"
+    ALERT_RESOLVED => "marked an alert resolved",
+    RUNBOOK_ATTACHED => "attached a runbook",
+    RUNBOOK_APPLIED => "added runbook steps as actions"
   }.freeze
 
   # Only events backed by a Recordable snapshot appear here. Action-only events
