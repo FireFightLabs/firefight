@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_21_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_22_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -277,7 +277,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_120000) do
     t.jsonb "values", default: [], null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "incident_field_definition_id"
     t.index ["conditionable_type", "conditionable_id"], name: "index_incident_conditions_on_conditionable"
+    t.index ["incident_field_definition_id"], name: "index_incident_conditions_on_incident_field_definition_id"
     t.index ["workspace_id"], name: "index_incident_conditions_on_workspace_id"
   end
 
@@ -1081,6 +1083,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_120000) do
   add_foreign_key "incident_actions", "incidents"
   add_foreign_key "incident_actions", "workspace_memberships", column: "assignee_id"
   add_foreign_key "incident_actions", "workspace_memberships", column: "created_by_id"
+  add_foreign_key "incident_conditions", "incident_field_definitions"
   add_foreign_key "incident_conditions", "workspaces"
   add_foreign_key "incident_events", "incidents"
   add_foreign_key "incident_field_definitions", "workspaces"

@@ -3,4 +3,5 @@ export default interface IncidentConditionSettings {
   conditionField: string
   operator: string
   values: string[]
+  incidentFieldDefinitionId?: string | null
 }

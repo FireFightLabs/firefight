@@ -130,6 +130,69 @@ class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
     assert_not IncidentConditionEvaluator.match?([ condition ], { severity: "minor" })
   end
 
+  # ============================================================================
+  # CUSTOM FIELD CONDITIONS
+  # ============================================================================
+
+  test "custom_field one_of matches scalar value present in target list" do
+    defn = incident_field_definitions(:customer_tier_ws1)
+    condition = build_custom_field_condition(defn, IncidentCondition::OPERATOR_ONE_OF, [ "Enterprise", "Pro" ])
+
+    assert IncidentConditionEvaluator.match?([ condition ], { custom_fields: { "customer_tier" => "Enterprise" } })
+    assert_not IncidentConditionEvaluator.match?([ condition ], { custom_fields: { "customer_tier" => "Free" } })
+  end
+
+  test "custom_field not_one_of matches scalar value absent from target list" do
+    defn = incident_field_definitions(:customer_tier_ws1)
+    condition = build_custom_field_condition(defn, IncidentCondition::OPERATOR_NOT_ONE_OF, [ "Enterprise" ])
+
+    assert IncidentConditionEvaluator.match?([ condition ], { custom_fields: { "customer_tier" => "Free" } })
+    assert_not IncidentConditionEvaluator.match?([ condition ], { custom_fields: { "customer_tier" => "Enterprise" } })
+  end
+
+  test "custom_field one_of matches array actual when intersection is non-empty" do
+    defn = incident_field_definitions(:affected_services_ws1)
+    condition = build_custom_field_condition(defn, IncidentCondition::OPERATOR_ONE_OF, [ "svc-a", "svc-b" ])
+
+    assert IncidentConditionEvaluator.match?([ condition ], { custom_fields: { "affected_services" => [ "svc-b", "svc-c" ] } })
+    assert_not IncidentConditionEvaluator.match?([ condition ], { custom_fields: { "affected_services" => [ "svc-x" ] } })
+  end
+
+  test "custom_field not_one_of matches array actual when intersection is empty" do
+    defn = incident_field_definitions(:affected_services_ws1)
+    condition = build_custom_field_condition(defn, IncidentCondition::OPERATOR_NOT_ONE_OF, [ "svc-a" ])
+
+    assert IncidentConditionEvaluator.match?([ condition ], { custom_fields: { "affected_services" => [ "svc-b" ] } })
+    assert_not IncidentConditionEvaluator.match?([ condition ], { custom_fields: { "affected_services" => [ "svc-a", "svc-b" ] } })
+  end
+
+  test "custom_field one_of does not match when actual value is missing" do
+    defn = incident_field_definitions(:customer_tier_ws1)
+    condition = build_custom_field_condition(defn, IncidentCondition::OPERATOR_ONE_OF, [ "Enterprise" ])
+
+    assert_not IncidentConditionEvaluator.match?([ condition ], { custom_fields: {} })
+    assert_not IncidentConditionEvaluator.match?([ condition ], {})
+  end
+
+  test "custom_field not_one_of matches when actual value is missing" do
+    defn = incident_field_definitions(:customer_tier_ws1)
+    condition = build_custom_field_condition(defn, IncidentCondition::OPERATOR_NOT_ONE_OF, [ "Enterprise" ])
+
+    assert IncidentConditionEvaluator.match?([ condition ], { custom_fields: {} })
+    assert IncidentConditionEvaluator.match?([ condition ], {})
+  end
+
+  test "backward compatible with contexts that omit custom_fields" do
+    type_condition = build_condition(
+      IncidentCondition::FIELD_INCIDENT_TYPE,
+      IncidentCondition::OPERATOR_ONE_OF,
+      [ "production" ]
+    )
+
+    assert IncidentConditionEvaluator.match?([ type_condition ], { incident_type: "production" })
+    assert_not IncidentConditionEvaluator.match?([ type_condition ], { incident_type: "staging" })
+  end
+
   private
 
   def build_condition(field, operator, values)
@@ -137,6 +200,17 @@ class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
       workspace: @workspace,
       conditionable: @form_field,
       condition_field: field,
+      operator: operator,
+      values: values
+    )
+  end
+
+  def build_custom_field_condition(definition, operator, values)
+    IncidentCondition.new(
+      workspace: @workspace,
+      conditionable: @form_field,
+      condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+      incident_field_definition: definition,
       operator: operator,
       values: values
     )

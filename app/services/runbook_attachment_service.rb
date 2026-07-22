@@ -4,10 +4,7 @@ class RunbookAttachmentService
   end
 
   def auto_attach(incident)
-    context = {
-      incident_type: incident.incident_type_id,
-      severity: incident.incident_severity_id
-    }.compact
+    context = IncidentConditionEvaluator.context_for(incident)
 
     Runbook.matching(@workspace, context).each do |runbook|
       attach(incident: incident, runbook: runbook)

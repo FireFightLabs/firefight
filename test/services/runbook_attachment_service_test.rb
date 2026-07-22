@@ -2,7 +2,8 @@ require "test_helper"
 
 class RunbookAttachmentServiceTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_types,
-           :incident_lifecycle_stages, :incident_statuses
+           :incident_lifecycle_stages, :incident_statuses, :incident_field_definitions,
+           :catalog_types, :catalog_entries
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -61,6 +62,45 @@ class RunbookAttachmentServiceTest < ActiveSupport::TestCase
     incident_runbook = @incident.incident_runbooks.find_by!(runbook: @runbook)
     assert_equal "1234567890.123456", incident_runbook.message_ts
     assert @incident.incident_events.exists?(event_type: IncidentEvent::RUNBOOK_ATTACHED)
+  end
+
+  test "auto_attach attaches runbook whose catalog_reference condition matches the incident custom field" do
+    service_type = catalog_types(:service_ws1)
+    entry = catalog_entries(:auth_service)
+    definition = @workspace.incident_field_definitions.create!(
+      key: "primary_service",
+      name: "Primary Service",
+      field_type: IncidentFieldDefinition::TYPE_CATALOG_REFERENCE,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_CATALOG,
+      config: { "catalog_type_id" => service_type.id },
+      position: 10
+    )
+    @runbook.incident_conditions.create!(
+      workspace: @workspace,
+      condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+      incident_field_definition: definition,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ entry.id ]
+    )
+    stub_post_message
+
+    @incident.update!(custom_fields: { "primary_service" => entry.id })
+    @service.auto_attach(@incident)
+    assert_includes @incident.incident_runbooks.reload.map(&:runbook), @runbook
+
+    other_incident = Incident.create!(
+      workspace: @workspace,
+      declared_by: @member,
+      incident_status: @status,
+      incident_severity: @severity,
+      name: "Non-matching incident",
+      is_private: false,
+      channel_id: "C_OTHER",
+      source: Incident::SOURCE_SLACK,
+      custom_fields: { "primary_service" => catalog_entries(:platform_team).id }
+    )
+    @service.auto_attach(other_incident)
+    assert_not_includes other_incident.incident_runbooks.reload.map(&:runbook), @runbook
   end
 
   test "attach is idempotent" do

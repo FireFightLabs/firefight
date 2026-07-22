@@ -5,10 +5,12 @@ import type { Errors } from "@inertiajs/core"
 import type {
   IncidentSeveritySettings,
   IncidentTypeSettings,
+  RunbookCustomField,
   RunbookSettings,
 } from "@/types/serializers"
 import { runbookPath, runbooksPath } from "@/lib/routes"
 import {
+  CONDITION_FIELD_CUSTOM_FIELD,
   CONDITION_FIELD_INCIDENT_TYPE,
   CONDITION_FIELD_SEVERITY,
   OPERATOR_ONE_OF,
@@ -33,6 +35,7 @@ import {
 import {
   RunbookConditionsEditor,
   type ConditionSectionState,
+  type CustomFieldConditionState,
 } from "@/pages/settings/components/runbooks/runbook-conditions-editor"
 
 interface RunbookDialogProps {
@@ -41,6 +44,7 @@ interface RunbookDialogProps {
   runbook?: RunbookSettings | null
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
+  customFields: RunbookCustomField[]
 }
 
 interface EditModel {
@@ -51,6 +55,7 @@ interface EditModel {
   steps: EditableStep[]
   typeState: ConditionSectionState
   severityState: ConditionSectionState
+  customFieldStates: CustomFieldConditionState[]
 }
 
 function sectionState(runbook: RunbookSettings | null | undefined, field: string): ConditionSectionState {
@@ -59,6 +64,17 @@ function sectionState(runbook: RunbookSettings | null | undefined, field: string
     operator: condition?.operator ?? OPERATOR_ONE_OF,
     selectedIds: condition?.values ?? [],
   }
+}
+
+function customFieldStates(runbook: RunbookSettings | null | undefined): CustomFieldConditionState[] {
+  return (runbook?.conditions ?? [])
+    .filter((c) => c.conditionField === CONDITION_FIELD_CUSTOM_FIELD && c.incidentFieldDefinitionId)
+    .map((c) => ({
+      key: crypto.randomUUID(),
+      fieldDefinitionId: c.incidentFieldDefinitionId as string,
+      operator: c.operator,
+      selectedIds: c.values,
+    }))
 }
 
 function initModel(runbook: RunbookSettings | null | undefined): EditModel {
@@ -74,10 +90,11 @@ function initModel(runbook: RunbookSettings | null | undefined): EditModel {
     })),
     typeState: sectionState(runbook, CONDITION_FIELD_INCIDENT_TYPE),
     severityState: sectionState(runbook, CONDITION_FIELD_SEVERITY),
+    customFieldStates: customFieldStates(runbook),
   }
 }
 
-export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, severities }: RunbookDialogProps) {
+export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, severities, customFields }: RunbookDialogProps) {
   const isEdit = Boolean(runbook)
   const [model, setModel] = useState<EditModel>(() => initModel(runbook))
   const [errors, setErrors] = useState<Errors>({})
@@ -112,6 +129,15 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
         condition_field: CONDITION_FIELD_SEVERITY,
         operator: model.severityState.operator,
         values: model.severityState.selectedIds,
+      })
+    }
+    for (const state of model.customFieldStates) {
+      if (state.selectedIds.length === 0) continue
+      conditions.push({
+        condition_field: CONDITION_FIELD_CUSTOM_FIELD,
+        operator: state.operator,
+        values: state.selectedIds,
+        incident_field_definition_id: state.fieldDefinitionId,
       })
     }
 
@@ -201,10 +227,13 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
             <RunbookConditionsEditor
               typeState={model.typeState}
               severityState={model.severityState}
+              customFieldStates={model.customFieldStates}
               incidentTypes={incidentTypes}
               severities={severities}
+              customFields={customFields}
               onTypeChange={(typeState) => patch({ typeState })}
               onSeverityChange={(severityState) => patch({ severityState })}
+              onCustomFieldStatesChange={(customFieldStates) => patch({ customFieldStates })}
             />
           </div>
 
