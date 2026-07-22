@@ -119,7 +119,7 @@ export function RunbookConditionsEditor({
               Add custom field condition
             </span>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper">
             {customFields.map((f) => (
               <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
             ))}
