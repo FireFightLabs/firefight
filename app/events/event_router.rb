@@ -23,7 +23,9 @@ class EventRouter
     IncidentEvent::ESCALATION_ACKNOWLEDGED => [],
     IncidentEvent::ESCALATION_NUDGED => [],
     IncidentEvent::ALERT_ATTACHED => [],
-    IncidentEvent::ALERT_RESOLVED => []
+    IncidentEvent::ALERT_RESOLVED => [],
+    IncidentEvent::RUNBOOK_ATTACHED => WEBHOOK_SUBSCRIBER,
+    IncidentEvent::RUNBOOK_APPLIED => WEBHOOK_SUBSCRIBER
   }.freeze
 
   def self.route(event)

@@ -35,6 +35,20 @@ class SettingsController < InertiaController
     }
   end
 
+  def runbooks
+    render inertia: "settings/runbooks", props: {
+      runbooks: RunbookSettingsSerializer.many(
+        current_workspace.runbooks.active.ordered.includes(:runbook_steps, :incident_conditions)
+      ),
+      incidentTypes: IncidentTypeSettingsSerializer.many(
+        current_workspace.incident_types.active.ordered
+      ),
+      severities: IncidentSeveritySettingsSerializer.many(
+        current_workspace.incident_severities.ordered
+      )
+    }
+  end
+
   def members
     render inertia: "settings/members", props: {
       members: WorkspaceMembershipSerializer.many(

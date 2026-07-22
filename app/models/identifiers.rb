@@ -84,6 +84,7 @@ module Identifiers
   SHOUTOUT_FROM_REACTION = "shoutout_from_reaction"
   INCIDENT_CREATION_SEVERITY_SELECT = "incident_creation_severity_select"
   INCIDENT_CREATION_TYPE_SELECT = "incident_creation_type_select"
+  APPLY_RUNBOOK = "apply_runbook"
 
   # Slack event types (top-level Events API)
   EVENT_REACTION_ADDED  = "reaction_added"

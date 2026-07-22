@@ -22,6 +22,8 @@ class Workspace < ApplicationRecord
   has_many :policies, dependent: :destroy
   has_many :alert_sources, dependent: :destroy
   has_many :alerts, dependent: :destroy
+  has_many :runbooks, dependent: :destroy
+  has_many :incident_runbooks, dependent: :destroy
 
   encrypts :access_token, :refresh_token, deterministic: false
 

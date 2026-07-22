@@ -28,8 +28,24 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     workflow = IncidentCreationWorkflow.start_inline!(@incident)
 
     assert_equal "succeeded", workflow.state
-    assert_equal 7, workflow.steps.count
+    assert_equal 8, workflow.steps.count
     assert workflow.steps.all? { |s| s.succeeded? || s.skipped? }
+  end
+
+  test "attach_runbooks auto-attaches matching runbooks on incident creation" do
+    stub_successful_slack_workflow
+    runbook = @workspace.runbooks.create!(name: "Auto attach me")
+    runbook.incident_conditions.create!(
+      workspace: @workspace,
+      condition_field: IncidentCondition::FIELD_SEVERITY,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ @severity.id ]
+    )
+
+    workflow = IncidentCreationWorkflow.start_inline!(@incident)
+
+    assert workflow.steps.find_by!(name: "attach_runbooks").succeeded?
+    assert @incident.incident_runbooks.exists?(runbook: runbook)
   end
 
   test "invite_responders invites resolved members and no-ops without context" do

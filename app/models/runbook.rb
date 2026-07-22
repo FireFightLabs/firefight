@@ -1,0 +1,64 @@
+class Runbook < ApplicationRecord
+  belongs_to :workspace
+
+  has_many :runbook_steps, -> { order(:position) }, dependent: :destroy
+  has_many :incident_conditions, as: :conditionable, dependent: :destroy
+  has_many :incident_runbooks, dependent: :destroy
+
+  validates :name, presence: true
+  validates :slug, presence: true, uniqueness: { scope: :workspace_id, conditions: -> { where(deleted_at: nil) } }
+  validates :position, presence: true
+
+  before_validation :assign_slug, on: :create
+  before_validation :assign_position, on: :create
+
+  scope :active, -> { where(deleted_at: nil) }
+  scope :ordered, -> { order(:position) }
+
+  def self.generate_slug(name)
+    name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
+  end
+
+  def self.matching(workspace, context)
+    workspace.runbooks.active.ordered.includes(:incident_conditions).select do |runbook|
+      IncidentConditionEvaluator.match?(runbook.incident_conditions, context)
+    end
+  end
+
+  def sync_steps!(steps_params)
+    transaction do
+      runbook_steps.destroy_all
+      steps_params.each_with_index do |sp, index|
+        runbook_steps.create!(
+          title: sp[:title],
+          instruction: sp[:instruction],
+          position: index + 1
+        )
+      end
+    end
+  end
+
+  def sync_conditions!(conditions_params)
+    transaction do
+      incident_conditions.destroy_all
+      conditions_params.each do |cp|
+        incident_conditions.create!(
+          workspace: workspace,
+          condition_field: cp[:condition_field],
+          operator: cp[:operator],
+          values: cp[:values]
+        )
+      end
+    end
+  end
+
+  private
+
+  def assign_slug
+    self.slug = self.class.generate_slug(name) if slug.blank?
+  end
+
+  def assign_position
+    self.position ||= workspace.runbooks.maximum(:position).to_i + 1
+  end
+end

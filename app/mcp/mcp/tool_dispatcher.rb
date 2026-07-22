@@ -8,7 +8,9 @@ module Mcp
       Tools::GET_INCIDENT => ApiKey::RESOURCE_INCIDENTS,
       Tools::SEARCH_ALERTS => ApiKey::RESOURCE_ALERTS,
       Tools::SEARCH_CATALOG => ApiKey::RESOURCE_CATALOG,
-      Tools::EVALUATE_ROUTING => ApiKey::RESOURCE_POLICIES
+      Tools::EVALUATE_ROUTING => ApiKey::RESOURCE_POLICIES,
+      Tools::SEARCH_RUNBOOKS => ApiKey::RESOURCE_RUNBOOKS,
+      Tools::GET_RUNBOOK => ApiKey::RESOURCE_RUNBOOKS
     }.freeze
 
     def self.call(tool:, server_context:, args:)

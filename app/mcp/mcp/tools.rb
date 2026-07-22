@@ -7,9 +7,12 @@ module Mcp
     SEARCH_ALERTS = "search_alerts".freeze
     SEARCH_CATALOG = "search_catalog".freeze
     EVALUATE_ROUTING = "evaluate_routing".freeze
+    SEARCH_RUNBOOKS = "search_runbooks".freeze
+    GET_RUNBOOK = "get_runbook".freeze
 
     def self.all
-      [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting ]
+      [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
+        SearchRunbooks, GetRunbook ]
     end
   end
 end

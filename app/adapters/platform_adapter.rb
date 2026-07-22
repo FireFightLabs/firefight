@@ -113,6 +113,16 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # @return [Hash] { message_id: ... }
+  def post_runbook_message(channel_id:, incident_runbook:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { success: true }
+  def update_runbook_applied(channel_id:, message_id:, incident_runbook:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # --- Modals / forms -----------------------------------------------------
 
   # @param view [Hash] Opaque platform-specific view descriptor.
