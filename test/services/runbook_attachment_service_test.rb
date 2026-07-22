@@ -142,4 +142,33 @@ class RunbookAttachmentServiceTest < ActiveSupport::TestCase
       @service.apply(incident_runbook: incident_runbook, applied_by: @member)
     end
   end
+
+  test "attach does not raise when the same runbook is inserted concurrently" do
+    stub_post_message
+    existing = @incident.incident_runbooks.create!(runbook: @runbook, workspace: @workspace)
+    # Stand in for the row landing between the existence check and the insert.
+    @incident.incident_runbooks.stubs(:find_by).returns(nil)
+
+    result = @service.attach(incident: @incident, runbook: @runbook, attached_by: @member)
+
+    assert_equal existing.id, result.id
+    assert_equal 1, IncidentRunbook.where(incident: @incident, runbook: @runbook).count
+    assert_equal 0, @incident.incident_events.where(event_type: IncidentEvent::RUNBOOK_ATTACHED).count
+  end
+
+  test "apply creates one set of actions when two workers race on the same attachment" do
+    stub_post_message
+    incident_runbook = @service.attach(incident: @incident, runbook: @runbook)
+    stub_update_message
+
+    first_worker = IncidentRunbook.find(incident_runbook.id)
+    second_worker = IncidentRunbook.find(incident_runbook.id)
+
+    assert_difference "@incident.incident_actions.count", 2 do
+      @service.apply(incident_runbook: first_worker, applied_by: @member)
+      @service.apply(incident_runbook: second_worker, applied_by: @member)
+    end
+
+    assert_equal 1, @incident.incident_events.where(event_type: IncidentEvent::RUNBOOK_APPLIED).count
+  end
 end

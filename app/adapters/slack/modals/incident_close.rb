@@ -5,10 +5,7 @@ module Slack
         workspace = incident.workspace
         metadata = private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id)
 
-        context = {
-          incident_type: incident.incident_type_id,
-          severity: incident.incident_severity_id
-        }.compact
+        context = IncidentConditionEvaluator.context_for(incident)
         visible_fields = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_RESOLVE, context: context)
 
         blocks = visible_fields.filter_map do |form_field|
