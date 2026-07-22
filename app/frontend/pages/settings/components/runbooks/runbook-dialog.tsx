@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { RunbookContentEditor } from "@/pages/settings/components/runbooks/runbook-content-editor"
 import {
   RunbookStepsEditor,
   type EditableStep,
@@ -201,14 +201,11 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="runbook-content">Content (Markdown)</Label>
-              <Textarea
-                id="runbook-content"
-                rows={6}
-                className="font-mono text-xs"
+              <Label htmlFor="runbook-content">Content</Label>
+              <RunbookContentEditor
                 value={model.content}
-                onChange={(e) => patch({ content: e.target.value })}
-                placeholder="Detailed procedure in Markdown"
+                onChange={(content) => patch({ content })}
+                placeholder="Detailed procedure for this runbook"
               />
             </div>
 
