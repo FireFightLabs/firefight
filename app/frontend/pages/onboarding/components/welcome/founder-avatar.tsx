@@ -1,5 +1,7 @@
 import { useState } from "react"
 
+import avatarUrl from "@/assets/uros-nikolic.jpg"
+
 export function FounderAvatar() {
   const [errored, setErrored] = useState(false)
 
@@ -13,7 +15,7 @@ export function FounderAvatar() {
 
   return (
     <img
-      src="https://i.pravatar.cc/96?img=12"
+      src={avatarUrl}
       alt="Uros Nikolic"
       onError={() => setErrored(true)}
       className="size-11 shrink-0 rounded-full object-cover ring-1 ring-border"

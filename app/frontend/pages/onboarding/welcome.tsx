@@ -66,7 +66,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
                 Uros Nikolic
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Founder, Firefight
+                Co-Founder, Firefight
               </p>
             </div>
           </div>
