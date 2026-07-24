@@ -23,12 +23,8 @@ module Slack
       end
 
       def self.resolve_visible_fields(workspace, selected_severity_slug:, selected_type_id:)
-        context = {}
-        context[:incident_type] = selected_type_id if selected_type_id
-        if selected_severity_slug
-          severity_id = workspace.incident_severities.where(slug: selected_severity_slug).pick(:id)
-          context[:severity] = severity_id if severity_id
-        end
+        severity_id = workspace.incident_severities.where(slug: selected_severity_slug).pick(:id) if selected_severity_slug
+        context = IncidentConditionEvaluator.context(incident_type: selected_type_id, severity: severity_id)
 
         IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_DECLARE, context: context)
       end

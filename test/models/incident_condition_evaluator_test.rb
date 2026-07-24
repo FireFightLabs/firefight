@@ -1,7 +1,8 @@
 require "test_helper"
 
 class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_forms, :incident_form_fields, :incident_field_definitions
+  fixtures :workspaces, :incident_forms, :incident_form_fields, :incident_field_definitions,
+           :incident_types, :incident_severities
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -213,6 +214,27 @@ class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
       incident_field_definition: definition,
       operator: operator,
       values: values
+    )
+  end
+
+  test "context drops blank values and keeps the shape callers evaluate against" do
+    context = IncidentConditionEvaluator.context(incident_type: nil, severity: "sev-1", custom_fields: {})
+
+    assert_equal({ severity: "sev-1" }, context)
+  end
+
+  test "context_for exposes custom fields so conditions mean the same thing everywhere" do
+    type = incident_types(:service_outage_ws1)
+    severity = incident_severities(:critical_ws1)
+    incident = Incident.new(
+      incident_type: type,
+      incident_severity: severity,
+      custom_fields: { "primary_service" => "svc-1" }
+    )
+
+    assert_equal(
+      { incident_type: type.id, severity: severity.id, custom_fields: { "primary_service" => "svc-1" } },
+      IncidentConditionEvaluator.context_for(incident)
     )
   end
 end

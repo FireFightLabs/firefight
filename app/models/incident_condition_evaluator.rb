@@ -1,10 +1,21 @@
 class IncidentConditionEvaluator
-  def self.context_for(incident)
+  # The one place the shape of a condition context is defined. Every caller
+  # builds through here so a condition means the same thing wherever it is
+  # evaluated.
+  def self.context(incident_type: nil, severity: nil, custom_fields: nil)
     {
+      incident_type: incident_type,
+      severity: severity,
+      custom_fields: custom_fields.presence&.dup
+    }.compact
+  end
+
+  def self.context_for(incident)
+    context(
       incident_type: incident.incident_type_id,
       severity: incident.incident_severity_id,
-      custom_fields: incident.custom_fields.dup
-    }.compact
+      custom_fields: incident.custom_fields
+    )
   end
 
   def self.match?(conditions, context)

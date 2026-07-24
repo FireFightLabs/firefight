@@ -61,4 +61,14 @@ class RunbookTest < ActiveSupport::TestCase
   test "matching excludes soft-deleted runbooks" do
     assert_not_includes Runbook.matching(@workspace, {}), @deleted_runbook
   end
+
+  test "slug is reusable after the previous runbook is deleted" do
+    first = @workspace.runbooks.create!(name: "Cache eviction storm")
+    first.update!(deleted_at: Time.current)
+
+    second = @workspace.runbooks.create!(name: "Cache eviction storm")
+
+    assert_equal first.slug, second.slug
+    assert_equal 1, @workspace.runbooks.active.where(slug: second.slug).count
+  end
 end

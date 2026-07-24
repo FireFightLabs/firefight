@@ -51,11 +51,15 @@ module Slack
 
     private
 
+    # Custom field values come from the incident rather than the submission:
+    # this context decides which fields are visible, so it has to be built
+    # before the submitted values are parsed.
     def build_condition_context
-      {
+      IncidentConditionEvaluator.context(
         incident_type: resolved_id(:incident_types, IncidentSystemField::KEY_INCIDENT_TYPE, :incident_type_id),
-        severity: resolved_id(:incident_severities, IncidentSystemField::KEY_SEVERITY, :incident_severity_id)
-      }.compact
+        severity: resolved_id(:incident_severities, IncidentSystemField::KEY_SEVERITY, :incident_severity_id),
+        custom_fields: @incident&.custom_fields
+      )
     end
 
     def resolved_id(association, system_key, incident_attr)

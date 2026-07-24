@@ -15,11 +15,14 @@ class RunbookAttachmentService
     existing = incident.incident_runbooks.find_by(runbook: runbook)
     return existing if existing
 
-    incident_runbook = incident.incident_runbooks.create!(
-      runbook: runbook,
-      workspace: @workspace,
-      attached_by: attached_by
-    )
+    # Creation and update workflows can both evaluate the same incident
+    # concurrently; the loser of the unique-index race takes the found row and
+    # leaves the announcement to the winner.
+    incident_runbook = incident.incident_runbooks.create_or_find_by!(runbook: runbook) do |record|
+      record.workspace = @workspace
+      record.attached_by = attached_by
+    end
+    return incident_runbook unless incident_runbook.previously_new_record?
 
     incident.incident_events.create!(
       event_type: IncidentEvent::RUNBOOK_ATTACHED,
@@ -37,7 +40,7 @@ class RunbookAttachmentService
   end
 
   def apply(incident_runbook:, applied_by:)
-    return if incident_runbook.applied?
+    return unless claim(incident_runbook, applied_by)
 
     incident = incident_runbook.incident
     runbook = incident_runbook.runbook
@@ -51,8 +54,6 @@ class RunbookAttachmentService
         description: step_description(step)
       )
     end
-
-    incident_runbook.update!(applied_at: Time.current, applied_by: applied_by)
 
     incident.incident_events.create!(
       event_type: IncidentEvent::RUNBOOK_APPLIED,
@@ -70,6 +71,19 @@ class RunbookAttachmentService
   end
 
   private
+
+  # Marks the attachment applied before any action is created, so a double
+  # click or a redelivered interaction cannot fan out a second set of actions.
+  def claim(incident_runbook, applied_by)
+    claimed = IncidentRunbook.where(id: incident_runbook.id, applied_at: nil).update_all(
+      applied_at: Time.current,
+      applied_by_id: applied_by&.id,
+      updated_at: Time.current
+    ) == 1
+
+    incident_runbook.reload if claimed
+    claimed
+  end
 
   def step_description(step)
     if step.instruction.present?
