@@ -53,6 +53,8 @@ Any other client: Streamable HTTP transport with either OAuth (discovery via `/.
 
 Results are workspace-scoped to the token, capped at 50 items with explicit `truncated` markers, and returned as structured JSON.
 
+The server is self-describing for agents: server instructions, tool descriptions, and guidance-worthy responses (permission errors, no routing policy, unmatched dry runs) link to the relevant public docs page via `Mcp::Docs` constants — each page is fetchable as raw markdown (`https://firefight.app/docs/**/*.md`, index at `/llms.txt`).
+
 ## Architecture
 
 `McpController` (entry point: Bearer auth → `Current.principal`, API rate limit, stateless `handle_json` dispatch — no sessions/SSE, multi-worker safe) → `Mcp::ToolDispatcher` (per-tool resource permission check, telemetry — the single seam the future Ability Gateway wraps) → tool classes in `app/mcp/` (workspace-scoped reads + formatting only; no business logic, no writes, no adapter calls; tool names from `Mcp::Tools` constants).

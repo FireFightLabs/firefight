@@ -4,7 +4,8 @@ module Mcp
       tool_name SEARCH_CATALOG
       description "Search the service catalog: services, teams and other entries with their " \
                   "attributes and relationships (e.g. which team owns a service, its Slack " \
-                  "channel). Use type=service or type=team plus a name query or exact slug."
+                  "channel). Use type=service or type=team plus a name query or exact slug. " \
+                  "Docs: #{Docs::CATALOG}"
       annotations(**READ_ONLY)
       input_schema(
         properties: {

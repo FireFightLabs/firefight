@@ -4,7 +4,8 @@ module Mcp
       tool_name SEARCH_RUNBOOKS
       description "Search this workspace's incident response runbooks: documented procedures " \
                   "for handling incidents (e.g. how to fail over a database, roll back a deploy). " \
-                  "Matches name and summary. Use get_runbook for the full step-by-step content."
+                  "Matches name and summary. Use get_runbook for the full step-by-step content. " \
+                  "Docs: #{Docs::RUNBOOKS}"
       annotations(**READ_ONLY)
       input_schema(
         properties: {

@@ -5,7 +5,8 @@ module Mcp
 
       tool_name GET_INCIDENT
       description "Fetch one incident in full by id or identifier (e.g. INC-42): details, " \
-                  "timeline events, postmortem status, and the alerts attached to it."
+                  "timeline events, postmortem status, and the alerts attached to it. " \
+                  "Docs: #{Docs::INCIDENTS}"
       annotations(**READ_ONLY)
       input_schema(
         properties: {
