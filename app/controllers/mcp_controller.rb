@@ -6,7 +6,8 @@ class McpController < ActionController::API
   SERVER_VERSION = "1.0.0".freeze
   INSTRUCTIONS = "Read-only access to a Firefight incident-management workspace: incidents, " \
                  "alerts, the service catalog, and alert-routing dry runs. All data is scoped " \
-                 "to the token's workspace.".freeze
+                 "to the token's workspace. Product docs: #{Mcp::Docs::BASE} — every page is " \
+                 "fetchable as raw markdown; index at #{Mcp::Docs::INDEX}.".freeze
 
   before_action :authenticate!, only: :create
   # Declared after authenticate! so the per-principal bucket is populated.

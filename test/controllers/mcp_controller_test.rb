@@ -125,6 +125,46 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert content["trace"].is_a?(Array)
   end
 
+  test "initialize advertises product docs and tool descriptions link to them" do
+    body = rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } })
+    assert_includes body.dig("result", "instructions"), Mcp::Docs::INDEX
+
+    body = rpc("tools/list")
+    body.dig("result", "tools").each do |tool|
+      assert_includes tool["description"], Mcp::Docs::BASE, "#{tool["name"]} description lacks a docs link"
+    end
+  end
+
+  test "evaluate_routing points at routing docs only when nothing matches" do
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: "service", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "checkout" ] } ],
+      outcome: { "action" => AlertIngestService::ACTION_AUTO_CREATE }
+    )
+
+    content, is_error = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "search" } })
+    assert_not is_error
+    assert_not content["matched"]
+    assert_equal Mcp::Docs::ROUTING_RULES, content["docs_url"]
+
+    content, _ = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+    assert content["matched"]
+    assert_nil content["docs_url"]
+  end
+
+  test "permission and missing-policy errors link to the relevant docs" do
+    _, alerts_token = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: @membership, name: "Alerts only",
+      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
+    )
+    body = rpc("tools/call", { name: Mcp::Tools::SEARCH_INCIDENTS, arguments: {} }, token: alerts_token)
+    assert_includes body.dig("result", "content").first["text"], Mcp::Docs::MCP_SERVER
+
+    body = rpc("tools/call", { name: Mcp::Tools::EVALUATE_ROUTING, arguments: { fields: { service: "x" } } })
+    assert_includes body.dig("result", "content").first["text"], Mcp::Docs::ROUTING_RULES
+  end
+
   test "service keys are scoped per tool resource" do
     _, alerts_token = ApiKey.create_with_token!(
       workspace: @workspace, created_by: @membership, name: "Alerts only",

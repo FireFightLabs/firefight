@@ -4,7 +4,7 @@ module Mcp
       tool_name SEARCH_ALERTS
       description "Search this workspace's ingested alerts: what fired, how each routed " \
                   "(routed/unmatched/pending/failed), which rule matched, and the incident it " \
-                  "attached to. Newest first."
+                  "attached to. Newest first. Docs: #{Docs::ALERTS}"
       annotations(**READ_ONLY)
       input_schema(
         properties: {

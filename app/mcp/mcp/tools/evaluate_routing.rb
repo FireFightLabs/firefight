@@ -6,7 +6,7 @@ module Mcp
                   "event, severity), returns which rule would match, the outcome (create " \
                   "incident / notify / drop), and a per-condition trace. Pure evaluation — " \
                   "nothing is created or sent. Pass source to test that source's routing; " \
-                  "omit it for the workspace default."
+                  "omit it for the workspace default. Docs: #{Docs::ROUTING_RULES}"
       annotations(**READ_ONLY)
       input_schema(
         properties: {
@@ -30,19 +30,24 @@ module Mcp
             workspace
           end
         policy = scope.effective_alert_routing_policy
-        return Mcp::ToolDispatcher.error_response("No enabled alert routing policy configured for this scope.") unless policy
+        unless policy
+          return Mcp::ToolDispatcher.error_response("No enabled alert routing policy configured for this scope. " \
+                                                    "Routing rules are documented at #{Docs::ROUTING_RULES}")
+        end
 
         fields = (args[:fields] || {}).transform_keys(&:to_s).transform_values(&:to_s)
         context = Policy::ContextBuilder.build(workspace: workspace, fields: fields)
         result = policy.evaluate(context)
 
-        respond(
+        payload = {
           matched: result.matched?,
           matched_rule_priority: result.matched_rule&.priority,
           outcome: enriched_outcome(workspace, result.outcome),
           context: context,
           trace: result.trace
-        )
+        }
+        payload[:docs_url] = Docs::ROUTING_RULES unless result.matched?
+        respond(payload)
       end
 
       # Outcome targets store bare IDs; resolve display names at read time so

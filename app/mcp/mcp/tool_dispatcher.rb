@@ -18,7 +18,8 @@ module Mcp
       resource = RESOURCE_BY_TOOL.fetch(tool_name)
 
       unless server_context[:principal].mcp_readable?(resource)
-        return error_response("This token lacks '#{resource}:#{ApiKey::ACTION_READ}' permission.")
+        return error_response("This token lacks '#{resource}:#{ApiKey::ACTION_READ}' permission. " \
+                              "Token scopes are documented at #{Docs::MCP_SERVER}")
       end
 
       OpenTelemetry::Trace.current_span.add_attributes({ "firefight.mcp.tool" => tool_name })
