@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_25_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_26_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -743,6 +743,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_190000) do
     t.index ["workspace_id"], name: "index_inferences_on_workspace_id"
   end
 
+  create_table "integration_environments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "integration_id", null: false
+    t.uuid "catalog_entry_id"
+    t.text "credentials"
+    t.jsonb "base_config", default: {}, null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "health_status", default: "unknown", null: false
+    t.datetime "health_checked_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["integration_id", "catalog_entry_id"], name: "index_integration_environments_on_env", unique: true, where: "(catalog_entry_id IS NOT NULL)"
+    t.index ["integration_id"], name: "index_integration_environments_global", unique: true, where: "(catalog_entry_id IS NULL)"
+  end
+
+  create_table "integration_tools", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "integration_id", null: false
+    t.string "name", null: false
+    t.string "description"
+    t.jsonb "params_schema", default: {}, null: false
+    t.jsonb "spec", default: {}, null: false
+    t.boolean "read_only", default: false, null: false
+    t.boolean "enabled", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["integration_id", "name"], name: "index_integration_tools_on_integration_id_and_name", unique: true
+  end
+
+  create_table "integrations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "kind", null: false
+    t.string "provider", null: false
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.jsonb "settings", default: {}, null: false
+    t.datetime "disabled_at"
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workspace_id", "slug"], name: "index_integrations_on_workspace_id_and_slug", unique: true
+  end
+
   create_table "invite_codes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "code_digest", null: false
     t.datetime "expires_at"
@@ -1252,6 +1293,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_190000) do
   add_foreign_key "inferences", "api_keys"
   add_foreign_key "inferences", "workspace_memberships", column: "member_id"
   add_foreign_key "inferences", "workspaces"
+  add_foreign_key "integration_environments", "catalog_entries"
+  add_foreign_key "integration_environments", "integrations"
+  add_foreign_key "integration_tools", "integrations"
+  add_foreign_key "integrations", "workspaces"
   add_foreign_key "invite_codes", "users", column: "redeemed_by_id"
   add_foreign_key "oauth_access_grants", "oauth_applications", column: "application_id"
   add_foreign_key "oauth_access_grants", "workspace_memberships", column: "resource_owner_id"

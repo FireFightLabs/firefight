@@ -23,6 +23,8 @@ module Ability
 
     belongs_to :workspace, optional: true
     belongs_to :source, polymorphic: true, optional: true
+    has_many :grants, class_name: "Ability::Grant", foreign_key: :action_id, dependent: :destroy,
+             inverse_of: :action
 
     validates :kind, inclusion: { in: KINDS }
     validates :risk_level, inclusion: { in: RISK_LEVELS }
