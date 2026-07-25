@@ -51,9 +51,15 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     tools = body.dig("result", "tools")
     assert_equal [ Mcp::Tools::EVALUATE_ROUTING, Mcp::Tools::GET_INCIDENT, Mcp::Tools::GET_RUNBOOK,
                    Mcp::Tools::SEARCH_ALERTS, Mcp::Tools::SEARCH_CATALOG, Mcp::Tools::SEARCH_INCIDENTS,
-                   Mcp::Tools::SEARCH_RUNBOOKS ].sort,
+                   Mcp::Tools::SEARCH_RUNBOOKS, Mcp::Tools::UPSERT_CATALOG_ENTRY,
+                   Mcp::Tools::DELETE_CATALOG_ENTRY, Mcp::Tools::UPSERT_ROUTING_RULE,
+                   Mcp::Tools::DELETE_ROUTING_RULE, Mcp::Tools::UPDATE_ROUTING_CONFIG,
+                   Mcp::Tools::UPSERT_RUNBOOK ].sort,
                  tools.map { |t| t["name"] }.sort
-    assert tools.all? { |t| t.dig("annotations", "readOnlyHint") }
+
+    read_tools, write_tools = tools.partition { |t| t["name"].start_with?("search", "get", "evaluate") }
+    assert read_tools.all? { |t| t.dig("annotations", "readOnlyHint") }
+    assert write_tools.all? { |t| t.dig("annotations", "readOnlyHint") == false }
   end
 
   test "search_incidents returns workspace incidents with filters and caps" do
@@ -177,6 +183,98 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     result, is_error = call_tool(Mcp::Tools::SEARCH_INCIDENTS, {}, token: alerts_token)
     assert is_error
     assert_empty result
+  end
+
+  test "admin personal tokens can write config: catalog upsert, routing rule, runbook" do
+    content, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
+                                  { type: "service", name: "Checkout", attributes: { description: "Payments front" } })
+    assert_not is_error
+    assert_equal "Checkout", content["name"]
+    entry = @workspace.catalog_entries.find_by!(slug: content["slug"])
+    assert_equal "Payments front", entry.attributes["description"]
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
+                                  { type: "service", slug: content["slug"], attributes: { description: "Owns checkout" } })
+    assert_not is_error
+    assert_equal "Owns checkout", entry.reload.attributes["description"]
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_ROUTING_RULE, {
+      conditions: [ { field: "service", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "checkout" ] } ],
+      outcome: { action: AlertIngestService::ACTION_AUTO_CREATE }
+    })
+    assert_not is_error
+    assert_equal 1, content["priority"]
+
+    evaluation, _ = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+    assert evaluation["matched"]
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "DB failover", summary: "Fail the database over",
+      steps: [ { title: "Check replica", instruction: "Confirm replica lag" } ],
+      conditions: [ { condition_field: IncidentCondition::FIELD_SEVERITY, operator: IncidentCondition::OPERATOR_ONE_OF,
+                      values: [ incident_severities(:critical_ws1).id ] } ]
+    })
+    assert_not is_error
+    runbook = @workspace.runbooks.find_by!(slug: content["slug"])
+    assert_equal 1, runbook.runbook_steps.count
+    assert_equal 1, runbook.incident_conditions.count
+
+    invocation = Ability::Invocation.find_by!(action_key: "runbooks.create")
+    assert_equal Ability::Invocation::OUTCOME_SUCCESS, invocation.outcome
+  end
+
+  test "member personal tokens cannot write config" do
+    bob = workspace_memberships(:bob_workspace_one)
+    _, bob_token = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: bob, on_behalf_of: bob, name: "Bob's token"
+    )
+
+    result, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
+                                 { type: "service", name: "Nope" }, token: bob_token)
+
+    assert is_error
+    assert_empty result
+  end
+
+  test "routing config and rule deletion round-trip" do
+    call_tool(Mcp::Tools::UPSERT_ROUTING_RULE, {
+      conditions: [], outcome: { action: AlertIngestService::ACTION_DROP }
+    })
+
+    content, is_error = call_tool(Mcp::Tools::UPDATE_ROUTING_CONFIG,
+                                  { grouping_window_minutes: 30, content_match_fields: [ "service", "title" ] })
+    assert_not is_error
+    assert_equal 30, content["grouping_window_minutes"]
+    assert_equal [ "service", "title" ], content["content_match_fields"]
+
+    content, is_error = call_tool(Mcp::Tools::DELETE_ROUTING_RULE, { priority: 1 })
+    assert_not is_error
+    assert content["deleted"]
+    assert_equal 0, @workspace.alert_routing_policy.policy_rules.count
+  end
+
+  test "write tools park behind approval policies and execute on the approved retry" do
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: "risk_level", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "write" ] } ],
+      outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
+    )
+
+    body = rpc("tools/call", { name: Mcp::Tools::UPSERT_CATALOG_ENTRY,
+                               arguments: { type: "service", name: "Gated" } })
+    result = body.fetch("result")
+    assert result["isError"]
+    error_text = result["content"].first["text"]
+    approval = @workspace.ability_approvals.pending.find_by!(action_key: "catalog.create")
+    assert_includes error_text, approval.id
+
+    approval.approve!(by: workspace_memberships(:bob_workspace_one).tap { |m| m.update!(role: :admin) })
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
+                                  { type: "service", name: "Gated", approval_id: approval.id })
+    assert_not is_error
+    assert @workspace.catalog_entries.exists?(name: "Gated")
   end
 
   test "denied tool calls are recorded in the ability ledger" do

@@ -17,8 +17,8 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
   # AUTHENTICATION
   # ============================================================================
 
-  test "a personal token reads incidents but cannot create them" do
-    membership = workspace_memberships(:alice_workspace_one)
+  test "a member's personal token reads incidents but cannot create them" do
+    membership = workspace_memberships(:bob_workspace_one)
     _, raw = ApiKey.create_with_token!(
       workspace: @workspace, created_by: membership, on_behalf_of: membership, name: "Personal"
     )

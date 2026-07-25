@@ -2,6 +2,7 @@ module Mcp
   module Tools
     class EvaluateRouting < Base
       tool_name EVALUATE_ROUTING
+      authorize_as ApiKey::RESOURCE_POLICIES
       description "Dry-run alert routing: given hypothetical alert fields (e.g. service, " \
                   "event, severity), returns which rule would match, the outcome (create " \
                   "incident / notify / drop), and a per-condition trace. Pure evaluation — " \

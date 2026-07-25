@@ -2,6 +2,7 @@ module Mcp
   module Tools
     class SearchAlerts < Base
       tool_name SEARCH_ALERTS
+      authorize_as ApiKey::RESOURCE_ALERTS
       description "Search this workspace's ingested alerts: what fired, how each routed " \
                   "(routed/unmatched/pending/failed), which rule matched, and the incident it " \
                   "attached to. Newest first. Docs: #{Docs::ALERTS}"

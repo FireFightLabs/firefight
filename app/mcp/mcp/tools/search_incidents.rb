@@ -2,6 +2,7 @@ module Mcp
   module Tools
     class SearchIncidents < Base
       tool_name SEARCH_INCIDENTS
+      authorize_as ApiKey::RESOURCE_INCIDENTS
       description "Search this workspace's incidents. Filter by status slug, severity slug, " \
                   "lifecycle stage (triage/active/closed/canceled), free-text query (name or " \
                   "identifier), and declared-at time range. Returns newest first. " \

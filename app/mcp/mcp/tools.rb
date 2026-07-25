@@ -9,10 +9,17 @@ module Mcp
     EVALUATE_ROUTING = "evaluate_routing".freeze
     SEARCH_RUNBOOKS = "search_runbooks".freeze
     GET_RUNBOOK = "get_runbook".freeze
+    UPSERT_CATALOG_ENTRY = "upsert_catalog_entry".freeze
+    DELETE_CATALOG_ENTRY = "delete_catalog_entry".freeze
+    UPSERT_ROUTING_RULE = "upsert_routing_rule".freeze
+    DELETE_ROUTING_RULE = "delete_routing_rule".freeze
+    UPDATE_ROUTING_CONFIG = "update_routing_config".freeze
+    UPSERT_RUNBOOK = "upsert_runbook".freeze
 
     def self.all
       [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
-        SearchRunbooks, GetRunbook ]
+        SearchRunbooks, GetRunbook, UpsertCatalogEntry, DeleteCatalogEntry,
+        UpsertRoutingRule, DeleteRoutingRule, UpdateRoutingConfig, UpsertRunbook ]
     end
   end
 end

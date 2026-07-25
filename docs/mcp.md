@@ -1,6 +1,6 @@
 # MCP Server
 
-Firefight ships a read-only [Model Context Protocol](https://modelcontextprotocol.io) server at `POST /mcp`, so any MCP client — Claude Code, Cursor, or your own agents — can query incidents, alerts, the service catalog, runbooks, and dry-run alert routing.
+Firefight ships a [Model Context Protocol](https://modelcontextprotocol.io) server at `POST /mcp`, so any MCP client — Claude Code, Cursor, or your own agents — can query incidents, alerts, the service catalog, runbooks, and dry-run alert routing, and configure the workspace (catalog, routing rules, runbooks) with governed writes: every call flows through the Ability Gateway (grants → ledger → approval policies).
 
 ## Connecting
 
@@ -39,7 +39,7 @@ claude mcp add --transport http firefight https://<your-host>/mcp \
 
 Any other client: Streamable HTTP transport with either OAuth (discovery via `/.well-known/oauth-protected-resource`, RFC 7591 registration, PKCE required) or an `Authorization: Bearer` header token. Headless agents and CI should use header tokens — machines can't click consent screens.
 
-## Tools (all read-only)
+## Read tools
 
 | Tool | Answers |
 |---|---|
@@ -53,10 +53,23 @@ Any other client: Streamable HTTP transport with either OAuth (discovery via `/.
 
 Results are workspace-scoped to the token, capped at 50 items with explicit `truncated` markers, and returned as structured JSON.
 
+## Config-write tools
+
+| Tool | Does |
+|---|---|
+| `upsert_catalog_entry` | Create (no slug) or update (slug) a catalog entry with attributes |
+| `delete_catalog_entry` | Soft-delete an entry by slug |
+| `upsert_routing_rule` | Create or update an alert routing rule by priority — dry-run first with `evaluate_routing` |
+| `delete_routing_rule` | Delete a rule by priority |
+| `update_routing_config` | Grouping window + content match fields on the routing policy |
+| `upsert_runbook` | Create or update a runbook (steps and attach conditions replace the existing set) |
+
+Writes are configuration only — incident lifecycle writes stay out of MCP until they carry the full approval UX. Authorization is the gateway's: admin personal tokens carry the admin's authority; service keys need the explicit `<resource>:<action>` scope. Every write is ledgered (`AbilityInvocation`), and workspace approval policies can park any call as `pending` — the tool result then carries an `approval id`; after a workspace admin approves (Slack buttons or `/settings/approvals`), retry the identical call with `approval_id`.
+
 The server is self-describing for agents: server instructions, tool descriptions, and guidance-worthy responses (permission errors, no routing policy, unmatched dry runs) link to the relevant public docs page via `Mcp::Docs` constants — each page is fetchable as raw markdown (`https://firefight.app/docs/**/*.md`, index at `/llms.txt`).
 
 ## Architecture
 
 `McpController` (entry point: Bearer auth → `Current.principal`, API rate limit, stateless `handle_json` dispatch — no sessions/SSE, multi-worker safe) → `Mcp::ToolDispatcher` (telemetry; routes every call through `AbilityGateway.authorize!`, which resolves the principal's grants and ledgers denials) → tool classes in `app/mcp/` (workspace-scoped reads + formatting only; no business logic, no writes, no adapter calls; tool names from `Mcp::Tools` constants).
 
-Personal tokens pass all tools; service keys need `<resource>:read` per tool (`search_incidents`/`get_incident` → `incidents`, `search_alerts` → `alerts`, `search_catalog` → `catalog`, `evaluate_routing` → `policies`, `search_runbooks`/`get_runbook` → `runbooks`).
+Each tool declares what it authorizes as (`authorize_as`, or a dynamic create-vs-update split for upserts). Personal tokens resolve to the human: members pass every read, admins also pass writes. Service keys need the explicit `<resource>:<action>` scope (`incidents`, `alerts`, `catalog`, `policies` for routing, `runbooks`).
