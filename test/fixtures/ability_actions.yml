@@ -1,0 +1,13 @@
+_fixture:
+  model_class: Ability::Action
+
+<% risk_by_action = { "read" => "read", "create" => "write", "update" => "write", "delete" => "destructive" } %>
+<% ApiKey::RESOURCES.each do |resource| %>
+<% ApiKey::ACTIONS.each do |action| %>
+<%= resource %>_<%= action %>:
+  kind: system
+  key: <%= resource %>.<%= action %>
+  risk_level: <%= risk_by_action.fetch(action) %>
+  reversible: <%= action == "delete" ? "false" : "true" %>
+<% end %>
+<% end %>

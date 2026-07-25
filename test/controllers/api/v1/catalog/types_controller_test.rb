@@ -1,7 +1,7 @@
 require "test_helper"
 
 class Api::V1::Catalog::TypesControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :api_keys,
+  fixtures :workspaces, :users, :workspace_memberships, :api_keys, :ability_actions, :ability_grants,
            :catalog_types, :catalog_attribute_definitions, :catalog_entries
 
   test "lists active types with attribute schema" do

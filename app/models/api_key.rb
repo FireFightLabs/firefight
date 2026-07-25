@@ -36,6 +36,8 @@ class ApiKey < ApplicationRecord
   belongs_to :on_behalf_of, class_name: "WorkspaceMembership",
              foreign_key: :workspace_membership_id, optional: true, inverse_of: :personal_api_keys
 
+  has_many :ability_grants, class_name: "Ability::Grant", as: :principal, dependent: :destroy
+
   validates :name, presence: true
   validates :token_digest, presence: true, uniqueness: true
   validates :token_prefix, presence: true
@@ -44,6 +46,9 @@ class ApiKey < ApplicationRecord
 
   after_update :invalidate_cache!
   after_destroy :invalidate_cache!
+  # The permissions jsonb is the write interface (UI/API); direct grants are
+  # what checks read. Kept in sync here so the two can never disagree.
+  after_save :sync_ability_grants!, if: :service?
 
   scope :active, -> { where(active: true, deleted_at: nil) }
   scope :not_expired, -> { where("expires_at IS NULL OR expires_at > ?", Time.current) }
@@ -100,14 +105,17 @@ class ApiKey < ApplicationRecord
   end
 
   # Personal tokens carry the member's authority: read everything a member
-  # sees, write nothing. Service keys use their explicit permission scopes.
+  # sees, write nothing. Service keys resolve against their ability grants.
   def has_permission?(resource, action)
     return action.to_s == ACTION_READ if personal?
 
-    resource_permissions = permissions[resource.to_s]
-    return false unless resource_permissions.is_a?(Array)
+    Ability::Resolver.resolve(self).covers?(Ability::Action.system_key(resource, action))
+  end
 
-    resource_permissions.include?(action.to_s)
+  def self.managed_ability_keys
+    @managed_ability_keys ||= RESOURCES.product(ACTIONS).map do |resource, action|
+      Ability::Action.system_key(resource, action)
+    end.freeze
   end
 
   def touch_last_used!
@@ -148,6 +156,17 @@ class ApiKey < ApplicationRecord
   end
 
   private
+
+  def sync_ability_grants!
+    desired = permissions.flat_map do |resource, actions|
+      Array(actions).map { |action| Ability::Action.system_key(resource, action) }
+    end
+
+    Ability::Grant.sync_direct!(
+      principal: self, workspace: workspace,
+      desired_keys: desired, managed_keys: self.class.managed_ability_keys
+    )
+  end
 
   def on_behalf_of_same_workspace
     return if on_behalf_of.nil? || on_behalf_of.workspace_id == workspace_id

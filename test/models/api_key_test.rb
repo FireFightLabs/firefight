@@ -1,7 +1,7 @@
 require "test_helper"
 
 class ApiKeyTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :api_keys
+  fixtures :workspaces, :users, :workspace_memberships, :api_keys, :ability_actions, :ability_grants
 
   # ============================================================================
   # TOKEN GENERATION
@@ -145,6 +145,51 @@ class ApiKeyTest < ActiveSupport::TestCase
   test "has_permission? returns false for unknown resource" do
     key = api_keys(:full_access_key)
     assert_not key.has_permission?("unknown", "read")
+  end
+
+  test "saving a service key syncs its permissions into ability grants" do
+    key, _ = ApiKey.create_with_token!(
+      workspace: workspaces(:slack_workspace_one),
+      created_by: workspace_memberships(:alice_workspace_one),
+      name: "Synced Key",
+      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ, ApiKey::ACTION_CREATE ] }
+    )
+
+    granted = Ability::Grant.where(principal: key).joins(:action).pluck("ability_actions.key")
+    assert_equal [ "alerts.create", "alerts.read" ], granted.sort
+    assert key.has_permission?(ApiKey::RESOURCE_ALERTS, ApiKey::ACTION_CREATE)
+    assert_not key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ)
+
+    key.update!(permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] })
+    granted = Ability::Grant.where(principal: key).joins(:action).pluck("ability_actions.key")
+    assert_equal [ "alerts.read" ], granted
+    assert_not key.has_permission?(ApiKey::RESOURCE_ALERTS, ApiKey::ACTION_CREATE)
+  end
+
+  test "personal tokens hold no grants" do
+    membership = workspace_memberships(:alice_workspace_one)
+    key, _ = ApiKey.create_with_token!(
+      workspace: workspaces(:slack_workspace_one), created_by: membership,
+      on_behalf_of: membership, name: "Personal"
+    )
+
+    assert_empty Ability::Grant.where(principal: key)
+    assert key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ)
+    assert_not key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)
+  end
+
+  test "fixture grants mirror fixture permissions" do
+    ApiKey.find_each do |key|
+      next if key.personal?
+
+      expected = key.permissions.flat_map do |resource, actions|
+        actions.map { |action| Ability::Action.system_key(resource, action) }
+      end
+      granted = Ability::Grant.where(principal: key).joins(:action).pluck("ability_actions.key")
+
+      assert_equal expected.sort, granted.sort,
+                   "ability_grants.yml is out of sync with api_keys.yml for '#{key.name}'"
+    end
   end
 
   # ============================================================================
