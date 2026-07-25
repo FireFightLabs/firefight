@@ -54,7 +54,8 @@ class McpControllerTest < ActionDispatch::IntegrationTest
                    Mcp::Tools::SEARCH_RUNBOOKS, Mcp::Tools::UPSERT_CATALOG_ENTRY,
                    Mcp::Tools::DELETE_CATALOG_ENTRY, Mcp::Tools::UPSERT_ROUTING_RULE,
                    Mcp::Tools::DELETE_ROUTING_RULE, Mcp::Tools::UPDATE_ROUTING_CONFIG,
-                   Mcp::Tools::UPSERT_RUNBOOK ].sort,
+                   Mcp::Tools::UPSERT_RUNBOOK, Mcp::Tools::SEARCH_APPROVALS,
+                   Mcp::Tools::APPROVE_APPROVAL, Mcp::Tools::DENY_APPROVAL ].sort,
                  tools.map { |t| t["name"] }.sort
 
     read_tools, write_tools = tools.partition { |t| t["name"].start_with?("search", "get", "evaluate") }
@@ -270,6 +271,38 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert_includes error_text, approval.id
 
     approval.approve!(by: workspace_memberships(:bob_workspace_one).tap { |m| m.update!(role: :admin) })
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
+                                  { type: "service", name: "Gated", approval_id: approval.id })
+    assert_not is_error
+    assert @workspace.catalog_entries.exists?(name: "Gated")
+  end
+
+  test "approvals resolve over MCP for humans, never for service keys" do
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: "risk_level", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "write" ] } ],
+      outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
+    )
+    call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY, { type: "service", name: "Gated" })
+    approval = @workspace.ability_approvals.pending.find_by!(action_key: "catalog.create")
+
+    content, is_error = call_tool(Mcp::Tools::SEARCH_APPROVALS, { status: "pending" })
+    assert_not is_error
+    assert_equal [ approval.id ], content["approvals"].map { |a| a["id"] }
+
+    _, service_token = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: @membership, name: "Approver bot",
+      permissions: { ApiKey::RESOURCE_APPROVALS => [ ApiKey::ACTION_READ, ApiKey::ACTION_UPDATE ] }
+    )
+    result, is_error = call_tool(Mcp::Tools::APPROVE_APPROVAL, { id: approval.id }, token: service_token)
+    assert is_error
+    assert approval.reload.pending?
+
+    content, is_error = call_tool(Mcp::Tools::APPROVE_APPROVAL, { id: approval.id })
+    assert_not is_error
+    assert_equal Ability::Approval::STATUS_APPROVED, content["status"]
 
     content, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
                                   { type: "service", name: "Gated", approval_id: approval.id })
