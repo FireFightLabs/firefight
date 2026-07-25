@@ -71,6 +71,31 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to dashboard_path
   end
 
+  test "abilities preview shows resolved grants for service keys and implicit reads for personal" do
+    service_key = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one), name: "Scoped",
+      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
+    ).first
+
+    get abilities_api_key_url(service_key)
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal "service", body["mode"]
+    assert_equal [ "alerts.read" ], body["abilities"].map { |a| a["action_key"] }
+    assert_equal "read", body["abilities"].first["risk_level"]
+
+    personal_key = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one),
+      on_behalf_of: workspace_memberships(:alice_workspace_one), name: "Personal"
+    ).first
+
+    get abilities_api_key_url(personal_key)
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal "personal", body["mode"]
+    assert body["abilities"].all? { |a| a["implicit"] && a["risk_level"] == "read" }
+  end
+
   test "a member cannot touch another principal's key" do
     admin_key = ApiKey.create_with_token!(
       workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one), name: "Admin key"

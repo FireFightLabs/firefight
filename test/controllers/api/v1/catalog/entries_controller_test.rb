@@ -30,6 +30,28 @@ class Api::V1::Catalog::EntriesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Payments Team", json_response["name"]
   end
 
+  test "api writes are ledgered write-ahead and finalized; denials are ledgered too" do
+    post api_v1_catalog_type_entries_path(slug: "team"),
+      params: { name: "Ledgered Team", attributes: {} }.to_json,
+      headers: api_headers
+    assert_response :created
+
+    invocation = Ability::Invocation.find_by!(action_key: "catalog.create",
+                                              principal_id: api_keys(:full_access_key).id)
+    assert_equal Ability::Invocation::DECISION_ALLOW, invocation.decision
+    assert_equal Ability::Invocation::OUTCOME_SUCCESS, invocation.outcome
+    assert invocation.completed_at.present?
+
+    post api_v1_catalog_type_entries_path(slug: "team"),
+      params: { name: "Nope", attributes: {} }.to_json,
+      headers: api_headers(token: "ff_test_read_only_token_12345678")
+    assert_response :forbidden
+
+    denial = Ability::Invocation.find_by!(action_key: "catalog.create",
+                                          principal_id: api_keys(:read_only_key).id)
+    assert_equal Ability::Invocation::DECISION_DENY, denial.decision
+  end
+
   test "upsert by source + external_id updates instead of duplicating" do
     post api_v1_catalog_type_entries_path(slug: "team"),
       params: { name: "SRE", source: "backstage", external_id: "grp-sre", attributes: {} }.to_json,

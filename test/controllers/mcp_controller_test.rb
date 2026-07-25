@@ -178,4 +178,22 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert is_error
     assert_empty result
   end
+
+  test "denied tool calls are recorded in the ability ledger" do
+    key, alerts_token = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: @membership, name: "Alerts only",
+      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
+    )
+
+    assert_difference "Ability::Invocation.count", 1 do
+      call_tool(Mcp::Tools::SEARCH_INCIDENTS, {}, token: alerts_token)
+    end
+
+    invocation = Ability::Invocation.find_by!(principal_id: key.id, action_key: "incidents.read")
+    assert_equal Ability::Invocation::DECISION_DENY, invocation.decision
+
+    assert_no_difference "Ability::Invocation.count" do
+      call_tool(Mcp::Tools::SEARCH_ALERTS, {}, token: alerts_token)
+    end
+  end
 end

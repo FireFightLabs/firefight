@@ -57,6 +57,6 @@ The server is self-describing for agents: server instructions, tool descriptions
 
 ## Architecture
 
-`McpController` (entry point: Bearer auth → `Current.principal`, API rate limit, stateless `handle_json` dispatch — no sessions/SSE, multi-worker safe) → `Mcp::ToolDispatcher` (per-tool resource permission check, telemetry — the single seam the future Ability Gateway wraps) → tool classes in `app/mcp/` (workspace-scoped reads + formatting only; no business logic, no writes, no adapter calls; tool names from `Mcp::Tools` constants).
+`McpController` (entry point: Bearer auth → `Current.principal`, API rate limit, stateless `handle_json` dispatch — no sessions/SSE, multi-worker safe) → `Mcp::ToolDispatcher` (telemetry; routes every call through `AbilityGateway.authorize!`, which resolves the principal's grants and ledgers denials) → tool classes in `app/mcp/` (workspace-scoped reads + formatting only; no business logic, no writes, no adapter calls; tool names from `Mcp::Tools` constants).
 
 Personal tokens pass all tools; service keys need `<resource>:read` per tool (`search_incidents`/`get_incident` → `incidents`, `search_alerts` → `alerts`, `search_catalog` → `catalog`, `evaluate_routing` → `policies`, `search_runbooks`/`get_runbook` → `runbooks`).

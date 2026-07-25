@@ -15,4 +15,11 @@ module Principal
   def mcp_readable?(_resource)
     true
   end
+
+  # Authority a principal holds without an explicit grant. Default: none —
+  # credential principals (ApiKey, Agent) act only on granted abilities;
+  # humans override with member-level reads.
+  def implicitly_allowed?(_action)
+    false
+  end
 end

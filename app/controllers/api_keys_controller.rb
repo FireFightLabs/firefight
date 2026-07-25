@@ -2,7 +2,7 @@ class ApiKeysController < InertiaController
   KIND_PERSONAL = "personal"
 
   before_action :require_authentication
-  before_action :set_api_key, only: [ :update, :destroy ]
+  before_action :set_api_key, only: [ :update, :destroy, :abilities ]
 
   # Personal tokens are self-service (any member can mint their own, GitHub
   # PAT style); service keys carry workspace-wide scopes and need an admin.
@@ -46,6 +46,18 @@ class ApiKeysController < InertiaController
   def destroy
     @api_key.soft_delete!
     redirect_to settings_api_keys_path
+  end
+
+  # The grant preview: what this key can actually do, as resolved by the
+  # gateway — the debugging answer to "why was this call denied?"
+  def abilities
+    if @api_key.personal?
+      render json: { principal: @api_key.principal.principal_label, mode: KIND_PERSONAL,
+                     abilities: Ability::Preview.implicit_member_reads }
+    else
+      render json: { principal: @api_key.principal_label, mode: "service",
+                     abilities: Ability::Preview.for(@api_key) }
+    end
   end
 
   private
