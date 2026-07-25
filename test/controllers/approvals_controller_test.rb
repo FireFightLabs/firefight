@@ -1,7 +1,7 @@
 require "test_helper"
 
 class ApprovalsControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :api_keys
+  fixtures :workspaces, :users, :workspace_memberships, :api_keys, :ability_actions, :ability_grants
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -23,21 +23,21 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
       status: Ability::Approval::STATUS_DENIED, resolved_at: Time.current
     )
 
-    get settings_approvals_url
+    get settings_approvals_url, headers: inertia_headers
 
     assert_response :success
-    assert_includes response.body, @approval.id
-    assert_includes response.body, resolved.id
+    assert_equal [ @approval.id ], inertia_props["pendingApprovals"].map { |a| a["id"] }
+    assert_equal [ resolved.id ], inertia_props["resolvedApprovals"].map { |a| a["id"] }
   end
 
   test "the activity page renders the ledger" do
     AbilityGateway.authorize!(principal: api_keys(:full_access_key), action_key: "catalog.create",
                               workspace: @workspace) { :ok }
 
-    get settings_activity_url
+    get settings_activity_url, headers: inertia_headers
 
     assert_response :success
-    assert_includes response.body, "catalog.create"
+    assert_equal [ "catalog.create" ], inertia_props["invocations"].map { |i| i["actionKey"] }
   end
 
   test "approve resolves the approval and redirects" do
@@ -58,6 +58,10 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def inertia_props
+    JSON.parse(response.body)["props"]
+  end
 
   def sign_in(user, workspace)
     ApplicationController.any_instance.stubs(:current_user).returns(user)
