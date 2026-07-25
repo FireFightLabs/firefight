@@ -20,7 +20,13 @@ module Mcp
         params: args.except(APPROVAL_ID_ARG),
         context: { source: "mcp", approval_id: args[APPROVAL_ID_ARG] }
       ) do
-        tool.perform(workspace: workspace, args: args)
+        # Most tools only need the workspace; tools acting AS someone
+        # (approval resolution) opt into receiving the principal.
+        if tool.respond_to?(:perform_with_principal)
+          tool.perform_with_principal(workspace: workspace, principal: server_context[:principal], args: args)
+        else
+          tool.perform(workspace: workspace, args: args)
+        end
       end
       log_call(tool_name, server_context, started_at)
       response

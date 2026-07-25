@@ -125,6 +125,7 @@ class AbilityGateway
       scope: scope,
       params: params,
       required_role: requirement["role"],
+      self_approvable: requirement.fetch("self_approval", true),
       incident_id: context[:incident_id]
     )
     record!(decision: Ability::Invocation::DECISION_PENDING, completed_at: Time.current,
@@ -134,6 +135,11 @@ class AbilityGateway
   end
 
   def self.approval_requirement(workspace, action, action_key, scope, context)
+    # Resolving an approval is itself the approval mechanism — matching it
+    # against approval policies would gate approvals behind approvals. The
+    # Approval model's role/self-approval rules govern resolution instead.
+    return nil if action_key.start_with?("#{ApiKey::RESOURCE_APPROVALS}.")
+
     policy = workspace.policies.enabled.for_domain(Policy::DOMAIN_APPROVALS)
                       .workspace_wide.order(:created_at).first
     return nil unless policy

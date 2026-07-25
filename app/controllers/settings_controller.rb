@@ -1,5 +1,7 @@
 class SettingsController < InertiaController
   RECENT_ALERTS_LIMIT = 50
+  ACTIVITY_LIMIT = 200
+  RESOLVED_APPROVALS_LIMIT = 50
 
   before_action :require_authentication
 
@@ -83,6 +85,29 @@ class SettingsController < InertiaController
       ),
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.ordered
+      )
+    }
+  end
+
+  # The gateway ledger: everything agents and API keys did (or were denied),
+  # rendered read-only. This is the oversight surface for governed writes.
+  def activity
+    scope = current_workspace.ability_invocations.order(created_at: :desc)
+    scope = scope.where(decision: params[:decision]) if params[:decision].present?
+
+    render inertia: "settings/activity", props: {
+      invocations: AbilityInvocationSerializer.many(scope.limit(ACTIVITY_LIMIT)),
+      decision: params[:decision].presence
+    }
+  end
+
+  def approvals
+    scope = current_workspace.ability_approvals.order(created_at: :desc)
+
+    render inertia: "settings/approvals", props: {
+      pendingApprovals: AbilityApprovalSerializer.many(scope.pending),
+      resolvedApprovals: AbilityApprovalSerializer.many(
+        scope.where.not(status: Ability::Approval::STATUS_PENDING).limit(RESOLVED_APPROVALS_LIMIT)
       )
     }
   end

@@ -51,14 +51,26 @@ module Ability
       assert @approval.denied?
     end
 
-    test "requesters cannot approve their own request" do
+    test "requesters approve their own agent's request by default (human-in-the-loop)" do
       approval = Ability::Approval.create!(
         workspace: @workspace, principal: @admin, principal_label: @admin.principal_label,
         action_key: "catalog.delete", request_digest: Ability::Approval.digest("catalog.delete", {}, {}),
         required_role: WorkspaceMembership.roles[:admin]
       )
 
-      assert_raises(Ability::Approval::NotAllowed) { approval.approve!(by: @admin) }
+      approval.approve!(by: @admin)
+      assert approval.approved?
+    end
+
+    test "four-eyes policies block self-approval" do
+      approval = Ability::Approval.create!(
+        workspace: @workspace, principal: @admin, principal_label: @admin.principal_label,
+        action_key: "catalog.delete", request_digest: Ability::Approval.digest("catalog.delete", {}, {}),
+        required_role: WorkspaceMembership.roles[:admin], self_approvable: false
+      )
+
+      error = assert_raises(Ability::Approval::NotAllowed) { approval.approve!(by: @admin) }
+      assert_match(/someone other than the requester/, error.message)
     end
 
     test "expire! only touches pending approvals" do

@@ -50,6 +50,25 @@ module Mcp
           )
         end
 
+        # Shared body for approve/deny tools. Structurally human-only: the
+        # model's approve!/deny! take a WorkspaceMembership, so service keys
+        # (and future Agent principals) cannot resolve approvals at all.
+        def resolve_approval(workspace, principal, args, decision)
+          unless principal.is_a?(WorkspaceMembership)
+            return Mcp::ToolDispatcher.error_response(
+              "Only a human can resolve approvals — connect with a personal token or OAuth."
+            )
+          end
+
+          approval = workspace.ability_approvals.find_by!(id: args[:id].to_s)
+          decision == :approve ? approval.approve!(by: principal) : approval.deny!(by: principal)
+          ApprovalNotificationService.mark_resolved!(approval)
+
+          respond(SearchApprovals.approval_payload(approval))
+        rescue Ability::Approval::NotAllowed => e
+          Mcp::ToolDispatcher.error_response("Cannot #{decision}: #{e.message}")
+        end
+
         # Fetch limit+1 so truncation is reported explicitly, never silent.
         def capped(scope, args)
           limit = args[:limit].to_i
