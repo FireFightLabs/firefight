@@ -30,6 +30,34 @@ class Api::V1::Catalog::EntriesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Payments Team", json_response["name"]
   end
 
+  test "an approval policy parks api writes as 202 until approved, then the retry executes" do
+    policy = workspaces(:slack_workspace_one).policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: "risk_level", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "write" ] } ],
+      outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
+    )
+
+    assert_no_difference -> { CatalogEntry.count } do
+      post api_v1_catalog_type_entries_path(slug: "team"),
+        params: { name: "Gated Team", attributes: {} }.to_json,
+        headers: api_headers
+    end
+    assert_response :accepted
+    approval_id = json_response["approval_id"]
+    assert approval_id.present?
+
+    workspaces(:slack_workspace_one).ability_approvals.find(approval_id)
+      .approve!(by: workspace_memberships(:alice_workspace_one))
+
+    assert_difference -> { CatalogEntry.count }, 1 do
+      post api_v1_catalog_type_entries_path(slug: "team"),
+        params: { name: "Gated Team", attributes: {} }.to_json,
+        headers: api_headers.merge("X-Approval-Id" => approval_id)
+    end
+    assert_response :created
+  end
+
   test "api writes are ledgered write-ahead and finalized; denials are ledgered too" do
     post api_v1_catalog_type_entries_path(slug: "team"),
       params: { name: "Ledgered Team", attributes: {} }.to_json,

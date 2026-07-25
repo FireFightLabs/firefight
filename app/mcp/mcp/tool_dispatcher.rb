@@ -33,6 +33,9 @@ module Mcp
     rescue AbilityGateway::Denied
       error_response("This token lacks '#{resource}:#{ApiKey::ACTION_READ}' permission. " \
                      "Token scopes are documented at #{Docs::MCP_SERVER}")
+    rescue AbilityGateway::PendingApproval => e
+      error_response("Approval required (id: #{e.approval.id}): a workspace #{e.approval.required_role} " \
+                     "must approve this call. Retry after approval.")
     rescue ActiveRecord::RecordNotFound
       error_response("Not found in this workspace.")
     end

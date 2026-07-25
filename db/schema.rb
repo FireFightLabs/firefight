@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_25_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_25_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -29,6 +29,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_120000) do
     t.index ["key"], name: "index_ability_actions_on_system_key", unique: true, where: "(workspace_id IS NULL)"
     t.index ["source_type", "source_id"], name: "index_ability_actions_on_source_type_and_source_id"
     t.index ["workspace_id", "key"], name: "index_ability_actions_on_workspace_key", unique: true, where: "(workspace_id IS NOT NULL)"
+  end
+
+  create_table "ability_approvals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "principal_type", null: false
+    t.uuid "principal_id", null: false
+    t.string "principal_label", null: false
+    t.string "action_key", null: false
+    t.string "request_digest", null: false
+    t.jsonb "scope", default: {}, null: false
+    t.jsonb "params", default: {}, null: false
+    t.string "required_role", null: false
+    t.string "status", default: "pending", null: false
+    t.uuid "approver_id"
+    t.datetime "resolved_at"
+    t.datetime "consumed_at"
+    t.uuid "incident_id"
+    t.string "slack_channel_id"
+    t.string "slack_message_ts"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["principal_type", "principal_id"], name: "index_ability_approvals_on_principal_type_and_principal_id"
+    t.index ["workspace_id", "status", "created_at"], name: "idx_on_workspace_id_status_created_at_15ac906fa7"
   end
 
   create_table "ability_grants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -66,6 +89,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_120000) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "approval_id"
     t.index ["action_key"], name: "index_ability_invocations_on_action_key"
     t.index ["principal_type", "principal_id", "created_at"], name: "index_ability_invocations_on_principal"
     t.index ["workspace_id", "created_at"], name: "index_ability_invocations_on_workspace_id_and_created_at"
@@ -1141,6 +1165,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_120000) do
   end
 
   add_foreign_key "ability_actions", "workspaces"
+  add_foreign_key "ability_approvals", "workspace_memberships", column: "approver_id"
+  add_foreign_key "ability_approvals", "workspaces"
   add_foreign_key "ability_grants", "ability_actions", column: "action_id"
   add_foreign_key "ability_grants", "ability_roles", column: "role_id"
   add_foreign_key "ability_grants", "workspaces"

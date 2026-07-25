@@ -9,6 +9,7 @@ class Api::V1::ApiController < ActionController::API
   rescue_from ActiveRecord::RecordInvalid, with: :validation_error
   rescue_from ActionController::ParameterMissing, with: :bad_request
   rescue_from ApiAuthentication::ForbiddenError, with: :forbidden
+  rescue_from AbilityGateway::PendingApproval, with: :pending_approval
 
   private
 
@@ -36,6 +37,16 @@ class Api::V1::ApiController < ActionController::API
 
   def bad_request(exception)
     render json: error_response("bad_request", exception.message), status: :bad_request
+  end
+
+  def pending_approval(exception)
+    approval = exception.approval
+    body = error_response(
+      "approval_required",
+      "This action requires approval by a workspace #{approval.required_role}. " \
+      "Retry the identical request with the 'X-Approval-Id: #{approval.id}' header once approved."
+    )
+    render json: body.merge(approval_id: approval.id, approval_status: approval.status), status: :accepted
   end
 
   def forbidden(exception)

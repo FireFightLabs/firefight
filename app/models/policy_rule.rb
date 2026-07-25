@@ -17,7 +17,8 @@ class PolicyRule < ApplicationRecord
 
   # Outcome contracts per policy domain; domains without a contract accept any object.
   OUTCOME_VALIDATORS = {
-    Policy::DOMAIN_ALERT_ROUTING => PolicyRule::AlertRoutingOutcome
+    Policy::DOMAIN_ALERT_ROUTING => PolicyRule::AlertRoutingOutcome,
+    Policy::DOMAIN_APPROVALS => PolicyRule::ApprovalOutcome
   }.freeze
 
   validates :priority, presence: true, uniqueness: { scope: :policy_id }

@@ -118,6 +118,12 @@ Rails.application.routes.draw do
         get :abilities
       end
     end
+    resources :approvals, only: [ :index ], path: "settings/approvals" do
+      member do
+        post :approve
+        post :deny
+      end
+    end
     resources :incident_severities, only: [ :create, :update, :destroy ], path: "settings/severities" do
       member do
         patch :disable

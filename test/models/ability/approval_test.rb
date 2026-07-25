@@ -1,0 +1,73 @@
+require "test_helper"
+
+module Ability
+  class ApprovalTest < ActiveSupport::TestCase
+    fixtures :workspaces, :users, :workspace_memberships, :api_keys
+
+    setup do
+      @workspace = workspaces(:slack_workspace_one)
+      @requester = api_keys(:full_access_key)
+      @admin = workspace_memberships(:alice_workspace_one)
+      @approval = Ability::Approval.create!(
+        workspace: @workspace, principal: @requester, principal_label: @requester.principal_label,
+        action_key: "catalog.delete", request_digest: Ability::Approval.digest("catalog.delete", {}, {}),
+        required_role: WorkspaceMembership.roles[:admin]
+      )
+    end
+
+    test "digest is deterministic across key ordering and symbol/string keys" do
+      a = Ability::Approval.digest("x.y", { "b" => 1, "a" => [ { "d" => 2, "c" => 3 } ] }, { "environment" => "e" })
+      b = Ability::Approval.digest("x.y", { a: [ { c: 3, d: 2 } ], b: 1 }, { environment: "e" })
+      c = Ability::Approval.digest("x.y", { a: [ { c: 3, d: 2 } ], b: 2 }, { environment: "e" })
+
+      assert_equal a, b
+      assert_not_equal a, c
+    end
+
+    test "approve! records the approver and is single-use" do
+      @approval.approve!(by: @admin)
+
+      assert @approval.approved?
+      assert_equal @admin, @approval.approver
+      assert @approval.usable?
+
+      @approval.consume!
+      assert_not @approval.usable?
+      assert_raises(Ability::Approval::NotAllowed) { @approval.consume! }
+    end
+
+    test "approver must hold the required role at click time" do
+      member = workspace_memberships(:bob_workspace_one)
+
+      error = assert_raises(Ability::Approval::NotAllowed) { @approval.approve!(by: member) }
+      assert_match(/admin/, error.message)
+      assert @approval.pending?
+    end
+
+    test "resolution requires a pending approval" do
+      @approval.deny!(by: @admin)
+
+      assert_raises(Ability::Approval::NotAllowed) { @approval.approve!(by: @admin) }
+      assert @approval.denied?
+    end
+
+    test "requesters cannot approve their own request" do
+      approval = Ability::Approval.create!(
+        workspace: @workspace, principal: @admin, principal_label: @admin.principal_label,
+        action_key: "catalog.delete", request_digest: Ability::Approval.digest("catalog.delete", {}, {}),
+        required_role: WorkspaceMembership.roles[:admin]
+      )
+
+      assert_raises(Ability::Approval::NotAllowed) { approval.approve!(by: @admin) }
+    end
+
+    test "expire! only touches pending approvals" do
+      @approval.expire!
+      assert_equal Ability::Approval::STATUS_EXPIRED, @approval.status
+
+      @approval.update!(status: Ability::Approval::STATUS_APPROVED)
+      @approval.expire!
+      assert @approval.approved?
+    end
+  end
+end

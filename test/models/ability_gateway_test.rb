@@ -9,6 +9,16 @@ class AbilityGatewayTest < ActiveSupport::TestCase
     @membership = workspace_memberships(:alice_workspace_one)
   end
 
+  def create_approval_policy
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: "risk_level", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "destructive" ] } ],
+      outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
+    )
+    policy
+  end
+
   test "allowed reads execute without a ledger row" do
     result = assert_no_difference "Ability::Invocation.count" do
       AbilityGateway.authorize!(principal: @key, action_key: "incidents.read", workspace: @workspace) { :payload }
@@ -85,6 +95,86 @@ class AbilityGatewayTest < ActiveSupport::TestCase
 
     assert_raises(AbilityGateway::Denied) do
       AbilityGateway.authorize!(principal: @membership, action_key: "alerts.create", workspace: @workspace)
+    end
+  end
+
+  test "a matching approval policy parks the call as pending" do
+    key = api_keys(:full_access_key)
+    create_approval_policy
+
+    error = assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace) { :never }
+    end
+
+    approval = error.approval
+    assert approval.pending?
+    assert_equal WorkspaceMembership.roles[:admin], approval.required_role
+    assert_equal Ability::Approval.digest("catalog.delete", {}, {}), approval.request_digest
+
+    pending_row = Ability::Invocation.find_by!(approval_id: approval.id)
+    assert_equal Ability::Invocation::DECISION_PENDING, pending_row.decision
+
+    resurfaced = assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace,
+                                context: { approval_id: approval.id })
+    end
+    assert_equal approval.id, resurfaced.approval.id
+    assert_equal 1, Ability::Approval.count
+  end
+
+  test "an approved approval admits exactly the approved call, once" do
+    key = api_keys(:full_access_key)
+    create_approval_policy
+
+    error = assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace)
+    end
+    approval = error.approval
+    approval.approve!(by: @membership)
+
+    result = AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace,
+                                       context: { approval_id: approval.id }) { :executed }
+    assert_equal :executed, result
+
+    executed = Ability::Invocation.find_by!(approval_id: approval.id, decision: Ability::Invocation::DECISION_ALLOW)
+    assert_equal Ability::Invocation::OUTCOME_SUCCESS, executed.outcome
+    assert approval.reload.consumed_at.present?
+
+    assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace,
+                                context: { approval_id: approval.id })
+    end
+  end
+
+  test "approvals bind to the exact request digest" do
+    key = api_keys(:full_access_key)
+    create_approval_policy
+
+    approval = assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace,
+                                params: { slug: "checkout" })
+    end.approval
+    approval.approve!(by: @membership)
+
+    assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace,
+                                params: { slug: "payments" }, context: { approval_id: approval.id })
+    end
+    assert_nil approval.reload.consumed_at
+  end
+
+  test "a denied approval denies the retry" do
+    key = api_keys(:full_access_key)
+    create_approval_policy
+
+    approval = assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace)
+    end.approval
+    approval.deny!(by: @membership)
+
+    assert_raises(AbilityGateway::Denied) do
+      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace,
+                                context: { approval_id: approval.id })
     end
   end
 

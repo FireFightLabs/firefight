@@ -40,7 +40,9 @@ class InteractionDispatcher
     Identifiers::SHOUTOUT_FROM_REACTION => Interactions::ShoutoutFromReactionHandler,
     Identifiers::INCIDENT_CREATION_SEVERITY_SELECT => Interactions::IncidentCreationSeveritySelectHandler,
     Identifiers::INCIDENT_CREATION_TYPE_SELECT => Interactions::IncidentCreationTypeSelectHandler,
-    Identifiers::APPLY_RUNBOOK => Interactions::ApplyRunbookHandler
+    Identifiers::APPLY_RUNBOOK => Interactions::ApplyRunbookHandler,
+    Identifiers::APPROVE_ABILITY => Interactions::ApproveAbilityHandler,
+    Identifiers::DENY_ABILITY => Interactions::DenyAbilityHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {
