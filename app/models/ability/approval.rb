@@ -83,12 +83,16 @@ module Ability
       AbilityApprovalNotificationJob.perform_later(approval_id: id)
     end
 
-    # Approver re-validated at click time: still pending, holds the required
-    # role now, and is not approving their own request.
+    # Approver re-validated at click time: still pending and holds the
+    # required role now. Self-approval is allowed by default — the human
+    # confirming their own agent's exact proposal IS the safety mechanism;
+    # policies opt into four-eyes with require.self_approval: false.
     def resolve!(new_status, membership)
       raise NotAllowed, "approval is no longer pending" unless pending?
       raise NotAllowed, "requires the #{required_role} role" unless role_sufficient?(membership)
-      raise NotAllowed, "requester cannot approve their own request" if requester?(membership)
+      if requester?(membership) && !self_approvable?
+        raise NotAllowed, "this policy requires approval by someone other than the requester"
+      end
 
       update!(status: new_status, approver: membership, resolved_at: Time.current)
     end

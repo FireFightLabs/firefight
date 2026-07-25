@@ -1,6 +1,7 @@
 import {
   IconCircleCheck,
   IconCircleX,
+  IconEye,
 } from "@tabler/icons-react"
 import { useEffect, useMemo, useState } from "react"
 import { router, usePage } from "@inertiajs/react"
@@ -24,7 +25,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { AbilitiesDialog } from "@/pages/settings/components/api-keys/abilities-dialog"
 import { ApiKeyEditSheet } from "@/pages/settings/components/api-keys/api-key-edit-sheet"
+import { Button } from "@/components/ui/button"
 import { CreateKeyDialog } from "@/pages/settings/components/api-keys/create-key-dialog"
 import { TokenRevealedDialog } from "@/pages/settings/components/api-keys/token-revealed-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
@@ -54,6 +57,7 @@ export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: A
   // Custom keys flow through `flash.inertia[:key]` on the server (see ApiKeysController#create).
   const { flash } = usePage()
   const [editingKey, setEditingKey] = useState<ApiKeyType | null>(null)
+  const [abilitiesKey, setAbilitiesKey] = useState<ApiKeyType | null>(null)
   const [revealedToken, setRevealedToken] = useState<string | null>(null)
 
   // Lift the just-created token from flash into local state so the modal stays
@@ -151,7 +155,17 @@ export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: A
                       )}
                     </TableCell>
                     <TableCell>
-                      <RowActions onEdit={() => setEditingKey(apiKey)} onDelete={() => handleDelete(apiKey)} />
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="View resolved abilities"
+                          onClick={() => setAbilitiesKey(apiKey)}
+                        >
+                          <IconEye className="size-4" />
+                        </Button>
+                        <RowActions onEdit={() => setEditingKey(apiKey)} onDelete={() => handleDelete(apiKey)} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -178,6 +192,11 @@ export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: A
       <TokenRevealedDialog
         token={revealedToken}
         onDismiss={() => setRevealedToken(null)}
+      />
+
+      <AbilitiesDialog
+        apiKey={abilitiesKey}
+        onDismiss={() => setAbilitiesKey(null)}
       />
     </div>
   )

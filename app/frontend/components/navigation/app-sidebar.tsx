@@ -6,6 +6,8 @@ import {
   IconCategory,
   IconChecklist,
   IconForms,
+  IconHistory,
+  IconShieldCheck,
   IconBellRinging,
   IconKey,
   IconListDetails,
@@ -34,7 +36,9 @@ import { SharedProps } from "@/types"
 import {
   cataloguePath,
   dashboardPath,
+  settingsActivityPath,
   settingsAlertSourcesPath,
+  settingsApprovalsPath,
   settingsApiKeysPath,
   settingsCustomFieldsPath,
   settingsFormsPath,
@@ -82,6 +86,8 @@ const navSections = [
     items: [
       { title: "Webhooks", url: settingsWebhooksPath(), icon: IconWebhook },
       { title: "API Keys", url: settingsApiKeysPath(), icon: IconKey },
+      { title: "Approvals", url: settingsApprovalsPath(), icon: IconShieldCheck },
+      { title: "Activity", url: settingsActivityPath(), icon: IconHistory },
     ],
   },
 ]

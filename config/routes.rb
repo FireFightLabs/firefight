@@ -118,7 +118,9 @@ Rails.application.routes.draw do
         get :abilities
       end
     end
-    resources :approvals, only: [ :index ], path: "settings/approvals" do
+    get "/settings/activity", to: "settings#activity", as: :settings_activity
+    get "/settings/approvals", to: "settings#approvals", as: :settings_approvals
+    resources :approvals, only: [], path: "settings/approvals" do
       member do
         post :approve
         post :deny

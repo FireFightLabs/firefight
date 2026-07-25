@@ -15,11 +15,15 @@ module Mcp
     DELETE_ROUTING_RULE = "delete_routing_rule".freeze
     UPDATE_ROUTING_CONFIG = "update_routing_config".freeze
     UPSERT_RUNBOOK = "upsert_runbook".freeze
+    SEARCH_APPROVALS = "search_approvals".freeze
+    APPROVE_APPROVAL = "approve_approval".freeze
+    DENY_APPROVAL = "deny_approval".freeze
 
     def self.all
       [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
         SearchRunbooks, GetRunbook, UpsertCatalogEntry, DeleteCatalogEntry,
-        UpsertRoutingRule, DeleteRoutingRule, UpdateRoutingConfig, UpsertRunbook ]
+        UpsertRoutingRule, DeleteRoutingRule, UpdateRoutingConfig, UpsertRunbook,
+        SearchApprovals, ApproveApproval, DenyApproval ]
     end
   end
 end

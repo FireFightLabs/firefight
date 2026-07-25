@@ -14,6 +14,9 @@ module PolicyRule::ApprovalOutcome
     role = requirement["role"]
     errors << "unknown role #{role.inspect}" unless WorkspaceMembership.roles.key?(role.to_s)
     errors << "count must be #{SUPPORTED_COUNT} (multi-approver comes later)" unless requirement["count"].to_i == SUPPORTED_COUNT
+    unless requirement["self_approval"].nil? || [ true, false ].include?(requirement["self_approval"])
+      errors << "self_approval must be true or false"
+    end
     errors
   end
 end
