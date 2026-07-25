@@ -2,7 +2,7 @@ require "test_helper"
 
 class Api::V1::SeveritiesControllerTest < ActionDispatch::IntegrationTest
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :api_keys
+           :incident_statuses, :incident_severities, :api_keys, :ability_actions, :ability_grants
 
   test "returns 401 without authorization header" do
     get api_v1_severities_url

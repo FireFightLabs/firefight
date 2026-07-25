@@ -1,5 +1,5 @@
 # The shared identity contract for anything a request is authorized AS:
-# humans (WorkspaceMembership), tokens (ApiKey), and later Agents. The
+# humans (WorkspaceMembership), tokens (ApiKey), and Agents. The
 # Ability Gateway's grants attach to principals; until then this pins the
 # interface every principal must answer.
 module Principal

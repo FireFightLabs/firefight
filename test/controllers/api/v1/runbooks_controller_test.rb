@@ -1,7 +1,7 @@
 require "test_helper"
 
 class Api::V1::RunbooksControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :api_keys
+  fixtures :workspaces, :users, :workspace_memberships, :api_keys, :ability_actions, :ability_grants
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

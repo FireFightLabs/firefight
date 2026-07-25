@@ -13,6 +13,10 @@
   end
 end
 
+# System actions for the Ability Gateway (schema-loaded environments skip
+# the data migration that seeds these)
+Ability::Action.sync_system_actions!
+
 # Backfill: ensure all workspaces have a "Canceled" status
 canceled_stage = IncidentLifecycleStage.find_by(key: "canceled")
 if canceled_stage

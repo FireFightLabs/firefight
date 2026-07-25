@@ -1,0 +1,27 @@
+_fixture:
+  model_class: Ability::Grant
+
+# Mirrors the permissions jsonb of each service key in api_keys.yml —
+# fixtures bypass the ApiKey sync callback, so the grant rows are declared
+# here. The "fixture grants mirror fixture permissions" test in
+# api_key_test.rb fails if the two files drift.
+<% {
+  "full_access_key" => { workspace: "11111111-1111-1111-1111-111111111111",
+                         permissions: { "incidents" => %w[read create update], "severities" => %w[read], "statuses" => %w[read], "incident_types" => %w[read], "custom_fields" => %w[read], "catalog" => %w[read create update delete] } },
+  "read_only_key" => { workspace: "11111111-1111-1111-1111-111111111111",
+                       permissions: { "incidents" => %w[read], "severities" => %w[read], "statuses" => %w[read], "incident_types" => %w[read] } },
+  "inactive_key" => { workspace: "11111111-1111-1111-1111-111111111111", permissions: { "incidents" => %w[read create] } },
+  "expired_key" => { workspace: "11111111-1111-1111-1111-111111111111", permissions: { "incidents" => %w[read] } },
+  "deleted_key" => { workspace: "11111111-1111-1111-1111-111111111111", permissions: { "incidents" => %w[read] } },
+  "workspace_two_key" => { workspace: "22222222-2222-2222-2222-222222222222",
+                           permissions: { "incidents" => %w[read create], "severities" => %w[read], "statuses" => %w[read] } }
+}.each do |key_label, config| %>
+<% config[:permissions].each do |resource, actions| %>
+<% actions.each do |action| %>
+<%= key_label %>_<%= resource %>_<%= action %>:
+  workspace_id: <%= config[:workspace] %>
+  principal: <%= key_label %> (ApiKey)
+  action: <%= resource %>_<%= action %>
+<% end %>
+<% end %>
+<% end %>

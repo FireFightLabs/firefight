@@ -10,10 +10,61 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_22_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_25_090002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
+
+  create_table "ability_actions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id"
+    t.string "kind", null: false
+    t.string "key", null: false
+    t.string "risk_level", null: false
+    t.boolean "reversible", default: true, null: false
+    t.jsonb "params_schema", default: {}, null: false
+    t.string "source_type"
+    t.uuid "source_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_ability_actions_on_system_key", unique: true, where: "(workspace_id IS NULL)"
+    t.index ["source_type", "source_id"], name: "index_ability_actions_on_source_type_and_source_id"
+    t.index ["workspace_id", "key"], name: "index_ability_actions_on_workspace_key", unique: true, where: "(workspace_id IS NOT NULL)"
+  end
+
+  create_table "ability_grants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "principal_type", null: false
+    t.uuid "principal_id", null: false
+    t.uuid "role_id"
+    t.uuid "action_id"
+    t.jsonb "scope", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_id"], name: "index_ability_grants_on_action_id"
+    t.index ["principal_type", "principal_id", "action_id"], name: "index_ability_grants_on_principal_action", unique: true, where: "(action_id IS NOT NULL)"
+    t.index ["principal_type", "principal_id", "role_id"], name: "index_ability_grants_on_principal_role", unique: true, where: "(role_id IS NOT NULL)"
+    t.index ["role_id"], name: "index_ability_grants_on_role_id"
+    t.check_constraint "role_id IS NOT NULL AND action_id IS NULL OR role_id IS NULL AND action_id IS NOT NULL", name: "ability_grants_exactly_one_target"
+  end
+
+  create_table "ability_role_actions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "role_id", null: false
+    t.uuid "action_id", null: false
+    t.jsonb "default_scope", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["role_id", "action_id"], name: "index_ability_role_actions_on_role_id_and_action_id", unique: true
+  end
+
+  create_table "ability_roles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.string "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workspace_id", "slug"], name: "index_ability_roles_on_workspace_id_and_slug", unique: true
+  end
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
@@ -41,6 +92,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_22_140000) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "agents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.string "description"
+    t.boolean "enabled", default: true, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workspace_id", "slug"], name: "index_agents_on_workspace_id_and_slug", unique: true
   end
 
   create_table "alert_groups", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1053,8 +1116,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_22_140000) do
     t.index ["platform"], name: "index_workspaces_on_platform"
   end
 
+  add_foreign_key "ability_actions", "workspaces"
+  add_foreign_key "ability_grants", "ability_actions", column: "action_id"
+  add_foreign_key "ability_grants", "ability_roles", column: "role_id"
+  add_foreign_key "ability_grants", "workspaces"
+  add_foreign_key "ability_role_actions", "ability_actions", column: "action_id"
+  add_foreign_key "ability_role_actions", "ability_roles", column: "role_id"
+  add_foreign_key "ability_roles", "workspaces"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "agents", "workspaces"
   add_foreign_key "alert_groups", "incidents"
   add_foreign_key "alert_groups", "workspaces"
   add_foreign_key "alert_sources", "workspaces"

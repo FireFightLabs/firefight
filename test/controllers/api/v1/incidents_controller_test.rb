@@ -5,7 +5,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
 
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
            :incident_statuses, :incident_severities, :incident_types, :incidents,
-           :api_keys, :idempotency_keys
+           :api_keys, :ability_actions, :ability_grants, :idempotency_keys
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
