@@ -30,10 +30,19 @@ module ApiAuthentication
       principal: Current.principal,
       action_key: Ability::Action.system_key(resource, action),
       workspace: Current.workspace,
-      context: { source: "api" }
+      params: request_binding_params,
+      context: { source: "api", approval_id: request.headers["X-Approval-Id"] }
     )
   rescue AbilityGateway::Denied
     raise ForbiddenError, "API key lacks '#{action}' permission on '#{resource}'"
+  end
+
+  # Binds an approval to the exact request body without putting the body
+  # (potential PII) into the ledger: an approved retry must be byte-identical.
+  def request_binding_params
+    return {} if request.raw_post.blank?
+
+    { "body_digest" => Digest::SHA256.hexdigest(request.raw_post) }
   end
 
   def finalize_ability_authorization

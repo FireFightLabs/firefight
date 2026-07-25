@@ -3,7 +3,8 @@ class Policy < ApplicationRecord
 
   DOMAIN_ALERT_ROUTING = "alert_routing"
   DOMAIN_AUTO_INVESTIGATE = "auto_investigate"
-  DOMAINS = [ DOMAIN_ALERT_ROUTING, DOMAIN_AUTO_INVESTIGATE ].freeze
+  DOMAIN_APPROVALS = "approvals"
+  DOMAINS = [ DOMAIN_ALERT_ROUTING, DOMAIN_AUTO_INVESTIGATE, DOMAIN_APPROVALS ].freeze
 
   DEFAULT_ALERT_ROUTING_NAME = "Alert routing".freeze
 

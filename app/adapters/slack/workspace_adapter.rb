@@ -71,6 +71,23 @@ module Slack
       end
     end
 
+    def post_approval_request(approval:, channel_id:)
+      post_message(
+        channel_id: channel_id,
+        text: "Approval required: #{approval.principal_label} wants to run #{approval.action_key}",
+        blocks: Slack::Messages::Approval.build_request(approval)
+      )
+    end
+
+    def mark_approval_resolved(approval:, channel_id:, message_id:)
+      update_message(
+        channel_id: channel_id,
+        message_id: message_id,
+        text: "Approval #{approval.status}: #{approval.action_key}",
+        blocks: Slack::Messages::Approval.build_resolved(approval)
+      )
+    end
+
     def post_message(channel_id:, text:, blocks:)
       translate_errors do
         result = Slack::Client.post_message(

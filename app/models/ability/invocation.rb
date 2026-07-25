@@ -7,7 +7,8 @@ module Ability
   class Invocation < ApplicationRecord
     DECISION_ALLOW = "allow"
     DECISION_DENY = "deny"
-    DECISIONS = [ DECISION_ALLOW, DECISION_DENY ].freeze
+    DECISION_PENDING = "pending"
+    DECISIONS = [ DECISION_ALLOW, DECISION_DENY, DECISION_PENDING ].freeze
 
     OUTCOME_SUCCESS = "success"
     OUTCOME_ERROR = "error"
