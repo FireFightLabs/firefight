@@ -36,6 +36,17 @@ module Ability
       "#{resource}.#{action}"
     end
 
+    # A key resolves to the global system action or the workspace's own
+    # tool action. Keys inside the system space self-heal (same rule as
+    # system!, so an unseeded environment can't deny valid actions); any
+    # other unknown key resolves to nil and the gateway denies it.
+    def self.lookup(key, workspace)
+      found = where(workspace_id: [ nil, workspace&.id ]).find_by(key: key)
+      return found if found
+
+      system!(key) if ApiKey.managed_ability_keys.include?(key)
+    end
+
     # Lazily materializes a system action so grant writes never race the
     # seed; safe under parallel creation via the partial unique index.
     def self.system!(key)

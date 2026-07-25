@@ -3,6 +3,7 @@ module ApiAuthentication
 
   included do
     before_action :authenticate_api_key!
+    around_action :finalize_ability_authorization
   end
 
   private
@@ -20,10 +21,27 @@ module ApiAuthentication
     api_key.touch_last_used!
   end
 
+  # Personal tokens resolve to the human principal (member-level reads),
+  # service keys to themselves (their grants). Write-risk actions get a
+  # write-ahead ledger row, finalized by the around_action once the
+  # controller action completes.
   def authorize!(resource, action)
-    unless Current.api_key.has_permission?(resource, action)
-      raise ForbiddenError, "API key lacks '#{action}' permission on '#{resource}'"
-    end
+    @ability_authorization = AbilityGateway.authorize!(
+      principal: Current.principal,
+      action_key: Ability::Action.system_key(resource, action),
+      workspace: Current.workspace,
+      context: { source: "api" }
+    )
+  rescue AbilityGateway::Denied
+    raise ForbiddenError, "API key lacks '#{action}' permission on '#{resource}'"
+  end
+
+  def finalize_ability_authorization
+    yield
+    @ability_authorization&.finalize_success!
+  rescue => error
+    @ability_authorization&.finalize_error!(error)
+    raise
   end
 
   class ForbiddenError < StandardError; end

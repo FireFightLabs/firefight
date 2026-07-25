@@ -113,7 +113,11 @@ Rails.application.routes.draw do
     end
     get "/settings/api-keys", to: "settings#api_keys", as: :settings_api_keys
     delete "/settings/connected-agents/:id", to: "connected_agents#destroy", as: :connected_agent
-    resources :api_keys, only: [ :create, :update, :destroy ], path: "settings/api-keys"
+    resources :api_keys, only: [ :create, :update, :destroy ], path: "settings/api-keys" do
+      member do
+        get :abilities
+      end
+    end
     resources :incident_severities, only: [ :create, :update, :destroy ], path: "settings/severities" do
       member do
         patch :disable

@@ -17,16 +17,22 @@ module Mcp
       tool_name = tool.name_value
       resource = RESOURCE_BY_TOOL.fetch(tool_name)
 
-      unless server_context[:principal].mcp_readable?(resource)
-        return error_response("This token lacks '#{resource}:#{ApiKey::ACTION_READ}' permission. " \
-                              "Token scopes are documented at #{Docs::MCP_SERVER}")
-      end
-
       OpenTelemetry::Trace.current_span.add_attributes({ "firefight.mcp.tool" => tool_name })
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      response = tool.perform(workspace: server_context[:workspace], args: args)
+      response = AbilityGateway.authorize!(
+        principal: server_context[:principal],
+        action_key: Ability::Action.system_key(resource, ApiKey::ACTION_READ),
+        workspace: server_context[:workspace],
+        params: args,
+        context: { source: "mcp" }
+      ) do
+        tool.perform(workspace: server_context[:workspace], args: args)
+      end
       log_call(tool_name, server_context, started_at)
       response
+    rescue AbilityGateway::Denied
+      error_response("This token lacks '#{resource}:#{ApiKey::ACTION_READ}' permission. " \
+                     "Token scopes are documented at #{Docs::MCP_SERVER}")
     rescue ActiveRecord::RecordNotFound
       error_response("Not found in this workspace.")
     end
