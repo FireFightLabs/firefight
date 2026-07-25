@@ -34,11 +34,15 @@ class WorkspaceMembership < ApplicationRecord
     admin_role? || owner_role?
   end
 
-  # Member-level authority: humans read everything in their workspace
-  # without explicit grants (writes will require grants once memberships
-  # hold them).
+  # Member-level authority: humans read everything in their workspace;
+  # admins additionally hold every system write — mirroring the settings
+  # rule (mutations are admin territory). Personal tokens and OAuth
+  # connections inherit exactly this, so an admin's agent can write config
+  # with the admin's authority, still ledgered and approval-gated.
   def implicitly_allowed?(action)
-    action.system? && action.risk_level == Ability::Action::RISK_READ
+    return false unless action.system?
+
+    action.risk_level == Ability::Action::RISK_READ || admin_access?
   end
 
   # Scopes

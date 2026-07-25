@@ -89,13 +89,17 @@ class AbilityGatewayTest < ActiveSupport::TestCase
     assert_raises(Ability::Invocation::AlreadyFinalized) { invocation.finalize!(outcome: Ability::Invocation::OUTCOME_ERROR) }
   end
 
-  test "memberships hold implicit system reads but not writes" do
-    assert_equal :ok, AbilityGateway.authorize!(principal: @membership, action_key: "alerts.read",
-                                                workspace: @workspace) { :ok }
+  test "members hold implicit system reads; admins also hold writes" do
+    member = workspace_memberships(:bob_workspace_one)
 
+    assert_equal :ok, AbilityGateway.authorize!(principal: member, action_key: "alerts.read",
+                                                workspace: @workspace) { :ok }
     assert_raises(AbilityGateway::Denied) do
-      AbilityGateway.authorize!(principal: @membership, action_key: "alerts.create", workspace: @workspace)
+      AbilityGateway.authorize!(principal: member, action_key: "alerts.create", workspace: @workspace)
     end
+
+    assert_equal :ok, AbilityGateway.authorize!(principal: @membership, action_key: "alerts.create",
+                                                workspace: @workspace) { :ok }
   end
 
   test "a matching approval policy parks the call as pending" do

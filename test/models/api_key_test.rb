@@ -47,8 +47,8 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_equal service, service.principal
   end
 
-  test "personal tokens read everything and write nothing" do
-    membership = workspace_memberships(:alice_workspace_one)
+  test "member personal tokens read everything and write nothing" do
+    membership = workspace_memberships(:bob_workspace_one)
     key, _ = ApiKey.create_with_token!(
       workspace: workspaces(:slack_workspace_one), created_by: membership,
       on_behalf_of: membership, name: "Personal"
@@ -59,6 +59,17 @@ class ApiKeyTest < ActiveSupport::TestCase
       assert_not key.has_permission?(resource, ApiKey::ACTION_CREATE)
       assert_not key.has_permission?(resource, ApiKey::ACTION_DELETE)
     end
+  end
+
+  test "admin personal tokens carry the admin's write authority" do
+    membership = workspace_memberships(:alice_workspace_one)
+    key, _ = ApiKey.create_with_token!(
+      workspace: workspaces(:slack_workspace_one), created_by: membership,
+      on_behalf_of: membership, name: "Admin personal"
+    )
+
+    assert key.has_permission?(ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_CREATE)
+    assert key.has_permission?(ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_DELETE)
   end
 
   test "on_behalf_of must belong to the same workspace" do
@@ -167,7 +178,7 @@ class ApiKeyTest < ActiveSupport::TestCase
   end
 
   test "personal tokens hold no grants" do
-    membership = workspace_memberships(:alice_workspace_one)
+    membership = workspace_memberships(:bob_workspace_one)
     key, _ = ApiKey.create_with_token!(
       workspace: workspaces(:slack_workspace_one), created_by: membership,
       on_behalf_of: membership, name: "Personal"

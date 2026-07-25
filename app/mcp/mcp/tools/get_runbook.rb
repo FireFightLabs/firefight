@@ -2,6 +2,7 @@ module Mcp
   module Tools
     class GetRunbook < Base
       tool_name GET_RUNBOOK
+      authorize_as ApiKey::RESOURCE_RUNBOOKS
       description "Fetch one incident response runbook in full by slug: its summary, full " \
                   "content, external link, and ordered steps with instructions. " \
                   "Docs: #{Docs::RUNBOOKS}"
