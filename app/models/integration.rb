@@ -15,8 +15,9 @@ class Integration < ApplicationRecord
 
   validates :kind, inclusion: { in: KINDS }
   validates :provider, :name, presence: true
-  validates :slug, presence: true, uniqueness: { scope: :workspace_id },
-                   format: { with: /\A[a-z0-9_]+\z/ }
+  validates :slug, presence: true, format: { with: /\A[a-z0-9_]+\z/ }
+  validates :slug, uniqueness: { scope: :workspace_id, conditions: -> { where(deleted_at: nil) } },
+                   unless: :deleted?
   validate :slug_immutable, on: :update
 
   before_validation :derive_slug, on: :create
@@ -25,6 +26,10 @@ class Integration < ApplicationRecord
 
   def operational?
     disabled_at.nil? && deleted_at.nil?
+  end
+
+  def deleted?
+    deleted_at.present?
   end
 
   def server_url

@@ -85,6 +85,25 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert integration.integration_environments.one?
   end
 
+  test "reconnecting a disconnected provider revives it instead of colliding on the slug" do
+    integration = @workspace.integrations.create!(
+      kind: Integration::KIND_MCP, provider: "github", name: "GitHub",
+      settings: { "server_url" => "https://api.githubcopilot.com/mcp/" }
+    )
+    integration.update!(deleted_at: Time.current)
+
+    Integrations::OauthClient.stubs(:begin_flow).returns(
+      authorize_url: "https://auth.example/authorize", state: "abc",
+      verifier: "ver", client_id: "cid", token_endpoint: "https://auth.example/token"
+    )
+
+    get oauth_start_integrations_url(provider: "github")
+
+    assert_redirected_to "https://auth.example/authorize"
+    assert_equal 1, @workspace.integrations.where(provider: "github").count
+    assert_nil integration.reload.deleted_at
+  end
+
   test "oauth callback with the right state stores tokens and discovers tools" do
     Integrations::OauthClient.stubs(:begin_flow).returns(
       authorize_url: "https://auth.example/authorize", state: "abc",

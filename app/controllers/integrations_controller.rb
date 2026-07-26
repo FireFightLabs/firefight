@@ -73,11 +73,14 @@ class IntegrationsController < InertiaController
       return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
     end
 
-    integration = current_workspace.integrations.where(deleted_at: nil).find_or_create_by!(provider: provider.key) do |record|
-      record.kind = Integration::KIND_MCP
-      record.name = provider.name
-      record.settings = { "server_url" => provider.server_url }
-    end
+    # Reconnecting revives a previously disconnected connection rather than
+    # colliding on its slug.
+    integration = current_workspace.integrations.find_or_initialize_by(provider: provider.key)
+    integration.assign_attributes(
+      kind: Integration::KIND_MCP, name: provider.name,
+      settings: { "server_url" => provider.server_url }, deleted_at: nil, disabled_at: nil
+    )
+    integration.save!
     environment_row = integration.integration_environments.first ||
                       integration.integration_environments.create!
 
