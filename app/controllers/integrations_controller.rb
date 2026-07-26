@@ -12,7 +12,7 @@ class IntegrationsController < InertiaController
       providers: IntegrationProvider.all.map do |provider|
         { key: provider.key, name: provider.name, category: provider.category,
           mark: provider.mark, color: provider.color,
-          description: provider.description, serverUrl: provider.server_url, oauth: provider.oauth }
+          description: provider.description, serverUrl: provider.server_url }
       end,
       environments: environment_options,
       canManage: current_membership.admin_access?
@@ -69,8 +69,8 @@ class IntegrationsController < InertiaController
   # screen. PKCE state lives in the session until the callback.
   def oauth_start
     provider = IntegrationProvider.find(params[:provider].to_s)
-    unless provider&.oauth && provider.server_url.present?
-      return redirect_to integrations_path, alert: "This integration connects with a token, not OAuth."
+    unless provider && provider.server_url.present?
+      return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
     end
 
     integration = current_workspace.integrations.where(deleted_at: nil).find_or_create_by!(provider: provider.key) do |record|

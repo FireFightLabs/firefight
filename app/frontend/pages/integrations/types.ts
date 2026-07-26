@@ -6,7 +6,6 @@ export interface ProviderEntry {
   color: string
   description: string
   serverUrl: string
-  oauth: boolean
 }
 
 export interface EnvironmentOption {

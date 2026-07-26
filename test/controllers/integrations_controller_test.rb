@@ -109,6 +109,14 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
   end
 
+  test "oauth_start without a hosted server explains the token path" do
+    get oauth_start_integrations_url(provider: "newrelic")
+
+    assert_redirected_to integrations_path
+    assert_match(/Connect with a token/, flash[:alert])
+    assert_not @workspace.integrations.exists?(provider: "newrelic")
+  end
+
   test "oauth callback rejects a mismatched state" do
     Integrations::OauthClient.stubs(:begin_flow).returns(
       authorize_url: "https://auth.example/authorize", state: "abc",

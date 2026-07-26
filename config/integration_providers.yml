@@ -12,7 +12,6 @@ providers:
     color: "#24292f"
     description: Correlate incidents with recent pull requests and deploys, and fetch code on demand.
     server_url: https://api.githubcopilot.com/mcp/
-    oauth: true
   - key: gitlab
     name: GitLab
     category: Code
@@ -48,7 +47,6 @@ providers:
     color: "#362d59"
     description: Search error issues and releases tied to an incident.
     server_url: https://mcp.sentry.dev/mcp
-    oauth: true
   - key: notion
     name: Notion
     category: Knowledge
@@ -56,7 +54,6 @@ providers:
     color: "#111111"
     description: Bring runbook and architecture pages into investigations.
     server_url: https://mcp.notion.com/mcp
-    oauth: true
   - key: confluence
     name: Confluence
     category: Knowledge

@@ -41,7 +41,7 @@ export function ConnectDialog({
   const [submitting, setSubmitting] = useState(false)
   const [useToken, setUseToken] = useState(false)
 
-  const oauthAvailable = provider?.oauth === true && provider.serverUrl !== ""
+  const oauthAvailable = provider !== null && provider.serverUrl !== ""
   const showManualForm = !oauthAvailable || useToken
 
   useEffect(() => {

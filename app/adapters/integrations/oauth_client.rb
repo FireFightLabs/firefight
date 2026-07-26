@@ -69,7 +69,7 @@ module Integrations
 
       def register(metadata, redirect_uri)
         endpoint = metadata[:registration_endpoint]
-        raise Error, "the server does not support automatic client registration; connect with a token instead" if endpoint.blank?
+        raise Error, "the server does not support automatic client registration. Connect with a token instead" if endpoint.blank?
 
         response = post_json(endpoint, {
           client_name: "Firefight",
