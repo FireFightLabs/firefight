@@ -21,16 +21,20 @@ class IntegrationProvider
   end
 
   # Providers whose OAuth server needs a pre-registered app (e.g. GitHub,
-  # no dynamic registration) read a client id/secret from credentials:
-  #   integrations:
-  #     github:
-  #       client_id: ...
-  #       client_secret: ...
-  # Absent = fall back to dynamic registration, else the token path.
+  # which has no dynamic registration) read a Firefight-wide client id and
+  # secret from the environment (Infisical injects these as env vars), named
+  #   INTEGRATION_<KEY>_CLIENT_ID / INTEGRATION_<KEY>_CLIENT_SECRET
+  # e.g. INTEGRATION_GITHUB_CLIENT_ID. One app per provider serves every
+  # workspace; the resulting tokens are per-workspace. Absent = fall back to
+  # dynamic registration, else the token path.
   def self.oauth_client(key)
-    config = Rails.application.credentials.dig(:integrations, key.to_sym)
-    return {} unless config.is_a?(Hash) && config[:client_id].present?
+    prefix = "INTEGRATION_#{key.to_s.upcase}"
+    client_id = ENV["#{prefix}_CLIENT_ID"].presence ||
+                Rails.application.credentials.dig(:integrations, key.to_sym, :client_id)
+    return {} if client_id.blank?
 
-    { client_id: config[:client_id], client_secret: config[:client_secret] }
+    { client_id: client_id,
+      client_secret: ENV["#{prefix}_CLIENT_SECRET"].presence ||
+                     Rails.application.credentials.dig(:integrations, key.to_sym, :client_secret) }
   end
 end

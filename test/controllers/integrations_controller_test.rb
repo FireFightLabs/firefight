@@ -136,6 +136,24 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_not @workspace.integrations.exists?(provider: "newrelic")
   end
 
+  test "a configured provider app skips dynamic registration" do
+    ENV["INTEGRATION_GITHUB_CLIENT_ID"] = "Iv1.abc"
+    ENV["INTEGRATION_GITHUB_CLIENT_SECRET"] = "shh"
+
+    Integrations::OauthClient.expects(:begin_flow)
+      .with(has_entries(client_id: "Iv1.abc", client_secret: "shh"))
+      .returns(authorize_url: "https://github.com/login/oauth/authorize", state: "abc",
+               verifier: "ver", client_id: "Iv1.abc", client_secret: "shh",
+               token_endpoint: "https://github.com/login/oauth/access_token")
+
+    get oauth_start_integrations_url(provider: "github")
+
+    assert_response :redirect
+  ensure
+    ENV.delete("INTEGRATION_GITHUB_CLIENT_ID")
+    ENV.delete("INTEGRATION_GITHUB_CLIENT_SECRET")
+  end
+
   test "a failed oauth start leaves no broken connection behind" do
     Integrations::OauthClient.stubs(:begin_flow).raises(
       Integrations::OauthClient::Error, "this provider needs a one-time OAuth app setup"
