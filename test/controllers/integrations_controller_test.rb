@@ -128,6 +128,24 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
   end
 
+  test "a GitHub App install id is captured for later server-to-server tokens" do
+    Integrations::OauthClient.stubs(:begin_flow).returns(
+      authorize_url: "https://github.com/login/oauth/authorize", state: "abc",
+      verifier: "ver", client_id: "Iv1.abc", token_endpoint: "https://github.com/login/oauth/access_token"
+    )
+    get oauth_start_integrations_url(provider: "github")
+
+    Integrations::OauthClient.stubs(:exchange).returns("access_token" => "at-1")
+    Integrations::McpClient.any_instance.stubs(:tools_list).returns([])
+    Integrations::McpClient.any_instance.stubs(:ping).returns(true)
+
+    get oauth_callback_integrations_url(state: "abc", code: "authcode", installation_id: "98765")
+
+    row = @workspace.integrations.find_by!(provider: "github").integration_environments.first
+    assert_equal "98765", row.base_config["installation_id"]
+    assert_equal "at-1", row.credentials_hash.dig("oauth", "access_token")
+  end
+
   test "oauth_start without a hosted server explains the token path" do
     get oauth_start_integrations_url(provider: "newrelic")
 

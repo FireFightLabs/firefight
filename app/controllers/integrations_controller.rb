@@ -119,14 +119,23 @@ class IntegrationsController < InertiaController
       client_secret: pending["client_secret"], redirect_uri: oauth_callback_integrations_url,
       resource: pending["resource"]
     )
-    environment_row.update!(credentials: {
+    environment_row.credentials = {
       "oauth" => token.merge(
         "token_endpoint" => pending["token_endpoint"],
         "client_id" => pending["client_id"],
         "client_secret" => pending["client_secret"],
         "resource" => pending["resource"]
       ).compact
-    }.to_json)
+    }.to_json
+    # GitHub App installs return an installation id alongside the code. It is
+    # not a secret, so it lives in base_config; server-to-server tokens (the
+    # bot identity for autonomous agent writes) are minted from it later.
+    if params[:installation_id].present?
+      environment_row.base_config = environment_row.base_config.merge(
+        "installation_id" => params[:installation_id].to_s
+      )
+    end
+    environment_row.save!
 
     begin
       Integrations::DiscoveryService.sync!(environment_row.integration)
