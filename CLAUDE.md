@@ -21,6 +21,7 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 | [docs/workflows.md](docs/workflows.md) | Creating or modifying a workflow, or touching the SolidWorkflow engine (`engines/solid_workflow/`) |
 | [docs/api.md](docs/api.md) | Working on the public REST API (`/api/v1/`), API keys, auth, or idempotency |
 | [docs/mcp.md](docs/mcp.md) | Working on the MCP server (`/mcp`, `app/mcp/`), its tools, or agent-facing auth |
+| [docs/integrations.md](docs/integrations.md) | Adding or changing an integration provider or connection, and anything touching the Ability Gateway (actions, grants, approvals, the invocation ledger) |
 | [docs/ai.md](docs/ai.md) | AI features (`engines/firefight_ai/`), the Inference ledger, transcript store/scrubbing, or model configuration |
 
 ## Code Style
@@ -28,7 +29,7 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 - No unnecessary comments — only explain non-obvious logic
 - No ticket numbers in comments
 - No emojis unless requested
-- User-facing copy (UI strings, labels, descriptions, docs prose) uses no em dashes and no unnecessary semicolons. Write two sentences, or use a comma or parenthesis. Empty table cells use a plain hyphen, not a dash glyph.
+- User-facing copy (UI strings, labels, descriptions, product docs on the marketing and docs sites) uses no em dashes and no unnecessary semicolons. Write two sentences, or use a comma or parenthesis. Empty table cells use a plain hyphen, not a dash glyph. Engineering docs under `docs/` and code comments are exempt.
 - No direct `Rails.logger` helper wrappers — call `Rails.logger.info(...)` inline where needed
 - Keep it simple, avoid over-engineering
 - Rubocop enforced: `[ {...} ]` not `[{...}]` (SpaceInsideArrayLiteralBrackets)
@@ -50,6 +51,10 @@ Controller → Dispatcher → Handler → Service → Adapter → Slack::Client
 - All platform calls go through `WorkspaceAdapter.for(workspace)`; `Slack::Client` is only called from `Slack::WorkspaceAdapter`. No Slack-specific code outside `app/adapters/slack/`. Rescue `AdapterError` subclasses, never platform errors.
 - Meaningful state changes to `Incident`/`IncidentAction`/`Postmortem` go through `record_change!` (Trackable/Recordable) so the snapshot + event are written together.
 - All callback_ids, action_ids, and subcommand strings come from the `Identifiers` module — never magic strings.
+- Every privileged operation goes through `AbilityGateway.authorize!` — never check permissions inline. **Config ≠ permission**: a grant and a wired `IntegrationEnvironment` are both required, and the gateway asks `action.configured_for?(scope)` rather than reaching into the integrations layer.
+- Machines never inherit a human's reach: service keys and `Agent` principals hold only explicit grants, whatever their creator can do.
+- Adding an integration provider is an entry in `config/integration_providers.yml` plus env vars, never new code. Discovered tools arrive disabled; enabling one mints exactly one action.
+- Secrets never enter the session, an MCP tool response, or the ledger. Credential shapes are owned by `Integrations::OauthClient`; only `IntegrationEnvironment` persists them.
 
 ## Testing
 
