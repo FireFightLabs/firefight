@@ -71,7 +71,7 @@ export function ConnectedCard({
             {integration.tools.map((tool) => (
               <div
                 key={tool.id}
-                className="border-border flex items-center justify-between gap-3 border-b py-2 last:border-b-0"
+                className="border-border flex items-start justify-between gap-3 border-b py-2.5 last:border-b-0"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -82,13 +82,17 @@ export function ConnectedCard({
                       </Badge>
                     )}
                   </div>
-                  <p className="text-muted-foreground truncate text-xs">
-                    {tool.enabled ? (
-                      <code>{tool.actionKey}</code>
-                    ) : (
-                      (tool.description ?? "Enable to mint a permissioned action")
-                    )}
+                  <p
+                    className="text-muted-foreground mt-0.5 line-clamp-2 text-xs"
+                    title={tool.description ?? undefined}
+                  >
+                    {tool.description ?? "No description offered by the server."}
                   </p>
+                  {tool.enabled && (
+                    <code className="text-muted-foreground/70 mt-1 block truncate text-[11px]">
+                      {tool.actionKey}
+                    </code>
+                  )}
                 </div>
                 <Switch
                   checked={tool.enabled}

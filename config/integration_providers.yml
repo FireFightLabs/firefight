@@ -18,7 +18,7 @@ providers:
     mark: GL
     color: "#fc6d26"
     description: Correlate incidents with merge requests and pipelines.
-    server_url: ""
+    server_url: https://gitlab.com/api/v4/mcp
   - key: newrelic
     name: New Relic
     category: Telemetry
@@ -32,7 +32,7 @@ providers:
     mark: DD
     color: "#632ca6"
     description: Query logs, metrics and monitors during investigations.
-    server_url: ""
+    server_url: https://mcp.datadoghq.com/api/unstable/mcp-server/mcp
   - key: grafana
     name: Grafana
     category: Telemetry
@@ -61,6 +61,20 @@ providers:
     color: "#1868db"
     description: Bring team documentation into investigations.
     server_url: ""
+  - key: neon
+    name: Neon
+    category: Databases
+    mark: NE
+    color: "#00e599"
+    description: Read-only queries and branch history for a Neon Postgres database.
+    server_url: https://mcp.neon.tech/mcp
+  - key: supabase
+    name: Supabase
+    category: Databases
+    mark: SB
+    color: "#3ecf8e"
+    description: Read-only queries and project state for a Supabase database.
+    server_url: https://mcp.supabase.com/mcp
   - key: postgresql
     name: PostgreSQL
     category: Databases
