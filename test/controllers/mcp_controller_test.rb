@@ -172,6 +172,47 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert_includes body.dig("result", "content").first["text"], Mcp::Docs::ROUTING_RULES
   end
 
+  test "evaluate_routing resolves outcome target ids to names" do
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: [],
+      outcome: {
+        "action" => AlertIngestService::ACTION_AUTO_CREATE,
+        "severity_id" => incident_severities(:critical_ws1).id,
+        "invite" => [
+          { "type" => PolicyRule::AlertRoutingOutcome::TARGET_MEMBER, "member_id" => @membership.id },
+          { "type" => PolicyRule::AlertRoutingOutcome::TARGET_TEAM, "entry_id" => catalog_entries(:platform_team).id }
+        ]
+      }
+    )
+
+    content, is_error = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+
+    assert_not is_error
+    assert_equal "Critical", content.dig("outcome", "severity_name")
+    invites = content.dig("outcome", "invite")
+    assert_equal "Alice Smith", invites.first["member_name"]
+    assert_equal "Platform Team", invites.second["entry_name"]
+    assert_equal "platform_team", invites.second["entry_slug"]
+  end
+
+  test "search_catalog resolves member attribute ids to names" do
+    catalog_types(:team_ws1).catalog_attribute_definitions.create!(
+      key: "manager", name: "Manager",
+      attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER, position: 5
+    )
+    entry = catalog_entries(:platform_team)
+    entry.update!(attributes: entry.attributes.merge("manager" => @membership.id))
+
+    content, is_error = call_tool(Mcp::Tools::SEARCH_CATALOG, { slug: entry.slug })
+
+    assert_not is_error
+    manager = content["entries"].first.dig("attributes", "manager")
+    assert_equal @membership.id, manager["id"]
+    assert_equal "Alice Smith", manager["name"]
+  end
+
   test "service keys are scoped per tool resource" do
     _, alerts_token = ApiKey.create_with_token!(
       workspace: @workspace, created_by: @membership, name: "Alerts only",

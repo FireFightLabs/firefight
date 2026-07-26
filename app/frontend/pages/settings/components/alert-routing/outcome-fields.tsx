@@ -82,7 +82,18 @@ export function OutcomeFields({
             </Select>
             {data.notifyKind === "channel" && (
               channels.length > 0 ? (
-                <Select value={data.notifyChannel} onValueChange={(value) => setData("notifyChannel", value)}>
+                <Select
+                  value={data.notifyChannel}
+                  onValueChange={(value) =>
+                    setData({
+                      ...data,
+                      notifyChannel: value,
+                      notifyChannelName:
+                        channels.find((c) => c.id === value)?.name ??
+                        (value === data.notifyChannel ? data.notifyChannelName : ""),
+                    })
+                  }
+                >
                   <SelectTrigger className="w-52">
                     <SelectValue placeholder="Pick a channel" />
                   </SelectTrigger>
@@ -91,14 +102,16 @@ export function OutcomeFields({
                       <SelectItem key={c.id} value={c.id}>#{c.name}</SelectItem>
                     ))}
                     {data.notifyChannel && !channels.some((c) => c.id === data.notifyChannel) && (
-                      <SelectItem value={data.notifyChannel}>{data.notifyChannel}</SelectItem>
+                      <SelectItem value={data.notifyChannel}>
+                        {data.notifyChannelName ? `#${data.notifyChannelName}` : data.notifyChannel}
+                      </SelectItem>
                     )}
                   </SelectContent>
                 </Select>
               ) : (
                 <Input
                   value={data.notifyChannel}
-                  onChange={(e) => setData("notifyChannel", e.target.value)}
+                  onChange={(e) => setData({ ...data, notifyChannel: e.target.value, notifyChannelName: "" })}
                   placeholder="Slack channel ID"
                   className="w-52"
                 />

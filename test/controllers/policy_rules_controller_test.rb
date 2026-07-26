@@ -28,6 +28,23 @@ class PolicyRulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal AlertIngestService::ACTION_AUTO_CREATE, rule.outcome["action"]
   end
 
+  test "create persists the notify channel display name alongside the id" do
+    post policy_rules_url, params: {
+      rule: {
+        conditions: [],
+        outcome: {
+          action: AlertIngestService::ACTION_NOTIFY_ONLY,
+          notify: { type: PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL, channel_id: "C123", channel_name: "alerts-feed" }
+        }
+      }
+    }
+
+    policy = @workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).first
+    rule = policy.policy_rules.find_by!(priority: 1)
+    assert_equal "C123", rule.outcome.dig("notify", "channel_id")
+    assert_equal "alerts-feed", rule.outcome.dig("notify", "channel_name")
+  end
+
   test "invalid conditions redirect back with errors" do
     post policy_rules_url, params: {
       rule: { conditions: [ { field: "service", operator: "equals", value: "x" } ], outcome: { action: AlertIngestService::ACTION_DROP } }
