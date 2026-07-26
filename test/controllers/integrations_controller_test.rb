@@ -303,6 +303,16 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to "https://mcp.linear.app/authorize"
   end
 
+  # ProviderMark falls back to the letter mark, so a missing logo degrades
+  # rather than breaks. It still looks unfinished next to thirteen that have one.
+  test "every provider ships a logo" do
+    missing = IntegrationProvider.all.reject do |provider|
+      Rails.root.join("public/integrations/#{provider.key}.svg").exist?
+    end
+
+    assert_empty missing.map(&:key)
+  end
+
   test "category taglines come from the registry, not the frontend" do
     get integrations_url, headers: inertia_headers
 

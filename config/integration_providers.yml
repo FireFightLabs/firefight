@@ -112,6 +112,6 @@ providers:
     name: Custom MCP server
     category: Custom
     mark: MC
-    color: "#0e7490"
+    color: "#1f2430"
     description: Point Firefight at any MCP server and allowlist its tools.
     server_url: ""

@@ -63,7 +63,7 @@ Both are required and they answer different questions. A grant says *this princi
 ## Adding a provider
 
 1. An entry in `config/integration_providers.yml`: `key`, `name`, `category`, `mark`, `color`, `description`, and `server_url` when the provider hosts an MCP server.
-2. A logo at `public/integrations/<key>.svg`, white-filled on a 24x24 viewBox. `ProviderMark` falls back to the `mark` letters if it is missing, so this never breaks the page.
+2. A logo at `public/integrations/<key>.svg`, white-filled on a 24x24 viewBox (Simple Icons is the source for the existing set). `ProviderMark` falls back to the `mark` letters if it is missing, so this never breaks the page, but a test asserts every provider has one.
 3. If the category is new, a line under `categories:` in the same file. Taglines are registry data precisely so this stays a config edit.
 4. If its OAuth needs a pre-registered app: `INTEGRATION_<KEY>_CLIENT_ID` and `_CLIENT_SECRET`. Add `_APP_SLUG` when the provider gates access behind installing the app (GitHub). Providers whose authorization server offers dynamic registration (Linear) need none of these.
 
