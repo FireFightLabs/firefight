@@ -16,6 +16,7 @@ class Workspace < ApplicationRecord
   has_many :incident_forms, dependent: :destroy
   has_many :webhooks, dependent: :destroy
   has_many :api_keys, dependent: :destroy
+  has_many :agents, dependent: :destroy
   has_many :catalog_types
   has_many :catalog_entries
   has_many :incident_transcript_messages, dependent: :destroy
@@ -25,6 +26,7 @@ class Workspace < ApplicationRecord
   has_many :runbooks, dependent: :destroy
   has_many :incident_runbooks, dependent: :destroy
   has_many :ability_approvals, class_name: "Ability::Approval", dependent: :destroy
+  has_many :ability_grants, class_name: "Ability::Grant", dependent: :destroy
   has_many :ability_invocations, class_name: "Ability::Invocation", dependent: :delete_all
   has_many :integrations, dependent: :destroy
 

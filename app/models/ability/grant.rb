@@ -15,6 +15,14 @@ module Ability
 
     after_commit :bust_principal_cache
 
+    # What an admin can hand out here: every global system action plus the
+    # tool actions this workspace has minted by enabling a capability.
+    def self.grantable_actions(workspace)
+      Ability::Action.where(workspace_id: [ nil, workspace.id ])
+                     .includes(source: :integration)
+                     .order(:kind, :key)
+    end
+
     # Reconciles a principal's direct grants over a bounded set of action
     # keys: grants inside `managed_keys` but absent from `desired_keys` are
     # removed, missing ones created. Grants outside `managed_keys` (e.g.

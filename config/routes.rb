@@ -130,6 +130,8 @@ Rails.application.routes.draw do
         get "oauth/callback", action: :oauth_callback, as: :oauth_callback
       end
     end
+    get "/settings/permissions", to: "settings#permissions", as: :settings_permissions
+    resources :ability_grants, only: [ :create, :update, :destroy ], path: "settings/permissions/grants"
     get "/settings/activity", to: "settings#activity", as: :settings_activity
     get "/settings/approvals", to: "settings#approvals", as: :settings_approvals
     resources :approvals, only: [], path: "settings/approvals" do

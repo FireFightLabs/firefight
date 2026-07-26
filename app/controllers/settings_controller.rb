@@ -91,6 +91,15 @@ class SettingsController < InertiaController
 
   # The gateway ledger: everything agents and API keys did (or were denied),
   # rendered read-only. This is the oversight surface for governed writes.
+  def permissions
+    render inertia: "settings/permissions", props: {
+      principals: principal_rows,
+      actions: AbilityActionOptionSerializer.many(Ability::Grant.grantable_actions(current_workspace)),
+      environments: environment_options,
+      canManage: current_membership.admin_access?
+    }
+  end
+
   def activity
     scope = current_workspace.ability_invocations.order(created_at: :desc)
     scope = scope.where(decision: params[:decision]) if params[:decision].present?
@@ -180,6 +189,24 @@ class SettingsController < InertiaController
   end
 
   private
+
+  # Everything that can hold a grant, in one list: humans, agents, and the
+  # service keys. Personal keys are omitted because they resolve to their
+  # owner's authority rather than carrying grants of their own.
+  def principal_rows
+    memberships = current_workspace.workspace_memberships.includes(:user, ability_grants: :action)
+    agents = current_workspace.agents.active.includes(ability_grants: :action)
+    keys = current_workspace.api_keys.where(deleted_at: nil).service.includes(ability_grants: :action)
+
+    (memberships.to_a + agents.to_a + keys.to_a).map { |principal| PrincipalSerializer.one(principal) }
+  end
+
+  def environment_options
+    type = current_workspace.catalog_types.find_by(system_key: CatalogType::SYSTEM_KEY_ENVIRONMENT)
+    return [] unless type
+
+    type.catalog_entries.active.order(:name).map { |entry| { id: entry.id, name: entry.name, slug: entry.slug } }
+  end
 
   # MCP clients this member authorized via OAuth consent; one row per
   # application with a live (non-revoked) token or refresh chain.

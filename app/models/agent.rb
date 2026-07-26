@@ -7,7 +7,6 @@ class Agent < ApplicationRecord
 
   belongs_to :workspace
 
-  has_many :ability_grants, class_name: "Ability::Grant", as: :principal, dependent: :destroy
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: { scope: :workspace_id },

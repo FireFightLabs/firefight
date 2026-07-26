@@ -1,0 +1,63 @@
+class AbilityGrantsController < InertiaController
+  before_action :require_authentication
+  before_action :require_admin!
+
+  def create
+    principal = find_principal!
+    action = find_action!
+
+    grant = current_workspace.ability_grants.find_or_initialize_by(principal: principal, action: action)
+    grant.scope = requested_scope
+    grant.save!
+
+    redirect_to settings_permissions_path
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to settings_permissions_path, alert: e.record.errors.full_messages.to_sentence
+  end
+
+  def update
+    grant = current_workspace.ability_grants.find(params[:id])
+    grant.update!(scope: requested_scope)
+
+    redirect_to settings_permissions_path
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to settings_permissions_path, alert: e.record.errors.full_messages.to_sentence
+  end
+
+  def destroy
+    current_workspace.ability_grants.find(params[:id]).destroy!
+    redirect_to settings_permissions_path
+  end
+
+  private
+
+  # An empty environment list means unrestricted, which Ability::Scope spells
+  # as the dimension being absent rather than an empty array.
+  def requested_scope
+    ids = Array(params[:environment_ids]).map(&:to_s).select(&:present?) & workspace_environment_ids
+    ids.any? ? { Ability::Scope::DIMENSION_ENVIRONMENT => ids } : {}
+  end
+
+  def workspace_environment_ids
+    @workspace_environment_ids ||= current_workspace.catalog_entries
+                                                    .joins(:catalog_type)
+                                                    .where(catalog_types: { system_key: CatalogType::SYSTEM_KEY_ENVIRONMENT })
+                                                    .pluck(:id)
+  end
+
+  # Grants attach to principals of this workspace only; the polymorphic type
+  # arrives from the client, so it is matched against a fixed allowlist
+  # rather than constantized.
+  def find_principal!
+    case params[:principal_type]
+    when WorkspaceMembership.polymorphic_name then current_workspace.workspace_memberships.find(params[:principal_id])
+    when Agent.polymorphic_name then current_workspace.agents.find(params[:principal_id])
+    when ApiKey.polymorphic_name then current_workspace.api_keys.service.find(params[:principal_id])
+    else raise ActiveRecord::RecordNotFound
+    end
+  end
+
+  def find_action!
+    Ability::Action.where(workspace_id: [ nil, current_workspace.id ]).find(params[:action_id])
+  end
+end

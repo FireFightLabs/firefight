@@ -5,6 +5,16 @@
 module Principal
   extend ActiveSupport::Concern
 
+  included do
+    has_many :ability_grants, class_name: "Ability::Grant", as: :principal, dependent: :destroy
+  end
+
+  # Authority held before any grant, as a stable key the permissions UI
+  # explains and `implicitly_allowed?` enforces. Keep the two in step.
+  def implicit_authority
+    :none
+  end
+
   def principal_label
     "#{actor_kind}:#{actor_display_name}"
   end

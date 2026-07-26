@@ -51,6 +51,10 @@ class WorkspaceMembership < ApplicationRecord
     action.system? && action.risk_level == Ability::Action::RISK_READ
   end
 
+  def implicit_authority
+    admin_access? ? :admin : :member
+  end
+
   # Scopes
   scope :by_role, ->(role) { where(role: role) }
   scope :owners, -> { where(role: :owner) }
