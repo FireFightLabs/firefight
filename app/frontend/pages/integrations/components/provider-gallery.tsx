@@ -33,11 +33,16 @@ export function ProviderGallery({
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<Filter>("All applications")
 
+  // The Connected/Disconnected split only means something once something is
+  // connected; until then it's an empty filter, so hide the tabs entirely.
+  const showFilters = integrations.length > 0
+  const activeFilter = showFilters ? filter : "All applications"
+
   const grouped = useMemo(() => {
     const matching = providers.filter((provider) => {
       const integration = integrations.find((candidate) => candidate.provider === provider.key) ?? null
-      if (filter === "Connected" && integration === null) return false
-      if (filter === "Disconnected" && integration !== null) return false
+      if (activeFilter === "Connected" && integration === null) return false
+      if (activeFilter === "Disconnected" && integration !== null) return false
       return `${provider.name} ${provider.category} ${provider.description}`
         .toLowerCase()
         .includes(search.toLowerCase())
@@ -47,27 +52,36 @@ export function ProviderGallery({
       byCategory.set(provider.category, [...(byCategory.get(provider.category) ?? []), provider])
     })
     return [...byCategory.entries()]
-  }, [providers, integrations, search, filter])
+  }, [providers, integrations, search, activeFilter])
 
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="bg-muted flex rounded-lg p-1">
-          {FILTERS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setFilter(option)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                filter === option
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
+        {showFilters ? (
+          <div className="bg-muted flex rounded-lg p-1">
+            {FILTERS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setFilter(option)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  activeFilter === option
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div>
+            <h2 className="text-lg font-semibold">Browse integrations</h2>
+            <p className="text-muted-foreground text-sm">
+              Everything you connect becomes available to investigations, agents, and the API.
+            </p>
+          </div>
+        )}
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
