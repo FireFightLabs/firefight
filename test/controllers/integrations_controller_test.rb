@@ -236,6 +236,35 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "at-1", row.oauth["access_token"]
   end
 
+  # Every provider with a hosted server must be connectable through the
+  # generic flow. A provider that needs code to connect is a design failure,
+  # not a special case, so this asserts the registry alone carries it.
+  test "a registry provider with a hosted server needs no provider-specific code" do
+    entry = IntegrationProvider.find("linear")
+
+    assert_equal "https://mcp.linear.app/mcp", entry.server_url
+    assert_empty IntegrationProvider.oauth_client("linear"),
+                 "Linear registers dynamically, so it must need no pre-registered app"
+
+    Integrations::OauthClient.expects(:begin_flow)
+      .with(has_entries(server_url: entry.server_url, client_id: nil, app_slug: nil))
+      .returns(authorize_url: "https://mcp.linear.app/authorize", state: "abc", verifier: "ver",
+               client_id: "dyn", token_endpoint: "https://mcp.linear.app/token")
+
+    get oauth_start_integrations_url(provider: "linear")
+
+    assert_redirected_to "https://mcp.linear.app/authorize"
+  end
+
+  test "category taglines come from the registry, not the frontend" do
+    get integrations_url, headers: inertia_headers
+
+    props = inertia_props
+    assert_equal "Issues", props["providers"].find { |p| p["key"] == "linear" }["category"]
+    assert props["categories"]["Issues"].present?,
+           "a provider in a new category must not need a code change to get its heading"
+  end
+
   test "oauth_start without a hosted server explains the token path" do
     get oauth_start_integrations_url(provider: "newrelic")
 

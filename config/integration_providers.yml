@@ -4,6 +4,18 @@
 # known (blank = the admin pastes their own). mark/color drive the logo
 # tile until real brand assets land. Adding a first-party pack later only
 # changes how a provider executes, not this listing.
+# Section headings on the gallery. A provider naming a category that is not
+# listed here still renders, it just shows no tagline, so adding a provider
+# in a new category stays a registry edit rather than a code change.
+categories:
+  Code: Correlate incidents with what shipped
+  Issues: Tickets and follow-up work tied to incidents
+  Telemetry: Logs, metrics and traces for investigations
+  Errors: Error tracking tied to incidents
+  Knowledge: Runbooks and documentation as context
+  Databases: Read-only data checks
+  Custom: Anything with an MCP server
+
 providers:
   - key: github
     name: GitHub
@@ -47,6 +59,13 @@ providers:
     color: "#362d59"
     description: Search error issues and releases tied to an incident.
     server_url: https://mcp.sentry.dev/mcp
+  - key: linear
+    name: Linear
+    category: Issues
+    mark: LN
+    color: "#5E6AD2"
+    description: Read issues, projects and cycles, and open follow-up work from an incident.
+    server_url: https://mcp.linear.app/mcp
   - key: notion
     name: Notion
     category: Knowledge

@@ -16,6 +16,7 @@ class IntegrationsController < InertiaController
           mark: provider.mark, color: provider.color,
           description: provider.description, serverUrl: provider.server_url }
       end,
+      categories: IntegrationProvider.categories,
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       canManage: current_membership.admin_access?
     }

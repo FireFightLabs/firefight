@@ -7,7 +7,7 @@ class IntegrationProvider
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url)
 
   def self.all
-    @all ||= YAML.load_file(REGISTRY_PATH).fetch("providers").map do |raw|
+    @all ||= registry.fetch("providers").map do |raw|
       Entry.new(
         key: raw.fetch("key"), name: raw.fetch("name"), category: raw.fetch("category"),
         mark: raw.fetch("mark"), color: raw.fetch("color"),
@@ -18,6 +18,16 @@ class IntegrationProvider
 
   def self.find(key)
     all.find { |entry| entry.key == key }
+  end
+
+  # Section name => tagline, for the gallery headings. Registry data so a
+  # provider in a new category needs no code change.
+  def self.categories
+    @categories ||= registry.fetch("categories", {}).freeze
+  end
+
+  def self.registry
+    @registry ||= YAML.load_file(REGISTRY_PATH)
   end
 
   # Providers whose OAuth server needs a pre-registered app (e.g. GitHub,

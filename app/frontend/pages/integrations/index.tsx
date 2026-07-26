@@ -14,12 +14,13 @@ interface IntegrationsPageProps extends SharedProps {
   [key: string]: unknown
   integrations: Integration[]
   providers: ProviderEntry[]
+  categories: Record<string, string>
   environments: EnvironmentOption[]
   canManage: boolean
 }
 
 export default function Integrations() {
-  const { integrations, providers, environments, canManage } = usePage<IntegrationsPageProps>().props
+  const { integrations, providers, categories, environments, canManage } = usePage<IntegrationsPageProps>().props
   const [connecting, setConnecting] = useState<ProviderEntry | null>(null)
   const [detailsId, setDetailsId] = useState<string | null>(null)
 
@@ -31,6 +32,7 @@ export default function Integrations() {
       <div className="flex flex-col gap-6 px-4 py-4 md:py-6 lg:px-6">
         <ProviderGallery
           providers={providers}
+          categories={categories}
           integrations={integrations}
           canManage={canManage}
           onConnect={setConnecting}
