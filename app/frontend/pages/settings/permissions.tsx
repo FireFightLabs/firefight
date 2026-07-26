@@ -1,13 +1,13 @@
 import { useState } from "react"
-import { Head, router, usePage } from "@inertiajs/react"
+import { Head, usePage } from "@inertiajs/react"
 import { IconKey, IconPlus, IconRobot, IconStack2, IconUser } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { abilityRolesPath } from "@/lib/routes"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GrantDialog } from "@/pages/settings/components/permissions/grant-dialog"
 import { GrantRow } from "@/pages/settings/components/permissions/grant-row"
+import { SetDialog } from "@/pages/settings/components/permissions/set-dialog"
 import { SetEditor } from "@/pages/settings/components/permissions/set-editor"
 import { IMPLICIT_AUTHORITY } from "@/pages/settings/components/permissions/risk"
 import type { AbilityActionOption, AbilityRole, Principal } from "@/types/serializers"
@@ -36,6 +36,7 @@ export default function Permissions() {
   const { principals, actions, sets, environments, canManage } = usePage<PermissionsPageProps>().props
   const [selection, setSelection] = useState<Selection>({ kind: "principal", id: principals[0]?.id ?? "" })
   const [granting, setGranting] = useState<Principal | null>(null)
+  const [creatingSet, setCreatingSet] = useState(false)
 
   const selected = selection.kind === "principal"
     ? principals.find((principal) => principal.id === selection.id) ?? null
@@ -45,10 +46,6 @@ export default function Permissions() {
     : null
   const authorityNote = selected ? IMPLICIT_AUTHORITY[selected.implicitAuthority] : null
 
-  function createSet() {
-    const name = window.prompt("Name this permission set, for example Database read-only")
-    if (name?.trim()) router.post(abilityRolesPath(), { name: name.trim() })
-  }
 
   return (
     <AuthenticatedLayout title="Permissions">
@@ -71,7 +68,7 @@ export default function Permissions() {
                   <p className="text-muted-foreground text-xs">Grant several abilities as one</p>
                 </div>
                 {canManage && (
-                  <Button size="icon" variant="ghost" className="size-7" aria-label="New permission set" onClick={createSet}>
+                  <Button size="icon" variant="ghost" className="size-7" aria-label="New permission set" onClick={() => setCreatingSet(true)}>
                     <IconPlus className="size-4" />
                   </Button>
                 )}
@@ -181,6 +178,8 @@ export default function Permissions() {
             </Card>
           )}
         </div>
+
+        <SetDialog open={creatingSet} onDismiss={() => setCreatingSet(false)} />
 
         <GrantDialog
           principal={granting}
