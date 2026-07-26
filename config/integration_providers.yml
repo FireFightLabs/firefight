@@ -75,6 +75,13 @@ providers:
     color: "#3ecf8e"
     description: Read-only queries and project state for a Supabase database.
     server_url: https://mcp.supabase.com/mcp
+  - key: planetscale
+    name: PlanetScale
+    category: Databases
+    mark: PS
+    color: "#000000"
+    description: Read-only queries, branch schemas and Insights for a PlanetScale database.
+    server_url: https://mcp.pscale.dev/mcp/planetscale
   - key: postgresql
     name: PostgreSQL
     category: Databases
