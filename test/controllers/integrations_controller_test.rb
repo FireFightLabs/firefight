@@ -71,18 +71,14 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert tool.reload.enabled?, "member toggle is rejected by require_admin!"
   end
 
-  test "oauth_start creates the pending connection and redirects to the provider's consent screen" do
-    Integrations::OauthClient.stubs(:begin_flow).returns(
-      authorize_url: "https://auth.example/authorize?state=abc", state: "abc",
-      verifier: "ver", client_id: "cid", token_endpoint: "https://auth.example/token"
-    )
+  test "oauth_start redirects to the provider without persisting anything" do
+    stub_begin_flow
 
     get oauth_start_integrations_url(provider: "github")
 
-    assert_redirected_to "https://auth.example/authorize?state=abc"
-    integration = @workspace.integrations.find_by!(provider: "github")
-    assert_equal "https://api.githubcopilot.com/mcp/", integration.server_url
-    assert integration.integration_environments.one?
+    assert_redirected_to "https://auth.example/authorize"
+    assert_not @workspace.integrations.exists?(provider: "github"),
+               "abandoning the provider's screen must not leave a half-connected row"
   end
 
   test "reconnecting a disconnected provider revives it instead of colliding on the slug" do
@@ -92,58 +88,32 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     )
     integration.update!(deleted_at: Time.current)
 
-    Integrations::OauthClient.stubs(:begin_flow).returns(
-      authorize_url: "https://auth.example/authorize", state: "abc",
-      verifier: "ver", client_id: "cid", token_endpoint: "https://auth.example/token"
-    )
+    complete_oauth_flow
 
-    get oauth_start_integrations_url(provider: "github")
-
-    assert_redirected_to "https://auth.example/authorize"
     assert_equal 1, @workspace.integrations.where(provider: "github").count
     assert_nil integration.reload.deleted_at
   end
 
   test "oauth callback with the right state stores tokens and discovers tools" do
-    Integrations::OauthClient.stubs(:begin_flow).returns(
-      authorize_url: "https://auth.example/authorize", state: "abc",
-      verifier: "ver", client_id: "cid", token_endpoint: "https://auth.example/token"
-    )
-    get oauth_start_integrations_url(provider: "github")
-
-    Integrations::OauthClient.expects(:exchange).returns(
-      "access_token" => "at-1", "refresh_token" => "rt-1", "expires_at" => 1.hour.from_now.iso8601
-    )
-    Integrations::McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "pr.list" } ])
-    Integrations::McpClient.any_instance.stubs(:ping).returns(true)
-
-    get oauth_callback_integrations_url(state: "abc", code: "authcode")
+    complete_oauth_flow
 
     assert_redirected_to integrations_path
-    row = @workspace.integrations.find_by!(provider: "github").integration_environments.first
-    oauth = row.credentials_hash["oauth"]
-    assert_equal "at-1", oauth["access_token"]
-    assert_equal "cid", oauth["client_id"]
-    assert row.integration.tools.exists?(name: "pr.list")
+    integration = @workspace.integrations.find_by!(provider: "github")
+    assert_equal "https://api.githubcopilot.com/mcp/", integration.server_url
+
+    row = integration.integration_environments.first
+    assert_equal "at-1", row.oauth["access_token"]
+    assert_equal "cid", row.oauth["client_id"]
+    assert integration.tools.exists?(name: "pr.list")
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
   end
 
   test "a GitHub App install id is captured for later server-to-server tokens" do
-    Integrations::OauthClient.stubs(:begin_flow).returns(
-      authorize_url: "https://github.com/login/oauth/authorize", state: "abc",
-      verifier: "ver", client_id: "Iv1.abc", token_endpoint: "https://github.com/login/oauth/access_token"
-    )
-    get oauth_start_integrations_url(provider: "github")
-
-    Integrations::OauthClient.stubs(:exchange).returns("access_token" => "at-1")
-    Integrations::McpClient.any_instance.stubs(:tools_list).returns([])
-    Integrations::McpClient.any_instance.stubs(:ping).returns(true)
-
-    get oauth_callback_integrations_url(state: "abc", code: "authcode", installation_id: "98765")
+    complete_oauth_flow(callback: { installation_id: "98765" })
 
     row = @workspace.integrations.find_by!(provider: "github").integration_environments.first
     assert_equal "98765", row.base_config["installation_id"]
-    assert_equal "at-1", row.credentials_hash.dig("oauth", "access_token")
+    assert_equal "at-1", row.oauth["access_token"]
   end
 
   test "oauth_start without a hosted server explains the token path" do
@@ -156,12 +126,12 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
   test "a configured provider app skips dynamic registration" do
     ENV["INTEGRATION_GITHUB_CLIENT_ID"] = "Iv1.abc"
-    ENV["INTEGRATION_GITHUB_CLIENT_SECRET"] = "shh"
+    ENV["INTEGRATION_GITHUB_APP_SLUG"] = "firefight-dev"
 
     Integrations::OauthClient.expects(:begin_flow)
-      .with(has_entries(client_id: "Iv1.abc", client_secret: "shh"))
+      .with(has_entries(client_id: "Iv1.abc", app_slug: "firefight-dev"))
       .returns(authorize_url: "https://github.com/login/oauth/authorize", state: "abc",
-               verifier: "ver", client_id: "Iv1.abc", client_secret: "shh",
+               verifier: nil, client_id: "Iv1.abc",
                token_endpoint: "https://github.com/login/oauth/access_token")
 
     get oauth_start_integrations_url(provider: "github")
@@ -169,6 +139,17 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   ensure
     ENV.delete("INTEGRATION_GITHUB_CLIENT_ID")
+    ENV.delete("INTEGRATION_GITHUB_APP_SLUG")
+  end
+
+  test "the client secret never reaches the browser session" do
+    ENV["INTEGRATION_GITHUB_CLIENT_SECRET"] = "shh"
+    stub_begin_flow
+
+    get oauth_start_integrations_url(provider: "github")
+
+    assert_not_includes session[:integration_oauth].to_s, "shh"
+  ensure
     ENV.delete("INTEGRATION_GITHUB_CLIENT_SECRET")
   end
 
@@ -195,8 +176,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     get oauth_callback_integrations_url(state: "WRONG", code: "authcode")
 
     assert_redirected_to integrations_path
-    row = @workspace.integrations.find_by!(provider: "github").integration_environments.first
-    assert_nil row.credentials_hash["oauth"]
+    assert_not @workspace.integrations.exists?(provider: "github")
   end
 
   test "expired oauth credentials refresh and persist on use" do
@@ -218,12 +198,35 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     headers = Integrations::Credentials.headers_for(row)
 
     assert_equal "Bearer fresh", headers["Authorization"]
-    persisted = row.reload.credentials_hash["oauth"]
+    persisted = row.reload.oauth
     assert_equal "fresh", persisted["access_token"]
     assert_equal "rt-2", persisted["refresh_token"]
   end
 
   private
+
+  def stub_begin_flow
+    Integrations::OauthClient.stubs(:begin_flow).returns(
+      authorize_url: "https://auth.example/authorize", state: "abc",
+      verifier: "ver", client_id: "cid", token_endpoint: "https://auth.example/token"
+    )
+  end
+
+  # Walks the browser through start, the provider's screen, and the callback,
+  # so tests assert on the connection the whole flow produces.
+  def complete_oauth_flow(callback: {})
+    stub_begin_flow
+    get oauth_start_integrations_url(provider: "github")
+
+    Integrations::OauthClient.stubs(:exchange).returns(
+      "access_token" => "at-1", "refresh_token" => "rt-1",
+      "expires_at" => 1.hour.from_now.iso8601, "client_id" => "cid"
+    )
+    Integrations::McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "pr.list" } ])
+    Integrations::McpClient.any_instance.stubs(:ping).returns(true)
+
+    get oauth_callback_integrations_url({ state: "abc", code: "authcode" }.merge(callback))
+  end
 
   def inertia_props
     JSON.parse(response.body)["props"]

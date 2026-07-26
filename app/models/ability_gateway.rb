@@ -61,7 +61,7 @@ class AbilityGateway
   def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
     action = Ability::Action.lookup(action_key, workspace)
 
-    unless permitted?(principal, action, action_key, scope) && configured?(action, scope)
+    unless permitted?(principal, action, action_key, scope) && action&.configured_for?(scope)
       record!(decision: Ability::Invocation::DECISION_DENY, completed_at: Time.current,
               principal: principal, action: action, action_key: action_key,
               workspace: workspace, scope: scope, params: params, context: context)
@@ -152,18 +152,6 @@ class AbilityGateway
       severity: context[:severity]
     )
     result.outcome&.dig(PolicyRule::ApprovalOutcome::REQUIRE_KEY)
-  end
-
-  # Config ≠ permission: a tool-kind action also needs its integration
-  # operational, the tool enabled, and a wired environment matching the
-  # requested scope. System actions have no config dimension.
-  def self.configured?(action, scope)
-    return true unless action.kind == Ability::Action::KIND_TOOL
-
-    tool = action.source
-    return false unless tool.is_a?(Integration::Tool) && tool.enabled? && tool.integration.operational?
-
-    tool.integration.resolve_environment(scope["environment"] || scope[:environment]).present?
   end
 
   # Anything that leaves Firefight is recorded, reads included: "what did an

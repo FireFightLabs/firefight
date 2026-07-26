@@ -53,7 +53,7 @@ module Integrations
 
       flow = OauthClient.begin_flow(
         server_url: "https://api.githubcopilot.com/mcp/", redirect_uri: "https://ff.example/cb",
-        client_id: "Iv23.abc", client_secret: "shh", app_slug: "firefight-dev"
+        client_id: "Iv23.abc", app_slug: "firefight-dev"
       )
 
       assert_match %r{\Ahttps://github\.com/apps/firefight-dev/installations/new\?}, flow[:authorize_url]

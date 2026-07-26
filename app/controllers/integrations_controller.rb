@@ -28,17 +28,11 @@ class IntegrationsController < InertiaController
       name: params.require(:name),
       settings: { "server_url" => params.require(:server_url) }
     )
-    environment_row = integration.integration_environments.create!(
+    integration.integration_environments.create!(
       catalog_entry_id: params[:environment_id].presence,
       credentials: params[:authorization].present? ? { "authorization" => params[:authorization] }.to_json : nil
     )
-
-    begin
-      Integrations::DiscoveryService.sync!(integration)
-      Integrations::HealthCheckService.check!(environment_row)
-    rescue Integrations::McpClient::Error => e
-      environment_row.record_health!(false, error: e.message)
-    end
+    Integrations::ConnectionRefresh.run!(integration)
 
     redirect_to integrations_path
   rescue ActiveRecord::RecordInvalid => e
@@ -46,11 +40,8 @@ class IntegrationsController < InertiaController
   end
 
   def sync
-    Integrations::DiscoveryService.sync!(@integration)
-    @integration.integration_environments.enabled.each { |row| Integrations::HealthCheckService.check!(row) }
+    Integrations::ConnectionRefresh.run!(@integration)
     redirect_to integrations_path
-  rescue Integrations::McpClient::Error => e
-    redirect_to integrations_path, alert: "Could not reach the server: #{e.message}"
   end
 
   def toggle_tool
@@ -64,39 +55,24 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path
   end
 
-  # Full-page navigation (not an Inertia visit): finds or creates the
-  # pending connection, then hands the browser to the provider's consent
-  # screen. PKCE state lives in the session until the callback.
+  # Full-page navigation (not an Inertia visit): hands the browser to the
+  # provider's install or consent screen. Nothing is persisted until the
+  # customer comes back authorized, so abandoning that screen leaves no
+  # half-connected row behind.
   def oauth_start
     provider = IntegrationProvider.find(params[:provider].to_s)
-    unless provider && provider.server_url.present?
+    if provider.nil? || provider.server_url.blank?
       return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
     end
 
-    # Start the flow BEFORE persisting anything, so a provider without
-    # OAuth support (or a failed discovery) never leaves a broken connection
-    # that would block reconnecting or hide the token path.
     oauth = IntegrationProvider.oauth_client(provider.key)
     flow = Integrations::OauthClient.begin_flow(
       server_url: provider.server_url, redirect_uri: oauth_callback_integrations_url,
-      client_id: oauth[:client_id], client_secret: oauth[:client_secret], app_slug: oauth[:app_slug]
+      client_id: oauth[:client_id], app_slug: oauth[:app_slug]
     )
-
-    # Reconnecting revives a previously disconnected connection rather than
-    # colliding on its slug.
-    integration = current_workspace.integrations.find_or_initialize_by(provider: provider.key)
-    integration.assign_attributes(
-      kind: Integration::KIND_MCP, name: provider.name,
-      settings: { "server_url" => provider.server_url }, deleted_at: nil, disabled_at: nil
-    )
-    integration.save!
-    environment_row = integration.integration_environments.first ||
-                      integration.integration_environments.create!
-
     session[:integration_oauth] = {
-      "environment_id" => environment_row.id, "state" => flow[:state], "verifier" => flow[:verifier],
-      "client_id" => flow[:client_id], "client_secret" => flow[:client_secret],
-      "token_endpoint" => flow[:token_endpoint], "resource" => provider.server_url
+      "provider" => provider.key, "state" => flow[:state], "verifier" => flow[:verifier],
+      "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint]
     }
     redirect_to flow[:authorize_url], allow_other_host: true
   rescue Integrations::OauthClient::Error => e
@@ -105,44 +81,22 @@ class IntegrationsController < InertiaController
 
   def oauth_callback
     pending = session.delete(:integration_oauth)
-    unless pending.present? && params[:state].present? &&
+    provider = IntegrationProvider.find(pending["provider"]) if pending.present?
+    unless provider && params[:state].present? &&
            ActiveSupport::SecurityUtils.secure_compare(pending["state"].to_s, params[:state].to_s)
       return redirect_to integrations_path, alert: "The connection attempt expired. Try again."
     end
 
-    environment_row = IntegrationEnvironment.joins(:integration)
-                                            .where(integrations: { workspace_id: current_workspace.id })
-                                            .find(pending["environment_id"])
-    token = Integrations::OauthClient.exchange(
+    credentials = Integrations::OauthClient.exchange(
       token_endpoint: pending["token_endpoint"], code: params[:code].to_s,
       verifier: pending["verifier"], client_id: pending["client_id"],
-      client_secret: pending["client_secret"], redirect_uri: oauth_callback_integrations_url,
-      resource: pending["resource"]
+      client_secret: IntegrationProvider.oauth_client(provider.key)[:client_secret],
+      redirect_uri: oauth_callback_integrations_url, resource: provider.server_url
     )
-    environment_row.credentials = {
-      "oauth" => token.merge(
-        "token_endpoint" => pending["token_endpoint"],
-        "client_id" => pending["client_id"],
-        "client_secret" => pending["client_secret"],
-        "resource" => pending["resource"]
-      ).compact
-    }.to_json
-    # GitHub App installs return an installation id alongside the code. It is
-    # not a secret, so it lives in base_config; server-to-server tokens (the
-    # bot identity for autonomous agent writes) are minted from it later.
-    if params[:installation_id].present?
-      environment_row.base_config = environment_row.base_config.merge(
-        "installation_id" => params[:installation_id].to_s
-      )
-    end
-    environment_row.save!
 
-    begin
-      Integrations::DiscoveryService.sync!(environment_row.integration)
-      Integrations::HealthCheckService.check!(environment_row)
-    rescue Integrations::McpClient::Error => e
-      environment_row.record_health!(false, error: e.message)
-    end
+    environment_row = connect!(provider)
+    environment_row.store_oauth!(credentials, installation_id: params[:installation_id])
+    Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     redirect_to integrations_path
   rescue Integrations::OauthClient::Error => e
@@ -155,6 +109,18 @@ class IntegrationsController < InertiaController
   end
 
   private
+
+  # Reconnecting revives a previously disconnected connection rather than
+  # colliding on its slug.
+  def connect!(provider)
+    integration = current_workspace.integrations.find_or_initialize_by(provider: provider.key)
+    integration.assign_attributes(
+      kind: Integration::KIND_MCP, name: provider.name,
+      settings: { "server_url" => provider.server_url }, deleted_at: nil, disabled_at: nil
+    )
+    integration.save!
+    integration.integration_environments.first || integration.integration_environments.create!
+  end
 
   def set_integration
     @integration = current_workspace.integrations.where(deleted_at: nil).find(params[:id])

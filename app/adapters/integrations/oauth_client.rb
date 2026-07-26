@@ -9,9 +9,10 @@ module Integrations
 
     OPEN_TIMEOUT = 5
     READ_TIMEOUT = 15
+    REFRESH_MARGIN = 60.seconds
 
     class << self
-      def begin_flow(server_url:, redirect_uri:, client_id: nil, client_secret: nil, app_slug: nil)
+      def begin_flow(server_url:, redirect_uri:, client_id: nil, app_slug: nil)
         metadata = discover(server_url)
         client_id ||= register(metadata, redirect_uri)
         state = SecureRandom.hex(16)
@@ -43,19 +44,41 @@ module Integrations
         end
 
         { authorize_url: authorize_url, state: state, verifier: verifier, client_id: client_id,
-          client_secret: client_secret, token_endpoint: metadata[:token_endpoint] }
+          token_endpoint: metadata[:token_endpoint] }
       end
 
+      # A credential set is a closed shape owned here: exchange produces it,
+      # refresh consumes and reproduces it, stale? reads it. Callers persist
+      # it verbatim and never index into it, so the keys stay private to this
+      # class.
       def exchange(token_endpoint:, code:, verifier:, client_id:, redirect_uri:, resource:, client_secret: nil)
-        token_request(token_endpoint,
-                      grant_type: "authorization_code", code: code, redirect_uri: redirect_uri,
-                      client_id: client_id, client_secret: client_secret, code_verifier: verifier, resource: resource)
+        token = token_request(token_endpoint,
+                              grant_type: "authorization_code", code: code, redirect_uri: redirect_uri,
+                              client_id: client_id, client_secret: client_secret,
+                              code_verifier: verifier, resource: resource)
+        token.merge(
+          "token_endpoint" => token_endpoint, "client_id" => client_id,
+          "client_secret" => client_secret, "resource" => resource
+        ).compact
       end
 
-      def refresh(token_endpoint:, refresh_token:, client_id:, resource:, client_secret: nil)
-        token_request(token_endpoint,
-                      grant_type: "refresh_token", refresh_token: refresh_token,
-                      client_id: client_id, client_secret: client_secret, resource: resource)
+      def refresh(credentials)
+        rotated = token_request(credentials["token_endpoint"],
+                                grant_type: "refresh_token", refresh_token: credentials["refresh_token"],
+                                client_id: credentials["client_id"], client_secret: credentials["client_secret"],
+                                resource: credentials["resource"])
+        credentials.merge(rotated) { |_key, previous, current| current.presence || previous }
+      end
+
+      def access_token(credentials)
+        credentials["access_token"]
+      end
+
+      def stale?(credentials)
+        return false if credentials["refresh_token"].blank?
+
+        expires_at = credentials["expires_at"].presence && Time.zone.parse(credentials["expires_at"])
+        expires_at.present? && expires_at <= REFRESH_MARGIN.from_now
       end
 
       # Resource metadata (RFC 9728) names the authorization server; the
