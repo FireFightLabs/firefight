@@ -3,10 +3,10 @@
 # safety property — API controllers, MCP dispatch, and (later) agent tool
 # calls all pass through this one method.
 #
-# Ledger policy: denials are always recorded; allowed write/destructive
-# executions get a write-ahead row finalized after the call; allowed reads
-# are not ledgered (request logs and OTel already cover them — tool-kind
-# reads revisit this when Connections land).
+# Ledger policy: denials are always recorded, and so is every allowed call
+# that either changes something or reaches another system, as a write-ahead
+# row finalized after the call. Reads of Firefight's own data are left out;
+# they run at request volume and the request log already covers them.
 class AbilityGateway
   class Denied < StandardError
     attr_reader :action_key
@@ -166,8 +166,12 @@ class AbilityGateway
     tool.integration.resolve_environment(scope["environment"] || scope[:environment]).present?
   end
 
+  # Anything that leaves Firefight is recorded, reads included: "what did an
+  # agent touch in our systems" is the question the ledger exists to answer.
+  # Reads of our own data are not, since they run at request volume and the
+  # request log already covers them.
   def self.ledger_execution?(action)
-    action.risk_level != Ability::Action::RISK_READ
+    action.kind == Ability::Action::KIND_TOOL || action.risk_level != Ability::Action::RISK_READ
   end
 
   def self.record!(decision:, completed_at:, principal:, action:, action_key:, workspace:, scope:, params:, context:, approval: nil)
