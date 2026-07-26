@@ -30,7 +30,7 @@ export function ProviderGallery({
 
   return (
     <div className="flex flex-col gap-7">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="border-border flex flex-wrap items-end justify-between gap-4 border-b pb-5">
         <div className="max-w-xl">
           <h2 className="text-lg font-semibold">Browse integrations</h2>
           <p className="text-muted-foreground mt-1 text-sm">

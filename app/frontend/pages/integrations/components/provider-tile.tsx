@@ -12,26 +12,26 @@ export function ProviderTile({
   onConnect: (provider: ProviderEntry) => void
 }) {
   return (
-    <div className="group border-border bg-card hover:border-primary/40 flex h-full flex-col rounded-xl border p-4 transition-colors">
-      <div className="flex items-center gap-3">
-        <ProviderMark mark={provider.mark} color={provider.color} size={36} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold">{provider.name}</div>
-          {provider.serverUrl && (
-            <div className="text-muted-foreground text-xs">Official MCP server</div>
-          )}
-        </div>
+    <div className="group border-border bg-card hover:border-primary/50 flex h-full flex-col gap-3 rounded-xl border p-5 transition-colors">
+      <div className="flex items-start justify-between gap-3">
+        <ProviderMark providerKey={provider.key} mark={provider.mark} color={provider.color} size={44} />
         <Button
           size="sm"
           variant="outline"
           disabled={!canManage}
           onClick={() => onConnect(provider)}
-          className="opacity-70 transition-opacity group-hover:opacity-100"
+          className="text-muted-foreground group-hover:border-primary/50 group-hover:text-foreground transition-colors"
         >
           Connect
         </Button>
       </div>
-      <p className="text-muted-foreground mt-3 text-[13px] leading-snug">{provider.description}</p>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold">{provider.name}</span>
+          {provider.serverUrl && <span className="text-primary text-[11px] font-medium">Official MCP</span>}
+        </div>
+        <p className="text-muted-foreground line-clamp-2 text-[13px] leading-snug">{provider.description}</p>
+      </div>
     </div>
   )
 }
