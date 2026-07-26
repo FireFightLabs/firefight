@@ -71,7 +71,9 @@ class IntegrationsController < InertiaController
       client_id: oauth[:client_id], app_slug: oauth[:app_slug]
     )
     session[:integration_oauth] = {
-      "provider" => provider.key, "state" => flow[:state], "verifier" => flow[:verifier],
+      "provider" => provider.key, "name" => params[:name].presence || provider.name,
+      "environment_id" => environment_id_param,
+      "state" => flow[:state], "verifier" => flow[:verifier],
       "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint]
     }
     redirect_to flow[:authorize_url], allow_other_host: true
@@ -94,7 +96,7 @@ class IntegrationsController < InertiaController
       redirect_uri: oauth_callback_integrations_url, resource: provider.server_url
     )
 
-    environment_row = connect!(provider)
+    environment_row = connect!(provider, pending["name"], pending["environment_id"])
     environment_row.store_oauth!(credentials, installation_id: params[:installation_id])
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
@@ -110,20 +112,33 @@ class IntegrationsController < InertiaController
 
   private
 
-  # Reconnecting revives a previously disconnected connection rather than
-  # colliding on its slug.
-  def connect!(provider)
-    integration = current_workspace.integrations.find_or_initialize_by(provider: provider.key)
+  # Keyed on the slug rather than the provider so one provider can back
+  # several accounts (two AWS accounts, two PlanetScale orgs), each with its
+  # own credentials and its own action keys. Reconnecting under the default
+  # name revives the existing connection rather than colliding on its slug.
+  # Separating environments is a different axis: one connection, one
+  # IntegrationEnvironment per environment, grants scoped to it.
+  def connect!(provider, name, environment_id)
+    integration = current_workspace.integrations.find_or_initialize_by(
+      slug: name.to_s.parameterize(separator: "_")
+    )
     integration.assign_attributes(
-      kind: Integration::KIND_MCP, name: provider.name,
+      kind: Integration::KIND_MCP, provider: provider.key, name: name,
       settings: { "server_url" => provider.server_url }, deleted_at: nil, disabled_at: nil
     )
     integration.save!
-    integration.integration_environments.first || integration.integration_environments.create!
+    integration.integration_environments.find_or_create_by!(catalog_entry_id: environment_id.presence)
   end
 
   def set_integration
     @integration = current_workspace.integrations.where(deleted_at: nil).find(params[:id])
+  end
+
+  # Arrives on a full-page URL, so it is confirmed to be one of this
+  # workspace's environments before it can bind credentials to a catalog entry.
+  def environment_id_param
+    id = params[:environment_id].presence
+    id if id && environment_options.any? { |option| option[:id] == id }
   end
 
   def environment_options

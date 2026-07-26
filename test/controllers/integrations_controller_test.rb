@@ -94,6 +94,49 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_nil integration.reload.deleted_at
   end
 
+  test "one provider backs several accounts, each with its own action keys" do
+    complete_oauth_flow(name: "GitHub Platform")
+    complete_oauth_flow(name: "GitHub Payments")
+
+    slugs = @workspace.integrations.where(provider: "github").order(:slug).pluck(:slug)
+    assert_equal [ "github_payments", "github_platform" ], slugs
+
+    keys = Integration::Tool.where(integration: @workspace.integrations).map(&:action_key)
+    assert_includes keys, "github_platform.pr.list"
+    assert_includes keys, "github_payments.pr.list"
+  end
+
+  test "connecting per environment gives one connection two credential sets" do
+    production = catalog_entries(:production_env)
+    development = catalog_entries(:development_env)
+
+    complete_oauth_flow(start: { environment_id: production.id })
+    complete_oauth_flow(start: { environment_id: development.id })
+
+    integration = @workspace.integrations.find_by!(provider: "github")
+    assert_equal 1, @workspace.integrations.where(provider: "github").count
+    assert_equal [ development.id, production.id ].sort,
+                 integration.integration_environments.pluck(:catalog_entry_id).sort
+    assert_equal 1, integration.tools.where(name: "pr.list").count,
+                 "environments share one tool and one action key; the grant's scope separates them"
+  end
+
+  test "a catalog entry that is not an environment is refused" do
+    vendor = catalog_entries(:vendor_acme)
+
+    complete_oauth_flow(start: { environment_id: vendor.id })
+
+    row = @workspace.integrations.find_by!(provider: "github").integration_environments.sole
+    assert_nil row.catalog_entry_id, "an unverified environment id must not bind credentials"
+  end
+
+  test "reconnecting under the default name reuses the connection" do
+    complete_oauth_flow
+    complete_oauth_flow
+
+    assert_equal 1, @workspace.integrations.where(provider: "github").count
+  end
+
   test "oauth callback with the right state stores tokens and discovers tools" do
     complete_oauth_flow
 
@@ -214,9 +257,9 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
   # Walks the browser through start, the provider's screen, and the callback,
   # so tests assert on the connection the whole flow produces.
-  def complete_oauth_flow(callback: {})
+  def complete_oauth_flow(callback: {}, name: nil, start: {})
     stub_begin_flow
-    get oauth_start_integrations_url(provider: "github")
+    get oauth_start_integrations_url({ provider: "github" }.merge(name ? { name: name } : {}).merge(start))
 
     Integrations::OauthClient.stubs(:exchange).returns(
       "access_token" => "at-1", "refresh_token" => "rt-1",

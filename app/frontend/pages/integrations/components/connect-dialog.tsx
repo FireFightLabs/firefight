@@ -25,6 +25,13 @@ import { ProviderMark } from "@/pages/integrations/components/provider-mark"
 
 const NO_ENVIRONMENT = "none"
 
+function oauthHref(providerKey: string, name: string, environmentId: string) {
+  const params = new URLSearchParams({ provider: providerKey })
+  if (name) params.set("name", name)
+  if (environmentId !== NO_ENVIRONMENT) params.set("environment_id", environmentId)
+  return `${oauthStartIntegrationsPath()}?${params.toString()}`
+}
+
 export function ConnectDialog({
   provider,
   environments,
@@ -40,6 +47,7 @@ export function ConnectDialog({
   const [environmentId, setEnvironmentId] = useState(NO_ENVIRONMENT)
   const [submitting, setSubmitting] = useState(false)
   const [useToken, setUseToken] = useState(false)
+  const [separateAccount, setSeparateAccount] = useState(false)
 
   const oauthAvailable = provider !== null && provider.serverUrl !== ""
   const showManualForm = !oauthAvailable || useToken
@@ -52,7 +60,14 @@ export function ConnectDialog({
     setEnvironmentId(NO_ENVIRONMENT)
     setSubmitting(false)
     setUseToken(false)
+    setSeparateAccount(false)
   }, [provider])
+
+  function toggleSeparateAccount() {
+    const next = !separateAccount
+    setSeparateAccount(next)
+    setName(next ? "" : (provider?.name ?? ""))
+  }
 
   function submit() {
     if (!provider) return
@@ -86,21 +101,74 @@ export function ConnectDialog({
 
         {provider && oauthAvailable && !useToken && (
           <div className="flex flex-col gap-3 pt-1">
-            <Button asChild size="lg" className="w-full">
-              <a href={`${oauthStartIntegrationsPath()}?provider=${provider.key}`}>
+            {environments.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Environment these credentials reach</Label>
+                <Select value={environmentId} onValueChange={setEnvironmentId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_ENVIRONMENT}>All environments</SelectItem>
+                    {environments.map((environment) => (
+                      <SelectItem key={environment.id} value={environment.id}>
+                        {environment.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-xs">
+                  Connect once per environment to give each its own credentials, then scope who can
+                  reach which.
+                </p>
+              </div>
+            )}
+
+            {separateAccount && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="oauth-name">Connection name</Label>
+                <Input
+                  id="oauth-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={`e.g. ${provider.name} Payments`}
+                />
+                <p className="text-muted-foreground text-xs">
+                  Its tools get their own permissions, kept separate from {provider.name}.
+                </p>
+              </div>
+            )}
+
+            {separateAccount && !name.trim() ? (
+              <Button size="lg" className="w-full" disabled>
                 Continue with {provider.name}
-              </a>
-            </Button>
+              </Button>
+            ) : (
+              <Button asChild size="lg" className="w-full">
+                <a href={oauthHref(provider.key, name, environmentId)}>
+                  Continue with {provider.name}
+                </a>
+              </Button>
+            )}
             <p className="text-muted-foreground text-center text-xs">
               You approve access on {provider.name}'s consent screen. No keys to copy.
             </p>
-            <button
-              type="button"
-              onClick={() => setUseToken(true)}
-              className="text-muted-foreground hover:text-foreground mx-auto text-xs underline underline-offset-4"
-            >
-              Connect with a token instead
-            </button>
+            <div className="flex flex-col items-center gap-1.5">
+              <button
+                type="button"
+                onClick={toggleSeparateAccount}
+                className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
+              >
+                {separateAccount ? "This is my only account" : "Connecting a second account?"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setUseToken(true)}
+                className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
+              >
+                Connect with a token instead
+              </button>
+            </div>
           </div>
         )}
 
