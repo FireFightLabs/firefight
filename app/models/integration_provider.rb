@@ -4,18 +4,14 @@
 class IntegrationProvider
   REGISTRY_PATH = Rails.root.join("config/integration_providers.yml")
 
-  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :scopes)
+  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url)
 
   def self.all
     @all ||= YAML.load_file(REGISTRY_PATH).fetch("providers").map do |raw|
       Entry.new(
         key: raw.fetch("key"), name: raw.fetch("name"), category: raw.fetch("category"),
         mark: raw.fetch("mark"), color: raw.fetch("color"),
-        description: raw.fetch("description"), server_url: raw["server_url"].to_s,
-        # Set only for providers that advertise scopes on their authorization
-        # server rather than in the resource metadata, where the spec-driven
-        # discovery cannot find them. Keep the list least-privilege.
-        scopes: Array(raw["scopes"])
+        description: raw.fetch("description"), server_url: raw["server_url"].to_s
       )
     end.freeze
   end

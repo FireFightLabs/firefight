@@ -12,9 +12,8 @@ module Integrations
     REFRESH_MARGIN = 60.seconds
 
     class << self
-      def begin_flow(server_url:, redirect_uri:, client_id: nil, app_slug: nil, scopes: [])
+      def begin_flow(server_url:, redirect_uri:, client_id: nil, app_slug: nil)
         metadata = discover(server_url)
-        metadata = metadata.merge(scope: scopes.join(" ")) if scopes.any?
         client_id ||= register(metadata, redirect_uri)
         state = SecureRandom.hex(16)
 

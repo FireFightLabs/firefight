@@ -142,25 +142,6 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     ENV.delete("INTEGRATION_GITHUB_APP_SLUG")
   end
 
-  test "a provider that advertises scopes only on its authorization server requests them explicitly" do
-    Integrations::OauthClient.expects(:begin_flow)
-      .with(has_entry(scopes: includes("organization:read_databases")))
-      .returns(authorize_url: "https://mcp.pscale.dev/authorize", state: "abc", verifier: "ver",
-               client_id: "cid", token_endpoint: "https://mcp.pscale.dev/token")
-
-    get oauth_start_integrations_url(provider: "planetscale")
-
-    assert_response :redirect
-  end
-
-  test "PlanetScale is never asked for a scope that can write" do
-    scopes = IntegrationProvider.find("planetscale").scopes
-
-    assert scopes.any?
-    writes = scopes.grep(/create_|delete_|write|manage_(?!.*read_only)/)
-    assert_empty writes, "read-only integration requested write scopes: #{writes.inspect}"
-  end
-
   test "the client secret never reaches the browser session" do
     ENV["INTEGRATION_GITHUB_CLIENT_SECRET"] = "shh"
     stub_begin_flow

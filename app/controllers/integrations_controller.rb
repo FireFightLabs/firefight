@@ -68,7 +68,7 @@ class IntegrationsController < InertiaController
     oauth = IntegrationProvider.oauth_client(provider.key)
     flow = Integrations::OauthClient.begin_flow(
       server_url: provider.server_url, redirect_uri: oauth_callback_integrations_url,
-      client_id: oauth[:client_id], app_slug: oauth[:app_slug], scopes: provider.scopes
+      client_id: oauth[:client_id], app_slug: oauth[:app_slug]
     )
     session[:integration_oauth] = {
       "provider" => provider.key, "state" => flow[:state], "verifier" => flow[:verifier],
