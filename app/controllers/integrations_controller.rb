@@ -3,7 +3,8 @@ class IntegrationsController < InertiaController
 
   before_action :require_authentication
   before_action :require_admin!, except: :index
-  before_action :set_integration, only: [ :sync, :toggle_tool, :toggle, :retarget_environment, :destroy ]
+  before_action :set_integration,
+                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :destroy ]
 
   def index
     render inertia: "integrations/index", props: {
@@ -50,6 +51,11 @@ class IntegrationsController < InertiaController
   def toggle_tool
     tool = @integration.tools.find(params[:tool_id])
     tool.update!(enabled: !tool.enabled?)
+    redirect_to integrations_path
+  end
+
+  def set_all_tools
+    @integration.set_all_tools!(ActiveModel::Type::Boolean.new.cast(params[:enabled]))
     redirect_to integrations_path
   end
 

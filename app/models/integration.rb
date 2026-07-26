@@ -40,6 +40,15 @@ class Integration < ApplicationRecord
   # The environment is derived, never asserted: an explicit entry id must
   # match a wired row; no entry resolves to the global row, or to the single
   # wired environment when that is unambiguous.
+  # Bulk allowlisting. Each row is saved on its own because enabling one
+  # mints its Ability::Action in an after_save, and update_all would skip
+  # that, leaving capabilities that look enabled but can never be granted.
+  def set_all_tools!(enabled)
+    transaction do
+      tools.where.not(enabled: enabled).each { |tool| tool.update!(enabled: enabled) }
+    end
+  end
+
   def resolve_environment(catalog_entry_id)
     rows = integration_environments.where(enabled: true)
     return rows.find_by(catalog_entry_id: catalog_entry_id) if catalog_entry_id.present?

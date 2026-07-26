@@ -122,6 +122,7 @@ Rails.application.routes.draw do
       member do
         post :sync
         patch :toggle_tool
+        patch :set_all_tools
         patch :toggle
         patch :retarget_environment
       end

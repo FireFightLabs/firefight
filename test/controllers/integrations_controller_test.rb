@@ -71,6 +71,38 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert tool.reload.enabled?, "member toggle is rejected by require_admin!"
   end
 
+  test "enabling every tool at once mints an action for each" do
+    integration = @workspace.integrations.create!(
+      kind: Integration::KIND_MCP, provider: "linear", name: "Linear",
+      settings: { "server_url" => "https://mcp.linear.app/mcp" }
+    )
+    integration.tools.create!(name: "list_issues", read_only: true)
+    integration.tools.create!(name: "create_issue", read_only: false)
+
+    patch set_all_tools_integration_url(integration), params: { enabled: true }
+
+    assert integration.tools.all?(&:enabled?)
+    assert Ability::Action.exists?(key: "linear.list_issues")
+    assert Ability::Action.exists?(key: "linear.create_issue"),
+           "bulk enable must mint actions, not just flip a column"
+
+    patch set_all_tools_integration_url(integration), params: { enabled: false }
+    assert integration.tools.reload.none?(&:enabled?)
+  end
+
+  test "members cannot bulk enable tools" do
+    integration = @workspace.integrations.create!(
+      kind: Integration::KIND_MCP, provider: "linear", name: "Linear",
+      settings: { "server_url" => "https://mcp.linear.app/mcp" }
+    )
+    integration.tools.create!(name: "list_issues", read_only: true)
+    sign_in(users(:bob), @workspace)
+
+    patch set_all_tools_integration_url(integration), params: { enabled: true }
+
+    assert integration.tools.reload.none?(&:enabled?)
+  end
+
   test "oauth_start redirects to the provider without persisting anything" do
     stub_begin_flow
 

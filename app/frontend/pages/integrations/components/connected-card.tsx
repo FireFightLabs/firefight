@@ -5,6 +5,7 @@ import type { ProviderEntry } from "@/pages/integrations/types"
 import {
   integrationPath,
   retargetEnvironmentIntegrationPath,
+  setAllToolsIntegrationPath,
   syncIntegrationPath,
   toggleToolIntegrationPath,
 } from "@/lib/routes"
@@ -40,6 +41,12 @@ export function ConnectedCard({
   const healthErrors = integration.environments
     .map((environment) => environment.healthError)
     .filter((message): message is string => Boolean(message))
+
+  const enabledCount = integration.tools.filter((tool) => tool.enabled).length
+
+  function setAllTools(enabled: boolean) {
+    router.patch(setAllToolsIntegrationPath(integration.id), { enabled }, { preserveScroll: true })
+  }
 
   function toggleTool(toolId: string) {
     router.patch(toggleToolIntegrationPath(integration.id), { tool_id: toolId }, { preserveScroll: true })
@@ -110,6 +117,35 @@ export function ConnectedCard({
           </p>
         ) : (
           <div className="flex flex-col">
+            <div className="flex items-center justify-between gap-3 pb-1">
+              <p className="text-sm font-medium">
+                Capabilities{" "}
+                <span className="text-muted-foreground font-normal">
+                  {enabledCount} of {integration.tools.length} on
+                </span>
+              </p>
+              {canManage && (
+                <div className="text-muted-foreground flex items-center gap-3 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setAllTools(true)}
+                    disabled={enabledCount === integration.tools.length}
+                    className="hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    Enable all
+                  </button>
+                  <span aria-hidden className="bg-border h-3 w-px" />
+                  <button
+                    type="button"
+                    onClick={() => setAllTools(false)}
+                    disabled={enabledCount === 0}
+                    className="hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    Disable all
+                  </button>
+                </div>
+              )}
+            </div>
             {integration.tools.map((tool) => (
               <div
                 key={tool.id}
