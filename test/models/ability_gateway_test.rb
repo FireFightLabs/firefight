@@ -102,6 +102,25 @@ class AbilityGatewayTest < ActiveSupport::TestCase
                                                 workspace: @workspace) { :ok }
   end
 
+  test "admins hold enabled tool actions implicitly, members do not" do
+    integration = @workspace.integrations.create!(
+      kind: Integration::KIND_MCP, provider: "github", name: "GitHub",
+      settings: { "server_url" => "https://gh.example/mcp" }
+    )
+    integration.integration_environments.create!
+    tool = integration.tools.create!(name: "get_me", read_only: true, enabled: true)
+    action_key = tool.action_key
+
+    assert_equal :ok, AbilityGateway.authorize!(principal: @membership, action_key: action_key,
+                                                workspace: @workspace) { :ok },
+                 "enabling the capability is the admin's decision, no second grant step"
+
+    member = workspace_memberships(:bob_workspace_one)
+    assert_raises(AbilityGateway::Denied) do
+      AbilityGateway.authorize!(principal: member, action_key: action_key, workspace: @workspace)
+    end
+  end
+
   test "a matching approval policy parks the call as pending" do
     key = api_keys(:full_access_key)
     create_approval_policy

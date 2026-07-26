@@ -364,14 +364,17 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     names = body.dig("result", "tools").map { |t| t["name"] }
     assert_includes names, "new_relic_logs_query"
 
-    # No grant yet: memberships hold implicit authority only over system
-    # actions, so even an admin personal token is denied on tool actions.
-    result, is_error = call_tool("new_relic_logs_query", { query: "SELECT 1" })
+    # A service key holds only what it was granted, so it cannot reach a
+    # newly enabled tool without one.
+    _, service_token = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: @membership, name: "Scoped bot",
+      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
+    )
+    result, is_error = call_tool("new_relic_logs_query", { query: "SELECT 1" }, token: service_token)
     assert is_error
     assert_empty result
 
-    Ability::Grant.create!(workspace: @workspace, principal: @membership,
-                           action: tool.sync_ability_action!)
+    # The admin who enabled the capability can use it straight away.
     Integrations::McpClient.any_instance.expects(:call_tool)
       .with(name: "logs.query", arguments: { "query" => "SELECT 1" })
       .returns({ "content" => [ { "type" => "text", "text" => "42 rows" } ], "isError" => false })
