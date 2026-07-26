@@ -75,7 +75,7 @@ export function ConnectDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            {provider && <ProviderMark mark={provider.mark} color={provider.color} size={36} />}
+            {provider && <ProviderMark providerKey={provider.key} mark={provider.mark} color={provider.color} size={36} />}
             <div>
               <DialogTitle>Connect {provider?.name}</DialogTitle>
               <DialogDescription>
