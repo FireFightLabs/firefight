@@ -25,6 +25,9 @@ export function ConnectedCard({
   canManage: boolean
 }) {
   const health = HEALTH_LABEL[integration.environments[0]?.healthStatus ?? "unknown"] ?? HEALTH_LABEL.unknown
+  const healthErrors = integration.environments
+    .map((environment) => environment.healthError)
+    .filter((message): message is string => Boolean(message))
 
   function toggleTool(toolId: string) {
     router.patch(toggleToolIntegrationPath(integration.id), { tool_id: toolId }, { preserveScroll: true })
@@ -52,6 +55,12 @@ export function ConnectedCard({
             </Badge>
           ))}
         </div>
+
+        {healthErrors.length > 0 && (
+          <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-xs">
+            {healthErrors[0]}
+          </div>
+        )}
 
         {integration.tools.length === 0 ? (
           <p className="text-muted-foreground text-sm">

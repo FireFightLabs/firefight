@@ -34,7 +34,8 @@ class IntegrationEnvironment < ApplicationRecord
     {}
   end
 
-  def record_health!(healthy)
-    update!(health_status: healthy ? HEALTH_HEALTHY : HEALTH_FAILING, health_checked_at: Time.current)
+  def record_health!(healthy, error: nil)
+    update!(health_status: healthy ? HEALTH_HEALTHY : HEALTH_FAILING,
+            health_error: healthy ? nil : error, health_checked_at: Time.current)
   end
 end

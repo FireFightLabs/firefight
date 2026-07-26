@@ -36,8 +36,8 @@ class IntegrationsController < InertiaController
     begin
       Integrations::DiscoveryService.sync!(integration)
       Integrations::HealthCheckService.check!(environment_row)
-    rescue Integrations::McpClient::Error
-      environment_row.record_health!(false)
+    rescue Integrations::McpClient::Error => e
+      environment_row.record_health!(false, error: e.message)
     end
 
     redirect_to integrations_path
@@ -123,8 +123,8 @@ class IntegrationsController < InertiaController
     begin
       Integrations::DiscoveryService.sync!(environment_row.integration)
       Integrations::HealthCheckService.check!(environment_row)
-    rescue Integrations::McpClient::Error
-      environment_row.record_health!(false)
+    rescue Integrations::McpClient::Error => e
+      environment_row.record_health!(false, error: e.message)
     end
 
     redirect_to integrations_path
