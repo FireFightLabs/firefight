@@ -89,6 +89,20 @@ class SettingsController < InertiaController
     }
   end
 
+  # Who may do what: every principal that can hold a grant, the abilities and
+  # sets available to hand out, and the environments a grant can be scoped to.
+  def permissions
+    render inertia: "settings/permissions", props: {
+      principals: principal_rows,
+      actions: AbilityActionOptionSerializer.many(Ability::Grant.grantable_actions(current_workspace)),
+      sets: AbilityRoleSerializer.many(
+        current_workspace.ability_roles.order(:name).includes(:grants, :role_actions)
+      ),
+      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
+      canManage: current_membership.admin_access?
+    }
+  end
+
   # The gateway ledger: everything agents and API keys did (or were denied),
   # rendered read-only. This is the oversight surface for governed writes.
   def activity
@@ -180,6 +194,18 @@ class SettingsController < InertiaController
   end
 
   private
+
+  # Everything that can hold a grant, in one list: humans, agents, and the
+  # service keys. Personal keys are omitted because they resolve to their
+  # owner's authority rather than carrying grants of their own.
+  def principal_rows
+    associations = { ability_grants: [ :action, { role: :role_actions } ] }
+    memberships = current_workspace.workspace_memberships.includes(:user, associations)
+    agents = current_workspace.agents.active.includes(associations)
+    keys = current_workspace.api_keys.where(deleted_at: nil).service.includes(associations)
+
+    (memberships.to_a + agents.to_a + keys.to_a).map { |principal| PrincipalSerializer.one(principal) }
+  end
 
   # MCP clients this member authorized via OAuth consent; one row per
   # application with a live (non-revoked) token or refresh chain.

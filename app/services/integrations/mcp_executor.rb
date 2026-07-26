@@ -6,7 +6,7 @@ module Integrations
     def self.call(tool:, environment_row:, arguments:)
       client = McpClient.new(
         server_url: tool.integration.server_url,
-        headers: environment_row&.request_headers || {}
+        headers: Credentials.headers_for(environment_row)
       )
       client.call_tool(name: tool.remote_name, arguments: arguments)
     end

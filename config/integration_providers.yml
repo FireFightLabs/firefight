@@ -4,6 +4,18 @@
 # known (blank = the admin pastes their own). mark/color drive the logo
 # tile until real brand assets land. Adding a first-party pack later only
 # changes how a provider executes, not this listing.
+# Section headings on the gallery. A provider naming a category that is not
+# listed here still renders, it just shows no tagline, so adding a provider
+# in a new category stays a registry edit rather than a code change.
+categories:
+  Code: Correlate incidents with what shipped
+  Issues: Tickets and follow-up work tied to incidents
+  Telemetry: Logs, metrics and traces for investigations
+  Errors: Error tracking tied to incidents
+  Knowledge: Runbooks and documentation as context
+  Databases: Read-only data checks
+  Custom: Anything with an MCP server
+
 providers:
   - key: github
     name: GitHub
@@ -18,7 +30,7 @@ providers:
     mark: GL
     color: "#fc6d26"
     description: Correlate incidents with merge requests and pipelines.
-    server_url: ""
+    server_url: https://gitlab.com/api/v4/mcp
   - key: newrelic
     name: New Relic
     category: Telemetry
@@ -32,7 +44,7 @@ providers:
     mark: DD
     color: "#632ca6"
     description: Query logs, metrics and monitors during investigations.
-    server_url: ""
+    server_url: https://mcp.datadoghq.com/api/unstable/mcp-server/mcp
   - key: grafana
     name: Grafana
     category: Telemetry
@@ -47,6 +59,13 @@ providers:
     color: "#362d59"
     description: Search error issues and releases tied to an incident.
     server_url: https://mcp.sentry.dev/mcp
+  - key: linear
+    name: Linear
+    category: Issues
+    mark: LN
+    color: "#5E6AD2"
+    description: Read issues, projects and cycles, and open follow-up work from an incident.
+    server_url: https://mcp.linear.app/mcp
   - key: notion
     name: Notion
     category: Knowledge
@@ -61,6 +80,27 @@ providers:
     color: "#1868db"
     description: Bring team documentation into investigations.
     server_url: ""
+  - key: neon
+    name: Neon
+    category: Databases
+    mark: NE
+    color: "#00e599"
+    description: Read-only queries and branch history for a Neon Postgres database.
+    server_url: https://mcp.neon.tech/mcp
+  - key: supabase
+    name: Supabase
+    category: Databases
+    mark: SB
+    color: "#3ecf8e"
+    description: Read-only queries and project state for a Supabase database.
+    server_url: https://mcp.supabase.com/mcp
+  - key: planetscale
+    name: PlanetScale
+    category: Databases
+    mark: PS
+    color: "#000000"
+    description: Read-only queries, branch schemas and Insights for a PlanetScale database.
+    server_url: https://mcp.pscale.dev/mcp/planetscale
   - key: postgresql
     name: PostgreSQL
     category: Databases
@@ -72,6 +112,6 @@ providers:
     name: Custom MCP server
     category: Custom
     mark: MC
-    color: "#0e7490"
+    color: "#1f2430"
     description: Point Firefight at any MCP server and allowlist its tools.
     server_url: ""

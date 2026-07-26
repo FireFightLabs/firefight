@@ -7,7 +7,7 @@ module Integrations
     def self.sync!(integration)
       environment_row = integration.resolve_environment(nil) || integration.integration_environments.enabled.first
       client = McpClient.new(server_url: integration.server_url,
-                             headers: environment_row&.request_headers || {})
+                             headers: Credentials.headers_for(environment_row))
 
       seen = client.tools_list.map do |remote|
         name = remote["name"].to_s.downcase.gsub(/[^a-z0-9_.]/, "_")

@@ -6,6 +6,7 @@ class IntegrationEnvironment < ApplicationRecord
   HEALTH_HEALTHY = "healthy"
   HEALTH_FAILING = "failing"
   HEALTH_STATUSES = [ HEALTH_UNKNOWN, HEALTH_HEALTHY, HEALTH_FAILING ].freeze
+  OAUTH_KEY = "oauth".freeze
 
   belongs_to :integration
   belongs_to :environment, class_name: "CatalogEntry", foreign_key: :catalog_entry_id,
@@ -34,7 +35,29 @@ class IntegrationEnvironment < ApplicationRecord
     {}
   end
 
-  def record_health!(healthy)
-    update!(health_status: healthy ? HEALTH_HEALTHY : HEALTH_FAILING, health_checked_at: Time.current)
+  # OAuth credential sets are produced and read by Integrations::OauthClient;
+  # this row owns storing them and nothing else looks inside.
+  def oauth
+    credentials_hash[OAUTH_KEY]
+  end
+
+  def store_oauth!(oauth_credentials, installation_id: nil)
+    self.credentials = credentials_hash.merge(OAUTH_KEY => oauth_credentials).to_json
+    # GitHub App installs return an installation id alongside the code. It is
+    # not a secret, so it lives in base_config; server-to-server tokens (the
+    # bot identity for autonomous agent writes) are minted from it later.
+    self.base_config = base_config.merge("installation_id" => installation_id.to_s) if installation_id.present?
+    save!
+    oauth_credentials
+  end
+
+  def rotate_oauth!(oauth_credentials)
+    update!(credentials: credentials_hash.merge(OAUTH_KEY => oauth_credentials).to_json)
+    oauth_credentials
+  end
+
+  def record_health!(healthy, error: nil)
+    update!(health_status: healthy ? HEALTH_HEALTHY : HEALTH_FAILING,
+            health_error: healthy ? nil : error, health_checked_at: Time.current)
   end
 end

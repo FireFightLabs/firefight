@@ -20,6 +20,14 @@ class Integration::Tool < ApplicationRecord
     "#{integration.slug}.#{name}"
   end
 
+  # Reachable only while the capability is enabled, its connection is not
+  # disabled or deleted, and credentials exist for the environment asked for.
+  def configured_for?(scope)
+    return false unless enabled? && integration.operational?
+
+    integration.resolve_environment(scope["environment"] || scope[:environment]).present?
+  end
+
   def remote_name
     spec["tool_name"].presence || name
   end

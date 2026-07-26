@@ -8,23 +8,16 @@ import type { ProviderEntry } from "@/pages/integrations/types"
 const FILTERS = ["All applications", "Connected", "Disconnected"] as const
 type Filter = (typeof FILTERS)[number]
 
-const CATEGORY_TAGLINES: Record<string, string> = {
-  Code: "Correlate incidents with what shipped",
-  Telemetry: "Logs, metrics and traces for investigations",
-  Errors: "Error tracking tied to incidents",
-  Knowledge: "Runbooks and documentation as context",
-  Databases: "Read-only data checks",
-  Custom: "Anything with an MCP server",
-}
-
 export function ProviderGallery({
   providers,
+  categories,
   integrations,
   canManage,
   onConnect,
   onDetails,
 }: {
   providers: ProviderEntry[]
+  categories: Record<string, string>
   integrations: Integration[]
   canManage: boolean
   onConnect: (provider: ProviderEntry) => void
@@ -40,9 +33,9 @@ export function ProviderGallery({
 
   const grouped = useMemo(() => {
     const matching = providers.filter((provider) => {
-      const integration = integrations.find((candidate) => candidate.provider === provider.key) ?? null
-      if (activeFilter === "Connected" && integration === null) return false
-      if (activeFilter === "Disconnected" && integration !== null) return false
+      const connected = integrations.some((candidate) => candidate.provider === provider.key)
+      if (activeFilter === "Connected" && !connected) return false
+      if (activeFilter === "Disconnected" && connected) return false
       return `${provider.name} ${provider.category} ${provider.description}`
         .toLowerCase()
         .includes(search.toLowerCase())
@@ -94,8 +87,8 @@ export function ProviderGallery({
         <section key={category} className="flex flex-col gap-4">
           <div>
             <h3 className="text-base font-semibold">{category}</h3>
-            {CATEGORY_TAGLINES[category] && (
-              <p className="text-muted-foreground text-sm">{CATEGORY_TAGLINES[category]}</p>
+            {categories[category] && (
+              <p className="text-muted-foreground text-sm">{categories[category]}</p>
             )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -103,7 +96,7 @@ export function ProviderGallery({
               <ProviderTile
                 key={provider.key}
                 provider={provider}
-                integration={integrations.find((candidate) => candidate.provider === provider.key) ?? null}
+                integrations={integrations.filter((candidate) => candidate.provider === provider.key)}
                 canManage={canManage}
                 onConnect={onConnect}
                 onDetails={onDetails}

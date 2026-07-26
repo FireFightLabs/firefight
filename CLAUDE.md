@@ -10,6 +10,18 @@ Run `bin/ci` to validate changes. It runs rubocop, bundler-audit, brakeman, rail
 
 - **Never merge a PR without an explicit instruction to merge in the current message.** Opening PRs when asked to build something is fine; merging is always the user's call, every time — prior merge approvals and inferred intent (e.g. a bug report that a feature "isn't working") do not count.
 
+## No shortcuts (always applies)
+
+Production-grade or not at all. Every one of these has already been violated once; none is hypothetical.
+
+- **Never ship a placeholder interaction.** No `window.prompt` / `confirm` / `alert`, no unstyled control, no "fine for now" input. If a flow needs input it gets the same dialog treatment as every other flow in the app. There is no such thing as an incidental piece of UI — the throwaway bit is usually the first thing a user touches.
+- **Reuse the existing pattern before inventing one.** Find the nearest component already in `app/frontend/` and match it. Introducing a new interaction pattern is a decision to state out loud, never a side effect of moving fast.
+- **If the model supports N, the UI must not assume 1.** Rendering `records.find(...)` where the schema permits many silently hides rows. Check the second case: the second connection, the second credential set, the already-connected state, the empty list.
+- **A capability that cannot be reached does not exist.** Model plus controller plus serializer is half the job. Before calling a feature done, name the click path to it from a cold page, including for the state *after* the first one (already connected, already granted).
+- **Green CI is not evidence the UI works.** `bin/ci` and `tsc` never render a pixel. Look at the page, or say plainly that you did not.
+- **Generated files are part of the change.** Adding a route means `bin/rails js:routes:typescript`; adding or editing a serializer means `bundle exec rake types_from_serializers:generate`. Forgetting either breaks the app at import time, not at test time.
+- **Finish the whole path, or say exactly what you left undone.** Deferring part of a task is fine when it is stated. Silence reads as complete, which makes it a false claim.
+
 ## Deep Dives
 
 Detailed docs live in `docs/`. Read the relevant one **before** working in that area:
@@ -21,6 +33,7 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 | [docs/workflows.md](docs/workflows.md) | Creating or modifying a workflow, or touching the SolidWorkflow engine (`engines/solid_workflow/`) |
 | [docs/api.md](docs/api.md) | Working on the public REST API (`/api/v1/`), API keys, auth, or idempotency |
 | [docs/mcp.md](docs/mcp.md) | Working on the MCP server (`/mcp`, `app/mcp/`), its tools, or agent-facing auth |
+| [docs/integrations.md](docs/integrations.md) | Adding or changing an integration provider or connection, and anything touching the Ability Gateway (actions, grants, approvals, the invocation ledger) |
 | [docs/ai.md](docs/ai.md) | AI features (`engines/firefight_ai/`), the Inference ledger, transcript store/scrubbing, or model configuration |
 
 ## Code Style
@@ -28,7 +41,7 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 - No unnecessary comments — only explain non-obvious logic
 - No ticket numbers in comments
 - No emojis unless requested
-- User-facing copy (UI strings, labels, descriptions, docs prose) uses no em dashes and no unnecessary semicolons. Write two sentences, or use a comma or parenthesis. Empty table cells use a plain hyphen, not a dash glyph.
+- User-facing copy (UI strings, labels, descriptions, product docs on the marketing and docs sites) uses no em dashes and no unnecessary semicolons. Write two sentences, or use a comma or parenthesis. Empty table cells use a plain hyphen, not a dash glyph. Engineering docs under `docs/` and code comments are exempt.
 - No direct `Rails.logger` helper wrappers — call `Rails.logger.info(...)` inline where needed
 - Keep it simple, avoid over-engineering
 - Rubocop enforced: `[ {...} ]` not `[{...}]` (SpaceInsideArrayLiteralBrackets)
@@ -50,6 +63,10 @@ Controller → Dispatcher → Handler → Service → Adapter → Slack::Client
 - All platform calls go through `WorkspaceAdapter.for(workspace)`; `Slack::Client` is only called from `Slack::WorkspaceAdapter`. No Slack-specific code outside `app/adapters/slack/`. Rescue `AdapterError` subclasses, never platform errors.
 - Meaningful state changes to `Incident`/`IncidentAction`/`Postmortem` go through `record_change!` (Trackable/Recordable) so the snapshot + event are written together.
 - All callback_ids, action_ids, and subcommand strings come from the `Identifiers` module — never magic strings.
+- Every privileged operation goes through `AbilityGateway.authorize!` — never check permissions inline. **Config ≠ permission**: a grant and a wired `IntegrationEnvironment` are both required, and the gateway asks `action.configured_for?(scope)` rather than reaching into the integrations layer.
+- Machines never inherit a human's reach: service keys and `Agent` principals hold only explicit grants, whatever their creator can do.
+- Adding an integration provider is an entry in `config/integration_providers.yml` plus env vars, never new code. Discovered tools arrive disabled; enabling one mints exactly one action.
+- Secrets never enter the session, an MCP tool response, or the ledger. Credential shapes are owned by `Integrations::OauthClient`; only `IntegrationEnvironment` persists them.
 
 ## Testing
 

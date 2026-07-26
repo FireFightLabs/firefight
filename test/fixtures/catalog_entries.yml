@@ -38,3 +38,11 @@ vendor_acme:
   name: Acme Corp
   slug: acme_corp
   attributes: { "contact_email": "support@acme.com", "tier": "Gold" }
+
+development_env:
+  id: cc000001-0000-0000-0000-000000000006
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  catalog_type_id: aa000001-0000-0000-0000-000000000003
+  name: Development
+  slug: development
+  attributes: { "is_production": false, "description": "Development environment" }

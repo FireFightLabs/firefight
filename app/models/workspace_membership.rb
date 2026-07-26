@@ -39,10 +39,20 @@ class WorkspaceMembership < ApplicationRecord
   # rule (mutations are admin territory). Personal tokens and OAuth
   # connections inherit exactly this, so an admin's agent can write config
   # with the admin's authority, still ledgered and approval-gated.
+  # Admins hold every catalogued ability, including the tools an integration
+  # mints: enabling a capability on a connection is itself the deliberate
+  # decision, so it takes effect without a second grant step. Approval
+  # policies still gate the risky ones. Members read Firefight's own data;
+  # anything reaching another system stays an explicit grant for them, as it
+  # does for API keys and agents.
   def implicitly_allowed?(action)
-    return false unless action.system?
+    return true if admin_access?
 
-    action.risk_level == Ability::Action::RISK_READ || admin_access?
+    action.system? && action.risk_level == Ability::Action::RISK_READ
+  end
+
+  def implicit_authority
+    admin_access? ? :admin : :member
   end
 
   # Scopes

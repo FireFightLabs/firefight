@@ -38,7 +38,6 @@ class ApiKey < ApplicationRecord
   belongs_to :on_behalf_of, class_name: "WorkspaceMembership",
              foreign_key: :workspace_membership_id, optional: true, inverse_of: :personal_api_keys
 
-  has_many :ability_grants, class_name: "Ability::Grant", as: :principal, dependent: :destroy
 
   validates :name, presence: true
   validates :token_digest, presence: true, uniqueness: true
@@ -55,6 +54,7 @@ class ApiKey < ApplicationRecord
   scope :active, -> { where(active: true, deleted_at: nil) }
   scope :not_expired, -> { where("expires_at IS NULL OR expires_at > ?", Time.current) }
   scope :ordered, -> { order(created_at: :desc) }
+  scope :service, -> { where(workspace_membership_id: nil) }
 
   def self.generate_token
     "#{TOKEN_PREFIX}#{SecureRandom.base58(TOKEN_LENGTH)}"

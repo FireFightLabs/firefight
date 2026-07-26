@@ -17,11 +17,11 @@ class IntegrationSerializer < BaseSerializer
     integration.disabled_at.present?
   end
 
-  type "{ id: string; environmentName: string | null; enabled: boolean; healthStatus: string }[]"
+  type "{ id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: string; healthError: string | null }[]"
   def environments
     integration.integration_environments.map do |row|
-      { id: row.id, environmentName: row.environment&.name,
-        enabled: row.enabled, healthStatus: row.health_status }
+      { id: row.id, environmentId: row.catalog_entry_id, environmentName: row.environment&.name,
+        enabled: row.enabled, healthStatus: row.health_status, healthError: row.health_error }
     end
   end
 

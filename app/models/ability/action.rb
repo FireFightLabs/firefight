@@ -74,6 +74,15 @@ module Ability
       kind == KIND_SYSTEM
     end
 
+    # Config ≠ permission: a tool action also needs whatever minted it to be
+    # wired for the requested scope. What "wired" means belongs to the source,
+    # not to the gateway. System actions have no configuration dimension.
+    def configured_for?(scope)
+      return true if system?
+
+      source.present? && source.configured_for?(scope)
+    end
+
     private
 
     def system_actions_are_global

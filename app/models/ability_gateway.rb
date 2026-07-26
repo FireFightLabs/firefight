@@ -3,10 +3,10 @@
 # safety property — API controllers, MCP dispatch, and (later) agent tool
 # calls all pass through this one method.
 #
-# Ledger policy: denials are always recorded; allowed write/destructive
-# executions get a write-ahead row finalized after the call; allowed reads
-# are not ledgered (request logs and OTel already cover them — tool-kind
-# reads revisit this when Connections land).
+# Ledger policy: denials are always recorded, and so is every allowed call
+# that either changes something or reaches another system, as a write-ahead
+# row finalized after the call. Reads of Firefight's own data are left out;
+# they run at request volume and the request log already covers them.
 class AbilityGateway
   class Denied < StandardError
     attr_reader :action_key
@@ -61,7 +61,7 @@ class AbilityGateway
   def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
     action = Ability::Action.lookup(action_key, workspace)
 
-    unless permitted?(principal, action, action_key, scope) && configured?(action, scope)
+    unless permitted?(principal, action, action_key, scope) && action&.configured_for?(scope)
       record!(decision: Ability::Invocation::DECISION_DENY, completed_at: Time.current,
               principal: principal, action: action, action_key: action_key,
               workspace: workspace, scope: scope, params: params, context: context)
@@ -154,20 +154,12 @@ class AbilityGateway
     result.outcome&.dig(PolicyRule::ApprovalOutcome::REQUIRE_KEY)
   end
 
-  # Config ≠ permission: a tool-kind action also needs its integration
-  # operational, the tool enabled, and a wired environment matching the
-  # requested scope. System actions have no config dimension.
-  def self.configured?(action, scope)
-    return true unless action.kind == Ability::Action::KIND_TOOL
-
-    tool = action.source
-    return false unless tool.is_a?(Integration::Tool) && tool.enabled? && tool.integration.operational?
-
-    tool.integration.resolve_environment(scope["environment"] || scope[:environment]).present?
-  end
-
+  # Anything that leaves Firefight is recorded, reads included: "what did an
+  # agent touch in our systems" is the question the ledger exists to answer.
+  # Reads of our own data are not, since they run at request volume and the
+  # request log already covers them.
   def self.ledger_execution?(action)
-    action.risk_level != Ability::Action::RISK_READ
+    action.kind == Ability::Action::KIND_TOOL || action.risk_level != Ability::Action::RISK_READ
   end
 
   def self.record!(decision:, completed_at:, principal:, action:, action_key:, workspace:, scope:, params:, context:, approval: nil)

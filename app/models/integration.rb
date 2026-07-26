@@ -2,6 +2,8 @@
 # mint gateway actions. kind selects the executor; v1 implements mcp
 # (consume any external MCP server); http packs and native tools follow.
 class Integration < ApplicationRecord
+  include Sluggable
+
   KIND_MCP = "mcp"
   KIND_HTTP = "http"
   KIND_NATIVE = "native"
@@ -15,16 +17,20 @@ class Integration < ApplicationRecord
 
   validates :kind, inclusion: { in: KINDS }
   validates :provider, :name, presence: true
-  validates :slug, presence: true, uniqueness: { scope: :workspace_id },
-                   format: { with: /\A[a-z0-9_]+\z/ }
+  validates :slug, presence: true, format: { with: /\A[a-z0-9_]+\z/ }
+  validates :slug, uniqueness: { scope: :workspace_id, conditions: -> { where(deleted_at: nil) } },
+                   unless: :deleted?
   validate :slug_immutable, on: :update
 
-  before_validation :derive_slug, on: :create
 
   scope :active, -> { where(disabled_at: nil, deleted_at: nil) }
 
   def operational?
     disabled_at.nil? && deleted_at.nil?
+  end
+
+  def deleted?
+    deleted_at.present?
   end
 
   def server_url
@@ -34,6 +40,22 @@ class Integration < ApplicationRecord
   # The environment is derived, never asserted: an explicit entry id must
   # match a wired row; no entry resolves to the global row, or to the single
   # wired environment when that is unambiguous.
+  # Bulk allowlisting. Each row is saved on its own because enabling one
+  # mints its Ability::Action in an after_save, and update_all would skip
+  # that, leaving capabilities that look enabled but can never be granted.
+  #
+  # reads_only turns the read tools on *and the write ones off*, so it is a
+  # statement of what the connection may do rather than an additive step
+  # that quietly leaves earlier write grants in place.
+  def set_all_tools!(enabled, reads_only: false)
+    transaction do
+      tools.each do |tool|
+        desired = enabled && (!reads_only || tool.read_only?)
+        tool.update!(enabled: desired) if tool.enabled? != desired
+      end
+    end
+  end
+
   def resolve_environment(catalog_entry_id)
     rows = integration_environments.where(enabled: true)
     return rows.find_by(catalog_entry_id: catalog_entry_id) if catalog_entry_id.present?
@@ -42,10 +64,6 @@ class Integration < ApplicationRecord
   end
 
   private
-
-  def derive_slug
-    self.slug = name.to_s.parameterize(separator: "_") if slug.blank?
-  end
 
   # Action keys derive from the slug; renaming would orphan grants,
   # policies, and ledger rows referencing the old keys.

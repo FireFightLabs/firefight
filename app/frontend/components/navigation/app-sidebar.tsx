@@ -8,6 +8,7 @@ import {
   IconForms,
   IconHistory,
   IconShieldCheck,
+  IconLock,
   IconBellRinging,
   IconKey,
   IconListDetails,
@@ -40,6 +41,7 @@ import {
   settingsActivityPath,
   settingsAlertSourcesPath,
   settingsApprovalsPath,
+  settingsPermissionsPath,
   settingsApiKeysPath,
   settingsCustomFieldsPath,
   settingsFormsPath,
@@ -87,6 +89,7 @@ const navSections = [
     items: [
       { title: "Webhooks", url: settingsWebhooksPath(), icon: IconWebhook },
       { title: "API Keys", url: settingsApiKeysPath(), icon: IconKey },
+      { title: "Permissions", url: settingsPermissionsPath(), icon: IconLock },
       { title: "Approvals", url: settingsApprovalsPath(), icon: IconShieldCheck },
       { title: "Activity", url: settingsActivityPath(), icon: IconHistory },
     ],

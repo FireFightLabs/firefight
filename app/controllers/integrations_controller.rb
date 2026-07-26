@@ -1,7 +1,10 @@
 class IntegrationsController < InertiaController
+  class NameTaken < StandardError; end
+
   before_action :require_authentication
   before_action :require_admin!, except: :index
-  before_action :set_integration, only: [ :sync, :toggle_tool, :toggle, :destroy ]
+  before_action :set_integration,
+                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :destroy ]
 
   def index
     render inertia: "integrations/index", props: {
@@ -14,7 +17,8 @@ class IntegrationsController < InertiaController
           mark: provider.mark, color: provider.color,
           description: provider.description, serverUrl: provider.server_url }
       end,
-      environments: environment_options,
+      categories: IntegrationProvider.categories,
+      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       canManage: current_membership.admin_access?
     }
   end
@@ -28,17 +32,11 @@ class IntegrationsController < InertiaController
       name: params.require(:name),
       settings: { "server_url" => params.require(:server_url) }
     )
-    environment_row = integration.integration_environments.create!(
+    integration.integration_environments.create!(
       catalog_entry_id: params[:environment_id].presence,
       credentials: params[:authorization].present? ? { "authorization" => params[:authorization] }.to_json : nil
     )
-
-    begin
-      Integrations::DiscoveryService.sync!(integration)
-      Integrations::HealthCheckService.check!(environment_row)
-    rescue Integrations::McpClient::Error
-      environment_row.record_health!(false)
-    end
+    Integrations::ConnectionRefresh.run!(integration)
 
     redirect_to integrations_path
   rescue ActiveRecord::RecordInvalid => e
@@ -46,11 +44,8 @@ class IntegrationsController < InertiaController
   end
 
   def sync
-    Integrations::DiscoveryService.sync!(@integration)
-    @integration.integration_environments.enabled.each { |row| Integrations::HealthCheckService.check!(row) }
+    Integrations::ConnectionRefresh.run!(@integration)
     redirect_to integrations_path
-  rescue Integrations::McpClient::Error => e
-    redirect_to integrations_path, alert: "Could not reach the server: #{e.message}"
   end
 
   def toggle_tool
@@ -59,9 +54,84 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path
   end
 
+  def set_all_tools
+    @integration.set_all_tools!(
+      ActiveModel::Type::Boolean.new.cast(params[:enabled]),
+      reads_only: ActiveModel::Type::Boolean.new.cast(params[:reads_only])
+    )
+    redirect_to integrations_path
+  end
+
   def toggle
     @integration.update!(disabled_at: @integration.disabled_at ? nil : Time.current)
     redirect_to integrations_path
+  end
+
+  # Narrowing an existing connection to one environment, or widening it back.
+  # The credentials stay put; only which environment they answer for moves.
+  def retarget_environment
+    requested = params[:environment_id].presence
+    verified = environment_id_param
+    if requested && verified.nil?
+      return redirect_to integrations_path, alert: "That environment is not available in this workspace."
+    end
+
+    @integration.integration_environments.find(params[:environment_row_id]).update!(catalog_entry_id: verified)
+    redirect_to integrations_path
+  rescue ActiveRecord::RecordInvalid
+    redirect_to integrations_path, alert: "This connection already has credentials for that environment."
+  end
+
+  # Full-page navigation (not an Inertia visit): hands the browser to the
+  # provider's install or consent screen. Nothing is persisted until the
+  # customer comes back authorized, so abandoning that screen leaves no
+  # half-connected row behind.
+  def oauth_start
+    provider = IntegrationProvider.find(params[:provider].to_s)
+    if provider.nil? || provider.server_url.blank?
+      return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
+    end
+
+    oauth = IntegrationProvider.oauth_client(provider.key)
+    flow = Integrations::OauthClient.begin_flow(
+      server_url: provider.server_url, redirect_uri: oauth_callback_integrations_url,
+      client_id: oauth[:client_id], app_slug: oauth[:app_slug]
+    )
+    session[:integration_oauth] = {
+      "provider" => provider.key, "name" => params[:name].presence || provider.name,
+      "environment_id" => environment_id_param,
+      "state" => flow[:state], "verifier" => flow[:verifier],
+      "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint]
+    }
+    redirect_to flow[:authorize_url], allow_other_host: true
+  rescue Integrations::OauthClient::Error => e
+    redirect_to integrations_path, alert: "Could not start one-click connect: #{e.message}"
+  end
+
+  def oauth_callback
+    pending = session.delete(:integration_oauth)
+    provider = IntegrationProvider.find(pending["provider"]) if pending.present?
+    unless provider && params[:state].present? &&
+           ActiveSupport::SecurityUtils.secure_compare(pending["state"].to_s, params[:state].to_s)
+      return redirect_to integrations_path, alert: "The connection attempt expired. Try again."
+    end
+
+    credentials = Integrations::OauthClient.exchange(
+      token_endpoint: pending["token_endpoint"], code: params[:code].to_s,
+      verifier: pending["verifier"], client_id: pending["client_id"],
+      client_secret: IntegrationProvider.oauth_client(provider.key)[:client_secret],
+      redirect_uri: oauth_callback_integrations_url, resource: provider.server_url
+    )
+
+    environment_row = connect!(provider, pending["name"], pending["environment_id"])
+    environment_row.store_oauth!(credentials, installation_id: params[:installation_id])
+    Integrations::ConnectionRefresh.run!(environment_row.integration)
+
+    redirect_to integrations_path
+  rescue Integrations::OauthClient::Error => e
+    redirect_to integrations_path, alert: "Could not connect: #{e.message}"
+  rescue NameTaken
+    redirect_to integrations_path, alert: "Another connection already uses that name. Pick a different one."
   end
 
   def destroy
@@ -71,14 +141,32 @@ class IntegrationsController < InertiaController
 
   private
 
+  # Keyed on the slug rather than the provider so one provider can back
+  # several accounts (two AWS accounts, two PlanetScale orgs), each with its
+  # own credentials and its own action keys. Reconnecting under the default
+  # name revives the existing connection rather than colliding on its slug.
+  # Separating environments is a different axis: one connection, one
+  # IntegrationEnvironment per environment, grants scoped to it.
+  def connect!(provider, name, environment_id)
+    integration = current_workspace.integrations.find_or_initialize_by(slug: Integration.slug_for(name))
+    raise NameTaken if integration.persisted? && integration.provider != provider.key
+
+    integration.assign_attributes(
+      kind: Integration::KIND_MCP, provider: provider.key, name: name,
+      settings: { "server_url" => provider.server_url }, deleted_at: nil, disabled_at: nil
+    )
+    integration.save!
+    integration.integration_environments.find_or_create_by!(catalog_entry_id: environment_id.presence)
+  end
+
   def set_integration
     @integration = current_workspace.integrations.where(deleted_at: nil).find(params[:id])
   end
 
-  def environment_options
-    type = current_workspace.catalog_types.find_by(system_key: CatalogType::SYSTEM_KEY_ENVIRONMENT)
-    return [] unless type
-
-    type.catalog_entries.active.order(:name).map { |entry| { id: entry.id, name: entry.name, slug: entry.slug } }
+  # Arrives on a full-page URL, so it is confirmed to be one of this
+  # workspace's environments before it can bind credentials to a catalog entry.
+  def environment_id_param
+    id = params[:environment_id].presence
+    id if id && current_workspace.environment_entries.exists?(id: id)
   end
 end
