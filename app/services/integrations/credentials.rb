@@ -21,7 +21,7 @@ module Integrations
 
       rotated = OauthClient.refresh(
         token_endpoint: oauth["token_endpoint"], refresh_token: oauth["refresh_token"],
-        client_id: oauth["client_id"], resource: oauth["resource"]
+        client_id: oauth["client_id"], client_secret: oauth["client_secret"], resource: oauth["resource"]
       )
       merged = oauth.merge(rotated) { |_key, old, new| new.presence || old }
       environment_row.update!(credentials: environment_row.credentials_hash.merge("oauth" => merged).to_json)

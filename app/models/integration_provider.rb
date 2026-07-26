@@ -19,4 +19,18 @@ class IntegrationProvider
   def self.find(key)
     all.find { |entry| entry.key == key }
   end
+
+  # Providers whose OAuth server needs a pre-registered app (e.g. GitHub,
+  # no dynamic registration) read a client id/secret from credentials:
+  #   integrations:
+  #     github:
+  #       client_id: ...
+  #       client_secret: ...
+  # Absent = fall back to dynamic registration, else the token path.
+  def self.oauth_client(key)
+    config = Rails.application.credentials.dig(:integrations, key.to_sym)
+    return {} unless config.is_a?(Hash) && config[:client_id].present?
+
+    { client_id: config[:client_id], client_secret: config[:client_secret] }
+  end
 end

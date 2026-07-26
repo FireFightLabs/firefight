@@ -73,6 +73,15 @@ class IntegrationsController < InertiaController
       return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
     end
 
+    # Start the flow BEFORE persisting anything, so a provider without
+    # OAuth support (or a failed discovery) never leaves a broken connection
+    # that would block reconnecting or hide the token path.
+    oauth = IntegrationProvider.oauth_client(provider.key)
+    flow = Integrations::OauthClient.begin_flow(
+      server_url: provider.server_url, redirect_uri: oauth_callback_integrations_url,
+      client_id: oauth[:client_id], client_secret: oauth[:client_secret]
+    )
+
     # Reconnecting revives a previously disconnected connection rather than
     # colliding on its slug.
     integration = current_workspace.integrations.find_or_initialize_by(provider: provider.key)
@@ -84,17 +93,14 @@ class IntegrationsController < InertiaController
     environment_row = integration.integration_environments.first ||
                       integration.integration_environments.create!
 
-    flow = Integrations::OauthClient.begin_flow(
-      server_url: integration.server_url, redirect_uri: oauth_callback_integrations_url
-    )
     session[:integration_oauth] = {
       "environment_id" => environment_row.id, "state" => flow[:state], "verifier" => flow[:verifier],
-      "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
-      "resource" => integration.server_url
+      "client_id" => flow[:client_id], "client_secret" => flow[:client_secret],
+      "token_endpoint" => flow[:token_endpoint], "resource" => provider.server_url
     }
     redirect_to flow[:authorize_url], allow_other_host: true
   rescue Integrations::OauthClient::Error => e
-    redirect_to integrations_path, alert: "Could not start the connection: #{e.message}"
+    redirect_to integrations_path, alert: "Could not start one-click connect: #{e.message}"
   end
 
   def oauth_callback
@@ -110,14 +116,16 @@ class IntegrationsController < InertiaController
     token = Integrations::OauthClient.exchange(
       token_endpoint: pending["token_endpoint"], code: params[:code].to_s,
       verifier: pending["verifier"], client_id: pending["client_id"],
-      redirect_uri: oauth_callback_integrations_url, resource: pending["resource"]
+      client_secret: pending["client_secret"], redirect_uri: oauth_callback_integrations_url,
+      resource: pending["resource"]
     )
     environment_row.update!(credentials: {
       "oauth" => token.merge(
         "token_endpoint" => pending["token_endpoint"],
         "client_id" => pending["client_id"],
+        "client_secret" => pending["client_secret"],
         "resource" => pending["resource"]
-      )
+      ).compact
     }.to_json)
 
     begin

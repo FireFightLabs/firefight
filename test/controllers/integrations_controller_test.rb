@@ -136,6 +136,19 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_not @workspace.integrations.exists?(provider: "newrelic")
   end
 
+  test "a failed oauth start leaves no broken connection behind" do
+    Integrations::OauthClient.stubs(:begin_flow).raises(
+      Integrations::OauthClient::Error, "this provider needs a one-time OAuth app setup"
+    )
+
+    get oauth_start_integrations_url(provider: "github")
+
+    assert_redirected_to integrations_path
+    assert_match(/one-time OAuth app setup/, flash[:alert])
+    assert_not @workspace.integrations.exists?(provider: "github"),
+               "no credential-less row should be persisted when OAuth cannot start"
+  end
+
   test "oauth callback rejects a mismatched state" do
     Integrations::OauthClient.stubs(:begin_flow).returns(
       authorize_url: "https://auth.example/authorize", state: "abc",
