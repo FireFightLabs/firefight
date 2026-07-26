@@ -1,14 +1,16 @@
 import { useState } from "react"
-import { Head, usePage } from "@inertiajs/react"
-import { IconKey, IconRobot, IconUser } from "@tabler/icons-react"
+import { Head, router, usePage } from "@inertiajs/react"
+import { IconKey, IconPlus, IconRobot, IconStack2, IconUser } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
+import { abilityRolesPath } from "@/lib/routes"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GrantDialog } from "@/pages/settings/components/permissions/grant-dialog"
 import { GrantRow } from "@/pages/settings/components/permissions/grant-row"
+import { SetEditor } from "@/pages/settings/components/permissions/set-editor"
 import { IMPLICIT_AUTHORITY } from "@/pages/settings/components/permissions/risk"
-import type { AbilityActionOption, Principal } from "@/types/serializers"
+import type { AbilityActionOption, AbilityRole, Principal } from "@/types/serializers"
 import type { EnvironmentOption } from "@/pages/integrations/types"
 import type { SharedProps } from "@/types"
 
@@ -16,9 +18,12 @@ interface PermissionsPageProps extends SharedProps {
   [key: string]: unknown
   principals: Principal[]
   actions: AbilityActionOption[]
+  sets: AbilityRole[]
   environments: EnvironmentOption[]
   canManage: boolean
 }
+
+type Selection = { kind: "principal" | "set"; id: string }
 
 const KIND_ICON = { user: IconUser, agent: IconRobot, api_key: IconKey }
 const SECTIONS: { kind: string; title: string; blurb: string }[] = [
@@ -28,12 +33,22 @@ const SECTIONS: { kind: string; title: string; blurb: string }[] = [
 ]
 
 export default function Permissions() {
-  const { principals, actions, environments, canManage } = usePage<PermissionsPageProps>().props
-  const [selectedId, setSelectedId] = useState<string | null>(principals[0]?.id ?? null)
+  const { principals, actions, sets, environments, canManage } = usePage<PermissionsPageProps>().props
+  const [selection, setSelection] = useState<Selection>({ kind: "principal", id: principals[0]?.id ?? "" })
   const [granting, setGranting] = useState<Principal | null>(null)
 
-  const selected = principals.find((principal) => principal.id === selectedId) ?? null
+  const selected = selection.kind === "principal"
+    ? principals.find((principal) => principal.id === selection.id) ?? null
+    : null
+  const selectedSet = selection.kind === "set"
+    ? sets.find((set) => set.id === selection.id) ?? null
+    : null
   const authorityNote = selected ? IMPLICIT_AUTHORITY[selected.implicitAuthority] : null
+
+  function createSet() {
+    const name = window.prompt("Name this permission set, for example Database read-only")
+    if (name?.trim()) router.post(abilityRolesPath(), { name: name.trim() })
+  }
 
   return (
     <AuthenticatedLayout title="Permissions">
@@ -49,6 +64,42 @@ export default function Permissions() {
 
         <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
           <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Permission sets</p>
+                  <p className="text-muted-foreground text-xs">Grant several abilities as one</p>
+                </div>
+                {canManage && (
+                  <Button size="icon" variant="ghost" className="size-7" aria-label="New permission set" onClick={createSet}>
+                    <IconPlus className="size-4" />
+                  </Button>
+                )}
+              </div>
+              {sets.length === 0 ? (
+                <p className="text-muted-foreground border-border rounded-lg border border-dashed px-3 py-3 text-xs">
+                  None yet. A set spares you granting fifteen tools one at a time.
+                </p>
+              ) : (
+                <div className="border-border divide-border divide-y rounded-lg border">
+                  {sets.map((set) => (
+                    <button
+                      key={set.id}
+                      type="button"
+                      onClick={() => setSelection({ kind: "set", id: set.id })}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                        selection.kind === "set" && selection.id === set.id ? "bg-accent" : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <IconStack2 className="text-muted-foreground size-4 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{set.name}</span>
+                      <span className="text-muted-foreground shrink-0 text-xs">{set.actionIds.length}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {SECTIONS.map((section) => {
               const rows = principals.filter((principal) => principal.kind === section.kind)
               if (rows.length === 0) return null
@@ -65,9 +116,11 @@ export default function Permissions() {
                       <button
                         key={principal.id}
                         type="button"
-                        onClick={() => setSelectedId(principal.id)}
+                        onClick={() => setSelection({ kind: "principal", id: principal.id })}
                         className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
-                          selectedId === principal.id ? "bg-accent" : "hover:bg-muted/50"
+                          selection.kind === "principal" && selection.id === principal.id
+                            ? "bg-accent"
+                            : "hover:bg-muted/50"
                         }`}
                       >
                         <Icon className="text-muted-foreground size-4 shrink-0" />
@@ -83,6 +136,8 @@ export default function Permissions() {
             })}
           </div>
 
+          {selectedSet && <SetEditor set={selectedSet} actions={actions} canManage={canManage} />}
+
           {selected && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
@@ -95,7 +150,7 @@ export default function Permissions() {
                 </div>
                 {canManage && (
                   <Button size="sm" onClick={() => setGranting(selected)}>
-                    Grant ability
+                    Grant
                   </Button>
                 )}
               </CardHeader>
@@ -130,6 +185,7 @@ export default function Permissions() {
         <GrantDialog
           principal={granting}
           actions={actions}
+          sets={sets}
           environments={environments}
           onDismiss={() => setGranting(null)}
         />

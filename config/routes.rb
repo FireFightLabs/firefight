@@ -132,6 +132,7 @@ Rails.application.routes.draw do
     end
     get "/settings/permissions", to: "settings#permissions", as: :settings_permissions
     resources :ability_grants, only: [ :create, :update, :destroy ], path: "settings/permissions/grants"
+    resources :ability_roles, only: [ :create, :update, :destroy ], path: "settings/permissions/sets"
     get "/settings/activity", to: "settings#activity", as: :settings_activity
     get "/settings/approvals", to: "settings#approvals", as: :settings_approvals
     resources :approvals, only: [], path: "settings/approvals" do

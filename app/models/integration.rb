@@ -49,7 +49,7 @@ class Integration < ApplicationRecord
   private
 
   def derive_slug
-    self.slug = name.to_s.parameterize(separator: "_") if slug.blank?
+    self.slug = name.to_s.parameterize(separator: "_").tr("-", "_") if slug.blank?
   end
 
   # Action keys derive from the slug; renaming would orphan grants,

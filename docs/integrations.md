@@ -50,6 +50,10 @@ Enabling a capability **is** the admin's deliberate decision, so it takes effect
 
 Settings → Permissions (`AbilityGrantsController`) is the only UI that writes grants. A grant carries an `Ability::Scope`: a hash of dimension to allowed catalog-entry ids, where a **missing dimension means unrestricted and an empty array is invalid**, never a way to say "all". The controller drops ids that are not the workspace's own environments rather than trusting the form, and a second grant of the same action retargets the existing row instead of duplicating it (one grant per principal per action is a DB invariant).
 
+**Permission sets** (`Ability::Role`) bundle actions so a set is granted once instead of fifteen actions individually. Keep the set about *what* and the grant about *where*: one "Database read-only" set granted twice, scoped to Development for a contractor and unscoped for staff, beats two sets that drift the moment a provider adds a tool. `Ability::RoleAction#default_scope` pins a scope to one action inside a set and applies only when the grant carries none, so treat it as an override rather than the main mechanism. Editing a set changes what every holder can do immediately, and deleting one revokes it everywhere.
+
+**Do not tie permission sets to `IncidentRole`.** Incident staffing is assigned mid-incident, often by the person taking the role, so letting it confer reach turns self-assignment into unapproved escalation. Temporary reach belongs to time-bound grants instead.
+
 Environment scoping is the axis to reach for when the same connection serves dev and prod: one connection, one `IntegrationEnvironment` per environment, and grants scoped to each. Separate connections are for separate accounts, where the action keys should differ.
 
 ## Config ≠ permission

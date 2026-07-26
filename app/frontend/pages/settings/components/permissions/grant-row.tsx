@@ -37,10 +37,21 @@ export function GrantRow({
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2.5">
       <div className="flex min-w-0 items-center gap-2">
-        <code className="min-w-0 truncate text-xs">{grant.actionKey}</code>
-        <Badge variant={RISK_VARIANT[grant.riskLevel] ?? "secondary"} className="shrink-0">
-          {grant.riskLevel}
-        </Badge>
+        {grant.kind === "set" ? (
+          <>
+            <span className="min-w-0 truncate text-sm font-medium">{grant.label}</span>
+            <Badge variant="outline" className="shrink-0">
+              set of {grant.actionCount}
+            </Badge>
+          </>
+        ) : (
+          <>
+            <code className="min-w-0 truncate text-xs">{grant.label}</code>
+            <Badge variant={RISK_VARIANT[grant.riskLevel ?? ""] ?? "secondary"} className="shrink-0">
+              {grant.riskLevel}
+            </Badge>
+          </>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {canManage && environments.length > 0 ? (
@@ -75,7 +86,7 @@ export function GrantRow({
             variant="ghost"
             size="icon"
             className="text-muted-foreground hover:text-destructive size-8"
-            aria-label={`Revoke ${grant.actionKey}`}
+            aria-label={`Revoke ${grant.label}`}
             onClick={() => router.delete(abilityGrantPath(grant.id), { preserveScroll: true })}
           >
             <IconTrash className="size-4" />

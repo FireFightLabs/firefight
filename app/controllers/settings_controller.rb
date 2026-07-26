@@ -95,6 +95,9 @@ class SettingsController < InertiaController
     render inertia: "settings/permissions", props: {
       principals: principal_rows,
       actions: AbilityActionOptionSerializer.many(Ability::Grant.grantable_actions(current_workspace)),
+      sets: AbilityRoleSerializer.many(
+        current_workspace.ability_roles.order(:name).includes(:grants, :role_actions)
+      ),
       environments: environment_options,
       canManage: current_membership.admin_access?
     }
@@ -194,9 +197,10 @@ class SettingsController < InertiaController
   # service keys. Personal keys are omitted because they resolve to their
   # owner's authority rather than carrying grants of their own.
   def principal_rows
-    memberships = current_workspace.workspace_memberships.includes(:user, ability_grants: :action)
-    agents = current_workspace.agents.active.includes(ability_grants: :action)
-    keys = current_workspace.api_keys.where(deleted_at: nil).service.includes(ability_grants: :action)
+    associations = { ability_grants: [ :action, { role: :role_actions } ] }
+    memberships = current_workspace.workspace_memberships.includes(:user, associations)
+    agents = current_workspace.agents.active.includes(associations)
+    keys = current_workspace.api_keys.where(deleted_at: nil).service.includes(associations)
 
     (memberships.to_a + agents.to_a + keys.to_a).map { |principal| PrincipalSerializer.one(principal) }
   end

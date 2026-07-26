@@ -49,7 +49,8 @@ class SettingsControllerTest < ActionDispatch::IntegrationTest
     principals = inertia_props["principals"]
     bob = principals.find { |row| row["id"] == member.id }
     assert_equal "member", bob["implicitAuthority"]
-    assert_equal [ "planetscale.list_databases" ], bob["grants"].map { |grant| grant["actionKey"] }
+    assert_equal [ "planetscale.list_databases" ], bob["grants"].map { |grant| grant["label"] }
+    assert_equal [ "action" ], bob["grants"].map { |grant| grant["kind"] }
     assert_equal "admin", principals.find { |row| row["kind"] == "user" && row["name"] == users(:alice).name }["implicitAuthority"]
     assert_includes principals.map { |row| row["kind"] }, "agent"
 

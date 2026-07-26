@@ -2,11 +2,13 @@ class AbilityGrantsController < InertiaController
   before_action :require_authentication
   before_action :require_admin!
 
+  # A grant targets exactly one of a set or a single action, which the DB
+  # enforces; which one arrived decides how the row is looked up.
   def create
     principal = find_principal!
-    action = find_action!
+    target = params[:role_id].present? ? { role: find_role! } : { action: find_action! }
 
-    grant = current_workspace.ability_grants.find_or_initialize_by(principal: principal, action: action)
+    grant = current_workspace.ability_grants.find_or_initialize_by({ principal: principal }.merge(target))
     grant.scope = requested_scope
     grant.save!
 
@@ -59,5 +61,9 @@ class AbilityGrantsController < InertiaController
 
   def find_action!
     Ability::Action.where(workspace_id: [ nil, current_workspace.id ]).find(params[:action_id])
+  end
+
+  def find_role!
+    current_workspace.ability_roles.find(params[:role_id])
   end
 end

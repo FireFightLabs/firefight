@@ -139,7 +139,7 @@ class IntegrationsController < InertiaController
   # IntegrationEnvironment per environment, grants scoped to it.
   def connect!(provider, name, environment_id)
     integration = current_workspace.integrations.find_or_initialize_by(
-      slug: name.to_s.parameterize(separator: "_")
+      slug: name.to_s.parameterize(separator: "_").tr("-", "_")
     )
     raise NameTaken if integration.persisted? && integration.provider != provider.key
 

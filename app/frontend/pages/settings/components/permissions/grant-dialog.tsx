@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { router } from "@inertiajs/react"
 
-import type { AbilityActionOption, Principal } from "@/types/serializers"
+import type { AbilityActionOption, AbilityRole, Principal } from "@/types/serializers"
 import type { EnvironmentOption } from "@/pages/integrations/types"
 import { abilityGrantsPath } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
@@ -19,30 +19,41 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
 
+type Mode = "set" | "action"
+
 export function GrantDialog({
   principal,
   actions,
+  sets,
   environments,
   onDismiss,
 }: {
   principal: Principal | null
   actions: AbilityActionOption[]
+  sets: AbilityRole[]
   environments: EnvironmentOption[]
   onDismiss: () => void
 }) {
+  const [mode, setMode] = useState<Mode>("set")
   const [search, setSearch] = useState("")
-  const [actionId, setActionId] = useState("")
+  const [targetId, setTargetId] = useState("")
   const [environmentIds, setEnvironmentIds] = useState<string[]>([])
 
   useEffect(() => {
+    setMode(sets.length > 0 ? "set" : "action")
     setSearch("")
-    setActionId("")
+    setTargetId("")
     setEnvironmentIds([])
-  }, [principal])
+  }, [principal, sets.length])
 
   const held = useMemo(
-    () => new Set((principal?.grants ?? []).map((grant) => grant.actionId)),
+    () => new Set((principal?.grants ?? []).map((grant) => grant.targetId)),
     [principal],
+  )
+
+  const availableSets = useMemo(
+    () => sets.filter((set) => !held.has(set.id)),
+    [sets, held],
   )
 
   const grouped = useMemo(() => {
@@ -57,13 +68,13 @@ export function GrantDialog({
   }, [actions, held, search])
 
   function submit() {
-    if (!principal || !actionId) return
+    if (!principal || !targetId) return
     router.post(
       abilityGrantsPath(),
       {
         principal_type: principal.principalType,
         principal_id: principal.id,
-        action_id: actionId,
+        ...(mode === "set" ? { role_id: targetId } : { action_id: targetId }),
         environment_ids: environmentIds,
       },
       { onFinish: onDismiss },
@@ -76,11 +87,16 @@ export function GrantDialog({
     )
   }
 
+  function switchMode(next: Mode) {
+    setMode(next)
+    setTargetId("")
+  }
+
   return (
     <Dialog open={principal !== null} onOpenChange={(open) => { if (!open) onDismiss() }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Grant an ability to {principal?.name}</DialogTitle>
+          <DialogTitle>Grant to {principal?.name}</DialogTitle>
           <DialogDescription>
             Pick what it may do, then narrow it to environments. Leaving environments unticked means
             every environment.
@@ -88,47 +104,95 @@ export function GrantDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="grant-search">Ability</Label>
-            <Input
-              id="grant-search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search abilities…"
-            />
+          <div className="bg-muted flex rounded-lg p-1">
+            {(["set", "action"] as Mode[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => switchMode(option)}
+                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  mode === option
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {option === "set" ? "Permission set" : "Single ability"}
+              </button>
+            ))}
+          </div>
+
+          {mode === "set" ? (
             <div className="border-border max-h-64 overflow-y-auto rounded-lg border">
-              {grouped.length === 0 ? (
+              {availableSets.length === 0 ? (
                 <p className="text-muted-foreground px-3 py-6 text-center text-sm">
-                  {actions.length === held.size
-                    ? "This principal already holds every ability."
-                    : "No abilities match."}
+                  {sets.length === 0
+                    ? "No permission sets yet. Create one to grant several abilities at once."
+                    : "This principal already holds every set."}
                 </p>
               ) : (
-                grouped.map(([group, entries]) => (
-                  <div key={group}>
-                    <p className="bg-muted/50 text-muted-foreground px-3 py-1.5 text-xs font-medium">
-                      {group}
-                    </p>
-                    {entries.map((action) => (
-                      <button
-                        key={action.id}
-                        type="button"
-                        onClick={() => setActionId(action.id)}
-                        className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm ${
-                          actionId === action.id ? "bg-accent" : "hover:bg-muted/50"
-                        }`}
-                      >
-                        <code className="min-w-0 truncate text-xs">{action.key}</code>
-                        <Badge variant={RISK_VARIANT[action.riskLevel] ?? "secondary"} className="shrink-0">
-                          {action.riskLevel}
-                        </Badge>
-                      </button>
-                    ))}
-                  </div>
+                availableSets.map((set) => (
+                  <button
+                    key={set.id}
+                    type="button"
+                    onClick={() => setTargetId(set.id)}
+                    className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left ${
+                      targetId === set.id ? "bg-accent" : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <span className="min-w-0 truncate text-sm">{set.name}</span>
+                    <span className="text-muted-foreground shrink-0 text-xs">
+                      {set.actionIds.length} {set.actionIds.length === 1 ? "ability" : "abilities"}
+                    </span>
+                  </button>
                 ))
               )}
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="grant-search" className="sr-only">
+                Ability
+              </Label>
+              <Input
+                id="grant-search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search abilities…"
+              />
+              <div className="border-border max-h-64 overflow-y-auto rounded-lg border">
+                {grouped.length === 0 ? (
+                  <p className="text-muted-foreground px-3 py-6 text-center text-sm">
+                    No abilities match.
+                  </p>
+                ) : (
+                  grouped.map(([group, entries]) => (
+                    <div key={group}>
+                      <p className="bg-muted/50 text-muted-foreground px-3 py-1.5 text-xs font-medium">
+                        {group}
+                      </p>
+                      {entries.map((action) => (
+                        <button
+                          key={action.id}
+                          type="button"
+                          onClick={() => setTargetId(action.id)}
+                          className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm ${
+                            targetId === action.id ? "bg-accent" : "hover:bg-muted/50"
+                          }`}
+                        >
+                          <code className="min-w-0 truncate text-xs">{action.key}</code>
+                          <Badge
+                            variant={RISK_VARIANT[action.riskLevel] ?? "secondary"}
+                            className="shrink-0"
+                          >
+                            {action.riskLevel}
+                          </Badge>
+                        </button>
+                      ))}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
 
           {environments.length > 0 && (
             <div className="flex flex-col gap-1.5">
@@ -156,8 +220,8 @@ export function GrantDialog({
           <Button variant="outline" onClick={onDismiss}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!actionId}>
-            Grant ability
+          <Button onClick={submit} disabled={!targetId}>
+            Grant
           </Button>
         </DialogFooter>
       </DialogContent>

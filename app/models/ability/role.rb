@@ -13,9 +13,28 @@ module Ability
     validates :slug, presence: true, uniqueness: { scope: :workspace_id },
                      format: { with: /\A[a-z0-9_]+\z/ }
 
+    before_validation :derive_slug, on: :create
     after_commit :bust_holder_caches
 
+    # Replaces the set's contents in one write, so the caller states what the
+    # set covers rather than diffing it. Scopes already pinned to a member
+    # action survive, since they are the set's own overrides.
+    def sync_actions!(action_ids)
+      transaction do
+        role_actions.where.not(action_id: action_ids).destroy_all
+        (action_ids - role_actions.reload.map(&:action_id)).each do |action_id|
+          role_actions.create!(action_id: action_id)
+        end
+      end
+    end
+
     private
+
+    # parameterize keeps hyphens, which the slug format rejects, and a set
+    # called "Database read-only" is the obvious first thing anyone types.
+    def derive_slug
+      self.slug = name.to_s.parameterize(separator: "_").tr("-", "_") if slug.blank?
+    end
 
     def bust_holder_caches
       Ability::Resolver.bust_for_role!(self)
