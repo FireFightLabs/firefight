@@ -49,6 +49,7 @@ export default function Integrations() {
                 <ConnectedCard
                   integration={details}
                   provider={providers.find((provider) => provider.key === details.provider)}
+                  environments={environments}
                   canManage={canManage}
                 />
               </div>

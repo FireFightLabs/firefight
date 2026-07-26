@@ -130,6 +130,58 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_nil row.catalog_entry_id, "an unverified environment id must not bind credentials"
   end
 
+  test "an existing connection can be narrowed to one environment and widened back" do
+    development = catalog_entries(:development_env)
+    complete_oauth_flow
+    row = @workspace.integrations.find_by!(provider: "github").integration_environments.sole
+    assert_nil row.catalog_entry_id
+
+    patch retarget_environment_integration_url(row.integration),
+          params: { environment_row_id: row.id, environment_id: development.id }
+    assert_equal development.id, row.reload.catalog_entry_id
+
+    patch retarget_environment_integration_url(row.integration),
+          params: { environment_row_id: row.id, environment_id: "" }
+    assert_nil row.reload.catalog_entry_id
+  end
+
+  test "retargeting refuses an entry that is not one of this workspace's environments" do
+    complete_oauth_flow
+    row = @workspace.integrations.find_by!(provider: "github").integration_environments.sole
+
+    patch retarget_environment_integration_url(row.integration),
+          params: { environment_row_id: row.id, environment_id: catalog_entries(:vendor_acme).id }
+
+    assert_nil row.reload.catalog_entry_id, "an unverified id must not widen or rebind the connection"
+    assert_match(/not available/, flash[:alert])
+  end
+
+  test "retargeting onto an environment the connection already covers is refused" do
+    production = catalog_entries(:production_env)
+    complete_oauth_flow(start: { environment_id: production.id })
+    complete_oauth_flow(start: { environment_id: catalog_entries(:development_env).id })
+
+    integration = @workspace.integrations.find_by!(provider: "github")
+    development_row = integration.integration_environments.find_by!(catalog_entry_id: catalog_entries(:development_env).id)
+
+    patch retarget_environment_integration_url(integration),
+          params: { environment_row_id: development_row.id, environment_id: production.id }
+
+    assert_equal catalog_entries(:development_env).id, development_row.reload.catalog_entry_id
+    assert_match(/already has credentials/, flash[:alert])
+  end
+
+  test "members cannot retarget an environment" do
+    complete_oauth_flow
+    row = @workspace.integrations.find_by!(provider: "github").integration_environments.sole
+    sign_in(users(:bob), @workspace)
+
+    patch retarget_environment_integration_url(row.integration),
+          params: { environment_row_id: row.id, environment_id: catalog_entries(:development_env).id }
+
+    assert_nil row.reload.catalog_entry_id
+  end
+
   test "reconnecting under the default name reuses the connection" do
     complete_oauth_flow
     complete_oauth_flow

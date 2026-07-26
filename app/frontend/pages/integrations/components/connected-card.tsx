@@ -1,11 +1,23 @@
 import { router } from "@inertiajs/react"
 
 import type { Integration } from "@/types/serializers"
-import type { ProviderEntry } from "@/pages/integrations/types"
-import { integrationPath, syncIntegrationPath, toggleToolIntegrationPath } from "@/lib/routes"
+import type { EnvironmentOption, ProviderEntry } from "@/pages/integrations/types"
+import {
+  integrationPath,
+  retargetEnvironmentIntegrationPath,
+  syncIntegrationPath,
+  toggleToolIntegrationPath,
+} from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ProviderMark } from "@/pages/integrations/components/provider-mark"
 
@@ -15,22 +27,33 @@ const HEALTH_LABEL: Record<string, { label: string; variant: "default" | "destru
   unknown: { label: "Not checked", variant: "secondary" },
 }
 
+const ALL_ENVIRONMENTS = "all"
+
 export function ConnectedCard({
   integration,
   provider,
+  environments,
   canManage,
 }: {
   integration: Integration
   provider: ProviderEntry | undefined
+  environments: EnvironmentOption[]
   canManage: boolean
 }) {
-  const health = HEALTH_LABEL[integration.environments[0]?.healthStatus ?? "unknown"] ?? HEALTH_LABEL.unknown
   const healthErrors = integration.environments
     .map((environment) => environment.healthError)
     .filter((message): message is string => Boolean(message))
 
   function toggleTool(toolId: string) {
     router.patch(toggleToolIntegrationPath(integration.id), { tool_id: toolId }, { preserveScroll: true })
+  }
+
+  function retarget(rowId: string, value: string) {
+    router.patch(
+      retargetEnvironmentIntegrationPath(integration.id),
+      { environment_row_id: rowId, environment_id: value === ALL_ENVIRONMENTS ? "" : value },
+      { preserveScroll: true },
+    )
   }
 
   return (
@@ -45,15 +68,47 @@ export function ConnectedCard({
             </p>
           </div>
         </div>
-        <Badge variant={health.variant}>{health.label}</Badge>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-2">
-          {integration.environments.map((environment) => (
-            <Badge key={environment.id} variant="outline">
-              {environment.environmentName ?? "All environments"}
-            </Badge>
-          ))}
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-medium">Credentials</p>
+          <div className="border-border divide-border divide-y rounded-lg border">
+            {integration.environments.map((environment) => {
+              const rowHealth = HEALTH_LABEL[environment.healthStatus] ?? HEALTH_LABEL.unknown
+              return (
+                <div key={environment.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <Badge variant={rowHealth.variant} className="shrink-0">
+                    {rowHealth.label}
+                  </Badge>
+                  {canManage && environments.length > 0 ? (
+                    <Select
+                      value={environment.environmentId ?? ALL_ENVIRONMENTS}
+                      onValueChange={(value) => retarget(environment.id, value)}
+                    >
+                      <SelectTrigger className="h-8 w-auto min-w-[9rem] shrink-0 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        <SelectItem value={ALL_ENVIRONMENTS}>All environments</SelectItem>
+                        {environments.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge variant="outline" className="shrink-0">
+                      {environment.environmentName ?? "All environments"}
+                    </Badge>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-muted-foreground text-xs">
+            A grant scoped to an environment only matches the credentials wired to it.
+          </p>
         </div>
 
         {healthErrors.length > 0 && (

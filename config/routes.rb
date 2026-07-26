@@ -123,6 +123,7 @@ Rails.application.routes.draw do
         post :sync
         patch :toggle_tool
         patch :toggle
+        patch :retarget_environment
       end
       collection do
         get :oauth_start

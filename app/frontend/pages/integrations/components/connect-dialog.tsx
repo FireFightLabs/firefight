@@ -100,73 +100,88 @@ export function ConnectDialog({
         </DialogHeader>
 
         {provider && oauthAvailable && !useToken && (
-          <div className="flex flex-col gap-3 pt-1">
-            {environments.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <Label>Environment these credentials reach</Label>
-                <Select value={environmentId} onValueChange={setEnvironmentId}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_ENVIRONMENT}>All environments</SelectItem>
-                    {environments.map((environment) => (
-                      <SelectItem key={environment.id} value={environment.id}>
-                        {environment.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-muted-foreground text-xs">
-                  Connect once per environment to give each its own credentials, then scope who can
-                  reach which.
-                </p>
+          <div className="flex flex-col gap-4 pt-1">
+            {(environments.length > 0 || separateAccount) && (
+              <div className="border-border divide-border divide-y rounded-lg border">
+                {environments.length > 0 && (
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Environment</p>
+                      <p className="text-muted-foreground text-xs">Which one these credentials reach</p>
+                    </div>
+                    <Select value={environmentId} onValueChange={setEnvironmentId}>
+                      <SelectTrigger className="h-8 w-auto min-w-[9rem] shrink-0 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        <SelectItem value={NO_ENVIRONMENT}>All environments</SelectItem>
+                        {environments.map((environment) => (
+                          <SelectItem key={environment.id} value={environment.id}>
+                            {environment.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {separateAccount && (
+                  <div className="flex flex-col gap-1.5 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">Connection name</p>
+                        <p className="text-muted-foreground text-xs">
+                          Keeps its permissions separate from {provider.name}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={toggleSeparateAccount}
+                        className="text-muted-foreground hover:text-foreground shrink-0 text-xs"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <Input
+                      autoFocus
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder={`e.g. ${provider.name} Payments`}
+                      className="h-8"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
-            {separateAccount && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="oauth-name">Connection name</Label>
-                <Input
-                  id="oauth-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={`e.g. ${provider.name} Payments`}
-                />
-                <p className="text-muted-foreground text-xs">
-                  Its tools get their own permissions, kept separate from {provider.name}.
-                </p>
-              </div>
-            )}
-
-            {separateAccount && !name.trim() ? (
-              <Button size="lg" className="w-full" disabled>
-                Continue with {provider.name}
-              </Button>
-            ) : (
-              <Button asChild size="lg" className="w-full">
-                <a href={oauthHref(provider.key, name, environmentId)}>
+            <div className="flex flex-col gap-2">
+              {separateAccount && !name.trim() ? (
+                <Button size="lg" className="w-full" disabled>
                   Continue with {provider.name}
-                </a>
-              </Button>
-            )}
-            <p className="text-muted-foreground text-center text-xs">
-              You approve access on {provider.name}'s consent screen. No keys to copy.
-            </p>
-            <div className="flex flex-col items-center gap-1.5">
-              <button
-                type="button"
-                onClick={toggleSeparateAccount}
-                className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
-              >
-                {separateAccount ? "This is my only account" : "Connecting a second account?"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setUseToken(true)}
-                className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
-              >
-                Connect with a token instead
+                </Button>
+              ) : (
+                <Button asChild size="lg" className="w-full">
+                  <a href={oauthHref(provider.key, name, environmentId)}>
+                    Continue with {provider.name}
+                  </a>
+                </Button>
+              )}
+              <p className="text-muted-foreground text-center text-xs">
+                You approve access on {provider.name}'s consent screen. No keys to copy.
+              </p>
+            </div>
+
+            <div className="border-border text-muted-foreground flex items-center justify-center gap-3 border-t pt-3 text-xs">
+              {!separateAccount && (
+                <>
+                  <button type="button" onClick={toggleSeparateAccount} className="hover:text-foreground">
+                    Add a second account
+                  </button>
+                  <span aria-hidden className="bg-border h-3 w-px" />
+                </>
+              )}
+              <button type="button" onClick={() => setUseToken(true)} className="hover:text-foreground">
+                Use a token instead
               </button>
             </div>
           </div>

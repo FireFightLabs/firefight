@@ -1,7 +1,7 @@
 class IntegrationsController < InertiaController
   before_action :require_authentication
   before_action :require_admin!, except: :index
-  before_action :set_integration, only: [ :sync, :toggle_tool, :toggle, :destroy ]
+  before_action :set_integration, only: [ :sync, :toggle_tool, :toggle, :retarget_environment, :destroy ]
 
   def index
     render inertia: "integrations/index", props: {
@@ -53,6 +53,21 @@ class IntegrationsController < InertiaController
   def toggle
     @integration.update!(disabled_at: @integration.disabled_at ? nil : Time.current)
     redirect_to integrations_path
+  end
+
+  # Narrowing an existing connection to one environment, or widening it back.
+  # The credentials stay put; only which environment they answer for moves.
+  def retarget_environment
+    requested = params[:environment_id].presence
+    verified = environment_id_param
+    if requested && verified.nil?
+      return redirect_to integrations_path, alert: "That environment is not available in this workspace."
+    end
+
+    @integration.integration_environments.find(params[:environment_row_id]).update!(catalog_entry_id: verified)
+    redirect_to integrations_path
+  rescue ActiveRecord::RecordInvalid
+    redirect_to integrations_path, alert: "This connection already has credentials for that environment."
   end
 
   # Full-page navigation (not an Inertia visit): hands the browser to the
