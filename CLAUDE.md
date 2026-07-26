@@ -6,6 +6,10 @@ Incident management platform built with Rails 8.1. Currently integrates with Sla
 
 Run `bin/ci` to validate changes. It runs rubocop, bundler-audit, brakeman, rails test (parallel), system tests, and seeds.
 
+## Git & PRs
+
+- **Never merge a PR without an explicit instruction to merge in the current message.** Opening PRs when asked to build something is fine; merging is always the user's call, every time — prior merge approvals and inferred intent (e.g. a bug report that a feature "isn't working") do not count.
+
 ## Deep Dives
 
 Detailed docs live in `docs/`. Read the relevant one **before** working in that area:
