@@ -12,7 +12,7 @@ class IntegrationsController < InertiaController
       providers: IntegrationProvider.all.map do |provider|
         { key: provider.key, name: provider.name, category: provider.category,
           mark: provider.mark, color: provider.color,
-          description: provider.description, serverUrl: provider.server_url }
+          description: provider.description, serverUrl: provider.server_url, oauth: provider.oauth }
       end,
       environments: environment_options,
       canManage: current_membership.admin_access?
@@ -62,6 +62,71 @@ class IntegrationsController < InertiaController
   def toggle
     @integration.update!(disabled_at: @integration.disabled_at ? nil : Time.current)
     redirect_to integrations_path
+  end
+
+  # Full-page navigation (not an Inertia visit): finds or creates the
+  # pending connection, then hands the browser to the provider's consent
+  # screen. PKCE state lives in the session until the callback.
+  def oauth_start
+    provider = IntegrationProvider.find(params[:provider].to_s)
+    unless provider&.oauth && provider.server_url.present?
+      return redirect_to integrations_path, alert: "This integration connects with a token, not OAuth."
+    end
+
+    integration = current_workspace.integrations.where(deleted_at: nil).find_or_create_by!(provider: provider.key) do |record|
+      record.kind = Integration::KIND_MCP
+      record.name = provider.name
+      record.settings = { "server_url" => provider.server_url }
+    end
+    environment_row = integration.integration_environments.first ||
+                      integration.integration_environments.create!
+
+    flow = Integrations::OauthClient.begin_flow(
+      server_url: integration.server_url, redirect_uri: oauth_callback_integrations_url
+    )
+    session[:integration_oauth] = {
+      "environment_id" => environment_row.id, "state" => flow[:state], "verifier" => flow[:verifier],
+      "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
+      "resource" => integration.server_url
+    }
+    redirect_to flow[:authorize_url], allow_other_host: true
+  rescue Integrations::OauthClient::Error => e
+    redirect_to integrations_path, alert: "Could not start the connection: #{e.message}"
+  end
+
+  def oauth_callback
+    pending = session.delete(:integration_oauth)
+    unless pending.present? && params[:state].present? &&
+           ActiveSupport::SecurityUtils.secure_compare(pending["state"].to_s, params[:state].to_s)
+      return redirect_to integrations_path, alert: "The connection attempt expired. Try again."
+    end
+
+    environment_row = IntegrationEnvironment.joins(:integration)
+                                            .where(integrations: { workspace_id: current_workspace.id })
+                                            .find(pending["environment_id"])
+    token = Integrations::OauthClient.exchange(
+      token_endpoint: pending["token_endpoint"], code: params[:code].to_s,
+      verifier: pending["verifier"], client_id: pending["client_id"],
+      redirect_uri: oauth_callback_integrations_url, resource: pending["resource"]
+    )
+    environment_row.update!(credentials: {
+      "oauth" => token.merge(
+        "token_endpoint" => pending["token_endpoint"],
+        "client_id" => pending["client_id"],
+        "resource" => pending["resource"]
+      )
+    }.to_json)
+
+    begin
+      Integrations::DiscoveryService.sync!(environment_row.integration)
+      Integrations::HealthCheckService.check!(environment_row)
+    rescue Integrations::McpClient::Error
+      environment_row.record_health!(false)
+    end
+
+    redirect_to integrations_path
+  rescue Integrations::OauthClient::Error => e
+    redirect_to integrations_path, alert: "Could not connect: #{e.message}"
   end
 
   def destroy

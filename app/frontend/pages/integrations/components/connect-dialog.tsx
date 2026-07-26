@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { router } from "@inertiajs/react"
 
 import type { EnvironmentOption, ProviderEntry } from "@/pages/integrations/types"
-import { integrationsPath } from "@/lib/routes"
+import { integrationsPath, oauthStartIntegrationsPath } from "@/lib/routes"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -39,6 +39,10 @@ export function ConnectDialog({
   const [authorization, setAuthorization] = useState("")
   const [environmentId, setEnvironmentId] = useState(NO_ENVIRONMENT)
   const [submitting, setSubmitting] = useState(false)
+  const [useToken, setUseToken] = useState(false)
+
+  const oauthAvailable = provider?.oauth === true && provider.serverUrl !== ""
+  const showManualForm = !oauthAvailable || useToken
 
   useEffect(() => {
     if (!provider) return
@@ -47,6 +51,7 @@ export function ConnectDialog({
     setAuthorization("")
     setEnvironmentId(NO_ENVIRONMENT)
     setSubmitting(false)
+    setUseToken(false)
   }, [provider])
 
   function submit() {
@@ -74,13 +79,36 @@ export function ConnectDialog({
             <div>
               <DialogTitle>Connect {provider?.name}</DialogTitle>
               <DialogDescription>
-                Firefight discovers the server's tools; you choose which ones to enable. Nothing is
+                Firefight discovers the server's tools and you choose which ones to enable. Nothing is
                 enabled automatically.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
+        {provider && oauthAvailable && (
+          <div className="flex flex-col gap-3">
+            <Button asChild className="w-full">
+              <a href={`${oauthStartIntegrationsPath()}?provider=${provider.key}`}>
+                Continue with {provider.name}
+              </a>
+            </Button>
+            <p className="text-muted-foreground text-center text-xs">
+              You approve access on {provider.name}'s consent screen. No keys to copy.
+            </p>
+            {!useToken && (
+              <button
+                type="button"
+                onClick={() => setUseToken(true)}
+                className="text-muted-foreground hover:text-foreground text-center text-xs underline underline-offset-2"
+              >
+                Connect with a token instead
+              </button>
+            )}
+          </div>
+        )}
+
+        {showManualForm && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="connect-name">Connection name</Label>
@@ -107,7 +135,7 @@ export function ConnectDialog({
               type="password"
               value={authorization}
               onChange={(event) => setAuthorization(event.target.value)}
-              placeholder="Bearer …  (optional; use a read-only key)"
+              placeholder="Bearer …  (optional, use a read-only key)"
             />
             <p className="text-muted-foreground text-xs">
               Stored encrypted, scoped to this connection. Never shared with agents or shown again.
@@ -132,14 +160,17 @@ export function ConnectDialog({
             </div>
           )}
         </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={onDismiss}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={submitting || !name || !serverUrl}>
-            Connect &amp; discover tools
-          </Button>
+          {showManualForm && (
+            <Button onClick={submit} disabled={submitting || !name || !serverUrl}>
+              Connect &amp; discover tools
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

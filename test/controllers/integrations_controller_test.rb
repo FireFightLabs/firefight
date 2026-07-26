@@ -71,6 +71,82 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert tool.reload.enabled?, "member toggle is rejected by require_admin!"
   end
 
+  test "oauth_start creates the pending connection and redirects to the provider's consent screen" do
+    Integrations::OauthClient.stubs(:begin_flow).returns(
+      authorize_url: "https://auth.example/authorize?state=abc", state: "abc",
+      verifier: "ver", client_id: "cid", token_endpoint: "https://auth.example/token"
+    )
+
+    get oauth_start_integrations_url(provider: "github")
+
+    assert_redirected_to "https://auth.example/authorize?state=abc"
+    integration = @workspace.integrations.find_by!(provider: "github")
+    assert_equal "https://api.githubcopilot.com/mcp/", integration.server_url
+    assert integration.integration_environments.one?
+  end
+
+  test "oauth callback with the right state stores tokens and discovers tools" do
+    Integrations::OauthClient.stubs(:begin_flow).returns(
+      authorize_url: "https://auth.example/authorize", state: "abc",
+      verifier: "ver", client_id: "cid", token_endpoint: "https://auth.example/token"
+    )
+    get oauth_start_integrations_url(provider: "github")
+
+    Integrations::OauthClient.expects(:exchange).returns(
+      "access_token" => "at-1", "refresh_token" => "rt-1", "expires_at" => 1.hour.from_now.iso8601
+    )
+    Integrations::McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "pr.list" } ])
+    Integrations::McpClient.any_instance.stubs(:ping).returns(true)
+
+    get oauth_callback_integrations_url(state: "abc", code: "authcode")
+
+    assert_redirected_to integrations_path
+    row = @workspace.integrations.find_by!(provider: "github").integration_environments.first
+    oauth = row.credentials_hash["oauth"]
+    assert_equal "at-1", oauth["access_token"]
+    assert_equal "cid", oauth["client_id"]
+    assert row.integration.tools.exists?(name: "pr.list")
+    assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
+  end
+
+  test "oauth callback rejects a mismatched state" do
+    Integrations::OauthClient.stubs(:begin_flow).returns(
+      authorize_url: "https://auth.example/authorize", state: "abc",
+      verifier: "ver", client_id: "cid", token_endpoint: "https://auth.example/token"
+    )
+    get oauth_start_integrations_url(provider: "github")
+
+    get oauth_callback_integrations_url(state: "WRONG", code: "authcode")
+
+    assert_redirected_to integrations_path
+    row = @workspace.integrations.find_by!(provider: "github").integration_environments.first
+    assert_nil row.credentials_hash["oauth"]
+  end
+
+  test "expired oauth credentials refresh and persist on use" do
+    integration = @workspace.integrations.create!(
+      kind: Integration::KIND_MCP, provider: "github", name: "GitHub",
+      settings: { "server_url" => "https://gh.example/mcp" }
+    )
+    row = integration.integration_environments.create!(credentials: {
+      "oauth" => { "access_token" => "stale", "refresh_token" => "rt-1",
+                   "expires_at" => 1.minute.ago.iso8601,
+                   "token_endpoint" => "https://auth.example/token",
+                   "client_id" => "cid", "resource" => "https://gh.example/mcp" }
+    }.to_json)
+
+    Integrations::OauthClient.expects(:refresh).returns(
+      "access_token" => "fresh", "refresh_token" => "rt-2", "expires_at" => 1.hour.from_now.iso8601
+    )
+
+    headers = Integrations::Credentials.headers_for(row)
+
+    assert_equal "Bearer fresh", headers["Authorization"]
+    persisted = row.reload.credentials_hash["oauth"]
+    assert_equal "fresh", persisted["access_token"]
+    assert_equal "rt-2", persisted["refresh_token"]
+  end
+
   private
 
   def inertia_props
