@@ -33,17 +33,17 @@ export function ProviderTile({
   }
 
   return (
-    <div className="border-border bg-card flex h-full flex-col rounded-xl border p-5">
+    <div className="border-border bg-card flex h-full flex-col rounded-xl border p-6">
       <div className="flex items-start gap-4">
-        <ProviderMark providerKey={provider.key} mark={provider.mark} color={provider.color} size={44} />
-        <div className="min-w-0">
+        <ProviderMark providerKey={provider.key} mark={provider.mark} color={provider.color} size={48} />
+        <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold">{provider.name}</div>
-          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[13px] leading-snug">
+          <p className="text-muted-foreground mt-1 line-clamp-2 text-[13px] leading-relaxed">
             {provider.description}
           </p>
         </div>
       </div>
-      <div className="mt-5 flex items-center justify-between">
+      <div className="mt-auto flex items-center justify-between pt-6">
         {connected ? (
           <Button size="sm" variant="outline" onClick={() => onDetails(integration)}>
             Details
