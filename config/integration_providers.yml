@@ -1,0 +1,77 @@
+# Curated integration catalog shown on Configure -> Integrations.
+# Every provider connects through the generic MCP connector today;
+# server_url pre-fills the connect flow where an official MCP endpoint is
+# known (blank = the admin pastes their own). mark/color drive the logo
+# tile until real brand assets land. Adding a first-party pack later only
+# changes how a provider executes, not this listing.
+providers:
+  - key: github
+    name: GitHub
+    category: Code
+    mark: GH
+    color: "#24292f"
+    description: Correlate incidents with recent pull requests and deploys, and fetch code on demand.
+    server_url: https://api.githubcopilot.com/mcp/
+  - key: gitlab
+    name: GitLab
+    category: Code
+    mark: GL
+    color: "#fc6d26"
+    description: Correlate incidents with merge requests and pipelines.
+    server_url: ""
+  - key: newrelic
+    name: New Relic
+    category: Telemetry
+    mark: NR
+    color: "#1ce783"
+    description: Query logs, metrics and traces during investigations.
+    server_url: ""
+  - key: datadog
+    name: Datadog
+    category: Telemetry
+    mark: DD
+    color: "#632ca6"
+    description: Query logs, metrics and monitors during investigations.
+    server_url: ""
+  - key: grafana
+    name: Grafana
+    category: Telemetry
+    mark: GF
+    color: "#f46800"
+    description: Reach dashboards and datasources behind your Grafana.
+    server_url: ""
+  - key: sentry
+    name: Sentry
+    category: Errors
+    mark: SN
+    color: "#362d59"
+    description: Search error issues and releases tied to an incident.
+    server_url: https://mcp.sentry.dev/mcp
+  - key: notion
+    name: Notion
+    category: Knowledge
+    mark: NO
+    color: "#111111"
+    description: Bring runbook and architecture pages into investigations.
+    server_url: https://mcp.notion.com/mcp
+  - key: confluence
+    name: Confluence
+    category: Knowledge
+    mark: CF
+    color: "#1868db"
+    description: Bring team documentation into investigations.
+    server_url: ""
+  - key: postgresql
+    name: PostgreSQL
+    category: Databases
+    mark: PG
+    color: "#336791"
+    description: Read-only database queries through a connected MCP server.
+    server_url: ""
+  - key: custom_mcp
+    name: Custom MCP server
+    category: Custom
+    mark: MC
+    color: "#0e7490"
+    description: Point Firefight at any MCP server and allowlist its tools.
+    server_url: ""
