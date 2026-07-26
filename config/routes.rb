@@ -118,6 +118,12 @@ Rails.application.routes.draw do
         get :abilities
       end
     end
+    resources :integrations, only: [ :index, :create, :destroy ] do
+      member do
+        post :sync
+        patch :toggle_tool
+      end
+    end
     get "/settings/activity", to: "settings#activity", as: :settings_activity
     get "/settings/approvals", to: "settings#approvals", as: :settings_approvals
     resources :approvals, only: [], path: "settings/approvals" do

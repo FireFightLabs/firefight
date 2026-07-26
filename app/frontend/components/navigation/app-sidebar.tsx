@@ -36,6 +36,7 @@ import { SharedProps } from "@/types"
 import {
   cataloguePath,
   dashboardPath,
+  integrationsPath,
   settingsActivityPath,
   settingsAlertSourcesPath,
   settingsApprovalsPath,
@@ -71,7 +72,7 @@ const navSections = [
       { title: "Runbooks", url: settingsRunbooksPath(), icon: IconBook },
       { title: "Catalogue", url: cataloguePath(), icon: IconBook2 },
       { title: "Alert Sources", url: settingsAlertSourcesPath(), icon: IconBellRinging },
-      { title: "Integrations", url: "#", icon: IconPlug },
+      { title: "Integrations", url: integrationsPath(), icon: IconPlug },
     ],
   },
   {
