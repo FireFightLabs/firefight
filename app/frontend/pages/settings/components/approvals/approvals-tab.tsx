@@ -46,8 +46,8 @@ export function ApprovalsTab({
         <CardHeader>
           <CardTitle>Pending approvals</CardTitle>
           <CardDescription className="mt-1">
-            Calls parked behind an approval policy. Approving admits exactly the parked call, once —
-            the requester retries with the approval id.
+            Calls parked behind an approval policy. Approving admits exactly the parked call, once.
+            The requester then retries with the approval id.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -129,9 +129,9 @@ export function ApprovalsTab({
                     <TableCell>
                       <Badge variant={STATUS_VARIANT[approval.status] ?? "secondary"}>{approval.status}</Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{approval.approverName ?? "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{approval.approverName ?? "-"}</TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">
-                      {approval.resolvedAt ? formatDateTime(approval.resolvedAt) : "—"}
+                      {approval.resolvedAt ? formatDateTime(approval.resolvedAt) : "-"}
                     </TableCell>
                   </TableRow>
                 ))}

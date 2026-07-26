@@ -34,7 +34,7 @@ export function ConnectedCard({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
         <div className="flex items-center gap-3">
-          <ProviderMark mark={provider?.mark ?? "MC"} color={provider?.color ?? "#0e7490"} />
+          <ProviderMark providerKey={integration.provider} mark={provider?.mark ?? "MC"} color={provider?.color ?? "#0e7490"} />
           <div>
             <CardTitle className="text-base">{integration.name}</CardTitle>
             <p className="text-muted-foreground text-xs">

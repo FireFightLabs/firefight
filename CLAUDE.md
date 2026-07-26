@@ -28,6 +28,7 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 - No unnecessary comments — only explain non-obvious logic
 - No ticket numbers in comments
 - No emojis unless requested
+- User-facing copy (UI strings, labels, descriptions, docs prose) uses no em dashes and no unnecessary semicolons. Write two sentences, or use a comma or parenthesis. Empty table cells use a plain hyphen, not a dash glyph.
 - No direct `Rails.logger` helper wrappers — call `Rails.logger.info(...)` inline where needed
 - Keep it simple, avoid over-engineering
 - Rubocop enforced: `[ {...} ]` not `[{...}]` (SpaceInsideArrayLiteralBrackets)

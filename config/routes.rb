@@ -122,6 +122,7 @@ Rails.application.routes.draw do
       member do
         post :sync
         patch :toggle_tool
+        patch :toggle
       end
     end
     get "/settings/activity", to: "settings#activity", as: :settings_activity

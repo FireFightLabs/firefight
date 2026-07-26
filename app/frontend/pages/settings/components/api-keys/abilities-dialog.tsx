@@ -72,7 +72,7 @@ export function AbilitiesDialog({
           <p className="text-muted-foreground py-6 text-center text-sm">Loading…</p>
         ) : response.abilities.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
-            This key holds no abilities — it cannot do anything until granted.
+            This key holds no abilities, so it cannot do anything until granted.
           </p>
         ) : (
           <Table>

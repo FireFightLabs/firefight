@@ -109,11 +109,11 @@ export function ActivityTab({
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {invocation.outcome ?? (invocation.decision === "allow" && !invocation.completedAt ? "unknown" : "—")}
+                    {invocation.outcome ?? (invocation.decision === "allow" && !invocation.completedAt ? "unknown" : "-")}
                     {invocation.errorSummary ? ` (${invocation.errorSummary})` : ""}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-right">
-                    {invocation.durationMs != null ? `${invocation.durationMs} ms` : "—"}
+                    {invocation.durationMs != null ? `${invocation.durationMs} ms` : "-"}
                   </TableCell>
                 </TableRow>
               ))}
