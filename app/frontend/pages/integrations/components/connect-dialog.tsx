@@ -2,7 +2,8 @@ import { useEffect, useState } from "react"
 import { router } from "@inertiajs/react"
 import { IconArrowLeft } from "@tabler/icons-react"
 
-import type { EnvironmentOption, ProviderEntry } from "@/pages/integrations/types"
+import type { EnvironmentOption } from "@/types/serializers"
+import type { ProviderEntry } from "@/pages/integrations/types"
 import { integrationsPath, oauthStartIntegrationsPath } from "@/lib/routes"
 import { Button } from "@/components/ui/button"
 import {

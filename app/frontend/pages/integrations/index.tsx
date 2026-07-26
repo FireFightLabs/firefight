@@ -6,8 +6,8 @@ import { ConnectDialog } from "@/pages/integrations/components/connect-dialog"
 import { ConnectedCard } from "@/pages/integrations/components/connected-card"
 import { ProviderGallery } from "@/pages/integrations/components/provider-gallery"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import type { EnvironmentOption, ProviderEntry } from "@/pages/integrations/types"
-import type { Integration } from "@/types/serializers"
+import type { ProviderEntry } from "@/pages/integrations/types"
+import type { EnvironmentOption, Integration } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
 interface IntegrationsPageProps extends SharedProps {

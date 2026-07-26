@@ -1,4 +1,4 @@
-import type { EnvironmentOption } from "@/pages/integrations/types"
+import type { EnvironmentOption } from "@/types/serializers"
 import {
   Select,
   SelectContent,

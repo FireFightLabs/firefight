@@ -1,7 +1,7 @@
 import { router } from "@inertiajs/react"
 
-import type { Integration } from "@/types/serializers"
-import type { EnvironmentOption, ProviderEntry } from "@/pages/integrations/types"
+import type { EnvironmentOption, Integration } from "@/types/serializers"
+import type { ProviderEntry } from "@/pages/integrations/types"
 import {
   integrationPath,
   retargetEnvironmentIntegrationPath,

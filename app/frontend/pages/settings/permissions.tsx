@@ -10,8 +10,7 @@ import { GrantRow } from "@/pages/settings/components/permissions/grant-row"
 import { SetDialog } from "@/pages/settings/components/permissions/set-dialog"
 import { SetEditor } from "@/pages/settings/components/permissions/set-editor"
 import { IMPLICIT_AUTHORITY } from "@/pages/settings/components/permissions/risk"
-import type { AbilityActionOption, AbilityRole, Principal } from "@/types/serializers"
-import type { EnvironmentOption } from "@/pages/integrations/types"
+import type { AbilityActionOption, AbilityRole, EnvironmentOption, Principal } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
 interface PermissionsPageProps extends SharedProps {

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { router } from "@inertiajs/react"
 
-import type { AbilityActionOption, AbilityRole, Principal } from "@/types/serializers"
-import type { EnvironmentOption } from "@/pages/integrations/types"
+import type { AbilityActionOption, AbilityRole, EnvironmentOption, Principal } from "@/types/serializers"
 import { abilityGrantsPath } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

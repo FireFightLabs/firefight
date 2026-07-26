@@ -7,9 +7,3 @@ export interface ProviderEntry {
   description: string
   serverUrl: string
 }
-
-export interface EnvironmentOption {
-  id: string
-  name: string
-  slug: string
-}
