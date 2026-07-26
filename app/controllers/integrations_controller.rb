@@ -1,4 +1,6 @@
 class IntegrationsController < InertiaController
+  class NameTaken < StandardError; end
+
   before_action :require_authentication
   before_action :require_admin!, except: :index
   before_action :set_integration, only: [ :sync, :toggle_tool, :toggle, :retarget_environment, :destroy ]
@@ -118,6 +120,8 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path
   rescue Integrations::OauthClient::Error => e
     redirect_to integrations_path, alert: "Could not connect: #{e.message}"
+  rescue NameTaken
+    redirect_to integrations_path, alert: "Another connection already uses that name. Pick a different one."
   end
 
   def destroy
@@ -137,6 +141,8 @@ class IntegrationsController < InertiaController
     integration = current_workspace.integrations.find_or_initialize_by(
       slug: name.to_s.parameterize(separator: "_")
     )
+    raise NameTaken if integration.persisted? && integration.provider != provider.key
+
     integration.assign_attributes(
       kind: Integration::KIND_MCP, provider: provider.key, name: name,
       settings: { "server_url" => provider.server_url }, deleted_at: nil, disabled_at: nil

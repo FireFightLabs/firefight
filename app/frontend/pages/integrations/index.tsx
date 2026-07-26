@@ -37,7 +37,14 @@ export default function Integrations() {
           onDetails={(integration) => setDetailsId(integration.id)}
         />
 
-        <ConnectDialog provider={connecting} environments={environments} onDismiss={() => setConnecting(null)} />
+        <ConnectDialog
+          provider={connecting}
+          environments={environments}
+          existingNames={integrations
+            .filter((integration) => integration.provider === connecting?.key)
+            .map((integration) => integration.name)}
+          onDismiss={() => setConnecting(null)}
+        />
 
         <Sheet open={details !== null} onOpenChange={(open) => { if (!open) setDetailsId(null) }}>
           <SheetContent className="overflow-y-auto sm:max-w-lg">
@@ -51,6 +58,11 @@ export default function Integrations() {
                   provider={providers.find((provider) => provider.key === details.provider)}
                   environments={environments}
                   canManage={canManage}
+                  onAddConnection={() => {
+                    const provider = providers.find((entry) => entry.key === details.provider) ?? null
+                    setDetailsId(null)
+                    setConnecting(provider)
+                  }}
                 />
               </div>
             )}

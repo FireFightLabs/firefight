@@ -182,6 +182,19 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_nil row.reload.catalog_entry_id
   end
 
+  test "a name belonging to another provider's connection cannot hijack it" do
+    sentry = @workspace.integrations.create!(
+      kind: Integration::KIND_MCP, provider: "sentry", name: "Sentry",
+      settings: { "server_url" => "https://mcp.sentry.example/mcp" }
+    )
+
+    complete_oauth_flow(name: "Sentry")
+
+    assert_equal "sentry", sentry.reload.provider
+    assert_match(/already uses that name/, flash[:alert])
+    assert_not @workspace.integrations.exists?(provider: "github")
+  end
+
   test "reconnecting under the default name reuses the connection" do
     complete_oauth_flow
     complete_oauth_flow

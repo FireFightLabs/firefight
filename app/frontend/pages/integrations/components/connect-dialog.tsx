@@ -35,10 +35,12 @@ function oauthHref(providerKey: string, name: string, environmentId: string) {
 export function ConnectDialog({
   provider,
   environments,
+  existingNames,
   onDismiss,
 }: {
   provider: ProviderEntry | null
   environments: EnvironmentOption[]
+  existingNames: string[]
   onDismiss: () => void
 }) {
   const [name, setName] = useState("")
@@ -51,6 +53,8 @@ export function ConnectDialog({
 
   const oauthAvailable = provider !== null && provider.serverUrl !== ""
   const showManualForm = !oauthAvailable || useToken
+  const alreadyConnected = existingNames.length > 0
+  const nameTaken = separateAccount && existingNames.includes(name.trim())
 
   useEffect(() => {
     if (!provider) return
@@ -92,10 +96,13 @@ export function ConnectDialog({
           {provider && (
             <ProviderMark providerKey={provider.key} mark={provider.mark} color={provider.color} size={52} />
           )}
-          <DialogTitle className="mt-3 text-lg">Connect {provider?.name}</DialogTitle>
+          <DialogTitle className="mt-3 text-lg">
+            {alreadyConnected ? `Add a ${provider?.name} connection` : `Connect ${provider?.name}`}
+          </DialogTitle>
           <DialogDescription className="mx-auto max-w-xs leading-relaxed">
-            Firefight discovers this server's tools and you pick which to enable. Nothing turns on
-            automatically.
+            {alreadyConnected
+              ? "Authorize another environment on the connection you have, or name this one to keep a second account's permissions separate."
+              : "Firefight discovers this server's tools and you pick which to enable. Nothing turns on automatically."}
           </DialogDescription>
         </DialogHeader>
 
@@ -149,13 +156,18 @@ export function ConnectDialog({
                       placeholder={`e.g. ${provider.name} Payments`}
                       className="h-8"
                     />
+                    {nameTaken && (
+                      <p className="text-destructive text-xs">
+                        You already have a connection with this name.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
             <div className="flex flex-col gap-2">
-              {separateAccount && !name.trim() ? (
+              {separateAccount && (!name.trim() || nameTaken) ? (
                 <Button size="lg" className="w-full" disabled>
                   Continue with {provider.name}
                 </Button>

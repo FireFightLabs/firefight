@@ -34,11 +34,13 @@ export function ConnectedCard({
   provider,
   environments,
   canManage,
+  onAddConnection,
 }: {
   integration: Integration
   provider: ProviderEntry | undefined
   environments: EnvironmentOption[]
   canManage: boolean
+  onAddConnection?: () => void
 }) {
   const healthErrors = integration.environments
     .map((environment) => environment.healthError)
@@ -161,10 +163,15 @@ export function ConnectedCard({
         )}
 
         {canManage && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => router.post(syncIntegrationPath(integration.id))}>
               Refresh tools
             </Button>
+            {onAddConnection && (
+              <Button size="sm" variant="outline" onClick={onAddConnection}>
+                Add connection
+              </Button>
+            )}
             <Button
               size="sm"
               variant="ghost"
