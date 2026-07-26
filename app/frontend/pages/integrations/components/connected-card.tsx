@@ -43,9 +43,18 @@ export function ConnectedCard({
     .filter((message): message is string => Boolean(message))
 
   const enabledCount = integration.tools.filter((tool) => tool.enabled).length
+  const writeEnabledCount = integration.tools.filter((tool) => tool.enabled && !tool.readOnly).length
+  // "Reads only" is a target state, so it is a no-op once every read is on
+  // and no write is.
+  const readsOnlyAlreadySet =
+    writeEnabledCount === 0 && integration.tools.every((tool) => !tool.readOnly || tool.enabled)
 
-  function setAllTools(enabled: boolean) {
-    router.patch(setAllToolsIntegrationPath(integration.id), { enabled }, { preserveScroll: true })
+  function setAllTools(enabled: boolean, readsOnly = false) {
+    router.patch(
+      setAllToolsIntegrationPath(integration.id),
+      { enabled, reads_only: readsOnly },
+      { preserveScroll: true },
+    )
   }
 
   function toggleTool(toolId: string) {
@@ -122,10 +131,20 @@ export function ConnectedCard({
                 Capabilities{" "}
                 <span className="text-muted-foreground font-normal">
                   {enabledCount} of {integration.tools.length} on
+                  {writeEnabledCount > 0 && `, ${writeEnabledCount} that write`}
                 </span>
               </p>
               {canManage && (
                 <div className="text-muted-foreground flex items-center gap-3 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setAllTools(true, true)}
+                    disabled={readsOnlyAlreadySet}
+                    className="hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    Reads only
+                  </button>
+                  <span aria-hidden className="bg-border h-3 w-px" />
                   <button
                     type="button"
                     onClick={() => setAllTools(true)}

@@ -90,6 +90,21 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert integration.tools.reload.none?(&:enabled?)
   end
 
+  test "reads only turns the reads on and the writes back off" do
+    integration = @workspace.integrations.create!(
+      kind: Integration::KIND_MCP, provider: "linear", name: "Linear",
+      settings: { "server_url" => "https://mcp.linear.app/mcp" }
+    )
+    read = integration.tools.create!(name: "list_issues", read_only: true)
+    write = integration.tools.create!(name: "create_issue", read_only: false, enabled: true)
+
+    patch set_all_tools_integration_url(integration), params: { enabled: true, reads_only: true }
+
+    assert read.reload.enabled?
+    assert_not write.reload.enabled?,
+               "reads only states the target, so an already-enabled write is turned off"
+  end
+
   test "members cannot bulk enable tools" do
     integration = @workspace.integrations.create!(
       kind: Integration::KIND_MCP, provider: "linear", name: "Linear",

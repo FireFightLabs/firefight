@@ -55,7 +55,10 @@ class IntegrationsController < InertiaController
   end
 
   def set_all_tools
-    @integration.set_all_tools!(ActiveModel::Type::Boolean.new.cast(params[:enabled]))
+    @integration.set_all_tools!(
+      ActiveModel::Type::Boolean.new.cast(params[:enabled]),
+      reads_only: ActiveModel::Type::Boolean.new.cast(params[:reads_only])
+    )
     redirect_to integrations_path
   end
 

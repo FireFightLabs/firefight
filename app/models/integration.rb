@@ -43,9 +43,16 @@ class Integration < ApplicationRecord
   # Bulk allowlisting. Each row is saved on its own because enabling one
   # mints its Ability::Action in an after_save, and update_all would skip
   # that, leaving capabilities that look enabled but can never be granted.
-  def set_all_tools!(enabled)
+  #
+  # reads_only turns the read tools on *and the write ones off*, so it is a
+  # statement of what the connection may do rather than an additive step
+  # that quietly leaves earlier write grants in place.
+  def set_all_tools!(enabled, reads_only: false)
     transaction do
-      tools.where.not(enabled: enabled).each { |tool| tool.update!(enabled: enabled) }
+      tools.each do |tool|
+        desired = enabled && (!reads_only || tool.read_only?)
+        tool.update!(enabled: desired) if tool.enabled? != desired
+      end
     end
   end
 
