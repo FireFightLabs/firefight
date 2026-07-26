@@ -44,6 +44,38 @@ module Integrations
       assert_match(/bad token/, error.message)
     end
 
+    test "an app slug starts the flow at the provider's install screen" do
+      OauthClient.stubs(:discover).returns(
+        authorization_endpoint: "https://github.com/login/oauth/authorize",
+        token_endpoint: "https://github.com/login/oauth/access_token",
+        registration_endpoint: nil, scope: nil
+      )
+
+      flow = OauthClient.begin_flow(
+        server_url: "https://api.githubcopilot.com/mcp/", redirect_uri: "https://ff.example/cb",
+        client_id: "Iv23.abc", client_secret: "shh", app_slug: "firefight-dev"
+      )
+
+      assert_match %r{\Ahttps://github\.com/apps/firefight-dev/installations/new\?}, flow[:authorize_url]
+      assert_includes flow[:authorize_url], "state=#{flow[:state]}"
+      assert_nil flow[:verifier], "install flow relies on the client secret, not PKCE"
+    end
+
+    test "without an app slug the flow uses the authorize endpoint with PKCE" do
+      OauthClient.stubs(:discover).returns(
+        authorization_endpoint: "https://auth.example/authorize",
+        token_endpoint: "https://auth.example/token", registration_endpoint: nil, scope: "read"
+      )
+
+      flow = OauthClient.begin_flow(
+        server_url: "https://mcp.example/mcp", redirect_uri: "https://ff.example/cb", client_id: "cid"
+      )
+
+      assert_includes flow[:authorize_url], "https://auth.example/authorize?"
+      assert_includes flow[:authorize_url], "code_challenge_method=S256"
+      assert flow[:verifier].present?
+    end
+
     test "surfaces a non-2xx HTTP status" do
       resp = stub(code: "401", body: "unauthorized")
       resp.stubs(:[]).returns(nil)

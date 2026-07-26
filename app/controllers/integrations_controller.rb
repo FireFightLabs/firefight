@@ -79,7 +79,7 @@ class IntegrationsController < InertiaController
     oauth = IntegrationProvider.oauth_client(provider.key)
     flow = Integrations::OauthClient.begin_flow(
       server_url: provider.server_url, redirect_uri: oauth_callback_integrations_url,
-      client_id: oauth[:client_id], client_secret: oauth[:client_secret]
+      client_id: oauth[:client_id], client_secret: oauth[:client_secret], app_slug: oauth[:app_slug]
     )
 
     # Reconnecting revives a previously disconnected connection rather than

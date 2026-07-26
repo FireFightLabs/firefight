@@ -11,23 +11,36 @@ module Integrations
     READ_TIMEOUT = 15
 
     class << self
-      def begin_flow(server_url:, redirect_uri:, client_id: nil, client_secret: nil)
+      def begin_flow(server_url:, redirect_uri:, client_id: nil, client_secret: nil, app_slug: nil)
         metadata = discover(server_url)
         client_id ||= register(metadata, redirect_uri)
-        verifier = SecureRandom.urlsafe_base64(48)
-        challenge = Base64.urlsafe_encode64(Digest::SHA256.digest(verifier), padding: false)
         state = SecureRandom.hex(16)
 
-        authorize_url = "#{metadata[:authorization_endpoint]}?" + {
-          response_type: "code",
-          client_id: client_id,
-          redirect_uri: redirect_uri,
-          state: state,
-          code_challenge: challenge,
-          code_challenge_method: "S256",
-          resource: server_url,
-          scope: metadata[:scope]
-        }.compact.to_query
+        if app_slug.present?
+          # Install-first: providers like GitHub gate all access behind
+          # installing their app on the customer's account, and choosing the
+          # repositories is part of that screen. Starting here means the
+          # customer never has to find the app on the provider's own site;
+          # they land on install, pick their scope, authorize, and come back.
+          # The app is a registered confidential client, so the client secret
+          # authenticates the exchange in place of PKCE.
+          origin = origin_of(URI.parse(metadata[:authorization_endpoint]))
+          authorize_url = "#{origin}/apps/#{app_slug}/installations/new?" + { state: state }.to_query
+          verifier = nil
+        else
+          verifier = SecureRandom.urlsafe_base64(48)
+          challenge = Base64.urlsafe_encode64(Digest::SHA256.digest(verifier), padding: false)
+          authorize_url = "#{metadata[:authorization_endpoint]}?" + {
+            response_type: "code",
+            client_id: client_id,
+            redirect_uri: redirect_uri,
+            state: state,
+            code_challenge: challenge,
+            code_challenge_method: "S256",
+            resource: server_url,
+            scope: metadata[:scope]
+          }.compact.to_query
+        end
 
         { authorize_url: authorize_url, state: state, verifier: verifier, client_id: client_id,
           client_secret: client_secret, token_endpoint: metadata[:token_endpoint] }

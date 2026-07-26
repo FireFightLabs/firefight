@@ -35,6 +35,11 @@ class IntegrationProvider
 
     { client_id: client_id,
       client_secret: ENV["#{prefix}_CLIENT_SECRET"].presence ||
-                     Rails.application.credentials.dig(:integrations, key.to_sym, :client_secret) }
+                     Rails.application.credentials.dig(:integrations, key.to_sym, :client_secret),
+      # Set for providers whose app must be installed before its tokens reach
+      # anything (GitHub). Connecting then starts at the provider's install
+      # screen instead of a bare authorize page.
+      app_slug: ENV["#{prefix}_APP_SLUG"].presence ||
+                Rails.application.credentials.dig(:integrations, key.to_sym, :app_slug) }
   end
 end
