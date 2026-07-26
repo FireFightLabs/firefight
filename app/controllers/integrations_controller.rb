@@ -1,12 +1,12 @@
 class IntegrationsController < InertiaController
   before_action :require_authentication
   before_action :require_admin!, except: :index
-  before_action :set_integration, only: [ :sync, :toggle_tool, :destroy ]
+  before_action :set_integration, only: [ :sync, :toggle_tool, :toggle, :destroy ]
 
   def index
     render inertia: "integrations/index", props: {
       integrations: IntegrationSerializer.many(
-        current_workspace.integrations.active.order(:name)
+        current_workspace.integrations.where(deleted_at: nil).order(:name)
                          .includes(:tools, integration_environments: :environment)
       ),
       providers: IntegrationProvider.all.map do |provider|
@@ -59,6 +59,11 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path
   end
 
+  def toggle
+    @integration.update!(disabled_at: @integration.disabled_at ? nil : Time.current)
+    redirect_to integrations_path
+  end
+
   def destroy
     @integration.update!(deleted_at: Time.current)
     redirect_to integrations_path
@@ -67,7 +72,7 @@ class IntegrationsController < InertiaController
   private
 
   def set_integration
-    @integration = current_workspace.integrations.active.find(params[:id])
+    @integration = current_workspace.integrations.where(deleted_at: nil).find(params[:id])
   end
 
   def environment_options
