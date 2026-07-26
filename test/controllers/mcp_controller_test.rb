@@ -310,6 +310,41 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert @workspace.catalog_entries.exists?(name: "Gated")
   end
 
+  test "connection tools are exposed outward, gateway-governed, and executed upstream" do
+    integration = @workspace.integrations.create!(
+      kind: Integration::KIND_MCP, provider: "newrelic", name: "New Relic",
+      settings: { "server_url" => "https://mcp.example/mcp" }
+    )
+    integration.integration_environments.create!(credentials: { authorization: "Bearer up" }.to_json)
+    tool = integration.tools.create!(name: "logs.query", read_only: true, enabled: true,
+                                     description: "Query logs", spec: { "tool_name" => "logs.query" })
+
+    body = rpc("tools/list")
+    names = body.dig("result", "tools").map { |t| t["name"] }
+    assert_includes names, "new_relic_logs_query"
+
+    # No grant yet: memberships hold implicit authority only over system
+    # actions, so even an admin personal token is denied on tool actions.
+    result, is_error = call_tool("new_relic_logs_query", { query: "SELECT 1" })
+    assert is_error
+    assert_empty result
+
+    Ability::Grant.create!(workspace: @workspace, principal: @membership,
+                           action: tool.sync_ability_action!)
+    Integrations::McpClient.any_instance.expects(:call_tool)
+      .with(name: "logs.query", arguments: { "query" => "SELECT 1" })
+      .returns({ "content" => [ { "type" => "text", "text" => "42 rows" } ], "isError" => false })
+
+    body = rpc("tools/call", { name: "new_relic_logs_query", arguments: { query: "SELECT 1" } })
+    result = body.fetch("result")
+    assert_not result["isError"]
+    assert_equal "42 rows", result["content"].first["text"]
+
+    integration.update!(disabled_at: Time.current)
+    body = rpc("tools/call", { name: "new_relic_logs_query", arguments: { query: "SELECT 1" } })
+    refute_nil body["error"], "the kill switch removes the tool from the registry entirely"
+  end
+
   test "denied tool calls are recorded in the ability ledger" do
     key, alerts_token = ApiKey.create_with_token!(
       workspace: @workspace, created_by: @membership, name: "Alerts only",

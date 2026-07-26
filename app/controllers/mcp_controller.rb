@@ -79,7 +79,7 @@ class McpController < ActionController::API
       name: SERVER_NAME,
       version: SERVER_VERSION,
       instructions: INSTRUCTIONS,
-      tools: Mcp::Tools.all,
+      tools: Mcp::Tools.all + Mcp::ConnectionToolFactory.tools_for(Current.workspace),
       server_context: {
         workspace: Current.workspace,
         principal: Current.principal,

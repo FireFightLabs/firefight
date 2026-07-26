@@ -26,6 +26,7 @@ class Workspace < ApplicationRecord
   has_many :incident_runbooks, dependent: :destroy
   has_many :ability_approvals, class_name: "Ability::Approval", dependent: :destroy
   has_many :ability_invocations, class_name: "Ability::Invocation", dependent: :delete_all
+  has_many :integrations, dependent: :destroy
 
   encrypts :access_token, :refresh_token, deterministic: false
 
