@@ -82,6 +82,22 @@ providers:
     color: "#000000"
     description: Read-only queries, branch schemas and Insights for a PlanetScale database.
     server_url: https://mcp.pscale.dev/mcp/planetscale
+    # PlanetScale advertises scopes on its authorization server rather than in
+    # the resource metadata, so they are requested explicitly. Read-only
+    # throughout: the manage_read_only_passwords scopes only mint credentials
+    # that cannot write.
+    scopes:
+      - user:read_organizations
+      - organization:read_organization
+      - organization:read_databases
+      - organization:read_branches
+      - organization:manage_read_only_passwords
+      - organization:manage_production_read_only_passwords
+      - database:read_database
+      - database:read_branches
+      - database:read_deploy_requests
+      - database:manage_read_only_passwords
+      - database:manage_production_read_only_passwords
   - key: postgresql
     name: PostgreSQL
     category: Databases

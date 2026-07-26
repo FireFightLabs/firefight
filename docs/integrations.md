@@ -52,6 +52,7 @@ Both are required and they answer different questions. A grant says *this princi
 
 1. An entry in `config/integration_providers.yml`: `key`, `name`, `category`, `mark`, `color`, `description`, and `server_url` when the provider hosts an MCP server.
 2. If its OAuth needs a pre-registered app: `INTEGRATION_<KEY>_CLIENT_ID` and `_CLIENT_SECRET`. Add `_APP_SLUG` when the provider gates access behind installing the app (GitHub).
+3. `scopes:` only when the provider advertises its scopes on the authorization server instead of in the resource metadata, where discovery cannot find them (PlanetScale). Keep the list least-privilege: a read-only integration must never list a scope that can write.
 
 **That is the whole job. No code.** A provider later gaining a first-party pack changes how it executes, never how it is listed.
 
@@ -81,6 +82,7 @@ Integration (kind: mcp | http | native, immutable slug, kill switch)
 - State is verified with a constant-time compare; PKCE is used except on the install-first path, where a registered app's client secret authenticates the exchange instead.
 - **Install-first** (`_APP_SLUG` set) starts at the provider's install screen so customers pick their account and repositories from our UI and never visit the provider's site to install by hand.
 - Discovery follows RFC 9728 then RFC 8414, trying the path-inserted, issuer-suffix, and OIDC metadata locations. Dynamic client registration is used when the server offers it.
+- Requested scopes come from the resource metadata's `scopes_supported`. A provider that omits it issues a default-minimum token, which fails on the first real call, so those providers declare an explicit least-privilege `scopes:` list in the registry instead. **Never fall back to the authorization server's full scope list** — it includes write scopes.
 
 ## Ledger
 
