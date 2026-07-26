@@ -9,10 +9,12 @@ class AbilityRolesController < InertiaController
     redirect_to settings_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
 
+  # `action_ids` is the set's full contents, not a delta, so an absent or
+  # empty list empties it. Guarding on the key being present would make
+  # unticking the last ability depend on how an empty array survives
+  # serialization, which is not something this should rest on.
   def update
-    role = current_workspace.ability_roles.find(params[:id])
-    role.update!(name: params[:name]) if params[:name].present?
-    role.sync_actions!(permitted_action_ids) if params.key?(:action_ids)
+    current_workspace.ability_roles.find(params[:id]).sync_actions!(permitted_action_ids)
 
     redirect_to settings_permissions_path
   rescue ActiveRecord::RecordInvalid => e

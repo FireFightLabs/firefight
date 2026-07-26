@@ -29,6 +29,7 @@ class IntegrationProvider
   def self.registry
     @registry ||= YAML.load_file(REGISTRY_PATH)
   end
+  private_class_method :registry
 
   # Providers whose OAuth server needs a pre-registered app (e.g. GitHub,
   # which has no dynamic registration) read a Firefight-wide client id and

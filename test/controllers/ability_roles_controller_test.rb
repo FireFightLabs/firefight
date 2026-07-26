@@ -98,6 +98,18 @@ class AbilityRolesControllerTest < ActionDispatch::IntegrationTest
     assert_empty role.reload.role_actions
   end
 
+  test "clearing the last ability out of a set actually empties it" do
+    role = @workspace.ability_roles.create!(name: "Database read-only")
+    role.sync_actions!([ @list.id ])
+
+    patch ability_role_url(role), params: { action_ids: [] }
+    assert_empty role.reload.role_actions, "unticking the last ability must persist"
+
+    role.sync_actions!([ @list.id ])
+    patch ability_role_url(role)
+    assert_empty role.reload.role_actions, "an omitted list means the set covers nothing"
+  end
+
   test "members cannot manage sets" do
     sign_in(users(:bob), @workspace)
 
