@@ -1,11 +1,8 @@
 import { useMemo, useState } from "react"
 
 import type { ProviderEntry } from "@/pages/integrations/types"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ProviderMark } from "@/pages/integrations/components/provider-mark"
+import { ProviderTile } from "@/pages/integrations/components/provider-tile"
 
 export function ProviderGallery({
   providers,
@@ -32,11 +29,11 @@ export function ProviderGallery({
   }, [providers, search])
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
+    <div className="flex flex-col gap-7">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="max-w-xl">
           <h2 className="text-lg font-semibold">Browse integrations</h2>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground mt-1 text-sm">
             Everything you connect becomes available to investigations, agents, and the API — governed
             by the same permissions and approvals.
           </p>
@@ -45,37 +42,26 @@ export function ProviderGallery({
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search integrations…"
-          className="max-w-56"
+          className="w-56"
         />
       </div>
 
       {grouped.map(([category, entries]) => (
         <section key={category} className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold">{category}</h3>
-            <Badge variant="secondary">{entries.length}</Badge>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+              {category}
+            </h3>
+            <span className="text-muted-foreground/70 text-xs tabular-nums">{entries.length}</span>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {entries.map((provider) => (
-              <Card key={provider.key}>
-                <CardContent className="flex h-full flex-col gap-3 p-5">
-                  <div className="flex items-center gap-3">
-                    <ProviderMark mark={provider.mark} color={provider.color} />
-                    <span className="text-base font-semibold">{provider.name}</span>
-                  </div>
-                  <p className="text-muted-foreground flex-1 text-sm">{provider.description}</p>
-                  <div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!canManage}
-                      onClick={() => onConnect(provider)}
-                    >
-                      Connect
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <ProviderTile
+                key={provider.key}
+                provider={provider}
+                canManage={canManage}
+                onConnect={onConnect}
+              />
             ))}
           </div>
         </section>
