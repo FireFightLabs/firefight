@@ -15,20 +15,17 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  ALL_ENVIRONMENTS,
+  EnvironmentSelect,
+  toEnvironmentId,
+} from "@/pages/integrations/components/environment-select"
 import { ProviderMark } from "@/pages/integrations/components/provider-mark"
-
-const NO_ENVIRONMENT = "none"
 
 function oauthHref(providerKey: string, name: string, environmentId: string) {
   const params = new URLSearchParams({ provider: providerKey })
   if (name) params.set("name", name)
-  if (environmentId !== NO_ENVIRONMENT) params.set("environment_id", environmentId)
+  const environment = toEnvironmentId(environmentId)
+  if (environment) params.set("environment_id", environment)
   return `${oauthStartIntegrationsPath()}?${params.toString()}`
 }
 
@@ -46,7 +43,7 @@ export function ConnectDialog({
   const [name, setName] = useState("")
   const [serverUrl, setServerUrl] = useState("")
   const [authorization, setAuthorization] = useState("")
-  const [environmentId, setEnvironmentId] = useState(NO_ENVIRONMENT)
+  const [environmentId, setEnvironmentId] = useState(ALL_ENVIRONMENTS)
   const [submitting, setSubmitting] = useState(false)
   const [useToken, setUseToken] = useState(false)
   const [separateAccount, setSeparateAccount] = useState(false)
@@ -61,7 +58,7 @@ export function ConnectDialog({
     setName(provider.key === "custom_mcp" ? "" : provider.name)
     setServerUrl(provider.serverUrl)
     setAuthorization("")
-    setEnvironmentId(NO_ENVIRONMENT)
+    setEnvironmentId(ALL_ENVIRONMENTS)
     setSubmitting(false)
     setUseToken(false)
     setSeparateAccount(false)
@@ -83,7 +80,7 @@ export function ConnectDialog({
         name,
         server_url: serverUrl,
         authorization,
-        environment_id: environmentId === NO_ENVIRONMENT ? "" : environmentId,
+        environment_id: toEnvironmentId(environmentId),
       },
       { onFinish: () => onDismiss() },
     )
@@ -116,19 +113,12 @@ export function ConnectDialog({
                       <p className="text-sm font-medium">Environment</p>
                       <p className="text-muted-foreground text-xs">Which one these credentials reach</p>
                     </div>
-                    <Select value={environmentId} onValueChange={setEnvironmentId}>
-                      <SelectTrigger className="h-8 w-auto min-w-[9rem] shrink-0 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent align="end">
-                        <SelectItem value={NO_ENVIRONMENT}>All environments</SelectItem>
-                        {environments.map((environment) => (
-                          <SelectItem key={environment.id} value={environment.id}>
-                            {environment.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <EnvironmentSelect
+                      compact
+                      value={environmentId}
+                      environments={environments}
+                      onChange={setEnvironmentId}
+                    />
                   </div>
                 )}
 
@@ -245,19 +235,11 @@ export function ConnectDialog({
             {environments.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 <Label>Environment these credentials reach</Label>
-                <Select value={environmentId} onValueChange={setEnvironmentId}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_ENVIRONMENT}>All environments</SelectItem>
-                    {environments.map((environment) => (
-                      <SelectItem key={environment.id} value={environment.id}>
-                        {environment.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <EnvironmentSelect
+                  value={environmentId}
+                  environments={environments}
+                  onChange={setEnvironmentId}
+                />
               </div>
             )}
             <div className="flex justify-end gap-2 pt-2">

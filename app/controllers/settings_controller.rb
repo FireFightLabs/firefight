@@ -89,8 +89,8 @@ class SettingsController < InertiaController
     }
   end
 
-  # The gateway ledger: everything agents and API keys did (or were denied),
-  # rendered read-only. This is the oversight surface for governed writes.
+  # Who may do what: every principal that can hold a grant, the abilities and
+  # sets available to hand out, and the environments a grant can be scoped to.
   def permissions
     render inertia: "settings/permissions", props: {
       principals: principal_rows,
@@ -98,11 +98,13 @@ class SettingsController < InertiaController
       sets: AbilityRoleSerializer.many(
         current_workspace.ability_roles.order(:name).includes(:grants, :role_actions)
       ),
-      environments: environment_options,
+      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       canManage: current_membership.admin_access?
     }
   end
 
+  # The gateway ledger: everything agents and API keys did (or were denied),
+  # rendered read-only. This is the oversight surface for governed writes.
   def activity
     scope = current_workspace.ability_invocations.order(created_at: :desc)
     scope = scope.where(decision: params[:decision]) if params[:decision].present?
@@ -203,13 +205,6 @@ class SettingsController < InertiaController
     keys = current_workspace.api_keys.where(deleted_at: nil).service.includes(associations)
 
     (memberships.to_a + agents.to_a + keys.to_a).map { |principal| PrincipalSerializer.one(principal) }
-  end
-
-  def environment_options
-    type = current_workspace.catalog_types.find_by(system_key: CatalogType::SYSTEM_KEY_ENVIRONMENT)
-    return [] unless type
-
-    type.catalog_entries.active.order(:name).map { |entry| { id: entry.id, name: entry.name, slug: entry.slug } }
   end
 
   # MCP clients this member authorized via OAuth consent; one row per

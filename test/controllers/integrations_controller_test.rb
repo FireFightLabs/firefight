@@ -195,6 +195,18 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_not @workspace.integrations.exists?(provider: "github")
   end
 
+  # The controller looks a connection up by the slug a name *would* derive to.
+  # If that rule ever drifts from the model's, reconnecting silently creates a
+  # duplicate instead of finding the row, so pin them to the same helper.
+  test "a name the slug rule has to rewrite still reuses one connection" do
+    complete_oauth_flow(name: "GitHub read-only")
+    complete_oauth_flow(name: "GitHub read-only")
+
+    integration = @workspace.integrations.sole
+    assert_equal "github_read_only", integration.slug
+    assert_equal Integration.slug_for("GitHub read-only"), integration.slug
+  end
+
   test "reconnecting under the default name reuses the connection" do
     complete_oauth_flow
     complete_oauth_flow

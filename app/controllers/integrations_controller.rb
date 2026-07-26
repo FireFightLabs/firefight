@@ -16,7 +16,7 @@ class IntegrationsController < InertiaController
           mark: provider.mark, color: provider.color,
           description: provider.description, serverUrl: provider.server_url }
       end,
-      environments: environment_options,
+      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       canManage: current_membership.admin_access?
     }
   end
@@ -138,9 +138,7 @@ class IntegrationsController < InertiaController
   # Separating environments is a different axis: one connection, one
   # IntegrationEnvironment per environment, grants scoped to it.
   def connect!(provider, name, environment_id)
-    integration = current_workspace.integrations.find_or_initialize_by(
-      slug: name.to_s.parameterize(separator: "_").tr("-", "_")
-    )
+    integration = current_workspace.integrations.find_or_initialize_by(slug: Integration.slug_for(name))
     raise NameTaken if integration.persisted? && integration.provider != provider.key
 
     integration.assign_attributes(
@@ -159,13 +157,6 @@ class IntegrationsController < InertiaController
   # workspace's environments before it can bind credentials to a catalog entry.
   def environment_id_param
     id = params[:environment_id].presence
-    id if id && environment_options.any? { |option| option[:id] == id }
-  end
-
-  def environment_options
-    type = current_workspace.catalog_types.find_by(system_key: CatalogType::SYSTEM_KEY_ENVIRONMENT)
-    return [] unless type
-
-    type.catalog_entries.active.order(:name).map { |entry| { id: entry.id, name: entry.name, slug: entry.slug } }
+    id if id && current_workspace.environment_entries.exists?(id: id)
   end
 end

@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
+import { useGroupedActions } from "@/pages/settings/components/permissions/use-grouped-actions"
 
 type Mode = "set" | "action"
 
@@ -56,16 +57,7 @@ export function GrantDialog({
     [sets, held],
   )
 
-  const grouped = useMemo(() => {
-    const matching = actions.filter(
-      (action) => !held.has(action.id) && action.key.toLowerCase().includes(search.toLowerCase()),
-    )
-    const byGroup = new Map<string, AbilityActionOption[]>()
-    matching.forEach((action) => {
-      byGroup.set(action.group, [...(byGroup.get(action.group) ?? []), action])
-    })
-    return [...byGroup.entries()]
-  }, [actions, held, search])
+  const grouped = useGroupedActions(actions, search, held)
 
   function submit() {
     if (!principal || !targetId) return

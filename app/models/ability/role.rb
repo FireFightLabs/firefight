@@ -3,6 +3,8 @@ module Ability
   # unit. Distinct from IncidentRole (incident staffing) — this is the
   # permission-bundle side of the Ability Gateway.
   class Role < ApplicationRecord
+    include Sluggable
+
     belongs_to :workspace
 
     has_many :role_actions, class_name: "Ability::RoleAction", inverse_of: :role, dependent: :destroy
@@ -13,8 +15,7 @@ module Ability
     validates :slug, presence: true, uniqueness: { scope: :workspace_id },
                      format: { with: /\A[a-z0-9_]+\z/ }
 
-    before_validation :derive_slug, on: :create
-    after_commit :bust_holder_caches
+      after_commit :bust_holder_caches
 
     # Replaces the set's contents in one write, so the caller states what the
     # set covers rather than diffing it. Scopes already pinned to a member
@@ -29,12 +30,6 @@ module Ability
     end
 
     private
-
-    # parameterize keeps hyphens, which the slug format rejects, and a set
-    # called "Database read-only" is the obvious first thing anyone types.
-    def derive_slug
-      self.slug = name.to_s.parameterize(separator: "_").tr("-", "_") if slug.blank?
-    end
 
     def bust_holder_caches
       Ability::Resolver.bust_for_role!(self)

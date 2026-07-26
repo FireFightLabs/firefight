@@ -36,15 +36,9 @@ class AbilityGrantsController < InertiaController
   # An empty environment list means unrestricted, which Ability::Scope spells
   # as the dimension being absent rather than an empty array.
   def requested_scope
-    ids = Array(params[:environment_ids]).map(&:to_s).select(&:present?) & workspace_environment_ids
+    requested = Array(params[:environment_ids]).map(&:to_s).select(&:present?)
+    ids = current_workspace.environment_entries.where(id: requested).pluck(:id)
     ids.any? ? { Ability::Scope::DIMENSION_ENVIRONMENT => ids } : {}
-  end
-
-  def workspace_environment_ids
-    @workspace_environment_ids ||= current_workspace.catalog_entries
-                                                    .joins(:catalog_type)
-                                                    .where(catalog_types: { system_key: CatalogType::SYSTEM_KEY_ENVIRONMENT })
-                                                    .pluck(:id)
   end
 
   # Grants attach to principals of this workspace only; the polymorphic type

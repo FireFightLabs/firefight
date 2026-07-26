@@ -65,15 +65,16 @@ export function ProviderTile({
 
       <div className="mt-auto flex items-center justify-between gap-2 pt-6">
         <div className="flex items-center gap-2">
-          {single && (
+          {single ? (
             <Button size="sm" variant="outline" onClick={() => onDetails(single)}>
               Details
             </Button>
-          )}
-          {!connected && (
-            <Button size="sm" variant="outline" disabled={!canManage} onClick={() => onConnect(provider)}>
-              Connect
-            </Button>
+          ) : (
+            !connected && (
+              <Button size="sm" variant="outline" disabled={!canManage} onClick={() => onConnect(provider)}>
+                Connect
+              </Button>
+            )
           )}
           {connected && canManage && (
             <Button size="sm" variant="ghost" onClick={() => onConnect(provider)}>
@@ -81,12 +82,22 @@ export function ProviderTile({
             </Button>
           )}
         </div>
-        {integrations.length <= 1 && (
+        {/* The switch stands for the whole provider, so it only appears while
+            one connection can speak for it. Past that, each row owns its own. */}
+        {!connected && (
           <Switch
-            checked={single !== null && !single.disabled}
+            checked={false}
             disabled={!canManage}
-            onCheckedChange={() => (single ? toggle(single) : onConnect(provider))}
-            aria-label={single ? `Toggle ${provider.name}` : `Connect ${provider.name}`}
+            onCheckedChange={() => onConnect(provider)}
+            aria-label={`Connect ${provider.name}`}
+          />
+        )}
+        {single && (
+          <Switch
+            checked={!single.disabled}
+            disabled={!canManage}
+            onCheckedChange={() => toggle(single)}
+            aria-label={`Toggle ${provider.name}`}
           />
         )}
       </div>

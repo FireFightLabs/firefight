@@ -31,6 +31,12 @@ class Workspace < ApplicationRecord
   has_many :ability_invocations, class_name: "Ability::Invocation", dependent: :delete_all
   has_many :integrations, dependent: :destroy
 
+  # The environments a grant may be scoped to and a connection's credentials
+  # wired for. The single source both questions are answered from, so an id
+  # arriving from a form is verified against exactly what the UI offered.
+  has_many :environment_entries, -> { active.joins(:catalog_type).where(catalog_types: { system_key: CatalogType::SYSTEM_KEY_ENVIRONMENT }).order(:name) },
+           class_name: "CatalogEntry", inverse_of: :workspace
+
   encrypts :access_token, :refresh_token, deterministic: false
 
   validates :platform, :platform_id, :name, :installed_at, presence: true

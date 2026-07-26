@@ -11,14 +11,11 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import {
+  EnvironmentSelect,
+  toEnvironmentId,
+} from "@/pages/integrations/components/environment-select"
 import { ProviderMark } from "@/pages/integrations/components/provider-mark"
 
 const HEALTH_LABEL: Record<string, { label: string; variant: "default" | "destructive" | "secondary" }> = {
@@ -26,8 +23,6 @@ const HEALTH_LABEL: Record<string, { label: string; variant: "default" | "destru
   failing: { label: "Failing", variant: "destructive" },
   unknown: { label: "Not checked", variant: "secondary" },
 }
-
-const ALL_ENVIRONMENTS = "all"
 
 export function ConnectedCard({
   integration,
@@ -53,7 +48,7 @@ export function ConnectedCard({
   function retarget(rowId: string, value: string) {
     router.patch(
       retargetEnvironmentIntegrationPath(integration.id),
-      { environment_row_id: rowId, environment_id: value === ALL_ENVIRONMENTS ? "" : value },
+      { environment_row_id: rowId, environment_id: toEnvironmentId(value) },
       { preserveScroll: true },
     )
   }
@@ -83,22 +78,12 @@ export function ConnectedCard({
                     {rowHealth.label}
                   </Badge>
                   {canManage && environments.length > 0 ? (
-                    <Select
-                      value={environment.environmentId ?? ALL_ENVIRONMENTS}
-                      onValueChange={(value) => retarget(environment.id, value)}
-                    >
-                      <SelectTrigger className="h-8 w-auto min-w-[9rem] shrink-0 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent align="end">
-                        <SelectItem value={ALL_ENVIRONMENTS}>All environments</SelectItem>
-                        {environments.map((option) => (
-                          <SelectItem key={option.id} value={option.id}>
-                            {option.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <EnvironmentSelect
+                      compact
+                      value={environment.environmentId}
+                      environments={environments}
+                      onChange={(value) => retarget(environment.id, value)}
+                    />
                   ) : (
                     <Badge variant="outline" className="shrink-0">
                       {environment.environmentName ?? "All environments"}

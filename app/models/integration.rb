@@ -2,6 +2,8 @@
 # mint gateway actions. kind selects the executor; v1 implements mcp
 # (consume any external MCP server); http packs and native tools follow.
 class Integration < ApplicationRecord
+  include Sluggable
+
   KIND_MCP = "mcp"
   KIND_HTTP = "http"
   KIND_NATIVE = "native"
@@ -20,7 +22,6 @@ class Integration < ApplicationRecord
                    unless: :deleted?
   validate :slug_immutable, on: :update
 
-  before_validation :derive_slug, on: :create
 
   scope :active, -> { where(disabled_at: nil, deleted_at: nil) }
 
@@ -47,10 +48,6 @@ class Integration < ApplicationRecord
   end
 
   private
-
-  def derive_slug
-    self.slug = name.to_s.parameterize(separator: "_").tr("-", "_") if slug.blank?
-  end
 
   # Action keys derive from the slug; renaming would orphan grants,
   # policies, and ledger rows referencing the old keys.

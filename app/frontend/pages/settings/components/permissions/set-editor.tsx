@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { router } from "@inertiajs/react"
 
 import type { AbilityActionOption, AbilityRole } from "@/types/serializers"
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
+import { useGroupedActions } from "@/pages/settings/components/permissions/use-grouped-actions"
 
 export function SetEditor({
   set,
@@ -21,16 +22,7 @@ export function SetEditor({
 }) {
   const [search, setSearch] = useState("")
 
-  const grouped = useMemo(() => {
-    const matching = actions.filter((action) =>
-      action.key.toLowerCase().includes(search.toLowerCase()),
-    )
-    const byGroup = new Map<string, AbilityActionOption[]>()
-    matching.forEach((action) => {
-      byGroup.set(action.group, [...(byGroup.get(action.group) ?? []), action])
-    })
-    return [...byGroup.entries()]
-  }, [actions, search])
+  const grouped = useGroupedActions(actions, search)
 
   function toggle(actionId: string) {
     const next = set.actionIds.includes(actionId)
