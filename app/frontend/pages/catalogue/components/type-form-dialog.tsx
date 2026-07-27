@@ -8,6 +8,7 @@ import { useState } from "react"
 
 import type { AttributeDefinition, AttributeType, CatalogType } from "@/pages/catalogue/types"
 import { ATTRIBUTE_TYPES, ATTRIBUTE_TYPE_LABELS } from "@/pages/catalogue/lib/constants"
+import { ColorPicker } from "@/components/color-picker"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -31,10 +32,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 
-const TYPE_COLORS = [
-  "#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#06B6D4",
-  "#EC4899", "#6366F1", "#14B8A6", "#F97316",
-]
+const DEFAULT_TYPE_COLOR = "#3B82F6"
 
 function generateKey(name: string): string {
   return name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
@@ -51,7 +49,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
   const isEdit = !!type
   const [name, setName] = useState(type?.name ?? "")
   const [description, setDescription] = useState(type?.description ?? "")
-  const [color, setColor] = useState(type?.color ?? TYPE_COLORS[0])
+  const [color, setColor] = useState(type?.color ?? DEFAULT_TYPE_COLOR)
   const [attributes, setAttributes] = useState<AttributeDefinition[]>(
     type?.attributeDefinitions ?? []
   )
@@ -61,7 +59,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
     setPrevType(type)
     setName(type?.name ?? "")
     setDescription(type?.description ?? "")
-    setColor(type?.color ?? TYPE_COLORS[0])
+    setColor(type?.color ?? DEFAULT_TYPE_COLOR)
     setAttributes(type?.attributeDefinitions ?? [])
   }
 
@@ -150,22 +148,8 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label>Color</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {TYPE_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={`size-7 rounded-md transition-all ${
-                      color === c
-                        ? "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
-                        : "hover:scale-105"
-                    }`}
-                    style={{ backgroundColor: c }}
-                    onClick={() => setColor(c)}
-                  />
-                ))}
-              </div>
+              <Label htmlFor="catalog-type-color">Color</Label>
+              <ColorPicker id="catalog-type-color" value={color} onChange={setColor} />
             </div>
           </div>
 

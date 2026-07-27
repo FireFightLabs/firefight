@@ -8,8 +8,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
-export function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+export function RowActions({
+  onEdit,
+  onDelete,
+  deleteDisabledReason,
+}: {
+  onEdit: () => void
+  onDelete: () => void
+  deleteDisabledReason?: string
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -21,7 +30,27 @@ export function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete:
       <DropdownMenuContent align="end" className="w-32">
         <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={onDelete}>Delete</DropdownMenuItem>
+        {deleteDisabledReason ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* A disabled menu item swallows pointer events, so the span carries the hover. */}
+              <span className="block">
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  Delete
+                </DropdownMenuItem>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-56">
+              {deleteDisabledReason}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <DropdownMenuItem variant="destructive" onClick={onDelete}>Delete</DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

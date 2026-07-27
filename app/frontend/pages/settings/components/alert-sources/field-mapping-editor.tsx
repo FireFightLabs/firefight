@@ -90,7 +90,7 @@ export function FieldMappingEditor({
           id="items-path"
           value={itemsPath}
           onChange={(e) => onItemsPathChange(e.target.value)}
-          placeholder={'e.g. alerts — when one POST carries an array of alerts'}
+          placeholder="e.g. alerts (when one POST carries an array of alerts)"
           className="w-full"
         />
       </div>
@@ -125,7 +125,7 @@ export function FieldMappingEditor({
       {payloadKeys.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">
-            Keys from the last received payload; click one to fill the selected mapping.
+            Keys from the last received payload. Click one to fill the selected mapping.
           </span>
           <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
             {payloadKeys.map((key) => (

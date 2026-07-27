@@ -83,7 +83,7 @@ export function GroupingSettings({
           </Button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Comma-separated alert fields; two alerts group when all of these values match. 5 minutes to 7 days.
+          Comma-separated alert fields. Two alerts group when all of these values match. 5 minutes to 7 days.
         </p>
         <FormErrors errors={form.errors} className="mt-3" />
       </CardContent>

@@ -17,11 +17,26 @@ class IncidentStatusSettingsSerializer < BaseSerializer
 
   type :boolean
   def enabled
-    status.deleted_at.nil?
+    status.enabled?
   end
 
-  type :boolean
-  def deletable
-    !status.incidents.exists?
+  type :number
+  def incident_count
+    status.usage_count
+  end
+
+  type :string, optional: true
+  def deletion_blocked_reason
+    status.deletion_blocked_reason
+  end
+
+  type :string, optional: true
+  def disable_blocked_reason
+    status.disable_blocked_reason
+  end
+
+  type :string, optional: true
+  def default_blocked_reason
+    status.default_blocked_reason
   end
 end

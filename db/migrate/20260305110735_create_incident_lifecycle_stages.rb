@@ -16,10 +16,10 @@ class CreateIncidentLifecycleStages < ActiveRecord::Migration[8.1]
 
     reversible do |dir|
       dir.up do
-        triage = execute_insert("incident_lifecycle_stages", key: "triage", name: "Triage", description: "Potential incident under investigation; not yet confirmed as active.", position: 1)
+        triage = execute_insert("incident_lifecycle_stages", key: "triage", name: "Triage", description: "Potential incident under investigation, not yet confirmed as active.", position: 1)
         active = execute_insert("incident_lifecycle_stages", key: "active", name: "Active", description: "Confirmed incident actively being worked by responders.", position: 2)
         closed = execute_insert("incident_lifecycle_stages", key: "closed", name: "Closed", description: "Incident resolved and no longer actively managed.", position: 3)
-        canceled = execute_insert("incident_lifecycle_stages", key: "canceled", name: "Canceled", description: "False positive, duplicate, or invalid incident; excluded from resolved metrics.", position: 4)
+        canceled = execute_insert("incident_lifecycle_stages", key: "canceled", name: "Canceled", description: "False positive, duplicate, or invalid incident. Excluded from resolved metrics.", position: 4)
 
         execute <<~SQL
           UPDATE incident_statuses SET incident_lifecycle_stage_id = '#{active}' WHERE category = 'live'

@@ -1,16 +1,17 @@
 import { useState } from "react"
 import { router } from "@inertiajs/react"
-import { IconGripVertical } from "@tabler/icons-react"
-
-import { toast } from "sonner"
+import { IconPlus } from "@tabler/icons-react"
 
 import type { IncidentSeveritySettings } from "@/types/serializers"
 import {
+  incidentSeveritiesPath,
   incidentSeverityPath,
   disableIncidentSeverityPath,
   enableIncidentSeverityPath,
+  makeDefaultIncidentSeverityPath,
+  reorderIncidentSeveritiesPath,
 } from "@/lib/routes"
-import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -18,40 +19,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { AddSeverityDialog } from "@/pages/settings/components/severities/add-severity-dialog"
-import { ColorDot } from "@/pages/settings/components/color-dot"
-import { EditSeverityDialog } from "@/pages/settings/components/severities/edit-severity-dialog"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { TableCell, TableHead } from "@/components/ui/table"
+import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
+import { OptionsTable } from "@/pages/settings/components/options-table"
 
-interface SeveritiesTabProps {
-  severities: IncidentSeveritySettings[]
-}
-
-export function SeveritiesTab({ severities }: SeveritiesTabProps) {
-  const [editingSeverity, setEditingSeverity] = useState<IncidentSeveritySettings | null>(null)
-
-  function handleToggleEnabled(severity: IncidentSeveritySettings) {
-    router.patch(
-      severity.enabled ? disableIncidentSeverityPath(severity.id) : enableIncidentSeverityPath(severity.id)
-    )
-  }
-
-  function handleDelete(severity: IncidentSeveritySettings) {
-    if (!severity.deletable) {
-      toast.error("This severity is used by incidents and cannot be deleted. You can disable it instead.")
-      return
-    }
-    router.delete(incidentSeverityPath(severity.id))
-  }
+export function SeveritiesTab({ severities }: { severities: IncidentSeveritySettings[] }) {
+  const [dialog, setDialog] = useState<OptionDialogState<IncidentSeveritySettings>>(null)
+  const [deleting, setDeleting] = useState<IncidentSeveritySettings | null>(null)
 
   return (
     <Card>
@@ -60,80 +35,66 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
           <div>
             <CardTitle>Severities</CardTitle>
             <CardDescription className="mt-1">
-              Define severity levels for classifying incident impact. Higher rank means more severe.
+              Define severity levels for classifying incident impact. Drag to reorder, most severe at the top.
             </CardDescription>
           </div>
-          <AddSeverityDialog />
+          <Button size="sm" onClick={() => setDialog({ mode: "create" })}>
+            <IconPlus className="size-4" />
+            Add Severity
+          </Button>
         </div>
       </CardHeader>
+
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="w-8" />
-              <TableHead>Severity</TableHead>
-              <TableHead className="hidden md:table-cell">Description</TableHead>
-              <TableHead className="w-20 text-center">Rank</TableHead>
-              <TableHead className="w-24 text-center">Default</TableHead>
-              <TableHead className="w-24 text-center">Enabled</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {severities.map((severity) => (
-              <TableRow key={severity.id} className={!severity.enabled ? "opacity-50" : undefined}>
-                <TableCell>
-                  {severity.enabled && (
-                    <IconGripVertical className="size-4 text-muted-foreground/50 cursor-grab" />
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2.5">
-                    <ColorDot color={severity.color} />
-                    <span className="font-medium">{severity.name}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
-                  {severity.description}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="outline" className="font-mono tabular-nums">
-                    {severity.rank}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-center">
-                  {severity.isDefault && (
-                    <Badge variant="secondary" className="text-xs">
-                      Default
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Switch
-                    checked={severity.enabled}
-                    disabled={severity.isDefault}
-                    onCheckedChange={() => handleToggleEnabled(severity)}
-                  />
-                </TableCell>
-                <TableCell>
-                  <RowActions
-                    onEdit={() => setEditingSeverity(severity)}
-                    onDelete={() => handleDelete(severity)}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <OptionsTable
+          options={severities}
+          nameHeader="Severity"
+          headers={<TableHead className="hidden md:table-cell">Description</TableHead>}
+          cells={(severity) => (
+            <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
+              {severity.description}
+            </TableCell>
+          )}
+          reorderPath={reorderIncidentSeveritiesPath()}
+          onMakeDefault={(id) =>
+            router.patch(makeDefaultIncidentSeverityPath(id), {}, { preserveScroll: true })}
+          onToggleEnabled={(severity) =>
+            router.patch(
+              severity.enabled ? disableIncidentSeverityPath(severity.id) : enableIncidentSeverityPath(severity.id),
+              {},
+              { preserveScroll: true },
+            )}
+          onEdit={(option) => setDialog({ mode: "edit", option })}
+          onDelete={setDeleting}
+        />
       </CardContent>
 
-      {editingSeverity && (
-        <EditSeverityDialog
-          severity={editingSeverity}
-          open={!!editingSeverity}
-          onOpenChange={(open) => { if (!open) setEditingSeverity(null) }}
-        />
-      )}
+      <OptionDialog
+        state={dialog}
+        onClose={() => setDialog(null)}
+        noun="Severity"
+        createPath={incidentSeveritiesPath()}
+        editPath={incidentSeverityPath}
+        defaultColor="#FF6B35"
+        namePlaceholder="e.g. Moderate"
+        descriptionPlaceholder="When should this severity be assigned?"
+        footnote={
+          <p className="text-xs text-muted-foreground">
+            New severities are added at the bottom as the least severe. Drag to move it up the list.
+          </p>
+        }
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleting)}
+        title={`Delete ${deleting?.name ?? "this severity"}?`}
+        description="No incidents use this severity, so nothing loses its history. It disappears from the declare form and from alert routing straight away."
+        onConfirm={() => {
+          if (!deleting) return
+          router.delete(incidentSeverityPath(deleting.id), { onFinish: () => setDeleting(null) })
+        }}
+        onCancel={() => setDeleting(null)}
+      />
     </Card>
   )
 }

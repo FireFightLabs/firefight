@@ -5,7 +5,7 @@ import {
 } from "@tabler/icons-react"
 
 import type { Incident } from "@/pages/incidents/types"
-import { severityBadgeClass } from "@/lib/constants"
+import { severityBadgeStyle } from "@/lib/severity-color"
 import { formatDuration } from "@/lib/formatters"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +26,7 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
     <header className="mb-10">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <Badge className={`${severityBadgeClass(incident.severity.rank)} min-w-24 justify-center py-1`}>
+          <Badge className="min-w-24 justify-center py-1" style={severityBadgeStyle(incident.severity.color)}>
             {incident.severity.name}
           </Badge>
           <Badge

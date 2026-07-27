@@ -87,7 +87,16 @@ Rails.application.routes.draw do
     get "/settings/statuses", to: "settings#statuses", as: :settings_statuses
     get "/settings/severities", to: "settings#severities", as: :settings_severities
     get "/settings/types", to: "settings#types", as: :settings_types
-    resources :incident_types, only: [ :create, :update, :destroy ], path: "settings/types"
+    resources :incident_types, only: [ :create, :update, :destroy ], path: "settings/types" do
+      collection do
+        patch :reorder
+      end
+      member do
+        patch :disable
+        patch :enable
+        patch :make_default
+      end
+    end
     get "/settings/runbooks", to: "settings#runbooks", as: :settings_runbooks
     resources :runbooks, only: [ :create, :update, :destroy ], path: "settings/runbooks"
     get "/settings/custom-fields", to: "settings#custom_fields", as: :settings_custom_fields
@@ -143,18 +152,29 @@ Rails.application.routes.draw do
       end
     end
     resources :incident_severities, only: [ :create, :update, :destroy ], path: "settings/severities" do
+      collection do
+        patch :reorder
+      end
       member do
         patch :disable
         patch :enable
+        patch :make_default
       end
     end
     resources :incident_statuses, only: [ :create, :update, :destroy ], path: "settings/statuses" do
+      collection do
+        patch :reorder
+      end
       member do
         patch :disable
         patch :enable
+        patch :make_default
       end
     end
-    resources :incident_roles, only: [ :create, :destroy ], path: "settings/roles" do
+    resources :incident_roles, only: [ :create, :update, :destroy ], path: "settings/roles" do
+      collection do
+        patch :reorder
+      end
       member do
         patch :disable
         patch :enable

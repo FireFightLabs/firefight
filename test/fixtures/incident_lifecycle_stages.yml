@@ -2,7 +2,7 @@ triage:
   id: aaaaaaaa-0000-0000-0000-000000000001
   key: triage
   name: Triage
-  description: "Potential incident under investigation; not yet confirmed as active."
+  description: "Potential incident under investigation, not yet confirmed as active."
   position: 1
 
 active:
@@ -23,5 +23,5 @@ canceled:
   id: aaaaaaaa-0000-0000-0000-000000000004
   key: canceled
   name: Canceled
-  description: "False positive, duplicate, or invalid incident; excluded from resolved metrics."
+  description: "False positive, duplicate, or invalid incident. Excluded from resolved metrics."
   position: 4

@@ -2,7 +2,7 @@ require "test_helper"
 
 class IncidentTypesControllerTest < ActionDispatch::IntegrationTest
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents
+           :incident_statuses, :incident_severities, :incidents, :incident_types
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -18,14 +18,99 @@ class IncidentTypesControllerTest < ActionDispatch::IntegrationTest
     assert type.position.positive?
   end
 
-  test "destroy always soft-deletes via deleted_at, even with no incidents" do
+  test "create with a blank name re-renders settings with errors" do
+    post incident_types_url(format: :html), params: { name: "" }
+    assert_response :redirect
+    assert_not IncidentType.exists?(name: "", workspace: @workspace)
+  end
+
+  test "destroy hard-deletes a type no incident uses" do
     post incident_types_url(format: :html), params: { name: "Ephemeral" }
     type = IncidentType.find_by!(name: "Ephemeral", workspace: @workspace)
 
-    delete incident_type_url(type)
+    assert_difference -> { IncidentType.count }, -1 do
+      delete incident_type_url(type)
+    end
     assert_response :redirect
+    assert_not IncidentType.exists?(type.id)
+  end
+
+  test "destroy refuses a type in use and names the count" do
+    type = incident_types(:service_outage_ws1)
+    incidents(:active_critical_ws1).update!(incident_type: type)
+
+    assert_no_difference -> { IncidentType.count } do
+      delete incident_type_url(type)
+    end
+    assert_match(/in use by 1 incident/, flash[:alert])
+  end
+
+  test "destroy refuses the default type" do
+    type = @workspace.incident_types.ordered.first
+    type.make_default!
+
+    assert_no_difference -> { IncidentType.count } do
+      delete incident_type_url(type)
+    end
+    assert_match(/default type/, flash[:alert])
+  end
+
+  test "disable then enable round-trips a type and confirms each way" do
+    type = incident_types(:service_outage_ws1)
+    type.update!(is_default: false)
+
+    patch disable_incident_type_url(type)
     assert_not_nil type.reload.deleted_at
-    assert IncidentType.exists?(type.id), "Should not hard-delete"
+    assert_equal "Service Outage was disabled.", flash[:notice]
+
+    patch enable_incident_type_url(type)
+    assert_nil type.reload.deleted_at
+    assert_equal "Service Outage was enabled.", flash[:notice]
+  end
+
+  test "disable refuses the default type" do
+    type = @workspace.incident_types.ordered.first
+    type.make_default!
+
+    patch disable_incident_type_url(type)
+
+    assert_nil type.reload.deleted_at
+    assert_match(/has to stay enabled/, flash[:alert])
+  end
+
+  test "make_default promotes one type and demotes the incumbent" do
+    types = @workspace.incident_types.ordered.to_a
+    incumbent = types.first
+    incumbent.make_default!
+    promoted = types.second
+
+    patch make_default_incident_type_url(promoted)
+
+    assert promoted.reload.is_default
+    assert_not incumbent.reload.is_default
+    assert_equal 1, @workspace.incident_types.where(is_default: true).count
+  end
+
+  test "make_default refuses a disabled type" do
+    type = incident_types(:service_outage_ws1)
+    type.update!(is_default: false, deleted_at: Time.current)
+
+    patch make_default_incident_type_url(type)
+
+    assert_not type.reload.is_default
+    assert_match(/disabled/, flash[:alert])
+  end
+
+  test "reorder rewrites positions" do
+    reversed = @workspace.incident_types.ordered.to_a.reverse
+
+    patch reorder_incident_types_url, params: { ordered_ids: reversed.map(&:id) }
+    assert_response :redirect
+
+    result = @workspace.incident_types.ordered.to_a
+    assert_equal reversed.map(&:id), result.map(&:id)
+    assert_equal (1..result.size).to_a, result.map(&:position)
+    assert_equal "Type order updated.", flash[:notice]
   end
 
   private

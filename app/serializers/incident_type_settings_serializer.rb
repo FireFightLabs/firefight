@@ -15,8 +15,28 @@ class IncidentTypeSettingsSerializer < BaseSerializer
     is_default: { type: :boolean }
   )
 
+  type :boolean
+  def enabled
+    incident_type.enabled?
+  end
+
   type :number
   def incident_count
-    incident_type.incidents.where(deleted_at: nil).count
+    incident_type.usage_count
+  end
+
+  type :string, optional: true
+  def deletion_blocked_reason
+    incident_type.deletion_blocked_reason
+  end
+
+  type :string, optional: true
+  def disable_blocked_reason
+    incident_type.disable_blocked_reason
+  end
+
+  type :string, optional: true
+  def default_blocked_reason
+    incident_type.default_blocked_reason
   end
 end

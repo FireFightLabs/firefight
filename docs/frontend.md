@@ -174,6 +174,34 @@ app/frontend/
   - Features with a single page (e.g. `pages/dashboard/`) keep the flat `components/` layout — no per-page subfolder needed.
 - The Inertia resolver does a string lookup against `import.meta.glob('../pages/**/*.tsx')` so co-located components (anything other than the file the controller names) are inert — they're imported into the bundle but never resolved as a page.
 
+## Configurable option lists (severities, statuses, types, roles)
+
+These four settings tabs are one pattern, not four screens. Anything positioned,
+soft-disableable and deletable-only-when-unused should join it rather than grow
+its own table.
+
+| Layer | Piece |
+|---|---|
+| Model | `ConfigurableOption`, plus `DefaultableOption` when one row is the workspace default |
+| Controller | `ManagesConfigurableOptions` supplies create/update/disable/enable/make_default/destroy/reorder |
+| Serializer | `enabled`, `incidentCount`, and the `*BlockedReason` strings |
+| Frontend | `OptionsTable` + `SortableOptionRow` + `OptionDialog`, all flat in `pages/settings/components/` |
+
+**Guard rules live on the model, once.** `deletion_blocked_reason`,
+`disable_blocked_reason` and `default_blocked_reason` return a sentence or nil.
+The controller turns one into a flash alert, the serializer ships it, and the row
+renders it as a tooltip on the disabled control. Never re-derive a rule in the
+controller or the frontend: a boolean like `deletable` drifts from what the
+controller actually enforces, which is exactly what these replaced.
+
+**Counts come from `with_usage_counts`**, one correlated subquery per page. A
+model whose blocking association is not `incidents` overrides `usage_association`
+(roles block on `incident_role_assignments`).
+
+**Colour and default are capabilities, not flags.** A list without a `color`
+column gets no colour field; a model that omits `DefaultableOption` gets no
+Default column and no radio group.
+
 **shadcn/ui components are untouched:**
 - Never modify files in `components/ui/` — they may be updated by `npx shadcn` later
 - Wrap or compose shadcn components if you need custom behavior

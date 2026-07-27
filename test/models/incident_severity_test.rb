@@ -1,7 +1,8 @@
 require "test_helper"
 
 class IncidentSeverityTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_severities
+  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
+           :incident_statuses, :incident_severities, :incidents
 
   # ============================================================================
   # BASIC VALIDATIONS
@@ -29,15 +30,15 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_includes severity.errors[:slug], "can't be blank"
   end
 
-  test "requires rank" do
+  test "rank is assigned on create so it never has to be supplied" do
     severity = IncidentSeverity.new(
       workspace: workspaces(:slack_workspace_one),
       name: "Test Severity",
       slug: "test",
       position: 1
     )
-    assert_not severity.valid?
-    assert_includes severity.errors[:rank], "can't be blank"
+    assert severity.valid?
+    assert_equal 1, severity.rank
   end
 
   test "requires position" do
@@ -210,6 +211,86 @@ class IncidentSeverityTest < ActiveSupport::TestCase
 
     assert_equal incident_severities(:minor_ws1), ws1_default
     assert_equal incident_severities(:p1_ws2), ws2_default
+  end
+
+  # ============================================================================
+  # DEFAULT SEVERITY
+  # ============================================================================
+
+  test "make_default! demotes the incumbent in the same transaction" do
+    incumbent = incident_severities(:minor_ws1)
+    promoted = incident_severities(:critical_ws1)
+
+    promoted.make_default!
+
+    assert promoted.reload.is_default
+    assert_not incumbent.reload.is_default
+  end
+
+  test "make_default! leaves other workspaces alone" do
+    ws2_default = incident_severities(:p1_ws2)
+
+    incident_severities(:critical_ws1).make_default!
+
+    assert ws2_default.reload.is_default
+  end
+
+  test "the database refuses a second default in one workspace" do
+    other = incident_severities(:critical_ws1)
+
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      IncidentSeverity.where(id: other.id).update_all(is_default: true)
+    end
+  end
+
+  # ============================================================================
+  # DELETABILITY
+  # ============================================================================
+
+  test "with_usage_counts attaches the count without an extra query per row" do
+    workspace = workspaces(:slack_workspace_one)
+    severities = workspace.incident_severities.ordered.with_usage_counts.to_a
+
+    expected = workspace.incidents.group(:incident_severity_id).count
+    severities.each do |severity|
+      assert_equal expected.fetch(severity.id, 0), severity.usage_count
+    end
+  end
+
+  test "incident_count falls back to a query when the scope was not applied" do
+    severity = incident_severities(:critical_ws1)
+    assert_equal severity.incidents.count, severity.usage_count
+  end
+
+  test "deletion_blocked_reason names the incident count" do
+    severity = incident_severities(:critical_ws1)
+
+    assert_predicate severity.usage_count, :positive?
+    assert_match(/in use by #{severity.usage_count} incidents/, severity.deletion_blocked_reason)
+  end
+
+  test "deletion_blocked_reason is nil for a severity no incident uses" do
+    severity = workspaces(:slack_workspace_one).incident_severities.new(name: "Unused", slug: "unused")
+    severity.save_in_position!
+
+    assert_equal 0, severity.usage_count
+    assert_nil severity.deletion_blocked_reason
+  end
+
+  test "deletion_blocked_reason takes precedence for the default severity" do
+    severity = incident_severities(:minor_ws1)
+    assert severity.is_default
+
+    assert_match(/default severity/, severity.deletion_blocked_reason)
+  end
+
+  test "destroy is blocked by restrict_with_error while incidents reference it" do
+    severity = incident_severities(:critical_ws1)
+
+    assert_no_difference -> { IncidentSeverity.count } do
+      assert_not severity.destroy
+    end
+    assert_includes severity.errors[:base], "Cannot delete record because dependent incidents exist"
   end
 
   # ============================================================================

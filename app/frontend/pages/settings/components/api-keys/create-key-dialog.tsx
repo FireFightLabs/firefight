@@ -72,7 +72,7 @@ export function CreateKeyDialog({ canManageServiceKeys }: { canManageServiceKeys
                     className="mt-0.5"
                   />
                   <span>
-                    <span className="font-medium">Personal token — acts as you</span>
+                    <span className="font-medium">Personal token, acts as you</span>
                     <span className="block text-xs text-muted-foreground">
                       Read access to everything you can see. For your own agent sessions (Claude Code, Cursor).
                       Revoked automatically if you leave the workspace.

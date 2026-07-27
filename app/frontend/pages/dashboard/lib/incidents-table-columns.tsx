@@ -3,7 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 
 import type { IncidentListItem } from "@/types/serializers"
 import { incidentPath } from "@/lib/routes"
-import { severityBadgeClass } from "@/lib/constants"
+import { severityBadgeStyle } from "@/lib/severity-color"
 import { formatDateTime, formatDuration } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import { StatusIcon } from "@/pages/dashboard/components/status-icon"
@@ -37,7 +37,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     accessorKey: "severity",
     header: "Severity",
     cell: ({ row }) => (
-      <Badge className={`${severityBadgeClass(row.original.severity.rank)} min-w-24 justify-center py-1`}>
+      <Badge className="min-w-24 justify-center py-1" style={severityBadgeStyle(row.original.severity.color)}>
         {row.original.severity.name}
       </Badge>
     ),
