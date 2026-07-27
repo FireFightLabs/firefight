@@ -21,7 +21,7 @@ import {
   makeDefaultIncidentSeverityPath,
   reorderIncidentSeveritiesPath,
 } from "@/lib/routes"
-import { useDebouncedReorder } from "@/pages/settings/hooks/use-debounced-reorder"
+import { useReorder } from "@/pages/settings/hooks/use-reorder"
 import { RadioGroup } from "@/components/ui/radio-group"
 import {
   Card,
@@ -50,8 +50,8 @@ function incidentsInUse(count: number) {
   return `${count} ${count === 1 ? "incident" : "incidents"}`
 }
 
-export function SeveritiesTab({ severities: serverSeverities }: SeveritiesTabProps) {
-  const { items: severities, onDragEnd } = useDebouncedReorder(serverSeverities, (orderedIds) => {
+export function SeveritiesTab({ severities }: SeveritiesTabProps) {
+  const { onDragEnd } = useReorder(severities, (orderedIds) => {
     router.patch(reorderIncidentSeveritiesPath(), { ordered_ids: orderedIds }, { preserveScroll: true })
   })
 

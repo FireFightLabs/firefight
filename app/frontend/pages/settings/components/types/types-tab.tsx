@@ -40,7 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useDebouncedReorder } from "@/pages/settings/hooks/use-debounced-reorder"
+import { useReorder } from "@/pages/settings/hooks/use-reorder"
 import { RadioGroup } from "@/components/ui/radio-group"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { SortableTypeRow } from "@/pages/settings/components/types/sortable-type-row"
@@ -54,8 +54,8 @@ function incidentsInUse(count: number) {
   return `${count} ${count === 1 ? "incident" : "incidents"}`
 }
 
-export function TypesTab({ types: serverTypes }: TypesTabProps) {
-  const { items: types, onDragEnd } = useDebouncedReorder(serverTypes, (orderedIds) => {
+export function TypesTab({ types }: TypesTabProps) {
+  const { onDragEnd } = useReorder(types, (orderedIds) => {
     router.patch(reorderIncidentTypesPath(), { ordered_ids: orderedIds }, { preserveScroll: true })
   })
 

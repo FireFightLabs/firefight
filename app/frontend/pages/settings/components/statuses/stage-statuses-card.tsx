@@ -20,7 +20,7 @@ import {
   makeDefaultIncidentStatusPath,
   reorderIncidentStatusesPath,
 } from "@/lib/routes"
-import { useDebouncedReorder } from "@/pages/settings/hooks/use-debounced-reorder"
+import { useReorder } from "@/pages/settings/hooks/use-reorder"
 import { Badge } from "@/components/ui/badge"
 import { RadioGroup } from "@/components/ui/radio-group"
 import {
@@ -50,8 +50,8 @@ function incidentsInUse(count: number) {
   return `${count} ${count === 1 ? "incident" : "incidents"}`
 }
 
-// One card per lifecycle stage. Split out of the tab so each stage gets its own
-// reorder state, which a hook cannot do from inside a map.
+// One card per lifecycle stage. Split out of the tab so each stage can hold its
+// own drag context and radio group, which a hook cannot do from inside a map.
 export function StageStatusesCard({
   stage,
   onEdit,
@@ -63,7 +63,9 @@ export function StageStatusesCard({
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
-  const { items: statuses, onDragEnd } = useDebouncedReorder(stage.statuses, (orderedIds) => {
+  const statuses = stage.statuses
+
+  const { onDragEnd } = useReorder(statuses, (orderedIds) => {
     router.patch(reorderIncidentStatusesPath(), {
       lifecycle_stage_key: stage.key,
       ordered_ids: orderedIds,
