@@ -15,19 +15,20 @@ function show(flash?: FlashData) {
 // its wording, and deduping on content would swallow the second toast.
 export function FlashToaster() {
   const { flash } = usePage()
-  const firstRender = useRef(true)
+  // The flash this mounted with. Later ones arrive on the visit event instead,
+  // so the effect subscribes once and depends on nothing.
+  const initialFlash = useRef(flash)
+  const shownInitial = useRef(false)
 
   useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false
-      show(flash)
+    if (!shownInitial.current) {
+      shownInitial.current = true
+      show(initialFlash.current)
     }
 
     return router.on("success", (event: CustomEvent<{ page: Page }>) => {
       show(event.detail.page.flash)
     })
-    // Subscribed once: later flashes arrive through the visit event, not props.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return null
