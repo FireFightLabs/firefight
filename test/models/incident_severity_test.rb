@@ -30,15 +30,15 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_includes severity.errors[:slug], "can't be blank"
   end
 
-  test "requires rank" do
+  test "rank is assigned on create so it never has to be supplied" do
     severity = IncidentSeverity.new(
       workspace: workspaces(:slack_workspace_one),
       name: "Test Severity",
       slug: "test",
       position: 1
     )
-    assert_not severity.valid?
-    assert_includes severity.errors[:rank], "can't be blank"
+    assert severity.valid?
+    assert_equal 1, severity.rank
   end
 
   test "requires position" do
@@ -262,21 +262,26 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_equal severity.incidents.count, severity.incident_count
   end
 
-  test "deletable? is false while incidents reference the severity" do
+  test "deletion_blocked_reason names the incident count" do
     severity = incident_severities(:critical_ws1)
 
     assert_predicate severity.incident_count, :positive?
-    assert_not severity.deletable?
+    assert_match(/in use by #{severity.incident_count} incidents/, severity.deletion_blocked_reason)
   end
 
-  test "deletable? is true for a severity no incident uses" do
-    severity = workspaces(:slack_workspace_one).incident_severities.new(
-      name: "Unused", slug: "unused", rank: 42
-    )
+  test "deletion_blocked_reason is nil for a severity no incident uses" do
+    severity = workspaces(:slack_workspace_one).incident_severities.new(name: "Unused", slug: "unused")
     severity.save_in_position!
 
     assert_equal 0, severity.incident_count
-    assert_predicate severity, :deletable?
+    assert_nil severity.deletion_blocked_reason
+  end
+
+  test "deletion_blocked_reason takes precedence for the default severity" do
+    severity = incident_severities(:minor_ws1)
+    assert severity.is_default
+
+    assert_match(/default severity/, severity.deletion_blocked_reason)
   end
 
   test "destroy is blocked by restrict_with_error while incidents reference it" do

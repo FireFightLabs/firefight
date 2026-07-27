@@ -5,7 +5,7 @@ import {
 } from "@tabler/icons-react"
 
 import type { Incident } from "@/pages/incidents/types"
-import { severityBadgeStyle } from "@/lib/constants"
+import { severityBadgeStyle } from "@/lib/severity-color"
 import { formatDuration } from "@/lib/formatters"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"

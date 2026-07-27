@@ -1,8 +1,5 @@
 import { Input } from "@/components/ui/input"
 
-// One picker for every colour field: a swatch that opens the OS picker, plus a
-// hex field for pasting a brand colour. Types and catalogue types used to offer
-// a fixed palette instead, which quietly made some colours unreachable.
 export function ColorPicker({
   id,
   value,

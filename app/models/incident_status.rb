@@ -1,72 +1,27 @@
 class IncidentStatus < ApplicationRecord
-  include Positioned
+  include ConfigurableOption
 
-  belongs_to :workspace
+  NOUN = "status".freeze
+
   belongs_to :incident_lifecycle_stage
 
-  has_many :incidents, dependent: :restrict_with_error
-
-  validates :name, presence: true
-  validates :slug, presence: true, uniqueness: { scope: :workspace_id }
-  validates :position, presence: true, numericality: { only_integer: true }
-  validates :is_default, uniqueness: { scope: :workspace_id, if: :is_default? }
-
-  scope :active, -> { where(deleted_at: nil) }
   scope :triage, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::TRIAGE }) }
   scope :live, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: [ IncidentLifecycleStage::TRIAGE, IncidentLifecycleStage::ACTIVE ] }) }
   scope :closed, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::CLOSED }) }
   scope :canceled, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::CANCELED }) }
-  scope :ordered, -> { order(:position) }
   scope :default_status, -> { active.find_by(is_default: true) }
-  # One correlated subquery for the whole page instead of an exists? per row.
-  scope :with_incident_counts, -> {
-    select(
-      "#{table_name}.*",
-      "(SELECT COUNT(*) FROM incidents WHERE incidents.incident_status_id = #{table_name}.id) AS incidents_count"
-    )
-  }
 
   delegate :triage?, :active?, :closed?, :canceled?, to: :incident_lifecycle_stage
+  delegate :name, to: :incident_lifecycle_stage, prefix: :stage
 
-  def live?
-    triage? || active?
-  end
-
-  def enabled?
-    deleted_at.nil?
-  end
-
-  def incident_count
-    has_attribute?(:incidents_count) ? self[:incidents_count].to_i : incidents.count
-  end
-
-  def deletable?
-    incident_count.zero? && !last_enabled_in_stage?
-  end
-
-  # Every stage has to keep at least one usable status. Emptying one strands
-  # any incident that reaches that stage with nothing to move into.
-  def last_enabled_in_stage?
-    return false unless enabled?
-
-    workspace.incident_statuses
-      .active
-      .where(incident_lifecycle_stage_id: incident_lifecycle_stage_id)
-      .where.not(id: id)
-      .none?
-  end
-
-  # The default is where a newly declared incident starts, so it has to be a
-  # stage an incident can actually open in.
-  def defaultable?
-    enabled? && live?
-  end
-
-  def make_default!
-    self.class.transaction do
-      workspace.incident_statuses.where(is_default: true).where.not(id: id).update_all(is_default: false)
-      update!(is_default: true)
-    end
+  def self.with_incident_counts
+    super.select(
+      "(SELECT COUNT(*) FROM #{table_name} siblings" \
+      " WHERE siblings.workspace_id = #{table_name}.workspace_id" \
+      " AND siblings.incident_lifecycle_stage_id = #{table_name}.incident_lifecycle_stage_id" \
+      " AND siblings.deleted_at IS NULL" \
+      " AND siblings.id <> #{table_name}.id) AS enabled_siblings_count"
+    )
   end
 
   # Statuses are grouped by stage in the UI but share one position sequence, so
@@ -84,5 +39,47 @@ class IncidentStatus < ApplicationRecord
     end
 
     reorder!(workspace, final)
+  end
+
+  def live?
+    triage? || active?
+  end
+
+  # Every stage has to keep at least one usable status, or an incident reaching
+  # that stage has nothing to move into.
+  def last_enabled_in_stage?
+    return false unless enabled?
+
+    enabled_siblings_count.zero?
+  end
+
+  def deletion_blocked_reason
+    super || stage_floor_reason("deleting")
+  end
+
+  def disable_blocked_reason
+    super || stage_floor_reason("disabling")
+  end
+
+  def default_blocked_reason
+    return super if super
+    return if live?
+
+    "#{name} is a #{stage_name} status. A new incident has to start in triage or active."
+  end
+
+  private
+
+  def enabled_siblings_count
+    return self[:enabled_siblings_count].to_i if has_attribute?(:enabled_siblings_count)
+
+    self.class.where(workspace_id: workspace_id, incident_lifecycle_stage_id: incident_lifecycle_stage_id)
+      .active.where.not(id: id).count
+  end
+
+  def stage_floor_reason(verb)
+    return unless last_enabled_in_stage?
+
+    "#{name} is the only enabled status in #{stage_name}. Add another one before #{verb} it."
   end
 end

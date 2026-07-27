@@ -3,7 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 
 import type { IncidentListItem } from "@/types/serializers"
 import { incidentPath } from "@/lib/routes"
-import { severityBadgeStyle } from "@/lib/constants"
+import { severityBadgeStyle } from "@/lib/severity-color"
 import { formatDateTime, formatDuration } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import { StatusIcon } from "@/pages/dashboard/components/status-icon"

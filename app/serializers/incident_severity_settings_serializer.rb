@@ -26,8 +26,18 @@ class IncidentSeveritySettingsSerializer < BaseSerializer
     severity.incident_count
   end
 
-  type :boolean
-  def deletable
-    severity.deletable?
+  type :string, optional: true
+  def deletion_blocked_reason
+    severity.deletion_blocked_reason
+  end
+
+  type :string, optional: true
+  def disable_blocked_reason
+    severity.disable_blocked_reason
+  end
+
+  type :string, optional: true
+  def default_blocked_reason
+    severity.default_blocked_reason
   end
 end

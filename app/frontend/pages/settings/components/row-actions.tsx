@@ -17,7 +17,6 @@ export function RowActions({
 }: {
   onEdit: () => void
   onDelete: () => void
-  // When set, Delete stays visible but inert, and this explains why on hover.
   deleteDisabledReason?: string
 }) {
   return (

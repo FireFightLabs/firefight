@@ -11,10 +11,8 @@ function show(flash?: FlashData) {
   if (flash?.alert) toast.error(flash.alert)
 }
 
-// Bridges Rails flash into sonner so server-side guards (`redirect_to ... alert:`)
-// are visible on Inertia pages. Keyed on the visit rather than the message text,
-// because repeating an action repeats its wording: two drags both say "order
-// updated", and deduping on content would swallow the second one.
+// Keyed on the visit rather than the message text: repeating an action repeats
+// its wording, and deduping on content would swallow the second toast.
 export function FlashToaster() {
   const { flash } = usePage()
   const firstRender = useRef(true)

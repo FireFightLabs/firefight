@@ -1,9 +1,9 @@
-import type { CSSProperties } from "react"
+import type { CSSProperties, ReactNode } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { IconGripVertical } from "@tabler/icons-react"
 
-import type { IncidentSeveritySettings } from "@/types/serializers"
+import type { ConfigurableOption } from "@/pages/settings/lib/types"
 import { cn } from "@/lib/utils"
 import { RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
@@ -12,15 +12,30 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ColorDot } from "@/pages/settings/components/color-dot"
 import { RowActions } from "@/pages/settings/components/row-actions"
 
-export function SortableSeverityRow({
-  severity,
-  deleteDisabledReason,
+// A disabled control swallows pointer events, so the tooltip rides on a span.
+function Blocked({ reason, children }: { reason: string; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-block">{children}</span>
+      </TooltipTrigger>
+      <TooltipContent side="left" className="max-w-56">{reason}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+export function SortableOptionRow({
+  option,
+  fallbackColor,
+  children,
   onToggleEnabled,
   onEdit,
   onDelete,
 }: {
-  severity: IncidentSeveritySettings
-  deleteDisabledReason?: string
+  option: ConfigurableOption
+  fallbackColor?: string
+  // Cells between the name and the Default column.
+  children?: ReactNode
   onToggleEnabled: () => void
   onEdit: () => void
   onDelete: () => void
@@ -33,7 +48,7 @@ export function SortableSeverityRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: severity.id })
+  } = useSortable({ id: option.id })
 
   const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -46,7 +61,7 @@ export function SortableSeverityRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        !severity.enabled && "opacity-50",
+        !option.enabled && "opacity-50",
         isDragging && "relative bg-background shadow-lg",
       )}
     >
@@ -55,62 +70,48 @@ export function SortableSeverityRow({
           ref={setActivatorNodeRef}
           type="button"
           className="flex cursor-grab touch-none items-center text-muted-foreground/50 transition-colors hover:text-muted-foreground active:cursor-grabbing"
-          aria-label={`Reorder ${severity.name}`}
+          aria-label={`Reorder ${option.name}`}
           {...attributes}
           {...listeners}
         >
           <IconGripVertical className="size-4" />
         </button>
       </TableCell>
+
       <TableCell>
         <div className="flex items-center gap-2.5">
-          <ColorDot color={severity.color} />
-          <span className="font-medium">{severity.name}</span>
+          <ColorDot color={option.color ?? fallbackColor ?? "#6B7280"} />
+          <span className="font-medium">{option.name}</span>
         </div>
       </TableCell>
-      <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
-        {severity.description}
-      </TableCell>
+
+      {children}
+
       <TableCell className="text-center">
-        {severity.enabled ? (
-          <RadioGroupItem
-            value={severity.id}
-            aria-label={`Make ${severity.name} the default severity`}
-          />
+        {option.defaultBlockedReason ? (
+          <Blocked reason={option.defaultBlockedReason}>
+            <RadioGroupItem value={option.id} disabled aria-label={`${option.name} cannot be the default`} />
+          </Blocked>
         ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-block">
-                <RadioGroupItem value={severity.id} disabled aria-label={`${severity.name} is disabled`} />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-56">
-              A disabled severity cannot be the default. Enable it first.
-            </TooltipContent>
-          </Tooltip>
+          <RadioGroupItem value={option.id} aria-label={`Make ${option.name} the default`} />
         )}
       </TableCell>
+
       <TableCell className="text-center">
-        {severity.isDefault ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-block">
-                <Switch checked disabled />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-56">
-              The default severity has to stay enabled. Make another severity the default first.
-            </TooltipContent>
-          </Tooltip>
+        {option.disableBlockedReason ? (
+          <Blocked reason={option.disableBlockedReason}>
+            <Switch checked={option.enabled} disabled />
+          </Blocked>
         ) : (
-          <Switch checked={severity.enabled} onCheckedChange={onToggleEnabled} />
+          <Switch checked={option.enabled} onCheckedChange={onToggleEnabled} />
         )}
       </TableCell>
+
       <TableCell>
         <RowActions
           onEdit={onEdit}
           onDelete={onDelete}
-          deleteDisabledReason={deleteDisabledReason}
+          deleteDisabledReason={option.deletionBlockedReason}
         />
       </TableCell>
     </TableRow>

@@ -1,28 +1,17 @@
 import { useState } from "react"
 import { router } from "@inertiajs/react"
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core"
-import { restrictToVerticalAxis } from "@dnd-kit/modifiers"
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
+import { IconPlus } from "@tabler/icons-react"
 
 import type { IncidentSeveritySettings } from "@/types/serializers"
 import {
+  incidentSeveritiesPath,
   incidentSeverityPath,
   disableIncidentSeverityPath,
   enableIncidentSeverityPath,
   makeDefaultIncidentSeverityPath,
   reorderIncidentSeveritiesPath,
 } from "@/lib/routes"
-import { useReorder } from "@/pages/settings/hooks/use-reorder"
-import { RadioGroup } from "@/components/ui/radio-group"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -30,61 +19,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { AddSeverityDialog } from "@/pages/settings/components/severities/add-severity-dialog"
+import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
-import { EditSeverityDialog } from "@/pages/settings/components/severities/edit-severity-dialog"
-import { SortableSeverityRow } from "@/pages/settings/components/severities/sortable-severity-row"
+import { OptionDialog } from "@/pages/settings/components/options/option-dialog"
+import { OptionsTable } from "@/pages/settings/components/options/options-table"
 
-interface SeveritiesTabProps {
-  severities: IncidentSeveritySettings[]
-}
-
-function incidentsInUse(count: number) {
-  return `${count} ${count === 1 ? "incident" : "incidents"}`
-}
-
-export function SeveritiesTab({ severities }: SeveritiesTabProps) {
-  const { onDragEnd } = useReorder(severities, (orderedIds) => {
-    router.patch(reorderIncidentSeveritiesPath(), { ordered_ids: orderedIds }, { preserveScroll: true })
-  })
-
-  const [editingSeverity, setEditingSeverity] = useState<IncidentSeveritySettings | null>(null)
-  const [deletingSeverity, setDeletingSeverity] = useState<IncidentSeveritySettings | null>(null)
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
-  const defaultSeverityId = severities.find((severity) => severity.isDefault)?.id
-
-  function handleToggleEnabled(severity: IncidentSeveritySettings) {
-    router.patch(
-      severity.enabled ? disableIncidentSeverityPath(severity.id) : enableIncidentSeverityPath(severity.id)
-    )
-  }
-
-  function handleMakeDefault(id: string) {
-    router.patch(makeDefaultIncidentSeverityPath(id), {}, { preserveScroll: true })
-  }
-
-  function confirmDelete() {
-    if (!deletingSeverity) return
-    router.delete(incidentSeverityPath(deletingSeverity.id), {
-      onFinish: () => setDeletingSeverity(null),
-    })
-  }
-
-  function deleteDisabledReason(severity: IncidentSeveritySettings) {
-    if (severity.isDefault) return "This is the default severity. Pick a new default before deleting it."
-    if (!severity.deletable) {
-      return `In use by ${incidentsInUse(severity.incidentCount)}. Disable it instead to keep it off new incidents.`
-    }
-    return undefined
-  }
+export function SeveritiesTab({ severities }: { severities: IncidentSeveritySettings[] }) {
+  const [editing, setEditing] = useState<IncidentSeveritySettings | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [deleting, setDeleting] = useState<IncidentSeveritySettings | null>(null)
 
   return (
     <Card>
@@ -96,64 +39,83 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
               Define severity levels for classifying incident impact. Drag to reorder, most severe at the top.
             </CardDescription>
           </div>
-          <AddSeverityDialog />
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <IconPlus className="size-4" />
+            Add Severity
+          </Button>
         </div>
       </CardHeader>
+
       <CardContent className="p-0">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          modifiers={[ restrictToVerticalAxis ]}
-          onDragEnd={onDragEnd}
-        >
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-8" />
-                <TableHead>Severity</TableHead>
-                <TableHead className="hidden md:table-cell">Description</TableHead>
-                <TableHead className="w-24 text-center">Default</TableHead>
-                <TableHead className="w-24 text-center">Enabled</TableHead>
-                <TableHead className="w-12" />
-              </TableRow>
-            </TableHeader>
-            <RadioGroup asChild className="table-row-group" value={defaultSeverityId} onValueChange={handleMakeDefault}>
-              <TableBody>
-                <SortableContext
-                items={severities.map((severity) => severity.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                  {severities.map((severity) => (
-                    <SortableSeverityRow
-                      key={severity.id}
-                      severity={severity}
-                      deleteDisabledReason={deleteDisabledReason(severity)}
-                      onToggleEnabled={() => handleToggleEnabled(severity)}
-                      onEdit={() => setEditingSeverity(severity)}
-                      onDelete={() => setDeletingSeverity(severity)}
-                    />
-                  ))}
-                </SortableContext>
-              </TableBody>
-            </RadioGroup>
-          </Table>
-        </DndContext>
+        <OptionsTable
+          options={severities}
+          nameHeader="Severity"
+          headers={<TableHead className="hidden md:table-cell">Description</TableHead>}
+          cells={(severity) => (
+            <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
+              {severity.description}
+            </TableCell>
+          )}
+          onReorder={(orderedIds) =>
+            router.patch(reorderIncidentSeveritiesPath(), { ordered_ids: orderedIds }, { preserveScroll: true })}
+          onMakeDefault={(id) =>
+            router.patch(makeDefaultIncidentSeverityPath(id), {}, { preserveScroll: true })}
+          onToggleEnabled={(severity) =>
+            router.patch(
+              severity.enabled ? disableIncidentSeverityPath(severity.id) : enableIncidentSeverityPath(severity.id),
+              {},
+              { preserveScroll: true },
+            )}
+          onEdit={setEditing}
+          onDelete={setDeleting}
+        />
       </CardContent>
 
-      {editingSeverity && (
-        <EditSeverityDialog
-          severity={editingSeverity}
-          open={!!editingSeverity}
-          onOpenChange={(open) => { if (!open) setEditingSeverity(null) }}
+      <OptionDialog
+        open={creating}
+        onOpenChange={setCreating}
+        title="Add Severity"
+        description="Create a new severity level for your workspace."
+        submitLabel="Create Severity"
+        namePlaceholder="e.g. Moderate"
+        descriptionPlaceholder="When should this severity be assigned?"
+        initial={{ name: "", description: "", color: "#FF6B35" }}
+        action={incidentSeveritiesPath()}
+        method="post"
+        footnote={
+          <p className="text-xs text-muted-foreground">
+            New severities are added at the bottom as the least severe. Drag to move it up the list.
+          </p>
+        }
+      />
+
+      {editing && (
+        <OptionDialog
+          open
+          onOpenChange={(open) => { if (!open) setEditing(null) }}
+          title="Edit Severity"
+          description="Update the name, description, or color for this severity level."
+          submitLabel="Save Changes"
+          initial={{
+            id: editing.id,
+            name: editing.name,
+            description: editing.description ?? "",
+            color: editing.color,
+          }}
+          action={incidentSeverityPath(editing.id)}
+          method="patch"
         />
       )}
 
       <ConfirmDeleteDialog
-        open={Boolean(deletingSeverity)}
-        title={`Delete ${deletingSeverity?.name ?? "this severity"}?`}
+        open={Boolean(deleting)}
+        title={`Delete ${deleting?.name ?? "this severity"}?`}
         description="No incidents use this severity, so nothing loses its history. It disappears from the declare form and from alert routing straight away."
-        onConfirm={confirmDelete}
-        onCancel={() => setDeletingSeverity(null)}
+        onConfirm={() => {
+          if (!deleting) return
+          router.delete(incidentSeverityPath(deleting.id), { onFinish: () => setDeleting(null) })
+        }}
+        onCancel={() => setDeleting(null)}
       />
     </Card>
   )
