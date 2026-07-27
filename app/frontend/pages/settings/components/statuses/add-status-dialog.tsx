@@ -4,6 +4,7 @@ import { IconPlus } from "@tabler/icons-react"
 
 import type { LifecycleStageWithStatuses } from "@/pages/settings/lib/types"
 import { incidentStatusesPath } from "@/lib/routes"
+import { ColorPicker } from "@/components/color-picker"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -74,21 +75,11 @@ export function AddStatusDialog({ stage }: { stage: LifecycleStageWithStatuses }
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor={`status-color-${stage.key}`}>Color</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id={`status-color-${stage.key}`}
-                  type="color"
-                  value={form.data.color}
-                  onChange={(e) => form.setData("color", e.target.value)}
-                  className="h-9 w-12 cursor-pointer p-1"
-                />
-                <Input
-                  value={form.data.color}
-                  onChange={(e) => form.setData("color", e.target.value)}
-                  className="flex-1 font-mono text-sm"
-                  placeholder="#3B82F6"
-                />
-              </div>
+              <ColorPicker
+                id={`status-color-${stage.key}`}
+                value={form.data.color}
+                onChange={(color) => form.setData("color", color)}
+              />
             </div>
           </div>
           <DialogFooter>

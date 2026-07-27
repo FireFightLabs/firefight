@@ -15,7 +15,6 @@ class IncidentTypesController < InertiaController
     )
 
     incident_type.save_in_position!
-    incident_type.make_default! if ActiveModel::Type::Boolean.new.cast(params[:is_default])
     redirect_to settings_types_path
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_types_path, inertia: { errors: e.record.errors.to_hash }
@@ -29,7 +28,6 @@ class IncidentTypesController < InertiaController
     }.compact
 
     if @incident_type.update(attrs)
-      @incident_type.make_default! if ActiveModel::Type::Boolean.new.cast(params[:is_default])
       redirect_to settings_types_path
     else
       redirect_back fallback_location: settings_types_path, inertia: { errors: @incident_type.errors.to_hash }

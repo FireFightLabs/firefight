@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useState } from "react"
 import { router } from "@inertiajs/react"
 import {
   DndContext,
@@ -7,12 +7,10 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core"
-import type { DragEndEvent } from "@dnd-kit/core"
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers"
 import {
   SortableContext,
   verticalListSortingStrategy,
-  arrayMove,
 } from "@dnd-kit/sortable"
 import {
   IconCategory,
@@ -42,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useDebouncedReorder } from "@/pages/settings/hooks/use-debounced-reorder"
 import { RadioGroup } from "@/components/ui/radio-group"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { SortableTypeRow } from "@/pages/settings/components/types/sortable-type-row"
@@ -55,7 +54,11 @@ function incidentsInUse(count: number) {
   return `${count} ${count === 1 ? "incident" : "incidents"}`
 }
 
-export function TypesTab({ types }: TypesTabProps) {
+export function TypesTab({ types: serverTypes }: TypesTabProps) {
+  const { items: types, onDragEnd } = useDebouncedReorder(serverTypes, (orderedIds) => {
+    router.patch(reorderIncidentTypesPath(), { ordered_ids: orderedIds }, { preserveScroll: true })
+  })
+
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingType, setEditingType] = useState<IncidentTypeSettings | null>(null)
   const [deletingType, setDeletingType] = useState<IncidentTypeSettings | null>(null)
@@ -74,23 +77,6 @@ export function TypesTab({ types }: TypesTabProps) {
   function handleMakeDefault(id: string) {
     router.patch(makeDefaultIncidentTypePath(id), {}, { preserveScroll: true })
   }
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = types.findIndex((t) => t.id === active.id)
-    const newIndex = types.findIndex((t) => t.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-
-    const reordered = arrayMove(types, oldIndex, newIndex)
-
-    router.patch(reorderIncidentTypesPath(), {
-      ordered_ids: reordered.map((t) => t.id),
-    }, {
-      preserveScroll: true,
-    })
-  }, [types])
 
   function confirmDelete() {
     if (!deletingType) return
@@ -181,7 +167,7 @@ export function TypesTab({ types }: TypesTabProps) {
           sensors={sensors}
           collisionDetection={closestCenter}
           modifiers={[ restrictToVerticalAxis ]}
-          onDragEnd={handleDragEnd}
+          onDragEnd={onDragEnd}
         >
           <Table>
             <TableHeader>

@@ -4,6 +4,7 @@ import { type FormEvent } from "react"
 import type { IncidentTypeSettings } from "@/types/serializers"
 import { incidentTypePath, incidentTypesPath } from "@/lib/routes"
 import { useSyncFormData } from "@/pages/settings/hooks/use-sync-form-data"
+import { ColorPicker } from "@/components/color-picker"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -16,13 +17,9 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 
-const TYPE_COLORS = [
-  "#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#06B6D4",
-  "#EC4899", "#6366F1", "#14B8A6", "#F97316",
-]
+const DEFAULT_TYPE_COLOR = "#3B82F6"
 
 interface TypeDialogProps {
   open: boolean
@@ -34,8 +31,7 @@ function typeToFormData(type?: IncidentTypeSettings | null) {
   return {
     name: type?.name ?? "",
     description: type?.description ?? "",
-    color: type?.color ?? TYPE_COLORS[0],
-    is_default: type?.isDefault ?? false,
+    color: type?.color ?? DEFAULT_TYPE_COLOR,
   }
 }
 
@@ -68,7 +64,7 @@ export function TypeDialog({ open, onOpenChange, type }: TypeDialogProps) {
           <DialogTitle>{isEdit ? "Edit incident type" : "Add incident type"}</DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Update the name, description, color, or default status."
+              ? "Update the name, description, or color. The default is set from the list."
               : "Create a new incident type for your workspace."}
           </DialogDescription>
         </DialogHeader>
@@ -98,31 +94,12 @@ export function TypeDialog({ open, onOpenChange, type }: TypeDialogProps) {
             </div>
 
             <div className="space-y-2">
-              <Label>Color</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {TYPE_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={`size-7 rounded-md transition-all ${
-                      form.data.color === c
-                        ? "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
-                        : "hover:scale-105"
-                    }`}
-                    style={{ backgroundColor: c }}
-                    onClick={() => form.setData("color", c)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Switch
-                id="type-default"
-                checked={form.data.is_default}
-                onCheckedChange={(checked) => form.setData("is_default", checked)}
+              <Label htmlFor="type-color">Color</Label>
+              <ColorPicker
+                id="type-color"
+                value={form.data.color}
+                onChange={(color) => form.setData("color", color)}
               />
-              <Label htmlFor="type-default" className="cursor-pointer">Default type</Label>
             </div>
           </div>
 

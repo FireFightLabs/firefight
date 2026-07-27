@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useState } from "react"
 import { router } from "@inertiajs/react"
 import {
   DndContext,
@@ -7,12 +7,10 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core"
-import type { DragEndEvent } from "@dnd-kit/core"
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers"
 import {
   SortableContext,
   verticalListSortingStrategy,
-  arrayMove,
 } from "@dnd-kit/sortable"
 
 import type { IncidentSeveritySettings } from "@/types/serializers"
@@ -23,6 +21,7 @@ import {
   makeDefaultIncidentSeverityPath,
   reorderIncidentSeveritiesPath,
 } from "@/lib/routes"
+import { useDebouncedReorder } from "@/pages/settings/hooks/use-debounced-reorder"
 import { RadioGroup } from "@/components/ui/radio-group"
 import {
   Card,
@@ -51,7 +50,11 @@ function incidentsInUse(count: number) {
   return `${count} ${count === 1 ? "incident" : "incidents"}`
 }
 
-export function SeveritiesTab({ severities }: SeveritiesTabProps) {
+export function SeveritiesTab({ severities: serverSeverities }: SeveritiesTabProps) {
+  const { items: severities, onDragEnd } = useDebouncedReorder(serverSeverities, (orderedIds) => {
+    router.patch(reorderIncidentSeveritiesPath(), { ordered_ids: orderedIds }, { preserveScroll: true })
+  })
+
   const [editingSeverity, setEditingSeverity] = useState<IncidentSeveritySettings | null>(null)
   const [deletingSeverity, setDeletingSeverity] = useState<IncidentSeveritySettings | null>(null)
 
@@ -67,23 +70,6 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
   function handleMakeDefault(id: string) {
     router.patch(makeDefaultIncidentSeverityPath(id), {}, { preserveScroll: true })
   }
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = severities.findIndex((s) => s.id === active.id)
-    const newIndex = severities.findIndex((s) => s.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-
-    const reordered = arrayMove(severities, oldIndex, newIndex)
-
-    router.patch(reorderIncidentSeveritiesPath(), {
-      ordered_ids: reordered.map((s) => s.id),
-    }, {
-      preserveScroll: true,
-    })
-  }, [severities])
 
   function confirmDelete() {
     if (!deletingSeverity) return
@@ -118,7 +104,7 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
           sensors={sensors}
           collisionDetection={closestCenter}
           modifiers={[ restrictToVerticalAxis ]}
-          onDragEnd={handleDragEnd}
+          onDragEnd={onDragEnd}
         >
           <Table>
             <TableHeader>

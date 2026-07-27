@@ -3,6 +3,7 @@ import { useForm } from "@inertiajs/react"
 
 import type { IncidentSeveritySettings } from "@/types/serializers"
 import { incidentSeverityPath } from "@/lib/routes"
+import { ColorPicker } from "@/components/color-picker"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -75,21 +76,11 @@ export function EditSeverityDialog({
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor={`edit-sev-color-${severity.id}`}>Color</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id={`edit-sev-color-${severity.id}`}
-                  type="color"
-                  value={form.data.color}
-                  onChange={(e) => form.setData("color", e.target.value)}
-                  className="h-9 w-12 cursor-pointer p-1"
-                />
-                <Input
-                  value={form.data.color}
-                  onChange={(e) => form.setData("color", e.target.value)}
-                  className="flex-1 font-mono text-sm"
-                  placeholder="#3B82F6"
-                />
-              </div>
+              <ColorPicker
+                id={`edit-sev-color-${severity.id}`}
+                value={form.data.color}
+                onChange={(color) => form.setData("color", color)}
+              />
             </div>
           </div>
           <DialogFooter>
