@@ -43,7 +43,8 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 - No unnecessary comments — only explain non-obvious logic
 - No ticket numbers in comments
 - No emojis unless requested
-- User-facing copy (UI strings, labels, descriptions, tooltips, flash messages, seeded descriptions, product docs on the marketing and docs sites) uses **no em dashes and no semicolons at all**. Not "no unnecessary semicolons" — none. Write two sentences, or use a comma or parenthesis. This covers seeds, migrations that insert copy, and fixtures, not just `.tsx`. Empty table cells use a plain hyphen, not a dash glyph. Engineering docs under `docs/` and code comments are exempt.
+- User-facing copy (UI strings, labels, descriptions, tooltips, flash messages, seeded descriptions, product docs on the marketing and docs sites) uses **no em dashes and no semicolons at all**. Not "no unnecessary semicolons" — none. Write two sentences, or use a comma or parenthesis. This covers seeds, migrations that insert copy, and fixtures, not just `.tsx`. Empty table cells use a plain hyphen, not a dash glyph.
+- Exempt from the dash rule: **titles using a dash as a separator** (`<Head title>`, Slack message headers: `INC-052 — Checkout failing`), engineering docs under `docs/`, code comments, exception and log messages, and machine-facing schema text such as MCP tool parameter descriptions.
 - No direct `Rails.logger` helper wrappers — call `Rails.logger.info(...)` inline where needed
 - Keep it simple, avoid over-engineering
 - Rubocop enforced: `[ {...} ]` not `[{...}]` (SpaceInsideArrayLiteralBrackets)

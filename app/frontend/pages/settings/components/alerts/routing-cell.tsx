@@ -17,20 +17,20 @@ export function RoutingCell({ alert }: { alert: AlertSettings }) {
   }
   if (alert.routingState === "unmatched") {
     return (
-      <span className="text-xs text-amber-500/90" title="No routing rule matched this alert; it was stored but created nothing.">
+      <span className="text-xs text-amber-500/90" title="No routing rule matched this alert. It was stored but created nothing.">
         Unmatched
       </span>
     )
   }
   if (alert.routingState === "failed") {
     return (
-      <span className="text-xs text-destructive" title="Routing failed repeatedly and gave up; check the rule's outcome (e.g. severity) and the app logs.">
+      <span className="text-xs text-destructive" title="Routing failed repeatedly and gave up. Check the rule's outcome (e.g. severity) and the app logs.">
         Failed
       </span>
     )
   }
   return (
-    <span className="text-xs text-muted-foreground/60" title="Routing has not completed yet; it is retried automatically every couple of minutes.">
+    <span className="text-xs text-muted-foreground/60" title="Routing has not completed yet. It is retried automatically every couple of minutes.">
       Pending
     </span>
   )
