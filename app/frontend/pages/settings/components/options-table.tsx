@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { SortableOptionRow } from "@/pages/settings/components/options/sortable-option-row"
+import { SortableOptionRow } from "@/pages/settings/components/sortable-option-row"
 
 export function OptionsTable<T extends ConfigurableOption>({
   options,
@@ -69,7 +69,7 @@ export function OptionsTable<T extends ConfigurableOption>({
             <TableHead className="w-12" />
           </TableRow>
         </TableHeader>
-        <Rows asChild={Boolean(onMakeDefault)} options={options} onMakeDefault={onMakeDefault}>
+        <Rows options={options} onMakeDefault={onMakeDefault}>
           <SortableContext
             items={options.map((option) => option.id)}
             strategy={verticalListSortingStrategy}
@@ -97,17 +97,15 @@ export function OptionsTable<T extends ConfigurableOption>({
 // The radio group only exists when there is a default to pick, and
 // table-row-group overrides its own grid display when it becomes the tbody.
 function Rows({
-  asChild,
   options,
   onMakeDefault,
   children,
 }: {
-  asChild: boolean
   options: ConfigurableOption[]
   onMakeDefault?: (id: string) => void
   children: ReactNode
 }) {
-  if (!asChild || !onMakeDefault) return <TableBody>{children}</TableBody>
+  if (!onMakeDefault) return <TableBody>{children}</TableBody>
 
   return (
     <RadioGroup

@@ -19,7 +19,9 @@ class NormalizeIncidentSeverityRanks < ActiveRecord::Migration[8.1]
     SQL
   end
 
+  # Deliberately a no-op rather than a raise: the hand-entered ranks are not
+  # recoverable, but normalized ranks are still valid for the old code, and
+  # blocking the rollback chain over a harmless data shape is worse.
   def down
-    raise ActiveRecord::IrreversibleMigration
   end
 end

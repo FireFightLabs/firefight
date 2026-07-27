@@ -12,7 +12,9 @@ class IncidentRole < ApplicationRecord
 
   DEFAULTS_BY_SLUG = DEFAULTS.index_by { |d| d[:slug] }.freeze
 
-  has_many :incident_role_assignments, dependent: :restrict_with_error
+  # Assignments are join records, so they follow the role. Deleting a role in
+  # use is stopped by deletion_blocked_reason, not by the association.
+  has_many :incident_role_assignments, dependent: :destroy
   has_many :incidents, through: :incident_role_assignments
 
   scope :incident_lead, -> { where(slug: SLUG_INCIDENT_LEAD) }

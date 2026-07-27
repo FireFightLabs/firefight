@@ -5,7 +5,7 @@ import type { IncidentStatusSettings } from "@/types/serializers"
 import type { LifecycleStageWithStatuses } from "@/pages/settings/lib/types"
 import { incidentStatusesPath, incidentStatusPath } from "@/lib/routes"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
-import { OptionDialog } from "@/pages/settings/components/options/option-dialog"
+import { OptionDialog } from "@/pages/settings/components/option-dialog"
 import { StageStatusesCard } from "@/pages/settings/components/statuses/stage-statuses-card"
 
 export function StatusesTab({ lifecycleStages }: { lifecycleStages: LifecycleStageWithStatuses[] }) {

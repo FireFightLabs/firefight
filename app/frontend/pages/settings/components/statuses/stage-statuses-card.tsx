@@ -18,7 +18,7 @@ import {
   CardHeader,
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
-import { OptionsTable } from "@/pages/settings/components/options/options-table"
+import { OptionsTable } from "@/pages/settings/components/options-table"
 
 const stageColors: Record<string, string> = {
   triage: "bg-amber-500/15 text-amber-600 dark:text-amber-400",

@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
-import { OptionDialog } from "@/pages/settings/components/options/option-dialog"
-import { OptionsTable } from "@/pages/settings/components/options/options-table"
+import { OptionDialog } from "@/pages/settings/components/option-dialog"
+import { OptionsTable } from "@/pages/settings/components/options-table"
 
 export function RolesTab({ roles }: { roles: IncidentRole[] }) {
   const [editing, setEditing] = useState<IncidentRole | null>(null)

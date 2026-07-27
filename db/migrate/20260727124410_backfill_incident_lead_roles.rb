@@ -21,7 +21,15 @@ class BackfillIncidentLeadRoles < ActiveRecord::Migration[8.1]
     SQL
   end
 
+  # Only the rows nothing depends on: the old code materialized the lead role on
+  # first assignment, so an unassigned one is exactly what it would not have had.
   def down
-    raise ActiveRecord::IrreversibleMigration
+    execute <<~SQL
+      DELETE FROM incident_roles r
+      WHERE r.slug = 'incident_lead'
+        AND NOT EXISTS (
+          SELECT 1 FROM incident_role_assignments a WHERE a.incident_role_id = r.id
+        )
+    SQL
   end
 end
