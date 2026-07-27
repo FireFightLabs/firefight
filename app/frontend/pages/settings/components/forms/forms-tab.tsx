@@ -141,10 +141,10 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">Forms</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <CardTitle>Forms</CardTitle>
+        <CardDescription className="mt-1">
           Configure what responders see during declaration, updates, and resolution.
-        </p>
+        </CardDescription>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[200px_minmax(0,1fr)]">

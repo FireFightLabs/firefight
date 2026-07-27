@@ -38,11 +38,6 @@ class IncidentFieldDefinitionsController < InertiaController
     redirect_to settings_custom_fields_path, notice: "#{@field_definition.name} was deleted."
   end
 
-  def reorder
-    IncidentFieldDefinition.reorder!(current_workspace, params.require(:ordered_ids))
-    redirect_to settings_custom_fields_path, notice: "Custom field order updated."
-  end
-
   private
 
   def set_field_definition

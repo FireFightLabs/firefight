@@ -10,10 +10,16 @@ import {
   incidentFieldDefinitionPath,
   disableIncidentFieldDefinitionPath,
   enableIncidentFieldDefinitionPath,
-  reorderIncidentFieldDefinitionsPath,
 } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
@@ -40,22 +46,24 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Custom fields</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Reusable field definitions for lifecycle forms. Drag to reorder, then attach them to Declare, Update, or Resolve forms.
-          </p>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Custom fields</CardTitle>
+            <CardDescription className="mt-1">
+              Reusable field definitions for lifecycle forms. Attach them to Declare, Update, or Resolve forms, where their order is set per form.
+            </CardDescription>
+          </div>
+          <Button size="sm" onClick={openCreate}>
+            <IconPlus className="size-4" />
+            Add field
+          </Button>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <IconPlus className="size-4" />
-          Add field
-        </Button>
-      </div>
+      </CardHeader>
 
-      {fields.length > 0 ? (
-        <div className="rounded-xl border border-border">
+      <CardContent className={fields.length === 0 ? undefined : "p-0"}>
+        {fields.length > 0 ? (
           <OptionsTable
             options={fields}
             nameHeader="Field"
@@ -89,7 +97,6 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
                 </TableCell>
               </>
             )}
-            reorderPath={reorderIncidentFieldDefinitionsPath()}
             onToggleEnabled={(field) =>
               router.patch(
                 field.enabled ? disableIncidentFieldDefinitionPath(field.id) : enableIncidentFieldDefinitionPath(field.id),
@@ -99,9 +106,8 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
             onEdit={(field) => { setEditingField(field); setDialogOpen(true) }}
             onDelete={setDeleting}
           />
-        </div>
-      ) : (
-        <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
+        ) : (
+          <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
           <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-lg bg-muted/60">
             <IconForms className="size-5 text-muted-foreground" />
           </div>
@@ -112,9 +118,10 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
           <Button size="sm" variant="outline" className="mt-4" onClick={openCreate}>
             <IconPlus className="size-3.5" />
             Create your first field
-          </Button>
-        </div>
-      )}
+            </Button>
+          </div>
+        )}
+      </CardContent>
 
       <FieldDialog
         open={dialogOpen}
@@ -133,6 +140,6 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
         }}
         onCancel={() => setDeleting(null)}
       />
-    </div>
+    </Card>
   )
 }

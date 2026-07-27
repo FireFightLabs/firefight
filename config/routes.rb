@@ -189,9 +189,6 @@ Rails.application.routes.draw do
       end
     end
     resources :incident_field_definitions, only: [ :create, :update, :destroy ], path: "settings/custom-fields" do
-      collection do
-        patch :reorder
-      end
       member do
         patch :disable
         patch :enable

@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { SortableOptionRow } from "@/pages/settings/components/sortable-option-row"
+import { SortableOptionRow, StaticOptionRow } from "@/pages/settings/components/sortable-option-row"
 
 export function OptionsTable<T extends ConfigurableOption>({
   options,
@@ -45,7 +45,8 @@ export function OptionsTable<T extends ConfigurableOption>({
   headers?: ReactNode
   cells?: (option: T) => ReactNode
   fallbackColor?: string
-  reorderPath: string
+  // Omitted when the order carries no meaning, which drops the drag handle.
+  reorderPath?: string
   reorderParams?: Record<string, string>
   // Omitted for lists without a workspace default, which drops the column.
   onMakeDefault?: (id: string) => void
@@ -57,11 +58,49 @@ export function OptionsTable<T extends ConfigurableOption>({
   const { ordered, onDragEnd } = useOptimisticOrder(options)
 
   function submitOrder(orderedIds: string[], onFailure: () => void) {
+    if (!reorderPath) return
+
     router.patch(reorderPath, { ...reorderParams, ordered_ids: orderedIds }, {
       preserveScroll: true,
       onError: onFailure,
     })
   }
+
+  const rowProps = (option: T) => ({
+    option,
+    fallbackColor,
+    showDefault: Boolean(onMakeDefault),
+    onToggleEnabled: () => onToggleEnabled(option),
+    onEdit: () => onEdit(option),
+    onDelete: () => onDelete(option),
+    children: cells?.(option),
+  })
+
+  const table = (
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-transparent">
+          {reorderPath && <TableHead className="w-8" />}
+          <TableHead>{nameHeader}</TableHead>
+          {headers}
+          {onMakeDefault && <TableHead className="w-24 text-center">Default</TableHead>}
+          <TableHead className="w-24 text-center">Enabled</TableHead>
+          <TableHead className="w-12" />
+        </TableRow>
+      </TableHeader>
+      <Rows options={ordered} onMakeDefault={onMakeDefault}>
+        {reorderPath ? (
+          <SortableContext items={ordered.map((option) => option.id)} strategy={verticalListSortingStrategy}>
+            {ordered.map((option) => <SortableOptionRow key={option.id} {...rowProps(option)} />)}
+          </SortableContext>
+        ) : (
+          ordered.map((option) => <StaticOptionRow key={option.id} {...rowProps(option)} />)
+        )}
+      </Rows>
+    </Table>
+  )
+
+  if (!reorderPath) return table
 
   return (
     <DndContext
@@ -70,38 +109,7 @@ export function OptionsTable<T extends ConfigurableOption>({
       modifiers={[ restrictToVerticalAxis ]}
       onDragEnd={(event) => onDragEnd(event, submitOrder)}
     >
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-8" />
-            <TableHead>{nameHeader}</TableHead>
-            {headers}
-            {onMakeDefault && <TableHead className="w-24 text-center">Default</TableHead>}
-            <TableHead className="w-24 text-center">Enabled</TableHead>
-            <TableHead className="w-12" />
-          </TableRow>
-        </TableHeader>
-        <Rows options={ordered} onMakeDefault={onMakeDefault}>
-          <SortableContext
-            items={options.map((option) => option.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {ordered.map((option) => (
-              <SortableOptionRow
-                key={option.id}
-                option={option}
-                fallbackColor={fallbackColor}
-                showDefault={Boolean(onMakeDefault)}
-                onToggleEnabled={() => onToggleEnabled(option)}
-                onEdit={() => onEdit(option)}
-                onDelete={() => onDelete(option)}
-              >
-                {cells?.(option)}
-              </SortableOptionRow>
-            ))}
-          </SortableContext>
-        </Rows>
-      </Table>
+      {table}
     </DndContext>
   )
 }
