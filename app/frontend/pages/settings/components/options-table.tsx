@@ -12,8 +12,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 
+import { router } from "@inertiajs/react"
+
 import type { ConfigurableOption } from "@/pages/settings/lib/types"
-import { reorderHandler } from "@/pages/settings/lib/reorder"
+import { useOptimisticOrder } from "@/pages/settings/lib/reorder"
 import { RadioGroup } from "@/components/ui/radio-group"
 import {
   Table,
@@ -30,7 +32,8 @@ export function OptionsTable<T extends ConfigurableOption>({
   headers,
   cells,
   fallbackColor,
-  onReorder,
+  reorderPath,
+  reorderParams,
   onMakeDefault,
   onToggleEnabled,
   onEdit,
@@ -42,7 +45,8 @@ export function OptionsTable<T extends ConfigurableOption>({
   headers?: ReactNode
   cells?: (option: T) => ReactNode
   fallbackColor?: string
-  onReorder: (orderedIds: string[]) => void
+  reorderPath: string
+  reorderParams?: Record<string, string>
   // Omitted for lists without a workspace default, which drops the column.
   onMakeDefault?: (id: string) => void
   onToggleEnabled: (option: T) => void
@@ -50,13 +54,21 @@ export function OptionsTable<T extends ConfigurableOption>({
   onDelete: (option: T) => void
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const { ordered, onDragEnd } = useOptimisticOrder(options)
+
+  function submitOrder(orderedIds: string[], onFailure: () => void) {
+    router.patch(reorderPath, { ...reorderParams, ordered_ids: orderedIds }, {
+      preserveScroll: true,
+      onError: onFailure,
+    })
+  }
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
       modifiers={[ restrictToVerticalAxis ]}
-      onDragEnd={reorderHandler(options, onReorder)}
+      onDragEnd={(event) => onDragEnd(event, submitOrder)}
     >
       <Table>
         <TableHeader>
@@ -69,12 +81,12 @@ export function OptionsTable<T extends ConfigurableOption>({
             <TableHead className="w-12" />
           </TableRow>
         </TableHeader>
-        <Rows options={options} onMakeDefault={onMakeDefault}>
+        <Rows options={ordered} onMakeDefault={onMakeDefault}>
           <SortableContext
             items={options.map((option) => option.id)}
             strategy={verticalListSortingStrategy}
           >
-            {options.map((option) => (
+            {ordered.map((option) => (
               <SortableOptionRow
                 key={option.id}
                 option={option}

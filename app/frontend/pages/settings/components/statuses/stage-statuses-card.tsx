@@ -63,11 +63,8 @@ export function StageStatusesCard({
                 {status.description}
               </TableCell>
             )}
-            onReorder={(orderedIds) =>
-              router.patch(reorderIncidentStatusesPath(), {
-                lifecycle_stage_key: stage.key,
-                ordered_ids: orderedIds,
-              }, { preserveScroll: true })}
+            reorderPath={reorderIncidentStatusesPath()}
+            reorderParams={{ lifecycle_stage_key: stage.key }}
             onMakeDefault={(id) =>
               router.patch(makeDefaultIncidentStatusPath(id), {}, { preserveScroll: true })}
             onToggleEnabled={(status) =>

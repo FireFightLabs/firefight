@@ -5,13 +5,18 @@ import type { IncidentStatusSettings } from "@/types/serializers"
 import type { LifecycleStageWithStatuses } from "@/pages/settings/lib/types"
 import { incidentStatusesPath, incidentStatusPath } from "@/lib/routes"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
-import { OptionDialog } from "@/pages/settings/components/option-dialog"
+import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { StageStatusesCard } from "@/pages/settings/components/statuses/stage-statuses-card"
 
 export function StatusesTab({ lifecycleStages }: { lifecycleStages: LifecycleStageWithStatuses[] }) {
-  const [editing, setEditing] = useState<IncidentStatusSettings | null>(null)
+  const [dialog, setDialog] = useState<OptionDialogState<IncidentStatusSettings>>(null)
   const [creatingIn, setCreatingIn] = useState<LifecycleStageWithStatuses | null>(null)
   const [deleting, setDeleting] = useState<IncidentStatusSettings | null>(null)
+
+  function closeDialog() {
+    setDialog(null)
+    setCreatingIn(null)
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -19,45 +24,25 @@ export function StatusesTab({ lifecycleStages }: { lifecycleStages: LifecycleSta
         <StageStatusesCard
           key={stage.key}
           stage={stage}
-          onCreate={setCreatingIn}
-          onEdit={setEditing}
+          onCreate={(target) => { setCreatingIn(target); setDialog({ mode: "create" }) }}
+          onEdit={(option) => setDialog({ mode: "edit", option })}
           onDelete={setDeleting}
         />
       ))}
 
-      {creatingIn && (
-        <OptionDialog
-          open
-          onOpenChange={(open) => { if (!open) setCreatingIn(null) }}
-          title={`Add ${creatingIn.name} Status`}
-          description={`Create a new status in the ${creatingIn.name} stage.`}
-          submitLabel="Create Status"
-          namePlaceholder="e.g. Mitigating"
-          descriptionPlaceholder="When is an incident in this status?"
-          initial={{ name: "", description: "", color: "#6B7280" }}
-          action={incidentStatusesPath()}
-          method="post"
-          extraParams={{ lifecycle_stage_key: creatingIn.key }}
-        />
-      )}
-
-      {editing && (
-        <OptionDialog
-          open
-          onOpenChange={(open) => { if (!open) setEditing(null) }}
-          title="Edit Status"
-          description="Update the name, description, or color for this status."
-          submitLabel="Save Changes"
-          initial={{
-            id: editing.id,
-            name: editing.name,
-            description: editing.description ?? "",
-            color: editing.color,
-          }}
-          action={incidentStatusPath(editing.id)}
-          method="patch"
-        />
-      )}
+      <OptionDialog
+        state={dialog}
+        onClose={closeDialog}
+        noun="Status"
+        createTitle={creatingIn ? `Add ${creatingIn.name} Status` : undefined}
+        createDescription={creatingIn ? `Create a new status in the ${creatingIn.name} stage.` : undefined}
+        createPath={incidentStatusesPath()}
+        editPath={incidentStatusPath}
+        defaultColor="#6B7280"
+        namePlaceholder="e.g. Mitigating"
+        descriptionPlaceholder="When is an incident in this status?"
+        extraParams={creatingIn ? { lifecycle_stage_key: creatingIn.key } : undefined}
+      />
 
       <ConfirmDeleteDialog
         open={Boolean(deleting)}

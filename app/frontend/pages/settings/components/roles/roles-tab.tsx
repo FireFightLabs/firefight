@@ -21,12 +21,11 @@ import {
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
-import { OptionDialog } from "@/pages/settings/components/option-dialog"
+import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
 
 export function RolesTab({ roles }: { roles: IncidentRole[] }) {
-  const [editing, setEditing] = useState<IncidentRole | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [dialog, setDialog] = useState<OptionDialogState<IncidentRole>>(null)
   const [deleting, setDeleting] = useState<IncidentRole | null>(null)
 
   return (
@@ -39,7 +38,7 @@ export function RolesTab({ roles }: { roles: IncidentRole[] }) {
               Define the roles that can be assigned to team members during an incident. Drag to reorder.
             </CardDescription>
           </div>
-          <Button size="sm" onClick={() => setCreating(true)}>
+          <Button size="sm" onClick={() => setDialog({ mode: "create" })}>
             <IconPlus className="size-4" />
             Add Role
           </Button>
@@ -69,44 +68,27 @@ export function RolesTab({ roles }: { roles: IncidentRole[] }) {
               </TableCell>
             </>
           )}
-          onReorder={(orderedIds) =>
-            router.patch(reorderIncidentRolesPath(), { ordered_ids: orderedIds }, { preserveScroll: true })}
+          reorderPath={reorderIncidentRolesPath()}
           onToggleEnabled={(role) =>
             router.patch(
               role.enabled ? disableIncidentRolePath(role.id) : enableIncidentRolePath(role.id),
               {},
               { preserveScroll: true },
             )}
-          onEdit={setEditing}
+          onEdit={(option) => setDialog({ mode: "edit", option })}
           onDelete={setDeleting}
         />
       </CardContent>
 
       <OptionDialog
-        open={creating}
-        onOpenChange={setCreating}
-        title="Add Role"
-        description="Create a new incident role for your workspace."
-        submitLabel="Create Role"
+        state={dialog}
+        onClose={() => setDialog(null)}
+        noun="Role"
+        createPath={incidentRolesPath()}
+        editPath={incidentRolePath}
         namePlaceholder="e.g. Operations Lead"
         descriptionPlaceholder="What is this role responsible for?"
-        initial={{ name: "", description: "" }}
-        action={incidentRolesPath()}
-        method="post"
       />
-
-      {editing && (
-        <OptionDialog
-          open
-          onOpenChange={(open) => { if (!open) setEditing(null) }}
-          title="Edit Role"
-          description="Update the name or description for this role."
-          submitLabel="Save Changes"
-          initial={{ id: editing.id, name: editing.name, description: editing.description ?? "" }}
-          action={incidentRolePath(editing.id)}
-          method="patch"
-        />
-      )}
 
       <ConfirmDeleteDialog
         open={Boolean(deleting)}

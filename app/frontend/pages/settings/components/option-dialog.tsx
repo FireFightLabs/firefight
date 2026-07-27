@@ -16,74 +16,94 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
-export interface OptionDraft {
-  id?: string
+interface OptionRecord {
+  id: string
   name: string
-  description: string
-  // Omitted for option lists that have no colour.
-  color?: string
+  description?: string | null
+  color?: string | null
 }
 
-export function OptionDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  submitLabel,
+export type OptionDialogState<T> = { mode: "create" } | { mode: "edit"; option: T } | null
+
+// Owns both halves of the create/edit pair so a tab renders one dialog rather
+// than two near-identical ones, and derives its wording from the noun so the
+// four screens cannot drift apart.
+export function OptionDialog<T extends OptionRecord>({
+  state,
+  onClose,
+  noun,
+  createTitle,
+  createDescription,
+  createPath,
+  editPath,
+  defaultColor,
   namePlaceholder,
   descriptionPlaceholder,
-  initial,
-  action,
-  method,
   extraParams,
   footnote,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  title: string
-  description: string
-  submitLabel: string
+  state: OptionDialogState<T>
+  onClose: () => void
+  noun: string
+  createTitle?: string
+  createDescription?: string
+  createPath: string
+  editPath: (id: string) => string
+  // Omitted for option lists that have no colour.
+  defaultColor?: string
   namePlaceholder?: string
   descriptionPlaceholder?: string
-  initial: OptionDraft
-  action: string
-  method: "post" | "patch"
   extraParams?: Record<string, string>
   footnote?: ReactNode
 }) {
-  const [draft, setDraft] = useState(initial)
+  const editing = state?.mode === "edit" ? state.option : null
+  const lower = noun.toLowerCase()
+
+  const [draft, setDraft] = useState({ name: "", description: "", color: defaultColor })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [processing, setProcessing] = useState(false)
 
-  const identity = `${open}:${initial.id ?? "new"}`
-  const [lastIdentity, setLastIdentity] = useState(identity)
-  if (identity !== lastIdentity) {
+  // Re-seed when the dialog opens, and when it is reused for a different row.
+  const identity = `${state?.mode ?? "closed"}:${editing?.id ?? ""}`
+  const [lastIdentity, setLastIdentity] = useState<string | null>(null)
+  if (state && identity !== lastIdentity) {
     setLastIdentity(identity)
-    setDraft(initial)
+    setDraft({
+      name: editing?.name ?? "",
+      description: editing?.description ?? "",
+      color: editing?.color ?? defaultColor,
+    })
     setErrors({})
   }
 
-  const fieldId = (field: string) => `option-${field}-${initial.id ?? "new"}`
+  const fieldId = (field: string) => `option-${field}-${editing?.id ?? "new"}`
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setProcessing(true)
 
-    router[method](action, { ...draft, ...extraParams }, {
+    const send = editing ? router.patch : router.post
+    send(editing ? editPath(editing.id) : createPath, { ...draft, ...extraParams }, {
       preserveScroll: true,
-      onSuccess: () => onOpenChange(false),
+      onSuccess: onClose,
       onError: setErrors,
       onFinish: () => setProcessing(false),
     })
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={Boolean(state)} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>{description}</DialogDescription>
+            <DialogTitle>
+              {editing ? `Edit ${noun}` : createTitle ?? `Add ${noun}`}
+            </DialogTitle>
+            <DialogDescription>
+              {editing
+                ? `Update the name, description${defaultColor ? ", or color" : ""} for this ${lower}.`
+                : createDescription ?? `Create a new ${lower} for your workspace.`}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-4 py-4">
@@ -120,14 +140,16 @@ export function OptionDialog({
               </div>
             )}
 
-            {footnote}
+            {!editing && footnote}
           </div>
 
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline" type="button">Cancel</Button>
             </DialogClose>
-            <Button type="submit" disabled={processing}>{submitLabel}</Button>
+            <Button type="submit" disabled={processing}>
+              {editing ? "Save Changes" : `Create ${noun}`}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

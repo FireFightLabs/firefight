@@ -20,6 +20,8 @@ Production-grade or not at all. Every one of these has already been violated onc
 - **A capability that cannot be reached does not exist.** Model plus controller plus serializer is half the job. Before calling a feature done, name the click path to it from a cold page, including for the state *after* the first one (already connected, already granted).
 - **Green CI is not evidence the UI works.** `bin/ci` and `tsc` never render a pixel. Look at the page, or say plainly that you did not.
 - **Generated files are part of the change.** Adding a route means `bin/rails js:routes:typescript`; adding or editing a serializer means `bundle exec rake types_from_serializers:generate`. Forgetting either breaks the app at import time, not at test time.
+- **Never silence a linter or type checker.** No `eslint-disable`, `rubocop:disable`, `@ts-ignore`, `@ts-expect-error`, `as any`, or `as unknown as`. The rule is pointing at a real problem, so fix the code it points at. `react-hooks/exhaustive-deps` firing on a mount-only effect means the effect is reading something it claims not to depend on — capture it in a ref or restructure. If a suppression is genuinely the only option, say so out loud and explain why in the same message, never quietly in a comment.
+- **`bin/ci` does not check the frontend.** No eslint, no `tsc`. Run `npm run lint` and `npx tsc --noEmit` yourself before calling frontend work done; green `bin/ci` says nothing about it.
 - **Finish the whole path, or say exactly what you left undone.** Deferring part of a task is fine when it is stated. Silence reads as complete, which makes it a false claim.
 
 ## Deep Dives
@@ -41,7 +43,7 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 - No unnecessary comments — only explain non-obvious logic
 - No ticket numbers in comments
 - No emojis unless requested
-- User-facing copy (UI strings, labels, descriptions, product docs on the marketing and docs sites) uses no em dashes and no unnecessary semicolons. Write two sentences, or use a comma or parenthesis. Empty table cells use a plain hyphen, not a dash glyph. Engineering docs under `docs/` and code comments are exempt.
+- User-facing copy (UI strings, labels, descriptions, tooltips, flash messages, seeded descriptions, product docs on the marketing and docs sites) uses **no em dashes and no semicolons at all**. Not "no unnecessary semicolons" — none. Write two sentences, or use a comma or parenthesis. This covers seeds, migrations that insert copy, and fixtures, not just `.tsx`. Empty table cells use a plain hyphen, not a dash glyph. Engineering docs under `docs/` and code comments are exempt.
 - No direct `Rails.logger` helper wrappers — call `Rails.logger.info(...)` inline where needed
 - Keep it simple, avoid over-engineering
 - Rubocop enforced: `[ {...} ]` not `[{...}]` (SpaceInsideArrayLiteralBrackets)

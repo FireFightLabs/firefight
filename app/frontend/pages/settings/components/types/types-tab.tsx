@@ -22,14 +22,13 @@ import {
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
-import { OptionDialog } from "@/pages/settings/components/option-dialog"
+import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
 
 const DEFAULT_TYPE_COLOR = "#6366F1"
 
 export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
-  const [editing, setEditing] = useState<IncidentTypeSettings | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [dialog, setDialog] = useState<OptionDialogState<IncidentTypeSettings>>(null)
   const [deleting, setDeleting] = useState<IncidentTypeSettings | null>(null)
 
   return (
@@ -42,9 +41,9 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
               Classify incidents by type to organize your response process and reporting.
             </CardDescription>
           </div>
-          <Button size="sm" onClick={() => setCreating(true)}>
+          <Button size="sm" onClick={() => setDialog({ mode: "create" })}>
             <IconPlus className="size-4" />
-            Add type
+            Add Type
           </Button>
         </div>
       </CardHeader>
@@ -59,7 +58,7 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
             <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
               Create types like Outage, Degradation, or Security to classify incidents and drive type-specific workflows.
             </p>
-            <Button size="sm" variant="outline" className="mt-4" onClick={() => setCreating(true)}>
+            <Button size="sm" variant="outline" className="mt-4" onClick={() => setDialog({ mode: "create" })}>
               <IconPlus className="size-3.5" />
               Create your first type
             </Button>
@@ -89,8 +88,7 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
                 </TableCell>
               </>
             )}
-            onReorder={(orderedIds) =>
-              router.patch(reorderIncidentTypesPath(), { ordered_ids: orderedIds }, { preserveScroll: true })}
+            reorderPath={reorderIncidentTypesPath()}
             onMakeDefault={(id) =>
               router.patch(makeDefaultIncidentTypePath(id), {}, { preserveScroll: true })}
             onToggleEnabled={(type) =>
@@ -99,42 +97,23 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
                 {},
                 { preserveScroll: true },
               )}
-            onEdit={setEditing}
+            onEdit={(option) => setDialog({ mode: "edit", option })}
             onDelete={setDeleting}
           />
         )}
       </CardContent>
 
       <OptionDialog
-        open={creating}
-        onOpenChange={setCreating}
-        title="Add incident type"
-        description="Create a new incident type for your workspace."
-        submitLabel="Create type"
+        state={dialog}
+        onClose={() => setDialog(null)}
+        noun="Type"
+        createDescription="Create a new incident type for your workspace."
+        createPath={incidentTypesPath()}
+        editPath={incidentTypePath}
+        defaultColor={DEFAULT_TYPE_COLOR}
         namePlaceholder="e.g. Outage, Degradation, Security"
         descriptionPlaceholder="When should this type be used?"
-        initial={{ name: "", description: "", color: DEFAULT_TYPE_COLOR }}
-        action={incidentTypesPath()}
-        method="post"
       />
-
-      {editing && (
-        <OptionDialog
-          open
-          onOpenChange={(open) => { if (!open) setEditing(null) }}
-          title="Edit incident type"
-          description="Update the name, description, or color. The default is set from the list."
-          submitLabel="Save changes"
-          initial={{
-            id: editing.id,
-            name: editing.name,
-            description: editing.description ?? "",
-            color: editing.color ?? DEFAULT_TYPE_COLOR,
-          }}
-          action={incidentTypePath(editing.id)}
-          method="patch"
-        />
-      )}
 
       <ConfirmDeleteDialog
         open={Boolean(deleting)}

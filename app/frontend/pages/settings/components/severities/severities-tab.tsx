@@ -21,12 +21,11 @@ import {
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
-import { OptionDialog } from "@/pages/settings/components/option-dialog"
+import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
 
 export function SeveritiesTab({ severities }: { severities: IncidentSeveritySettings[] }) {
-  const [editing, setEditing] = useState<IncidentSeveritySettings | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [dialog, setDialog] = useState<OptionDialogState<IncidentSeveritySettings>>(null)
   const [deleting, setDeleting] = useState<IncidentSeveritySettings | null>(null)
 
   return (
@@ -39,7 +38,7 @@ export function SeveritiesTab({ severities }: { severities: IncidentSeveritySett
               Define severity levels for classifying incident impact. Drag to reorder, most severe at the top.
             </CardDescription>
           </div>
-          <Button size="sm" onClick={() => setCreating(true)}>
+          <Button size="sm" onClick={() => setDialog({ mode: "create" })}>
             <IconPlus className="size-4" />
             Add Severity
           </Button>
@@ -56,8 +55,7 @@ export function SeveritiesTab({ severities }: { severities: IncidentSeveritySett
               {severity.description}
             </TableCell>
           )}
-          onReorder={(orderedIds) =>
-            router.patch(reorderIncidentSeveritiesPath(), { ordered_ids: orderedIds }, { preserveScroll: true })}
+          reorderPath={reorderIncidentSeveritiesPath()}
           onMakeDefault={(id) =>
             router.patch(makeDefaultIncidentSeverityPath(id), {}, { preserveScroll: true })}
           onToggleEnabled={(severity) =>
@@ -66,46 +64,26 @@ export function SeveritiesTab({ severities }: { severities: IncidentSeveritySett
               {},
               { preserveScroll: true },
             )}
-          onEdit={setEditing}
+          onEdit={(option) => setDialog({ mode: "edit", option })}
           onDelete={setDeleting}
         />
       </CardContent>
 
       <OptionDialog
-        open={creating}
-        onOpenChange={setCreating}
-        title="Add Severity"
-        description="Create a new severity level for your workspace."
-        submitLabel="Create Severity"
+        state={dialog}
+        onClose={() => setDialog(null)}
+        noun="Severity"
+        createPath={incidentSeveritiesPath()}
+        editPath={incidentSeverityPath}
+        defaultColor="#FF6B35"
         namePlaceholder="e.g. Moderate"
         descriptionPlaceholder="When should this severity be assigned?"
-        initial={{ name: "", description: "", color: "#FF6B35" }}
-        action={incidentSeveritiesPath()}
-        method="post"
         footnote={
           <p className="text-xs text-muted-foreground">
             New severities are added at the bottom as the least severe. Drag to move it up the list.
           </p>
         }
       />
-
-      {editing && (
-        <OptionDialog
-          open
-          onOpenChange={(open) => { if (!open) setEditing(null) }}
-          title="Edit Severity"
-          description="Update the name, description, or color for this severity level."
-          submitLabel="Save Changes"
-          initial={{
-            id: editing.id,
-            name: editing.name,
-            description: editing.description ?? "",
-            color: editing.color,
-          }}
-          action={incidentSeverityPath(editing.id)}
-          method="patch"
-        />
-      )}
 
       <ConfirmDeleteDialog
         open={Boolean(deleting)}
