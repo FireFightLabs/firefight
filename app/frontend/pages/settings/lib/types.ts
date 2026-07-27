@@ -112,7 +112,7 @@ export interface ConfigurableOption {
   name: string
   color?: string | null
   enabled: boolean
-  isDefault: boolean
+  isDefault?: boolean
   deletionBlockedReason?: string
   disableBlockedReason?: string
   defaultBlockedReason?: string

@@ -1,8 +1,6 @@
-import { useState, type FormEvent } from "react"
-import { router, useForm } from "@inertiajs/react"
-import { IconGripVertical, IconPlus, IconShieldCheck } from "@tabler/icons-react"
-
-import { toast } from "sonner"
+import { useState } from "react"
+import { router } from "@inertiajs/react"
+import { IconPlus } from "@tabler/icons-react"
 
 import type { IncidentRole } from "@/types/serializers"
 import {
@@ -10,6 +8,7 @@ import {
   incidentRolePath,
   disableIncidentRolePath,
   enableIncidentRolePath,
+  reorderIncidentRolesPath,
 } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,59 +19,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Textarea } from "@/components/ui/textarea"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { TableCell, TableHead } from "@/components/ui/table"
+import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { OptionDialog } from "@/pages/settings/components/options/option-dialog"
+import { OptionsTable } from "@/pages/settings/components/options/options-table"
 
-interface RolesTabProps {
-  roles: IncidentRole[]
-}
-
-export function RolesTab({ roles }: RolesTabProps) {
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const form = useForm({ name: "", description: "" })
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    form.post(incidentRolesPath(), {
-      onSuccess: () => {
-        setDialogOpen(false)
-        form.reset()
-      },
-    })
-  }
-
-  function handleToggleEnabled(role: IncidentRole) {
-    router.patch(role.enabled ? disableIncidentRolePath(role.id) : enableIncidentRolePath(role.id))
-  }
-
-  function handleDelete(role: IncidentRole) {
-    if (!role.deletable) {
-      toast.error("This role is used by incidents and cannot be deleted. You can disable it instead.")
-      return
-    }
-    router.delete(incidentRolePath(role.id))
-  }
+export function RolesTab({ roles }: { roles: IncidentRole[] }) {
+  const [editing, setEditing] = useState<IncidentRole | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [deleting, setDeleting] = useState<IncidentRole | null>(null)
 
   return (
     <Card>
@@ -81,111 +36,88 @@ export function RolesTab({ roles }: RolesTabProps) {
           <div>
             <CardTitle>Incident Roles</CardTitle>
             <CardDescription className="mt-1">
-              Define the roles that can be assigned to team members during an incident.
+              Define the roles that can be assigned to team members during an incident. Drag to reorder.
             </CardDescription>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <IconPlus className="size-4" />
-                Add Role
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <form onSubmit={handleSubmit}>
-                <DialogHeader>
-                  <DialogTitle>Add Role</DialogTitle>
-                  <DialogDescription>
-                    Create a new incident role for your workspace.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col gap-4 py-4">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="role-name">Name</Label>
-                    <Input
-                      id="role-name"
-                      placeholder="e.g. Operations Lead"
-                      value={form.data.name}
-                      onChange={(e) => form.setData("name", e.target.value)}
-                    />
-                    {form.errors.name && (
-                      <p className="text-xs text-destructive">{form.errors.name}</p>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="role-desc">Description</Label>
-                    <Textarea
-                      id="role-desc"
-                      placeholder="What is this role responsible for?"
-                      rows={3}
-                      value={form.data.description}
-                      onChange={(e) => form.setData("description", e.target.value)}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline" type="button">Cancel</Button>
-                  </DialogClose>
-                  <Button type="submit" disabled={form.processing}>
-                    Create Role
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <IconPlus className="size-4" />
+            Add Role
+          </Button>
         </div>
       </CardHeader>
+
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="w-8" />
-              <TableHead>Name</TableHead>
+        <OptionsTable
+          options={roles}
+          nameHeader="Name"
+          headers={
+            <>
               <TableHead className="hidden md:table-cell">Description</TableHead>
-              <TableHead className="w-24 text-center">Enabled</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {roles.map((role) => (
-              <TableRow key={role.id} className={!role.enabled ? "opacity-50" : undefined}>
-                <TableCell>
-                  {!role.system && role.enabled && (
-                    <IconGripVertical className="size-4 text-muted-foreground/50 cursor-grab" />
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{role.name}</span>
-                    {role.system && (
-                      <Badge variant="outline" className="text-xs gap-1">
-                        <IconShieldCheck className="size-3" />
-                        System
-                      </Badge>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
+              <TableHead className="w-28 text-center">Incidents</TableHead>
+            </>
+          }
+          cells={(role) => (
+            <>
+              <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
+                <span className="flex items-center gap-2">
                   {role.description}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Switch
-                    checked={role.enabled}
-                    disabled={role.system}
-                    onCheckedChange={() => handleToggleEnabled(role)}
-                  />
-                </TableCell>
-                <TableCell>
-                  {!role.system && (
-                    <RowActions onEdit={() => {}} onDelete={() => handleDelete(role)} />
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                  {role.system && <Badge variant="secondary" className="text-[10px]">Built in</Badge>}
+                </span>
+              </TableCell>
+              <TableCell className="text-center">
+                <Badge variant="outline" className="font-mono tabular-nums">{role.incidentCount}</Badge>
+              </TableCell>
+            </>
+          )}
+          onReorder={(orderedIds) =>
+            router.patch(reorderIncidentRolesPath(), { ordered_ids: orderedIds }, { preserveScroll: true })}
+          onToggleEnabled={(role) =>
+            router.patch(
+              role.enabled ? disableIncidentRolePath(role.id) : enableIncidentRolePath(role.id),
+              {},
+              { preserveScroll: true },
+            )}
+          onEdit={setEditing}
+          onDelete={setDeleting}
+        />
       </CardContent>
+
+      <OptionDialog
+        open={creating}
+        onOpenChange={setCreating}
+        title="Add Role"
+        description="Create a new incident role for your workspace."
+        submitLabel="Create Role"
+        namePlaceholder="e.g. Operations Lead"
+        descriptionPlaceholder="What is this role responsible for?"
+        initial={{ name: "", description: "" }}
+        action={incidentRolesPath()}
+        method="post"
+      />
+
+      {editing && (
+        <OptionDialog
+          open
+          onOpenChange={(open) => { if (!open) setEditing(null) }}
+          title="Edit Role"
+          description="Update the name or description for this role."
+          submitLabel="Save Changes"
+          initial={{ id: editing.id, name: editing.name, description: editing.description ?? "" }}
+          action={incidentRolePath(editing.id)}
+          method="patch"
+        />
+      )}
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleting)}
+        title={`Delete ${deleting?.name ?? "this role"}?`}
+        description="No incidents use this role, so nothing loses its history. It disappears from the role picker straight away."
+        onConfirm={() => {
+          if (!deleting) return
+          router.delete(incidentRolePath(deleting.id), { onFinish: () => setDeleting(null) })
+        }}
+        onCancel={() => setDeleting(null)}
+      />
     </Card>
   )
 }

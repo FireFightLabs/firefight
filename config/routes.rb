@@ -171,7 +171,10 @@ Rails.application.routes.draw do
         patch :make_default
       end
     end
-    resources :incident_roles, only: [ :create, :destroy ], path: "settings/roles" do
+    resources :incident_roles, only: [ :create, :update, :destroy ], path: "settings/roles" do
+      collection do
+        patch :reorder
+      end
       member do
         patch :disable
         patch :enable

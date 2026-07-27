@@ -15,16 +15,26 @@ class IncidentRoleSerializer < BaseSerializer
 
   type :boolean
   def enabled
-    role.deleted_at.nil?
-  end
-
-  type :boolean
-  def deletable
-    role.slug != IncidentRole::SLUG_INCIDENT_LEAD && !role.incident_role_assignments.exists?
+    role.enabled?
   end
 
   type :boolean
   def system
-    role.slug == IncidentRole::SLUG_INCIDENT_LEAD
+    role.system?
+  end
+
+  type :number
+  def incident_count
+    role.usage_count
+  end
+
+  type :string, optional: true
+  def deletion_blocked_reason
+    role.deletion_blocked_reason
+  end
+
+  type :string, optional: true
+  def disable_blocked_reason
+    role.disable_blocked_reason
   end
 end

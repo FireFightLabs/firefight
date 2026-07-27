@@ -27,6 +27,7 @@ function Blocked({ reason, children }: { reason: string; children: ReactNode }) 
 export function SortableOptionRow({
   option,
   fallbackColor,
+  showDefault = true,
   children,
   onToggleEnabled,
   onEdit,
@@ -34,6 +35,7 @@ export function SortableOptionRow({
 }: {
   option: ConfigurableOption
   fallbackColor?: string
+  showDefault?: boolean
   // Cells between the name and the Default column.
   children?: ReactNode
   onToggleEnabled: () => void
@@ -80,13 +82,14 @@ export function SortableOptionRow({
 
       <TableCell>
         <div className="flex items-center gap-2.5">
-          <ColorDot color={option.color ?? fallbackColor ?? "#6B7280"} />
+          {(option.color ?? fallbackColor) && <ColorDot color={option.color ?? fallbackColor!} />}
           <span className="font-medium">{option.name}</span>
         </div>
       </TableCell>
 
       {children}
 
+      {showDefault && (
       <TableCell className="text-center">
         {option.defaultBlockedReason ? (
           <Blocked reason={option.defaultBlockedReason}>
@@ -96,6 +99,7 @@ export function SortableOptionRow({
           <RadioGroupItem value={option.id} aria-label={`Make ${option.name} the default`} />
         )}
       </TableCell>
+      )}
 
       <TableCell className="text-center">
         {option.disableBlockedReason ? (

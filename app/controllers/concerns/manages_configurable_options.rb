@@ -16,7 +16,7 @@ module ManagesConfigurableOptions
       name: name,
       slug: name.parameterize(separator: "_"),
       description: params[:description],
-      color: params[:color].presence || DEFAULT_COLOR,
+      **color_attribute,
       **create_attributes
     )
 
@@ -27,8 +27,11 @@ module ManagesConfigurableOptions
     redirect_back fallback_location: options_path, inertia: { errors: e.record.errors.to_hash }
   end
 
+  # Renaming leaves the slug alone: it is the stable handle other code and
+  # stored records refer to.
   def update
     attrs = { name: params[:name], description: params[:description], color: params[:color] }.compact
+    attrs.delete(:color) unless option_model.colored?
 
     if @option.update(attrs)
       redirect_to options_path
@@ -81,9 +84,15 @@ module ManagesConfigurableOptions
     raise NotImplementedError
   end
 
-  # Attributes beyond the shared name, slug, description and colour.
+  # Attributes beyond the shared ones, for models that need more.
   def create_attributes
     {}
+  end
+
+  def color_attribute
+    return {} unless option_model.colored?
+
+    { color: params[:color].presence || DEFAULT_COLOR }
   end
 
   def noun

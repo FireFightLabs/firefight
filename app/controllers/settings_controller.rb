@@ -11,7 +11,7 @@ class SettingsController < InertiaController
 
   def roles
     render inertia: "settings/roles", props: {
-      roles: IncidentRoleSerializer.many(IncidentRole.all_for_workspace(current_workspace))
+      roles: IncidentRoleSerializer.many(current_workspace.incident_roles.ordered.with_usage_counts)
     }
   end
 
@@ -24,7 +24,7 @@ class SettingsController < InertiaController
   def severities
     render inertia: "settings/severities", props: {
       severities: IncidentSeveritySettingsSerializer.many(
-        current_workspace.incident_severities.ordered.with_incident_counts
+        current_workspace.incident_severities.ordered.with_usage_counts
       )
     }
   end
@@ -32,7 +32,7 @@ class SettingsController < InertiaController
   def types
     render inertia: "settings/types", props: {
       types: IncidentTypeSettingsSerializer.many(
-        current_workspace.incident_types.ordered.with_incident_counts
+        current_workspace.incident_types.ordered.with_usage_counts
       )
     }
   end
@@ -43,10 +43,10 @@ class SettingsController < InertiaController
         current_workspace.runbooks.active.ordered.includes(:runbook_steps, :incident_conditions)
       ),
       incidentTypes: IncidentTypeSettingsSerializer.many(
-        current_workspace.incident_types.active.ordered.with_incident_counts
+        current_workspace.incident_types.active.ordered.with_usage_counts
       ),
       severities: IncidentSeveritySettingsSerializer.many(
-        current_workspace.incident_severities.ordered.with_incident_counts
+        current_workspace.incident_severities.ordered.with_usage_counts
       ),
       customFields: RunbookCustomFieldSerializer.many(
         current_workspace.incident_field_definitions.active.ordered
@@ -81,10 +81,10 @@ class SettingsController < InertiaController
         current_workspace.incident_field_definitions.active.ordered
       ),
       incidentTypes: IncidentTypeSettingsSerializer.many(
-        current_workspace.incident_types.active.ordered.with_incident_counts
+        current_workspace.incident_types.active.ordered.with_usage_counts
       ),
       severities: IncidentSeveritySettingsSerializer.many(
-        current_workspace.incident_severities.ordered.with_incident_counts
+        current_workspace.incident_severities.ordered.with_usage_counts
       )
     }
   end
@@ -151,7 +151,7 @@ class SettingsController < InertiaController
         current_workspace.alert_sources.order(:created_at)
       ),
       severities: IncidentSeveritySettingsSerializer.many(
-        current_workspace.incident_severities.active.ordered.with_incident_counts
+        current_workspace.incident_severities.active.ordered.with_usage_counts
       )
     }
   end
@@ -183,7 +183,7 @@ class SettingsController < InertiaController
       alertSource: source ? { id: source.id, name: source.name } : nil,
       hasWorkspaceFallback: current_workspace.alert_routing_policy.present?,
       severities: IncidentSeveritySettingsSerializer.many(
-        current_workspace.incident_severities.active.ordered.with_incident_counts
+        current_workspace.incident_severities.active.ordered.with_usage_counts
       ),
       channels: workspace_channels,
       members: WorkspaceMembershipSerializer.many(
@@ -272,7 +272,7 @@ class SettingsController < InertiaController
   def build_lifecycle_stages
     statuses_by_stage = current_workspace.incident_statuses
       .ordered
-      .with_incident_counts
+      .with_usage_counts
       .includes(:incident_lifecycle_stage)
       .group_by { |s| s.incident_lifecycle_stage.key }
 

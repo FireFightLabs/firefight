@@ -247,33 +247,33 @@ class IncidentSeverityTest < ActiveSupport::TestCase
   # DELETABILITY
   # ============================================================================
 
-  test "with_incident_counts attaches the count without an extra query per row" do
+  test "with_usage_counts attaches the count without an extra query per row" do
     workspace = workspaces(:slack_workspace_one)
-    severities = workspace.incident_severities.ordered.with_incident_counts.to_a
+    severities = workspace.incident_severities.ordered.with_usage_counts.to_a
 
     expected = workspace.incidents.group(:incident_severity_id).count
     severities.each do |severity|
-      assert_equal expected.fetch(severity.id, 0), severity.incident_count
+      assert_equal expected.fetch(severity.id, 0), severity.usage_count
     end
   end
 
   test "incident_count falls back to a query when the scope was not applied" do
     severity = incident_severities(:critical_ws1)
-    assert_equal severity.incidents.count, severity.incident_count
+    assert_equal severity.incidents.count, severity.usage_count
   end
 
   test "deletion_blocked_reason names the incident count" do
     severity = incident_severities(:critical_ws1)
 
-    assert_predicate severity.incident_count, :positive?
-    assert_match(/in use by #{severity.incident_count} incidents/, severity.deletion_blocked_reason)
+    assert_predicate severity.usage_count, :positive?
+    assert_match(/in use by #{severity.usage_count} incidents/, severity.deletion_blocked_reason)
   end
 
   test "deletion_blocked_reason is nil for a severity no incident uses" do
     severity = workspaces(:slack_workspace_one).incident_severities.new(name: "Unused", slug: "unused")
     severity.save_in_position!
 
-    assert_equal 0, severity.incident_count
+    assert_equal 0, severity.usage_count
     assert_nil severity.deletion_blocked_reason
   end
 

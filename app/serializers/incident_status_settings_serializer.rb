@@ -22,7 +22,7 @@ class IncidentStatusSettingsSerializer < BaseSerializer
 
   type :number
   def incident_count
-    status.incident_count
+    status.usage_count
   end
 
   type :string, optional: true

@@ -20,7 +20,8 @@ export interface OptionDraft {
   id?: string
   name: string
   description: string
-  color: string
+  // Omitted for option lists that have no colour.
+  color?: string
 }
 
 export function OptionDialog({
@@ -108,14 +109,16 @@ export function OptionDialog({
               />
             </div>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={fieldId("color")}>Color</Label>
-              <ColorPicker
-                id={fieldId("color")}
-                value={draft.color}
-                onChange={(color) => setDraft({ ...draft, color })}
-              />
-            </div>
+            {draft.color !== undefined && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={fieldId("color")}>Color</Label>
+                <ColorPicker
+                  id={fieldId("color")}
+                  value={draft.color}
+                  onChange={(color) => setDraft({ ...draft, color })}
+                />
+              </div>
+            )}
 
             {footnote}
           </div>

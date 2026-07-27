@@ -1,5 +1,8 @@
 class IncidentStatus < ApplicationRecord
   include ConfigurableOption
+  include DefaultableOption
+
+  has_many :incidents, dependent: :restrict_with_error
 
   NOUN = "status".freeze
 
@@ -14,7 +17,7 @@ class IncidentStatus < ApplicationRecord
   delegate :triage?, :active?, :closed?, :canceled?, to: :incident_lifecycle_stage
   delegate :name, to: :incident_lifecycle_stage, prefix: :stage
 
-  def self.with_incident_counts
+  def self.with_usage_counts
     super.select(
       "(SELECT COUNT(*) FROM #{table_name} siblings" \
       " WHERE siblings.workspace_id = #{table_name}.workspace_id" \

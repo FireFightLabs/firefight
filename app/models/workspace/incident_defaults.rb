@@ -24,9 +24,6 @@ module Workspace::IncidentDefaults
     { name: "Third Party", slug: "third_party", position: 5, is_default: false, color: "#10B981", description: "Vendor or external dependency outage affecting your systems." }
   ].freeze
 
-  # Lead role is defined in IncidentRole::DEFAULTS and materialized on
-  # demand via Workspace#ensure_incident_role!. No seeding required.
-
   # Forms are defined in IncidentForm::DEFAULTS and materialized on
   # demand via Workspace#ensure_incident_form!. No seeding required.
 
@@ -35,6 +32,7 @@ module Workspace::IncidentDefaults
       create_default_severities!
       create_default_statuses!
       create_default_types!
+      create_default_roles!
     end
 
     Rails.logger.info({
@@ -68,6 +66,10 @@ module Workspace::IncidentDefaults
       stage = IncidentLifecycleStage.find_by!(key: status_data[:stage])
       incident_statuses.create!(**attrs, incident_lifecycle_stage: stage)
     end
+  end
+
+  def create_default_roles!
+    IncidentRole::DEFAULTS.each { |attrs| incident_roles.create!(attrs) }
   end
 
   def create_default_types!

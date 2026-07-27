@@ -1,5 +1,8 @@
 class IncidentSeverity < ApplicationRecord
   include ConfigurableOption
+  include DefaultableOption
+
+  has_many :incidents, dependent: :restrict_with_error
 
   NOUN = "severity".freeze
   SLUG_CRITICAL = "critical"
