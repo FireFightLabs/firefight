@@ -1,4 +1,9 @@
 class Runbook < ApplicationRecord
+  include Positioned
+  include OptionGuards
+
+  NOUN = "runbook".freeze
+
   belongs_to :workspace
 
   has_many :runbook_steps, -> { order(:position) }, dependent: :destroy
@@ -14,6 +19,10 @@ class Runbook < ApplicationRecord
 
   scope :active, -> { where(deleted_at: nil) }
   scope :ordered, -> { order(:position) }
+
+  def self.usage_association
+    :incident_runbooks
+  end
 
   def self.generate_slug(name)
     name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")

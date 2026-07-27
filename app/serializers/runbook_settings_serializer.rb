@@ -29,4 +29,19 @@ class RunbookSettingsSerializer < BaseSerializer
       }
     end
   end
+
+  type :number
+  def usage_count
+    runbook.usage_count
+  end
+
+  type :boolean
+  def enabled
+    runbook.enabled?
+  end
+
+  type :string, optional: true
+  def deletion_blocked_reason
+    runbook.deletion_blocked_reason
+  end
 end

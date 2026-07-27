@@ -32,6 +32,16 @@ class IncidentFieldDefinitionSettingsSerializer < BaseSerializer
 
   type :number
   def usage_count
-    field_definition.incident_form_fields.count
+    field_definition.usage_count
+  end
+
+  type :boolean
+  def enabled
+    field_definition.enabled?
+  end
+
+  type :string, optional: true
+  def deletion_blocked_reason
+    field_definition.deletion_blocked_reason
   end
 end

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { router } from "@inertiajs/react"
 import { incidentFormFieldPath } from "@/lib/routes"
 import {
@@ -8,12 +8,10 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core"
-import type { DragEndEvent } from "@dnd-kit/core"
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers"
 import {
   SortableContext,
   verticalListSortingStrategy,
-  arrayMove,
 } from "@dnd-kit/sortable"
 import {
   IconPlayerPlay,
@@ -31,6 +29,7 @@ import type {
 } from "@/pages/settings/lib/types"
 import type { IncidentSeveritySettings, IncidentTypeSettings } from "@/types/serializers"
 import { reorderIncidentFormFieldsPath } from "@/lib/routes"
+import { useOptimisticOrder } from "@/pages/settings/lib/reorder"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,6 +40,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { AddFieldDialog } from "@/pages/settings/components/forms/add-field-dialog"
+import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { SortableFieldRow } from "@/pages/settings/components/forms/sortable-field-row"
 
 function iconForForm(slug: string) {
@@ -88,6 +88,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
   }, [forms, selectedFormId])
 
   const [addFieldOpen, setAddFieldOpen] = useState(false)
+  const [removing, setRemoving] = useState<IncidentFormFieldSettings | null>(null)
 
   const availableFields = useMemo(() => {
     if (!selectedForm) return []
@@ -101,30 +102,8 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
     }),
   )
 
-  const fieldIds = useMemo(
-    () => selectedForm?.fields.map((f) => f.id) ?? [],
-    [selectedForm?.fields],
-  )
+  const { ordered: orderedFields, onDragEnd } = useOptimisticOrder(selectedForm?.fields ?? [])
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    if (!selectedForm) return
-
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = selectedForm.fields.findIndex((f) => f.id === active.id)
-    const newIndex = selectedForm.fields.findIndex((f) => f.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-
-    const reordered = arrayMove(selectedForm.fields, oldIndex, newIndex)
-
-    router.patch(reorderIncidentFormFieldsPath(), {
-      incident_form_id: selectedForm.id,
-      ordered_ids: reordered.map((f) => f.id),
-    }, {
-      preserveScroll: true,
-    })
-  }, [selectedForm])
 
   function handleUpdateField(field: IncidentFormFieldSettings, next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) {
     if (field.isDefault) return
@@ -151,9 +130,12 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
     })
   }
 
-  function handleRemoveField(field: IncidentFormFieldSettings) {
-    if (field.isDefault) return
-    router.delete(incidentFormFieldPath(field.id), { preserveScroll: true })
+  function confirmRemoveField() {
+    if (!removing) return
+    router.delete(incidentFormFieldPath(removing.id), {
+      preserveScroll: true,
+      onFinish: () => setRemoving(null),
+    })
   }
 
   return (
@@ -217,10 +199,14 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 modifiers={[restrictToVerticalAxis]}
-                onDragEnd={handleDragEnd}
+                onDragEnd={(event) => onDragEnd(event, (orderedIds, onFailure) =>
+                  router.patch(reorderIncidentFormFieldsPath(), {
+                    incident_form_id: selectedForm.id,
+                    ordered_ids: orderedIds,
+                  }, { preserveScroll: true, onError: onFailure }))}
               >
-                <SortableContext items={fieldIds} strategy={verticalListSortingStrategy}>
-                  {selectedForm.fields.map((field) => (
+                <SortableContext items={orderedFields.map((field) => field.id)} strategy={verticalListSortingStrategy}>
+                  {orderedFields.map((field) => (
                     <SortableFieldRow
                       key={field.id}
                       field={field}
@@ -228,7 +214,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
                       severities={severities}
                       onUpdate={(next) => handleUpdateField(field, next)}
                       onUpdateConditions={(conditions) => handleUpdateConditions(field, conditions)}
-                      onRemove={() => handleRemoveField(field)}
+                      onRemove={() => setRemoving(field)}
                     />
                   ))}
                 </SortableContext>
@@ -237,6 +223,15 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
           </Card>
         )}
       </div>
+
+      <ConfirmDeleteDialog
+        open={Boolean(removing)}
+        title={`Remove ${removing?.name ?? "this field"} from the form?`}
+        description="The field definition itself is kept, so you can add it back at any time. Existing incidents keep the values they already have."
+        confirmLabel="Remove"
+        onConfirm={confirmRemoveField}
+        onCancel={() => setRemoving(null)}
+      />
 
       {selectedForm && (
         <AddFieldDialog

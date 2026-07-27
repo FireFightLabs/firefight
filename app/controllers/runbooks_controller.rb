@@ -1,7 +1,7 @@
 class RunbooksController < InertiaController
   before_action :require_authentication
   before_action :require_admin!
-  before_action :set_runbook, only: [ :update, :destroy ]
+  before_action :set_runbook, only: [ :update, :destroy, :disable, :enable ]
 
   def create
     runbook = current_workspace.runbooks.new(
@@ -36,20 +36,42 @@ class RunbooksController < InertiaController
       @runbook.sync_conditions!(condition_params) if params.key?(:conditions)
     end
 
-    redirect_to settings_runbooks_path
+    redirect_to settings_runbooks_path, notice: "#{@runbook.name} was updated."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_runbooks_path, inertia: { errors: e.record.errors.to_hash }
   end
 
-  def destroy
+  def disable
     @runbook.update!(deleted_at: Time.current)
-    redirect_to settings_runbooks_path
+    redirect_to settings_runbooks_path, notice: "#{@runbook.name} was disabled."
+  end
+
+  def enable
+    @runbook.update!(deleted_at: nil)
+    redirect_to settings_runbooks_path, notice: "#{@runbook.name} was enabled."
+  end
+
+  # Deletes only when nothing references it. Previously this always soft-deleted
+  # with no enable control anywhere, so a "deleted" runbook was unreachable but
+  # still holding its slug.
+  def destroy
+    if @runbook.deletion_blocked_reason
+      return redirect_to settings_runbooks_path, alert: @runbook.deletion_blocked_reason
+    end
+
+    @runbook.destroy!
+    redirect_to settings_runbooks_path, notice: "#{@runbook.name} was deleted."
+  end
+
+  def reorder
+    Runbook.reorder!(current_workspace, params.require(:ordered_ids))
+    redirect_to settings_runbooks_path, notice: "Runbook order updated."
   end
 
   private
 
   def set_runbook
-    @runbook = current_workspace.runbooks.active.find(params[:id])
+    @runbook = current_workspace.runbooks.find(params[:id])
   end
 
   def step_params

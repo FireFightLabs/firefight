@@ -28,4 +28,9 @@ class WebhookSerializer < BaseSerializer
   def recent_deliveries
     webhook.webhook_deliveries.order(created_at: :desc).limit(10)
   end
+
+  type :number
+  def delivery_count
+    webhook.webhook_deliveries.size
+  end
 end

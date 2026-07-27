@@ -3,6 +3,7 @@ import {
   IconCircleX,
   IconWebhook,
 } from "@tabler/icons-react"
+import { useState } from "react"
 import { router } from "@inertiajs/react"
 
 import type { Webhook } from "@/types/serializers"
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/table"
 import { AddWebhookDialog } from "@/pages/settings/components/webhooks/add-webhook-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
+import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { WebhookDetailSheet } from "@/pages/settings/components/webhooks/webhook-detail-sheet"
 
 export function WebhooksTab({
@@ -39,9 +41,11 @@ export function WebhooksTab({
   const detailWebhook = activeWebhookId
     ? webhooks.find((w) => w.id === activeWebhookId) ?? null
     : null
+  const [deleting, setDeleting] = useState<Webhook | null>(null)
 
-  function handleDelete(webhook: Webhook) {
-    router.delete(webhookPath(webhook.id))
+  function confirmDelete() {
+    if (!deleting) return
+    router.delete(webhookPath(deleting.id), { onFinish: () => setDeleting(null) })
   }
 
   return (
@@ -103,7 +107,7 @@ export function WebhooksTab({
                       )}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <RowActions onEdit={() => onWebhookSelect(webhook.id)} onDelete={() => handleDelete(webhook)} />
+                      <RowActions onEdit={() => onWebhookSelect(webhook.id)} onDelete={() => setDeleting(webhook)} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -118,6 +122,18 @@ export function WebhooksTab({
           </CardContent>
         )}
       </Card>
+      <ConfirmDeleteDialog
+        open={Boolean(deleting)}
+        title={`Delete ${deleting?.name ?? "this webhook"}?`}
+        description={
+          deleting && deleting.deliveryCount > 0
+            ? `This also deletes ${deleting.deliveryCount} delivery ${deleting.deliveryCount === 1 ? "record" : "records"}, so the history of what was sent goes with it. Deactivate instead to stop deliveries and keep the log.`
+            : "It stops receiving events straight away. No deliveries have been recorded yet, so nothing else is lost."
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleting(null)}
+      />
+
       <WebhookDetailSheet
         webhook={detailWebhook}
         open={detailWebhook !== null}

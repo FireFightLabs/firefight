@@ -1,4 +1,10 @@
 class IncidentFieldDefinition < ApplicationRecord
+  include Positioned
+  include OptionGuards
+
+  NOUN = "custom field".freeze
+  USAGE_NOUN = "form".freeze
+
   TYPE_TEXT = "text"
   TYPE_NUMBER = "number"
   TYPE_SINGLE_SELECT = "single_select"
@@ -37,6 +43,10 @@ class IncidentFieldDefinition < ApplicationRecord
 
   scope :active, -> { where(deleted_at: nil) }
   scope :ordered, -> { order(:position, :created_at) }
+
+  def self.usage_association
+    :incident_form_fields
+  end
 
   def self.generate_key(name)
     name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
