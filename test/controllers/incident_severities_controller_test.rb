@@ -10,18 +10,65 @@ class IncidentSeveritiesControllerTest < ActionDispatch::IntegrationTest
     sign_in(@user, @workspace)
   end
 
-  test "create assigns next position atomically" do
-    post incident_severities_url, params: { name: "Brand New", rank: 99 }
+  test "create appends the severity last and makes it the least severe" do
+    post incident_severities_url, params: { name: "Brand New" }
     assert_response :redirect
 
+    ordered = @workspace.incident_severities.ordered
     severity = IncidentSeverity.find_by!(name: "Brand New", workspace: @workspace)
-    max = IncidentSeverity.where(workspace: @workspace).where.not(id: severity.id).maximum(:position)
-    assert_equal max.to_i + 1, severity.position
+
+    assert_equal severity, ordered.last
+    assert_equal ordered.count, severity.position
+    assert_equal 1, severity.rank
   end
 
-  test "create with invalid params re-renders settings with errors" do
-    post incident_severities_url, params: { name: "Dup", rank: "nope" }
+  test "create renumbers every rank from the resulting order" do
+    post incident_severities_url, params: { name: "Brand New" }
+
+    ordered = @workspace.incident_severities.ordered.to_a
+    expected = (1..ordered.size).to_a.reverse
+
+    assert_equal expected, ordered.map(&:rank)
+    assert_equal (1..ordered.size).to_a, ordered.map(&:position)
+  end
+
+  test "create with a blank name re-renders settings with errors" do
+    post incident_severities_url, params: { name: "" }
     assert_response :redirect
+  end
+
+  test "reorder rewrites positions and derives rank from the new order" do
+    ordered = @workspace.incident_severities.ordered.to_a
+    reversed = ordered.reverse
+
+    patch reorder_incident_severities_url, params: { ordered_ids: reversed.map(&:id) }
+    assert_response :redirect
+
+    result = @workspace.incident_severities.ordered.to_a
+    assert_equal reversed.map(&:id), result.map(&:id)
+    assert_equal (1..result.size).to_a, result.map(&:position)
+    assert_equal (1..result.size).to_a.reverse, result.map(&:rank)
+  end
+
+  test "reorder keeps severities missing from the payload at the end" do
+    ordered = @workspace.incident_severities.ordered.to_a
+    partial = [ ordered.last ]
+
+    patch reorder_incident_severities_url, params: { ordered_ids: partial.map(&:id) }
+
+    result = @workspace.incident_severities.ordered.to_a
+    assert_equal ordered.last.id, result.first.id
+    assert_equal ordered.size, result.size
+  end
+
+  test "reorder ignores ids from another workspace" do
+    foreign = incident_severities(:p0_ws2)
+    ordered = @workspace.incident_severities.ordered.to_a
+
+    patch reorder_incident_severities_url, params: { ordered_ids: [ foreign.id ] + ordered.map(&:id) }
+
+    assert_equal ordered.map(&:id), @workspace.incident_severities.ordered.map(&:id)
+    assert_equal 1, foreign.reload.position
   end
 
   test "destroy alerts when severity is in use and names the incident count" do

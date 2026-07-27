@@ -143,6 +143,9 @@ Rails.application.routes.draw do
       end
     end
     resources :incident_severities, only: [ :create, :update, :destroy ], path: "settings/severities" do
+      collection do
+        patch :reorder
+      end
       member do
         patch :disable
         patch :enable

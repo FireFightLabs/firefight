@@ -24,6 +24,30 @@ class IncidentSeverity < ApplicationRecord
   scope :by_rank, -> { order(rank: :desc) } # Highest severity first
   scope :default_severity, -> { active.find_by(is_default: true) }
 
+  # Position is the source of truth for how severe a severity is: first in the
+  # list is the most severe. rank is a derived mirror kept in step so existing
+  # consumers (the public API, `/firefight list` ordering) keep working and can
+  # never drift from the order the settings screen shows.
+  #
+  # Ids not in ordered_ids keep their relative order at the end, so a partial
+  # list cannot silently drop rows.
+  def self.reorder!(workspace, ordered_ids)
+    scope = workspace.incident_severities
+    known = scope.ordered.pluck(:id)
+    requested = ordered_ids.map(&:to_s).select { |id| known.include?(id) }
+    final = requested + (known - requested)
+    return if final.empty?
+
+    transaction do
+      # The unique [workspace_id, position] index rules out writing final
+      # positions in place, so park every row out of range first.
+      scope.update_all("position = -position - 1")
+      final.each_with_index do |id, index|
+        scope.where(id: id).update_all(position: index + 1, rank: final.size - index)
+      end
+    end
+  end
+
   # Reads the count attached by with_incident_counts, falling back to a query
   # so a caller that forgot the scope gets a correct answer, not a permissive one.
   def incident_count

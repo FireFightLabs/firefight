@@ -6,15 +6,19 @@ class IncidentSeveritiesController < InertiaController
   before_action :set_severity, only: [ :update, :disable, :enable, :destroy ]
 
   def create
+    name = params[:name].to_s.strip
     severity = current_workspace.incident_severities.new(
-      name: params.require(:name),
-      slug: params.require(:name).parameterize(separator: "_"),
+      name: name,
+      slug: name.parameterize(separator: "_"),
       description: params[:description],
       color: params[:color] || "#6B7280",
-      rank: params.require(:rank).to_i
+      rank: 1
     )
 
+    # Appended last, so least severe. renumber! then derives every rank from
+    # the resulting order rather than trusting the placeholder above.
     severity.save_in_position!
+    renumber!
     redirect_to settings_severities_path
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_severities_path, inertia: { errors: e.record.errors.to_hash }
@@ -51,10 +55,21 @@ class IncidentSeveritiesController < InertiaController
     end
 
     @severity.destroy!
+    renumber!
     redirect_to settings_severities_path, notice: "#{@severity.name} was deleted."
   end
 
+  def reorder
+    IncidentSeverity.reorder!(current_workspace, params.require(:ordered_ids))
+    redirect_to settings_severities_path
+  end
+
   private
+
+  # Closes the gaps a create or destroy leaves behind and re-derives every rank.
+  def renumber!
+    IncidentSeverity.reorder!(current_workspace, current_workspace.incident_severities.ordered.pluck(:id))
+  end
 
   def set_severity
     @severity = current_workspace.incident_severities.find(params[:id])

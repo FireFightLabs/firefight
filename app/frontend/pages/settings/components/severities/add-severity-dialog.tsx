@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 export function AddSeverityDialog() {
   const [open, setOpen] = useState(false)
-  const form = useForm({ name: "", description: "", rank: "1", color: "#FF6B35" })
+  const form = useForm({ name: "", description: "", color: "#FF6B35" })
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -71,41 +71,26 @@ export function AddSeverityDialog() {
                 onChange={(e) => form.setData("description", e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="sev-rank">Rank</Label>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="sev-color">Color</Label>
+              <div className="flex items-center gap-2">
                 <Input
-                  id="sev-rank"
-                  type="number"
-                  min={1}
-                  value={form.data.rank}
-                  onChange={(e) => form.setData("rank", e.target.value)}
+                  id="sev-color"
+                  type="color"
+                  value={form.data.color}
+                  onChange={(e) => form.setData("color", e.target.value)}
+                  className="h-9 w-12 cursor-pointer p-1"
                 />
-                {form.errors.rank && (
-                  <p className="text-xs text-destructive">{form.errors.rank}</p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Higher rank = more severe
-                </p>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="sev-color">Color</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="sev-color"
-                    type="color"
-                    value={form.data.color}
-                    onChange={(e) => form.setData("color", e.target.value)}
-                    className="h-9 w-12 cursor-pointer p-1"
-                  />
-                  <Input
-                    value={form.data.color}
-                    onChange={(e) => form.setData("color", e.target.value)}
-                    className="flex-1 font-mono text-sm"
-                  />
-                </div>
+                <Input
+                  value={form.data.color}
+                  onChange={(e) => form.setData("color", e.target.value)}
+                  className="flex-1 font-mono text-sm"
+                />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              New severities are added at the bottom as the least severe. Drag to move it up the list.
+            </p>
           </div>
           <DialogFooter>
             <DialogClose asChild>

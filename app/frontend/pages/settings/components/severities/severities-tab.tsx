@@ -1,14 +1,27 @@
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { router } from "@inertiajs/react"
-import { IconGripVertical } from "@tabler/icons-react"
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import type { DragEndEvent } from "@dnd-kit/core"
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers"
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable"
 
 import type { IncidentSeveritySettings } from "@/types/serializers"
 import {
   incidentSeverityPath,
   disableIncidentSeverityPath,
   enableIncidentSeverityPath,
+  reorderIncidentSeveritiesPath,
 } from "@/lib/routes"
-import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardContent,
@@ -16,20 +29,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 import { AddSeverityDialog } from "@/pages/settings/components/severities/add-severity-dialog"
-import { ColorDot } from "@/pages/settings/components/color-dot"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { EditSeverityDialog } from "@/pages/settings/components/severities/edit-severity-dialog"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { SortableSeverityRow } from "@/pages/settings/components/severities/sortable-severity-row"
 
 interface SeveritiesTabProps {
   severities: IncidentSeveritySettings[]
@@ -43,11 +53,30 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
   const [editingSeverity, setEditingSeverity] = useState<IncidentSeveritySettings | null>(null)
   const [deletingSeverity, setDeletingSeverity] = useState<IncidentSeveritySettings | null>(null)
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
   function handleToggleEnabled(severity: IncidentSeveritySettings) {
     router.patch(
       severity.enabled ? disableIncidentSeverityPath(severity.id) : enableIncidentSeverityPath(severity.id)
     )
   }
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = severities.findIndex((s) => s.id === active.id)
+    const newIndex = severities.findIndex((s) => s.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = arrayMove(severities, oldIndex, newIndex)
+
+    router.patch(reorderIncidentSeveritiesPath(), {
+      ordered_ids: reordered.map((s) => s.id),
+    }, {
+      preserveScroll: true,
+    })
+  }, [severities])
 
   function confirmDelete() {
     if (!deletingSeverity) return
@@ -71,72 +100,49 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
           <div>
             <CardTitle>Severities</CardTitle>
             <CardDescription className="mt-1">
-              Define severity levels for classifying incident impact. Higher rank means more severe.
+              Define severity levels for classifying incident impact. Drag to reorder, most severe at the top.
             </CardDescription>
           </div>
           <AddSeverityDialog />
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="w-8" />
-              <TableHead>Severity</TableHead>
-              <TableHead className="hidden md:table-cell">Description</TableHead>
-              <TableHead className="w-20 text-center">Rank</TableHead>
-              <TableHead className="w-24 text-center">Default</TableHead>
-              <TableHead className="w-24 text-center">Enabled</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {severities.map((severity) => (
-              <TableRow key={severity.id} className={!severity.enabled ? "opacity-50" : undefined}>
-                <TableCell>
-                  {severity.enabled && (
-                    <IconGripVertical className="size-4 text-muted-foreground/50 cursor-grab" />
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2.5">
-                    <ColorDot color={severity.color} />
-                    <span className="font-medium">{severity.name}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
-                  {severity.description}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="outline" className="font-mono tabular-nums">
-                    {severity.rank}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-center">
-                  {severity.isDefault && (
-                    <Badge variant="secondary" className="text-xs">
-                      Default
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Switch
-                    checked={severity.enabled}
-                    disabled={severity.isDefault}
-                    onCheckedChange={() => handleToggleEnabled(severity)}
-                  />
-                </TableCell>
-                <TableCell>
-                  <RowActions
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[ restrictToVerticalAxis ]}
+          onDragEnd={handleDragEnd}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-8" />
+                <TableHead>Severity</TableHead>
+                <TableHead className="hidden md:table-cell">Description</TableHead>
+                <TableHead className="w-24 text-center">Default</TableHead>
+                <TableHead className="w-24 text-center">Enabled</TableHead>
+                <TableHead className="w-12" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <SortableContext
+                items={severities.map((severity) => severity.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {severities.map((severity) => (
+                  <SortableSeverityRow
+                    key={severity.id}
+                    severity={severity}
+                    deleteDisabledReason={deleteDisabledReason(severity)}
+                    onToggleEnabled={() => handleToggleEnabled(severity)}
                     onEdit={() => setEditingSeverity(severity)}
                     onDelete={() => setDeletingSeverity(severity)}
-                    deleteDisabledReason={deleteDisabledReason(severity)}
                   />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                ))}
+              </SortableContext>
+            </TableBody>
+          </Table>
+        </DndContext>
       </CardContent>
 
       {editingSeverity && (
