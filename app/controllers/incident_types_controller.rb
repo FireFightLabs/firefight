@@ -43,12 +43,12 @@ class IncidentTypesController < InertiaController
     end
 
     @incident_type.update!(deleted_at: Time.current)
-    redirect_to settings_types_path
+    redirect_to settings_types_path, notice: "#{@incident_type.name} was disabled."
   end
 
   def enable
     @incident_type.update!(deleted_at: nil)
-    redirect_to settings_types_path
+    redirect_to settings_types_path, notice: "#{@incident_type.name} was enabled."
   end
 
   def make_default
@@ -83,7 +83,7 @@ class IncidentTypesController < InertiaController
 
   def reorder
     IncidentType.reorder!(current_workspace, params.require(:ordered_ids))
-    redirect_to settings_types_path
+    redirect_to settings_types_path, notice: "Type order updated."
   end
 
   private

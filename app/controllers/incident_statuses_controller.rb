@@ -43,12 +43,12 @@ class IncidentStatusesController < InertiaController
     end
 
     @status.update!(deleted_at: Time.current)
-    redirect_to settings_statuses_path
+    redirect_to settings_statuses_path, notice: "#{@status.name} was disabled."
   end
 
   def enable
     @status.update!(deleted_at: nil)
-    redirect_to settings_statuses_path
+    redirect_to settings_statuses_path, notice: "#{@status.name} was enabled."
   end
 
   def make_default
@@ -94,7 +94,7 @@ class IncidentStatusesController < InertiaController
       params.require(:lifecycle_stage_key),
       params.require(:ordered_ids)
     )
-    redirect_to settings_statuses_path
+    redirect_to settings_statuses_path, notice: "Status order updated."
   end
 
   private

@@ -33,13 +33,18 @@ class IncidentSeveritiesController < InertiaController
   end
 
   def disable
+    if @severity.is_default?
+      return redirect_to settings_severities_path,
+        alert: "#{@severity.name} is the default severity and has to stay enabled. Make another severity the default first."
+    end
+
     @severity.update!(deleted_at: Time.current)
-    redirect_to settings_severities_path
+    redirect_to settings_severities_path, notice: "#{@severity.name} was disabled."
   end
 
   def enable
     @severity.update!(deleted_at: nil)
-    redirect_to settings_severities_path
+    redirect_to settings_severities_path, notice: "#{@severity.name} was enabled."
   end
 
   def destroy
@@ -71,7 +76,7 @@ class IncidentSeveritiesController < InertiaController
 
   def reorder
     IncidentSeverity.reorder!(current_workspace, params.require(:ordered_ids))
-    redirect_to settings_severities_path
+    redirect_to settings_severities_path, notice: "Severity order updated."
   end
 
   private

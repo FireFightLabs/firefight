@@ -147,16 +147,36 @@ class IncidentSeveritiesControllerTest < ActionDispatch::IntegrationTest
     assert incident_severities(:p1_ws2).reload.is_default
   end
 
-  test "disable + enable toggle deleted_at" do
+  test "disable + enable toggle deleted_at and confirm each way" do
     severity = incident_severities(:critical_ws1)
 
     patch disable_incident_severity_url(severity)
     assert_response :redirect
     assert_not_nil severity.reload.deleted_at
+    assert_equal "Critical was disabled.", flash[:notice]
 
     patch enable_incident_severity_url(severity)
     assert_response :redirect
     assert_nil severity.reload.deleted_at
+    assert_equal "Critical was enabled.", flash[:notice]
+  end
+
+  test "disable refuses the default severity" do
+    severity = incident_severities(:minor_ws1)
+    assert severity.is_default
+
+    patch disable_incident_severity_url(severity)
+
+    assert_nil severity.reload.deleted_at
+    assert_match(/has to stay enabled/, flash[:alert])
+  end
+
+  test "reorder confirms with a notice" do
+    ordered = @workspace.incident_severities.ordered.to_a
+
+    patch reorder_incident_severities_url, params: { ordered_ids: ordered.reverse.map(&:id) }
+
+    assert_equal "Severity order updated.", flash[:notice]
   end
 
   private

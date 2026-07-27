@@ -55,15 +55,17 @@ class IncidentTypesControllerTest < ActionDispatch::IntegrationTest
     assert_match(/default type/, flash[:alert])
   end
 
-  test "disable then enable round-trips a type" do
+  test "disable then enable round-trips a type and confirms each way" do
     type = incident_types(:service_outage_ws1)
     type.update!(is_default: false)
 
     patch disable_incident_type_url(type)
     assert_not_nil type.reload.deleted_at
+    assert_equal "Service Outage was disabled.", flash[:notice]
 
     patch enable_incident_type_url(type)
     assert_nil type.reload.deleted_at
+    assert_equal "Service Outage was enabled.", flash[:notice]
   end
 
   test "disable refuses the default type" do
@@ -108,6 +110,7 @@ class IncidentTypesControllerTest < ActionDispatch::IntegrationTest
     result = @workspace.incident_types.ordered.to_a
     assert_equal reversed.map(&:id), result.map(&:id)
     assert_equal (1..result.size).to_a, result.map(&:position)
+    assert_equal "Type order updated.", flash[:notice]
   end
 
   private

@@ -88,6 +88,28 @@ class IncidentStatusesControllerTest < ActionDispatch::IntegrationTest
     assert_match(/has to stay enabled/, flash[:alert])
   end
 
+  test "disable and enable each confirm with a notice" do
+    status = incident_statuses(:monitoring_ws1)
+
+    patch disable_incident_status_url(status)
+    assert_equal "Monitoring was disabled.", flash[:notice]
+
+    patch enable_incident_status_url(status)
+    assert_equal "Monitoring was enabled.", flash[:notice]
+  end
+
+  test "reorder confirms with a notice" do
+    active_stage = IncidentLifecycleStage.find_by!(key: IncidentLifecycleStage::ACTIVE)
+    active = @workspace.incident_statuses.ordered.where(incident_lifecycle_stage: active_stage).to_a
+
+    patch reorder_incident_statuses_url, params: {
+      lifecycle_stage_key: IncidentLifecycleStage::ACTIVE,
+      ordered_ids: active.reverse.map(&:id)
+    }
+
+    assert_equal "Status order updated.", flash[:notice]
+  end
+
   test "make_default promotes a live status and demotes the incumbent" do
     incumbent = incident_statuses(:investigating_ws1)
     promoted = incident_statuses(:identified_ws1)
