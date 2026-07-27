@@ -20,6 +20,7 @@ import {
   incidentSeverityPath,
   disableIncidentSeverityPath,
   enableIncidentSeverityPath,
+  makeDefaultIncidentSeverityPath,
   reorderIncidentSeveritiesPath,
 } from "@/lib/routes"
 import {
@@ -59,6 +60,11 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
     router.patch(
       severity.enabled ? disableIncidentSeverityPath(severity.id) : enableIncidentSeverityPath(severity.id)
     )
+  }
+
+  function handleMakeDefault(severity: IncidentSeveritySettings) {
+    if (severity.isDefault) return
+    router.patch(makeDefaultIncidentSeverityPath(severity.id), {}, { preserveScroll: true })
   }
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
@@ -135,6 +141,7 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
                     severity={severity}
                     deleteDisabledReason={deleteDisabledReason(severity)}
                     onToggleEnabled={() => handleToggleEnabled(severity)}
+                    onMakeDefault={() => handleMakeDefault(severity)}
                     onEdit={() => setEditingSeverity(severity)}
                     onDelete={() => setDeletingSeverity(severity)}
                   />

@@ -104,6 +104,49 @@ class IncidentSeveritiesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "make_default promotes one severity and demotes the incumbent" do
+    incumbent = incident_severities(:minor_ws1)
+    promoted = incident_severities(:critical_ws1)
+    assert incumbent.is_default
+
+    patch make_default_incident_severity_url(promoted)
+    assert_response :redirect
+
+    assert promoted.reload.is_default
+    assert_not incumbent.reload.is_default
+    assert_equal 1, @workspace.incident_severities.where(is_default: true).count
+  end
+
+  test "make_default on the current default is a no-op" do
+    incumbent = incident_severities(:minor_ws1)
+
+    patch make_default_incident_severity_url(incumbent)
+
+    assert incumbent.reload.is_default
+    assert_equal 1, @workspace.incident_severities.where(is_default: true).count
+  end
+
+  test "make_default refuses a disabled severity" do
+    severity = incident_severities(:critical_ws1)
+    severity.update!(deleted_at: Time.current)
+
+    patch make_default_incident_severity_url(severity)
+
+    assert_not severity.reload.is_default
+    assert_match(/disabled/, flash[:alert])
+    assert incident_severities(:minor_ws1).reload.is_default
+  end
+
+  test "make_default cannot reach another workspace's severity" do
+    foreign = incident_severities(:p0_ws2)
+
+    patch make_default_incident_severity_url(foreign)
+
+    assert_response :not_found
+    assert_not foreign.reload.is_default
+    assert incident_severities(:p1_ws2).reload.is_default
+  end
+
   test "disable + enable toggle deleted_at" do
     severity = incident_severities(:critical_ws1)
 

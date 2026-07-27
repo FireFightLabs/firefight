@@ -5,9 +5,10 @@ import { IconGripVertical } from "@tabler/icons-react"
 
 import type { IncidentSeveritySettings } from "@/types/serializers"
 import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
+import { Radio } from "@/components/ui/radio"
 import { Switch } from "@/components/ui/switch"
 import { TableCell, TableRow } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ColorDot } from "@/pages/settings/components/color-dot"
 import { RowActions } from "@/pages/settings/components/row-actions"
 
@@ -15,12 +16,14 @@ export function SortableSeverityRow({
   severity,
   deleteDisabledReason,
   onToggleEnabled,
+  onMakeDefault,
   onEdit,
   onDelete,
 }: {
   severity: IncidentSeveritySettings
   deleteDisabledReason?: string
   onToggleEnabled: () => void
+  onMakeDefault: () => void
   onEdit: () => void
   onDelete: () => void
 }) {
@@ -71,18 +74,41 @@ export function SortableSeverityRow({
         {severity.description}
       </TableCell>
       <TableCell className="text-center">
-        {severity.isDefault && (
-          <Badge variant="secondary" className="text-xs">
-            Default
-          </Badge>
+        {severity.enabled ? (
+          <Radio
+            name="default-severity"
+            checked={severity.isDefault}
+            onChange={onMakeDefault}
+            aria-label={`Make ${severity.name} the default severity`}
+          />
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-block">
+                <Radio name="default-severity" checked={false} disabled readOnly aria-label={`${severity.name} is disabled`} />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-56">
+              A disabled severity cannot be the default. Enable it first.
+            </TooltipContent>
+          </Tooltip>
         )}
       </TableCell>
       <TableCell className="text-center">
-        <Switch
-          checked={severity.enabled}
-          disabled={severity.isDefault}
-          onCheckedChange={onToggleEnabled}
-        />
+        {severity.isDefault ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-block">
+                <Switch checked disabled />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-56">
+              The default severity has to stay enabled. Make another severity the default first.
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Switch checked={severity.enabled} onCheckedChange={onToggleEnabled} />
+        )}
       </TableCell>
       <TableCell>
         <RowActions

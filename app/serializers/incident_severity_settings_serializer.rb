@@ -18,7 +18,7 @@ class IncidentSeveritySettingsSerializer < BaseSerializer
 
   type :boolean
   def enabled
-    severity.deleted_at.nil?
+    severity.enabled?
   end
 
   type :number

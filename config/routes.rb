@@ -149,6 +149,7 @@ Rails.application.routes.draw do
       member do
         patch :disable
         patch :enable
+        patch :make_default
       end
     end
     resources :incident_statuses, only: [ :create, :update, :destroy ], path: "settings/statuses" do

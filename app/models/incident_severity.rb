@@ -58,6 +58,20 @@ class IncidentSeverity < ApplicationRecord
     incident_count.zero?
   end
 
+  def enabled?
+    deleted_at.nil?
+  end
+
+  # Exactly one default per workspace, so promoting one demotes the incumbent in
+  # the same transaction. A partial unique index backs this up, since the model
+  # validation alone cannot stop an update_all or a raw write.
+  def make_default!
+    self.class.transaction do
+      workspace.incident_severities.where(is_default: true).where.not(id: id).update_all(is_default: false)
+      update!(is_default: true)
+    end
+  end
+
   def more_severe_than?(other_severity)
     rank > other_severity.rank
   end

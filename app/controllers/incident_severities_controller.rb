@@ -3,7 +3,7 @@ class IncidentSeveritiesController < InertiaController
 
   before_action :require_authentication
   before_action :require_admin!
-  before_action :set_severity, only: [ :update, :disable, :enable, :destroy ]
+  before_action :set_severity, only: [ :update, :disable, :enable, :destroy, :make_default ]
 
   def create
     name = params[:name].to_s.strip
@@ -57,6 +57,16 @@ class IncidentSeveritiesController < InertiaController
     @severity.destroy!
     renumber!
     redirect_to settings_severities_path, notice: "#{@severity.name} was deleted."
+  end
+
+  def make_default
+    unless @severity.enabled?
+      return redirect_to settings_severities_path,
+        alert: "#{@severity.name} is disabled. Enable it before making it the default."
+    end
+
+    @severity.make_default!
+    redirect_to settings_severities_path, notice: "#{@severity.name} is now the default severity."
   end
 
   def reorder

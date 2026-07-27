@@ -214,6 +214,36 @@ class IncidentSeverityTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
+  # DEFAULT SEVERITY
+  # ============================================================================
+
+  test "make_default! demotes the incumbent in the same transaction" do
+    incumbent = incident_severities(:minor_ws1)
+    promoted = incident_severities(:critical_ws1)
+
+    promoted.make_default!
+
+    assert promoted.reload.is_default
+    assert_not incumbent.reload.is_default
+  end
+
+  test "make_default! leaves other workspaces alone" do
+    ws2_default = incident_severities(:p1_ws2)
+
+    incident_severities(:critical_ws1).make_default!
+
+    assert ws2_default.reload.is_default
+  end
+
+  test "the database refuses a second default in one workspace" do
+    other = incident_severities(:critical_ws1)
+
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      IncidentSeverity.where(id: other.id).update_all(is_default: true)
+    end
+  end
+
+  # ============================================================================
   # DELETABILITY
   # ============================================================================
 
