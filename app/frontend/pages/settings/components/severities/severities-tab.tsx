@@ -23,6 +23,7 @@ import {
   makeDefaultIncidentSeverityPath,
   reorderIncidentSeveritiesPath,
 } from "@/lib/routes"
+import { RadioGroup } from "@/components/ui/radio-group"
 import {
   Card,
   CardContent,
@@ -55,6 +56,7 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
   const [deletingSeverity, setDeletingSeverity] = useState<IncidentSeveritySettings | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const defaultSeverityId = severities.find((severity) => severity.isDefault)?.id
 
   function handleToggleEnabled(severity: IncidentSeveritySettings) {
     router.patch(
@@ -62,9 +64,8 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
     )
   }
 
-  function handleMakeDefault(severity: IncidentSeveritySettings) {
-    if (severity.isDefault) return
-    router.patch(makeDefaultIncidentSeverityPath(severity.id), {}, { preserveScroll: true })
+  function handleMakeDefault(id: string) {
+    router.patch(makeDefaultIncidentSeverityPath(id), {}, { preserveScroll: true })
   }
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
@@ -130,24 +131,25 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
-            <TableBody>
-              <SortableContext
+            <RadioGroup asChild className="table-row-group" value={defaultSeverityId} onValueChange={handleMakeDefault}>
+              <TableBody>
+                <SortableContext
                 items={severities.map((severity) => severity.id)}
                 strategy={verticalListSortingStrategy}
               >
-                {severities.map((severity) => (
-                  <SortableSeverityRow
-                    key={severity.id}
-                    severity={severity}
-                    deleteDisabledReason={deleteDisabledReason(severity)}
-                    onToggleEnabled={() => handleToggleEnabled(severity)}
-                    onMakeDefault={() => handleMakeDefault(severity)}
-                    onEdit={() => setEditingSeverity(severity)}
-                    onDelete={() => setDeletingSeverity(severity)}
-                  />
-                ))}
-              </SortableContext>
-            </TableBody>
+                  {severities.map((severity) => (
+                    <SortableSeverityRow
+                      key={severity.id}
+                      severity={severity}
+                      deleteDisabledReason={deleteDisabledReason(severity)}
+                      onToggleEnabled={() => handleToggleEnabled(severity)}
+                      onEdit={() => setEditingSeverity(severity)}
+                      onDelete={() => setDeletingSeverity(severity)}
+                    />
+                  ))}
+                </SortableContext>
+              </TableBody>
+            </RadioGroup>
           </Table>
         </DndContext>
       </CardContent>

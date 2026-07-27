@@ -3,7 +3,7 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { IconGripVertical } from "@tabler/icons-react"
 
-import type { IncidentSeveritySettings } from "@/types/serializers"
+import type { IncidentStatusSettings } from "@/types/serializers"
 import { cn } from "@/lib/utils"
 import { RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
@@ -12,14 +12,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ColorDot } from "@/pages/settings/components/color-dot"
 import { RowActions } from "@/pages/settings/components/row-actions"
 
-export function SortableSeverityRow({
-  severity,
+export function SortableStatusRow({
+  status,
+  stageName,
   deleteDisabledReason,
   onToggleEnabled,
   onEdit,
   onDelete,
 }: {
-  severity: IncidentSeveritySettings
+  status: IncidentStatusSettings
+  stageName: string
   deleteDisabledReason?: string
   onToggleEnabled: () => void
   onEdit: () => void
@@ -33,7 +35,7 @@ export function SortableSeverityRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: severity.id })
+  } = useSortable({ id: status.id })
 
   const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -41,12 +43,30 @@ export function SortableSeverityRow({
     zIndex: isDragging ? 10 : undefined,
   }
 
+  function defaultBlockedReason() {
+    if (status.isDefault) return undefined
+    if (!status.enabled) return "A disabled status cannot be the default. Enable it first."
+    if (!status.defaultable) {
+      return `${stageName} statuses cannot be the default. A new incident has to start in triage or active.`
+    }
+    return undefined
+  }
+
+  function enabledBlockedReason() {
+    if (status.isDefault) return "The default status has to stay enabled. Make another status the default first."
+    if (status.lastEnabledInStage) return `This is the only enabled ${stageName} status. Add another one before disabling it.`
+    return undefined
+  }
+
+  const defaultReason = defaultBlockedReason()
+  const enabledReason = enabledBlockedReason()
+
   return (
     <TableRow
       ref={setNodeRef}
       style={style}
       className={cn(
-        !severity.enabled && "opacity-50",
+        !status.enabled && "opacity-50",
         isDragging && "relative bg-background shadow-lg",
       )}
     >
@@ -55,7 +75,7 @@ export function SortableSeverityRow({
           ref={setActivatorNodeRef}
           type="button"
           className="flex cursor-grab touch-none items-center text-muted-foreground/50 transition-colors hover:text-muted-foreground active:cursor-grabbing"
-          aria-label={`Reorder ${severity.name}`}
+          aria-label={`Reorder ${status.name}`}
           {...attributes}
           {...listeners}
         >
@@ -64,46 +84,39 @@ export function SortableSeverityRow({
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2.5">
-          <ColorDot color={severity.color} />
-          <span className="font-medium">{severity.name}</span>
+          <ColorDot color={status.color} />
+          <span className="font-medium">{status.name}</span>
         </div>
       </TableCell>
       <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
-        {severity.description}
+        {status.description}
       </TableCell>
       <TableCell className="text-center">
-        {severity.enabled ? (
-          <RadioGroupItem
-            value={severity.id}
-            aria-label={`Make ${severity.name} the default severity`}
-          />
-        ) : (
+        {defaultReason ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-block">
-                <RadioGroupItem value={severity.id} disabled aria-label={`${severity.name} is disabled`} />
+                <RadioGroupItem value={status.id} disabled aria-label={`${status.name} cannot be the default`} />
               </span>
             </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-56">
-              A disabled severity cannot be the default. Enable it first.
-            </TooltipContent>
+            <TooltipContent side="left" className="max-w-56">{defaultReason}</TooltipContent>
           </Tooltip>
+        ) : (
+          <RadioGroupItem value={status.id} aria-label={`Make ${status.name} the default status`} />
         )}
       </TableCell>
       <TableCell className="text-center">
-        {severity.isDefault ? (
+        {enabledReason ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-block">
-                <Switch checked disabled />
+                <Switch checked={status.enabled} disabled />
               </span>
             </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-56">
-              The default severity has to stay enabled. Make another severity the default first.
-            </TooltipContent>
+            <TooltipContent side="left" className="max-w-56">{enabledReason}</TooltipContent>
           </Tooltip>
         ) : (
-          <Switch checked={severity.enabled} onCheckedChange={onToggleEnabled} />
+          <Switch checked={status.enabled} onCheckedChange={onToggleEnabled} />
         )}
       </TableCell>
       <TableCell>

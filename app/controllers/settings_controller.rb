@@ -32,7 +32,7 @@ class SettingsController < InertiaController
   def types
     render inertia: "settings/types", props: {
       types: IncidentTypeSettingsSerializer.many(
-        current_workspace.incident_types.active.ordered
+        current_workspace.incident_types.ordered.with_incident_counts
       )
     }
   end
@@ -43,7 +43,7 @@ class SettingsController < InertiaController
         current_workspace.runbooks.active.ordered.includes(:runbook_steps, :incident_conditions)
       ),
       incidentTypes: IncidentTypeSettingsSerializer.many(
-        current_workspace.incident_types.active.ordered
+        current_workspace.incident_types.active.ordered.with_incident_counts
       ),
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.ordered.with_incident_counts
@@ -81,7 +81,7 @@ class SettingsController < InertiaController
         current_workspace.incident_field_definitions.active.ordered
       ),
       incidentTypes: IncidentTypeSettingsSerializer.many(
-        current_workspace.incident_types.active.ordered
+        current_workspace.incident_types.active.ordered.with_incident_counts
       ),
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.ordered.with_incident_counts
@@ -272,6 +272,7 @@ class SettingsController < InertiaController
   def build_lifecycle_stages
     statuses_by_stage = current_workspace.incident_statuses
       .ordered
+      .with_incident_counts
       .includes(:incident_lifecycle_stage)
       .group_by { |s| s.incident_lifecycle_stage.key }
 

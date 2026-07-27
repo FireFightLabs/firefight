@@ -3,8 +3,9 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { IconGripVertical } from "@tabler/icons-react"
 
-import type { IncidentSeveritySettings } from "@/types/serializers"
+import type { IncidentTypeSettings } from "@/types/serializers"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 import { RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { TableCell, TableRow } from "@/components/ui/table"
@@ -12,14 +13,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ColorDot } from "@/pages/settings/components/color-dot"
 import { RowActions } from "@/pages/settings/components/row-actions"
 
-export function SortableSeverityRow({
-  severity,
+export function SortableTypeRow({
+  type,
   deleteDisabledReason,
   onToggleEnabled,
   onEdit,
   onDelete,
 }: {
-  severity: IncidentSeveritySettings
+  type: IncidentTypeSettings
   deleteDisabledReason?: string
   onToggleEnabled: () => void
   onEdit: () => void
@@ -33,7 +34,7 @@ export function SortableSeverityRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: severity.id })
+  } = useSortable({ id: type.id })
 
   const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -46,7 +47,7 @@ export function SortableSeverityRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        !severity.enabled && "opacity-50",
+        !type.enabled && "opacity-50",
         isDragging && "relative bg-background shadow-lg",
       )}
     >
@@ -55,7 +56,7 @@ export function SortableSeverityRow({
           ref={setActivatorNodeRef}
           type="button"
           className="flex cursor-grab touch-none items-center text-muted-foreground/50 transition-colors hover:text-muted-foreground active:cursor-grabbing"
-          aria-label={`Reorder ${severity.name}`}
+          aria-label={`Reorder ${type.name}`}
           {...attributes}
           {...listeners}
         >
@@ -64,34 +65,39 @@ export function SortableSeverityRow({
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2.5">
-          <ColorDot color={severity.color} />
-          <span className="font-medium">{severity.name}</span>
+          <ColorDot color={type.color ?? "#6366F1"} />
+          <span className="font-medium">{type.name}</span>
         </div>
       </TableCell>
+      <TableCell className="hidden lg:table-cell">
+        <span className="font-mono text-[12px] text-muted-foreground">{type.slug}</span>
+      </TableCell>
       <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
-        {severity.description}
+        {type.description}
       </TableCell>
       <TableCell className="text-center">
-        {severity.enabled ? (
-          <RadioGroupItem
-            value={severity.id}
-            aria-label={`Make ${severity.name} the default severity`}
-          />
+        <Badge variant="outline" className="font-mono tabular-nums">
+          {type.incidentCount}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-center">
+        {type.enabled ? (
+          <RadioGroupItem value={type.id} aria-label={`Make ${type.name} the default type`} />
         ) : (
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-block">
-                <RadioGroupItem value={severity.id} disabled aria-label={`${severity.name} is disabled`} />
+                <RadioGroupItem value={type.id} disabled aria-label={`${type.name} is disabled`} />
               </span>
             </TooltipTrigger>
             <TooltipContent side="left" className="max-w-56">
-              A disabled severity cannot be the default. Enable it first.
+              A disabled type cannot be the default. Enable it first.
             </TooltipContent>
           </Tooltip>
         )}
       </TableCell>
       <TableCell className="text-center">
-        {severity.isDefault ? (
+        {type.isDefault ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-block">
@@ -99,11 +105,11 @@ export function SortableSeverityRow({
               </span>
             </TooltipTrigger>
             <TooltipContent side="left" className="max-w-56">
-              The default severity has to stay enabled. Make another severity the default first.
+              The default type has to stay enabled. Make another type the default first.
             </TooltipContent>
           </Tooltip>
         ) : (
-          <Switch checked={severity.enabled} onCheckedChange={onToggleEnabled} />
+          <Switch checked={type.enabled} onCheckedChange={onToggleEnabled} />
         )}
       </TableCell>
       <TableCell>

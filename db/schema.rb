@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_27_095053) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_27_100159) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -571,6 +571,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_095053) do
     t.index ["workspace_id", "is_default"], name: "index_incident_statuses_on_workspace_id_and_is_default"
     t.index ["workspace_id", "position"], name: "index_incident_statuses_on_workspace_id_and_position", unique: true
     t.index ["workspace_id", "slug"], name: "index_incident_statuses_on_workspace_id_and_slug", unique: true
+    t.index ["workspace_id"], name: "index_incident_statuses_on_single_default_per_workspace", unique: true, where: "is_default"
     t.index ["workspace_id"], name: "index_incident_statuses_on_workspace_id"
   end
 
@@ -626,6 +627,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_095053) do
     t.index ["deleted_at"], name: "index_incident_types_on_deleted_at"
     t.index ["workspace_id", "position"], name: "index_incident_types_on_workspace_id_and_position", unique: true
     t.index ["workspace_id", "slug"], name: "index_incident_types_on_workspace_id_and_slug", unique: true
+    t.index ["workspace_id"], name: "index_incident_types_on_single_default_per_workspace", unique: true, where: "is_default"
     t.index ["workspace_id"], name: "index_incident_types_on_workspace_id"
   end
 

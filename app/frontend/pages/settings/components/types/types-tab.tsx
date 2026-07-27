@@ -1,14 +1,32 @@
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { router } from "@inertiajs/react"
 import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import type { DragEndEvent } from "@dnd-kit/core"
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers"
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable"
+import {
   IconCategory,
-  IconGripVertical,
   IconPlus,
 } from "@tabler/icons-react"
 
 import type { IncidentTypeSettings } from "@/types/serializers"
-import { incidentTypePath } from "@/lib/routes"
-import { Badge } from "@/components/ui/badge"
+import {
+  incidentTypePath,
+  disableIncidentTypePath,
+  enableIncidentTypePath,
+  makeDefaultIncidentTypePath,
+  reorderIncidentTypesPath,
+} from "@/lib/routes"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -20,25 +38,74 @@ import {
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ColorDot } from "@/pages/settings/components/color-dot"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { RadioGroup } from "@/components/ui/radio-group"
+import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { SortableTypeRow } from "@/pages/settings/components/types/sortable-type-row"
 import { TypeDialog } from "@/pages/settings/components/types/type-dialog"
 
 interface TypesTabProps {
   types: IncidentTypeSettings[]
 }
 
+function incidentsInUse(count: number) {
+  return `${count} ${count === 1 ? "incident" : "incidents"}`
+}
+
 export function TypesTab({ types }: TypesTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingType, setEditingType] = useState<IncidentTypeSettings | null>(null)
+  const [deletingType, setDeletingType] = useState<IncidentTypeSettings | null>(null)
 
-  function handleDelete(type: IncidentTypeSettings) {
-    router.delete(incidentTypePath(type.id), { preserveScroll: true })
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const defaultTypeId = types.find((type) => type.isDefault)?.id
+
+  function handleToggleEnabled(type: IncidentTypeSettings) {
+    router.patch(
+      type.enabled ? disableIncidentTypePath(type.id) : enableIncidentTypePath(type.id),
+      {},
+      { preserveScroll: true }
+    )
+  }
+
+  function handleMakeDefault(id: string) {
+    router.patch(makeDefaultIncidentTypePath(id), {}, { preserveScroll: true })
+  }
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = types.findIndex((t) => t.id === active.id)
+    const newIndex = types.findIndex((t) => t.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = arrayMove(types, oldIndex, newIndex)
+
+    router.patch(reorderIncidentTypesPath(), {
+      ordered_ids: reordered.map((t) => t.id),
+    }, {
+      preserveScroll: true,
+    })
+  }, [types])
+
+  function confirmDelete() {
+    if (!deletingType) return
+    router.delete(incidentTypePath(deletingType.id), {
+      preserveScroll: true,
+      onFinish: () => setDeletingType(null),
+    })
+  }
+
+  function deleteDisabledReason(type: IncidentTypeSettings) {
+    if (type.isDefault) return "This is the default type. Pick a new default before deleting it."
+    if (!type.deletable) {
+      return `In use by ${incidentsInUse(type.incidentCount)}. Disable it instead to keep it off new incidents.`
+    }
+    return undefined
   }
 
   function openCreate() {
@@ -110,64 +177,60 @@ export function TypesTab({ types }: TypesTabProps) {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="w-8" />
-              <TableHead>Type</TableHead>
-              <TableHead className="hidden lg:table-cell">Slug</TableHead>
-              <TableHead className="hidden md:table-cell">Description</TableHead>
-              <TableHead className="w-28 text-center">Incidents</TableHead>
-              <TableHead className="w-24 text-center">Default</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {types.map((type) => (
-              <TableRow key={type.id}>
-                <TableCell>
-                  <IconGripVertical className="size-4 text-muted-foreground/50 cursor-grab" />
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2.5">
-                    <ColorDot color={type.color ?? "#6366F1"} />
-                    <span className="font-medium">{type.name}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="hidden lg:table-cell">
-                  <span className="font-mono text-[12px] text-muted-foreground">{type.slug}</span>
-                </TableCell>
-                <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
-                  {type.description}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="outline" className="font-mono tabular-nums">
-                    {type.incidentCount}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-center">
-                  {type.isDefault && (
-                    <Badge variant="secondary" className="text-xs">
-                      Default
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <RowActions
-                    onEdit={() => openEdit(type)}
-                    onDelete={() => handleDelete(type)}
-                  />
-                </TableCell>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[ restrictToVerticalAxis ]}
+          onDragEnd={handleDragEnd}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-8" />
+                <TableHead>Type</TableHead>
+                <TableHead className="hidden lg:table-cell">Slug</TableHead>
+                <TableHead className="hidden md:table-cell">Description</TableHead>
+                <TableHead className="w-28 text-center">Incidents</TableHead>
+                <TableHead className="w-24 text-center">Default</TableHead>
+                <TableHead className="w-24 text-center">Enabled</TableHead>
+                <TableHead className="w-12" />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <RadioGroup asChild className="table-row-group" value={defaultTypeId} onValueChange={handleMakeDefault}>
+              <TableBody>
+                <SortableContext
+                  items={types.map((type) => type.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {types.map((type) => (
+                    <SortableTypeRow
+                      key={type.id}
+                      type={type}
+                      deleteDisabledReason={deleteDisabledReason(type)}
+                      onToggleEnabled={() => handleToggleEnabled(type)}
+                      onEdit={() => openEdit(type)}
+                      onDelete={() => setDeletingType(type)}
+                    />
+                  ))}
+                </SortableContext>
+              </TableBody>
+            </RadioGroup>
+          </Table>
+        </DndContext>
       </CardContent>
 
       <TypeDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         type={editingType}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(deletingType)}
+        title={`Delete ${deletingType?.name ?? "this type"}?`}
+        description="No incidents use this type, so nothing loses its history. It disappears from the declare form straight away."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeletingType(null)}
       />
     </Card>
   )

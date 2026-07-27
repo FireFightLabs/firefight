@@ -17,6 +17,16 @@ class IncidentTypeSettingsSerializer < BaseSerializer
 
   type :number
   def incident_count
-    incident_type.incidents.where(deleted_at: nil).count
+    incident_type.incident_count
+  end
+
+  type :boolean
+  def enabled
+    incident_type.enabled?
+  end
+
+  type :boolean
+  def deletable
+    incident_type.deletable?
   end
 end
