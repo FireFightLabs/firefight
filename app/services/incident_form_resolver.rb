@@ -55,6 +55,10 @@ class IncidentFormResolver
 
     custom_rows.each do |row|
       next if row.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
+      # A disabled definition stops being collected without detaching it from
+      # the form or touching the values incidents already hold.
+      next unless row.incident_field_definition&.enabled?
+
       merged << row
     end
 
