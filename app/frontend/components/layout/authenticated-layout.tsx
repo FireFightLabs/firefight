@@ -1,8 +1,10 @@
 import type { CSSProperties, ReactNode } from "react"
 
+import { FlashToaster } from "@/components/flash-toaster"
 import { AppSidebar } from "@/components/navigation/app-sidebar"
 import { SiteHeader } from "@/components/navigation/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 interface AuthenticatedLayoutProps {
@@ -33,6 +35,8 @@ export function AuthenticatedLayout({
             </div>
           </div>
         </SidebarInset>
+        <Toaster />
+        <FlashToaster />
       </SidebarProvider>
     </TooltipProvider>
   )

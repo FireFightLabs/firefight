@@ -24,14 +24,26 @@ class IncidentSeveritiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
-  test "destroy alerts when severity is in use" do
+  test "destroy alerts when severity is in use and names the incident count" do
     severity_in_use = incident_severities(:critical_ws1)
+    count = severity_in_use.incidents.count
 
     assert_no_difference -> { IncidentSeverity.count } do
       delete incident_severity_url(severity_in_use)
     end
     assert_response :redirect
-    assert_match(/in use/, flash[:alert])
+    assert_match(/in use by #{count} incident/, flash[:alert])
+  end
+
+  test "destroy refuses the default severity even when unused" do
+    default_severity = incident_severities(:minor_ws1)
+    default_severity.incidents.update_all(incident_severity_id: incident_severities(:major_ws1).id)
+
+    assert_no_difference -> { IncidentSeverity.count } do
+      delete incident_severity_url(default_severity)
+    end
+    assert_response :redirect
+    assert_match(/default severity/, flash[:alert])
   end
 
   test "destroy succeeds when severity is unused" do

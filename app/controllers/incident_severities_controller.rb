@@ -1,4 +1,6 @@
 class IncidentSeveritiesController < InertiaController
+  include ActionView::Helpers::TextHelper
+
   before_action :require_authentication
   before_action :require_admin!
   before_action :set_severity, only: [ :update, :disable, :enable, :destroy ]
@@ -37,12 +39,19 @@ class IncidentSeveritiesController < InertiaController
   end
 
   def destroy
-    if @severity.incidents.exists?
-      return redirect_to settings_severities_path, alert: "Can't delete a severity that's in use by incidents. Disable it instead."
+    if @severity.is_default?
+      return redirect_to settings_severities_path,
+        alert: "#{@severity.name} is the default severity. Make another severity the default before deleting it."
+    end
+
+    count = @severity.incident_count
+    if count.positive?
+      return redirect_to settings_severities_path,
+        alert: "#{@severity.name} is in use by #{pluralize(count, 'incident')} and cannot be deleted. Disable it instead."
     end
 
     @severity.destroy!
-    redirect_to settings_severities_path
+    redirect_to settings_severities_path, notice: "#{@severity.name} was deleted."
   end
 
   private

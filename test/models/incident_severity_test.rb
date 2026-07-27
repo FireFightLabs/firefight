@@ -1,7 +1,8 @@
 require "test_helper"
 
 class IncidentSeverityTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_severities
+  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
+           :incident_statuses, :incident_severities, :incidents
 
   # ============================================================================
   # BASIC VALIDATIONS
@@ -210,6 +211,51 @@ class IncidentSeverityTest < ActiveSupport::TestCase
 
     assert_equal incident_severities(:minor_ws1), ws1_default
     assert_equal incident_severities(:p1_ws2), ws2_default
+  end
+
+  # ============================================================================
+  # DELETABILITY
+  # ============================================================================
+
+  test "with_incident_counts attaches the count without an extra query per row" do
+    workspace = workspaces(:slack_workspace_one)
+    severities = workspace.incident_severities.ordered.with_incident_counts.to_a
+
+    expected = workspace.incidents.group(:incident_severity_id).count
+    severities.each do |severity|
+      assert_equal expected.fetch(severity.id, 0), severity.incident_count
+    end
+  end
+
+  test "incident_count falls back to a query when the scope was not applied" do
+    severity = incident_severities(:critical_ws1)
+    assert_equal severity.incidents.count, severity.incident_count
+  end
+
+  test "deletable? is false while incidents reference the severity" do
+    severity = incident_severities(:critical_ws1)
+
+    assert_predicate severity.incident_count, :positive?
+    assert_not severity.deletable?
+  end
+
+  test "deletable? is true for a severity no incident uses" do
+    severity = workspaces(:slack_workspace_one).incident_severities.new(
+      name: "Unused", slug: "unused", rank: 42
+    )
+    severity.save_in_position!
+
+    assert_equal 0, severity.incident_count
+    assert_predicate severity, :deletable?
+  end
+
+  test "destroy is blocked by restrict_with_error while incidents reference it" do
+    severity = incident_severities(:critical_ws1)
+
+    assert_no_difference -> { IncidentSeverity.count } do
+      assert_not severity.destroy
+    end
+    assert_includes severity.errors[:base], "Cannot delete record because dependent incidents exist"
   end
 
   # ============================================================================

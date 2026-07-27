@@ -2,8 +2,6 @@ import { useState } from "react"
 import { router } from "@inertiajs/react"
 import { IconGripVertical } from "@tabler/icons-react"
 
-import { toast } from "sonner"
-
 import type { IncidentSeveritySettings } from "@/types/serializers"
 import {
   incidentSeverityPath,
@@ -29,6 +27,7 @@ import {
 } from "@/components/ui/table"
 import { AddSeverityDialog } from "@/pages/settings/components/severities/add-severity-dialog"
 import { ColorDot } from "@/pages/settings/components/color-dot"
+import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { EditSeverityDialog } from "@/pages/settings/components/severities/edit-severity-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
 
@@ -36,8 +35,13 @@ interface SeveritiesTabProps {
   severities: IncidentSeveritySettings[]
 }
 
+function incidentsInUse(count: number) {
+  return `${count} ${count === 1 ? "incident" : "incidents"}`
+}
+
 export function SeveritiesTab({ severities }: SeveritiesTabProps) {
   const [editingSeverity, setEditingSeverity] = useState<IncidentSeveritySettings | null>(null)
+  const [deletingSeverity, setDeletingSeverity] = useState<IncidentSeveritySettings | null>(null)
 
   function handleToggleEnabled(severity: IncidentSeveritySettings) {
     router.patch(
@@ -45,12 +49,19 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
     )
   }
 
-  function handleDelete(severity: IncidentSeveritySettings) {
+  function confirmDelete() {
+    if (!deletingSeverity) return
+    router.delete(incidentSeverityPath(deletingSeverity.id), {
+      onFinish: () => setDeletingSeverity(null),
+    })
+  }
+
+  function deleteDisabledReason(severity: IncidentSeveritySettings) {
+    if (severity.isDefault) return "This is the default severity. Pick a new default before deleting it."
     if (!severity.deletable) {
-      toast.error("This severity is used by incidents and cannot be deleted. You can disable it instead.")
-      return
+      return `In use by ${incidentsInUse(severity.incidentCount)}. Disable it instead to keep it off new incidents.`
     }
-    router.delete(incidentSeverityPath(severity.id))
+    return undefined
   }
 
   return (
@@ -118,7 +129,8 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
                 <TableCell>
                   <RowActions
                     onEdit={() => setEditingSeverity(severity)}
-                    onDelete={() => handleDelete(severity)}
+                    onDelete={() => setDeletingSeverity(severity)}
+                    deleteDisabledReason={deleteDisabledReason(severity)}
                   />
                 </TableCell>
               </TableRow>
@@ -134,6 +146,14 @@ export function SeveritiesTab({ severities }: SeveritiesTabProps) {
           onOpenChange={(open) => { if (!open) setEditingSeverity(null) }}
         />
       )}
+
+      <ConfirmDeleteDialog
+        open={Boolean(deletingSeverity)}
+        title={`Delete ${deletingSeverity?.name ?? "this severity"}?`}
+        description="No incidents use this severity, so nothing loses its history. It disappears from the declare form and from alert routing straight away."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeletingSeverity(null)}
+      />
     </Card>
   )
 }

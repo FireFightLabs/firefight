@@ -21,8 +21,13 @@ class IncidentSeveritySettingsSerializer < BaseSerializer
     severity.deleted_at.nil?
   end
 
+  type :number
+  def incident_count
+    severity.incident_count
+  end
+
   type :boolean
   def deletable
-    !severity.incidents.exists?
+    severity.deletable?
   end
 end
