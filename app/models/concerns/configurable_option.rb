@@ -13,6 +13,7 @@ module ConfigurableOption
   included do
     include Positioned
     include OptionGuards
+    include NormalizedDescription
 
     belongs_to :workspace
 
