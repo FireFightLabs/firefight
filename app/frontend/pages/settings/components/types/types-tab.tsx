@@ -8,10 +8,8 @@ import {
   incidentTypePath,
   disableIncidentTypePath,
   enableIncidentTypePath,
-  makeDefaultIncidentTypePath,
   reorderIncidentTypesPath,
 } from "@/lib/routes"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -72,7 +70,6 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
               <>
                 <TableHead className="hidden lg:table-cell">Slug</TableHead>
                 <TableHead className="hidden md:table-cell">Description</TableHead>
-                <TableHead className="w-28 text-center">Incidents</TableHead>
               </>
             }
             cells={(type) => (
@@ -83,14 +80,9 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
                 <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
                   {type.description}
                 </TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="outline" className="font-mono tabular-nums">{type.incidentCount}</Badge>
-                </TableCell>
               </>
             )}
             reorderPath={reorderIncidentTypesPath()}
-            onMakeDefault={(id) =>
-              router.patch(makeDefaultIncidentTypePath(id), {}, { preserveScroll: true })}
             onToggleEnabled={(type) =>
               router.patch(
                 type.enabled ? disableIncidentTypePath(type.id) : enableIncidentTypePath(type.id),

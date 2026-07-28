@@ -94,7 +94,6 @@ Rails.application.routes.draw do
       member do
         patch :disable
         patch :enable
-        patch :make_default
       end
     end
     get "/settings/runbooks", to: "settings#runbooks", as: :settings_runbooks

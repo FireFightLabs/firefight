@@ -59,26 +59,6 @@ class IncidentTypeTest < ActiveSupport::TestCase
     assert type.valid?
   end
 
-  test "only one default type allowed per workspace" do
-    IncidentType.create!(
-      workspace: workspaces(:slack_workspace_one),
-      name: "Default Type",
-      slug: "default_type",
-      position: 98,
-      is_default: true
-    )
-
-    another_default = IncidentType.new(
-      workspace: workspaces(:slack_workspace_one),
-      name: "Another Default",
-      slug: "another_default",
-      position: 99,
-      is_default: true
-    )
-    assert_not another_default.valid?
-    assert_includes another_default.errors[:is_default], "has already been taken"
-  end
-
   # ============================================================================
   # ASSOCIATIONS
   # ============================================================================
@@ -140,7 +120,6 @@ class IncidentTypeTest < ActiveSupport::TestCase
     assert_equal "Service Outage", outage.name
     assert_equal "service_outage", outage.slug
     assert_equal 1, outage.position
-    assert_not outage.is_default
   end
 
   test "workspace two fixture loads correctly" do

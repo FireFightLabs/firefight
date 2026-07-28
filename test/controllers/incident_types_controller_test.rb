@@ -45,19 +45,8 @@ class IncidentTypesControllerTest < ActionDispatch::IntegrationTest
     assert_match(/in use by 1 incident/, flash[:alert])
   end
 
-  test "destroy refuses the default type" do
-    type = @workspace.incident_types.ordered.first
-    type.make_default!
-
-    assert_no_difference -> { IncidentType.count } do
-      delete incident_type_url(type)
-    end
-    assert_match(/default type/, flash[:alert])
-  end
-
   test "disable then enable round-trips a type and confirms each way" do
     type = incident_types(:service_outage_ws1)
-    type.update!(is_default: false)
 
     patch disable_incident_type_url(type)
     assert_not_nil type.reload.deleted_at
@@ -66,39 +55,6 @@ class IncidentTypesControllerTest < ActionDispatch::IntegrationTest
     patch enable_incident_type_url(type)
     assert_nil type.reload.deleted_at
     assert_equal "Service Outage was enabled.", flash[:notice]
-  end
-
-  test "disable refuses the default type" do
-    type = @workspace.incident_types.ordered.first
-    type.make_default!
-
-    patch disable_incident_type_url(type)
-
-    assert_nil type.reload.deleted_at
-    assert_match(/has to stay enabled/, flash[:alert])
-  end
-
-  test "make_default promotes one type and demotes the incumbent" do
-    types = @workspace.incident_types.ordered.to_a
-    incumbent = types.first
-    incumbent.make_default!
-    promoted = types.second
-
-    patch make_default_incident_type_url(promoted)
-
-    assert promoted.reload.is_default
-    assert_not incumbent.reload.is_default
-    assert_equal 1, @workspace.incident_types.where(is_default: true).count
-  end
-
-  test "make_default refuses a disabled type" do
-    type = incident_types(:service_outage_ws1)
-    type.update!(is_default: false, deleted_at: Time.current)
-
-    patch make_default_incident_type_url(type)
-
-    assert_not type.reload.is_default
-    assert_match(/disabled/, flash[:alert])
   end
 
   test "reorder rewrites positions" do
