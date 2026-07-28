@@ -37,6 +37,7 @@ export function OptionsTable<T extends ConfigurableOption>({
   reorderPath,
   reorderParams,
   onMakeDefault,
+  defaultSelectable = true,
   defaultHeaderHint,
   onToggleEnabled,
   onEdit,
@@ -53,6 +54,10 @@ export function OptionsTable<T extends ConfigurableOption>({
   reorderParams?: Record<string, string>
   // Omitted for lists without a workspace default, which drops the column.
   onMakeDefault?: (id: string) => void
+  // Keeps the Default column in place but drops its controls, for a table whose
+  // rows can never hold the default. Alignment stays consistent with the tables
+  // beside it rather than the column vanishing.
+  defaultSelectable?: boolean
   // Explains the Default column when one table alone does not make its scope
   // obvious, as with statuses split across a card per lifecycle stage.
   defaultHeaderHint?: string
@@ -76,6 +81,7 @@ export function OptionsTable<T extends ConfigurableOption>({
     option,
     fallbackColor,
     showDefault: Boolean(onMakeDefault),
+    defaultSelectable,
     onToggleEnabled: () => onToggleEnabled(option),
     onEdit: () => onEdit(option),
     onDelete: () => onDelete(option),
@@ -98,7 +104,7 @@ export function OptionsTable<T extends ConfigurableOption>({
           <TableHead className="w-12" />
         </TableRow>
       </TableHeader>
-      <Rows options={ordered} onMakeDefault={onMakeDefault}>
+      <Rows options={ordered} onMakeDefault={defaultSelectable ? onMakeDefault : undefined}>
         {reorderPath ? (
           <SortableContext items={ordered.map((option) => option.id)} strategy={verticalListSortingStrategy}>
             {ordered.map((option) => <SortableOptionRow key={option.id} {...rowProps(option)} />)}

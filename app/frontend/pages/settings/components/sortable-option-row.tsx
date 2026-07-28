@@ -28,6 +28,7 @@ interface OptionRowProps {
   option: ConfigurableOption
   fallbackColor?: string
   showDefault?: boolean
+  defaultSelectable?: boolean
   // Cells between the name and the Default column.
   children?: ReactNode
   onToggleEnabled: () => void
@@ -39,6 +40,7 @@ function OptionCells({
   option,
   fallbackColor,
   showDefault,
+  defaultSelectable = true,
   children,
   onToggleEnabled,
   onEdit,
@@ -55,7 +57,9 @@ function OptionCells({
 
       {children}
 
-      {showDefault && (
+      {showDefault && !defaultSelectable && <TableCell />}
+
+      {showDefault && defaultSelectable && (
         <TableCell className="text-center">
           {option.defaultBlockedReason ? (
             <Blocked reason={option.defaultBlockedReason}>
