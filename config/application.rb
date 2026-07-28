@@ -18,6 +18,10 @@ module Firefight
 
     config.session_store :cookie_store, key: "_firefight_session", expire_after: 12.hours, same_site: :lax
 
+    # Serve the app's own error pages instead of the static ones in public/,
+    # wherever Rails is not rendering its debug pages.
+    config.exceptions_app = routes
+
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files

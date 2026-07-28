@@ -238,4 +238,15 @@ Rails.application.routes.draw do
 
     get "/settings/members", to: "settings#members", as: :settings_members
   end
+
+  # Targets for `config.exceptions_app`, which is how Rails reaches these once
+  # it stops rendering its own debug pages.
+  match "/404", to: "errors#not_found", via: :all
+  match "/422", to: "errors#unprocessable", via: :all
+  match "/500", to: "errors#server_error", via: :all
+
+  # Last route wins nothing above it. Turning an unmatched path into a real
+  # action rather than a RoutingError is what gives development the same styled
+  # page production gets.
+  match "*path", to: "errors#not_found", via: :all
 end
