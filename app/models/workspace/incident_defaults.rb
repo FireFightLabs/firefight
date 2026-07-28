@@ -2,18 +2,18 @@ module Workspace::IncidentDefaults
   extend ActiveSupport::Concern
 
   DEFAULT_SEVERITIES = [
-    { name: "Critical", slug: IncidentSeverity::SLUG_CRITICAL, rank: 5, position: 1, is_default: false, color: "#D42B2B", description: "Service-wide outage or data loss" },
-    { name: "Major", slug: "major", rank: 3, position: 2, is_default: false, color: "#E07A12", description: "Significant feature degradation" },
-    { name: "Minor", slug: "minor", rank: 1, position: 3, is_default: true, color: "#3B82F6", description: "Limited impact or workaround available" }
+    { name: "Critical", slug: IncidentSeverity::SLUG_CRITICAL, rank: 5, position: 1, is_default: false, color: "#D42B2B", description: "Service-wide outage or data loss." },
+    { name: "Major", slug: "major", rank: 3, position: 2, is_default: false, color: "#E07A12", description: "Significant feature degradation." },
+    { name: "Minor", slug: "minor", rank: 1, position: 3, is_default: true, color: "#3B82F6", description: "Limited impact or workaround available." }
   ].freeze
 
   DEFAULT_STATUSES = [
-    { name: "Triaging", slug: "triaging", stage: IncidentLifecycleStage::TRIAGE, position: 0, is_default: false, color: "#8B5CF6", description: "Investigating a potential issue to confirm it is a real incident" },
-    { name: "Investigating", slug: "investigating", stage: IncidentLifecycleStage::ACTIVE, position: 1, is_default: true, color: "#38BDF8", description: "Root cause under active investigation" },
-    { name: "Identified", slug: "identified", stage: IncidentLifecycleStage::ACTIVE, position: 2, is_default: false, color: "#14B8A6", description: "Root cause identified" },
-    { name: "Monitoring", slug: "monitoring", stage: IncidentLifecycleStage::ACTIVE, position: 3, is_default: false, color: "#22C55E", description: "Fix deployed, monitoring for stability" },
-    { name: "Resolved", slug: "resolved", stage: IncidentLifecycleStage::CLOSED, position: 4, is_default: false, color: "#16A34A", description: "Incident fully resolved" },
-    { name: "Canceled", slug: "canceled", stage: IncidentLifecycleStage::CANCELED, position: 5, is_default: false, color: "#6B7280", description: "False positive, duplicate, or invalid incident" }
+    { name: "Triaging", slug: "triaging", stage: IncidentLifecycleStage::TRIAGE, position: 0, is_default: false, color: "#8B5CF6", description: "Investigating a potential issue to confirm it is a real incident." },
+    { name: "Investigating", slug: "investigating", stage: IncidentLifecycleStage::ACTIVE, position: 1, is_default: true, color: "#38BDF8", description: "Root cause under active investigation." },
+    { name: "Identified", slug: "identified", stage: IncidentLifecycleStage::ACTIVE, position: 2, is_default: false, color: "#14B8A6", description: "Root cause identified." },
+    { name: "Monitoring", slug: "monitoring", stage: IncidentLifecycleStage::ACTIVE, position: 3, is_default: false, color: "#22C55E", description: "Fix deployed, monitoring for stability." },
+    { name: "Resolved", slug: "resolved", stage: IncidentLifecycleStage::CLOSED, position: 4, is_default: false, color: "#16A34A", description: "Incident fully resolved." },
+    { name: "Canceled", slug: "canceled", stage: IncidentLifecycleStage::CANCELED, position: 5, is_default: false, color: "#6B7280", description: "False positive, duplicate, or invalid incident." }
   ].freeze
 
   DEFAULT_TYPES = [

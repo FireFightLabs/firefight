@@ -182,7 +182,7 @@ its own table.
 
 | Layer | Piece |
 |---|---|
-| Model | `ConfigurableOption`, plus `DefaultableOption` when one row is the workspace default |
+| Model | `ConfigurableOption`, plus `DefaultableOption` when one row is the workspace default, plus `NormalizedDescription` when the row has a description |
 | Controller | `ManagesConfigurableOptions` supplies create/update/disable/enable/make_default/destroy/reorder |
 | Serializer | `enabled`, `incidentCount`, and the `*BlockedReason` strings |
 | Frontend | `OptionsTable` + `SortableOptionRow` + `OptionDialog`, all flat in `pages/settings/components/` |
@@ -201,6 +201,21 @@ model whose blocking association is not `incidents` overrides `usage_association
 **Colour and default are capabilities, not flags.** A list without a `color`
 column gets no colour field; a model that omits `DefaultableOption` gets no
 Default column and no radio group.
+
+**Descriptions are normalized on save, not at render.** `NormalizedDescription`
+capitalizes a first word that is entirely lowercase and terminates the sentence
+before validation. This exists because Slack rewrites what we send it: an
+`input` block's `hint` gains a trailing period when it has none, and keeps the
+one it has. That behaviour is undocumented but consistent, so a description
+typed as "limited impact" reaches Slack as "Limited impact." while the dashboard
+and the API keep showing the raw string. Normalizing in the model makes Slack's
+rewrite a no-op and keeps every surface identical. Fixing it per-surface would
+mean patching Slack, Inertia, the REST API and the MCP tools separately and
+still leave the stored value inconsistent.
+
+The capitalization guard only protects a first word that carries its own case,
+so `iOS` and `eBay` survive but an all-lowercase tool name like `kubectl` is
+capitalized. That is the accepted trade-off, not an oversight.
 
 **shadcn/ui components are untouched:**
 - Never modify files in `components/ui/` — they may be updated by `npx shadcn` later

@@ -35,7 +35,8 @@ Every settings list behaves the same way. A new one joins this pattern rather th
 - **Soft delete requires a way back.** If `destroy` sets `deleted_at`, the screen must list disabled rows and offer enable. A row that vanishes while still holding its slug is unreachable, not deleted.
 - **Reorder is optimistic.** The row moves on drop and stays; the request goes out immediately and only a failure reverts it. Use `useOptimisticOrder`. Never make the user watch rows snap back while a request is in flight.
 - **Counts come from one subquery**, `with_usage_counts`, never a `count` or `exists?` per row.
-- **Reuse the shared pieces**: `OptionsTable`, `SortableOptionRow`, `OptionDialog` (owns both create and edit), `ConfirmDeleteDialog`, `RowActions`, `ColorPicker`. Model side: `OptionGuards` for usage and blocked reasons, `ConfigurableOption` when the list is also positioned and slugged, `DefaultableOption` when one row is the workspace default.
+- **Descriptions are stored as finished sentences.** Any model with a user-entered `description` that reaches Slack includes `NormalizedDescription`, which capitalizes an all-lowercase first word and terminates the sentence on save. Slack silently appends a period to `hint` text when one is missing, so an unnormalized description renders differently in Slack than in the dashboard. Normalize on save, never at render, or each surface drifts on its own. Seeded defaults are written already normalized so the constant matches what is stored.
+- **Reuse the shared pieces**: `OptionsTable`, `SortableOptionRow`, `OptionDialog` (owns both create and edit), `ConfirmDeleteDialog`, `RowActions`, `ColorPicker`. Model side: `OptionGuards` for usage and blocked reasons, `ConfigurableOption` when the list is also positioned and slugged, `DefaultableOption` when one row is the workspace default, `NormalizedDescription` when the row has a description.
 
 ## Deep Dives
 

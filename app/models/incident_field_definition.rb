@@ -1,6 +1,7 @@
 class IncidentFieldDefinition < ApplicationRecord
   include Positioned
   include OptionGuards
+  include NormalizedDescription
 
   NOUN = "custom field".freeze
   USAGE_NOUN = "form".freeze
