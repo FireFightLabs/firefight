@@ -97,7 +97,7 @@ export function OptionsTable<T extends ConfigurableOption>({
           {headers}
           {onMakeDefault && (
             <TableHead className="w-24 text-center">
-              {defaultHeaderHint ? <DefaultHeader hint={defaultHeaderHint} /> : "Default"}
+              {!defaultSelectable ? null : defaultHeaderHint ? <DefaultHeader hint={defaultHeaderHint} /> : "Default"}
             </TableHead>
           )}
           <TableHead className="w-24 text-center">Enabled</TableHead>
