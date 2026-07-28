@@ -4,8 +4,8 @@ class IncidentFieldDefinitionsController < InertiaController
   before_action :set_field_definition, only: [ :update, :disable, :enable, :destroy ]
 
   def create
-    field_definition_service.create(**field_definition_params)
-    redirect_to settings_custom_fields_path
+    field_definition = field_definition_service.create(**field_definition_params)
+    redirect_to settings_custom_fields_path, notice: "#{field_definition.name} was created."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_custom_fields_path,
       inertia: { errors: e.record.errors.to_hash }
@@ -13,7 +13,7 @@ class IncidentFieldDefinitionsController < InertiaController
 
   def update
     field_definition_service.update(@field_definition, field_definition_update_params)
-    redirect_to settings_custom_fields_path
+    redirect_to settings_custom_fields_path, notice: "#{@field_definition.reload.name} was updated."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_custom_fields_path,
       inertia: { errors: e.record.errors.to_hash }

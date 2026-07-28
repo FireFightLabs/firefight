@@ -22,7 +22,7 @@ module ManagesConfigurableOptions
 
     option.save_in_position!
     renumber!
-    redirect_to options_path
+    redirect_to options_path, notice: "#{option.name} was created."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: options_path, inertia: { errors: e.record.errors.to_hash }
   end
@@ -34,7 +34,7 @@ module ManagesConfigurableOptions
     attrs.delete(:color) unless option_model.colored?
 
     if @option.update(attrs)
-      redirect_to options_path
+      redirect_to options_path, notice: "#{@option.name} was updated."
     else
       redirect_back fallback_location: options_path, inertia: { errors: @option.errors.to_hash }
     end

@@ -17,7 +17,7 @@ class RunbooksController < InertiaController
       runbook.sync_conditions!(condition_params) if params.key?(:conditions)
     end
 
-    redirect_to settings_runbooks_path
+    redirect_to settings_runbooks_path, notice: "#{runbook.name} was created."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_runbooks_path, inertia: { errors: e.record.errors.to_hash }
   end
