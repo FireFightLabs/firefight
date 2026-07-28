@@ -7,7 +7,7 @@ class WebhooksController < InertiaController
     webhook = current_workspace.webhooks.new(webhook_params)
 
     if webhook.save
-      redirect_to settings_webhooks_path
+      redirect_to settings_webhooks_path, notice: "#{webhook.name} was created."
     else
       redirect_back fallback_location: settings_webhooks_path, inertia: { errors: webhook.errors.to_hash }
     end
@@ -15,7 +15,7 @@ class WebhooksController < InertiaController
 
   def update
     if @webhook.update(webhook_params)
-      redirect_to settings_webhooks_path
+      redirect_to settings_webhooks_path, notice: "#{@webhook.name} was updated."
     else
       redirect_back fallback_location: settings_webhooks_path, inertia: { errors: @webhook.errors.to_hash }
     end

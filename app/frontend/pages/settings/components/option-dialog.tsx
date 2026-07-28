@@ -82,13 +82,21 @@ export function OptionDialog<T extends OptionRecord>({
     e.preventDefault()
     setProcessing(true)
 
-    const send = editing ? router.patch : router.post
-    send(editing ? editPath(editing.id) : createPath, { ...draft, ...extraParams }, {
+    const params = { ...draft, ...extraParams }
+    // Called on router, never pulled off it: router.patch pulled into a
+    // variable loses its binding and throws on this.visit.
+    const options = {
       preserveScroll: true,
       onSuccess: onClose,
       onError: setErrors,
       onFinish: () => setProcessing(false),
-    })
+    }
+
+    if (editing) {
+      router.patch(editPath(editing.id), params, options)
+    } else {
+      router.post(createPath, params, options)
+    }
   }
 
   return (
