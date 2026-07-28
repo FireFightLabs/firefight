@@ -6,7 +6,6 @@ service_outage_ws1:
   slug: service_outage
   description: Service or infrastructure is down or unreachable.
   position: 1
-  is_default: false
 
 performance_degradation_ws1:
   workspace_id: 11111111-1111-1111-1111-111111111111
@@ -14,7 +13,6 @@ performance_degradation_ws1:
   slug: performance_degradation
   description: Elevated latency, errors, or capacity-related degradation.
   position: 2
-  is_default: false
 
 security_incident_ws1:
   workspace_id: 11111111-1111-1111-1111-111111111111
@@ -22,7 +20,6 @@ security_incident_ws1:
   slug: security_incident
   description: Unauthorized access, vulnerability exploitation, or data exposure risk.
   position: 3
-  is_default: false
 
 data_issue_ws1:
   workspace_id: 11111111-1111-1111-1111-111111111111
@@ -30,7 +27,6 @@ data_issue_ws1:
   slug: data_issue
   description: Data loss, corruption, integrity, or correctness issues.
   position: 4
-  is_default: false
 
 # Workspace Two
 outage_ws2:
@@ -39,7 +35,6 @@ outage_ws2:
   slug: outage
   description: Service is unavailable.
   position: 1
-  is_default: false
 
 # Deleted type for testing soft deletes
 deleted_type:
@@ -48,5 +43,4 @@ deleted_type:
   slug: archived_type
   description: This type was deleted
   position: 99
-  is_default: false
   deleted_at: <%= 1.day.ago %>

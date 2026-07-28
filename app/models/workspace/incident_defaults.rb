@@ -17,11 +17,11 @@ module Workspace::IncidentDefaults
   ].freeze
 
   DEFAULT_TYPES = [
-    { name: "Production", slug: "production", position: 1, is_default: true, color: "#DC143C", description: "Customer-facing service disruption or degradation." },
-    { name: "Security", slug: "security", position: 2, is_default: false, color: "#8B5CF6", description: "Unauthorized access, data exposure, or vulnerability exploitation." },
-    { name: "Infrastructure", slug: "infrastructure", position: 3, is_default: false, color: "#F59E0B", description: "Cloud, network, or platform-level failures." },
-    { name: "Data", slug: "data", position: 4, is_default: false, color: "#3B82F6", description: "Data loss, corruption, pipeline failure, or integrity issues." },
-    { name: "Third Party", slug: "third_party", position: 5, is_default: false, color: "#10B981", description: "Vendor or external dependency outage affecting your systems." }
+    { name: "Production", slug: "production", position: 1, color: "#DC143C", description: "Customer-facing service disruption or degradation." },
+    { name: "Security", slug: "security", position: 2, color: "#8B5CF6", description: "Unauthorized access, data exposure, or vulnerability exploitation." },
+    { name: "Infrastructure", slug: "infrastructure", position: 3, color: "#F59E0B", description: "Cloud, network, or platform-level failures." },
+    { name: "Data", slug: "data", position: 4, color: "#3B82F6", description: "Data loss, corruption, pipeline failure, or integrity issues." },
+    { name: "Third Party", slug: "third_party", position: 5, color: "#10B981", description: "Vendor or external dependency outage affecting your systems." }
   ].freeze
 
   # Forms are defined in IncidentForm::DEFAULTS and materialized on

@@ -8,10 +8,8 @@ import {
   incidentTypePath,
   disableIncidentTypePath,
   enableIncidentTypePath,
-  makeDefaultIncidentTypePath,
   reorderIncidentTypesPath,
 } from "@/lib/routes"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -22,8 +20,10 @@ import {
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { HeaderHint } from "@/pages/settings/components/header-hint"
 import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
+import { slugColumnHint } from "@/pages/settings/lib/constants"
 
 const DEFAULT_TYPE_COLOR = "#6366F1"
 
@@ -70,9 +70,13 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
             fallbackColor={DEFAULT_TYPE_COLOR}
             headers={
               <>
-                <TableHead className="hidden lg:table-cell">Slug</TableHead>
+                <TableHead className="hidden w-44 lg:table-cell">
+                  <HeaderHint
+                    label="Slug"
+                    hint={slugColumnHint("type")}
+                  />
+                </TableHead>
                 <TableHead className="hidden md:table-cell">Description</TableHead>
-                <TableHead className="w-28 text-center">Incidents</TableHead>
               </>
             }
             cells={(type) => (
@@ -83,14 +87,9 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
                 <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
                   {type.description}
                 </TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="outline" className="font-mono tabular-nums">{type.incidentCount}</Badge>
-                </TableCell>
               </>
             )}
             reorderPath={reorderIncidentTypesPath()}
-            onMakeDefault={(id) =>
-              router.patch(makeDefaultIncidentTypePath(id), {}, { preserveScroll: true })}
             onToggleEnabled={(type) =>
               router.patch(
                 type.enabled ? disableIncidentTypePath(type.id) : enableIncidentTypePath(type.id),

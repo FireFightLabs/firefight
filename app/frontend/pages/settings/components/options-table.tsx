@@ -16,6 +16,7 @@ import { router } from "@inertiajs/react"
 
 import type { ConfigurableOption } from "@/pages/settings/lib/types"
 import { useOptimisticOrder } from "@/pages/settings/lib/reorder"
+import { cn } from "@/lib/utils"
 import { RadioGroup } from "@/components/ui/radio-group"
 import {
   Table,
@@ -24,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { HeaderHint } from "@/pages/settings/components/header-hint"
 import { SortableOptionRow, StaticOptionRow } from "@/pages/settings/components/sortable-option-row"
 
 export function OptionsTable<T extends ConfigurableOption>({
@@ -35,6 +37,9 @@ export function OptionsTable<T extends ConfigurableOption>({
   reorderPath,
   reorderParams,
   onMakeDefault,
+  defaultSelectable = true,
+  defaultHeaderHint,
+  fixedLayout = false,
   onToggleEnabled,
   onEdit,
   onDelete,
@@ -50,6 +55,16 @@ export function OptionsTable<T extends ConfigurableOption>({
   reorderParams?: Record<string, string>
   // Omitted for lists without a workspace default, which drops the column.
   onMakeDefault?: (id: string) => void
+  // Keeps the Default column in place but drops its controls, for a table whose
+  // rows can never hold the default. Alignment stays consistent with the tables
+  // beside it rather than the column vanishing.
+  defaultSelectable?: boolean
+  // Explains the Default column when one table alone does not make its scope
+  // obvious, as with statuses split across a card per lifecycle stage.
+  defaultHeaderHint?: string
+  // Sizes columns from the header rather than from content, so sibling tables
+  // rendered one above another line up instead of each measuring its own rows.
+  fixedLayout?: boolean
   onToggleEnabled: (option: T) => void
   onEdit: (option: T) => void
   onDelete: (option: T) => void
@@ -70,6 +85,7 @@ export function OptionsTable<T extends ConfigurableOption>({
     option,
     fallbackColor,
     showDefault: Boolean(onMakeDefault),
+    defaultSelectable,
     onToggleEnabled: () => onToggleEnabled(option),
     onEdit: () => onEdit(option),
     onDelete: () => onDelete(option),
@@ -77,18 +93,24 @@ export function OptionsTable<T extends ConfigurableOption>({
   })
 
   const table = (
-    <Table>
+    <Table className={cn(fixedLayout && "table-fixed")}>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           {reorderPath && <TableHead className="w-8" />}
-          <TableHead>{nameHeader}</TableHead>
+          <TableHead className={cn(fixedLayout && "w-56")}>{nameHeader}</TableHead>
           {headers}
-          {onMakeDefault && <TableHead className="w-24 text-center">Default</TableHead>}
+          {onMakeDefault && (
+            <TableHead className="w-24 text-center">
+              {!defaultSelectable ? null : defaultHeaderHint ? <HeaderHint label="Default" hint={defaultHeaderHint} /> : "Default"}
+            </TableHead>
+          )}
           <TableHead className="w-24 text-center">Enabled</TableHead>
-          <TableHead className="w-12" />
+          {/* 64px is what auto layout settles on for the button plus its cell
+              padding, so a fixed-layout table lands in the same place. */}
+          <TableHead className="w-16" />
         </TableRow>
       </TableHeader>
-      <Rows options={ordered} onMakeDefault={onMakeDefault}>
+      <Rows options={ordered} onMakeDefault={defaultSelectable ? onMakeDefault : undefined}>
         {reorderPath ? (
           <SortableContext items={ordered.map((option) => option.id)} strategy={verticalListSortingStrategy}>
             {ordered.map((option) => <SortableOptionRow key={option.id} {...rowProps(option)} />)}

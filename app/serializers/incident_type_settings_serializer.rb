@@ -11,18 +11,12 @@ class IncidentTypeSettingsSerializer < BaseSerializer
     slug: { type: :string },
     description: { type: :string, optional: true },
     color: { type: :string, optional: true },
-    position: { type: :number },
-    is_default: { type: :boolean }
+    position: { type: :number }
   )
 
   type :boolean
   def enabled
     incident_type.enabled?
-  end
-
-  type :number
-  def incident_count
-    incident_type.usage_count
   end
 
   type :string, optional: true
@@ -33,10 +27,5 @@ class IncidentTypeSettingsSerializer < BaseSerializer
   type :string, optional: true
   def disable_blocked_reason
     incident_type.disable_blocked_reason
-  end
-
-  type :string, optional: true
-  def default_blocked_reason
-    incident_type.default_blocked_reason
   end
 end

@@ -18,7 +18,9 @@ import {
   CardHeader,
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
+import { HeaderHint } from "@/pages/settings/components/header-hint"
 import { OptionsTable } from "@/pages/settings/components/options-table"
+import { DEFAULT_STATUS_HINT, slugColumnHint } from "@/pages/settings/lib/constants"
 
 const stageColors: Record<string, string> = {
   triage: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
@@ -57,16 +59,34 @@ export function StageStatusesCard({
           <OptionsTable
             options={stage.statuses}
             nameHeader="Status"
-            headers={<TableHead className="hidden md:table-cell">Description</TableHead>}
+            headers={
+              <>
+                <TableHead className="hidden w-44 lg:table-cell">
+                  <HeaderHint
+                    label="Slug"
+                    hint={slugColumnHint("status")}
+                  />
+                </TableHead>
+                <TableHead className="hidden md:table-cell">Description</TableHead>
+              </>
+            }
             cells={(status) => (
-              <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
-                {status.description}
-              </TableCell>
+              <>
+                <TableCell className="hidden lg:table-cell">
+                  <span className="font-mono text-[12px] text-muted-foreground">{status.slug}</span>
+                </TableCell>
+                <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
+                  {status.description}
+                </TableCell>
+              </>
             )}
             reorderPath={reorderIncidentStatusesPath()}
             reorderParams={{ lifecycle_stage_key: stage.key }}
+            fixedLayout
             onMakeDefault={(id) =>
               router.patch(makeDefaultIncidentStatusPath(id), {}, { preserveScroll: true })}
+            defaultSelectable={stage.open}
+            defaultHeaderHint={DEFAULT_STATUS_HINT}
             onToggleEnabled={(status) =>
               router.patch(
                 status.enabled ? disableIncidentStatusPath(status.id) : enableIncidentStatusPath(status.id),
