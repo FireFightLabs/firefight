@@ -11,6 +11,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
+import { IconInfoCircle } from "@tabler/icons-react"
 
 import { router } from "@inertiajs/react"
 
@@ -24,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SortableOptionRow, StaticOptionRow } from "@/pages/settings/components/sortable-option-row"
 
 export function OptionsTable<T extends ConfigurableOption>({
@@ -35,6 +37,7 @@ export function OptionsTable<T extends ConfigurableOption>({
   reorderPath,
   reorderParams,
   onMakeDefault,
+  defaultHeaderHint,
   onToggleEnabled,
   onEdit,
   onDelete,
@@ -50,6 +53,9 @@ export function OptionsTable<T extends ConfigurableOption>({
   reorderParams?: Record<string, string>
   // Omitted for lists without a workspace default, which drops the column.
   onMakeDefault?: (id: string) => void
+  // Explains the Default column when one table alone does not make its scope
+  // obvious, as with statuses split across a card per lifecycle stage.
+  defaultHeaderHint?: string
   onToggleEnabled: (option: T) => void
   onEdit: (option: T) => void
   onDelete: (option: T) => void
@@ -83,7 +89,11 @@ export function OptionsTable<T extends ConfigurableOption>({
           {reorderPath && <TableHead className="w-8" />}
           <TableHead>{nameHeader}</TableHead>
           {headers}
-          {onMakeDefault && <TableHead className="w-24 text-center">Default</TableHead>}
+          {onMakeDefault && (
+            <TableHead className="w-24 text-center">
+              {defaultHeaderHint ? <DefaultHeader hint={defaultHeaderHint} /> : "Default"}
+            </TableHead>
+          )}
           <TableHead className="w-24 text-center">Enabled</TableHead>
           <TableHead className="w-12" />
         </TableRow>
@@ -111,6 +121,20 @@ export function OptionsTable<T extends ConfigurableOption>({
     >
       {table}
     </DndContext>
+  )
+}
+
+function DefaultHeader({ hint }: { hint: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-help items-center gap-1">
+          Default
+          <IconInfoCircle className="size-3.5 text-muted-foreground/50" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-64">{hint}</TooltipContent>
+    </Tooltip>
   )
 }
 

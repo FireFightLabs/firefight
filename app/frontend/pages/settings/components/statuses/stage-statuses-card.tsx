@@ -67,6 +67,7 @@ export function StageStatusesCard({
             reorderParams={{ lifecycle_stage_key: stage.key }}
             onMakeDefault={(id) =>
               router.patch(makeDefaultIncidentStatusPath(id), {}, { preserveScroll: true })}
+            defaultHeaderHint="One status across all stages is the default, so picking one here clears the selection in the other stages. New incidents open in it, which is why it has to be a triage or active status."
             onToggleEnabled={(status) =>
               router.patch(
                 status.enabled ? disableIncidentStatusPath(status.id) : enableIncidentStatusPath(status.id),
