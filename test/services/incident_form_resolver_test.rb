@@ -27,6 +27,20 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_equal positions.sort, positions
   end
 
+  test "resolve drops custom fields whose definition is disabled" do
+    field = @resolver.resolve(IncidentForm::SLUG_DECLARE).find(&:custom?)
+    assert field, "expected a custom field on the declare form"
+
+    definition = field.incident_field_definition
+    definition.update!(deleted_at: Time.current)
+
+    ids = @resolver.resolve(IncidentForm::SLUG_DECLARE).map(&:id)
+    assert_not_includes ids, field.id
+
+    definition.update!(deleted_at: nil)
+    assert_includes @resolver.resolve(IncidentForm::SLUG_DECLARE).map(&:id), field.id
+  end
+
   test "resolve raises for unknown lifecycle event" do
     assert_raises(ArgumentError) do
       @resolver.resolve("nonexistent")

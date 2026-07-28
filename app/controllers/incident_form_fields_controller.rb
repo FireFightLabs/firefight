@@ -7,7 +7,7 @@ class IncidentFormFieldsController < InertiaController
     form = resolve_form(params[:incident_form_id])
     field_definition = current_workspace.incident_field_definitions.active.find(params[:incident_field_definition_id])
     form_service.add_custom_field(form, field_definition)
-    redirect_to settings_forms_path(form: form.id)
+    redirect_to settings_forms_path(form: form.id), notice: "#{field_definition.name} was added to the #{form.name} form."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_forms_path(form: form&.id),
       inertia: { errors: e.record.errors.to_hash }
@@ -25,7 +25,7 @@ class IncidentFormFieldsController < InertiaController
       @form_field.sync_conditions!(conditions)
     end
 
-    redirect_to settings_forms_path(form: @form_field.incident_form_id)
+    redirect_to settings_forms_path(form: @form_field.incident_form_id), notice: "#{@form_field.name} was updated."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_forms_path(form: @form_field.incident_form_id),
       inertia: { errors: e.record.errors.to_hash }
@@ -33,8 +33,9 @@ class IncidentFormFieldsController < InertiaController
 
   def destroy
     form_id = @form_field.incident_form_id
+    name = @form_field.name
     form_service.remove_field(@form_field)
-    redirect_to settings_forms_path(form: form_id)
+    redirect_to settings_forms_path(form: form_id), notice: "#{name} was removed from the form."
   end
 
   def move_up
@@ -53,7 +54,7 @@ class IncidentFormFieldsController < InertiaController
     form = resolve_form(params.require(:incident_form_id))
     ordered_ids = params.require(:ordered_ids)
     form_service.reorder(form, ordered_ids)
-    redirect_to settings_forms_path(form: form.id)
+    redirect_to settings_forms_path(form: form.id), notice: "Field order updated."
   end
 
   private

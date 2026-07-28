@@ -12,7 +12,7 @@ import type {
   RunbookCustomField,
   RunbookSettings,
 } from "@/types/serializers"
-import { runbookPath } from "@/lib/routes"
+import { reorderRunbooksPath, disableRunbookPath, enableRunbookPath, runbookPath } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,15 +22,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { TableCell, TableHead } from "@/components/ui/table"
+import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { OptionsTable } from "@/pages/settings/components/options-table"
 import { RunbookDialog } from "@/pages/settings/components/runbooks/runbook-dialog"
 import { conditionSummary } from "@/pages/settings/lib/runbook-conditions"
 
@@ -44,10 +38,9 @@ interface RunbooksTabProps {
 export function RunbooksTab({ runbooks, incidentTypes, severities, customFields }: RunbooksTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRunbook, setEditingRunbook] = useState<RunbookSettings | null>(null)
+  const [deleting, setDeleting] = useState<RunbookSettings | null>(null)
 
-  function handleDelete(runbook: RunbookSettings) {
-    router.delete(runbookPath(runbook.id), { preserveScroll: true })
-  }
+
 
   function openCreate() {
     setEditingRunbook(null)
@@ -115,61 +108,65 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
     <Card>
       {header}
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Runbook</TableHead>
+        <OptionsTable
+          options={runbooks}
+          nameHeader="Runbook"
+          headers={
+            <>
+              <TableHead className="hidden lg:table-cell">Summary</TableHead>
               <TableHead className="hidden md:table-cell">Conditions</TableHead>
               <TableHead className="w-20 text-center">Steps</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {runbooks.map((runbook) => {
-              const summary = conditionSummary(runbook.conditions ?? [], incidentTypes, severities, customFields)
-
-              return (
-                <TableRow key={runbook.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2.5">
-                      <span className="font-medium">{runbook.name}</span>
-                      {runbook.externalUrl && (
-                        <a
-                          href={runbook.externalUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-foreground"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <IconExternalLink className="size-3.5" />
-                        </a>
-                      )}
-                    </div>
-                    {runbook.summary && (
-                      <p className="mt-0.5 max-w-md truncate text-sm text-muted-foreground">{runbook.summary}</p>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground max-w-sm truncate">
-                    {summary ?? "Always shown"}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="outline" className="font-mono tabular-nums">
-                      {runbook.steps.length}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <RowActions
-                      onEdit={() => openEdit(runbook)}
-                      onDelete={() => handleDelete(runbook)}
-                    />
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+            </>
+          }
+          cells={(runbook) => (
+            <>
+              <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-xs truncate">
+                <span className="flex items-center gap-1.5">
+                  {runbook.summary}
+                  {runbook.externalUrl && (
+                    <a
+                      href={runbook.externalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                      aria-label={`Open ${runbook.name} runbook link`}
+                    >
+                      <IconExternalLink className="size-3.5" />
+                    </a>
+                  )}
+                </span>
+              </TableCell>
+              <TableCell className="hidden md:table-cell text-sm text-muted-foreground max-w-sm truncate">
+                {conditionSummary(runbook.conditions ?? [], incidentTypes, severities, customFields) ?? "Always shown"}
+              </TableCell>
+              <TableCell className="text-center">
+                <Badge variant="outline" className="font-mono tabular-nums">{runbook.steps.length}</Badge>
+              </TableCell>
+            </>
+          )}
+          reorderPath={reorderRunbooksPath()}
+          onToggleEnabled={(runbook) =>
+            router.patch(
+              runbook.enabled ? disableRunbookPath(runbook.id) : enableRunbookPath(runbook.id),
+              {},
+              { preserveScroll: true },
+            )}
+          onEdit={openEdit}
+          onDelete={setDeleting}
+        />
       </CardContent>
       {dialog}
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleting)}
+        title={`Delete ${deleting?.name ?? "this runbook"}?`}
+        description="No incident references this runbook, so nothing loses its history. It stops matching new incidents straight away."
+        onConfirm={() => {
+          if (!deleting) return
+          router.delete(runbookPath(deleting.id), { preserveScroll: true, onFinish: () => setDeleting(null) })
+        }}
+        onCancel={() => setDeleting(null)}
+      />
     </Card>
   )
 }

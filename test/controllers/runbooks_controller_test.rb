@@ -121,13 +121,43 @@ class RunbooksControllerTest < ActionDispatch::IntegrationTest
     assert_empty @runbook.reload.incident_conditions
   end
 
-  test "destroy soft-deletes via deleted_at" do
-    delete runbook_url(@runbook)
+  test "destroy deletes a runbook nothing references" do
+    assert_difference -> { Runbook.count }, -1 do
+      delete runbook_url(@runbook)
+    end
     assert_response :redirect
+    assert_not Runbook.exists?(@runbook.id)
+  end
 
+  test "destroy refuses a runbook attached to incidents" do
+    incident = incidents(:active_critical_ws1)
+    @runbook.incident_runbooks.create!(incident: incident, workspace: @workspace)
+
+    assert_no_difference -> { Runbook.count } do
+      delete runbook_url(@runbook)
+    end
+    assert_match(/in use by 1 incident/, flash[:alert])
+  end
+
+  test "disable then enable round-trips a runbook" do
+    patch disable_runbook_url(@runbook)
     assert_not_nil @runbook.reload.deleted_at
-    assert Runbook.exists?(@runbook.id), "Should not hard-delete"
-    assert_not @workspace.runbooks.active.exists?(@runbook.id)
+    assert_equal "#{@runbook.name} was disabled.", flash[:notice]
+
+    patch enable_runbook_url(@runbook)
+    assert_nil @runbook.reload.deleted_at
+    assert_equal "#{@runbook.name} was enabled.", flash[:notice]
+  end
+
+  test "reorder rewrites positions" do
+    other = @workspace.runbooks.create!(name: "Second")
+    reversed = @workspace.runbooks.ordered.to_a.reverse
+
+    patch reorder_runbooks_url, params: { ordered_ids: reversed.map(&:id) }
+
+    assert_equal reversed.map(&:id), @workspace.runbooks.ordered.map(&:id)
+    assert_equal "Runbook order updated.", flash[:notice]
+    assert other.persisted?
   end
 
   test "non-admin cannot create" do

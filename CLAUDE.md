@@ -24,6 +24,19 @@ Production-grade or not at all. Every one of these has already been violated onc
 - **`bin/ci` does not check the frontend.** No eslint, no `tsc`. Run `npm run lint` and `npx tsc --noEmit` yourself before calling frontend work done; green `bin/ci` says nothing about it.
 - **Finish the whole path, or say exactly what you left undone.** Deferring part of a task is fine when it is stated. Silence reads as complete, which makes it a false claim.
 
+## Settings screen UX standards (always apply)
+
+Every settings list behaves the same way. A new one joins this pattern rather than inventing its own.
+
+- **Every mutating action confirms itself with a toast.** Create, update, delete, enable, disable, reorder, set-default. An action that succeeds silently is indistinguishable from one that failed. `redirect_to ..., notice:` is enough, `FlashToaster` renders it.
+- **Delete asks first, via `ConfirmDeleteDialog`.** Never `router.delete` straight from a row. The description says what is lost, and names it: how many deliveries, how many incidents.
+- **Delete only at zero references, disable otherwise.** Above zero the Delete item stays visible but inert, with a tooltip naming the exact count. Never hide the control, and never let it fail silently.
+- **Guard rules live on the model as `*_blocked_reason`**, returning a sentence or nil. Controller turns it into a flash alert, serializer ships it, row renders it as a tooltip. Never re-derive a rule in the controller or the frontend, and never ship a bare `deletable` boolean: it drifts from what the controller enforces.
+- **Soft delete requires a way back.** If `destroy` sets `deleted_at`, the screen must list disabled rows and offer enable. A row that vanishes while still holding its slug is unreachable, not deleted.
+- **Reorder is optimistic.** The row moves on drop and stays; the request goes out immediately and only a failure reverts it. Use `useOptimisticOrder`. Never make the user watch rows snap back while a request is in flight.
+- **Counts come from one subquery**, `with_usage_counts`, never a `count` or `exists?` per row.
+- **Reuse the shared pieces**: `OptionsTable`, `SortableOptionRow`, `OptionDialog` (owns both create and edit), `ConfirmDeleteDialog`, `RowActions`, `ColorPicker`. Model side: `OptionGuards` for usage and blocked reasons, `ConfigurableOption` when the list is also positioned and slugged, `DefaultableOption` when one row is the workspace default.
+
 ## Deep Dives
 
 Detailed docs live in `docs/`. Read the relevant one **before** working in that area:

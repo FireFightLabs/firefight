@@ -9,7 +9,7 @@ class SettingsControllerTest < ActionDispatch::IntegrationTest
     sign_in(users(:alice), @workspace)
   end
 
-  test "runbooks renders active runbooks with steps and conditions plus option lists" do
+  test "runbooks renders every runbook with steps and conditions plus option lists" do
     runbook = @workspace.runbooks.create!(name: "Failover", summary: "Fail over the DB")
     runbook.runbook_steps.create!(title: "Promote replica", position: 1)
     runbook.incident_conditions.create!(
@@ -24,7 +24,9 @@ class SettingsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
 
     runbooks = inertia_props["runbooks"]
-    assert_equal [ "Failover" ], runbooks.map { |r| r["name"] }
+    # Disabled runbooks stay listed so they can be re-enabled.
+    assert_equal [ "Failover", "Archived" ], runbooks.map { |r| r["name"] }
+    assert_equal [ true, false ], runbooks.map { |r| r["enabled"] }
     assert_equal [ "Promote replica" ], runbooks.first["steps"].map { |s| s["title"] }
     assert_equal 1, runbooks.first["conditions"].length
 

@@ -23,7 +23,7 @@ class WebhooksController < InertiaController
 
   def destroy
     @webhook.destroy!
-    redirect_to settings_webhooks_path
+    redirect_to settings_webhooks_path, notice: "#{@webhook.name} was deleted."
   end
 
   def test
@@ -48,12 +48,12 @@ class WebhooksController < InertiaController
 
   def activate
     @webhook.activate!
-    redirect_to settings_webhooks_path
+    redirect_to settings_webhooks_path, notice: "#{@webhook.name} was activated."
   end
 
   def deactivate
     @webhook.deactivate!
-    redirect_to settings_webhooks_path
+    redirect_to settings_webhooks_path, notice: "#{@webhook.name} was deactivated."
   end
 
   def sample_payload

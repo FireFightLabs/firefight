@@ -1,16 +1,28 @@
 import { useState } from "react"
-import {
-  IconChevronRight,
-  IconForms,
-  IconPlus,
-} from "@tabler/icons-react"
+import { router } from "@inertiajs/react"
+import { IconForms, IconPlus } from "@tabler/icons-react"
 
 import type {
   CatalogTypeOption,
   IncidentFieldDefinitionSettings,
 } from "@/pages/settings/lib/types"
+import {
+  incidentFieldDefinitionPath,
+  disableIncidentFieldDefinitionPath,
+  enableIncidentFieldDefinitionPath,
+} from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { TableCell, TableHead } from "@/components/ui/table"
+import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { OptionsTable } from "@/pages/settings/components/options-table"
 import { FieldDialog } from "@/pages/settings/components/custom-fields/field-dialog"
 import { FieldTypeIcon } from "@/pages/settings/components/custom-fields/field-type-icon"
 
@@ -26,58 +38,76 @@ interface CustomFieldsTabProps {
 export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingField, setEditingField] = useState<IncidentFieldDefinitionSettings | null>(null)
+  const [deleting, setDeleting] = useState<IncidentFieldDefinitionSettings | null>(null)
+
+  function openCreate() {
+    setEditingField(null)
+    setDialogOpen(true)
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Custom fields</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Reusable field definitions for lifecycle forms. Attach them to Declare, Update, or Resolve forms.
-          </p>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Custom fields</CardTitle>
+            <CardDescription className="mt-1">
+              Reusable field definitions for lifecycle forms. Attach them to Declare, Update, or Resolve forms, where their order is set per form.
+            </CardDescription>
+          </div>
+          <Button size="sm" onClick={openCreate}>
+            <IconPlus className="size-4" />
+            Add field
+          </Button>
         </div>
-        <Button size="sm" onClick={() => { setEditingField(null); setDialogOpen(true) }}>
-          <IconPlus className="size-4" />
-          Add field
-        </Button>
-      </div>
+      </CardHeader>
 
-      {fields.length > 0 ? (
-        <div className="rounded-xl border border-border">
-          {fields.map((field, index) => (
-            <button
-              key={field.id}
-              type="button"
-              onClick={() => { setEditingField(field); setDialogOpen(true) }}
-              className={`group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 ${index < fields.length - 1 ? "border-b border-border" : ""}`}
-            >
-              <div className="rounded-lg bg-muted/60 p-1.5 text-muted-foreground">
-                <FieldTypeIcon fieldType={field.fieldType} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{field.name}</span>
-                  <span className="font-mono text-[11px] text-muted-foreground/50">{field.key}</span>
-                </div>
-                {field.description && (
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{field.description}</p>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px]">{titleCase(field.fieldType)}</Badge>
-                {field.catalogTypeName && (
-                  <Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{field.catalogTypeName}</Badge>
-                )}
-                <span className="text-[11px] tabular-nums text-muted-foreground/50">
-                  {field.usageCount} {field.usageCount === 1 ? "form" : "forms"}
-                </span>
-                <IconChevronRight className="size-3.5 text-muted-foreground/30 transition-colors group-hover:text-muted-foreground" />
-              </div>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
+      <CardContent className={fields.length === 0 ? undefined : "p-0"}>
+        {fields.length > 0 ? (
+          <OptionsTable
+            options={fields}
+            nameHeader="Field"
+            headers={
+              <>
+                <TableHead className="hidden lg:table-cell">Key</TableHead>
+                <TableHead className="hidden md:table-cell">Type</TableHead>
+                <TableHead className="w-24 text-center">Forms</TableHead>
+              </>
+            }
+            cells={(field) => (
+              <>
+                <TableCell className="hidden lg:table-cell">
+                  <span className="font-mono text-[12px] text-muted-foreground">{field.key}</span>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  <span className="flex items-center gap-2">
+                    <FieldTypeIcon fieldType={field.fieldType} />
+                    <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px]">
+                      {titleCase(field.fieldType)}
+                    </Badge>
+                    {field.catalogTypeName && (
+                      <Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">
+                        {field.catalogTypeName}
+                      </Badge>
+                    )}
+                  </span>
+                </TableCell>
+                <TableCell className="text-center">
+                  <Badge variant="outline" className="font-mono tabular-nums">{field.usageCount}</Badge>
+                </TableCell>
+              </>
+            )}
+            onToggleEnabled={(field) =>
+              router.patch(
+                field.enabled ? disableIncidentFieldDefinitionPath(field.id) : enableIncidentFieldDefinitionPath(field.id),
+                {},
+                { preserveScroll: true },
+              )}
+            onEdit={(field) => { setEditingField(field); setDialogOpen(true) }}
+            onDelete={setDeleting}
+          />
+        ) : (
+          <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
           <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-lg bg-muted/60">
             <IconForms className="size-5 text-muted-foreground" />
           </div>
@@ -85,12 +115,13 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
           <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
             Create fields like affected services, impacted environment, or customer segment. Then attach them to lifecycle forms.
           </p>
-          <Button size="sm" variant="outline" className="mt-4" onClick={() => setDialogOpen(true)}>
+          <Button size="sm" variant="outline" className="mt-4" onClick={openCreate}>
             <IconPlus className="size-3.5" />
             Create your first field
-          </Button>
-        </div>
-      )}
+            </Button>
+          </div>
+        )}
+      </CardContent>
 
       <FieldDialog
         open={dialogOpen}
@@ -98,6 +129,17 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
         field={editingField}
         catalogTypes={catalogTypes}
       />
-    </div>
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleting)}
+        title={`Delete ${deleting?.name ?? "this field"}?`}
+        description="No form uses this field, so nothing loses its history. It disappears from the field picker straight away."
+        onConfirm={() => {
+          if (!deleting) return
+          router.delete(incidentFieldDefinitionPath(deleting.id), { onFinish: () => setDeleting(null) })
+        }}
+        onCancel={() => setDeleting(null)}
+      />
+    </Card>
   )
 }

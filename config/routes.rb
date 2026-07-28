@@ -98,7 +98,15 @@ Rails.application.routes.draw do
       end
     end
     get "/settings/runbooks", to: "settings#runbooks", as: :settings_runbooks
-    resources :runbooks, only: [ :create, :update, :destroy ], path: "settings/runbooks"
+    resources :runbooks, only: [ :create, :update, :destroy ], path: "settings/runbooks" do
+      collection do
+        patch :reorder
+      end
+      member do
+        patch :disable
+        patch :enable
+      end
+    end
     get "/settings/custom-fields", to: "settings#custom_fields", as: :settings_custom_fields
     get "/settings/forms", to: "settings#forms", as: :settings_forms
     get "/settings/webhooks", to: "settings#webhooks", as: :settings_webhooks
@@ -180,7 +188,12 @@ Rails.application.routes.draw do
         patch :enable
       end
     end
-    resources :incident_field_definitions, only: [ :create, :update ], path: "settings/custom-fields"
+    resources :incident_field_definitions, only: [ :create, :update, :destroy ], path: "settings/custom-fields" do
+      member do
+        patch :disable
+        patch :enable
+      end
+    end
     resources :incident_form_fields, only: [ :create, :update, :destroy ], path: "settings/forms/fields" do
       collection do
         patch :reorder
