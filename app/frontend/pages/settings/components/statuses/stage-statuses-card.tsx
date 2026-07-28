@@ -61,7 +61,7 @@ export function StageStatusesCard({
             nameHeader="Status"
             headers={
               <>
-                <TableHead className="hidden lg:table-cell">
+                <TableHead className="hidden w-44 lg:table-cell">
                   <HeaderHint
                     label="Slug"
                     hint={slugColumnHint("status")}

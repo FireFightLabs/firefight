@@ -97,7 +97,7 @@ export function OptionsTable<T extends ConfigurableOption>({
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           {reorderPath && <TableHead className="w-8" />}
-          <TableHead className={cn(fixedLayout && "w-1/3")}>{nameHeader}</TableHead>
+          <TableHead className={cn(fixedLayout && "w-56")}>{nameHeader}</TableHead>
           {headers}
           {onMakeDefault && (
             <TableHead className="w-24 text-center">

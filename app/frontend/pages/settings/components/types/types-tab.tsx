@@ -70,7 +70,7 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
             fallbackColor={DEFAULT_TYPE_COLOR}
             headers={
               <>
-                <TableHead className="hidden lg:table-cell">
+                <TableHead className="hidden w-44 lg:table-cell">
                   <HeaderHint
                     label="Slug"
                     hint={slugColumnHint("type")}
