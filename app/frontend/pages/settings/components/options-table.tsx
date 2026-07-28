@@ -105,7 +105,9 @@ export function OptionsTable<T extends ConfigurableOption>({
             </TableHead>
           )}
           <TableHead className="w-24 text-center">Enabled</TableHead>
-          <TableHead className="w-12" />
+          {/* 64px is what auto layout settles on for the button plus its cell
+              padding, so a fixed-layout table lands in the same place. */}
+          <TableHead className="w-16" />
         </TableRow>
       </TableHeader>
       <Rows options={ordered} onMakeDefault={defaultSelectable ? onMakeDefault : undefined}>
