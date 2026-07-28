@@ -21,8 +21,10 @@ import {
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { HeaderHint } from "@/pages/settings/components/header-hint"
 import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
+import { slugColumnHint } from "@/pages/settings/lib/constants"
 
 export function SeveritiesTab({ severities }: { severities: IncidentSeveritySettings[] }) {
   const [dialog, setDialog] = useState<OptionDialogState<IncidentSeveritySettings>>(null)
@@ -49,11 +51,26 @@ export function SeveritiesTab({ severities }: { severities: IncidentSeveritySett
         <OptionsTable
           options={severities}
           nameHeader="Severity"
-          headers={<TableHead className="hidden md:table-cell">Description</TableHead>}
+          headers={
+            <>
+              <TableHead className="hidden lg:table-cell">
+                <HeaderHint
+                  label="Slug"
+                  hint={slugColumnHint("severity")}
+                />
+              </TableHead>
+              <TableHead className="hidden md:table-cell">Description</TableHead>
+            </>
+          }
           cells={(severity) => (
-            <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
-              {severity.description}
-            </TableCell>
+            <>
+              <TableCell className="hidden lg:table-cell">
+                <span className="font-mono text-[12px] text-muted-foreground">{severity.slug}</span>
+              </TableCell>
+              <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
+                {severity.description}
+              </TableCell>
+            </>
           )}
           reorderPath={reorderIncidentSeveritiesPath()}
           onMakeDefault={(id) =>

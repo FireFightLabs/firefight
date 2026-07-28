@@ -20,8 +20,10 @@ import {
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { HeaderHint } from "@/pages/settings/components/header-hint"
 import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
+import { slugColumnHint } from "@/pages/settings/lib/constants"
 
 const DEFAULT_TYPE_COLOR = "#6366F1"
 
@@ -68,7 +70,12 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
             fallbackColor={DEFAULT_TYPE_COLOR}
             headers={
               <>
-                <TableHead className="hidden lg:table-cell">Slug</TableHead>
+                <TableHead className="hidden lg:table-cell">
+                  <HeaderHint
+                    label="Slug"
+                    hint={slugColumnHint("type")}
+                  />
+                </TableHead>
                 <TableHead className="hidden md:table-cell">Description</TableHead>
               </>
             }

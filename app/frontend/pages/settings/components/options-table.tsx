@@ -11,7 +11,6 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { IconInfoCircle } from "@tabler/icons-react"
 
 import { router } from "@inertiajs/react"
 
@@ -26,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { HeaderHint } from "@/pages/settings/components/header-hint"
 import { SortableOptionRow, StaticOptionRow } from "@/pages/settings/components/sortable-option-row"
 
 export function OptionsTable<T extends ConfigurableOption>({
@@ -102,7 +101,7 @@ export function OptionsTable<T extends ConfigurableOption>({
           {headers}
           {onMakeDefault && (
             <TableHead className="w-24 text-center">
-              {!defaultSelectable ? null : defaultHeaderHint ? <DefaultHeader hint={defaultHeaderHint} /> : "Default"}
+              {!defaultSelectable ? null : defaultHeaderHint ? <HeaderHint label="Default" hint={defaultHeaderHint} /> : "Default"}
             </TableHead>
           )}
           <TableHead className="w-24 text-center">Enabled</TableHead>
@@ -132,20 +131,6 @@ export function OptionsTable<T extends ConfigurableOption>({
     >
       {table}
     </DndContext>
-  )
-}
-
-function DefaultHeader({ hint }: { hint: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-help items-center gap-1">
-          Default
-          <IconInfoCircle className="size-3.5 text-muted-foreground/50" />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-64">{hint}</TooltipContent>
-    </Tooltip>
   )
 }
 

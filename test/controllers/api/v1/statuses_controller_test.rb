@@ -20,6 +20,7 @@ class Api::V1::StatusesControllerTest < ActionDispatch::IntegrationTest
     status = data["statuses"].first
     assert status.key?("id")
     assert status.key?("name")
+    assert status.key?("slug")
     assert status.key?("lifecycle_stage")
     assert_includes %w[triage active closed canceled], status["lifecycle_stage"]
   end

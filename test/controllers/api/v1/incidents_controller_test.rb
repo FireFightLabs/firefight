@@ -123,6 +123,16 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert data.key?("custom_fields")
   end
 
+  test "embeds the slug alongside every option a consumer might match on" do
+    incident = incidents(:active_critical_ws1)
+    get api_v1_incident_url(incident), headers: api_headers
+    assert_response :success
+
+    data = json_response["incident"]
+    assert_equal incident.incident_status.slug, data["status"]["slug"]
+    assert_equal incident.incident_severity.slug, data["severity"]["slug"]
+  end
+
   test "returns 404 for incident from different workspace" do
     ws2_incident = incidents(:active_p0_ws2)
     get api_v1_incident_url(ws2_incident), headers: api_headers

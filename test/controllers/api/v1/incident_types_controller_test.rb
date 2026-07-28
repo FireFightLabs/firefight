@@ -21,6 +21,7 @@ class Api::V1::IncidentTypesControllerTest < ActionDispatch::IntegrationTest
       incident_type = data["incident_types"].first
       assert incident_type.key?("id")
       assert incident_type.key?("name")
+      assert incident_type.key?("slug")
     end
   end
 end
