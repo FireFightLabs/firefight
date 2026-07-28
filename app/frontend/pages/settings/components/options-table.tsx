@@ -17,6 +17,7 @@ import { router } from "@inertiajs/react"
 
 import type { ConfigurableOption } from "@/pages/settings/lib/types"
 import { useOptimisticOrder } from "@/pages/settings/lib/reorder"
+import { cn } from "@/lib/utils"
 import { RadioGroup } from "@/components/ui/radio-group"
 import {
   Table,
@@ -39,6 +40,7 @@ export function OptionsTable<T extends ConfigurableOption>({
   onMakeDefault,
   defaultSelectable = true,
   defaultHeaderHint,
+  fixedLayout = false,
   onToggleEnabled,
   onEdit,
   onDelete,
@@ -61,6 +63,9 @@ export function OptionsTable<T extends ConfigurableOption>({
   // Explains the Default column when one table alone does not make its scope
   // obvious, as with statuses split across a card per lifecycle stage.
   defaultHeaderHint?: string
+  // Sizes columns from the header rather than from content, so sibling tables
+  // rendered one above another line up instead of each measuring its own rows.
+  fixedLayout?: boolean
   onToggleEnabled: (option: T) => void
   onEdit: (option: T) => void
   onDelete: (option: T) => void
@@ -89,11 +94,11 @@ export function OptionsTable<T extends ConfigurableOption>({
   })
 
   const table = (
-    <Table>
+    <Table className={cn(fixedLayout && "table-fixed")}>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           {reorderPath && <TableHead className="w-8" />}
-          <TableHead>{nameHeader}</TableHead>
+          <TableHead className={cn(fixedLayout && "w-1/3")}>{nameHeader}</TableHead>
           {headers}
           {onMakeDefault && (
             <TableHead className="w-24 text-center">

@@ -65,6 +65,7 @@ export function StageStatusesCard({
             )}
             reorderPath={reorderIncidentStatusesPath()}
             reorderParams={{ lifecycle_stage_key: stage.key }}
+            fixedLayout
             onMakeDefault={(id) =>
               router.patch(makeDefaultIncidentStatusPath(id), {}, { preserveScroll: true })}
             defaultSelectable={stage.open}
