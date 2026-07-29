@@ -3,6 +3,7 @@ class Api::V1::ApiController < ActionController::API
 
   rate_limit to: 1000, within: 1.minute, by: -> { Current.api_key&.id }, with: :rate_limit_exceeded
 
+  before_action :block_suspended_workspace
   before_action :annotate_trace_source
 
   rescue_from ActiveRecord::RecordNotFound, with: :not_found
@@ -12,6 +13,12 @@ class Api::V1::ApiController < ActionController::API
   rescue_from AbilityGateway::PendingApproval, with: :pending_approval
 
   private
+
+  def block_suspended_workspace
+    return unless Current.workspace&.suspended?
+
+    render json: error_response("workspace_suspended", Current.workspace.suspension_message), status: :forbidden
+  end
 
   def annotate_trace_source
     OpenTelemetry::Trace.current_span.add_attributes({
