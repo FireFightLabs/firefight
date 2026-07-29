@@ -61,3 +61,4 @@ node_modules
 # Infisical CLI project config (may reference workspace/secret identifiers)
 /.infisical.json
 
+app/frontend/cloud_pages/

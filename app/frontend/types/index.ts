@@ -12,6 +12,9 @@ export type SharedProps = PageProps & {
   currentUser?: CurrentUser
   currentWorkspace?: CurrentWorkspace
   availableWorkspaces?: CurrentWorkspace[]
+  // Shared by the proprietary cloud engine when it is loaded, absent on
+  // self-hosted builds.
+  cloudBillingPath?: string
 }
 
 export interface SlackChannel {

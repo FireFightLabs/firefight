@@ -4,6 +4,7 @@ import {
   IconBook,
   IconBook2,
   IconCategory,
+  IconCreditCard,
   IconChecklist,
   IconForms,
   IconHistory,
@@ -97,8 +98,18 @@ const navSections = [
 ]
 
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
-  const { currentUser, currentWorkspace, availableWorkspaces } =
+  const { currentUser, currentWorkspace, availableWorkspaces, cloudBillingPath } =
     usePage<SharedProps>().props
+
+  // The cloud engine shares this path when it is loaded, so self-hosted
+  // builds never grow a Billing item.
+  const sections = cloudBillingPath
+    ? navSections.map((section) =>
+        section.label === "Team"
+          ? { ...section, items: [ ...section.items, { title: "Billing", url: cloudBillingPath, icon: IconCreditCard } ] }
+          : section,
+      )
+    : navSections
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -118,7 +129,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="pt-8 px-2">
-        <NavMain sections={navSections} />
+        <NavMain sections={sections} />
       </SidebarContent>
       <SidebarFooter>
         {currentUser && (
