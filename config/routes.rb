@@ -248,5 +248,8 @@ Rails.application.routes.draw do
   # Last route wins nothing above it. Turning an unmatched path into a real
   # action rather than a RoutingError is what gives development the same styled
   # page production gets.
-  match "*path", to: "errors#not_found", via: :all
+  # Rails-internal paths (Active Storage blobs, direct uploads, representations)
+  # are drawn after this file, so an unconstrained catch-all would shadow them.
+  match "*path", to: "errors#not_found", via: :all,
+        constraints: ->(req) { !req.path.start_with?("/rails/") }
 end

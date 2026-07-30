@@ -64,12 +64,22 @@ class TimelineEventSerializer < BaseSerializer
     return nil unless event.event_type == IncidentEvent::MESSAGE_FILE_SHARED
 
     meta = event.metadata.with_indifferent_access
+    blob = event.artifact.attached? ? event.artifact.blob : nil
+
+    # The blob describes what downloadUrl actually returns, so it wins over the
+    # Slack metadata. Events recorded before that metadata was captured carry
+    # only a details key, and would otherwise render with no name or size.
+    name = blob&.filename.to_s.presence || meta[:file_name].presence
+    permalink = meta[:permalink].presence
+    download = artifact_path(event)
+    return nil if name.blank? && download.blank? && permalink.blank?
+
     {
-      name: meta[:file_name].to_s,
-      mimeType: meta[:mime_type].presence,
-      slackPermalink: meta[:permalink].presence,
-      downloadUrl: artifact_path(event),
-      byteSize: meta[:byte_size]
+      name: name.to_s,
+      mimeType: blob&.content_type.presence || meta[:mime_type].presence,
+      slackPermalink: permalink,
+      downloadUrl: download,
+      byteSize: blob&.byte_size || meta[:byte_size]
     }
   end
 
