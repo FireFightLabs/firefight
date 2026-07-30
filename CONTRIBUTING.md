@@ -9,6 +9,9 @@ We use [mise](https://mise.jdx.dev/) to pin language and tool versions. After in
 - Ruby (pinned in `.ruby-version`)
 - PostgreSQL 18.3
 - Node (for the frontend toolchain)
+- libvips (Active Storage resizes images through it, and Rails loads it at boot)
+
+Install libvips with `brew install vips` on macOS, or `apt install libvips` on Debian and Ubuntu. The app will not boot without it.
 
 ## PostgreSQL via Docker
 
