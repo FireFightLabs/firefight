@@ -45,4 +45,17 @@ class ErrorsControllerTest < ActionDispatch::IntegrationTest
     get "/up"
     assert_response :success
   end
+
+  test "Active Storage routes are not swallowed by the catch-all" do
+    routes = Rails.application.routes
+
+    blob = routes.recognize_path("/rails/active_storage/blobs/redirect/abc/photo.png", method: :get)
+    assert_equal "active_storage/blobs/redirect", blob[:controller]
+
+    upload = routes.recognize_path("/rails/active_storage/direct_uploads", method: :post)
+    assert_equal "active_storage/direct_uploads", upload[:controller]
+
+    unmatched = routes.recognize_path("/nope", method: :get)
+    assert_equal "errors", unmatched[:controller]
+  end
 end
