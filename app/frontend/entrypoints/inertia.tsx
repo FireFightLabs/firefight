@@ -17,7 +17,13 @@ void createInertiaApp({
     const pages = import.meta.glob<ResolvedComponent>('../pages/**/*.tsx', {
       eager: true,
     })
-    const page = pages[`../pages/${name}.tsx`]
+    // Pages contributed by the proprietary cloud engine. The directory is
+    // populated by the cloud build and absent on self-hosted builds, where
+    // the glob simply matches nothing.
+    const cloudPages = import.meta.glob<ResolvedComponent>('../cloud_pages/**/*.tsx', {
+      eager: true,
+    })
+    const page = pages[`../pages/${name}.tsx`] ?? cloudPages[`../cloud_pages/${name}.tsx`]
     if (!page) {
       console.error(`Missing Inertia page component: '${name}.tsx'`)
     }
