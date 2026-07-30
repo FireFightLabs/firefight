@@ -1,3 +1,5 @@
+import { useState } from "react"
+
 import { IconDownload, IconExternalLink, IconFile, IconPhoto } from "@tabler/icons-react"
 
 import type { TimelineEvent } from "@/pages/incidents/types"
@@ -17,10 +19,11 @@ function formatBytes(bytes: number | null | undefined): string | null {
 }
 
 export function TimelineFileAttachment({ file, withDivider }: { file: FileMeta; withDivider: boolean }) {
+  const [previewFailed, setPreviewFailed] = useState(false)
   const isImage = file.mimeType?.startsWith("image/") ?? false
   const Icon = isImage ? IconPhoto : IconFile
   const size = formatBytes(file.byteSize)
-  const showInlineImage = isImage && Boolean(file.downloadUrl)
+  const showInlineImage = isImage && Boolean(file.downloadUrl) && !previewFailed
 
   return (
     <div className={`rounded-md border border-border/60 bg-muted/30 ${withDivider ? "mt-3" : ""}`}>
@@ -36,6 +39,7 @@ export function TimelineFileAttachment({ file, withDivider }: { file: FileMeta; 
             alt={file.name}
             className="max-h-80 w-full object-contain bg-background/40"
             loading="lazy"
+            onError={() => setPreviewFailed(true)}
           />
         </a>
       )}

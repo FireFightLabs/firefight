@@ -94,4 +94,61 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
     assert_nil rendered[:file][:slackPermalink]
     assert_nil rendered[:file][:mimeType]
   end
+
+  test "the attached blob supplies name, type and size when metadata predates them" do
+    event = incident_events(:inc1_created)
+    event.update!(event_type: IncidentEvent::MESSAGE_FILE_SHARED, metadata: { details: "shared a file" })
+    event.artifact.attach(
+      io: StringIO.new("png bytes here"),
+      filename: "chart.png",
+      content_type: "image/png"
+    )
+
+    rendered = TimelineEventSerializer.one(event)
+
+    assert_equal "chart.png", rendered[:file][:name]
+    assert_equal "image/png", rendered[:file][:mimeType]
+    assert_equal "png bytes here".bytesize, rendered[:file][:byteSize]
+  end
+
+  test "the blob wins over stale metadata describing a different file" do
+    event = incident_events(:inc1_created)
+    event.update!(
+      event_type: IncidentEvent::MESSAGE_FILE_SHARED,
+      metadata: { file_name: "stale.txt", mime_type: "text/plain", byte_size: 1 }
+    )
+    event.artifact.attach(
+      io: StringIO.new("png bytes here"),
+      filename: "chart.png",
+      content_type: "image/png"
+    )
+
+    rendered = TimelineEventSerializer.one(event)
+
+    assert_equal "chart.png", rendered[:file][:name]
+    assert_equal "image/png", rendered[:file][:mimeType]
+    assert_equal "png bytes here".bytesize, rendered[:file][:byteSize]
+  end
+
+  test "metadata still describes the file when nothing was stored" do
+    event = incident_events(:inc1_created)
+    event.update!(
+      event_type: IncidentEvent::MESSAGE_FILE_SHARED,
+      metadata: { file_name: "notes.txt", mime_type: "text/plain", byte_size: 12, permalink: "https://slack.example/f/1" }
+    )
+
+    rendered = TimelineEventSerializer.one(event)
+
+    assert_equal "notes.txt", rendered[:file][:name]
+    assert_equal "text/plain", rendered[:file][:mimeType]
+    assert_equal 12, rendered[:file][:byteSize]
+    assert_nil rendered[:file][:downloadUrl]
+  end
+
+  test "no card renders when there is nothing to describe the file" do
+    event = incident_events(:inc1_created)
+    event.update!(event_type: IncidentEvent::MESSAGE_FILE_SHARED, metadata: { details: "shared a file" })
+
+    assert_nil TimelineEventSerializer.one(event)[:file]
+  end
 end
