@@ -9,6 +9,11 @@ class Api::V1::AlertsController < ActionController::API
     source = AlertSource.enabled.find_by(endpoint_path: params[:endpoint_path])
     return head :not_found unless source
 
+    if source.workspace.suspended?
+      return reject(source, "workspace suspended", :forbidden,
+                    error: source.workspace.suspension_message)
+    end
+
     raw_body = request.raw_post
     if raw_body.bytesize > MAX_PAYLOAD_BYTES
       return reject(source, "payload too large", :content_too_large)

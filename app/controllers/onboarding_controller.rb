@@ -3,6 +3,8 @@
 #   - install:     claimed, ready to add Firefight to Slack
 #   - welcome:     first-install confirmation (letter from founder)
 class OnboardingController < InertiaController
+  # Onboarding runs before a workspace exists or targets a new one.
+  skip_before_action :block_suspended_workspace
   def invite_code
     return redirect_to(login_path) if session[:pending_team_id].blank?
     return redirect_to(onboarding_install_path) if claimed_invite_code.present?

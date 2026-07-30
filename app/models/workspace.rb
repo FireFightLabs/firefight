@@ -1,6 +1,7 @@
 class Workspace < ApplicationRecord
   include Workspace::IncidentDefaults
   include Workspace::CatalogueDefaults
+  include Workspace::Suspension
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 

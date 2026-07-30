@@ -7,6 +7,10 @@ class Api::V1::CommandsController < Api::V1::BaseController
       return render_response(Command.ephemeral(unknown_workspace_message))
     end
 
+    if command.workspace.suspended?
+      return render_response(Command.ephemeral(command.workspace.suspension_message))
+    end
+
     ensure_membership!(workspace: command.workspace, platform_user_id: command.user_id)
     result = CommandDispatcher.dispatch(command)
     render_response(result)

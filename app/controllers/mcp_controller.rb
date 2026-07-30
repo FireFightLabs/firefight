@@ -10,6 +10,7 @@ class McpController < ActionController::API
                  "fetchable as raw markdown; index at #{Mcp::Docs::INDEX}.".freeze
 
   before_action :authenticate!, only: :create
+  before_action :block_suspended_workspace, only: :create
   # Declared after authenticate! so the per-principal bucket is populated.
   rate_limit to: 1000, within: 1.minute, by: -> { Current.principal&.id }, with: :rate_limit_exceeded
 
@@ -61,6 +62,15 @@ class McpController < ActionController::API
     Current.workspace = membership.workspace
     Current.principal = membership
     annotate_trace
+  end
+
+  def block_suspended_workspace
+    return unless Current.workspace&.suspended?
+
+    render json: {
+      error: "workspace_suspended",
+      message: Current.workspace.suspension_message
+    }, status: :forbidden
   end
 
   def unauthorized!

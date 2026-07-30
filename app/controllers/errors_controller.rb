@@ -3,6 +3,8 @@
 # unmatched URL to `not_found` so a mistyped path is a styled page rather than a
 # routing error in any environment.
 class ErrorsController < InertiaController
+  # Error pages render for everyone, suspended or not.
+  skip_before_action :block_suspended_workspace
   def not_found
     respond_with_error("errors/not-found", :not_found)
   end
