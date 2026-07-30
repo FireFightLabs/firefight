@@ -32,7 +32,11 @@ gem "kamal", require: false
 gem "thruster", require: false
 
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
+# ruby-vips is the binding for the libvips system library, which backs the
+# default :vips variant processor. Active Storage loads it during boot to turn
+# off libvips's unfuzzed loaders, so the gem and the library are both required.
 gem "image_processing", "~> 2.0"
+gem "ruby-vips", "~> 2.0"
 gem "aws-sdk-s3", require: false
 
 # Authentication with OmniAuth
