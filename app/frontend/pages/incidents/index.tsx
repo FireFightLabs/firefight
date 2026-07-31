@@ -7,6 +7,7 @@ import { IncidentHeader } from "@/pages/incidents/components/index/incident-head
 import { IncidentTimeline } from "@/pages/incidents/components/index/incident-timeline"
 import { IncidentActionsSidebar } from "@/pages/incidents/components/index/incident-actions-sidebar"
 import { IncidentPostmortemCard } from "@/pages/incidents/components/index/incident-postmortem-card"
+import { RolesPanel } from "@/pages/incidents/components/index/roles-panel"
 import { TimelineSkeleton } from "@/pages/incidents/components/index/timeline-skeleton"
 import type { Incident, IncidentAction, TimelineEvent } from "@/pages/incidents/types"
 import type { SharedProps } from "@/types"
@@ -59,21 +60,20 @@ export default function IncidentPage() {
           </div>
 
           <aside className="w-full shrink-0 lg:w-[336px]">
-            <div className="lg:sticky lg:top-[calc(var(--header-height)+1.75rem)]">
+            {/* Gap rather than margins on each card, so a panel that renders
+                nothing leaves no space behind it. */}
+            <div className="flex flex-col gap-3 lg:sticky lg:top-[calc(var(--header-height)+1.75rem)]">
+              <RolesPanel roles={incident.roles} />
               <Deferred data="actions" fallback={<ActionsSkeleton />}>
                 <IncidentActionsSidebar actions={actions ?? []} canAddAction={canAddAction} canAddFollowup={canAddFollowup} incidentId={incident.id} />
               </Deferred>
-              <div className="mt-3">
-                <AlertsPanel alerts={incident.alerts} />
-              </div>
-              <div className="mt-3">
-                <IncidentPostmortemCard
-                  incidentId={incident.id}
-                  hasPostmortem={hasPostmortem}
-                  postmortemStatus={postmortemStatus}
-                  incidentLifecycleStage={incident.status.lifecycleStage}
-                />
-              </div>
+              <AlertsPanel alerts={incident.alerts} />
+              <IncidentPostmortemCard
+                incidentId={incident.id}
+                hasPostmortem={hasPostmortem}
+                postmortemStatus={postmortemStatus}
+                incidentLifecycleStage={incident.status.lifecycleStage}
+              />
             </div>
           </aside>
         </div>

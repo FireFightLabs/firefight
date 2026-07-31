@@ -132,32 +132,6 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
         </MetaCell>
       </div>
 
-      {incident.roles.length > 0 && (
-        <div className="mt-4 rounded-xl border border-border bg-card px-5 py-4">
-          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground/70 mb-3">
-            Roles
-          </div>
-          <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-            {incident.roles.map((role) => (
-              <div key={role.id} className="flex items-center gap-3 text-sm min-w-0">
-                <span className="text-xs text-muted-foreground shrink-0">{role.name}</span>
-                <div className="flex items-center gap-2 min-w-0">
-                  <Avatar className="size-5">
-                    {role.member.avatarUrl ? (
-                      <AvatarImage src={role.member.avatarUrl} alt={role.member.name} />
-                    ) : null}
-                    <AvatarFallback className="text-[10px] font-semibold bg-primary/20 text-primary">
-                      {role.member.initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-foreground truncate">{role.member.name}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {incident.customFields && Object.keys(incident.customFields).length > 0 && (
         <div className="mt-4 rounded-xl border border-border bg-card px-5 py-4">
           <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground/70 mb-3">

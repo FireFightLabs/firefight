@@ -38,7 +38,7 @@ class Interactions::SetRolesHandlerTest < ActiveSupport::TestCase
     assert_equal @alice, event.actor
     assert_nil event.eventable
     assert_equal @comms_role.slug, event.metadata["role_slug"]
-    assert_equal "assigned the #{@comms_role.name} role", event.description
+    assert_equal "assigned the #{@comms_role.name} role to #{@alice.display_name}", event.description
   end
 
   test "clearing a custom role removes the assignment" do
@@ -48,7 +48,8 @@ class Interactions::SetRolesHandlerTest < ActiveSupport::TestCase
     Interactions::SetRolesHandler.execute(build_interaction(@comms_role => nil))
 
     assert_nil @incident.reload.role_holder(@comms_role)
-    assert @incident.incident_events.exists?(event_type: IncidentEvent::ROLE_UNASSIGNED)
+    event = @incident.incident_events.find_by!(event_type: IncidentEvent::ROLE_UNASSIGNED)
+    assert_equal "cleared the #{@comms_role.name} role", event.description
   end
 
   test "assigning the lead goes through the lead path" do
