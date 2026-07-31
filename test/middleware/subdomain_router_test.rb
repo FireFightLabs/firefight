@@ -59,6 +59,22 @@ class SubdomainRouterTest < ActiveSupport::TestCase
     assert_allowed "app.firefight.app", "/onboarding/welcome"
   end
 
+  test "app subdomain allows the mcp endpoint and its oauth flow" do
+    assert_allowed "app.firefight.app", "/mcp"
+    assert_allowed "app.firefight.app", "/oauth/authorize"
+    assert_allowed "app.firefight.app", "/oauth/token"
+    assert_allowed "app.firefight.app", "/oauth/register"
+    assert_allowed "app.firefight.app", "/.well-known/oauth-authorization-server"
+    assert_allowed "app.firefight.app", "/.well-known/oauth-protected-resource"
+    assert_allowed "app.firefight.app", "/.well-known/oauth-protected-resource/mcp"
+  end
+
+  test "other subdomains block the mcp endpoint" do
+    assert_blocked "api.firefight.app", "/mcp"
+    assert_blocked "api.firefight.app", "/.well-known/oauth-protected-resource"
+    assert_blocked "slack.firefight.app", "/mcp"
+  end
+
   test "app subdomain blocks api and slack paths" do
     assert_blocked "app.firefight.app", "/api/v1/incidents"
     assert_blocked "app.firefight.app", "/api/v1/commands"
@@ -117,5 +133,7 @@ class SubdomainRouterTest < ActiveSupport::TestCase
     # but the boundary check matters on app subdomain where /app prefix is used.
     assert_blocked "app.firefight.app", "/apple"
     assert_blocked "app.firefight.app", "/authentic"
+    assert_blocked "app.firefight.app", "/mcp-console"
+    assert_blocked "app.firefight.app", "/oauthorize"
   end
 end
