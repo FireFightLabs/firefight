@@ -45,6 +45,13 @@ module Interactions
         { response_action: "update", view: Slack::Modals::Invite.build(incident, private_metadata: incident_metadata) }
       when Identifiers::HOME_ACTION_LEAD
         { response_action: "update", view: Slack::Modals::Lead.build(incident) }
+      when Identifiers::HOME_ACTION_ROLES
+        roles = workspace.incident_roles.active.ordered
+        if roles.empty?
+          return { response_action: "errors", errors: { "action_select_block" => "No incident roles are set up yet. Add them in Settings." } }
+        end
+
+        { response_action: "update", view: Slack::Modals::Roles.build(incident, roles) }
       when Identifiers::HOME_ACTION_ACTIONS
         { response_action: "update", view: Slack::Modals::ActionItemsList.build(incident, kind: :action) }
       when Identifiers::HOME_ACTION_CLOSE

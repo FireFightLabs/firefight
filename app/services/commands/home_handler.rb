@@ -17,6 +17,8 @@ module Commands
         Commands::UpdateSummary.execute(command)
       when Identifiers::SUBCOMMAND_LEAD
         Commands::AssignLead.execute(command)
+      when Identifiers::SUBCOMMAND_ROLE, Identifiers::SUBCOMMAND_ROLES
+        Commands::AssignRoles.execute(command)
       when Identifiers::SUBCOMMAND_STATUS
         Commands::ChangeStatus.execute(command)
       when Identifiers::SUBCOMMAND_UPDATE

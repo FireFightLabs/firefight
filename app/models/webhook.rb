@@ -9,6 +9,8 @@ class Webhook < ApplicationRecord
     IncidentEvent::INCIDENT_REOPENED,
     IncidentEvent::INCIDENT_ESCALATED,
     IncidentEvent::LEAD_ASSIGNED,
+    IncidentEvent::ROLE_ASSIGNED,
+    IncidentEvent::ROLE_UNASSIGNED,
     IncidentEvent::ACTION_CREATED,
     IncidentEvent::ACTION_PICKED_UP,
     IncidentEvent::ACTION_COMPLETED,

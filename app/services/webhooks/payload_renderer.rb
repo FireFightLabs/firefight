@@ -7,6 +7,8 @@ class Webhooks::PayloadRenderer
     IncidentEvent::INCIDENT_REOPENED => "webhooks/events/incident_reopened",
     IncidentEvent::INCIDENT_ESCALATED => "webhooks/events/incident_escalated",
     IncidentEvent::LEAD_ASSIGNED => "webhooks/events/lead_assigned",
+    IncidentEvent::ROLE_ASSIGNED => "webhooks/events/role_assigned",
+    IncidentEvent::ROLE_UNASSIGNED => "webhooks/events/role_assigned",
     IncidentEvent::ACTION_CREATED => "webhooks/events/action_created",
     IncidentEvent::ACTION_PICKED_UP => "webhooks/events/action_picked_up",
     IncidentEvent::ACTION_COMPLETED => "webhooks/events/action_completed",

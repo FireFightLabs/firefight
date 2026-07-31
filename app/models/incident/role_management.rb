@@ -1,30 +1,43 @@
-# Incident::RoleManagement - Role assignment helpers
-#
-# Provides convenience methods for managing incident role assignments,
-# with special helpers for the MVP "Incident Lead" role.
-#
-# Future: Can be extended to support multiple roles (Commander, Comms Lead, etc.)
-#
 module Incident::RoleManagement
   extend ActiveSupport::Concern
 
-  # Role helper for MVP (returns the "Incident Lead" assignment). Reads
-  # don't materialize the role row — they just return nil when no
+  # A role names who is accountable, not who is working, so there is one holder
+  # per role per incident and assigning replaces whoever held it. Parallel
+  # effort is carried by actions and follow-ups, which are many by design.
+  def role_holder(role)
+    role_assignment_for(role)&.workspace_membership
+  end
+
+  def assign_role!(role, workspace_membership, assigned_by: nil)
+    assignment = incident_role_assignments.find_or_initialize_by(incident_role: role)
+    assignment.workspace_membership = workspace_membership
+    assignment.assigned_by = assigned_by
+    assignment.save!
+    assignment
+  end
+
+  def unassign_role!(role)
+    role_assignment_for(role)&.destroy
+  end
+
+  # Reads don't materialize the role row — they just return nil when no
   # assignment exists.
   def lead
     lead_role = workspace.incident_roles.incident_lead.first
     return nil unless lead_role
 
-    incident_role_assignments.find_by(incident_role: lead_role)&.workspace_membership
+    role_holder(lead_role)
   end
 
   def lead=(workspace_membership)
     # Lazy-materialize the lead role on first assignment so workspaces never
     # need it seeded.
-    lead_role = workspace.ensure_incident_role!(IncidentRole::SLUG_INCIDENT_LEAD)
+    assign_role!(workspace.ensure_incident_role!(IncidentRole::SLUG_INCIDENT_LEAD), workspace_membership)
+  end
 
-    assignment = incident_role_assignments.find_or_initialize_by(incident_role: lead_role)
-    assignment.workspace_membership = workspace_membership
-    assignment.save!
+  private
+
+  def role_assignment_for(role)
+    incident_role_assignments.find_by(incident_role: role)
   end
 end

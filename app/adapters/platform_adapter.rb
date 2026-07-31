@@ -118,6 +118,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # @param changes [Array<Hash>] [{ role_name:, platform_user_id: }], a nil
+  #   platform_user_id meaning the role was cleared.
+  # @return [Hash] { message_id: ... }
+  def post_role_announcement(channel_id:, changes:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [Hash] { success: true }
   def update_runbook_applied(channel_id:, message_id:, incident_runbook:)
     raise NotImplemented.new(__method__, self.class)

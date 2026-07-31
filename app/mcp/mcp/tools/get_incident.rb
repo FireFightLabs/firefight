@@ -29,8 +29,24 @@ module Mcp
           timeline: events.first(TIMELINE_LIMIT).reverse.map { |event| timeline_entry(event) },
           timeline_truncated: events.size > TIMELINE_LIMIT,
           postmortem: postmortem(incident),
-          alerts: incident.alerts.map { |alert| SearchAlerts.summary(alert) }
+          alerts: incident.alerts.map { |alert| SearchAlerts.summary(alert) },
+          roles: roles(incident)
         )
+      end
+
+      # Every role the workspace configured, held or not, so an agent can see
+      # what it may assign without a second call.
+      def self.roles(incident)
+        holders = incident.incident_role_assignments.includes(:workspace_membership).index_by(&:incident_role_id)
+
+        incident.workspace.incident_roles.active.ordered.map do |role|
+          {
+            slug: role.slug,
+            name: role.name,
+            description: role.description,
+            held_by: holders[role.id]&.workspace_membership&.display_name
+          }.compact
+        end
       end
 
       def self.find_by_reference(scope, reference)

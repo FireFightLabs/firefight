@@ -70,6 +70,7 @@ const navSections = [
       { title: "Statuses", url: settingsStatusesPath(), icon: IconListDetails },
       { title: "Severities", url: settingsSeveritiesPath(), icon: IconAlertTriangle },
       { title: "Types", url: settingsTypesPath(), icon: IconCategory },
+      { title: "Incident Roles", url: settingsRolesPath(), icon: IconUserShield },
       { title: "Forms", url: settingsFormsPath(), icon: IconChecklist },
       { title: "Custom Fields", url: settingsCustomFieldsPath(), icon: IconForms },
       { title: "Runbooks", url: settingsRunbooksPath(), icon: IconBook },
@@ -82,7 +83,6 @@ const navSections = [
     label: "Team",
     items: [
       { title: "Members", url: settingsMembersPath(), icon: IconUsers },
-      { title: "Roles", url: settingsRolesPath(), icon: IconUserShield },
     ],
   },
   {

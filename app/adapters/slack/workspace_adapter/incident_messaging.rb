@@ -51,6 +51,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
+  def post_role_announcement(channel_id:, changes:)
+    post_message(
+      channel_id: channel_id,
+      text: "Incident roles updated: #{Slack::Messages::RoleAssignment.summary_text(changes)}",
+      blocks: Slack::Messages::RoleAssignment.announcement(changes)
+    )
+  end
+
   def post_lead_announcement(channel_id:, lead_platform_user_id:)
     blocks = Slack::Messages::LeadAssignment.announcement(lead_platform_user_id: lead_platform_user_id)
     post_message(

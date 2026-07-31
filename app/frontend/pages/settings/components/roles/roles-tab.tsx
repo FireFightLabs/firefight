@@ -49,24 +49,14 @@ export function RolesTab({ roles }: { roles: IncidentRole[] }) {
         <OptionsTable
           options={roles}
           nameHeader="Name"
-          headers={
-            <>
-              <TableHead className="hidden md:table-cell">Description</TableHead>
-              <TableHead className="w-28 text-center">Incidents</TableHead>
-            </>
-          }
+          headers={<TableHead className="hidden md:table-cell">Description</TableHead>}
           cells={(role) => (
-            <>
-              <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
-                <span className="flex items-center gap-2">
-                  {role.description}
-                  {role.system && <Badge variant="secondary" className="text-[10px]">Built in</Badge>}
-                </span>
-              </TableCell>
-              <TableCell className="text-center">
-                <Badge variant="outline" className="font-mono tabular-nums">{role.incidentCount}</Badge>
-              </TableCell>
-            </>
+            <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md truncate">
+              <span className="flex items-center gap-2">
+                {role.description}
+                {role.system && <Badge variant="secondary" className="text-[10px]">Built in</Badge>}
+              </span>
+            </TableCell>
           )}
           reorderPath={reorderIncidentRolesPath()}
           onToggleEnabled={(role) =>

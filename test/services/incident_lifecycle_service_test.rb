@@ -219,6 +219,63 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
+  # ASSIGN ROLES
+  # ============================================================================
+
+  test "assign_role assigns a custom role and records a ROLE_ASSIGNED event" do
+    role = incident_roles(:communications_lead_ws1)
+
+    assert_difference -> { @incident.incident_events.count }, 1 do
+      @service.assign_role(@incident, role, @member, changed_by: @member)
+    end
+
+    event = @incident.incident_events.find_by!(event_type: IncidentEvent::ROLE_ASSIGNED)
+    assert_equal role.slug, event.metadata["role_slug"]
+    assert_equal @member, @incident.reload.role_holder(role)
+  end
+
+  test "assign_role replaces the current holder rather than adding one" do
+    role = incident_roles(:communications_lead_ws1)
+    bob = workspace_memberships(:bob_workspace_one)
+
+    @service.assign_role(@incident, role, bob, changed_by: @member)
+    @service.assign_role(@incident, role, @member, changed_by: @member)
+
+    assert_equal 1, @incident.reload.incident_role_assignments.where(incident_role: role).count
+    assert_equal @member, @incident.role_holder(role)
+  end
+
+  test "assign_role with no member clears a custom role" do
+    role = incident_roles(:communications_lead_ws1)
+    @service.assign_role(@incident, role, @member, changed_by: @member)
+
+    @service.assign_role(@incident, role, nil, changed_by: @member)
+
+    assert_nil @incident.reload.role_holder(role)
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::ROLE_UNASSIGNED)
+  end
+
+  test "assign_role refuses to clear an assigned lead" do
+    role = incident_roles(:incident_lead_ws1)
+    @service.assign_lead(@incident, @member, changed_by: @member)
+
+    assert_raises(IncidentLifecycleService::RoleNotUnassignable) do
+      @service.assign_role(@incident, role, nil, changed_by: @member)
+    end
+
+    assert_equal @member, @incident.reload.lead
+  end
+
+  test "assign_roles skips a role whose holder is unchanged" do
+    role = incident_roles(:communications_lead_ws1)
+    @service.assign_role(@incident, role, @member, changed_by: @member)
+
+    assert_no_difference -> { @incident.incident_events.count } do
+      @service.assign_roles(@incident, { role => @member }, changed_by: @member)
+    end
+  end
+
+  # ============================================================================
   # WORKFLOW CONTEXT
   # ============================================================================
 

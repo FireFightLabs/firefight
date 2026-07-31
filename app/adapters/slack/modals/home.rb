@@ -5,6 +5,7 @@ module Slack
         "new" => "*Create a new incident*\n\nUsage: `/ff new`\nOpens the incident creation form.",
         "summary" => "*Update incident summary*\n\nUsage: `/ff summary`\nUpdate the current understanding of the incident.",
         "lead" => "*Set incident lead*\n\nUsage: `/ff lead`\nAssign an incident lead to coordinate response.",
+        "roles" => "*Assign incident roles*\n\nUsage: `/ff roles`\nAssign every incident role, one person each.",
         "status" => "*Update status*\n\nUsage: `/ff status`\nChange the incident status (e.g., Investigating, Identified, Monitoring).",
         "severity" => "*Change severity*\n\nUsage: `/ff severity [critical|major|minor]`\nEscalate or de-escalate the incident severity.",
         "escalate" => "*Escalate to someone*\n\nUsage: `/ff escalate`\nPage or notify someone about this incident.",
@@ -72,6 +73,7 @@ module Slack
             label: { type: "plain_text", text: "Coordinate", emoji: true },
             options: [
               { text: { type: "plain_text", text: ":dart: Set incident lead", emoji: true }, value: Identifiers::HOME_ACTION_LEAD },
+              { text: { type: "plain_text", text: ":busts_in_silhouette: Assign incident roles", emoji: true }, value: Identifiers::HOME_ACTION_ROLES },
               { text: { type: "plain_text", text: ":ballot_box_with_check: Manage actions", emoji: true }, value: Identifiers::HOME_ACTION_ACTIONS },
               { text: { type: "plain_text", text: ":lock: Close incident",    emoji: true }, value: Identifiers::HOME_ACTION_CLOSE }
             ]
