@@ -117,14 +117,15 @@ class IncidentEvent < ApplicationRecord
     changed_fields.include?(field.to_s)
   end
 
-  # Role events name the role they touched, since "assigned an incident role"
-  # on its own tells a reader nothing.
+  # Role events name the role and the person, since they carry no snapshot to
+  # render a before/after from, and "assigned an incident role" on its own
+  # leaves out the only two facts a reader wants.
   def description
     role_name = metadata.to_h["role_name"]
     return EVENT_DESCRIPTIONS[event_type] if role_name.blank?
 
     case event_type
-    when ROLE_ASSIGNED then "assigned the #{role_name} role"
+    when ROLE_ASSIGNED then role_assigned_description(role_name)
     when ROLE_UNASSIGNED then "cleared the #{role_name} role"
     else EVENT_DESCRIPTIONS[event_type]
     end
@@ -135,6 +136,13 @@ class IncidentEvent < ApplicationRecord
   end
 
   private
+
+  def role_assigned_description(role_name)
+    member_name = metadata.to_h["member_name"]
+    return "assigned the #{role_name} role" if member_name.blank?
+
+    "assigned the #{role_name} role to #{member_name}"
+  end
 
   def eventable_matches_event_type
     return if event_type.blank?
