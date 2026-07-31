@@ -30,6 +30,15 @@ class IncidentDetailSerializer < BaseSerializer
     IncidentLeadSerializer.one(member)
   end
 
+  # The lead has its own field, so this covers the rest of the roster.
+  type "IncidentRoleAssignment[]"
+  def roles
+    incident.incident_role_assignments
+      .reject { |assignment| assignment.incident_role.slug == IncidentRole::SLUG_INCIDENT_LEAD }
+      .sort_by { |assignment| assignment.incident_role.position }
+      .map { |assignment| IncidentRoleAssignmentSerializer.one(assignment) }
+  end
+
   type :ActorCompact, optional: true
   def declared_by
     return nil unless incident.declared_by

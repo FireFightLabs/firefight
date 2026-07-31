@@ -5,6 +5,7 @@ module Identifiers
   SHARE_INCIDENTS_CHANNEL_MODAL = "share_incidents_channel_modal"
   UPDATE_SUMMARY_MODAL = "update_summary_modal"
   SET_LEAD_MODAL = "set_lead_modal"
+  SET_ROLES_MODAL = "set_roles_modal"
   INCIDENT_UPDATE_MODAL = "incident_update_modal"
   SEND_INCIDENT_UPDATE = "send_incident_update"
   INCIDENT_ACTIONS_MODAL = "incident_actions_modal"
@@ -27,6 +28,8 @@ module Identifiers
   SUBCOMMAND_HOME       = "home"
   SUBCOMMAND_SUMMARY    = "summary"
   SUBCOMMAND_LEAD       = "lead"
+  SUBCOMMAND_ROLE       = "role"
+  SUBCOMMAND_ROLES      = "roles"
   SUBCOMMAND_STATUS     = "status"
   SUBCOMMAND_UPDATE     = "update"
   SUBCOMMAND_SEVERITY   = "severity"
@@ -56,6 +59,7 @@ module Identifiers
   HOME_ACTION_ESCALATE   = "escalate"
   HOME_ACTION_INVITE     = "invite"
   HOME_ACTION_LEAD       = "lead"
+  HOME_ACTION_ROLES      = "roles"
   HOME_ACTION_ACTIONS    = "actions"
   HOME_ACTION_CLOSE      = "close"
   HOME_ACTION_TIMELINE   = "timeline"
@@ -71,6 +75,11 @@ module Identifiers
   PREVIEW_SUBSCRIBE_DISABLED = "preview_subscribe_disabled"
   ACCEPT_INCIDENT = "accept_incident"
   SET_INCIDENT_LEAD_SELF = "set_incident_lead_self"
+  ROLE_SELECT = "role_select"
+
+  # The roles modal renders one input block per configured role, so the
+  # block_id carries the role it belongs to.
+  ROLE_BLOCK_PREFIX = "role_block_"
   UPDATE_INCIDENT_SUMMARY = "update_incident_summary"
   ESCALATE_INCIDENT = "escalate_incident"
   PICK_UP_ACTION = "pick_up_action"
@@ -100,4 +109,12 @@ module Identifiers
   MESSAGE_SUBTYPE_FILE_SHARE      = "file_share"
   MESSAGE_SUBTYPE_MESSAGE_CHANGED = "message_changed"
   MESSAGE_SUBTYPE_MESSAGE_DELETED = "message_deleted"
+
+  def self.role_block_id(role)
+    "#{ROLE_BLOCK_PREFIX}#{role.id}"
+  end
+
+  def self.role_id_from_block(block_id)
+    block_id.delete_prefix(ROLE_BLOCK_PREFIX)
+  end
 end

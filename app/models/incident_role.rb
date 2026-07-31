@@ -42,4 +42,12 @@ class IncidentRole < ApplicationRecord
 
     super
   end
+
+  # An incident that has had a lead keeps one: handing over is a reassignment,
+  # never a gap in who is accountable.
+  def unassign_blocked_reason
+    return "The Incident Lead cannot be cleared. Assign someone else instead." if system?
+
+    nil
+  end
 end

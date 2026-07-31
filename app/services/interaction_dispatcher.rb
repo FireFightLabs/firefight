@@ -7,6 +7,7 @@ class InteractionDispatcher
     Identifiers::INCIDENT_CREATION_MODAL => Interactions::IncidentCreationHandler,
     Identifiers::UPDATE_SUMMARY_MODAL => Interactions::UpdateSummaryHandler,
     Identifiers::SET_LEAD_MODAL => Interactions::SetLeadHandler,
+    Identifiers::SET_ROLES_MODAL => Interactions::SetRolesHandler,
     Identifiers::INCIDENT_UPDATE_MODAL => Interactions::IncidentUpdateHandler,
     Identifiers::CREATE_ACTION_MODAL => Interactions::CreateActionHandler,
     Identifiers::CREATE_FOLLOWUP_MODAL => Interactions::CreateFollowupHandler,

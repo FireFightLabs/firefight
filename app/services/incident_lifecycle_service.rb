@@ -1,4 +1,6 @@
 class IncidentLifecycleService
+  class RoleNotUnassignable < StandardError; end
+
   attr_reader :workspace
 
   def initialize(workspace)
@@ -90,5 +92,66 @@ class IncidentLifecycleService
     LeadAssignmentWorkflow.start!(incident, context: {
       lead_platform_user_id: lead&.platform_user_id
     })
+  end
+
+  # Takes role => member (a nil member clears the role) and applies every
+  # change in one pass, so a modal that touches several roles announces once.
+  # The lead keeps its own path, which already updates the channel topic,
+  # quick actions and announcement.
+  def assign_roles(incident, assignments, changed_by:)
+    applied = assignments.reject { |role, member| incident.role_holder(role) == member }
+    return applied if applied.empty?
+
+    applied.each do |role, member|
+      next unless member.nil? && role.unassign_blocked_reason
+
+      raise RoleNotUnassignable, role.unassign_blocked_reason
+    end
+
+    applied.each do |role, member|
+      if role.slug == IncidentRole::SLUG_INCIDENT_LEAD
+        assign_lead(incident, member, changed_by: changed_by)
+      else
+        change_role(incident, role, member, changed_by: changed_by)
+      end
+    end
+
+    announce_role_changes(incident, applied.reject { |role, _| role.slug == IncidentRole::SLUG_INCIDENT_LEAD })
+    applied
+  end
+
+  def assign_role(incident, role, member, changed_by:)
+    assign_roles(incident, { role => member }, changed_by: changed_by)
+  end
+
+  private
+
+  def change_role(incident, role, member, changed_by:)
+    if member
+      incident.assign_role!(role, member, assigned_by: changed_by.is_a?(WorkspaceMembership) ? changed_by : nil)
+    else
+      incident.unassign_role!(role)
+    end
+
+    incident.incident_events.create!(
+      event_type: member ? IncidentEvent::ROLE_ASSIGNED : IncidentEvent::ROLE_UNASSIGNED,
+      actor: changed_by,
+      metadata: {
+        role_id: role.id,
+        role_slug: role.slug,
+        role_name: role.name,
+        member_id: member&.id,
+        member_name: member&.actor_display_name
+      }.compact
+    )
+  end
+
+  def announce_role_changes(incident, changes)
+    return if changes.empty? || incident.channel_id.blank?
+
+    workspace.adapter.post_role_announcement(
+      channel_id: incident.channel_id,
+      changes: changes.map { |role, member| { role_name: role.name, platform_user_id: member&.platform_user_id } }
+    )
   end
 end

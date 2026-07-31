@@ -14,8 +14,8 @@ export default function Roles() {
   const { roles } = usePage<RolesPageProps>().props
 
   return (
-    <AuthenticatedLayout title="Roles">
-      <Head title="Roles" />
+    <AuthenticatedLayout title="Incident Roles">
+      <Head title="Incident Roles" />
       <div className="flex flex-col gap-6 px-4 py-4 md:py-6 lg:px-6">
         <RolesTab roles={roles} />
       </div>

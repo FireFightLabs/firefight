@@ -44,7 +44,7 @@ Any other client: Streamable HTTP transport with either OAuth (discovery via `/.
 | Tool | Answers |
 |---|---|
 | `search_incidents` | "What's open? What resolved this week?" — filters: status, severity, stage, text, time range |
-| `get_incident` | "Tell me everything about INC-42" — detail, timeline, postmortem state, attached alerts |
+| `get_incident` | "Tell me everything about INC-42" — detail, timeline, postmortem state, attached alerts, roles and their holders |
 | `search_alerts` | "What's firing and how did it route?" — source, routing state, matched rule, incident link |
 | `search_catalog` | "Who owns checkout?" — entries, attributes, relationships |
 | `evaluate_routing` | "If this alert arrived, what would happen?" — matched rule, outcome, per-condition trace |
@@ -64,7 +64,15 @@ Results are workspace-scoped to the token, capped at 50 items with explicit `tru
 | `update_routing_config` | Grouping window + content match fields on the routing policy |
 | `upsert_runbook` | Create or update a runbook (steps and attach conditions replace the existing set) |
 
-Writes are configuration only — incident lifecycle writes stay out of MCP until they carry the full approval UX. Authorization is the gateway's: admin personal tokens carry the admin's authority; service keys need the explicit `<resource>:<action>` scope. Every write is ledgered (`AbilityInvocation`), and workspace approval policies can park any call as `pending` — the tool result then carries an `approval id`; after a workspace admin approves (Slack buttons or `/settings/approvals`), retry the identical call with `approval_id`.
+## Incident-write tools
+
+| Tool | Does |
+|---|---|
+| `assign_incident_role` | Assign one person to an incident role, or clear it (omit `member`) |
+
+`assign_incident_role` authorizes as `incidents:update`. Roles hold one person each, so assigning replaces the current holder; the Incident Lead cannot be cleared, only handed over. `get_incident` returns every configured role with its holder, which is how an agent discovers the slugs it may pass. The rest of the incident lifecycle (declare, status, severity, close) stays out of MCP for now.
+
+Authorization is the gateway's: admin personal tokens carry the admin's authority; service keys need the explicit `<resource>:<action>` scope. Every write is ledgered (`AbilityInvocation`), and workspace approval policies can park any call as `pending` — the tool result then carries an `approval id`; after a workspace admin approves (Slack buttons or `/settings/approvals`), retry the identical call with `approval_id`.
 
 The server is self-describing for agents: server instructions, tool descriptions, and guidance-worthy responses (permission errors, no routing policy, unmatched dry runs) link to the relevant public docs page via `Mcp::Docs` constants — each page is fetchable as raw markdown (`https://firefight.app/docs/**/*.md`, index at `/llms.txt`).
 

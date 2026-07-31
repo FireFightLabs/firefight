@@ -2,6 +2,8 @@ class IncidentEvent < ApplicationRecord
   INCIDENT_CREATED = "incident.created"
   INCIDENT_UPDATED = "incident.updated"
   LEAD_ASSIGNED = "lead.assigned"
+  ROLE_ASSIGNED = "role.assigned"
+  ROLE_UNASSIGNED = "role.unassigned"
   ACTION_CREATED = "action.created"
   ACTION_PICKED_UP = "action.picked_up"
   ACTION_COMPLETED = "action.completed"
@@ -26,6 +28,7 @@ class IncidentEvent < ApplicationRecord
 
   EVENT_TYPES = [
     INCIDENT_CREATED, INCIDENT_UPDATED, INCIDENT_ACCEPTED, LEAD_ASSIGNED,
+    ROLE_ASSIGNED, ROLE_UNASSIGNED,
     ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED,
     INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, POSTMORTEM_GENERATED, POSTMORTEM_EDITED,
     RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
@@ -39,6 +42,8 @@ class IncidentEvent < ApplicationRecord
     INCIDENT_CREATED => "created the incident",
     INCIDENT_UPDATED => "updated the incident",
     LEAD_ASSIGNED => "assigned a lead",
+    ROLE_ASSIGNED => "assigned an incident role",
+    ROLE_UNASSIGNED => "cleared an incident role",
     ACTION_CREATED => "created an action item",
     ACTION_PICKED_UP => "picked up an action item",
     ACTION_COMPLETED => "completed an action item",
@@ -112,8 +117,17 @@ class IncidentEvent < ApplicationRecord
     changed_fields.include?(field.to_s)
   end
 
+  # Role events name the role they touched, since "assigned an incident role"
+  # on its own tells a reader nothing.
   def description
-    EVENT_DESCRIPTIONS[event_type]
+    role_name = metadata.to_h["role_name"]
+    return EVENT_DESCRIPTIONS[event_type] if role_name.blank?
+
+    case event_type
+    when ROLE_ASSIGNED then "assigned the #{role_name} role"
+    when ROLE_UNASSIGNED then "cleared the #{role_name} role"
+    else EVENT_DESCRIPTIONS[event_type]
+    end
   end
 
   def to_context_hash

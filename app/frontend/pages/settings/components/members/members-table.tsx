@@ -33,7 +33,7 @@ export function MembersTable({ members }: { members: WorkspaceMembership[] }) {
         <TableHeader>
           <TableRow>
             <TableHead>Person</TableHead>
-            <TableHead>Role</TableHead>
+            <TableHead>Access</TableHead>
             <TableHead>Joined</TableHead>
           </TableRow>
         </TableHeader>

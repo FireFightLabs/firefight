@@ -10,6 +10,16 @@ Run `bin/ci` to validate changes. It runs rubocop, bundler-audit, brakeman, rail
 
 - **Never merge a PR without an explicit instruction to merge in the current message.** Opening PRs when asked to build something is fine; merging is always the user's call, every time — prior merge approvals and inferred intent (e.g. a bug report that a feature "isn't working") do not count.
 
+## Documentation (always applies)
+
+Product docs live in a separate repo, `../firefight-landing`, and are served at `firefight.app/docs`. They are part of the change, not a follow-up.
+
+- **Any change a user can see requires a matching docs update.** New or changed `/ff` commands, dialogs, settings screens, API endpoints, MCP tools, webhook events, or renamed navigation. A feature that ships undocumented is half-shipped.
+- **`../firefight-landing/CLAUDE.md` owns how docs are written** — audience, voice, punctuation, page shape, sidebar wiring. Read it before touching `src/content/docs/`, and follow it over any instinct carried across from this repo.
+- **Docs ship as their own PR** in that repo, opened alongside the code PR here, with the code PR naming it.
+- Repo-internal docs under `docs/` are engineering references and a separate obligation: update the relevant one in the same PR as the code.
+- If a change turns out to need no docs update, say so explicitly rather than leaving it unmentioned.
+
 ## No shortcuts (always applies)
 
 Production-grade or not at all. Every one of these has already been violated once; none is hypothetical.
