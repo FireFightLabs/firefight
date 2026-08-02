@@ -72,6 +72,7 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 - No direct `Rails.logger` helper wrappers — call `Rails.logger.info(...)` inline where needed
 - Keep it simple, avoid over-engineering
 - Rubocop enforced: `[ {...} ]` not `[{...}]` (SpaceInsideArrayLiteralBrackets)
+- **Braces on every `if` body in TypeScript**, even a one-liner: `if (x) { doThing() }`, never `if (x) doThing()`. The single exception is an early-exit guard whose body is bare `return`, `continue` or `break`. Plenty of existing files predate this, so apply it to code you write or touch rather than sweeping the codebase.
 - Never use raw strings for identifiers, resource names, action names, or event types — always use constants (e.g., `ApiKey::RESOURCE_INCIDENTS` not `"incidents"`, `IncidentEvent::INCIDENT_CREATED` not `"incident.created"`, `Identifiers::INCIDENT_CREATION_MODAL` not the string)
 - Model concerns live next to their model in `app/models/<model>/`, not in `app/models/concerns/`. E.g. `Incident::Lifecycle` lives at `app/models/incident/lifecycle.rb`. Don't use `rails g concern` (it generates into `app/models/concerns/`) — create the file manually in the right directory.
 

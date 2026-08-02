@@ -21,8 +21,14 @@ export function FlashToaster() {
     if (!flash || flash === lastShown) return
 
     lastShown = flash
-    if (flash.notice) toast.success(flash.notice)
-    if (flash.alert) toast.error(flash.alert)
+
+    if (flash.notice) {
+      toast.success(flash.notice)
+    }
+
+    if (flash.alert) {
+      toast.error(flash.alert)
+    }
   }, [flash])
 
   return null
