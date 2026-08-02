@@ -98,7 +98,9 @@ export function RunbookConditionsEditor({
 
       {customFieldStates.map((state) => {
         const field = customFields.find((f) => f.id === state.fieldDefinitionId)
-        if (!field) return null
+        if (!field) {
+          return null
+        }
 
         return (
           <CustomFieldConditionRow

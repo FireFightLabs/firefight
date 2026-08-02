@@ -4,7 +4,9 @@ import { Badge } from "@/components/ui/badge"
 
 export function TestOutcomeBadge({ rule, testResult }: { rule: PolicyRule; testResult: TestResult | null }) {
   const entry = testResult?.trace.find((t) => t.rule_id === rule.id)
-  if (!entry) return null
+  if (!entry) {
+    return null
+  }
 
   if (entry.matched) {
     return <Badge className="ml-2">✓ fires</Badge>

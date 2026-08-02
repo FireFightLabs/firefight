@@ -35,7 +35,9 @@ export function RunbookStepsEditor({ steps, onChange }: {
 
   function move(index: number, direction: -1 | 1) {
     const target = index + direction
-    if (target < 0 || target >= steps.length) return
+    if (target < 0 || target >= steps.length) {
+      return
+    }
     const next = [...steps]
     ;[next[index], next[target]] = [next[target], next[index]]
     onChange(next)

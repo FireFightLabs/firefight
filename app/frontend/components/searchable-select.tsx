@@ -45,7 +45,7 @@ export function SearchableSelect({
   )
 
   return (
-    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) onOpen?.() }}>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) { onOpen?.() } }}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal data-[state=open]:ring-1 data-[state=open]:ring-ring/20">
           {selected ? (

@@ -80,7 +80,9 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
   const updateAttribute = (id: string, updates: Partial<AttributeDefinition>) => {
     setAttributes((prev) =>
       prev.map((a) => {
-        if (a.id !== id) return a
+        if (a.id !== id) {
+          return a
+        }
         const merged = { ...a, ...updates }
         if (updates.name !== undefined && !a.key) {
           merged.key = generateKey(updates.name)

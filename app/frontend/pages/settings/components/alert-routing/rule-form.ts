@@ -66,14 +66,22 @@ export function ruleFormData(rule: PolicyRule | null): RuleFormData {
 
 function conditionPayload(condition: ConditionRow) {
   const base = { field: condition.field.trim(), operator: condition.operator }
-  if (condition.operator === "is_empty") return base
-  if (condition.operator === "is_one_of") return { ...base, value: conditionValues(condition) }
+  if (condition.operator === "is_empty") {
+    return base
+  }
+  if (condition.operator === "is_one_of") {
+    return { ...base, value: conditionValues(condition) }
+  }
   return { ...base, value: condition.value }
 }
 
 function notifyPayload(data: RuleFormData) {
-  if (data.action !== "notify_only") return {}
-  if (data.notifyKind === "owning_team") return { notify: { type: TARGET_OWNING_TEAM, of: "service" } }
+  if (data.action !== "notify_only") {
+    return {}
+  }
+  if (data.notifyKind === "owning_team") {
+    return { notify: { type: TARGET_OWNING_TEAM, of: "service" } }
+  }
   if (data.notifyKind === "person" && data.notifyMemberId) {
     return { notify: { type: TARGET_MEMBER, member_id: data.notifyMemberId } }
   }
@@ -91,7 +99,9 @@ function notifyPayload(data: RuleFormData) {
 }
 
 function invitePayload(data: RuleFormData) {
-  if (!isIncidentAction(data.action)) return {}
+  if (!isIncidentAction(data.action)) {
+    return {}
+  }
   const targets = [
     ...(data.inviteOwningTeam ? [{ type: TARGET_OWNING_TEAM, of: "service" }] : []),
     ...data.inviteMemberIds.map((id) => ({ type: TARGET_MEMBER, member_id: id })),

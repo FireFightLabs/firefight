@@ -44,7 +44,9 @@ export function WebhooksTab({
   const [deleting, setDeleting] = useState<Webhook | null>(null)
 
   function confirmDelete() {
-    if (!deleting) return
+    if (!deleting) {
+      return
+    }
     router.delete(webhookPath(deleting.id), { onFinish: () => setDeleting(null) })
   }
 
@@ -137,7 +139,7 @@ export function WebhooksTab({
       <WebhookDetailSheet
         webhook={detailWebhook}
         open={detailWebhook !== null}
-        onOpenChange={(open) => { if (!open) onWebhookSelect(null) }}
+        onOpenChange={(open) => { if (!open) { onWebhookSelect(null) } }}
       />
     </div>
   )

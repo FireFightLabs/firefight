@@ -107,7 +107,9 @@ export function SeveritiesTab({ severities }: { severities: IncidentSeveritySett
         title={`Delete ${deleting?.name ?? "this severity"}?`}
         description="No incidents use this severity, so nothing loses its history. It disappears from the declare form and from alert routing straight away."
         onConfirm={() => {
-          if (!deleting) return
+          if (!deleting) {
+            return
+          }
           router.delete(incidentSeverityPath(deleting.id), { onFinish: () => setDeleting(null) })
         }}
         onCancel={() => setDeleting(null)}

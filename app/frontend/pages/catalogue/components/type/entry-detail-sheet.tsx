@@ -45,7 +45,9 @@ export function EntryDetailSheet({
   onOpenChange: (open: boolean) => void
   onEdit?: (entry: CatalogEntry) => void
 }) {
-  if (!entry) return null
+  if (!entry) {
+    return null
+  }
 
   const descAttr = type.attributeDefinitions.find((a) => a.key === "description")
   const descValue = descAttr ? entry.attributes[descAttr.key] : null

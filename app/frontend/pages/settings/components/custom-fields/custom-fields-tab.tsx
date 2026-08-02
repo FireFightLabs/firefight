@@ -135,7 +135,9 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
         title={`Delete ${deleting?.name ?? "this field"}?`}
         description="No form uses this field, so nothing loses its history. It disappears from the field picker straight away."
         onConfirm={() => {
-          if (!deleting) return
+          if (!deleting) {
+            return
+          }
           router.delete(incidentFieldDefinitionPath(deleting.id), { onFinish: () => setDeleting(null) })
         }}
         onCancel={() => setDeleting(null)}

@@ -48,7 +48,7 @@ export default function Integrations() {
           onDismiss={() => setConnecting(null)}
         />
 
-        <Sheet open={details !== null} onOpenChange={(open) => { if (!open) setDetailsId(null) }}>
+        <Sheet open={details !== null} onOpenChange={(open) => { if (!open) { setDetailsId(null) } }}>
           <SheetContent className="overflow-y-auto sm:max-w-lg">
             <SheetHeader>
               <SheetTitle>Connection details</SheetTitle>

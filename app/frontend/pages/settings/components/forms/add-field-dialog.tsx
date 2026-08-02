@@ -47,7 +47,9 @@ export function AddFieldDialog({ open, onOpenChange, form, availableFields, allC
   const attachedCustomFields = form.fields.filter((f) => f.fieldSourceKind === "custom")
 
   function handleSubmit() {
-    if (!selectedFieldId) return
+    if (!selectedFieldId) {
+      return
+    }
 
     router.post(incidentFormFieldsPath(), {
       incident_form_id: form.id,

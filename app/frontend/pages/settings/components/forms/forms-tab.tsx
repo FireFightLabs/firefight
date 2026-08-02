@@ -91,7 +91,9 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
   const [removing, setRemoving] = useState<IncidentFormFieldSettings | null>(null)
 
   const availableFields = useMemo(() => {
-    if (!selectedForm) return []
+    if (!selectedForm) {
+      return []
+    }
     const attachedIds = new Set(selectedForm.fields.flatMap((field) => field.incidentFieldDefinitionId ? [field.incidentFieldDefinitionId] : []))
     return customFields.filter((field) => !attachedIds.has(field.id))
   }, [customFields, selectedForm])
@@ -106,7 +108,9 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
 
 
   function handleUpdateField(field: IncidentFormFieldSettings, next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) {
-    if (field.isDefault) return
+    if (field.isDefault) {
+      return
+    }
     router.patch(incidentFormFieldPath(field.id), {
       visibility_mode: next.visibilityMode ?? field.visibilityMode,
       required_mode: next.requiredMode ?? field.requiredMode,
@@ -116,7 +120,9 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
   }
 
   function handleUpdateConditions(field: IncidentFormFieldSettings, conditions: IncidentConditionSettings[]) {
-    if (field.isDefault) return
+    if (field.isDefault) {
+      return
+    }
     router.patch(incidentFormFieldPath(field.id), {
       visibility_mode: field.visibilityMode,
       required_mode: field.requiredMode,
@@ -131,7 +137,9 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
   }
 
   function confirmRemoveField() {
-    if (!removing) return
+    if (!removing) {
+      return
+    }
     router.delete(incidentFormFieldPath(removing.id), {
       preserveScroll: true,
       onFinish: () => setRemoving(null),

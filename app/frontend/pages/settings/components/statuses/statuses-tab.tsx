@@ -49,7 +49,9 @@ export function StatusesTab({ lifecycleStages }: { lifecycleStages: LifecycleSta
         title={`Delete ${deleting?.name ?? "this status"}?`}
         description="No incidents use this status, so nothing loses its history. It disappears from the status picker straight away."
         onConfirm={() => {
-          if (!deleting) return
+          if (!deleting) {
+            return
+          }
           router.delete(incidentStatusPath(deleting.id), { onFinish: () => setDeleting(null) })
         }}
         onCancel={() => setDeleting(null)}

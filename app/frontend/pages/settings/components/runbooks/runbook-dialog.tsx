@@ -133,7 +133,9 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       })
     }
     for (const state of model.customFieldStates) {
-      if (state.selectedIds.length === 0) continue
+      if (state.selectedIds.length === 0) {
+        continue
+      }
       conditions.push({
         condition_field: CONDITION_FIELD_CUSTOM_FIELD,
         operator: state.operator,

@@ -53,14 +53,18 @@ export function AlertSourcesTab({
   async function handleCopyToken(source: AlertSourceSettings) {
     try {
       const { ok, data } = await postJson<{ token: string }>(tokenAlertSourcePath(source.id))
-      if (ok && data) handleCopy(data.token, `token-${source.id}`)
+      if (ok && data) {
+        handleCopy(data.token, `token-${source.id}`)
+      }
     } catch {
       // leave the button unchanged; the user can retry
     }
   }
 
   function confirmDelete() {
-    if (!deletingSource) return
+    if (!deletingSource) {
+      return
+    }
     router.delete(alertSourcePath(deletingSource.id))
     setDeletingSource(null)
   }

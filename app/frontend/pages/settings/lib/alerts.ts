@@ -87,7 +87,9 @@ export async function runRoutingTest(
   const fallback = "The test request failed; try again."
   try {
     const { ok, data } = await postJson<TestResult>(alertRoutingTestPath(), { fields, alert_source_id: alertSourceId })
-    if (!ok || !data) return { result: null, error: (data as { error?: string } | null)?.error ?? fallback }
+    if (!ok || !data) {
+      return { result: null, error: (data as { error?: string } | null)?.error ?? fallback }
+    }
     return { result: data, error: null }
   } catch {
     return { result: null, error: fallback }
@@ -111,9 +113,13 @@ export async function sendRoutingTest(
 export function sampleFieldsFor(conditions: RuleCondition[]): Record<string, string> {
   const fields: Record<string, string> = {}
   for (const condition of conditions) {
-    if (condition.operator === "is_empty") continue
+    if (condition.operator === "is_empty") {
+      continue
+    }
     const value = Array.isArray(condition.value) ? condition.value[0] : condition.value
-    if (value) fields[condition.field] = value
+    if (value) {
+      fields[condition.field] = value
+    }
   }
   return fields
 }

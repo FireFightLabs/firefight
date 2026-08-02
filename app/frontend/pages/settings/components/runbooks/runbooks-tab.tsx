@@ -162,7 +162,9 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
         title={`Delete ${deleting?.name ?? "this runbook"}?`}
         description="No incident references this runbook, so nothing loses its history. It stops matching new incidents straight away."
         onConfirm={() => {
-          if (!deleting) return
+          if (!deleting) {
+            return
+          }
           router.delete(runbookPath(deleting.id), { preserveScroll: true, onFinish: () => setDeleting(null) })
         }}
         onCancel={() => setDeleting(null)}

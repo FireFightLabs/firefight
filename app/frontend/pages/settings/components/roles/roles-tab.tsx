@@ -85,7 +85,9 @@ export function RolesTab({ roles }: { roles: IncidentRole[] }) {
         title={`Delete ${deleting?.name ?? "this role"}?`}
         description="No incidents use this role, so nothing loses its history. It disappears from the role picker straight away."
         onConfirm={() => {
-          if (!deleting) return
+          if (!deleting) {
+            return
+          }
           router.delete(incidentRolePath(deleting.id), { onFinish: () => setDeleting(null) })
         }}
         onCancel={() => setDeleting(null)}

@@ -100,7 +100,7 @@ export function OptionDialog<T extends OptionRecord>({
   }
 
   return (
-    <Dialog open={Boolean(state)} onOpenChange={(open) => { if (!open) onClose() }}>
+    <Dialog open={Boolean(state)} onOpenChange={(open) => { if (!open) { onClose() } }}>
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>

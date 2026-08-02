@@ -75,7 +75,9 @@ export default function PostmortemPage() {
   }, [incident.id, setData, patch])
 
   const handleExportMarkdown = useCallback(() => {
-    if (!postmortem) return
+    if (!postmortem) {
+      return
+    }
     const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" })
     const title = `# ${postmortem.title}\n\n> ${incident.identifier} — ${incident.name}\n\n`
     const markdown = title + turndown.turndown(editorContentRef.current || "")
@@ -93,7 +95,9 @@ export default function PostmortemPage() {
     // request survives page unload / tab close. Inertia's router has no
     // keepalive equivalent — the request would be cancelled on navigation.
     const flushPendingSave = () => {
-      if (!saveTimerRef.current) return
+      if (!saveTimerRef.current) {
+        return
+      }
       clearTimeout(saveTimerRef.current)
       saveTimerRef.current = undefined
 
@@ -113,7 +117,9 @@ export default function PostmortemPage() {
 
   const isGenerating = postmortem?.status === "in_progress"
   useEffect(() => {
-    if (!isGenerating) return
+    if (!isGenerating) {
+      return
+    }
     const interval = setInterval(() => {
       router.reload({ only: ["postmortem"], preserveScroll: true })
     }, 3000)

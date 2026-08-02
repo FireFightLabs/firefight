@@ -7,7 +7,9 @@ import type { TimelineEvent } from "@/pages/incidents/types"
 type FileMeta = NonNullable<TimelineEvent["file"]>
 
 function formatBytes(bytes: number | null | undefined): string | null {
-  if (!bytes || bytes <= 0) return null
+  if (!bytes || bytes <= 0) {
+    return null
+  }
   const units = ["B", "KB", "MB", "GB"]
   let value = bytes
   let unit = 0

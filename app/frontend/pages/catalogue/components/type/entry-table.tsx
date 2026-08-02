@@ -35,13 +35,19 @@ export function EntryTable({
   const visibleAttributes = type.attributeDefinitions.filter((a) => a.key !== "description").slice(0, 4)
 
   const filtered = useMemo(() => {
-    if (!search) return entries
+    if (!search) {
+      return entries
+    }
     const q = search.toLowerCase()
     return entries.filter((e) => {
-      if (e.name.toLowerCase().includes(q)) return true
+      if (e.name.toLowerCase().includes(q)) {
+        return true
+      }
       return type.attributeDefinitions.some((attr) => {
         const v = e.attributes[attr.key]
-        if (typeof v !== "string") return false
+        if (typeof v !== "string") {
+          return false
+        }
         if (attr.attributeType === "reference") {
           const resolved = referenceEntries.find(re => re.id === v)?.name ?? v
           return resolved.toLowerCase().includes(q)
@@ -126,7 +132,7 @@ export function EntryTable({
         referenceEntries={referenceEntries}
         workspaceMembers={workspaceMembers}
         open={selectedEntry !== null}
-        onOpenChange={(open) => { if (!open) setSelectedEntry(null) }}
+        onOpenChange={(open) => { if (!open) { setSelectedEntry(null) } }}
         onEdit={(entry) => setEditingEntry(entry)}
       />
       <EntryFormDialog
@@ -136,7 +142,7 @@ export function EntryTable({
         referenceEntries={referenceEntries}
         workspaceMembers={workspaceMembers}
         open={editingEntry !== null}
-        onOpenChange={(open) => { if (!open) setEditingEntry(null) }}
+        onOpenChange={(open) => { if (!open) { setEditingEntry(null) } }}
       />
     </>
   )

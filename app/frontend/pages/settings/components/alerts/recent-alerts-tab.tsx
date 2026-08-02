@@ -48,8 +48,12 @@ export function RecentAlertsTab({
 }) {
   function applyFilters(nextSourceId: string | null, nextRuleId: string | null) {
     const params: Record<string, string> = {}
-    if (nextSourceId) params.source_id = nextSourceId
-    if (nextRuleId) params.rule_id = nextRuleId
+    if (nextSourceId) {
+      params.source_id = nextSourceId
+    }
+    if (nextRuleId) {
+      params.rule_id = nextRuleId
+    }
     router.get(settingsAlertsPath(), params)
   }
 

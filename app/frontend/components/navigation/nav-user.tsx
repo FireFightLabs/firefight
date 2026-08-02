@@ -51,7 +51,9 @@ export function NavUser({
   }
 
   const handleSwitch = (workspaceId: string) => {
-    if (workspaceId === currentWorkspaceId) return
+    if (workspaceId === currentWorkspaceId) {
+      return
+    }
     router.post(workspaceSwitchPath(), { workspace_id: workspaceId })
   }
 

@@ -41,7 +41,9 @@ export function ApiKeyEditSheet({
     }
   }
 
-  if (!apiKey) return null
+  if (!apiKey) {
+    return null
+  }
 
   const handleSave = () => {
     router.patch(apiKeyPath(apiKey.id), {

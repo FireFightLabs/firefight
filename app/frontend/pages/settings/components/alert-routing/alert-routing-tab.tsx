@@ -46,7 +46,9 @@ import { CustomTestDialog } from "@/pages/settings/components/alert-routing/cust
 import { TestOutcomeBadge } from "@/pages/settings/components/alert-routing/test-outcome-badge"
 
 function conditionsSummary(rule: PolicyRule): string {
-  if (rule.conditions.length === 0) return "Always matches"
+  if (rule.conditions.length === 0) {
+    return "Always matches"
+  }
 
   return rule.conditions
     .map((c) => {
@@ -101,9 +103,13 @@ export function AlertRoutingTab({
   }
 
   function shadowNote(rule: PolicyRule): string | null {
-    if (!testResult || testedRuleId !== rule.id) return null
+    if (!testResult || testedRuleId !== rule.id) {
+      return null
+    }
     const winnerIndex = testResult.trace.findIndex((t) => t.matched)
-    if (winnerIndex === -1 || testResult.trace[winnerIndex]?.rule_id === rule.id) return null
+    if (winnerIndex === -1 || testResult.trace[winnerIndex]?.rule_id === rule.id) {
+      return null
+    }
     return `a sample for this rule is captured by rule ${winnerIndex + 1} first`
   }
 
@@ -123,7 +129,9 @@ export function AlertRoutingTab({
   }
 
   function confirmDeleteRule() {
-    if (!deletingRule) return
+    if (!deletingRule) {
+      return
+    }
     clearTest()
     router.delete(policyRulePath(deletingRule.id))
     setDeletingRule(null)

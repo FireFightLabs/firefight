@@ -28,7 +28,9 @@ interface PayloadKey {
 // Flatten a payload into clickable dot-paths (arrays via index 0), so users
 // map fields by picking real keys instead of typing paths blind.
 function flattenPayload(node: unknown, prefix = "", depth = 0): PayloadKey[] {
-  if (depth > 4) return []
+  if (depth > 4) {
+    return []
+  }
   if (Array.isArray(node)) {
     return node.length > 0 ? flattenPayload(node[0], prefix ? `${prefix}.0` : "0", depth + 1) : []
   }
@@ -63,7 +65,9 @@ export function FieldMappingEditor({
     void fetch(samplePayloadAlertSourcePath(sourceId))
       .then((response) => (response.ok ? response.json() : null))
       .then((body: { payload?: unknown } | null) => {
-        if (!cancelled && body?.payload) setPayloadKeys(flattenPayload(body.payload).slice(0, 40))
+        if (!cancelled && body?.payload) {
+          setPayloadKeys(flattenPayload(body.payload).slice(0, 40))
+        }
       })
       .catch(() => {})
     return () => {

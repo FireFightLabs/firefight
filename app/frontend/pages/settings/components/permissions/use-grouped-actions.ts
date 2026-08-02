@@ -17,8 +17,12 @@ export function useGroupedActions(
     const byGroup = new Map<string, AbilityActionOption[]>()
 
     actions.forEach((action) => {
-      if (exclude?.has(action.id)) return
-      if (!action.key.toLowerCase().includes(term)) return
+      if (exclude?.has(action.id)) {
+        return
+      }
+      if (!action.key.toLowerCase().includes(term)) {
+        return
+      }
       byGroup.set(action.group, [...(byGroup.get(action.group) ?? []), action])
     })
 

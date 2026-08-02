@@ -59,7 +59,9 @@ export function GrantDialog({
   const grouped = useGroupedActions(actions, search, held)
 
   function submit() {
-    if (!principal || !targetId) return
+    if (!principal || !targetId) {
+      return
+    }
     router.post(
       abilityGrantsPath(),
       {
@@ -84,7 +86,7 @@ export function GrantDialog({
   }
 
   return (
-    <Dialog open={principal !== null} onOpenChange={(open) => { if (!open) onDismiss() }}>
+    <Dialog open={principal !== null} onOpenChange={(open) => { if (!open) { onDismiss() } }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Grant to {principal?.name}</DialogTitle>

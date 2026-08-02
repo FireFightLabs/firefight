@@ -19,8 +19,12 @@ export const AiPendingExtension = Extension.create({
           init: () => ({ range: null }),
           apply(tr, prev) {
             const meta = tr.getMeta(aiPendingKey)
-            if (meta !== undefined) return meta
-            if (!prev.range) return prev
+            if (meta !== undefined) {
+              return meta
+            }
+            if (!prev.range) {
+              return prev
+            }
             const from = tr.mapping.map(prev.range.from)
             const to = tr.mapping.map(prev.range.to)
             return { range: from === to ? null : { from, to } }
@@ -30,7 +34,9 @@ export const AiPendingExtension = Extension.create({
           decorations(state) {
             const pluginState = aiPendingKey.getState(state)
             const range = pluginState?.range
-            if (!range) return DecorationSet.empty
+            if (!range) {
+              return DecorationSet.empty
+            }
             return DecorationSet.create(state.doc, [
               Decoration.inline(range.from, range.to, { class: "ai-pending" }),
             ])

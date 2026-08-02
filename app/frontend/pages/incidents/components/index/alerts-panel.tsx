@@ -4,7 +4,9 @@ import type { Incident } from "@/pages/incidents/types"
 import { formatTime } from "@/lib/formatters"
 
 export function AlertsPanel({ alerts }: { alerts: Incident["alerts"] }) {
-  if (alerts.length === 0) return null
+  if (alerts.length === 0) {
+    return null
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">

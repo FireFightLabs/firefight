@@ -2,7 +2,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { Incident } from "@/pages/incidents/types"
 
 export function RolesPanel({ roles }: { roles: Incident["roles"] }) {
-  if (roles.length === 0) return null
+  if (roles.length === 0) {
+    return null
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">

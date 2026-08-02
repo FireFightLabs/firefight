@@ -18,16 +18,20 @@ export function SetDialog({ open, onDismiss }: { open: boolean; onDismiss: () =>
   const [name, setName] = useState("")
 
   useEffect(() => {
-    if (open) setName("")
+    if (open) {
+      setName("")
+    }
   }, [open])
 
   function submit() {
-    if (!name.trim()) return
+    if (!name.trim()) {
+      return
+    }
     router.post(abilityRolesPath(), { name: name.trim() }, { onFinish: onDismiss })
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) onDismiss() }}>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) { onDismiss() } }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>New permission set</DialogTitle>
@@ -43,7 +47,7 @@ export function SetDialog({ open, onDismiss }: { open: boolean; onDismiss: () =>
             autoFocus
             value={name}
             onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") submit() }}
+            onKeyDown={(event) => { if (event.key === "Enter") { submit() } }}
             placeholder="e.g. Database read-only"
           />
         </div>

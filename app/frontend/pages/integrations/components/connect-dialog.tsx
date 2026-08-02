@@ -24,9 +24,13 @@ import { ProviderMark } from "@/pages/integrations/components/provider-mark"
 
 function oauthHref(providerKey: string, name: string, environmentId: string) {
   const params = new URLSearchParams({ provider: providerKey })
-  if (name) params.set("name", name)
+  if (name) {
+    params.set("name", name)
+  }
   const environment = toEnvironmentId(environmentId)
-  if (environment) params.set("environment_id", environment)
+  if (environment) {
+    params.set("environment_id", environment)
+  }
   return `${oauthStartIntegrationsPath()}?${params.toString()}`
 }
 
@@ -55,7 +59,9 @@ export function ConnectDialog({
   const nameTaken = separateAccount && existingNames.includes(name.trim())
 
   useEffect(() => {
-    if (!provider) return
+    if (!provider) {
+      return
+    }
     setName(provider.key === "custom_mcp" ? "" : provider.name)
     setServerUrl(provider.serverUrl)
     setAuthorization("")
@@ -72,7 +78,9 @@ export function ConnectDialog({
   }
 
   function submit() {
-    if (!provider) return
+    if (!provider) {
+      return
+    }
     setSubmitting(true)
     router.post(
       integrationsPath(),
@@ -88,7 +96,7 @@ export function ConnectDialog({
   }
 
   return (
-    <Dialog open={provider !== null} onOpenChange={(open) => { if (!open) onDismiss() }}>
+    <Dialog open={provider !== null} onOpenChange={(open) => { if (!open) { onDismiss() } }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="items-center gap-0 text-center sm:text-center">
           {provider && (

@@ -39,7 +39,9 @@ export function RevisionsSheet({
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      return
+    }
 
     const controller = new AbortController()
     setLoading(true)
@@ -50,7 +52,9 @@ export function RevisionsSheet({
         setLoading(false)
       })
       .catch((err) => {
-        if (err.name !== "AbortError") setLoading(false)
+        if (err.name !== "AbortError") {
+          setLoading(false)
+        }
       })
 
     return () => controller.abort()
@@ -60,7 +64,9 @@ export function RevisionsSheet({
   const selectedIndex = selectedRevision ? revisions.indexOf(selectedRevision) : -1
 
   const diffHtml = useMemo(() => {
-    if (!selectedRevision?.htmlContent) return null
+    if (!selectedRevision?.htmlContent) {
+      return null
+    }
     const olderHtml = selectedRevision.htmlContent
     // revisions are newest-first; the "next" version is the previous index, or the live editor content
     const newerHtml = selectedIndex === 0 ? currentHtml : (revisions[selectedIndex - 1]?.htmlContent ?? currentHtml)

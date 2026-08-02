@@ -36,12 +36,18 @@ import type { ConnectedAgent } from "@/pages/settings/api-keys"
 
 
 function formatRelative(d: string | null | undefined, now: number) {
-  if (!d) return "Never"
+  if (!d) {
+    return "Never"
+  }
   const diff = now - new Date(d).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 60) {
+    return `${mins}m ago`
+  }
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) {
+    return `${hours}h ago`
+  }
   const days = Math.floor(hours / 24)
   return `${days}d ago`
 }
@@ -186,7 +192,7 @@ export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: A
       <ApiKeyEditSheet
         apiKey={editingKey}
         open={editingKey !== null}
-        onOpenChange={(open) => { if (!open) setEditingKey(null) }}
+        onOpenChange={(open) => { if (!open) { setEditingKey(null) } }}
       />
 
       <TokenRevealedDialog

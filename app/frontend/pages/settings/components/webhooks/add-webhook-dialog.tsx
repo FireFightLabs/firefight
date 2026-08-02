@@ -32,8 +32,12 @@ export function AddWebhookDialog() {
   const toggleEvent = (event: string) => {
     setSelectedEvents((prev) => {
       const next = new Set(prev)
-      if (next.has(event)) next.delete(event)
-      else next.add(event)
+      if (next.has(event)) {
+        next.delete(event)
+      }
+      else {
+        next.add(event)
+      }
       return next
     })
   }

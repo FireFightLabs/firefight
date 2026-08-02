@@ -84,7 +84,9 @@ export function AttributeValue({
 
   if (attr.attributeType === "workspace_member") {
     const member = workspaceMembers.find((m) => m.id === String(value))
-    if (!member) return <span className="text-sm text-muted-foreground/40 italic">Not set</span>
+    if (!member) {
+      return <span className="text-sm text-muted-foreground/40 italic">Not set</span>
+    }
     return (
       <div className="flex items-center gap-1.5">
         {member.avatarUrl ? (

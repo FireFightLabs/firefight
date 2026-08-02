@@ -98,7 +98,9 @@ export default function Permissions() {
 
             {SECTIONS.map((section) => {
               const rows = principals.filter((principal) => principal.kind === section.kind)
-              if (rows.length === 0) return null
+              if (rows.length === 0) {
+                return null
+              }
               const Icon = KIND_ICON[section.kind as keyof typeof KIND_ICON]
 
               return (

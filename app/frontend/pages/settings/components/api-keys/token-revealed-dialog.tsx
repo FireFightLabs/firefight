@@ -21,7 +21,9 @@ export function TokenRevealedDialog({
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
-    if (!token) return
+    if (!token) {
+      return
+    }
     navigator.clipboard.writeText(token)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -32,7 +34,7 @@ export function TokenRevealedDialog({
   return (
     <Dialog
       open={token !== null}
-      onOpenChange={(open) => { if (!open) onDismiss() }}
+      onOpenChange={(open) => { if (!open) { onDismiss() } }}
     >
       <DialogContent
         className="max-w-lg"

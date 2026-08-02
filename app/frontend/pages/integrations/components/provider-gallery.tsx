@@ -34,8 +34,12 @@ export function ProviderGallery({
   const grouped = useMemo(() => {
     const matching = providers.filter((provider) => {
       const connected = integrations.some((candidate) => candidate.provider === provider.key)
-      if (activeFilter === "Connected" && !connected) return false
-      if (activeFilter === "Disconnected" && connected) return false
+      if (activeFilter === "Connected" && !connected) {
+        return false
+      }
+      if (activeFilter === "Disconnected" && connected) {
+        return false
+      }
       return `${provider.name} ${provider.category} ${provider.description}`
         .toLowerCase()
         .includes(search.toLowerCase())

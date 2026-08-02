@@ -18,7 +18,9 @@ export function FlashToaster() {
   const { flash } = usePage()
 
   useEffect(() => {
-    if (!flash || flash === lastShown) return
+    if (!flash || flash === lastShown) {
+      return
+    }
 
     lastShown = flash
 

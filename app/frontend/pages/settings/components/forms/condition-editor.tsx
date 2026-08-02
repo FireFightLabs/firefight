@@ -59,7 +59,9 @@ function conditionSummary(
   incidentTypes: IncidentTypeSettings[],
   severities: IncidentSeveritySettings[],
 ): string | null {
-  if (!conditions.length) return null
+  if (!conditions.length) {
+    return null
+  }
 
   const typeMap = new Map(incidentTypes.map((t) => [t.id, t.name]))
   const severityMap = new Map(severities.map((s) => [s.id, s.name]))

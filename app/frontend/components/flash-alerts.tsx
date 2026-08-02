@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 export function FlashAlerts({ className }: { className?: string }) {
   const { flash } = usePage();
 
-  if (!flash.notice && !flash.alert) return null;
+  if (!flash.notice && !flash.alert) {
+    return null;
+  }
 
   return (
     <div className={cn("space-y-3", className)}>

@@ -32,9 +32,13 @@ function findActiveItem(sections: NavSection[], currentUrl: string): string | nu
 
   for (const section of sections) {
     for (const item of section.items) {
-      if (!item.url || item.url === "#") continue
+      if (!item.url || item.url === "#") {
+        continue
+      }
       const path = normalizePath(item.url)
-      if (!path) continue
+      if (!path) {
+        continue
+      }
       const matches = current === path || current.startsWith(`${path}/`)
       if (matches && path.length > bestLength) {
         bestLength = path.length
