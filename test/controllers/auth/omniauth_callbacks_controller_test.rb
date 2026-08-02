@@ -30,7 +30,7 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to dashboard_path
     assert_equal alice.id,     session[:user_id]
     assert_equal workspace.id, session[:workspace_id]
-    assert_equal "Welcome back to Firefight.", flash[:notice]
+    assert_nil flash[:notice], "a returning sign-in announces nothing"
   end
 
   test "slack_openid with no workspace kicks off invite-code flow" do
