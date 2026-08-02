@@ -7,11 +7,8 @@ export function AlertsPanel({ alerts }: { alerts: Incident["alerts"] }) {
   if (alerts.length === 0) return null
 
   return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3.5">
-      <div className="mb-3 flex items-baseline gap-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/90">Alerts</h3>
-        <span className="text-[11px] tabular-nums text-muted-foreground/70">{alerts.length}</span>
-      </div>
+    <div className="rounded-xl border border-border bg-card px-5 py-4">
+      <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.10em] text-foreground">Alerts</h3>
       <ul className="flex flex-col gap-2.5">
         {alerts.map((alert) => (
           <li key={alert.id} className="flex items-start gap-2.5">
