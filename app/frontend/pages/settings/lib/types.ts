@@ -55,57 +55,19 @@ export interface CatalogTypeOption {
   icon?: string
 }
 
-export interface IncidentFieldDefinitionSettings {
-  id: string
-  key: string
-  name: string
-  description?: string
-  fieldType: string
-  optionSource: string
-  position: number
-  options: string[]
-  catalogTypeId?: string
-  catalogTypeName?: string
-  usageCount: number
-}
+// Re-exported from the generated serializer types. Hand-writing these once
+// let them drift: the list rendered a field that no longer existed.
+export type {
+  IncidentFieldDefinitionSettings,
+  IncidentFormFieldSettings,
+  IncidentFormSettings,
+} from "@/types/serializers"
 
 export interface IncidentConditionSettings {
   id: string
   conditionField: string
   operator: string
   values: string[]
-}
-
-export interface IncidentFormFieldSettings {
-  id: string
-  fieldSourceKind: string
-  systemFieldKey?: string
-  incidentFieldDefinitionId?: string
-  name: string
-  description?: string
-  slug: string
-  fieldType: string
-  optionSource?: string
-  position: number
-  visibilityMode: string
-  requiredMode: string
-  lockedRequired: boolean
-  lockedVisible: boolean
-  options?: { id: string; name: string }[]
-  catalogTypeId?: string
-  catalogTypeName?: string
-  conditions?: IncidentConditionSettings[]
-}
-
-export interface IncidentFormSettings {
-  id: string
-  slug: string
-  name: string
-  description?: string
-  lifecycleEvent: string
-  position: number
-  fieldCount: number
-  fields: IncidentFormFieldSettings[]
 }
 
 export interface ConfigurableOption {

@@ -82,7 +82,7 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
             cells={(field) => (
               <>
                 <TableCell className="hidden lg:table-cell">
-                  <span className="font-mono text-[12px] text-muted-foreground">{field.key}</span>
+                  <span className="font-mono text-[12px] text-muted-foreground">{field.slug}</span>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
                   <span className="flex items-center gap-2">
