@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import type { ProviderEntry } from "@/pages/integrations/types"
 import type { EnvironmentOption, Integration } from "@/types/serializers"
 import type { SharedProps } from "@/types"
+import { whenClosed } from "@/lib/handlers"
 
 interface IntegrationsPageProps extends SharedProps {
   [key: string]: unknown
@@ -48,7 +49,7 @@ export default function Integrations() {
           onDismiss={() => setConnecting(null)}
         />
 
-        <Sheet open={details !== null} onOpenChange={(open) => { if (!open) setDetailsId(null) }}>
+        <Sheet open={details !== null} onOpenChange={whenClosed(() => setDetailsId(null))}>
           <SheetContent className="overflow-y-auto sm:max-w-lg">
             <SheetHeader>
               <SheetTitle>Connection details</SheetTitle>

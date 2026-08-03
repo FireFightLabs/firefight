@@ -62,20 +62,20 @@ export function EditSourceDialog({
   })
   const mappings = rowListOps<SeverityMapping>(form.data.mappings, (rows) => form.setData("mappings", rows))
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
     form.transform((data) => ({
       alert_source: {
         name: data.name,
         enabled: data.enabled,
         severity_map: Object.fromEntries(
-          data.mappings.filter((m) => m.raw.trim() && m.severityId).map((m) => [m.raw.trim(), m.severityId])
+          data.mappings.filter((mapping) => mapping.raw.trim() && mapping.severityId).map((mapping) => [mapping.raw.trim(), mapping.severityId])
         ),
         field_map: Object.fromEntries(
           data.mappingRows.filter((row) => row.field && row.path.trim()).map((row) => [row.field, row.path.trim()])
         ),
         items_path: data.itemsPath.trim(),
-        fingerprint_fields: data.fingerprintFields.split(",").map((f) => f.trim()).filter(Boolean),
+        fingerprint_fields: data.fingerprintFields.split(",").map((field) => field.trim()).filter(Boolean),
         flap_window_minutes: data.flapWindow,
       },
     }))
@@ -107,7 +107,7 @@ export function EditSourceDialog({
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="edit-source-name">Name</Label>
-              <Input id="edit-source-name" value={form.data.name} onChange={(e) => form.setData("name", e.target.value)} />
+              <Input id="edit-source-name" value={form.data.name} onChange={(event) => form.setData("name", event.target.value)} />
             </div>
 
             <div className="flex items-center justify-between">
@@ -121,7 +121,7 @@ export function EditSourceDialog({
                 <Input
                   id="fingerprint-fields"
                   value={form.data.fingerprintFields}
-                  onChange={(e) => form.setData("fingerprintFields", e.target.value)}
+                  onChange={(event) => form.setData("fingerprintFields", event.target.value)}
                   placeholder="service, title"
                 />
               </div>
@@ -133,7 +133,7 @@ export function EditSourceDialog({
                   min={0}
                   max={60}
                   value={form.data.flapWindow}
-                  onChange={(e) => form.setData("flapWindow", e.target.value)}
+                  onChange={(event) => form.setData("flapWindow", event.target.value)}
                   className="w-28"
                 />
               </div>
@@ -159,7 +159,7 @@ export function EditSourceDialog({
                 <div key={index} className="flex items-center gap-2">
                   <Input
                     value={mapping.raw}
-                    onChange={(e) => mappings.update(index, { raw: e.target.value })}
+                    onChange={(event) => mappings.update(index, { raw: event.target.value })}
                     placeholder="provider value, e.g. critical"
                     className="flex-1"
                   />

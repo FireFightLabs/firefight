@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { whenClosed } from "@/lib/handlers"
 
 export function TokenRevealedDialog({
   token,
@@ -21,7 +22,9 @@ export function TokenRevealedDialog({
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
-    if (!token) return
+    if (!token) {
+      return
+    }
     navigator.clipboard.writeText(token)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -32,12 +35,12 @@ export function TokenRevealedDialog({
   return (
     <Dialog
       open={token !== null}
-      onOpenChange={(open) => { if (!open) onDismiss() }}
+      onOpenChange={whenClosed(onDismiss)}
     >
       <DialogContent
         className="max-w-lg"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => event.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

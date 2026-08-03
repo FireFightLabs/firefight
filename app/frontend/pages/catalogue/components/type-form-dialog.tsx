@@ -79,10 +79,12 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
 
   const updateAttribute = (id: string, updates: Partial<AttributeDefinition>) => {
     setAttributes((prev) =>
-      prev.map((a) => {
-        if (a.id !== id) return a
-        const merged = { ...a, ...updates }
-        if (updates.name !== undefined && !a.key) {
+      prev.map((attribute) => {
+        if (attribute.id !== id) {
+          return attribute
+        }
+        const merged = { ...attribute, ...updates }
+        if (updates.name !== undefined && !attribute.key) {
           merged.key = generateKey(updates.name)
         }
         return merged
@@ -91,7 +93,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
   }
 
   const removeAttribute = (id: string) => {
-    setAttributes((prev) => prev.filter((a) => a.id !== id))
+    setAttributes((prev) => prev.filter((attribute) => attribute.id !== id))
   }
 
   const handleSubmit = () => {
@@ -143,7 +145,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
               <Input
                 id="type-name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(event) => setName(event.target.value)}
                 placeholder="e.g. Service, Team, Environment"
               />
             </div>
@@ -158,7 +160,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
             <Textarea
               id="type-desc"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(event) => setDescription(event.target.value)}
               placeholder="What does this type represent?"
               rows={2}
             />
@@ -192,17 +194,17 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                       <IconGripVertical className="size-4 shrink-0 text-muted-foreground/30 cursor-grab" />
                       <Input
                         value={attr.name}
-                        onChange={(e) => updateAttribute(attr.id, { name: e.target.value })}
+                        onChange={(event) => updateAttribute(attr.id, { name: event.target.value })}
                         placeholder="Attribute name"
                         className="h-8 text-sm flex-1"
                       />
                       <Select
                         value={attr.attributeType}
-                        onValueChange={(v) =>
+                        onValueChange={(value) =>
                           updateAttribute(attr.id, {
-                            attributeType: v as AttributeType,
-                            referenceTypeId: v === "reference" ? "" : undefined,
-                            options: v === "select" ? ["Option 1"] : undefined,
+                            attributeType: value as AttributeType,
+                            referenceTypeId: value === "reference" ? "" : undefined,
+                            options: value === "select" ? ["Option 1"] : undefined,
                           })
                         }
                       >
@@ -210,9 +212,9 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {ATTRIBUTE_TYPES.map((t) => (
-                            <SelectItem key={t} value={t}>
-                              {ATTRIBUTE_TYPE_LABELS[t]}
+                          {ATTRIBUTE_TYPES.map((attributeType) => (
+                            <SelectItem key={attributeType} value={attributeType}>
+                              {ATTRIBUTE_TYPE_LABELS[attributeType]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -241,15 +243,15 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                         <span className="text-xs text-muted-foreground">References</span>
                         <Select
                           value={attr.referenceTypeId ?? ""}
-                          onValueChange={(v) => updateAttribute(attr.id, { referenceTypeId: v })}
+                          onValueChange={(value) => updateAttribute(attr.id, { referenceTypeId: value })}
                         >
                           <SelectTrigger className="h-7 w-36 text-xs">
                             <SelectValue placeholder="Select type..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {availableTypes.map((t) => (
-                              <SelectItem key={t.id} value={t.id}>
-                                {t.name}
+                            {availableTypes.map((referenceType) => (
+                              <SelectItem key={referenceType.id} value={referenceType.id}>
+                                {referenceType.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -262,12 +264,12 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                         <span className="text-xs text-muted-foreground shrink-0">Options</span>
                         <Input
                           value={attr.options?.join(", ") ?? ""}
-                          onChange={(e) =>
+                          onChange={(event) =>
                             updateAttribute(attr.id, {
-                              options: e.target.value
+                              options: event.target.value
                                 .split(",")
-                                .flatMap((s) => {
-                                  const trimmed = s.trim()
+                                .flatMap((option) => {
+                                  const trimmed = option.trim()
                                   return trimmed ? [trimmed] : []
                                 }),
                             })

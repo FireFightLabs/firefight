@@ -24,12 +24,16 @@ export function AiRewriteDialog({ open, onOpenChange, onSubmit }: AiRewriteDialo
   const [prevOpen, setPrevOpen] = useState(open)
   if (open !== prevOpen) {
     setPrevOpen(open)
-    if (open) setInstruction("")
+    if (open) {
+      setInstruction("")
+    }
   }
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    if (!instruction.trim()) return
+    if (!instruction.trim()) {
+      return
+    }
     onSubmit(instruction.trim())
   }
 
@@ -50,7 +54,7 @@ export function AiRewriteDialog({ open, onOpenChange, onSubmit }: AiRewriteDialo
             autoFocus
             rows={4}
             value={instruction}
-            onChange={(e) => setInstruction(e.target.value)}
+            onChange={(event) => setInstruction(event.target.value)}
             placeholder="e.g. make this more concise, add a bulleted list of people involved, expand on the root cause..."
           />
           <DialogFooter>

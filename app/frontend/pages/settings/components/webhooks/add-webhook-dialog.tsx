@@ -32,14 +32,18 @@ export function AddWebhookDialog() {
   const toggleEvent = (event: string) => {
     setSelectedEvents((prev) => {
       const next = new Set(prev)
-      if (next.has(event)) next.delete(event)
-      else next.add(event)
+      if (next.has(event)) {
+        next.delete(event)
+      }
+      else {
+        next.add(event)
+      }
       return next
     })
   }
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
     form.transform(() => ({
       webhook: { name: form.data.name, url: form.data.url, subscribed_events: [...selectedEvents] },
     }))
@@ -75,7 +79,7 @@ export function AddWebhookDialog() {
                 id="wh-name"
                 placeholder="e.g. PagerDuty Sync"
                 value={form.data.name}
-                onChange={(e) => form.setData("name", e.target.value)}
+                onChange={(event) => form.setData("name", event.target.value)}
               />
               {form.errors.name && (
                 <p className="text-xs text-destructive">{form.errors.name}</p>
@@ -88,7 +92,7 @@ export function AddWebhookDialog() {
                 type="url"
                 placeholder="https://example.com/webhooks"
                 value={form.data.url}
-                onChange={(e) => form.setData("url", e.target.value)}
+                onChange={(event) => form.setData("url", event.target.value)}
               />
               {form.errors.url && (
                 <p className="text-xs text-destructive">{form.errors.url}</p>
@@ -108,7 +112,7 @@ export function AddWebhookDialog() {
                   size="sm"
                   type="button"
                   className="h-auto p-0 text-xs"
-                  onClick={() => setSelectedEvents(new Set(subscribableEvents.map((e) => e.value)))}
+                  onClick={() => setSelectedEvents(new Set(subscribableEvents.map((event) => event.value)))}
                 >
                   Enable all
                 </Button>

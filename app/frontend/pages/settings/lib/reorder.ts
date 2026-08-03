@@ -15,7 +15,9 @@ export function useOptimisticOrder<T extends { id: string }>(items: T[]) {
     orderIds.length !== items.length ||
     orderIds.some((id) => !serverIds.includes(id))
   )
-  if (stale) setOrderIds(null)
+  if (stale) {
+    setOrderIds(null)
+  }
 
   const byId = new Map(items.map((item) => [ item.id, item ]))
   const ordered = orderIds && !stale
@@ -24,11 +26,15 @@ export function useOptimisticOrder<T extends { id: string }>(items: T[]) {
 
   function onDragEnd(event: DragEndEvent, submit: (orderedIds: string[], onFailure: () => void) => void) {
     const { active, over } = event
-    if (!over || active.id === over.id) return
+    if (!over || active.id === over.id) {
+      return
+    }
 
     const oldIndex = ordered.findIndex((item) => item.id === active.id)
     const newIndex = ordered.findIndex((item) => item.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
+    if (oldIndex === -1 || newIndex === -1) {
+      return
+    }
 
     const nextIds = arrayMove(ordered, oldIndex, newIndex).map((item) => item.id)
     setOrderIds(nextIds)

@@ -30,8 +30,8 @@ export function AddSourceDialog() {
   const [open, setOpen] = useState(false)
   const form = useForm<{ name: string; provider: string }>({ name: "", provider: "generic" })
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
     form.transform(() => ({ alert_source: { name: form.data.name, provider: form.data.provider } }))
     form.post(alertSourcesPath(), {
       onSuccess: () => {
@@ -63,7 +63,7 @@ export function AddSourceDialog() {
               <Input
                 id="source-name"
                 value={form.data.name}
-                onChange={(e) => form.setData("name", e.target.value)}
+                onChange={(event) => form.setData("name", event.target.value)}
                 placeholder="e.g. Northflank production"
                 autoFocus
               />

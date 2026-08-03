@@ -63,12 +63,12 @@ export function RunbookConditionsEditor({
 
   function updateCustomField(key: string, next: Partial<CustomFieldConditionState>) {
     onCustomFieldStatesChange(
-      customFieldStates.map((s) => (s.key === key ? { ...s, ...next } : s)),
+      customFieldStates.map((state) => (state.key === key ? { ...state, ...next } : state)),
     )
   }
 
   function removeCustomField(key: string) {
-    onCustomFieldStatesChange(customFieldStates.filter((s) => s.key !== key))
+    onCustomFieldStatesChange(customFieldStates.filter((state) => state.key !== key))
   }
 
   return (
@@ -83,7 +83,7 @@ export function RunbookConditionsEditor({
         optionsLabel="Types"
         emptyLabel="No incident types defined."
         state={typeState}
-        options={incidentTypes.map((t) => ({ id: t.id, name: t.name }))}
+        options={incidentTypes.map((type) => ({ id: type.id, name: type.name }))}
         onChange={onTypeChange}
       />
 
@@ -92,13 +92,15 @@ export function RunbookConditionsEditor({
         optionsLabel="Severities"
         emptyLabel="No severities defined."
         state={severityState}
-        options={severities.map((s) => ({ id: s.id, name: s.name }))}
+        options={severities.map((severity) => ({ id: severity.id, name: severity.name }))}
         onChange={onSeverityChange}
       />
 
       {customFieldStates.map((state) => {
-        const field = customFields.find((f) => f.id === state.fieldDefinitionId)
-        if (!field) return null
+        const field = customFields.find((candidate) => candidate.id === state.fieldDefinitionId)
+        if (!field) {
+          return null
+        }
 
         return (
           <CustomFieldConditionRow
@@ -120,8 +122,8 @@ export function RunbookConditionsEditor({
             </span>
           </SelectTrigger>
           <SelectContent position="popper">
-            {customFields.map((f) => (
-              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+            {customFields.map((field) => (
+              <SelectItem key={field.id} value={field.id}>{field.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -147,7 +149,7 @@ function ConditionSection({
 }) {
   function toggle(id: string) {
     const selectedIds = state.selectedIds.includes(id)
-      ? state.selectedIds.filter((v) => v !== id)
+      ? state.selectedIds.filter((selected) => selected !== id)
       : [...state.selectedIds, id]
     onChange({ ...state, selectedIds })
   }
@@ -193,7 +195,7 @@ function CustomFieldConditionRow({
 
   function toggle(id: string) {
     const selectedIds = state.selectedIds.includes(id)
-      ? state.selectedIds.filter((v) => v !== id)
+      ? state.selectedIds.filter((selected) => selected !== id)
       : [...state.selectedIds, id]
     onChange({ selectedIds })
   }
@@ -250,13 +252,13 @@ function OptionList({
     <div className="space-y-1">
       <Label className="text-[11px] font-medium text-muted-foreground">{label}</Label>
       <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-        {options.map((o) => (
-          <label key={o.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/30">
+        {options.map((option) => (
+          <label key={option.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/30">
             <Checkbox
-              checked={selectedIds.includes(o.id)}
-              onCheckedChange={() => onToggle(o.id)}
+              checked={selectedIds.includes(option.id)}
+              onCheckedChange={() => onToggle(option.id)}
             />
-            <span>{o.name}</span>
+            <span>{option.name}</span>
           </label>
         ))}
         {options.length === 0 && (

@@ -14,7 +14,7 @@ function initials(name: string) {
   return name
     .split(/\s+/)
     .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase())
+    .map((part) => part[0]?.toUpperCase())
     .join("")
 }
 
@@ -38,31 +38,31 @@ export function MembersTable({ members }: { members: WorkspaceMembership[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {members.map((m) => (
-            <TableRow key={m.id}>
+          {members.map((member) => (
+            <TableRow key={member.id}>
               <TableCell>
                 <div className="flex items-center gap-3">
                   <Avatar className="size-8">
-                    {m.avatarUrl ? (
-                      <AvatarImage src={m.avatarUrl} alt={m.name} />
+                    {member.avatarUrl ? (
+                      <AvatarImage src={member.avatarUrl} alt={member.name} />
                     ) : null}
-                    <AvatarFallback>{initials(m.name)}</AvatarFallback>
+                    <AvatarFallback>{initials(member.name)}</AvatarFallback>
                   </Avatar>
                   <div className="leading-tight">
-                    <div className="font-medium text-foreground">{m.name}</div>
+                    <div className="font-medium text-foreground">{member.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {m.email}
+                      {member.email}
                     </div>
                   </div>
                 </div>
               </TableCell>
               <TableCell>
                 <Badge variant="secondary" className="font-normal">
-                  {m.role}
+                  {member.role}
                 </Badge>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground tabular-nums">
-                {formatDate(m.joinedAt)}
+                {formatDate(member.joinedAt)}
               </TableCell>
             </TableRow>
           ))}

@@ -66,7 +66,7 @@ export function CustomTestDialog({
   }
 
   function fieldsPayload(): Record<string, string> {
-    return Object.fromEntries(fields.filter((f) => f.key.trim()).map((f) => [f.key.trim(), f.value]))
+    return Object.fromEntries(fields.filter((field) => field.key.trim()).map((field) => [field.key.trim(), field.value]))
   }
 
   async function runTest() {
@@ -115,13 +115,13 @@ export function CustomTestDialog({
             <div key={index} className="flex items-center gap-2">
               <Input
                 value={field.key}
-                onChange={(e) => fieldRows.update(index, { key: e.target.value })}
+                onChange={(event) => fieldRows.update(index, { key: event.target.value })}
                 placeholder="field"
                 className="w-36"
               />
               <Input
                 value={field.value}
-                onChange={(e) => fieldRows.update(index, { value: e.target.value })}
+                onChange={(event) => fieldRows.update(index, { value: event.target.value })}
                 placeholder="value"
                 className="flex-1"
               />
@@ -159,8 +159,8 @@ export function CustomTestDialog({
                 {result.resolution.notify && (
                   <span>would notify: <span className="text-foreground">{result.resolution.notify}</span></span>
                 )}
-                {result.resolution.notes.map((note, i) => (
-                  <span key={i} className="text-amber-500/80">⚠ {note}</span>
+                {result.resolution.notes.map((note, index) => (
+                  <span key={index} className="text-amber-500/80">⚠ {note}</span>
                 ))}
               </div>
             )}

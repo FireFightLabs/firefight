@@ -37,17 +37,19 @@ interface AddFieldDialogProps {
 
 export function AddFieldDialog({ open, onOpenChange, form, availableFields, allCustomFields, onNavigateToCustomFields }: AddFieldDialogProps) {
   const [selectedFieldId, setSelectedFieldId] = useState(availableFields[0]?.id ?? "")
-  const resetKey = `${form.id}:${availableFields.map((f) => f.id).join(",")}`
+  const resetKey = `${form.id}:${availableFields.map((field) => field.id).join(",")}`
   const [prevResetKey, setPrevResetKey] = useState(resetKey)
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey)
     setSelectedFieldId(availableFields[0]?.id ?? "")
   }
 
-  const attachedCustomFields = form.fields.filter((f) => f.fieldSourceKind === "custom")
+  const attachedCustomFields = form.fields.filter((field) => field.fieldSourceKind === "custom")
 
   function handleSubmit() {
-    if (!selectedFieldId) return
+    if (!selectedFieldId) {
+      return
+    }
 
     router.post(incidentFormFieldsPath(), {
       incident_form_id: form.id,
@@ -56,6 +58,11 @@ export function AddFieldDialog({ open, onOpenChange, form, availableFields, allC
       preserveScroll: true,
       onSuccess: () => onOpenChange(false),
     })
+  }
+
+  function goToCustomFields() {
+    onOpenChange(false)
+    onNavigateToCustomFields()
   }
 
   return (
@@ -73,8 +80,8 @@ export function AddFieldDialog({ open, onOpenChange, form, availableFields, allC
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Already attached</Label>
               <div className="flex flex-wrap gap-1.5">
-                {attachedCustomFields.map((f) => (
-                  <Badge key={f.id} variant="secondary" className="text-xs">{f.name}</Badge>
+                {attachedCustomFields.map((field) => (
+                  <Badge key={field.id} variant="secondary" className="text-xs">{field.name}</Badge>
                 ))}
               </div>
             </div>
@@ -105,7 +112,7 @@ export function AddFieldDialog({ open, onOpenChange, form, availableFields, allC
                     variant="link"
                     size="sm"
                     className="h-auto p-0 text-xs"
-                    onClick={() => { onOpenChange(false); onNavigateToCustomFields() }}
+                    onClick={goToCustomFields}
                   >
                     Go to Custom Fields to create one
                   </Button>
@@ -117,7 +124,7 @@ export function AddFieldDialog({ open, onOpenChange, form, availableFields, allC
                   variant="link"
                   size="sm"
                   className="h-auto p-0 text-xs"
-                  onClick={() => { onOpenChange(false); onNavigateToCustomFields() }}
+                  onClick={goToCustomFields}
                 >
                   Create more in Custom Fields
                 </Button>

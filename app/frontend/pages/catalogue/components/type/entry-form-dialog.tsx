@@ -94,7 +94,7 @@ export function EntryFormDialog({
             <Input
               id="entry-name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(event) => setName(event.target.value)}
               placeholder={`e.g. ${type.slug === "service" ? "payment-service" : type.slug === "team" ? "Platform" : "Checkout"}`}
               className="font-mono"
             />
@@ -107,14 +107,14 @@ export function EntryFormDialog({
                 {attr.required && <span className="text-red-500 ml-0.5">*</span>}
                 {attr.attributeType === "reference" && attr.referenceTypeId && (
                   <Badge variant="outline" className="ml-2 text-[10px]">
-                    {allTypes.find(t => t.id === attr.referenceTypeId)?.name ?? "ref"}
+                    {allTypes.find((candidate) => candidate.id === attr.referenceTypeId)?.name ?? "ref"}
                   </Badge>
                 )}
               </Label>
               <AttributeField
                 attr={attr}
                 value={attributes[attr.key]}
-                onChange={(v) => updateAttribute(attr.key, v)}
+                onChange={(event) => updateAttribute(attr.key, event)}
                 allTypes={allTypes}
                 referenceEntries={referenceEntries}
                 slackMembers={slackMembers}

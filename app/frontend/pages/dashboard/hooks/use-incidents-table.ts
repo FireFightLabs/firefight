@@ -17,11 +17,21 @@ import { dashboardPath } from "@/lib/routes"
 
 function navigateDashboard(filters: DashboardFilters, pagination: { page: number; perPage: number }) {
   const params: Record<string, string | string[] | number> = {}
-  if (filters.search) params.search = filters.search
-  if (filters.severities.length > 0) params.severities = filters.severities
-  if (filters.statuses.length > 0) params.statuses = filters.statuses
-  if (pagination.page > 1) params.page = pagination.page
-  if (pagination.perPage !== DEFAULT_PER_PAGE) params.per_page = pagination.perPage
+  if (filters.search) {
+    params.search = filters.search
+  }
+  if (filters.severities.length > 0) {
+    params.severities = filters.severities
+  }
+  if (filters.statuses.length > 0) {
+    params.statuses = filters.statuses
+  }
+  if (pagination.page > 1) {
+    params.page = pagination.page
+  }
+  if (pagination.perPage !== DEFAULT_PER_PAGE) {
+    params.per_page = pagination.perPage
+  }
 
   router.get(dashboardPath(), params, {
     preserveState: true,
@@ -84,8 +94,12 @@ export function useIncidentsTable(
   const toggleSeverity = useCallback((slug: string) => {
     const current = [...filtersRef.current.severities]
     const idx = current.indexOf(slug)
-    if (idx >= 0) current.splice(idx, 1)
-    else current.push(slug)
+    if (idx >= 0) {
+      current.splice(idx, 1)
+    }
+    else {
+      current.push(slug)
+    }
     clearTimeout(searchTimerRef.current)
     navigateDashboard(
       { ...filtersRef.current, severities: current, search: searchInputRef.current },
@@ -96,8 +110,12 @@ export function useIncidentsTable(
   const toggleStatus = useCallback((key: string) => {
     const current = [...filtersRef.current.statuses]
     const idx = current.indexOf(key)
-    if (idx >= 0) current.splice(idx, 1)
-    else current.push(key)
+    if (idx >= 0) {
+      current.splice(idx, 1)
+    }
+    else {
+      current.push(key)
+    }
     clearTimeout(searchTimerRef.current)
     navigateDashboard(
       { ...filtersRef.current, statuses: current, search: searchInputRef.current },

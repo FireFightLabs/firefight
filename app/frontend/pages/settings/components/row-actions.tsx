@@ -38,7 +38,7 @@ export function RowActions({
                 <DropdownMenuItem
                   variant="destructive"
                   disabled
-                  onSelect={(e) => e.preventDefault()}
+                  onSelect={(event) => event.preventDefault()}
                 >
                   Delete
                 </DropdownMenuItem>

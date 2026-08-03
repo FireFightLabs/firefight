@@ -25,10 +25,10 @@ function avatarIcon(url?: string, size = "size-5") {
 function toMemberOptions(members: SlackMember[], resolvedMembers: WorkspaceMember[]) {
   const allSources = [ ...resolvedMembers, ...members ]
   const seen = new Set<string>()
-  return allSources.reduce<{ value: string; label: string; icon: ReactNode }[]>((acc, m) => {
-    if (!seen.has(m.id)) {
-      seen.add(m.id)
-      acc.push({ value: m.id, label: m.name, icon: avatarIcon(m.avatarUrl) })
+  return allSources.reduce<{ value: string; label: string; icon: ReactNode }[]>((acc, member) => {
+    if (!seen.has(member.id)) {
+      seen.add(member.id)
+      acc.push({ value: member.id, label: member.name, icon: avatarIcon(member.avatarUrl) })
     }
     return acc
   }, [])
@@ -63,14 +63,14 @@ export function AttributeField({
       return isLong ? (
         <Textarea
           value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(event) => onChange(event.target.value)}
           placeholder={`Enter ${attr.name.toLowerCase()}...`}
           rows={3}
         />
       ) : (
         <Input
           value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(event) => onChange(event.target.value)}
           placeholder={`Enter ${attr.name.toLowerCase()}...`}
         />
       )
@@ -81,7 +81,7 @@ export function AttributeField({
         <Input
           type="number"
           value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : "")}
+          onChange={(event) => onChange(event.target.value ? Number(event.target.value) : "")}
           placeholder="0"
         />
       )
@@ -104,7 +104,7 @@ export function AttributeField({
       return (
         <Select
           value={String(value ?? "")}
-          onValueChange={(v) => onChange(v)}
+          onValueChange={(event) => onChange(event)}
         >
           <SelectTrigger>
             <SelectValue placeholder={`Select ${attr.name.toLowerCase()}...`} />
@@ -120,14 +120,14 @@ export function AttributeField({
       )
 
     case "reference": {
-      const refType = attr.referenceTypeId ? allTypes.find(t => t.id === attr.referenceTypeId) : null
+      const refType = attr.referenceTypeId ? allTypes.find(type => type.id === attr.referenceTypeId) : null
       const refEntries = attr.referenceTypeId
-        ? referenceEntries.filter(e => e.typeId === attr.referenceTypeId)
+        ? referenceEntries.filter((referenced) => referenced.typeId === attr.referenceTypeId)
         : []
       return (
         <Select
           value={String(value ?? "")}
-          onValueChange={(v) => onChange(v)}
+          onValueChange={(event) => onChange(event)}
         >
           <SelectTrigger>
             <SelectValue placeholder={`Select ${refType?.name.toLowerCase() ?? "entry"}...`} />
@@ -147,12 +147,12 @@ export function AttributeField({
       return (
         <Input
           value={Array.isArray(value) ? value.join(", ") : String(value ?? "")}
-          onChange={(e) =>
+          onChange={(event) =>
             onChange(
-              e.target.value
+              event.target.value
                 .split(",")
-                .flatMap((s) => {
-                  const trimmed = s.trim()
+                .flatMap((option) => {
+                  const trimmed = option.trim()
                   return trimmed ? [trimmed] : []
                 })
             )
@@ -165,8 +165,8 @@ export function AttributeField({
       return (
         <SearchableSelect
           value={typeof value === "string" ? value : null}
-          onValueChange={(v) => onChange(v)}
-          options={slackChannels.map((c) => ({ value: c.name, label: `#${c.name}` }))}
+          onValueChange={(event) => onChange(event)}
+          options={slackChannels.map((channel) => ({ value: channel.name, label: `#${channel.name}` }))}
           placeholder={`Search ${attr.name.toLowerCase()}...`}
           searchPlaceholder="Search channels..."
           emptyText="No channels found"
@@ -179,7 +179,7 @@ export function AttributeField({
       return (
         <SearchableSelect
           value={typeof value === "string" ? value : null}
-          onValueChange={(v) => onChange(v)}
+          onValueChange={(event) => onChange(event)}
           options={memberOptions}
           placeholder={`Search ${attr.name.toLowerCase()}...`}
           searchPlaceholder="Search members..."
@@ -194,7 +194,7 @@ export function AttributeField({
       return (
         <SearchableMultiSelect
           value={Array.isArray(value) ? (value as string[]) : []}
-          onValueChange={(v) => onChange(v)}
+          onValueChange={(event) => onChange(event)}
           options={membersOptions}
           placeholder={`Select ${attr.name.toLowerCase()}...`}
           searchPlaceholder="Search members..."
@@ -208,7 +208,7 @@ export function AttributeField({
       return (
         <Input
           value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(event) => onChange(event.target.value)}
         />
       )
   }

@@ -41,14 +41,14 @@ export function SearchableMultiSelect({
 
   const toggle = (id: string) => {
     if (value.includes(id)) {
-      onValueChange(value.filter((v) => v !== id))
+      onValueChange(value.filter((selected) => selected !== id))
     } else {
       onValueChange([ ...value, id ])
     }
   }
 
   const remove = (id: string) => {
-    onValueChange(value.filter((v) => v !== id))
+    onValueChange(value.filter((selected) => selected !== id))
   }
 
   const defaultRender = (option: SearchableMultiSelectOption) => (
@@ -58,12 +58,19 @@ export function SearchableMultiSelect({
     </div>
   )
 
+  function handleOpenChange(next: boolean) {
+    setOpen(next)
+    if (next) {
+      onOpen?.()
+    }
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((id) => {
-            const option = options.find((o) => o.value === id)
+            const option = options.find((candidate) => candidate.value === id)
             return (
               <Badge key={id} variant="secondary" className="gap-1 pr-1">
                 {renderBadge && option ? renderBadge(option) : (
@@ -84,7 +91,7 @@ export function SearchableMultiSelect({
           })}
         </div>
       )}
-      <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) onOpen?.() }}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
             <span className="text-muted-foreground">

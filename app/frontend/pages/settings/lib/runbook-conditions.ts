@@ -29,28 +29,30 @@ export function conditionSummary(
   severities: IncidentSeveritySettings[],
   customFields: RunbookCustomField[],
 ): string | null {
-  if (!conditions.length) return null
+  if (!conditions.length) {
+    return null
+  }
 
-  const typeMap = new Map(incidentTypes.map((t) => [t.id, t.name]))
-  const severityMap = new Map(severities.map((s) => [s.id, s.name]))
-  const fieldMap = new Map(customFields.map((f) => [f.id, f]))
+  const typeMap = new Map(incidentTypes.map((type) => [type.id, type.name]))
+  const severityMap = new Map(severities.map((severity) => [severity.id, severity.name]))
+  const fieldMap = new Map(customFields.map((field) => [field.id, field]))
 
   return conditions
-    .map((c) => {
-      const operatorLabel = OPERATOR_LABELS[c.operator] ?? c.operator
+    .map((condition) => {
+      const operatorLabel = OPERATOR_LABELS[condition.operator] ?? condition.operator
 
-      if (c.conditionField === CONDITION_FIELD_CUSTOM_FIELD) {
-        const field = c.incidentFieldDefinitionId ? fieldMap.get(c.incidentFieldDefinitionId) : undefined
+      if (condition.conditionField === CONDITION_FIELD_CUSTOM_FIELD) {
+        const field = condition.incidentFieldDefinitionId ? fieldMap.get(condition.incidentFieldDefinitionId) : undefined
         const valueMap = new Map(
-          field ? valueOptions(field).map((o) => [o.id, o.name]) : [],
+          field ? valueOptions(field).map((option) => [option.id, option.name]) : [],
         )
-        const names = c.values.map((v) => valueMap.get(v) ?? v).join(", ")
+        const names = condition.values.map((value) => valueMap.get(value) ?? value).join(", ")
         return `${field?.name ?? "Custom field"} ${operatorLabel} ${names}`
       }
 
-      const map = c.conditionField === CONDITION_FIELD_SEVERITY ? severityMap : typeMap
-      const fieldLabel = FIELD_LABELS[c.conditionField as FixedConditionField] ?? c.conditionField
-      const names = c.values.map((v) => map.get(v) ?? v).join(", ")
+      const map = condition.conditionField === CONDITION_FIELD_SEVERITY ? severityMap : typeMap
+      const fieldLabel = FIELD_LABELS[condition.conditionField as FixedConditionField] ?? condition.conditionField
+      const names = condition.values.map((value) => map.get(value) ?? value).join(", ")
       return `${fieldLabel} ${operatorLabel} ${names}`
     })
     .join(" AND ")
@@ -58,7 +60,7 @@ export function conditionSummary(
 
 export function valueOptions(field: RunbookCustomField): { id: string; name: string }[] {
   if (field.entries.length > 0) {
-    return field.entries.map((e) => ({ id: e.id, name: e.name }))
+    return field.entries.map((entry) => ({ id: entry.id, name: entry.name }))
   }
-  return field.options.map((o) => ({ id: o, name: o }))
+  return field.options.map((option) => ({ id: option, name: option }))
 }

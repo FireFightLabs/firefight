@@ -13,7 +13,9 @@ export function useMemberSearch() {
   const [loaded, setLoaded] = useState(false)
 
   const loadMembers = useCallback(async () => {
-    if (loaded) return
+    if (loaded) {
+      return
+    }
     const response = await fetch(catalogueSearchMembersPath())
     const data = await response.json() as SlackMember[]
     setMembers(data)

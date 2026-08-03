@@ -31,7 +31,9 @@ Production-grade or not at all. Every one of these has already been violated onc
 - **Green CI is not evidence the UI works.** `bin/ci` and `tsc` never render a pixel. Look at the page, or say plainly that you did not.
 - **Generated files are part of the change.** Adding a route means `bin/rails js:routes:typescript`; adding or editing a serializer means `bundle exec rake types_from_serializers:generate`. Forgetting either breaks the app at import time, not at test time.
 - **Never silence a linter or type checker.** No `eslint-disable`, `rubocop:disable`, `@ts-ignore`, `@ts-expect-error`, `as any`, or `as unknown as`. The rule is pointing at a real problem, so fix the code it points at. `react-hooks/exhaustive-deps` firing on a mount-only effect means the effect is reading something it claims not to depend on — capture it in a ref or restructure. If a suppression is genuinely the only option, say so out loud and explain why in the same message, never quietly in a comment.
-- **`bin/ci` does not check the frontend.** No eslint, no `tsc`. Run `npm run lint` and `npx tsc --noEmit` yourself before calling frontend work done; green `bin/ci` says nothing about it.
+- **`bin/ci` does not check the frontend.** No eslint, no `tsc`. Run `npm run lint` and `npx tsc -p tsconfig.app.json --noEmit` yourself before calling frontend work done, and green `bin/ci` says nothing about it.
+- **`npx tsc --noEmit` checks nothing here.** The root `tsconfig.json` is a solution file: `"files": []` plus project references, so that command exits 0 having compiled no application code. Always name the project (`-p tsconfig.app.json`) or use `--build`. It reports pre-existing errors in the generated `app/frontend/lib/routes.ts`, which are not yours; filter it out.
+- **There are pre-existing type errors on `main`** (17 at the time of writing, mostly `custom-fields-tab.tsx` passing the wrong option type to `OptionsTable`). Compare your branch's count against `main` rather than expecting zero.
 - **Finish the whole path, or say exactly what you left undone.** Deferring part of a task is fine when it is stated. Silence reads as complete, which makes it a false claim.
 
 ## Settings screen UX standards (always apply)
@@ -72,6 +74,9 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 - No direct `Rails.logger` helper wrappers — call `Rails.logger.info(...)` inline where needed
 - Keep it simple, avoid over-engineering
 - Rubocop enforced: `[ {...} ]` not `[{...}]` (SpaceInsideArrayLiteralBrackets)
+- **No logic in JSX.** A handler prop takes a function, never an inline arrow with a statement body: `onClick={goToCustomFields}`, not `onClick={() => { onOpenChange(false); onNavigate() }}`. A one-expression arrow that only forwards an argument is fine (`onSelect={() => selectOption(option.value)}`). For the common "act when a dialog closes" case use `whenClosed(handler)` from `@/lib/handlers` rather than writing the `if` in the markup.
+- **Name variables for what they hold.** No single letters, including callback parameters: `entries.filter((entry) => ...)`, not `(e)`. `const value = ...` beats `const v = ...`. A reader should not have to look up what a name refers to.
+- **Braces on every `if` body in TypeScript**, even a one-liner and including early-exit guards. Enforced by eslint `curly: ["error", "all"]`, so `npm run lint` fails on a bare `if (x) doThing()`. `--fix` collapses the body onto one line (`{return}`), which is not the house style: expand it to a real block.
 - Never use raw strings for identifiers, resource names, action names, or event types — always use constants (e.g., `ApiKey::RESOURCE_INCIDENTS` not `"incidents"`, `IncidentEvent::INCIDENT_CREATED` not `"incident.created"`, `Identifiers::INCIDENT_CREATION_MODAL` not the string)
 - Model concerns live next to their model in `app/models/<model>/`, not in `app/models/concerns/`. E.g. `Incident::Lifecycle` lives at `app/models/incident/lifecycle.rb`. Don't use `rails g concern` (it generates into `app/models/concerns/`) — create the file manually in the right directory.
 

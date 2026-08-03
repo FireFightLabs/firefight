@@ -89,7 +89,9 @@ function buildParser(schema: Schema): MarkdownParser {
 }
 
 function serialize(editor: Editor): string {
-  if (editor.isEmpty) return ""
+  if (editor.isEmpty) {
+    return ""
+  }
   return markdownSerializer.serialize(editor.state.doc)
 }
 
@@ -126,14 +128,20 @@ export function RunbookContentEditor({ value, onChange, placeholder }: RunbookCo
   const parser = useMemo(() => (editor ? buildParser(editor.schema) : null), [editor])
 
   useEffect(() => {
-    if (!editor || !parser) return
-    if (value === lastEmitted.current) return
+    if (!editor || !parser) {
+      return
+    }
+    if (value === lastEmitted.current) {
+      return
+    }
     lastEmitted.current = value
     const doc = parser.parse(value ?? "")
     editor.commands.setContent(doc, { emitUpdate: false })
   }, [editor, parser, value])
 
-  if (!editor) return null
+  if (!editor) {
+    return null
+  }
 
   return (
     <div className="rounded-md border bg-transparent focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">

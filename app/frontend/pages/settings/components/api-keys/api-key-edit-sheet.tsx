@@ -41,7 +41,9 @@ export function ApiKeyEditSheet({
     }
   }
 
-  if (!apiKey) return null
+  if (!apiKey) {
+    return null
+  }
 
   const handleSave = () => {
     router.patch(apiKeyPath(apiKey.id), {
@@ -65,7 +67,7 @@ export function ApiKeyEditSheet({
         <div className="flex flex-col gap-6 px-6 pb-6">
           <div className="flex flex-col gap-2">
             <Label htmlFor="edit-key-name">Name</Label>
-            <Input id="edit-key-name" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input id="edit-key-name" value={name} onChange={(event) => setName(event.target.value)} />
           </div>
 
           <div className="flex flex-col gap-2">

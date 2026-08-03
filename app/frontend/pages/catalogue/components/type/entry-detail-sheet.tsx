@@ -45,11 +45,13 @@ export function EntryDetailSheet({
   onOpenChange: (open: boolean) => void
   onEdit?: (entry: CatalogEntry) => void
 }) {
-  if (!entry) return null
+  if (!entry) {
+    return null
+  }
 
-  const descAttr = type.attributeDefinitions.find((a) => a.key === "description")
+  const descAttr = type.attributeDefinitions.find((definition) => definition.key === "description")
   const descValue = descAttr ? entry.attributes[descAttr.key] : null
-  const otherAttrs = type.attributeDefinitions.filter((a) => a.key !== "description")
+  const otherAttrs = type.attributeDefinitions.filter((definition) => definition.key !== "description")
 
   const handleDelete = () => {
     router.delete(`/app/catalogue/entries/${entry.id}`, {

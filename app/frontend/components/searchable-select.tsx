@@ -35,7 +35,7 @@ export function SearchableSelect({
   renderOption,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
-  const selected = options.find((o) => o.value === value)
+  const selected = options.find((candidate) => candidate.value === value)
 
   const defaultRender = (option: SearchableSelectOption) => (
     <div className="flex items-center gap-2">
@@ -44,8 +44,20 @@ export function SearchableSelect({
     </div>
   )
 
+  function handleOpenChange(next: boolean) {
+    setOpen(next)
+    if (next) {
+      onOpen?.()
+    }
+  }
+
+  function selectOption(optionValue: string) {
+    onValueChange(optionValue)
+    setOpen(false)
+  }
+
   return (
-    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) onOpen?.() }}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal data-[state=open]:ring-1 data-[state=open]:ring-ring/20">
           {selected ? (
@@ -56,7 +68,7 @@ export function SearchableSelect({
           <IconChevronDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" onOpenAutoFocus={(event) => event.preventDefault()}>
         <Command className="py-3 outline-none">
           <div className="mx-2 my-1 rounded-md border border-input focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/20 transition-[color,box-shadow] [&_[data-slot=command-input-wrapper]]:border-0">
             <CommandInput placeholder={searchPlaceholder} className="!border-0 !outline-none !shadow-none !ring-0 focus:!border-0 focus:!outline-none focus:!shadow-none focus:!ring-0" />
@@ -68,7 +80,7 @@ export function SearchableSelect({
                 <CommandItem
                   key={option.value}
                   value={option.label}
-                  onSelect={() => { onValueChange(option.value); setOpen(false) }}
+                  onSelect={() => selectOption(option.value)}
                   className="cursor-pointer"
                 >
                   {renderOption?.(option) ?? defaultRender(option)}

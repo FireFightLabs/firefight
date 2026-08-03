@@ -119,7 +119,9 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
         title={`Delete ${deleting?.name ?? "this type"}?`}
         description="No incidents use this type, so nothing loses its history. It disappears from the declare form straight away."
         onConfirm={() => {
-          if (!deleting) return
+          if (!deleting) {
+            return
+          }
           router.delete(incidentTypePath(deleting.id), { preserveScroll: true, onFinish: () => setDeleting(null) })
         }}
         onCancel={() => setDeleting(null)}

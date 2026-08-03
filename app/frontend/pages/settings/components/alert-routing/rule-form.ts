@@ -37,16 +37,16 @@ export function isIncidentAction(action: OutcomeAction): boolean {
 }
 
 export function conditionValues(condition: ConditionRow): string[] {
-  return condition.value.split(",").map((v) => v.trim()).filter(Boolean)
+  return condition.value.split(",").map((value) => value.trim()).filter(Boolean)
 }
 
 export function ruleFormData(rule: PolicyRule | null): RuleFormData {
   const outcome = rule?.outcome
   return {
-    conditions: (rule?.conditions ?? []).map((c) => ({
-      field: c.field,
-      operator: c.operator,
-      value: Array.isArray(c.value) ? c.value.join(", ") : (c.value ?? ""),
+    conditions: (rule?.conditions ?? []).map((condition) => ({
+      field: condition.field,
+      operator: condition.operator,
+      value: Array.isArray(condition.value) ? condition.value.join(", ") : (condition.value ?? ""),
     })),
     action: outcome?.action ?? "auto_create_incident",
     severityId: outcome?.severityId ?? NONE_SEVERITY,
@@ -59,21 +59,29 @@ export function ruleFormData(rule: PolicyRule | null): RuleFormData {
     notifyChannel: outcome?.notify?.channelId ?? "",
     notifyChannelName: outcome?.notify?.channelName ?? "",
     notifyMemberId: outcome?.notify?.memberId ?? "",
-    inviteOwningTeam: outcome?.invite?.some((t) => t.type === TARGET_OWNING_TEAM) ?? false,
-    inviteMemberIds: outcome?.invite?.flatMap((t) => (t.type === TARGET_MEMBER && t.memberId ? [ t.memberId ] : [])) ?? [],
+    inviteOwningTeam: outcome?.invite?.some((item) => item.type === TARGET_OWNING_TEAM) ?? false,
+    inviteMemberIds: outcome?.invite?.flatMap((item) => (item.type === TARGET_MEMBER && item.memberId ? [ item.memberId ] : [])) ?? [],
   }
 }
 
 function conditionPayload(condition: ConditionRow) {
   const base = { field: condition.field.trim(), operator: condition.operator }
-  if (condition.operator === "is_empty") return base
-  if (condition.operator === "is_one_of") return { ...base, value: conditionValues(condition) }
+  if (condition.operator === "is_empty") {
+    return base
+  }
+  if (condition.operator === "is_one_of") {
+    return { ...base, value: conditionValues(condition) }
+  }
   return { ...base, value: condition.value }
 }
 
 function notifyPayload(data: RuleFormData) {
-  if (data.action !== "notify_only") return {}
-  if (data.notifyKind === "owning_team") return { notify: { type: TARGET_OWNING_TEAM, of: "service" } }
+  if (data.action !== "notify_only") {
+    return {}
+  }
+  if (data.notifyKind === "owning_team") {
+    return { notify: { type: TARGET_OWNING_TEAM, of: "service" } }
+  }
   if (data.notifyKind === "person" && data.notifyMemberId) {
     return { notify: { type: TARGET_MEMBER, member_id: data.notifyMemberId } }
   }
@@ -91,7 +99,9 @@ function notifyPayload(data: RuleFormData) {
 }
 
 function invitePayload(data: RuleFormData) {
-  if (!isIncidentAction(data.action)) return {}
+  if (!isIncidentAction(data.action)) {
+    return {}
+  }
   const targets = [
     ...(data.inviteOwningTeam ? [{ type: TARGET_OWNING_TEAM, of: "service" }] : []),
     ...data.inviteMemberIds.map((id) => ({ type: TARGET_MEMBER, member_id: id })),
@@ -103,7 +113,7 @@ export function rulePayload(data: RuleFormData, alertSourceId: string | null) {
   return {
     alert_source_id: alertSourceId,
     rule: {
-      conditions: data.conditions.filter((c) => c.field.trim()).map(conditionPayload),
+      conditions: data.conditions.filter((condition) => condition.field.trim()).map(conditionPayload),
       outcome: {
         action: data.action,
         ...(data.severityId !== NONE_SEVERITY ? { severity_id: data.severityId } : {}),

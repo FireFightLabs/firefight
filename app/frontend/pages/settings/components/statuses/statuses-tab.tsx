@@ -18,13 +18,18 @@ export function StatusesTab({ lifecycleStages }: { lifecycleStages: LifecycleSta
     setCreatingIn(null)
   }
 
+  function startCreating(target: LifecycleStageWithStatuses) {
+    setCreatingIn(target)
+    setDialog({ mode: "create" })
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {lifecycleStages.map((stage) => (
         <StageStatusesCard
           key={stage.key}
           stage={stage}
-          onCreate={(target) => { setCreatingIn(target); setDialog({ mode: "create" }) }}
+          onCreate={startCreating}
           onEdit={(option) => setDialog({ mode: "edit", option })}
           onDelete={setDeleting}
         />
@@ -49,7 +54,9 @@ export function StatusesTab({ lifecycleStages }: { lifecycleStages: LifecycleSta
         title={`Delete ${deleting?.name ?? "this status"}?`}
         description="No incidents use this status, so nothing loses its history. It disappears from the status picker straight away."
         onConfirm={() => {
-          if (!deleting) return
+          if (!deleting) {
+            return
+          }
           router.delete(incidentStatusPath(deleting.id), { onFinish: () => setDeleting(null) })
         }}
         onCancel={() => setDeleting(null)}

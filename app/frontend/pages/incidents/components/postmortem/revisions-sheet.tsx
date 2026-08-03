@@ -39,7 +39,9 @@ export function RevisionsSheet({
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      return
+    }
 
     const controller = new AbortController()
     setLoading(true)
@@ -50,17 +52,21 @@ export function RevisionsSheet({
         setLoading(false)
       })
       .catch((err) => {
-        if (err.name !== "AbortError") setLoading(false)
+        if (err.name !== "AbortError") {
+          setLoading(false)
+        }
       })
 
     return () => controller.abort()
   }, [open, incidentId])
 
-  const selectedRevision = selectedId ? revisions.find((r) => r.id === selectedId) : null
+  const selectedRevision = selectedId ? revisions.find((revision) => revision.id === selectedId) : null
   const selectedIndex = selectedRevision ? revisions.indexOf(selectedRevision) : -1
 
   const diffHtml = useMemo(() => {
-    if (!selectedRevision?.htmlContent) return null
+    if (!selectedRevision?.htmlContent) {
+      return null
+    }
     const olderHtml = selectedRevision.htmlContent
     // revisions are newest-first; the "next" version is the previous index, or the live editor content
     const newerHtml = selectedIndex === 0 ? currentHtml : (revisions[selectedIndex - 1]?.htmlContent ?? currentHtml)
@@ -83,8 +89,8 @@ export function RevisionsSheet({
         <div className="flex flex-col gap-4 px-6 pb-6">
           {loading && (
             <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+              {Array.from({ length: 4 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full" />
               ))}
             </div>
           )}

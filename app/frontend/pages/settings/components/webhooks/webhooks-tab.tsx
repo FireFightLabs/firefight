@@ -28,6 +28,7 @@ import { AddWebhookDialog } from "@/pages/settings/components/webhooks/add-webho
 import { RowActions } from "@/pages/settings/components/row-actions"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { WebhookDetailSheet } from "@/pages/settings/components/webhooks/webhook-detail-sheet"
+import { whenClosed } from "@/lib/handlers"
 
 export function WebhooksTab({
   webhooks,
@@ -39,12 +40,14 @@ export function WebhooksTab({
   onWebhookSelect: (id: string | null) => void
 }) {
   const detailWebhook = activeWebhookId
-    ? webhooks.find((w) => w.id === activeWebhookId) ?? null
+    ? webhooks.find((webhook) => webhook.id === activeWebhookId) ?? null
     : null
   const [deleting, setDeleting] = useState<Webhook | null>(null)
 
   function confirmDelete() {
-    if (!deleting) return
+    if (!deleting) {
+      return
+    }
     router.delete(webhookPath(deleting.id), { onFinish: () => setDeleting(null) })
   }
 
@@ -106,7 +109,7 @@ export function WebhooksTab({
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
                       <RowActions onEdit={() => onWebhookSelect(webhook.id)} onDelete={() => setDeleting(webhook)} />
                     </TableCell>
                   </TableRow>
@@ -137,7 +140,7 @@ export function WebhooksTab({
       <WebhookDetailSheet
         webhook={detailWebhook}
         open={detailWebhook !== null}
-        onOpenChange={(open) => { if (!open) onWebhookSelect(null) }}
+        onOpenChange={whenClosed(() => onWebhookSelect(null))}
       />
     </div>
   )

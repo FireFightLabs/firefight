@@ -10,7 +10,9 @@ export function useSlackData() {
   const [channelsLoaded, setChannelsLoaded] = useState(false)
 
   const loadChannels = useCallback(async () => {
-    if (channelsLoaded) return
+    if (channelsLoaded) {
+      return
+    }
     const response = await fetch(catalogueSearchChannelsPath())
     const data = await response.json()
     setChannels(data)

@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { catalogueTypePath } from "@/lib/routes"
 
 export function TypeCard({ type }: { type: CatalogType }) {
-  const displayAttrs = type.attributeDefinitions.filter((a) => a.key !== "description")
+  const displayAttrs = type.attributeDefinitions.filter((definition) => definition.key !== "description")
 
   return (
     <Link href={catalogueTypePath(type.slug)}>

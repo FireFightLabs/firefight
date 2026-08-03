@@ -73,7 +73,9 @@ export function OptionsTable<T extends ConfigurableOption>({
   const { ordered, onDragEnd } = useOptimisticOrder(options)
 
   function submitOrder(orderedIds: string[], onFailure: () => void) {
-    if (!reorderPath) return
+    if (!reorderPath) {
+      return
+    }
 
     router.patch(reorderPath, { ...reorderParams, ordered_ids: orderedIds }, {
       preserveScroll: true,
@@ -122,7 +124,9 @@ export function OptionsTable<T extends ConfigurableOption>({
     </Table>
   )
 
-  if (!reorderPath) return table
+  if (!reorderPath) {
+    return table
+  }
 
   return (
     <DndContext
@@ -147,7 +151,9 @@ function Rows({
   onMakeDefault?: (id: string) => void
   children: ReactNode
 }) {
-  if (!onMakeDefault) return <TableBody>{children}</TableBody>
+  if (!onMakeDefault) {
+    return <TableBody>{children}</TableBody>
+  }
 
   return (
     <RadioGroup

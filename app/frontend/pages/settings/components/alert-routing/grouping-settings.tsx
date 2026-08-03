@@ -35,7 +35,7 @@ export function GroupingSettings({
       alert_source_id: alertSourceId,
       policy: {
         grouping_window_minutes: Number(data.windowMinutes),
-        content_match_fields: data.matchFields.split(",").map((f) => f.trim()).filter(Boolean),
+        content_match_fields: data.matchFields.split(",").map((field) => field.trim()).filter(Boolean),
       },
     }))
     form.patch(alertRoutingPath(), {
@@ -65,7 +65,7 @@ export function GroupingSettings({
               min={MIN_WINDOW_MINUTES}
               max={MAX_WINDOW_MINUTES}
               value={form.data.windowMinutes}
-              onChange={(e) => form.setData("windowMinutes", e.target.value)}
+              onChange={(event) => form.setData("windowMinutes", event.target.value)}
               className="w-32"
             />
           </div>
@@ -74,7 +74,7 @@ export function GroupingSettings({
             <Input
               id="grouping-fields"
               value={form.data.matchFields}
-              onChange={(e) => form.setData("matchFields", e.target.value)}
+              onChange={(event) => form.setData("matchFields", event.target.value)}
               placeholder="service"
             />
           </div>

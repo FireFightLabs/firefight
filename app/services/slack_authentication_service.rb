@@ -24,7 +24,7 @@ class SlackAuthenticationService
     return AuthOutcome.install_needed(user: user, team_id: team_id, team_name: team_name) if workspace.nil?
 
     membership = workspace.workspace_memberships.find_by(user: user)
-    return AuthOutcome.signed_in(membership: membership, message: "Welcome back to Firefight.") if membership
+    return AuthOutcome.signed_in(membership: membership) if membership
 
     membership = WorkspaceMemberProvisioner.find_or_provision!(
       workspace:        workspace,

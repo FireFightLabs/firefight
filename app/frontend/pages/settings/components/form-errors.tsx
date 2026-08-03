@@ -14,13 +14,15 @@ export function FormErrors({
       : Array.isArray(errors)
         ? errors
         : Object.values(errors).flat()
-  if (messages.length === 0) return null
+  if (messages.length === 0) {
+    return null
+  }
 
   return (
     <Alert variant="destructive" className={className}>
       <AlertDescription>
-        {messages.map((message, i) => (
-          <p key={i}>{message}</p>
+        {messages.map((message, index) => (
+          <p key={index}>{message}</p>
         ))}
       </AlertDescription>
     </Alert>

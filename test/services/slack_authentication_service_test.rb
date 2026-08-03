@@ -200,7 +200,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
 
     assert outcome.signed_in?
     assert_equal workspace_memberships(:alice_workspace_one).id, outcome.membership.id
-    assert_equal "Welcome back to Firefight.", outcome.message
+    assert_nil outcome.message, "a returning sign-in announces nothing"
   end
 
   test "handle_openid_signin auto-provisions when workspace exists and user has no membership" do

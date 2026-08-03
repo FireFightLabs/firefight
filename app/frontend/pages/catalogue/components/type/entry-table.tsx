@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table"
 import { EntryDetailSheet } from "@/pages/catalogue/components/type/entry-detail-sheet"
 import { EntryFormDialog } from "@/pages/catalogue/components/type/entry-form-dialog"
+import { whenClosed } from "@/lib/handlers"
 
 export function EntryTable({
   type,
@@ -32,21 +33,27 @@ export function EntryTable({
   const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(null)
   const [editingEntry, setEditingEntry] = useState<CatalogEntry | null>(null)
 
-  const visibleAttributes = type.attributeDefinitions.filter((a) => a.key !== "description").slice(0, 4)
+  const visibleAttributes = type.attributeDefinitions.filter((definition) => definition.key !== "description").slice(0, 4)
 
   const filtered = useMemo(() => {
-    if (!search) return entries
-    const q = search.toLowerCase()
-    return entries.filter((e) => {
-      if (e.name.toLowerCase().includes(q)) return true
+    if (!search) {
+      return entries
+    }
+    const query = search.toLowerCase()
+    return entries.filter((entry) => {
+      if (entry.name.toLowerCase().includes(query)) {
+        return true
+      }
       return type.attributeDefinitions.some((attr) => {
-        const v = e.attributes[attr.key]
-        if (typeof v !== "string") return false
-        if (attr.attributeType === "reference") {
-          const resolved = referenceEntries.find(re => re.id === v)?.name ?? v
-          return resolved.toLowerCase().includes(q)
+        const value = entry.attributes[attr.key]
+        if (typeof value !== "string") {
+          return false
         }
-        return v.toLowerCase().includes(q)
+        if (attr.attributeType === "reference") {
+          const referenced = referenceEntries.find((candidate) => candidate.id === value)
+          return (referenced?.name ?? value).toLowerCase().includes(query)
+        }
+        return value.toLowerCase().includes(query)
       })
     })
   }, [entries, search, type.attributeDefinitions, referenceEntries])
@@ -59,7 +66,7 @@ export function EntryTable({
           <Input
             placeholder={`Search ${type.name.toLowerCase()}s...`}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             className="pl-9 h-9"
           />
         </div>
@@ -126,7 +133,7 @@ export function EntryTable({
         referenceEntries={referenceEntries}
         workspaceMembers={workspaceMembers}
         open={selectedEntry !== null}
-        onOpenChange={(open) => { if (!open) setSelectedEntry(null) }}
+        onOpenChange={whenClosed(() => setSelectedEntry(null))}
         onEdit={(entry) => setEditingEntry(entry)}
       />
       <EntryFormDialog
@@ -136,7 +143,7 @@ export function EntryTable({
         referenceEntries={referenceEntries}
         workspaceMembers={workspaceMembers}
         open={editingEntry !== null}
-        onOpenChange={(open) => { if (!open) setEditingEntry(null) }}
+        onOpenChange={whenClosed(() => setEditingEntry(null))}
       />
     </>
   )

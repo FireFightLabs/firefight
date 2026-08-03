@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { whenClosed } from "@/lib/handlers"
 
 interface Ability {
   action_key: string
@@ -51,7 +52,9 @@ export function AbilitiesDialog({
     fetch(abilitiesApiKeyPath(apiKey.id), { headers: { Accept: "application/json" } })
       .then((res) => res.json())
       .then((data: AbilitiesResponse) => {
-        if (!cancelled) setResponse(data)
+        if (!cancelled) {
+          setResponse(data)
+        }
       })
     return () => {
       cancelled = true
@@ -59,7 +62,7 @@ export function AbilitiesDialog({
   }, [apiKey])
 
   return (
-    <Dialog open={apiKey !== null} onOpenChange={(open) => { if (!open) onDismiss() }}>
+    <Dialog open={apiKey !== null} onOpenChange={whenClosed(onDismiss)}>
       <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Resolved abilities</DialogTitle>

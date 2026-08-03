@@ -46,11 +46,11 @@ interface ConditionState {
   selectedIds: Set<string>
 }
 
-function stateFromCondition(c: IncidentConditionSettings | undefined): ConditionState {
+function stateFromCondition(source: IncidentConditionSettings | undefined): ConditionState {
   return {
-    id: c?.id ?? "",
-    operator: c?.operator ?? OPERATOR_ONE_OF,
-    selectedIds: new Set(c?.values ?? []),
+    id: source?.id ?? "",
+    operator: source?.operator ?? OPERATOR_ONE_OF,
+    selectedIds: new Set(source?.values ?? []),
   }
 }
 
@@ -59,17 +59,19 @@ function conditionSummary(
   incidentTypes: IncidentTypeSettings[],
   severities: IncidentSeveritySettings[],
 ): string | null {
-  if (!conditions.length) return null
+  if (!conditions.length) {
+    return null
+  }
 
-  const typeMap = new Map(incidentTypes.map((t) => [t.id, t.name]))
-  const severityMap = new Map(severities.map((s) => [s.id, s.name]))
+  const typeMap = new Map(incidentTypes.map((type) => [type.id, type.name]))
+  const severityMap = new Map(severities.map((severity) => [severity.id, severity.name]))
 
   return conditions
-    .map((c) => {
-      const map = c.conditionField === CONDITION_FIELD_SEVERITY ? severityMap : typeMap
-      const fieldLabel = FIELD_LABELS[c.conditionField as ConditionField] ?? c.conditionField
-      const names = c.values.map((v) => map.get(v) ?? v).join(", ")
-      const operatorLabel = OPERATOR_LABELS[c.operator] ?? c.operator
+    .map((condition) => {
+      const map = condition.conditionField === CONDITION_FIELD_SEVERITY ? severityMap : typeMap
+      const fieldLabel = FIELD_LABELS[condition.conditionField as ConditionField] ?? condition.conditionField
+      const names = condition.values.map((value) => map.get(value) ?? value).join(", ")
+      const operatorLabel = OPERATOR_LABELS[condition.operator] ?? condition.operator
       return `${fieldLabel} ${operatorLabel} ${names}`
     })
     .join(" AND ")
@@ -81,8 +83,8 @@ export function ConditionEditor({ field, incidentTypes, severities, onSave }: {
   severities: IncidentSeveritySettings[]
   onSave: (conditions: IncidentConditionSettings[]) => void
 }) {
-  const existingType = field.conditions?.find((c) => c.conditionField === CONDITION_FIELD_INCIDENT_TYPE)
-  const existingSeverity = field.conditions?.find((c) => c.conditionField === CONDITION_FIELD_SEVERITY)
+  const existingType = field.conditions?.find((condition) => condition.conditionField === CONDITION_FIELD_INCIDENT_TYPE)
+  const existingSeverity = field.conditions?.find((condition) => condition.conditionField === CONDITION_FIELD_SEVERITY)
 
   const [typeState, setTypeState] = useState<ConditionState>(() => stateFromCondition(existingType))
   const [severityState, setSeverityState] = useState<ConditionState>(() => stateFromCondition(existingSeverity))
@@ -90,8 +92,8 @@ export function ConditionEditor({ field, incidentTypes, severities, onSave }: {
   const [prevConditions, setPrevConditions] = useState(field.conditions)
   if (field.conditions !== prevConditions) {
     setPrevConditions(field.conditions)
-    setTypeState(stateFromCondition(field.conditions?.find((c) => c.conditionField === CONDITION_FIELD_INCIDENT_TYPE)))
-    setSeverityState(stateFromCondition(field.conditions?.find((c) => c.conditionField === CONDITION_FIELD_SEVERITY)))
+    setTypeState(stateFromCondition(field.conditions?.find((condition) => condition.conditionField === CONDITION_FIELD_INCIDENT_TYPE)))
+    setSeverityState(stateFromCondition(field.conditions?.find((condition) => condition.conditionField === CONDITION_FIELD_SEVERITY)))
   }
 
   function toggleId(state: ConditionState, setState: (next: ConditionState) => void, id: string) {
@@ -167,7 +169,7 @@ export function ConditionEditor({ field, incidentTypes, severities, onSave }: {
             optionsLabel="Types"
             emptyLabel="No incident types defined."
             state={typeState}
-            options={incidentTypes.map((t) => ({ id: t.id, name: t.name }))}
+            options={incidentTypes.map((type) => ({ id: type.id, name: type.name }))}
             onOperatorChange={(op) => setOperator(typeState, setTypeState, op)}
             onToggle={(id) => toggleId(typeState, setTypeState, id)}
           />
@@ -177,7 +179,7 @@ export function ConditionEditor({ field, incidentTypes, severities, onSave }: {
             optionsLabel="Severities"
             emptyLabel="No severities defined."
             state={severityState}
-            options={severities.map((s) => ({ id: s.id, name: s.name }))}
+            options={severities.map((severity) => ({ id: severity.id, name: severity.name }))}
             onOperatorChange={(op) => setOperator(severityState, setSeverityState, op)}
             onToggle={(id) => toggleId(severityState, setSeverityState, id)}
           />
@@ -236,13 +238,13 @@ function ConditionSection({
       <div className="space-y-1">
         <Label className="text-[11px] font-medium text-muted-foreground">{optionsLabel}</Label>
         <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-          {options.map((o) => (
-            <label key={o.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/30">
+          {options.map((option) => (
+            <label key={option.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/30">
               <Checkbox
-                checked={state.selectedIds.has(o.id)}
-                onCheckedChange={() => onToggle(o.id)}
+                checked={state.selectedIds.has(option.id)}
+                onCheckedChange={() => onToggle(option.id)}
               />
-              <span>{o.name}</span>
+              <span>{option.name}</span>
             </label>
           ))}
           {options.length === 0 && (

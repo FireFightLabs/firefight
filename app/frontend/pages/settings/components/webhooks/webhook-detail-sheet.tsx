@@ -40,11 +40,15 @@ export function WebhookDetailSheet({
   const [secretVisible, setSecretVisible] = useState(false)
 
   function handleOpenChange(next: boolean) {
-    if (!next) setSecretVisible(false)
+    if (!next) {
+      setSecretVisible(false)
+    }
     onOpenChange(next)
   }
 
-  if (!webhook) return null
+  if (!webhook) {
+    return null
+  }
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>

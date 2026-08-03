@@ -60,7 +60,7 @@ interface EditModel {
 }
 
 function sectionState(runbook: RunbookSettings | null | undefined, field: string): ConditionSectionState {
-  const condition = runbook?.conditions?.find((c) => c.conditionField === field)
+  const condition = runbook?.conditions?.find((candidate) => candidate.conditionField === field)
   return {
     operator: condition?.operator ?? OPERATOR_ONE_OF,
     selectedIds: condition?.values ?? [],
@@ -69,12 +69,12 @@ function sectionState(runbook: RunbookSettings | null | undefined, field: string
 
 function customFieldStates(runbook: RunbookSettings | null | undefined): CustomFieldConditionState[] {
   return (runbook?.conditions ?? [])
-    .filter((c) => c.conditionField === CONDITION_FIELD_CUSTOM_FIELD && c.incidentFieldDefinitionId)
-    .map((c) => ({
+    .filter((condition) => condition.conditionField === CONDITION_FIELD_CUSTOM_FIELD && condition.incidentFieldDefinitionId)
+    .map((condition) => ({
       key: crypto.randomUUID(),
-      fieldDefinitionId: c.incidentFieldDefinitionId as string,
-      operator: c.operator,
-      selectedIds: c.values,
+      fieldDefinitionId: condition.incidentFieldDefinitionId as string,
+      operator: condition.operator,
+      selectedIds: condition.values,
     }))
 }
 
@@ -84,10 +84,10 @@ function initModel(runbook: RunbookSettings | null | undefined): EditModel {
     summary: runbook?.summary ?? "",
     content: runbook?.content ?? "",
     externalUrl: runbook?.externalUrl ?? "",
-    steps: (runbook?.steps ?? []).map((s) => ({
+    steps: (runbook?.steps ?? []).map((step) => ({
       key: crypto.randomUUID(),
-      title: s.title,
-      instruction: s.instruction ?? "",
+      title: step.title,
+      instruction: step.instruction ?? "",
     })),
     typeState: sectionState(runbook, CONDITION_FIELD_INCIDENT_TYPE),
     severityState: sectionState(runbook, CONDITION_FIELD_SEVERITY),
@@ -114,8 +114,8 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
     setModel((prev) => ({ ...prev, ...next }))
   }
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
 
     const conditions = []
     if (model.typeState.selectedIds.length > 0) {
@@ -133,7 +133,9 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       })
     }
     for (const state of model.customFieldStates) {
-      if (state.selectedIds.length === 0) continue
+      if (state.selectedIds.length === 0) {
+        continue
+      }
       conditions.push({
         condition_field: CONDITION_FIELD_CUSTOM_FIELD,
         operator: state.operator,
@@ -147,7 +149,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       summary: model.summary,
       content: model.content,
       external_url: model.externalUrl,
-      steps: model.steps.map((s) => ({ title: s.title, instruction: s.instruction })),
+      steps: model.steps.map((step) => ({ title: step.title, instruction: step.instruction })),
       conditions,
     }
 
@@ -185,7 +187,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
               <Input
                 id="runbook-name"
                 value={model.name}
-                onChange={(e) => patch({ name: e.target.value })}
+                onChange={(event) => patch({ name: event.target.value })}
                 placeholder="e.g. Database failover"
               />
               {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
@@ -197,7 +199,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
                 id="runbook-summary"
                 rows={2}
                 value={model.summary}
-                onChange={(e) => patch({ summary: e.target.value })}
+                onChange={(event) => patch({ summary: event.target.value })}
                 placeholder="Short description of when to use this runbook"
               />
             </div>
@@ -216,7 +218,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
               <Input
                 id="runbook-external-url"
                 value={model.externalUrl}
-                onChange={(e) => patch({ externalUrl: e.target.value })}
+                onChange={(event) => patch({ externalUrl: event.target.value })}
                 placeholder="https://wiki.example.com/runbooks/failover (optional)"
               />
             </div>

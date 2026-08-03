@@ -66,7 +66,9 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
   })
 
   const handleRewrite = useCallback(async (instruction: string) => {
-    if (!editor || !aiSelection || !incidentId) return
+    if (!editor || !aiSelection || !incidentId) {
+      return
+    }
 
     const { from, to, html } = aiSelection
     setAiSelection(null)
@@ -83,13 +85,17 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
         { selected_html: html, instruction },
         { signal: controller.signal }
       )
-      if (!ok || !data) throw new Error(data?.error || "Failed to rewrite")
+      if (!ok || !data) {
+        throw new Error(data?.error || "Failed to rewrite")
+      }
 
       const { rewritten_html } = data
 
       const pluginState = aiPendingKey.getState(editor.view.state)
       const currentRange = pluginState?.range
-      if (!currentRange) return
+      if (!currentRange) {
+        return
+      }
 
       editor
         .chain()
@@ -99,15 +105,21 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
         .insertContent(rewritten_html)
         .run()
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return
+      }
       editor.view.dispatch(editor.state.tr.setMeta(aiPendingKey, { range: null }))
       toast.error(err instanceof Error ? err.message : "Failed to rewrite")
     } finally {
-      if (abortRef.current === controller) abortRef.current = null
+      if (abortRef.current === controller) {
+        abortRef.current = null
+      }
     }
   }, [editor, aiSelection, incidentId])
 
-  if (!editor) return null
+  if (!editor) {
+    return null
+  }
 
   return (
     <div className="relative">
@@ -168,10 +180,12 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
               variant="ghost"
               size="icon"
               className="size-7 text-primary"
-              onMouseDown={(e) => {
-                e.preventDefault()
+              onMouseDown={(event) => {
+                event.preventDefault()
                 const { from, to } = editor.state.selection
-                if (from === to) return
+                if (from === to) {
+                  return
+                }
                 const slice = editor.state.doc.slice(from, to)
                 const serializer = DOMSerializer.fromSchema(editor.schema)
                 const container = document.createElement("div")
@@ -193,7 +207,9 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
         <AiRewriteDialog
           open={aiSelection !== null}
           onOpenChange={(open) => {
-            if (!open) setAiSelection(null)
+            if (!open) {
+              setAiSelection(null)
+            }
           }}
           onSubmit={handleRewrite}
         />

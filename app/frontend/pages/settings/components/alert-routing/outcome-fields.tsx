@@ -45,8 +45,8 @@ export function OutcomeFields({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {OUTCOME_ACTIONS.map((a) => (
-                <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+              {OUTCOME_ACTIONS.map((action) => (
+                <SelectItem key={action.value} value={action.value}>{action.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -89,7 +89,7 @@ export function OutcomeFields({
                       ...data,
                       notifyChannel: value,
                       notifyChannelName:
-                        channels.find((c) => c.id === value)?.name ??
+                        channels.find((channel) => channel.id === value)?.name ??
                         (value === data.notifyChannel ? data.notifyChannelName : ""),
                     })
                   }
@@ -98,10 +98,10 @@ export function OutcomeFields({
                     <SelectValue placeholder="Pick a channel" />
                   </SelectTrigger>
                   <SelectContent>
-                    {channels.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>#{c.name}</SelectItem>
+                    {channels.map((channel) => (
+                      <SelectItem key={channel.id} value={channel.id}>#{channel.name}</SelectItem>
                     ))}
-                    {data.notifyChannel && !channels.some((c) => c.id === data.notifyChannel) && (
+                    {data.notifyChannel && !channels.some((channel) => channel.id === data.notifyChannel) && (
                       <SelectItem value={data.notifyChannel}>
                         {data.notifyChannelName ? `#${data.notifyChannelName}` : data.notifyChannel}
                       </SelectItem>
@@ -111,7 +111,7 @@ export function OutcomeFields({
               ) : (
                 <Input
                   value={data.notifyChannel}
-                  onChange={(e) => setData({ ...data, notifyChannel: e.target.value, notifyChannelName: "" })}
+                  onChange={(event) => setData({ ...data, notifyChannel: event.target.value, notifyChannelName: "" })}
                   placeholder="Slack channel ID"
                   className="w-52"
                 />
@@ -123,8 +123,8 @@ export function OutcomeFields({
                   <SelectValue placeholder="Pick a person" />
                 </SelectTrigger>
                 <SelectContent>
-                  {members.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  {members.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -149,10 +149,10 @@ export function OutcomeFields({
           </div>
           <BadgeMultiSelect
             selected={data.inviteMemberIds}
-            options={members.map((m) => ({ value: m.id, label: m.name }))}
+            options={members.map((member) => ({ value: member.id, label: member.name }))}
             placeholder="Add person…"
             onAdd={(id) => setData("inviteMemberIds", [ ...data.inviteMemberIds, id ])}
-            onRemove={(id) => setData("inviteMemberIds", data.inviteMemberIds.filter((v) => v !== id))}
+            onRemove={(id) => setData("inviteMemberIds", data.inviteMemberIds.filter((memberId) => memberId !== id))}
           />
         </div>
       )}

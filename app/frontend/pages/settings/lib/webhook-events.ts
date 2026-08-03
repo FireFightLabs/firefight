@@ -17,4 +17,4 @@ export const subscribableEvents = [
 ] as const
 
 export const eventLabel = (value: string) =>
-  subscribableEvents.find((e) => e.value === value)?.label ?? value
+  subscribableEvents.find((event) => event.value === value)?.label ?? value

@@ -28,7 +28,9 @@ interface PayloadKey {
 // Flatten a payload into clickable dot-paths (arrays via index 0), so users
 // map fields by picking real keys instead of typing paths blind.
 function flattenPayload(node: unknown, prefix = "", depth = 0): PayloadKey[] {
-  if (depth > 4) return []
+  if (depth > 4) {
+    return []
+  }
   if (Array.isArray(node)) {
     return node.length > 0 ? flattenPayload(node[0], prefix ? `${prefix}.0` : "0", depth + 1) : []
   }
@@ -63,7 +65,9 @@ export function FieldMappingEditor({
     void fetch(samplePayloadAlertSourcePath(sourceId))
       .then((response) => (response.ok ? response.json() : null))
       .then((body: { payload?: unknown } | null) => {
-        if (!cancelled && body?.payload) setPayloadKeys(flattenPayload(body.payload).slice(0, 40))
+        if (!cancelled && body?.payload) {
+          setPayloadKeys(flattenPayload(body.payload).slice(0, 40))
+        }
       })
       .catch(() => {})
     return () => {
@@ -89,7 +93,7 @@ export function FieldMappingEditor({
         <Input
           id="items-path"
           value={itemsPath}
-          onChange={(e) => onItemsPathChange(e.target.value)}
+          onChange={(event) => onItemsPathChange(event.target.value)}
           placeholder="e.g. alerts (when one POST carries an array of alerts)"
           className="w-full"
         />
@@ -104,14 +108,14 @@ export function FieldMappingEditor({
                 <SelectValue placeholder="Field" />
               </SelectTrigger>
               <SelectContent>
-                {NORMALIZED_FIELDS.filter((f) => f === row.field || !usedFields.includes(f)).map((f) => (
-                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                {NORMALIZED_FIELDS.filter((name) => name === row.field || !usedFields.includes(name)).map((field) => (
+                  <SelectItem key={field} value={field}>{field}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Input
               value={row.path}
-              onChange={(e) => mappingRows.update(index, { path: e.target.value })}
+              onChange={(event) => mappingRows.update(index, { path: event.target.value })}
               onFocus={() => setActiveRow(index)}
               placeholder="payload path, e.g. alert.name"
               className="flex-1 font-mono text-xs"

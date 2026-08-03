@@ -33,17 +33,24 @@ import { TokenRevealedDialog } from "@/pages/settings/components/api-keys/token-
 import { RowActions } from "@/pages/settings/components/row-actions"
 import { ConnectedAgentsCard } from "@/pages/settings/components/api-keys/connected-agents-card"
 import type { ConnectedAgent } from "@/pages/settings/api-keys"
+import { whenClosed } from "@/lib/handlers"
 
 
-function formatRelative(d: string | null | undefined, now: number) {
-  if (!d) return "Never"
-  const diff = now - new Date(d).getTime()
+function formatRelative(iso: string | null | undefined, now: number) {
+  if (!iso) {
+    return "Never"
+  }
+  const diff = now - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 60) {
+    return `${mins}m ago`
+  }
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) {
+    return `${hours}h ago`
+  }
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return `${days}iso ago`
 }
 
 interface ApiKeysTabProps {
@@ -186,7 +193,7 @@ export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: A
       <ApiKeyEditSheet
         apiKey={editingKey}
         open={editingKey !== null}
-        onOpenChange={(open) => { if (!open) setEditingKey(null) }}
+        onOpenChange={whenClosed(() => setEditingKey(null))}
       />
 
       <TokenRevealedDialog

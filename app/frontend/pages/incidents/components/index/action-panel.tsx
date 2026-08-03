@@ -18,7 +18,7 @@ export function ActionPanel({
   actionType: "action" | "followup"
   disabledTooltip: string
 }) {
-  const doneCount = items.filter((a) => a.status === "done").length
+  const doneCount = items.filter((item) => item.status === "done").length
   const isEmpty = items.length === 0
 
   if (isEmpty) {

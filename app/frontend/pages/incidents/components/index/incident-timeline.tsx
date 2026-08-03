@@ -91,17 +91,17 @@ function formatDate(dateStr: string): string {
 export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
   return (
     <ol className="relative">
-      {events.map((event, i) => {
+      {events.map((event, index) => {
         const Icon = eventIcons[event.eventType] || IconRefresh
         const accent: DotAccent = eventAccent[event.eventType] ?? "neutral"
         const dotClasses = solidAccent[accent]
         const eventDate = formatDate(event.createdAt)
-        const prevDate = i > 0 ? formatDate(events[i - 1].createdAt) : null
+        const prevDate = index > 0 ? formatDate(events[index - 1].createdAt) : null
         const showDate = eventDate !== prevDate
         const highlight = isHighlightEvent(event.eventType)
         const hasContent =
           (event.changes && event.changes.length > 0) || Boolean(event.details) || Boolean(event.file)
-        const isLast = i === events.length - 1
+        const isLast = index === events.length - 1
 
         return (
           <li key={event.id} className="relative">

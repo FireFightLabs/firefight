@@ -69,22 +69,24 @@ export default function PostmortemPage() {
 
   const handleRestore = useCallback((html: string) => {
     editorContentRef.current = html
-    setEditorKey((k) => k + 1)
+    setEditorKey((key) => key + 1)
     setData("html_content", html)
     patch(incidentPostmortemPath(incident.id))
   }, [incident.id, setData, patch])
 
   const handleExportMarkdown = useCallback(() => {
-    if (!postmortem) return
+    if (!postmortem) {
+      return
+    }
     const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" })
     const title = `# ${postmortem.title}\n\n> ${incident.identifier} — ${incident.name}\n\n`
     const markdown = title + turndown.turndown(editorContentRef.current || "")
     const blob = new Blob([markdown], { type: "text/markdown" })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${incident.identifier}-postmortem.md`
-    a.click()
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${incident.identifier}-postmortem.md`
+    link.click()
     URL.revokeObjectURL(url)
   }, [incident, postmortem])
 
@@ -93,7 +95,9 @@ export default function PostmortemPage() {
     // request survives page unload / tab close. Inertia's router has no
     // keepalive equivalent — the request would be cancelled on navigation.
     const flushPendingSave = () => {
-      if (!saveTimerRef.current) return
+      if (!saveTimerRef.current) {
+        return
+      }
       clearTimeout(saveTimerRef.current)
       saveTimerRef.current = undefined
 
@@ -113,7 +117,9 @@ export default function PostmortemPage() {
 
   const isGenerating = postmortem?.status === "in_progress"
   useEffect(() => {
-    if (!isGenerating) return
+    if (!isGenerating) {
+      return
+    }
     const interval = setInterval(() => {
       router.reload({ only: ["postmortem"], preserveScroll: true })
     }, 3000)
@@ -124,7 +130,7 @@ export default function PostmortemPage() {
   useEffect(() => {
     if (wasGeneratingRef.current && !isGenerating && postmortem?.htmlContent) {
       editorContentRef.current = postmortem.htmlContent
-      setEditorKey((k) => k + 1)
+      setEditorKey((key) => key + 1)
     }
     wasGeneratingRef.current = isGenerating
   }, [isGenerating, postmortem?.htmlContent])
