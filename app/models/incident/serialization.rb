@@ -12,7 +12,7 @@ module Incident::Serialization
       duration_minutes: time_to_resolve,
       declared_by: declared_by.user.name,
       lead: lead&.user&.name,
-      custom_fields:
+      custom_fields: custom_fields_for_display
     }
   end
 

@@ -15,7 +15,6 @@ active_critical_ws1:
   declared_at: <%= 2.hours.ago %>
   resolved_at: null
   platform_data: {}
-  custom_fields: {}
   source: slack
 
 active_major_ws1:
@@ -33,7 +32,6 @@ active_major_ws1:
   declared_at: <%= 1.hour.ago %>
   resolved_at: null
   platform_data: {}
-  custom_fields: {}
   source: slack
 
 # Resolved incident
@@ -52,7 +50,6 @@ resolved_minor_ws1:
   declared_at: <%= 1.day.ago %>
   resolved_at: <%= 20.hours.ago %>
   platform_data: {}
-  custom_fields: {}
   source: slack
 
 # Private incident
@@ -69,7 +66,6 @@ private_incident_ws1:
   declared_at: <%= 30.minutes.ago %>
   resolved_at: null
   platform_data: {}
-  custom_fields: {}
   source: slack
 
 # Workspace Two - Different severity naming
@@ -88,7 +84,6 @@ active_p0_ws2:
   declared_at: <%= 15.minutes.ago %>
   resolved_at: null
   platform_data: {}
-  custom_fields: {}
   source: slack
 
 resolved_p2_ws2:
@@ -106,7 +101,6 @@ resolved_p2_ws2:
   declared_at: <%= 3.days.ago %>
   resolved_at: <%= 2.days.ago %>
   platform_data: {}
-  custom_fields: {}
   source: slack
 
 # Incident without Slack channel (manual creation)
@@ -123,5 +117,4 @@ manual_incident_ws1:
   declared_at: <%= 10.minutes.ago %>
   resolved_at: null
   platform_data: {}
-  custom_fields: {}
   source: slack

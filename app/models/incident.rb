@@ -9,6 +9,7 @@ class Incident < ApplicationRecord
   MAX_PER_PAGE = 50
 
   include Incident::Sequencing
+  include Incident::CustomFields
   include Incident::Snapshots
   include Incident::RoleManagement
   include Incident::Lifecycle

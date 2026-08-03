@@ -63,8 +63,7 @@ class IncidentDetailSerializer < BaseSerializer
 
   type "Record<string, unknown>", optional: true
   def custom_fields
-    fields = incident.custom_fields
-    fields.presence
+    incident.custom_fields_for_display.presence
   end
 
   has_many :alerts, serializer: IncidentAlertSerializer

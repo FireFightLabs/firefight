@@ -1,0 +1,17 @@
+customer_tier_enterprise:
+  id: bc000001-0000-0000-0000-000000000001
+  incident_field_definition_id: bb000001-0000-0000-0000-000000000002
+  label: Enterprise
+  position: 0
+
+customer_tier_pro:
+  id: bc000001-0000-0000-0000-000000000002
+  incident_field_definition_id: bb000001-0000-0000-0000-000000000002
+  label: Pro
+  position: 1
+
+customer_tier_free:
+  id: bc000001-0000-0000-0000-000000000003
+  incident_field_definition_id: bb000001-0000-0000-0000-000000000002
+  label: Free
+  position: 2

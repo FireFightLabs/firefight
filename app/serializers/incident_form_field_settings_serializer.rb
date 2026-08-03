@@ -57,9 +57,11 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     source_definition.respond_to?(:option_source) ? source_definition.option_source : IncidentFieldDefinition::OPTION_SOURCE_NONE
   end
 
-  type "string[]", optional: true
+  type "{ id: string; name: string }[]", optional: true
   def options
-    source_definition.respond_to?(:options) ? source_definition.options : []
+    return [] unless source_definition.is_a?(IncidentFieldDefinition)
+
+    source_definition.incident_field_options.active.ordered.map { |option| { id: option.id, name: option.label } }
   end
 
   type :string, optional: true

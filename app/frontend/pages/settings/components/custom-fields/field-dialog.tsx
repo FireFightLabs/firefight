@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { OptionsEditor, type OptionDraft } from "@/pages/settings/components/custom-fields/options-editor"
 
 const FIELD_TYPE_OPTIONS = [
   { value: "text", label: "Text", description: "Short or long-form text input" },
@@ -72,7 +73,13 @@ function fieldToFormData(field?: IncidentFieldDefinitionSettings | null) {
     description: field?.description ?? "",
     field_type: field?.fieldType ?? "text",
     option_source: field?.optionSource ?? "none",
-    options_text: field?.options?.join("\n") ?? "",
+    options: (field?.options ?? []).map<OptionDraft>((option) => ({
+      key: option.id,
+      id: option.id,
+      label: option.label,
+      disabled: !option.enabled,
+      deletionBlockedReason: option.deletionBlockedReason,
+    })),
     catalog_type_id: field?.catalogTypeId ?? "",
   }
 }
@@ -105,9 +112,9 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
       field_type: form.data.field_type,
       option_source: optionSource,
       options: showFixedOptions
-        ? form.data.options_text.split("\n").flatMap((option) => {
-            const trimmed = option.trim()
-            return trimmed ? [trimmed] : []
+        ? form.data.options.flatMap((option) => {
+            const label = option.label.trim()
+            return label ? [ { id: option.id, label, disabled: option.disabled } ] : []
           })
         : [],
       catalog_type_id: showCatalogType ? form.data.catalog_type_id : null,
@@ -128,7 +135,7 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit custom field" : "Add custom field"}</DialogTitle>
           <DialogDescription>
@@ -195,17 +202,11 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
               )}
 
               {showFixedOptions && (
-                <div className="space-y-2">
-                  <Label htmlFor="field-options">Options</Label>
-                  <Textarea
-                    id="field-options"
-                    rows={4}
-                    value={form.data.options_text}
-                    onChange={(event) => form.setData("options_text", event.target.value)}
-                    placeholder={"Payments\nCheckout\nAPI"}
-                  />
-                  <p className="text-xs text-muted-foreground">One option per line.</p>
-                </div>
+                <OptionsEditor
+                  options={form.data.options}
+                  onChange={(options) => form.setData("options", options)}
+                  error={form.errors.base}
+                />
               )}
 
               {showCatalogType && (

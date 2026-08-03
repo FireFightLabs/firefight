@@ -353,7 +353,9 @@ module Slack
 
       def self.custom_field_options(workspace, defn)
         if defn.fixed_options?
-          defn.options.map { |opt| { text: { type: "plain_text", text: opt }, value: opt } }
+          defn.incident_field_options.active.ordered.map do |option|
+            { text: { type: "plain_text", text: option.label.truncate(75) }, value: option.id }
+          end
         elsif defn.catalog_options?
           catalog_options(workspace, defn)
         else

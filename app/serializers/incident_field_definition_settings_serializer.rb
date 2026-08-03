@@ -15,9 +15,10 @@ class IncidentFieldDefinitionSettingsSerializer < BaseSerializer
     field_definition.description
   end
 
-  type "string[]"
+  has_many :options, serializer: IncidentFieldOptionSerializer
+
   def options
-    field_definition.options
+    field_definition.options_with_usage
   end
 
   type :string, optional: true

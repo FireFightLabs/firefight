@@ -169,8 +169,9 @@ class IncidentFormResolver
     return unless value.is_a?(String)
 
     if defn.fixed_options?
-      unless defn.options.include?(value)
-        errors << "#{defn.name} must be one of: #{defn.options.join(', ')}"
+      options = active_options(defn)
+      unless options.key?(value)
+        errors << "#{defn.name} must be one of: #{options.values.join(', ')}"
       end
     elsif defn.catalog_options?
       validate_catalog_entry!(defn, value, errors)
@@ -184,13 +185,22 @@ class IncidentFormResolver
     end
 
     if defn.fixed_options?
-      invalid = value - defn.options
+      options = active_options(defn)
+      invalid = value - options.keys
       if invalid.any?
         errors << "#{defn.name} contains invalid options: #{invalid.join(', ')}"
       end
     elsif defn.catalog_options?
       value.each { |v| validate_catalog_entry!(defn, v, errors) }
     end
+  end
+
+  # Id => label for the definition's selectable options. A disabled option is
+  # excluded, so it stops being submittable without disturbing the incidents
+  # that already hold it.
+  def active_options(defn)
+    @active_options ||= {}
+    @active_options[defn.id] ||= defn.incident_field_options.active.ordered.pluck(:id, :label).to_h
   end
 
   def validate_catalog_ref!(defn, value, errors)
