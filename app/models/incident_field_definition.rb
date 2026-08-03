@@ -38,7 +38,9 @@ class IncidentFieldDefinition < ApplicationRecord
   belongs_to :catalog_type, optional: true
 
   has_many :incident_form_fields, dependent: :restrict_with_error
-  has_many :incident_field_options, dependent: :destroy
+  # Ordered on the association so `includes` preloads in display order. Calling
+  # .ordered downstream would build a fresh relation and discard the preload.
+  has_many :incident_field_options, -> { ordered }, dependent: :destroy, inverse_of: :incident_field_definition
   has_many :incident_field_values, dependent: :restrict_with_error
 
   validates :key, presence: true,
@@ -66,7 +68,7 @@ class IncidentFieldDefinition < ApplicationRecord
     definitions = workspace.incident_field_definitions
       .ordered
       .with_usage_counts
-      .includes(:incident_field_options)
+      .includes(:incident_field_options, :catalog_type)
       .to_a
 
     IncidentFieldOption.preload_usage_counts(definitions)
@@ -82,11 +84,6 @@ class IncidentFieldDefinition < ApplicationRecord
 
   def self.generate_key(name)
     name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
-  end
-
-  # Disabled options included, so the dialog can offer them back.
-  def options_with_usage
-    incident_field_options.ordered
   end
 
   def multi_valued?
@@ -180,6 +177,9 @@ class IncidentFieldDefinition < ApplicationRecord
     keep_ids = incoming.filter_map { |params| params[:id].presence }
     removed = incident_field_options.where.not(id: keep_ids).to_a
     return if removed.empty?
+
+    counts = IncidentFieldOption.usage_counts_for(self)
+    removed.each { |option| option.usage_count = counts.fetch(option.id, 0) }
 
     blocked = removed.filter_map(&:deletion_blocked_reason)
     if blocked.any?

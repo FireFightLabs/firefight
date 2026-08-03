@@ -62,7 +62,9 @@ module Interactions
       attrs[:name] = system_attrs["name"] if system_attrs["name"].present?
       attrs[:summary] = system_attrs["summary"] if system_attrs["summary"].present?
       attrs[:incident_type] = workspace.incident_types.active.find_by!(slug: system_attrs["incident_type"]) if system_attrs["incident_type"].present?
-      attrs[:custom_fields] = incident.custom_fields.merge(submission.custom_fields) if submission.custom_fields.present?
+      # Only the submitted fields. Values are rows now, so writing a subset
+      # leaves the rest untouched without reading them back first.
+      attrs[:custom_fields] = submission.custom_fields if submission.custom_fields.present?
       attrs[:lead] = lead_member if lead_member
       attrs
     end

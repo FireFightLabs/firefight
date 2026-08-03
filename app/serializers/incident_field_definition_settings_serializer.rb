@@ -15,10 +15,9 @@ class IncidentFieldDefinitionSettingsSerializer < BaseSerializer
     field_definition.description
   end
 
-  # Sourced from options_with_usage rather than a method named `options`:
-  # Oj::Serializer defines its own `options`, and the association would read
-  # that instead of the model.
-  has_many :options_with_usage, as: :options, serializer: IncidentFieldOptionSerializer
+  # Named for the association rather than `options`: Oj::Serializer defines its
+  # own `options`, and a matching name reads that instead of the model.
+  has_many :incident_field_options, as: :options, serializer: IncidentFieldOptionSerializer
 
   type :string, optional: true
   def catalog_type_id

@@ -61,12 +61,15 @@ class IncidentFieldOption < ApplicationRecord
     disabled_at.nil?
   end
 
+  # Always preloaded by IncidentFieldOption.preload_usage_counts. Falling back
+  # to a per-option query here is how the settings page silently went back to
+  # N+1 once, so a missing preload raises instead.
   def usage_count
-    @usage_count ||= IncidentFieldOption.usage_counts_for(incident_field_definition).fetch(id, 0)
+    raise "usage counts were not preloaded for option #{id}" if @usage_count.nil?
+
+    @usage_count
   end
 
-  # Set by the definition when it loads a whole option list, so a settings
-  # screen does not pay a query per row.
   attr_writer :usage_count
 
   def deletion_blocked_reason
