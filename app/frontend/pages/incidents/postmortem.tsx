@@ -83,10 +83,10 @@ export default function PostmortemPage() {
     const markdown = title + turndown.turndown(editorContentRef.current || "")
     const blob = new Blob([markdown], { type: "text/markdown" })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${incident.identifier}-postmortem.md`
-    a.click()
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${incident.identifier}-postmortem.md`
+    link.click()
     URL.revokeObjectURL(url)
   }, [incident, postmortem])
 

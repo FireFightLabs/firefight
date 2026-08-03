@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type KeyboardEvent } from "react"
 import { router } from "@inertiajs/react"
 
 import { abilityRolesPath } from "@/lib/routes"
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { whenClosed } from "@/lib/handlers"
 
 export function SetDialog({ open, onDismiss }: { open: boolean; onDismiss: () => void }) {
   const [name, setName] = useState("")
@@ -30,8 +31,14 @@ export function SetDialog({ open, onDismiss }: { open: boolean; onDismiss: () =>
     router.post(abilityRolesPath(), { name: name.trim() }, { onFinish: onDismiss })
   }
 
+  function submitOnEnter(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      submit()
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) { onDismiss() } }}>
+    <Dialog open={open} onOpenChange={whenClosed(onDismiss)}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>New permission set</DialogTitle>
@@ -47,7 +54,7 @@ export function SetDialog({ open, onDismiss }: { open: boolean; onDismiss: () =>
             autoFocus
             value={name}
             onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") { submit() } }}
+            onKeyDown={submitOnEnter}
             placeholder="e.g. Database read-only"
           />
         </div>

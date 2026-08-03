@@ -45,6 +45,11 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
     setDialogOpen(true)
   }
 
+  function startEditing(field: IncidentFieldDefinition) {
+    setEditingField(field)
+    setDialogOpen(true)
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -103,7 +108,7 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
                 {},
                 { preserveScroll: true },
               )}
-            onEdit={(field) => { setEditingField(field); setDialogOpen(true) }}
+            onEdit={startEditing}
             onDelete={setDeleting}
           />
         ) : (

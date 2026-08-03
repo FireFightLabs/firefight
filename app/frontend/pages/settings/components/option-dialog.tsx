@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { whenClosed } from "@/lib/handlers"
 
 interface OptionRecord {
   id: string
@@ -100,7 +101,7 @@ export function OptionDialog<T extends OptionRecord>({
   }
 
   return (
-    <Dialog open={Boolean(state)} onOpenChange={(open) => { if (!open) { onClose() } }}>
+    <Dialog open={Boolean(state)} onOpenChange={whenClosed(onClose)}>
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>

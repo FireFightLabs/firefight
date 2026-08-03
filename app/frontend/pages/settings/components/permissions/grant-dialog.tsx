@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
 import { useGroupedActions } from "@/pages/settings/components/permissions/use-grouped-actions"
+import { whenClosed } from "@/lib/handlers"
 
 type Mode = "set" | "action"
 
@@ -86,7 +87,7 @@ export function GrantDialog({
   }
 
   return (
-    <Dialog open={principal !== null} onOpenChange={(open) => { if (!open) { onDismiss() } }}>
+    <Dialog open={principal !== null} onOpenChange={whenClosed(onDismiss)}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Grant to {principal?.name}</DialogTitle>

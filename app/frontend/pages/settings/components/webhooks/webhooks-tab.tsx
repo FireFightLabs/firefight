@@ -28,6 +28,7 @@ import { AddWebhookDialog } from "@/pages/settings/components/webhooks/add-webho
 import { RowActions } from "@/pages/settings/components/row-actions"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { WebhookDetailSheet } from "@/pages/settings/components/webhooks/webhook-detail-sheet"
+import { whenClosed } from "@/lib/handlers"
 
 export function WebhooksTab({
   webhooks,
@@ -139,7 +140,7 @@ export function WebhooksTab({
       <WebhookDetailSheet
         webhook={detailWebhook}
         open={detailWebhook !== null}
-        onOpenChange={(open) => { if (!open) { onWebhookSelect(null) } }}
+        onOpenChange={whenClosed(() => onWebhookSelect(null))}
       />
     </div>
   )

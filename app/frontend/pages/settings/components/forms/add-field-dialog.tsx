@@ -60,6 +60,11 @@ export function AddFieldDialog({ open, onOpenChange, form, availableFields, allC
     })
   }
 
+  function goToCustomFields() {
+    onOpenChange(false)
+    onNavigateToCustomFields()
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -107,7 +112,7 @@ export function AddFieldDialog({ open, onOpenChange, form, availableFields, allC
                     variant="link"
                     size="sm"
                     className="h-auto p-0 text-xs"
-                    onClick={() => { onOpenChange(false); onNavigateToCustomFields() }}
+                    onClick={goToCustomFields}
                   >
                     Go to Custom Fields to create one
                   </Button>
@@ -119,7 +124,7 @@ export function AddFieldDialog({ open, onOpenChange, form, availableFields, allC
                   variant="link"
                   size="sm"
                   className="h-auto p-0 text-xs"
-                  onClick={() => { onOpenChange(false); onNavigateToCustomFields() }}
+                  onClick={goToCustomFields}
                 >
                   Create more in Custom Fields
                 </Button>

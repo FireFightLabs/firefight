@@ -58,6 +58,13 @@ export function SearchableMultiSelect({
     </div>
   )
 
+  function handleOpenChange(next: boolean) {
+    setOpen(next)
+    if (next) {
+      onOpen?.()
+    }
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {value.length > 0 && (
@@ -84,7 +91,7 @@ export function SearchableMultiSelect({
           })}
         </div>
       )}
-      <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) { onOpen?.() } }}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
             <span className="text-muted-foreground">

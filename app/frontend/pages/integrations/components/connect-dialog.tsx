@@ -21,6 +21,7 @@ import {
   toEnvironmentId,
 } from "@/pages/integrations/components/environment-select"
 import { ProviderMark } from "@/pages/integrations/components/provider-mark"
+import { whenClosed } from "@/lib/handlers"
 
 function oauthHref(providerKey: string, name: string, environmentId: string) {
   const params = new URLSearchParams({ provider: providerKey })
@@ -96,7 +97,7 @@ export function ConnectDialog({
   }
 
   return (
-    <Dialog open={provider !== null} onOpenChange={(open) => { if (!open) { onDismiss() } }}>
+    <Dialog open={provider !== null} onOpenChange={whenClosed(onDismiss)}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="items-center gap-0 text-center sm:text-center">
           {provider && (

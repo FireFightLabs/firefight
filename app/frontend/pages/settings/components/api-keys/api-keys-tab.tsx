@@ -33,6 +33,7 @@ import { TokenRevealedDialog } from "@/pages/settings/components/api-keys/token-
 import { RowActions } from "@/pages/settings/components/row-actions"
 import { ConnectedAgentsCard } from "@/pages/settings/components/api-keys/connected-agents-card"
 import type { ConnectedAgent } from "@/pages/settings/api-keys"
+import { whenClosed } from "@/lib/handlers"
 
 
 function formatRelative(d: string | null | undefined, now: number) {
@@ -192,7 +193,7 @@ export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: A
       <ApiKeyEditSheet
         apiKey={editingKey}
         open={editingKey !== null}
-        onOpenChange={(open) => { if (!open) { setEditingKey(null) } }}
+        onOpenChange={whenClosed(() => setEditingKey(null))}
       />
 
       <TokenRevealedDialog

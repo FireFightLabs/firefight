@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { whenClosed } from "@/lib/handlers"
 
 export function TokenRevealedDialog({
   token,
@@ -34,7 +35,7 @@ export function TokenRevealedDialog({
   return (
     <Dialog
       open={token !== null}
-      onOpenChange={(open) => { if (!open) { onDismiss() } }}
+      onOpenChange={whenClosed(onDismiss)}
     >
       <DialogContent
         className="max-w-lg"

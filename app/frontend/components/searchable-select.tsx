@@ -44,8 +44,20 @@ export function SearchableSelect({
     </div>
   )
 
+  function handleOpenChange(next: boolean) {
+    setOpen(next)
+    if (next) {
+      onOpen?.()
+    }
+  }
+
+  function selectOption(value: string) {
+    onValueChange(value)
+    setOpen(false)
+  }
+
   return (
-    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) { onOpen?.() } }}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal data-[state=open]:ring-1 data-[state=open]:ring-ring/20">
           {selected ? (
@@ -68,7 +80,7 @@ export function SearchableSelect({
                 <CommandItem
                   key={option.value}
                   value={option.label}
-                  onSelect={() => { onValueChange(option.value); setOpen(false) }}
+                  onSelect={() => selectOption(option.value)}
                   className="cursor-pointer"
                 >
                   {renderOption?.(option) ?? defaultRender(option)}
