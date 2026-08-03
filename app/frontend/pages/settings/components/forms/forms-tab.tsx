@@ -108,10 +108,10 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
 
 
   function handleUpdateField(field: IncidentFormFieldSettings, next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) {
-    if (field.isDefault) {
-      return
-    }
+    // A default field has no row yet, so the id is synthetic and the form has
+    // to come along for the backend to know which one to materialize.
     router.patch(incidentFormFieldPath(field.id), {
+      incident_form_id: selectedForm?.id,
       visibility_mode: next.visibilityMode ?? field.visibilityMode,
       required_mode: next.requiredMode ?? field.requiredMode,
     }, {

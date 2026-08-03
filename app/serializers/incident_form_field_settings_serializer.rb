@@ -75,6 +75,11 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
   end
 
   type :boolean
+  def locked_visible
+    form_field.locked_visible?
+  end
+
+  type :boolean
   def locked_required
     form_field.locked_required?
   end

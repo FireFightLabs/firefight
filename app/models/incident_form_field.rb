@@ -34,6 +34,13 @@ class IncidentFormField < ApplicationRecord
     field_source_kind == FIELD_SOURCE_KIND_CUSTOM
   end
 
+  # A field the incident cannot be written without. Hiding one produces a form
+  # that always fails to submit, so visibility is locked wherever required is.
+  # incidents.incident_status_id and incident_severity_id are both NOT NULL.
+  def locked_visible?
+    locked_required?
+  end
+
   def locked_required?
     required_mode == REQUIRED_MODE_FIXED_REQUIRED
   end

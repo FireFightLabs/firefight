@@ -16,9 +16,34 @@ class IncidentFormService
     end
   end
 
+  # A system field has no DB row until an admin changes something about it, so
+  # the editor addresses it by `default:<key>` until one exists. Creating it on
+  # first edit keeps the code defaults as the single source of truth: a row
+  # only ever means "this workspace overrode something".
+  def ensure_system_field!(form, system_field_key)
+    existing = form.incident_form_fields.find_by(
+      field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
+      system_field_key: system_field_key
+    )
+    return existing if existing
+
+    definition = IncidentSystemField.fetch(system_field_key)
+    default_position = IncidentSystemField.defaults_for(form.lifecycle_event).index(definition)
+    raise ArgumentError, "#{system_field_key} does not appear on the #{form.lifecycle_event} form" if default_position.nil?
+
+    form.incident_form_fields.create!(
+      field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
+      system_field_key: system_field_key,
+      position: default_position,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: definition.required_mode_for(form.lifecycle_event)
+    )
+  end
+
   def update_field(form_field, visibility_mode:, required_mode:)
     ActiveRecord::Base.transaction do
-      attrs = { visibility_mode: visibility_mode }
+      attrs = {}
+      attrs[:visibility_mode] = visibility_mode unless form_field.locked_visible?
       attrs[:required_mode] = required_mode unless form_field.locked_required?
       form_field.update!(attrs)
       bust_cache(form_field.incident_form)

@@ -102,7 +102,7 @@ export function SortableFieldRow({ field, incidentTypes, severities, onUpdate, o
           <span className="text-[11px] text-muted-foreground">Visible</span>
           <Switch
             checked={isVisible}
-            disabled={field.lockedRequired}
+            disabled={field.lockedVisible}
             onCheckedChange={(checked) => onUpdate({ visibilityMode: checked ? "visible" : "hidden" })}
           />
         </label>
