@@ -16,10 +16,13 @@ class IncidentFieldOption < ApplicationRecord
   scope :active, -> { where(disabled_at: nil) }
   scope :ordered, -> { order(:position, :created_at) }
 
-  # One query for incident usage and one for condition usage, tallied in Ruby,
-  # rather than two per option.
-  def self.usage_counts_for(definition)
-    option_ids = definition.incident_field_options.pluck(:id)
+  # Two queries for any number of definitions, tallied in Ruby, so a settings
+  # screen listing N fields does not pay 2N.
+  def self.usage_counts_for(definitions)
+    definitions = Array.wrap(definitions)
+    return {} if definitions.empty?
+
+    option_ids = where(incident_field_definition_id: definitions.map(&:id)).pluck(:id)
     return {} if option_ids.empty?
 
     counts = IncidentFieldValue
@@ -27,17 +30,33 @@ class IncidentFieldOption < ApplicationRecord
       .group(:incident_field_option_id)
       .count
 
+    known = option_ids.to_set
+
     IncidentCondition
-      .where(incident_field_definition_id: definition.id)
+      .where(incident_field_definition_id: definitions.map(&:id))
       .pluck(:values)
       .flatten
       .tally
       .each do |option_id, n|
-        next unless option_ids.include?(option_id)
+        next unless known.include?(option_id)
         counts[option_id] = counts.fetch(option_id, 0) + n
       end
 
     counts
+  end
+
+  # Attaches counts to a whole list of definitions at once, so each option can
+  # answer deletion_blocked_reason without going back to the database.
+  def self.preload_usage_counts(definitions)
+    counts = usage_counts_for(definitions)
+
+    definitions.each do |definition|
+      definition.incident_field_options.each do |option|
+        option.usage_count = counts.fetch(option.id, 0)
+      end
+    end
+
+    definitions
   end
 
   def enabled?

@@ -44,4 +44,9 @@ class IncidentFieldDefinitionSettingsSerializer < BaseSerializer
   def deletion_blocked_reason
     field_definition.deletion_blocked_reason
   end
+
+  type :string, optional: true
+  def shape_change_blocked_reason
+    field_definition.shape_change_blocked_reason
+  end
 end

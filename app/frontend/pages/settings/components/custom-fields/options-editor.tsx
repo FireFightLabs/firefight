@@ -36,6 +36,18 @@ export interface OptionDraft {
   deletionBlockedReason?: string
 }
 
+// Shared with the dialog so the inline warning and the disabled Save button
+// can never disagree about what counts as a duplicate.
+export function duplicateLabels(options: OptionDraft[]) {
+  const seen = options.map((option) => option.label.trim().toLowerCase())
+
+  return new Set(seen.filter((label, index) => label.length > 0 && seen.indexOf(label) !== index))
+}
+
+export function hasDuplicateLabels(options: OptionDraft[]) {
+  return duplicateLabels(options).size > 0
+}
+
 // A disabled control swallows pointer events, so the tooltip rides on a span.
 function Blocked({ reason, children }: { reason: string; children: React.ReactNode }) {
   return (
@@ -154,11 +166,7 @@ export function OptionsEditor({
     onChange(next)
   }
 
-  const duplicates = new Set(
-    options
-      .map((option) => option.label.trim().toLowerCase())
-      .filter((label, index, all) => label.length > 0 && all.indexOf(label) !== index)
-  )
+  const duplicates = duplicateLabels(options)
 
   return (
     <div className="space-y-2">

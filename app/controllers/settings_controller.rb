@@ -66,7 +66,7 @@ class SettingsController < InertiaController
   def custom_fields
     render inertia: "settings/custom-fields", props: {
       customFields: IncidentFieldDefinitionSettingsSerializer.many(
-        current_workspace.incident_field_definitions.ordered.with_usage_counts
+        IncidentFieldDefinition.for_settings(current_workspace)
       ),
       catalogTypes: CatalogTypeOptionSerializer.many(
         current_workspace.catalog_types.active.ordered

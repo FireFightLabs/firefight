@@ -30,6 +30,10 @@ class IncidentFieldDefinition < ApplicationRecord
 
   MULTI_VALUED_TYPES = [ TYPE_MULTI_SELECT, TYPE_CATALOG_MULTI_REFERENCE ].freeze
 
+  # Slack caps a select at 100 options and fails the whole views.open beyond
+  # that, taking the entire form down rather than just this field.
+  MAX_OPTIONS = 100
+
   belongs_to :workspace
   belongs_to :catalog_type, optional: true
 
@@ -45,7 +49,9 @@ class IncidentFieldDefinition < ApplicationRecord
   validates :position, presence: true
 
   validate :key_immutable, on: :update
+  validate :shape_immutable_once_in_use, on: :update
   validate :options_match_field_type
+  validate :option_count_within_platform_limit
 
   scope :active, -> { where(deleted_at: nil) }
   scope :ordered, -> { order(:position, :created_at) }
@@ -54,23 +60,57 @@ class IncidentFieldDefinition < ApplicationRecord
     :incident_form_fields
   end
 
+  # Everything a settings list needs, with option usage counts and value counts
+  # attached in a fixed number of queries rather than per row.
+  def self.for_settings(workspace)
+    definitions = workspace.incident_field_definitions
+      .ordered
+      .with_usage_counts
+      .includes(:incident_field_options)
+      .to_a
+
+    IncidentFieldOption.preload_usage_counts(definitions)
+
+    value_counts = IncidentFieldValue
+      .where(incident_field_definition_id: definitions.map(&:id))
+      .group(:incident_field_definition_id)
+      .count
+    definitions.each { |definition| definition.value_count = value_counts.fetch(definition.id, 0) }
+
+    definitions
+  end
+
   def self.generate_key(name)
     name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
   end
 
-  # Every option, disabled ones included so the dialog can offer them back,
-  # with usage counts already attached so the settings screen renders the
-  # delete guard without a query per row.
+  # Every option, disabled ones included so the dialog can offer them back.
+  # Counts come from IncidentFieldOption.preload_usage_counts when a whole list
+  # is being rendered, and fall back to a query per option otherwise.
   def options_with_usage
-    counts = IncidentFieldOption.usage_counts_for(self)
-
-    incident_field_options.ordered.each do |option|
-      option.usage_count = counts.fetch(option.id, 0)
-    end
+    incident_field_options.ordered
   end
 
   def multi_valued?
     MULTI_VALUED_TYPES.include?(field_type)
+  end
+
+  def value_count
+    @value_count ||= incident_field_values.count
+  end
+
+  attr_writer :value_count
+
+  # field_type and option_source decide how the stored values are interpreted,
+  # so changing them once incidents hold values silently reinterprets history:
+  # the value stops matching the new option set, drops out of the Slack modal,
+  # and is overwritten by the next submission. Locked above zero references,
+  # exactly like deletion. Name, description, and the option list stay editable.
+  def shape_change_blocked_reason
+    return if value_count.zero?
+
+    "#{name} is in use by #{value_count} #{'incident'.pluralize(value_count)}, " \
+      "so its field type and option source cannot be changed. Disable it and add a new field instead."
   end
 
   # Applies a whole option list in display order. Rows carrying an id are
@@ -116,6 +156,22 @@ class IncidentFieldDefinition < ApplicationRecord
     return unless key_changed?
 
     errors.add(:key, "cannot be changed after creation")
+  end
+
+  def shape_immutable_once_in_use
+    return unless field_type_changed? || option_source_changed?
+
+    reason = shape_change_blocked_reason
+    errors.add(:base, reason) if reason
+  end
+
+  def option_count_within_platform_limit
+    return unless fixed_options?
+
+    enabled = incident_field_options.reject(&:marked_for_destruction?).count(&:enabled?)
+    return if enabled <= MAX_OPTIONS
+
+    errors.add(:base, "cannot have more than #{MAX_OPTIONS} enabled options")
   end
 
   def option_disabled_at(params)

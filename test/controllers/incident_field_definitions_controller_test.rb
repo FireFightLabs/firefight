@@ -131,6 +131,43 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
       @definition.incident_field_options.ordered.pluck(:label)
   end
 
+  test "update refuses to change the shape of a field incidents already hold values for" do
+    option = incident_field_options(:customer_tier_pro)
+    incidents(:active_critical_ws1).update!(custom_fields: { @definition.key => option.id })
+
+    patch incident_field_definition_url(@definition), params: base_update_params(
+      options: @definition.incident_field_options.ordered.map { |current|
+        { id: current.id, label: current.label }
+      }
+    ).merge(option_source: IncidentFieldDefinition::OPTION_SOURCE_CATALOG)
+    assert_response :redirect
+
+    assert_equal IncidentFieldDefinition::OPTION_SOURCE_FIXED, @definition.reload.option_source
+  end
+
+  test "update still allows renaming a field incidents already hold values for" do
+    option = incident_field_options(:customer_tier_pro)
+    incidents(:active_critical_ws1).update!(custom_fields: { @definition.key => option.id })
+
+    patch incident_field_definition_url(@definition), params: base_update_params(
+      options: @definition.incident_field_options.ordered.map { |current|
+        { id: current.id, label: current.label }
+      }
+    ).merge(name: "Customer Segment")
+    assert_response :redirect
+
+    assert_equal "Customer Segment", @definition.reload.name
+  end
+
+  test "update refuses more enabled options than Slack will render" do
+    over_limit = (1..IncidentFieldDefinition::MAX_OPTIONS + 1).map { |n| { label: "Option #{n}" } }
+
+    patch incident_field_definition_url(@definition), params: base_update_params(options: over_limit)
+    assert_response :redirect
+
+    assert_equal 3, @definition.reload.incident_field_options.count
+  end
+
   test "update disables an option without deleting it" do
     option = incident_field_options(:customer_tier_free)
 

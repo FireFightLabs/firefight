@@ -27,8 +27,33 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { FormErrors } from "@/pages/settings/components/form-errors"
-import { OptionsEditor, type OptionDraft } from "@/pages/settings/components/custom-fields/options-editor"
+import {
+  hasDuplicateLabels,
+  OptionsEditor,
+  type OptionDraft,
+} from "@/pages/settings/components/custom-fields/options-editor"
+
+// Field type and option source lock once incidents hold values, because
+// changing them reinterprets what those stored values mean. A disabled control
+// swallows pointer events, so the tooltip rides on a span.
+function ShapeLock({ reason, children }: { reason?: string; children: React.ReactNode }) {
+  if (!reason) {
+    return children
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="block">{children}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-72">
+        {reason}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
 
 const FIELD_TYPE_OPTIONS = [
   { value: "text", label: "Text", description: "Short or long-form text input" },
@@ -94,6 +119,8 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
   const fieldType = form.data.field_type
   const optionSource = normalizeOptionSource(fieldType, form.data.option_source)
   const showFixedOptions = optionSource === "fixed"
+  const shapeLockReason = field?.shapeChangeBlockedReason
+  const duplicateLabels = hasDuplicateLabels(form.data.options)
   const showCatalogType = optionSource === "catalog"
 
   const prevNormalized = useRef(optionSource)
@@ -172,35 +199,47 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
 
               <div className="space-y-2">
                 <Label>Field type</Label>
-                <Select value={form.data.field_type} onValueChange={(value) => form.setData("field_type", value)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FIELD_TYPE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {allowedOptionSources(fieldType).length > 1 && (
-                <div className="space-y-2">
-                  <Label>Option source</Label>
-                  <Select value={optionSource} onValueChange={(value) => form.setData("option_source", value)}>
+                <ShapeLock reason={shapeLockReason}>
+                  <Select
+                    value={form.data.field_type}
+                    disabled={Boolean(shapeLockReason)}
+                    onValueChange={(value) => form.setData("field_type", value)}
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {OPTION_SOURCE_OPTIONS.filter((option) => allowedOptionSources(fieldType).includes(option.value)).map((option) => (
+                      {FIELD_TYPE_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </ShapeLock>
+              </div>
+
+              {allowedOptionSources(fieldType).length > 1 && (
+                <div className="space-y-2">
+                  <Label>Option source</Label>
+                  <ShapeLock reason={shapeLockReason}>
+                    <Select
+                      value={optionSource}
+                      disabled={Boolean(shapeLockReason)}
+                      onValueChange={(value) => form.setData("option_source", value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OPTION_SOURCE_OPTIONS.filter((option) => allowedOptionSources(fieldType).includes(option.value)).map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </ShapeLock>
                 </div>
               )}
 
@@ -235,7 +274,7 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
               <DialogClose asChild>
                 <Button variant="outline" type="button">Cancel</Button>
               </DialogClose>
-              <Button type="submit" disabled={form.processing}>
+              <Button type="submit" disabled={form.processing || (showFixedOptions && duplicateLabels)}>
                 {isEdit ? "Save changes" : "Create field"}
               </Button>
             </DialogFooter>
