@@ -12,6 +12,16 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
     sign_in(@user, @workspace)
   end
 
+  test "the settings page serializes each field with its options" do
+    get settings_custom_fields_url, headers: inertia_headers
+    assert_response :success
+
+    fields = response.parsed_body.dig("props", "customFields")
+    tier = fields.find { |field| field["key"] == @definition.key }
+    assert_equal [ "Enterprise", "Pro", "Free" ], tier["options"].map { |option| option["label"] }
+    assert tier["options"].all? { |option| option["enabled"] }
+  end
+
   test "create stores options as rows in the order they were given" do
     post incident_field_definitions_url, params: {
       name: "Impact Area",

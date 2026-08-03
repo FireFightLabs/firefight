@@ -58,8 +58,9 @@ class IncidentFieldDefinition < ApplicationRecord
     name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
   end
 
-  # Active options with their usage counts already attached, so a settings
-  # screen renders the delete guard without a query per row.
+  # Every option, disabled ones included so the dialog can offer them back,
+  # with usage counts already attached so the settings screen renders the
+  # delete guard without a query per row.
   def options_with_usage
     counts = IncidentFieldOption.usage_counts_for(self)
 
