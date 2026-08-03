@@ -31,7 +31,11 @@ class IncidentFieldDefinitionService
 
   def update(definition, attrs)
     ActiveRecord::Base.transaction do
-      definition.update!(
+      # Assigned before the options are synced, and saved after, so the "at
+      # least one enabled option" rule sees the incoming list. Validating the
+      # definition first would reject a field switching to a fixed list, since
+      # none of its options exist yet.
+      definition.assign_attributes(
         name: attrs[:name],
         description: attrs[:description],
         field_type: attrs[:field_type],
@@ -39,6 +43,7 @@ class IncidentFieldDefinitionService
         catalog_type_id: attrs[:catalog_type_id]
       )
       definition.sync_options!(attrs[:options]) if definition.fixed_options?
+      definition.save!
       definition
     end
   end

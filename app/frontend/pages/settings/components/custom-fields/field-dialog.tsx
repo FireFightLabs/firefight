@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { FormErrors } from "@/pages/settings/components/form-errors"
 import { OptionsEditor, type OptionDraft } from "@/pages/settings/components/custom-fields/options-editor"
 
 const FIELD_TYPE_OPTIONS = [
@@ -145,6 +146,8 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
 
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-2">
+              <FormErrors errors={form.errors} />
+
               <div className="space-y-2">
                 <Label htmlFor="field-name">Name</Label>
                 <Input

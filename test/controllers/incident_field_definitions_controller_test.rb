@@ -103,6 +103,34 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
     assert_not IncidentFieldOption.exists?(option.id)
   end
 
+  test "update switches a catalogue-backed field to a fixed list of new options" do
+    catalogue_field = incident_field_definitions(:affected_services_ws1)
+
+    patch incident_field_definition_url(catalogue_field), params: {
+      name: catalogue_field.name,
+      field_type: IncidentFieldDefinition::TYPE_MULTI_SELECT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_FIXED,
+      options: [ { label: "EU" }, { label: "US" } ]
+    }
+    assert_response :redirect
+
+    catalogue_field.reload
+    assert_equal IncidentFieldDefinition::OPTION_SOURCE_FIXED, catalogue_field.option_source
+    assert_equal [ "EU", "US" ], catalogue_field.incident_field_options.ordered.pluck(:label)
+  end
+
+  test "update adds a brand new option to an existing fixed list" do
+    patch incident_field_definition_url(@definition), params: base_update_params(
+      options: @definition.incident_field_options.ordered.map { |current|
+        { id: current.id, label: current.label }
+      } + [ { label: "Startup" } ]
+    )
+    assert_response :redirect
+
+    assert_equal [ "Enterprise", "Pro", "Free", "Startup" ],
+      @definition.incident_field_options.ordered.pluck(:label)
+  end
+
   test "update disables an option without deleting it" do
     option = incident_field_options(:customer_tier_free)
 
