@@ -62,10 +62,11 @@ class IncidentFieldDefinition < ApplicationRecord
     :incident_form_fields
   end
 
+  # The only supported way to hand definitions to a settings serializer.
   # Attaches option usage counts and value counts for the whole list in a fixed
   # number of queries rather than per row.
-  def self.for_settings(workspace)
-    definitions = workspace.incident_field_definitions
+  def self.for_settings(relation)
+    definitions = relation
       .ordered
       .with_usage_counts
       .includes(:incident_field_options, :catalog_type)
