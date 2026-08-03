@@ -37,9 +37,21 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     source_definition.name
   end
 
+  # What a responder reads above and inside the input. The editor renders these
+  # verbatim so its preview matches the Slack modal rather than paraphrasing it.
+  type :string
+  def label
+    form_field.system? ? source_definition.label : source_definition.name
+  end
+
   type :string, optional: true
-  def description
-    source_definition.description
+  def hint
+    form_field.system? ? source_definition.hint : source_definition.description
+  end
+
+  type :string, optional: true
+  def placeholder
+    form_field.system? ? source_definition.placeholder : nil
   end
 
   # A system field's identifier comes from the code registry, which keys its

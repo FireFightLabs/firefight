@@ -24,6 +24,8 @@ module Slack
           visibility_block(form_field, incident: incident)
         when IncidentSystemField::KEY_NEXT_UPDATE
           next_update_block(form_field)
+        when IncidentSystemField::KEY_MESSAGE
+          message_block(form_field)
         end
       end
 
@@ -58,6 +60,8 @@ module Slack
         { label: "7 days", value: "10080" }
       ].freeze
 
+      DEFAULT_NEXT_UPDATE_MINUTES = "15".freeze
+
       def self.visibility_block(form_field, incident: nil)
         current = if incident
           incident.is_private ? Incident::VISIBILITY_PRIVATE : Incident::VISIBILITY_PUBLIC
@@ -75,17 +79,17 @@ module Slack
             options: VISIBILITY_OPTIONS,
             initial_option: initial
           },
-          label: { type: "plain_text", text: "Who should be able to see this incident?" },
-          hint: { type: "plain_text", text: "Public incidents are visible to everyone in the workspace. Private incidents are only accessible to invited members." },
+          label: copy_label(IncidentSystemField::KEY_VISIBILITY),
+          hint: copy_hint(IncidentSystemField::KEY_VISIBILITY),
           optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
-        }
+        }.compact
       end
 
       def self.lead_block(form_field, incident: nil)
         element = {
           type: "users_select",
           action_id: "field_lead_input",
-          placeholder: { type: "plain_text", text: "Select a person" }
+          placeholder: copy_placeholder(IncidentSystemField::KEY_LEAD)
         }
         element[:initial_user] = incident.lead.platform_user_id if incident&.lead
 
@@ -93,9 +97,29 @@ module Slack
           type: "input",
           block_id: "field_lead_block",
           element: element,
-          label: { type: "plain_text", text: "Incident Lead" },
+          label: copy_label(IncidentSystemField::KEY_LEAD),
           optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
         }
+      end
+
+      # The update itself, written by a responder. Unlike every other field
+      # here it lands on the IncidentUpdate rather than the Incident, because an
+      # incident collects many messages over its life.
+      def self.message_block(form_field)
+        {
+          type: "input",
+          block_id: "field_message_block",
+          element: {
+            type: "plain_text_input",
+            action_id: "field_message_input",
+            multiline: true,
+            placeholder: copy_placeholder(IncidentSystemField::KEY_MESSAGE),
+            max_length: 3000
+          },
+          label: copy_label(IncidentSystemField::KEY_MESSAGE),
+          hint: copy_hint(IncidentSystemField::KEY_MESSAGE),
+          optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
+        }.compact
       end
 
       def self.next_update_block(form_field)
@@ -107,10 +131,11 @@ module Slack
           element: {
             type: "static_select",
             action_id: "field_next_update_input",
-            placeholder: { type: "plain_text", text: "Select a time" },
-            options: options
+            placeholder: copy_placeholder(IncidentSystemField::KEY_NEXT_UPDATE),
+            options: options,
+            initial_option: options.find { |o| o[:value] == DEFAULT_NEXT_UPDATE_MINUTES }
           },
-          label: { type: "plain_text", text: "When will you provide the next update?" },
+          label: copy_label(IncidentSystemField::KEY_NEXT_UPDATE),
           optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
         }
       end
@@ -119,7 +144,7 @@ module Slack
         element = {
           type: "plain_text_input",
           action_id: "field_name_input",
-          placeholder: { type: "plain_text", text: "Write something" },
+          placeholder: copy_placeholder(IncidentSystemField::KEY_NAME),
           max_length: 200
         }
         element[:initial_value] = incident.name if incident&.name.present?
@@ -128,10 +153,10 @@ module Slack
           type: "input",
           block_id: "field_name_block",
           element: element,
-          label: { type: "plain_text", text: "Incident name" },
-          hint: { type: "plain_text", text: "Give a short description of what is happening. If you'd like to, you can leave it blank and change it later" },
+          label: copy_label(IncidentSystemField::KEY_NAME),
+          hint: copy_hint(IncidentSystemField::KEY_NAME),
           optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
-        }
+        }.compact
       end
 
       def self.summary_block(form_field, incident: nil)
@@ -139,7 +164,7 @@ module Slack
           type: "plain_text_input",
           action_id: "field_summary_input",
           multiline: true,
-          placeholder: { type: "plain_text", text: "Think about what you'd like to read if you were coming to the incident fresh..." },
+          placeholder: copy_placeholder(IncidentSystemField::KEY_SUMMARY),
           max_length: 3000
         }
         element[:initial_value] = incident.summary if incident&.summary.present?
@@ -148,10 +173,10 @@ module Slack
           type: "input",
           block_id: "field_summary_block",
           element: element,
-          label: { type: "plain_text", text: "Summary" },
-          hint: { type: "plain_text", text: "Your current understanding of what happened in the incident, and the impact it had. It's fine to go into detail here." },
+          label: copy_label(IncidentSystemField::KEY_SUMMARY),
+          hint: copy_hint(IncidentSystemField::KEY_SUMMARY),
           optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
-        }
+        }.compact
       end
 
       def self.severity_block(workspace, form_field, selected_severity_slug: nil, dispatch: false)
@@ -177,13 +202,16 @@ module Slack
           element: {
             type: "static_select",
             action_id: action_id,
-            placeholder: { type: "plain_text", text: "Select severity" },
+            placeholder: copy_placeholder(IncidentSystemField::KEY_SEVERITY),
             options: severity_options,
             initial_option: initial_option
           },
-          label: { type: "plain_text", text: "Severity" }
-        }
+          label: copy_label(IncidentSystemField::KEY_SEVERITY),
+          hint: copy_hint(IncidentSystemField::KEY_SEVERITY)
+        }.compact
         block[:dispatch_action] = true if dispatch
+        # The chosen severity explains itself better than a static hint can, so
+        # it takes over once there is one to show.
         block[:hint] = { type: "plain_text", text: selected_severity.description } if selected_severity.description.present?
         block
       end
@@ -211,7 +239,7 @@ module Slack
         element = {
           type: "static_select",
           action_id: action_id,
-          placeholder: { type: "plain_text", text: "Select a type" },
+          placeholder: copy_placeholder(IncidentSystemField::KEY_INCIDENT_TYPE),
           options: type_options
         }
         element[:initial_option] = initial_type if initial_type
@@ -220,9 +248,10 @@ module Slack
           type: "input",
           block_id: "field_incident_type_block",
           element: element,
-          label: { type: "plain_text", text: "Incident Type" },
+          label: copy_label(IncidentSystemField::KEY_INCIDENT_TYPE),
+          hint: copy_hint(IncidentSystemField::KEY_INCIDENT_TYPE),
           optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
-        }
+        }.compact
         block[:dispatch_action] = true if dispatch
         block
       end
@@ -240,7 +269,7 @@ module Slack
         element = {
           type: "static_select",
           action_id: "field_status_input",
-          placeholder: { type: "plain_text", text: "Select status" },
+          placeholder: copy_placeholder(IncidentSystemField::KEY_STATUS),
           options: status_options
         }
         element[:initial_option] = initial_status if initial_status
@@ -249,8 +278,9 @@ module Slack
           type: "input",
           block_id: "field_status_block",
           element: element,
-          label: { type: "plain_text", text: "Status" }
-        }
+          label: copy_label(IncidentSystemField::KEY_STATUS),
+          hint: copy_hint(IncidentSystemField::KEY_STATUS)
+        }.compact
       end
 
       def self.text_custom_block(defn, optional:, initial_value: nil)
@@ -305,6 +335,28 @@ module Slack
         defn.selectable_values.map do |id, label|
           { text: { type: "plain_text", text: label.truncate(75) }, value: id }
         end
+      end
+
+      # Responder-facing copy lives in IncidentSystemField so the Slack modal
+      # and the form editor's preview render the same words.
+      def self.copy_label(key)
+        { type: "plain_text", text: IncidentSystemField.fetch(key).label }
+      end
+
+      # nil when the field carries no hint, so the caller's compact drops the
+      # key rather than sending Slack an empty plain_text element.
+      def self.copy_hint(key)
+        hint = IncidentSystemField.fetch(key).hint
+        return nil if hint.blank?
+
+        { type: "plain_text", text: hint }
+      end
+
+      def self.copy_placeholder(key)
+        placeholder = IncidentSystemField.fetch(key).placeholder
+        return nil if placeholder.blank?
+
+        { type: "plain_text", text: placeholder }
       end
 
       def self.wrap_input(defn, element, optional:)

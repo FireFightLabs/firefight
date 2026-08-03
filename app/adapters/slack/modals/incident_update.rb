@@ -15,9 +15,6 @@ module Slack
             FieldBlocks.build_custom(workspace, form_field, incident: incident)
           end
         end
-        # `message` is transient (not an incident attribute) — kept hardcoded.
-        blocks << message_block
-
         {
           type: "modal",
           callback_id: Identifiers::INCIDENT_UPDATE_MODAL,
@@ -27,22 +24,6 @@ module Slack
           submit: { type: "plain_text", text: "Send update" },
           close: { type: "plain_text", text: "Cancel" },
           blocks: blocks
-        }
-      end
-
-      def self.message_block
-        {
-          type: "input",
-          block_id: "message_block",
-          element: {
-            type: "plain_text_input",
-            action_id: "message_input",
-            multiline: true,
-            placeholder: { type: "plain_text", text: "What's happening at the moment? What are you doing next?" },
-            max_length: 3000
-          },
-          label: { type: "plain_text", text: "Message" },
-          optional: true
         }
       end
     end

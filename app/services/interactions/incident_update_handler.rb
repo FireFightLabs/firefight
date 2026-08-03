@@ -21,7 +21,7 @@ module Interactions
       end
 
       attrs = build_update_attrs(workspace, incident, submission)
-      message = interaction.values.dig("message_block", "message_input", "value")
+      message = submission.system_attrs[IncidentSystemField::KEY_MESSAGE]
 
       IncidentLifecycleService.new(workspace).update(
         incident,

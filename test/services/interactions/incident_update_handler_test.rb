@@ -210,7 +210,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     )
   end
 
-  def build_interaction(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil, custom_fields: {})
+  def build_interaction(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: "Still investigating.", next_update_minutes: nil, custom_fields: {})
     Interaction.new(
       platform: Platforms::SLACK,
       type: Interaction::VIEW_SUBMISSION,
@@ -222,7 +222,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     )
   end
 
-  def build_values(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil, custom_fields: {})
+  def build_values(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: "Still investigating.", next_update_minutes: nil, custom_fields: {})
     vals = {
       "field_status_block" => {
         "field_status_input" => {
@@ -239,8 +239,8 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
           "selected_option" => type_slug ? { "value" => type_slug } : nil
         }
       },
-      "message_block" => {
-        "message_input" => {
+      "field_message_block" => {
+        "field_message_input" => {
           "value" => message
         }
       },

@@ -19,8 +19,14 @@ class IncidentSystemField
   KEY_LEAD = "lead"
   KEY_VISIBILITY = "visibility"
   KEY_NEXT_UPDATE = "next_update"
+  KEY_MESSAGE = "message"
 
-  Definition = Struct.new(:key, :name, :description, :field_type, :forms, keyword_init: true) do
+  # `name` is the short handle for prose: flash messages, "Severity is
+  # required", the settings row. `label`, `hint`, and `placeholder` are what a
+  # responder actually reads above and inside the input, and are rendered
+  # identically by Slack and by the form editor's preview. Keeping them here
+  # rather than in the Slack adapter is what stops the two surfaces drifting.
+  Definition = Struct.new(:key, :name, :label, :hint, :placeholder, :field_type, :forms, keyword_init: true) do
     # Returns the default required_mode for this field on the given form slug,
     # or nil if the field doesn't appear on that form by default.
     def required_mode_for(form_slug)
@@ -37,9 +43,32 @@ class IncidentSystemField
   # form slug, and uses encounter order as the default position.
   DEFINITIONS = [
     Definition.new(
+      key: KEY_MESSAGE,
+      name: "Message",
+      label: "Message",
+      hint: "What responders and stakeholders will read. This is the update itself.",
+      placeholder: "What's happening at the moment? What are you doing next?",
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      forms: {
+        IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_REQUIRED
+      }
+    ),
+    Definition.new(
+      key: KEY_NEXT_UPDATE,
+      name: "Next Update",
+      label: "When will you provide the next update?",
+      placeholder: "Select a time",
+      field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
+      forms: {
+        IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_OPTIONAL
+      }
+    ),
+    Definition.new(
       key: KEY_NAME,
       name: "Name",
-      description: "Give a short description of what is happening.",
+      label: "Incident name",
+      hint: "Give a short description of what is happening.",
+      placeholder: "Write something",
       field_type: IncidentFieldDefinition::TYPE_TEXT,
       forms: {
         IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
@@ -49,7 +78,9 @@ class IncidentSystemField
     Definition.new(
       key: KEY_INCIDENT_TYPE,
       name: "Incident Type",
-      description: "Categorize the incident to improve reporting and routing.",
+      label: "Incident Type",
+      hint: "Categorize the incident to improve reporting and routing.",
+      placeholder: "Select a type",
       field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
       forms: {
         IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
@@ -59,7 +90,9 @@ class IncidentSystemField
     Definition.new(
       key: KEY_STATUS,
       name: "Status",
-      description: "Move the incident to the correct lifecycle stage.",
+      label: "Status",
+      hint: "Move the incident to the correct lifecycle stage.",
+      placeholder: "Select status",
       field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
       forms: {
         IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED
@@ -68,7 +101,9 @@ class IncidentSystemField
     Definition.new(
       key: KEY_SEVERITY,
       name: "Severity",
-      description: "Communicate the expected impact and response urgency.",
+      label: "Severity",
+      hint: "Communicate the expected impact and response urgency.",
+      placeholder: "Select severity",
       field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
       forms: {
         IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED,
@@ -79,11 +114,12 @@ class IncidentSystemField
     Definition.new(
       key: KEY_SUMMARY,
       name: "Summary",
-      description: "Capture the current understanding of what happened and the impact it had.",
+      label: "Summary",
+      hint: "Your current understanding of what happened in the incident, and the impact it had. It's fine to go into detail here.",
+      placeholder: "Think about what you'd like to read if you were coming to the incident fresh...",
       field_type: IncidentFieldDefinition::TYPE_TEXT,
       forms: {
         IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
-        IncidentForm::SLUG_ACCEPT => IncidentFormField::REQUIRED_MODE_OPTIONAL,
         IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
         IncidentForm::SLUG_RESOLVE => IncidentFormField::REQUIRED_MODE_OPTIONAL
       }
@@ -91,25 +127,18 @@ class IncidentSystemField
     Definition.new(
       key: KEY_VISIBILITY,
       name: "Visibility",
-      description: "Who can see this incident.",
+      label: "Who should be able to see this incident?",
+      hint: "Public incidents are visible to everyone in the workspace. Private incidents are only accessible to invited members.",
       field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
       forms: {
         IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_OPTIONAL
       }
     ),
     Definition.new(
-      key: KEY_NEXT_UPDATE,
-      name: "Next Update",
-      description: "When to send the next status update reminder.",
-      field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
-      forms: {
-        IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_OPTIONAL
-      }
-    ),
-    Definition.new(
       key: KEY_LEAD,
       name: "Incident Lead",
-      description: "The person coordinating the incident response.",
+      label: "Incident Lead",
+      placeholder: "Select a person",
       field_type: IncidentFieldDefinition::TYPE_TEXT,
       forms: {
         IncidentForm::SLUG_RESOLVE => IncidentFormField::REQUIRED_MODE_OPTIONAL

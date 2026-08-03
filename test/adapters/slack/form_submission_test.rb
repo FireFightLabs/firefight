@@ -92,6 +92,9 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
       },
       "field_severity_block" => {
         "field_severity_input" => { "selected_option" => { "value" => @incident.incident_severity.slug } }
+      },
+      "field_message_block" => {
+        "field_message_input" => { "value" => "Monitoring the fix." }
       }
     }
 
