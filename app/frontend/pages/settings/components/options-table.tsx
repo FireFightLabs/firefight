@@ -40,6 +40,7 @@ export function OptionsTable<T extends ConfigurableOption>({
   defaultSelectable = true,
   defaultHeaderHint,
   fixedLayout = false,
+  onSelect,
   onToggleEnabled,
   onEdit,
   onDelete,
@@ -65,6 +66,9 @@ export function OptionsTable<T extends ConfigurableOption>({
   // Sizes columns from the header rather than from content, so sibling tables
   // rendered one above another line up instead of each measuring its own rows.
   fixedLayout?: boolean
+  // Turns each name into a button. Omitted by lists whose rows are settings
+  // rather than content, which leaves the name as plain text.
+  onSelect?: (option: T) => void
   onToggleEnabled: (option: T) => void
   onEdit: (option: T) => void
   onDelete: (option: T) => void
@@ -88,6 +92,7 @@ export function OptionsTable<T extends ConfigurableOption>({
     fallbackColor,
     showDefault: Boolean(onMakeDefault),
     defaultSelectable,
+    onSelect: onSelect && (() => onSelect(option)),
     onToggleEnabled: () => onToggleEnabled(option),
     onEdit: () => onEdit(option),
     onDelete: () => onDelete(option),

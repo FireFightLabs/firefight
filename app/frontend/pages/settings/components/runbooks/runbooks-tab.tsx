@@ -25,6 +25,7 @@ import {
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
+import { RunbookDetailSheet } from "@/pages/settings/components/runbooks/runbook-detail-sheet"
 import { RunbookDialog } from "@/pages/settings/components/runbooks/runbook-dialog"
 import { conditionSummary } from "@/pages/settings/lib/runbook-conditions"
 
@@ -39,6 +40,7 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRunbook, setEditingRunbook] = useState<RunbookSettings | null>(null)
   const [deleting, setDeleting] = useState<RunbookSettings | null>(null)
+  const [viewing, setViewing] = useState<RunbookSettings | null>(null)
 
 
 
@@ -115,7 +117,7 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
             <>
               <TableHead className="hidden lg:table-cell">Summary</TableHead>
               <TableHead className="hidden md:table-cell">Conditions</TableHead>
-              <TableHead className="w-20 text-center">Steps</TableHead>
+              <TableHead className="w-24 text-center">Incidents</TableHead>
             </>
           }
           cells={(runbook) => (
@@ -140,7 +142,7 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
                 {conditionSummary(runbook.conditions ?? [], incidentTypes, severities, customFields) ?? "Always shown"}
               </TableCell>
               <TableCell className="text-center">
-                <Badge variant="outline" className="font-mono tabular-nums">{runbook.steps.length}</Badge>
+                <Badge variant="outline" className="font-mono tabular-nums">{runbook.usageCount}</Badge>
               </TableCell>
             </>
           )}
@@ -151,11 +153,21 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
               {},
               { preserveScroll: true },
             )}
+          onSelect={setViewing}
           onEdit={openEdit}
           onDelete={setDeleting}
         />
       </CardContent>
       {dialog}
+
+      <RunbookDetailSheet
+        runbook={viewing}
+        incidentTypes={incidentTypes}
+        severities={severities}
+        customFields={customFields}
+        open={Boolean(viewing)}
+        onOpenChange={(next) => !next && setViewing(null)}
+      />
 
       <ConfirmDeleteDialog
         open={Boolean(deleting)}

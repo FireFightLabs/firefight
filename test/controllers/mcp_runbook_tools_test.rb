@@ -1,7 +1,7 @@
 require "test_helper"
 
 class McpRunbookToolsTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships
+  fixtures :workspaces, :users, :workspace_memberships, :incident_severities
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -86,6 +86,42 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
     content, _ = call_tool(Mcp::Tools::SEARCH_RUNBOOKS)
 
     assert_not_includes content["runbooks"].map { |r| r["slug"] }, @rollback.slug
+  end
+
+  test "upsert_runbook resolves a severity slug to the id conditions match on" do
+    critical = @workspace.incident_severities.active.find_by!(slug: "critical")
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "Slug conditions",
+      conditions: [ { condition_field: "severity", operator: "one_of", values: [ "critical" ] } ]
+    })
+    assert_not is_error
+
+    runbook = @workspace.runbooks.find_by!(slug: content["slug"])
+    assert_equal [ critical.id ], runbook.incident_conditions.first.values
+  end
+
+  test "upsert_runbook still accepts ids, so a read-modify-write round trips" do
+    major = @workspace.incident_severities.active.find_by!(slug: "major")
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "Id conditions",
+      conditions: [ { condition_field: "severity", operator: "one_of", values: [ major.id ] } ]
+    })
+    assert_not is_error
+
+    runbook = @workspace.runbooks.find_by!(slug: content["slug"])
+    assert_equal [ major.id ], runbook.incident_conditions.first.values
+  end
+
+  test "upsert_runbook refuses a value matching no severity rather than storing a dead condition" do
+    _, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "Bad conditions",
+      conditions: [ { condition_field: "severity", operator: "one_of", values: [ "sev1" ] } ]
+    })
+
+    assert is_error
+    assert_not @workspace.runbooks.exists?(name: "Bad conditions")
   end
 
   test "a service key without runbooks:read is denied" do
