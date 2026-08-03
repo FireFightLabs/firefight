@@ -5,7 +5,7 @@ class IncidentFormService
 
   def add_custom_field(form, incident_field_definition)
     ActiveRecord::Base.transaction do
-      form.incident_form_fields.create!(
+      field = form.incident_form_fields.create!(
         field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_CUSTOM,
         incident_field_definition: incident_field_definition,
         position: next_position(form),
@@ -13,6 +13,7 @@ class IncidentFormService
         required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL
       )
       bust_cache(form)
+      field
     end
   end
 
