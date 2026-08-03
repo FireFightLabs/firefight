@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { IconGripVertical, IconTrash } from "@tabler/icons-react"
+import { IconGripVertical, IconPlus, IconTrash } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -24,7 +24,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { AddRowButton } from "@/pages/settings/components/row-list-buttons"
 
 // A draft option is one the dialog has not saved yet, so it has no id and
 // nothing can reference it. Saved rows keep their id across a rename, which is
@@ -163,7 +162,21 @@ export function OptionsEditor({
 
   return (
     <div className="space-y-2">
-      <Label>Options</Label>
+      <div className="flex items-center justify-between">
+        <Label>Options</Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 rounded-lg px-3 text-xs"
+          onClick={() =>
+            onChange([ ...options, { key: crypto.randomUUID(), label: "", disabled: false } ])
+          }
+        >
+          <IconPlus className="size-3.5" />
+          Add option
+        </Button>
+      </div>
 
       <DndContext
         sensors={sensors}
@@ -190,13 +203,6 @@ export function OptionsEditor({
           </div>
         </SortableContext>
       </DndContext>
-
-      <AddRowButton
-        label="Add option"
-        onClick={() =>
-          onChange([ ...options, { key: crypto.randomUUID(), label: "", disabled: false } ])
-        }
-      />
 
       {duplicates.size > 0 && (
         <p className="text-xs text-destructive">Option labels must be unique.</p>
