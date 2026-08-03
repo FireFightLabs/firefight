@@ -27,33 +27,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Blocked } from "@/pages/settings/components/blocked-tooltip"
 import { FormErrors } from "@/pages/settings/components/form-errors"
 import {
   hasDuplicateLabels,
   OptionsEditor,
   type OptionDraft,
 } from "@/pages/settings/components/custom-fields/options-editor"
-
-// Field type and option source lock once incidents hold values, because
-// changing them reinterprets what those stored values mean. A disabled control
-// swallows pointer events, so the tooltip rides on a span.
-function ShapeLock({ reason, children }: { reason?: string; children: React.ReactNode }) {
-  if (!reason) {
-    return children
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="block">{children}</span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-72">
-        {reason}
-      </TooltipContent>
-    </Tooltip>
-  )
-}
 
 const FIELD_TYPE_OPTIONS = [
   { value: "text", label: "Text", description: "Short or long-form text input" },
@@ -199,7 +179,7 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
 
               <div className="space-y-2">
                 <Label>Field type</Label>
-                <ShapeLock reason={shapeLockReason}>
+                <Blocked reason={shapeLockReason} side="top">
                   <Select
                     value={form.data.field_type}
                     disabled={Boolean(shapeLockReason)}
@@ -216,13 +196,13 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
                       ))}
                     </SelectContent>
                   </Select>
-                </ShapeLock>
+                </Blocked>
               </div>
 
               {allowedOptionSources(fieldType).length > 1 && (
                 <div className="space-y-2">
                   <Label>Option source</Label>
-                  <ShapeLock reason={shapeLockReason}>
+                  <Blocked reason={shapeLockReason} side="top">
                     <Select
                       value={optionSource}
                       disabled={Boolean(shapeLockReason)}
@@ -239,7 +219,7 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
                         ))}
                       </SelectContent>
                     </Select>
-                  </ShapeLock>
+                  </Blocked>
                 </div>
               )}
 

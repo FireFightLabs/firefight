@@ -16,8 +16,8 @@ class IncidentFieldOption < ApplicationRecord
   scope :active, -> { where(disabled_at: nil) }
   scope :ordered, -> { order(:position, :created_at) }
 
-  # Two queries for any number of definitions, tallied in Ruby, so a settings
-  # screen listing N fields does not pay 2N.
+  # Two queries for any number of definitions, so a list of N fields does not
+  # pay 2N.
   def self.usage_counts_for(definitions)
     definitions = Array.wrap(definitions)
     return {} if definitions.empty?
@@ -45,8 +45,6 @@ class IncidentFieldOption < ApplicationRecord
     counts
   end
 
-  # Attaches counts to a whole list of definitions at once, so each option can
-  # answer deletion_blocked_reason without going back to the database.
   def self.preload_usage_counts(definitions)
     counts = usage_counts_for(definitions)
 

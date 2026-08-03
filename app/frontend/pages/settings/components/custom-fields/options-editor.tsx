@@ -23,11 +23,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Blocked } from "@/pages/settings/components/blocked-tooltip"
 
-// A draft option is one the dialog has not saved yet, so it has no id and
-// nothing can reference it. Saved rows keep their id across a rename, which is
-// what stops a rename from orphaning the incidents pointing at them.
+// A row keeps its id across a rename, which is what stops a rename from
+// orphaning the incidents pointing at it. Unsaved rows have no id yet.
 export interface OptionDraft {
   key: string
   id?: string
@@ -36,8 +35,6 @@ export interface OptionDraft {
   deletionBlockedReason?: string
 }
 
-// Shared with the dialog so the inline warning and the disabled Save button
-// can never disagree about what counts as a duplicate.
 export function duplicateLabels(options: OptionDraft[]) {
   const seen = options.map((option) => option.label.trim().toLowerCase())
 
@@ -46,20 +43,6 @@ export function duplicateLabels(options: OptionDraft[]) {
 
 export function hasDuplicateLabels(options: OptionDraft[]) {
   return duplicateLabels(options).size > 0
-}
-
-// A disabled control swallows pointer events, so the tooltip rides on a span.
-function Blocked({ reason, children }: { reason: string; children: React.ReactNode }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="block">{children}</span>
-      </TooltipTrigger>
-      <TooltipContent side="left" className="max-w-56">
-        {reason}
-      </TooltipContent>
-    </Tooltip>
-  )
 }
 
 function SortableOption({
@@ -125,11 +108,7 @@ function SortableOption({
         onCheckedChange={(checked) => onChange({ disabled: !checked })}
       />
 
-      {option.deletionBlockedReason ? (
-        <Blocked reason={option.deletionBlockedReason}>{removeButton}</Blocked>
-      ) : (
-        removeButton
-      )}
+      <Blocked reason={option.deletionBlockedReason}>{removeButton}</Blocked>
     </div>
   )
 }

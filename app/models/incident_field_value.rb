@@ -8,9 +8,6 @@ class IncidentFieldValue < ApplicationRecord
 
   scope :ordered, -> { order(:position, :created_at) }
 
-  # What the responder chose, in the shape entry points speak: an option id for
-  # a select, a catalog entry id for a catalog reference, the raw scalar
-  # otherwise.
   def reference_or_scalar
     return incident_field_option_id if incident_field_option_id.present?
     return catalog_entry_id if catalog_entry_id.present?
@@ -19,11 +16,9 @@ class IncidentFieldValue < ApplicationRecord
     value_text
   end
 
-  # What a human reads. Falls back to the stored id when a referenced row has
-  # been disabled and filtered out of the preloaded association.
   def display_label
-    return incident_field_option&.label || incident_field_option_id if incident_field_option_id.present?
-    return catalog_entry&.name || catalog_entry_id if catalog_entry_id.present?
+    return incident_field_option.label if incident_field_option_id.present?
+    return catalog_entry.name if catalog_entry_id.present?
     return format_number(value_number) if value_number.present?
 
     value_text

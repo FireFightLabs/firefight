@@ -59,8 +59,6 @@ class IncidentFieldDefinitionsController < InertiaController
     }
   end
 
-  # Options arrive in display order. An entry keeps its id across a rename, so
-  # the incidents pointing at it are never touched.
   def option_params
     Array(params[:options]).filter_map do |option|
       # A form-encoded empty list arrives as "", not an empty array.

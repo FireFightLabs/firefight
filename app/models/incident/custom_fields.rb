@@ -1,9 +1,6 @@
 # Projects the incident_field_values rows into the flat `key => value` hash
-# every entry point already speaks, so Slack, the API, MCP, and the resolver
-# keep exchanging one shape while the database holds real foreign keys.
-#
-# Assignment is deferred to after_save because a new incident has no id to hang
-# value rows off yet.
+# every entry point already speaks. Assignment is deferred to after_save
+# because a new incident has no id to hang value rows off yet.
 module Incident::CustomFields
   extend ActiveSupport::Concern
 
@@ -23,8 +20,6 @@ module Incident::CustomFields
     @pending_custom_fields = (hash || {}).transform_keys(&:to_s)
   end
 
-  # Labels rather than ids, for anything a human reads: Slack messages, the
-  # incident page, the AI postmortem prompt, and the timeline snapshot.
   def custom_fields_for_display
     project(&:display_label)
   end

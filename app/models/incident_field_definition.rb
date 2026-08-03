@@ -60,8 +60,8 @@ class IncidentFieldDefinition < ApplicationRecord
     :incident_form_fields
   end
 
-  # Everything a settings list needs, with option usage counts and value counts
-  # attached in a fixed number of queries rather than per row.
+  # Attaches option usage counts and value counts for the whole list in a fixed
+  # number of queries rather than per row.
   def self.for_settings(workspace)
     definitions = workspace.incident_field_definitions
       .ordered
@@ -84,9 +84,7 @@ class IncidentFieldDefinition < ApplicationRecord
     name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
   end
 
-  # Every option, disabled ones included so the dialog can offer them back.
-  # Counts come from IncidentFieldOption.preload_usage_counts when a whole list
-  # is being rendered, and fall back to a query per option otherwise.
+  # Disabled options included, so the dialog can offer them back.
   def options_with_usage
     incident_field_options.ordered
   end
@@ -101,11 +99,8 @@ class IncidentFieldDefinition < ApplicationRecord
 
   attr_writer :value_count
 
-  # field_type and option_source decide how the stored values are interpreted,
-  # so changing them once incidents hold values silently reinterprets history:
-  # the value stops matching the new option set, drops out of the Slack modal,
-  # and is overwritten by the next submission. Locked above zero references,
-  # exactly like deletion. Name, description, and the option list stay editable.
+  # field_type and option_source decide how stored values are interpreted, so
+  # changing them once incidents hold values silently reinterprets history.
   def shape_change_blocked_reason
     return if value_count.zero?
 
@@ -113,10 +108,8 @@ class IncidentFieldDefinition < ApplicationRecord
       "so its field type and option source cannot be changed. Disable it and add a new field instead."
   end
 
-  # Applies a whole option list in display order. Rows carrying an id are
-  # updated in place so a rename never changes what incidents point at, rows
-  # without one are created, and anything dropped from the list is deleted only
-  # when nothing references it.
+  # Rows carrying an id are updated in place, so a rename never changes what
+  # incidents point at.
   def sync_options!(options_params)
     incoming = Array(options_params)
 
