@@ -27,6 +27,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Blocked } from "@/pages/settings/components/blocked-tooltip"
+import { FormErrors } from "@/pages/settings/components/form-errors"
+import {
+  hasDuplicateLabels,
+  OptionsEditor,
+  type OptionDraft,
+} from "@/pages/settings/components/custom-fields/options-editor"
 
 const FIELD_TYPE_OPTIONS = [
   { value: "text", label: "Text", description: "Short or long-form text input" },
@@ -72,7 +79,13 @@ function fieldToFormData(field?: IncidentFieldDefinitionSettings | null) {
     description: field?.description ?? "",
     field_type: field?.fieldType ?? "text",
     option_source: field?.optionSource ?? "none",
-    options_text: field?.options?.join("\n") ?? "",
+    options: (field?.options ?? []).map<OptionDraft>((option) => ({
+      key: option.id,
+      id: option.id,
+      label: option.label,
+      disabled: !option.enabled,
+      deletionBlockedReason: option.deletionBlockedReason,
+    })),
     catalog_type_id: field?.catalogTypeId ?? "",
   }
 }
@@ -86,6 +99,8 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
   const fieldType = form.data.field_type
   const optionSource = normalizeOptionSource(fieldType, form.data.option_source)
   const showFixedOptions = optionSource === "fixed"
+  const shapeLockReason = field?.shapeChangeBlockedReason
+  const duplicateLabels = hasDuplicateLabels(form.data.options)
   const showCatalogType = optionSource === "catalog"
 
   const prevNormalized = useRef(optionSource)
@@ -105,9 +120,9 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
       field_type: form.data.field_type,
       option_source: optionSource,
       options: showFixedOptions
-        ? form.data.options_text.split("\n").flatMap((option) => {
-            const trimmed = option.trim()
-            return trimmed ? [trimmed] : []
+        ? form.data.options.flatMap((option) => {
+            const label = option.label.trim()
+            return label ? [ { id: option.id, label, disabled: option.disabled } ] : []
           })
         : [],
       catalog_type_id: showCatalogType ? form.data.catalog_type_id : null,
@@ -128,7 +143,7 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit custom field" : "Add custom field"}</DialogTitle>
           <DialogDescription>
@@ -138,6 +153,8 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
 
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-2">
+              <FormErrors errors={form.errors} />
+
               <div className="space-y-2">
                 <Label htmlFor="field-name">Name</Label>
                 <Input
@@ -162,50 +179,56 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
 
               <div className="space-y-2">
                 <Label>Field type</Label>
-                <Select value={form.data.field_type} onValueChange={(value) => form.setData("field_type", value)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FIELD_TYPE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {allowedOptionSources(fieldType).length > 1 && (
-                <div className="space-y-2">
-                  <Label>Option source</Label>
-                  <Select value={optionSource} onValueChange={(value) => form.setData("option_source", value)}>
+                <Blocked reason={shapeLockReason} side="top">
+                  <Select
+                    value={form.data.field_type}
+                    disabled={Boolean(shapeLockReason)}
+                    onValueChange={(value) => form.setData("field_type", value)}
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {OPTION_SOURCE_OPTIONS.filter((option) => allowedOptionSources(fieldType).includes(option.value)).map((option) => (
+                      {FIELD_TYPE_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </Blocked>
+              </div>
+
+              {allowedOptionSources(fieldType).length > 1 && (
+                <div className="space-y-2">
+                  <Label>Option source</Label>
+                  <Blocked reason={shapeLockReason} side="top">
+                    <Select
+                      value={optionSource}
+                      disabled={Boolean(shapeLockReason)}
+                      onValueChange={(value) => form.setData("option_source", value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OPTION_SOURCE_OPTIONS.filter((option) => allowedOptionSources(fieldType).includes(option.value)).map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Blocked>
                 </div>
               )}
 
               {showFixedOptions && (
-                <div className="space-y-2">
-                  <Label htmlFor="field-options">Options</Label>
-                  <Textarea
-                    id="field-options"
-                    rows={4}
-                    value={form.data.options_text}
-                    onChange={(event) => form.setData("options_text", event.target.value)}
-                    placeholder={"Payments\nCheckout\nAPI"}
-                  />
-                  <p className="text-xs text-muted-foreground">One option per line.</p>
-                </div>
+                <OptionsEditor
+                  options={form.data.options}
+                  onChange={(options) => form.setData("options", options)}
+                  error={form.errors.base}
+                />
               )}
 
               {showCatalogType && (
@@ -231,7 +254,7 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
               <DialogClose asChild>
                 <Button variant="outline" type="button">Cancel</Button>
               </DialogClose>
-              <Button type="submit" disabled={form.processing}>
+              <Button type="submit" disabled={form.processing || (showFixedOptions && duplicateLabels)}>
                 {isEdit ? "Save changes" : "Create field"}
               </Button>
             </DialogFooter>

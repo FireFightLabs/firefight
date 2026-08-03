@@ -6,8 +6,7 @@ affected_services_ws1:
   description: Services impacted by the incident
   field_type: catalog_multi_reference
   option_source: catalog
-  config:
-    catalog_type_id: aa000001-0000-0000-0000-000000000002
+  catalog_type_id: aa000001-0000-0000-0000-000000000002
   position: 1
 
 customer_tier_ws1:
@@ -18,9 +17,4 @@ customer_tier_ws1:
   description: Highest impacted customer tier
   field_type: single_select
   option_source: fixed
-  config:
-    options:
-      - Enterprise
-      - Pro
-      - Free
   position: 2

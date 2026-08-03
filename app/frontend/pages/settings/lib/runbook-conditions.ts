@@ -62,5 +62,5 @@ export function valueOptions(field: RunbookCustomField): { id: string; name: str
   if (field.entries.length > 0) {
     return field.entries.map((entry) => ({ id: entry.id, name: entry.name }))
   }
-  return field.options.map((option) => ({ id: option, name: option }))
+  return field.options.map((option) => ({ id: option.id, name: option.name }))
 }

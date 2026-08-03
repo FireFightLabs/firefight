@@ -27,26 +27,19 @@ module Slack
         end
       end
 
-      def self.build_custom(workspace, form_field, incident: nil)
+      def self.build_custom(_workspace, form_field, incident: nil)
         defn = form_field.incident_field_definition
         return nil unless defn
 
         optional = form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
         current_value = incident&.custom_fields&.dig(defn.key)
 
-        case defn.field_type
-        when IncidentFieldDefinition::TYPE_TEXT, IncidentFieldDefinition::TYPE_LINK
-          text_custom_block(defn, optional: optional, initial_value: current_value)
-        when IncidentFieldDefinition::TYPE_NUMBER
+        if defn.selectable?
+          select_custom_block(defn, optional: optional, current_value: current_value)
+        elsif defn.field_type == IncidentFieldDefinition::TYPE_NUMBER
           number_custom_block(defn, optional: optional, initial_value: current_value)
-        when IncidentFieldDefinition::TYPE_SINGLE_SELECT
-          single_select_custom_block(workspace, defn, optional: optional, initial_value: current_value)
-        when IncidentFieldDefinition::TYPE_MULTI_SELECT
-          multi_select_custom_block(workspace, defn, optional: optional, initial_values: current_value)
-        when IncidentFieldDefinition::TYPE_CATALOG_REFERENCE
-          catalog_reference_block(workspace, defn, optional: optional, initial_value: current_value)
-        when IncidentFieldDefinition::TYPE_CATALOG_MULTI_REFERENCE
-          catalog_multi_reference_block(workspace, defn, optional: optional, initial_values: current_value)
+        else
+          text_custom_block(defn, optional: optional, initial_value: current_value)
         end
       end
 
@@ -283,94 +276,35 @@ module Slack
         wrap_input(defn, element, optional: optional)
       end
 
-      def self.single_select_custom_block(workspace, defn, optional:, initial_value: nil)
-        options = custom_field_options(workspace, defn)
+      # One builder for every field that picks from a set. A fixed list and a
+      # catalog type differ only in where selectable_values reads from, and
+      # single versus multi only in which Block Kit keys carry the selection.
+      def self.select_custom_block(defn, optional:, current_value:)
+        options = custom_field_options(defn)
         return nil if options.empty?
 
         element = {
-          type: "static_select",
+          type: defn.multi_valued? ? "multi_static_select" : "static_select",
           action_id: "field_#{defn.key}_input",
           placeholder: { type: "plain_text", text: "Select #{defn.name.downcase}" },
           options: options
         }
-        initial_opt = initial_value && options.find { |o| o[:value] == initial_value }
-        element[:initial_option] = initial_opt if initial_opt
 
-        wrap_input(defn, element, optional: optional)
-      end
-
-      def self.multi_select_custom_block(workspace, defn, optional:, initial_values: nil)
-        options = custom_field_options(workspace, defn)
-        return nil if options.empty?
-
-        element = {
-          type: "multi_static_select",
-          action_id: "field_#{defn.key}_input",
-          placeholder: { type: "plain_text", text: "Select #{defn.name.downcase}" },
-          options: options
-        }
-        if initial_values.is_a?(Array) && initial_values.any?
-          initial_opts = options.select { |o| initial_values.include?(o[:value]) }
-          element[:initial_options] = initial_opts if initial_opts.any?
-        end
-
-        wrap_input(defn, element, optional: optional)
-      end
-
-      def self.catalog_reference_block(workspace, defn, optional:, initial_value: nil)
-        options = catalog_options(workspace, defn)
-        return nil if options.empty?
-
-        element = {
-          type: "static_select",
-          action_id: "field_#{defn.key}_input",
-          placeholder: { type: "plain_text", text: "Select #{defn.name.downcase}" },
-          options: options
-        }
-        initial_opt = initial_value && options.find { |o| o[:value] == initial_value }
-        element[:initial_option] = initial_opt if initial_opt
-
-        wrap_input(defn, element, optional: optional)
-      end
-
-      def self.catalog_multi_reference_block(workspace, defn, optional:, initial_values: nil)
-        options = catalog_options(workspace, defn)
-        return nil if options.empty?
-
-        element = {
-          type: "multi_static_select",
-          action_id: "field_#{defn.key}_input",
-          placeholder: { type: "plain_text", text: "Select #{defn.name.downcase}" },
-          options: options
-        }
-        if initial_values.is_a?(Array) && initial_values.any?
-          initial_opts = options.select { |o| initial_values.include?(o[:value]) }
-          element[:initial_options] = initial_opts if initial_opts.any?
-        end
-
-        wrap_input(defn, element, optional: optional)
-      end
-
-      def self.custom_field_options(workspace, defn)
-        if defn.fixed_options?
-          defn.options.map { |opt| { text: { type: "plain_text", text: opt }, value: opt } }
-        elsif defn.catalog_options?
-          catalog_options(workspace, defn)
+        if defn.multi_valued?
+          selected = options.select { |option| Array(current_value).include?(option[:value]) }
+          element[:initial_options] = selected if selected.any?
         else
-          []
+          selected = options.find { |option| option[:value] == current_value }
+          element[:initial_option] = selected if selected
         end
+
+        wrap_input(defn, element, optional: optional)
       end
 
-      def self.catalog_options(workspace, defn)
-        catalog_entries_for(workspace, defn).map do |entry|
-          { text: { type: "plain_text", text: entry.name.truncate(75) }, value: entry.id }
+      def self.custom_field_options(defn)
+        defn.selectable_values.map do |id, label|
+          { text: { type: "plain_text", text: label.truncate(75) }, value: id }
         end
-      end
-
-      def self.catalog_entries_for(workspace, defn)
-        return [] if defn.catalog_type_id.blank?
-
-        workspace.catalog_entries.active.where(catalog_type_id: defn.catalog_type_id).order(:name)
       end
 
       def self.wrap_input(defn, element, optional:)

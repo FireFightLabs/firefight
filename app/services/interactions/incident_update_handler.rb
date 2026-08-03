@@ -53,7 +53,9 @@ module Interactions
       end
 
       attrs = { incident_status: new_status, incident_severity: new_severity, incident_type: new_type }
-      attrs[:custom_fields] = incident.custom_fields.merge(submission.custom_fields) if submission.custom_fields.present?
+      # Only the submitted fields. Values are rows now, so writing a subset
+      # leaves the rest untouched without reading them back first.
+      attrs[:custom_fields] = submission.custom_fields if submission.custom_fields.present?
       attrs
     end
     private_class_method :build_update_attrs

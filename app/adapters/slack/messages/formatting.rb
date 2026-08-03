@@ -3,8 +3,7 @@ module Slack
     # Shared formatting helpers for incident messages: text truncation,
     # duration formatting, before/after diff strings, severity emojis, and
     # custom-field value rendering. Pure functions, no I/O beyond the
-    # catalog-entry lookups in `format_catalog_value` /
-    # `custom_fields_summary`.
+    # definition lookup in `custom_fields_summary`.
     module Formatting
       def self.truncate_block_text(text, limit: 2800)
         return "" if text.nil?
@@ -75,54 +74,20 @@ module Slack
       end
 
       def self.custom_fields_summary(incident)
-        fields = incident.custom_fields
+        fields = incident.custom_fields_for_display
         return nil if fields.blank?
 
-        workspace = incident.workspace
-        definitions = workspace.incident_field_definitions.active.index_by(&:key)
+        definitions = incident.workspace.incident_field_definitions.active.index_by(&:key)
 
         lines = fields.filter_map do |key, value|
           next if value.blank?
 
-          defn = definitions[key]
-          label = defn&.name || key.humanize
-          formatted = format_custom_field_value(defn, value, workspace)
+          label = definitions[key]&.name || key.humanize
+          formatted = value.is_a?(Array) ? value.join(", ") : value.to_s
           ":label: *#{label}:* #{formatted}"
         end
 
         lines.any? ? lines.join("\n") : nil
-      end
-
-      def self.format_custom_field_value(defn, value, workspace)
-        return value.to_s unless defn
-
-        if defn.catalog_options?
-          return format_catalog_value(defn, value, workspace)
-        end
-
-        case defn.field_type
-        when IncidentFieldDefinition::TYPE_MULTI_SELECT
-          value.is_a?(Array) ? value.join(", ") : value.to_s
-        else
-          value.to_s
-        end
-      end
-
-      def self.format_catalog_value(defn, value, workspace)
-        if value.is_a?(Array)
-          names = value.filter_map { |id| resolve_catalog_entry_name(id, defn, workspace) }
-          names.any? ? names.join(", ") : value.join(", ")
-        else
-          resolve_catalog_entry_name(value, defn, workspace) || value.to_s
-        end
-      end
-
-      def self.resolve_catalog_entry_name(entry_id, defn, workspace)
-        return nil if entry_id.blank? || defn.catalog_type_id.blank?
-
-        workspace.catalog_entries.active
-          .where(catalog_type_id: defn.catalog_type_id, id: entry_id)
-          .pick(:name)
       end
 
       def self.severity_emoji(_severity)

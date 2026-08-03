@@ -8,16 +8,6 @@ module Slack
   #
   # Returns nil if the block/action isn't present in the submission.
   module BlockValueExtractor
-    SINGLE_SELECT_TYPES = [
-      IncidentFieldDefinition::TYPE_SINGLE_SELECT,
-      IncidentFieldDefinition::TYPE_CATALOG_REFERENCE
-    ].freeze
-
-    MULTI_SELECT_TYPES = [
-      IncidentFieldDefinition::TYPE_MULTI_SELECT,
-      IncidentFieldDefinition::TYPE_CATALOG_MULTI_REFERENCE
-    ].freeze
-
     def self.extract(values, block_id:, action_id:, field_type:)
       block_values = values.dig(block_id, action_id)
       return nil unless block_values
@@ -27,13 +17,12 @@ module Slack
       # rendered as Block Kit `users_select` elements.
       return block_values["selected_user"] if block_values.key?("selected_user")
 
-      case field_type
-      when *SINGLE_SELECT_TYPES
-        block_values.dig("selected_option", "value")
-      when *MULTI_SELECT_TYPES
-        block_values["selected_options"]&.map { |o| o["value"] }
+      return block_values["value"] unless IncidentFieldDefinition.selectable?(field_type)
+
+      if IncidentFieldDefinition.multi_valued?(field_type)
+        block_values["selected_options"]&.map { |option| option["value"] }
       else
-        block_values["value"]
+        block_values.dig("selected_option", "value")
       end
     end
   end

@@ -4,7 +4,7 @@ class IncidentFieldDefinitionsController < InertiaController
   before_action :set_field_definition, only: [ :update, :disable, :enable, :destroy ]
 
   def create
-    field_definition = field_definition_service.create(**field_definition_params)
+    field_definition = field_definition_service.create(field_definition_params)
     redirect_to settings_custom_fields_path, notice: "#{field_definition.name} was created."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_custom_fields_path,
@@ -12,7 +12,7 @@ class IncidentFieldDefinitionsController < InertiaController
   end
 
   def update
-    field_definition_service.update(@field_definition, field_definition_update_params)
+    field_definition_service.update(@field_definition, field_definition_params)
     redirect_to settings_custom_fields_path, notice: "#{@field_definition.reload.name} was updated."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_custom_fields_path,
@@ -54,24 +54,21 @@ class IncidentFieldDefinitionsController < InertiaController
       description: params[:description],
       field_type: params.require(:field_type),
       option_source: params.require(:option_source),
-      config: parsed_field_config
+      catalog_type_id: params[:catalog_type_id].presence,
+      options: option_params
     }
   end
 
-  def field_definition_update_params
-    {
-      name: params.require(:name),
-      description: params[:description],
-      field_type: params.require(:field_type),
-      option_source: params.require(:option_source),
-      config: parsed_field_config
-    }
-  end
+  def option_params
+    Array(params[:options]).filter_map do |option|
+      # A form-encoded empty list arrives as "", not an empty array.
+      next unless option.respond_to?(:permit)
 
-  def parsed_field_config
-    config = {}
-    config["options"] = Array(params[:options]).map(&:presence).compact if params[:options].present?
-    config["catalog_type_id"] = params[:catalog_type_id] if params[:catalog_type_id].present?
-    config
+      permitted = option.permit(:id, :label, :disabled)
+      label = permitted[:label].to_s.strip
+      next if label.blank?
+
+      { id: permitted[:id].presence, label: label, disabled: permitted[:disabled] }
+    end
   end
 end

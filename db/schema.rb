@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_29_093000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_03_100100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -420,13 +420,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_093000) do
     t.text "description"
     t.string "field_type", null: false
     t.string "option_source", null: false
-    t.jsonb "config", default: {}, null: false
     t.integer "position", null: false
     t.datetime "deleted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "catalog_type_id"
+    t.index ["catalog_type_id"], name: "index_incident_field_definitions_on_catalog_type_id"
     t.index ["workspace_id", "key"], name: "index_incident_field_definitions_on_workspace_and_key_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id"], name: "index_incident_field_definitions_on_workspace_id"
+  end
+
+  create_table "incident_field_options", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "incident_field_definition_id", null: false
+    t.string "label", null: false
+    t.integer "position", null: false
+    t.datetime "disabled_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["incident_field_definition_id", "label"], name: "index_incident_field_options_on_definition_and_label_active", unique: true, where: "(disabled_at IS NULL)"
+    t.index ["incident_field_definition_id", "position"], name: "index_incident_field_options_on_definition_and_position"
+  end
+
+  create_table "incident_field_values", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "incident_id", null: false
+    t.uuid "incident_field_definition_id", null: false
+    t.uuid "incident_field_option_id"
+    t.uuid "catalog_entry_id"
+    t.text "value_text"
+    t.decimal "value_number"
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["catalog_entry_id"], name: "index_incident_field_values_on_catalog_entry_id"
+    t.index ["incident_field_definition_id"], name: "index_incident_field_values_on_incident_field_definition_id"
+    t.index ["incident_field_option_id"], name: "index_incident_field_values_on_incident_field_option_id"
+    t.index ["incident_id", "incident_field_definition_id", "catalog_entry_id"], name: "index_incident_field_values_unique_catalog_entry", unique: true, where: "(catalog_entry_id IS NOT NULL)"
+    t.index ["incident_id", "incident_field_definition_id", "incident_field_option_id"], name: "index_incident_field_values_unique_option", unique: true, where: "(incident_field_option_id IS NOT NULL)"
+    t.index ["incident_id", "incident_field_definition_id"], name: "index_incident_field_values_on_incident_and_definition"
+    t.index ["incident_id", "incident_field_definition_id"], name: "index_incident_field_values_unique_scalar", unique: true, where: "((incident_field_option_id IS NULL) AND (catalog_entry_id IS NULL))"
+    t.check_constraint "((incident_field_option_id IS NOT NULL)::integer + (catalog_entry_id IS NOT NULL)::integer + (value_text IS NOT NULL)::integer + (value_number IS NOT NULL)::integer) = 1", name: "incident_field_values_exactly_one_value"
   end
 
   create_table "incident_form_fields", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -688,7 +720,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_093000) do
     t.string "initial_message_ts"
     t.string "announcement_message_ts"
     t.jsonb "platform_data", default: {}
-    t.jsonb "custom_fields", default: {}
     t.datetime "declared_at", null: false
     t.datetime "resolved_at"
     t.datetime "created_at", null: false
@@ -1254,7 +1285,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_093000) do
   add_foreign_key "incident_conditions", "incident_field_definitions"
   add_foreign_key "incident_conditions", "workspaces"
   add_foreign_key "incident_events", "incidents"
+  add_foreign_key "incident_field_definitions", "catalog_types"
   add_foreign_key "incident_field_definitions", "workspaces"
+  add_foreign_key "incident_field_options", "incident_field_definitions"
+  add_foreign_key "incident_field_values", "catalog_entries", on_delete: :restrict
+  add_foreign_key "incident_field_values", "incident_field_definitions"
+  add_foreign_key "incident_field_values", "incident_field_options", on_delete: :restrict
+  add_foreign_key "incident_field_values", "incidents", on_delete: :cascade
   add_foreign_key "incident_form_fields", "incident_field_definitions"
   add_foreign_key "incident_form_fields", "incident_forms"
   add_foreign_key "incident_forms", "workspaces"

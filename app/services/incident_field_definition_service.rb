@@ -3,24 +3,47 @@ class IncidentFieldDefinitionService
     @workspace = workspace
   end
 
-  def create(name:, description:, field_type:, option_source:, config: {})
+  def create(attrs)
     ActiveRecord::Base.transaction do
-      @workspace.incident_field_definitions.create!(
-        key: IncidentFieldDefinition.generate_key(name),
-        name: name,
-        description: description,
-        field_type: field_type,
-        option_source: option_source,
-        config: config,
+      definition = @workspace.incident_field_definitions.new(
+        key: IncidentFieldDefinition.generate_key(attrs[:name]),
+        name: attrs[:name],
+        description: attrs[:description],
+        field_type: attrs[:field_type],
+        option_source: attrs[:option_source],
+        catalog_type_id: attrs[:catalog_type_id],
         position: next_position
       )
+
+      # Built rather than synced so the "at least one enabled option"
+      # validation sees them on the same save that creates the definition.
+      Array(attrs[:options]).each_with_index do |option, index|
+        definition.incident_field_options.build(
+          label: option[:label].to_s.strip,
+          position: index
+        )
+      end
+
+      definition.save!
+      definition
     end
   end
 
-  def update(field_definition, attrs)
+  def update(definition, attrs)
     ActiveRecord::Base.transaction do
-      field_definition.update!(attrs)
-      field_definition
+      # Saved after the options are synced, so the "at least one enabled
+      # option" rule sees the incoming list rather than the empty one a field
+      # switching to a fixed list still has.
+      definition.assign_attributes(
+        name: attrs[:name],
+        description: attrs[:description],
+        field_type: attrs[:field_type],
+        option_source: attrs[:option_source],
+        catalog_type_id: attrs[:catalog_type_id]
+      )
+      definition.sync_options!(attrs[:options]) if definition.fixed_options?
+      definition.save!
+      definition
     end
   end
 

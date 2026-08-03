@@ -144,81 +144,51 @@ class IncidentFormResolver
     end
   end
 
+  # Cardinality first, then what the entries have to be. A select and a catalog
+  # reference differ only in where the allowed set comes from, which the
+  # definition answers with selectable_values.
   def validate_custom_value!(defn, value, errors)
-    case defn.field_type
-    when IncidentFieldDefinition::TYPE_TEXT, IncidentFieldDefinition::TYPE_LINK
-      unless value.is_a?(String)
-        errors << "#{defn.name} must be a string"
-      end
-    when IncidentFieldDefinition::TYPE_NUMBER
+    return validate_scalar!(defn, value, errors) unless defn.selectable?
+
+    entries = if defn.multi_valued?
+      return errors << "#{defn.name} must be an array" unless value.is_a?(Array)
+
+      value
+    else
+      return errors << "#{defn.name} must be a string" unless value.is_a?(String)
+
+      [ value ]
+    end
+
+    allowed = selectable_values(defn)
+    invalid = entries.select(&:present?) - allowed.keys
+    return if invalid.empty?
+
+    errors << invalid_selection_message(defn, allowed)
+  end
+
+  # A fixed list is short enough to spell out. A catalog type can hold hundreds
+  # of entries, so naming them all would be worse than saying nothing.
+  def invalid_selection_message(defn, allowed)
+    if defn.storage_kind == IncidentFieldDefinition::STORAGE_CATALOG_ENTRY
+      "#{defn.name} references an invalid catalog entry"
+    else
+      "#{defn.name} must be one of: #{allowed.values.join(', ')}"
+    end
+  end
+
+  def validate_scalar!(defn, value, errors)
+    if defn.field_type == IncidentFieldDefinition::TYPE_NUMBER
       unless value.is_a?(Numeric) || (value.is_a?(String) && value.match?(/\A-?\d+(\.\d+)?\z/))
         errors << "#{defn.name} must be a number"
       end
-    when IncidentFieldDefinition::TYPE_SINGLE_SELECT
-      validate_single_option!(defn, value, errors)
-    when IncidentFieldDefinition::TYPE_MULTI_SELECT
-      validate_multi_options!(defn, value, errors)
-    when IncidentFieldDefinition::TYPE_CATALOG_REFERENCE
-      validate_catalog_ref!(defn, value, errors)
-    when IncidentFieldDefinition::TYPE_CATALOG_MULTI_REFERENCE
-      validate_catalog_multi_ref!(defn, value, errors)
-    end
-  end
-
-  def validate_single_option!(defn, value, errors)
-    return unless value.is_a?(String)
-
-    if defn.fixed_options?
-      unless defn.options.include?(value)
-        errors << "#{defn.name} must be one of: #{defn.options.join(', ')}"
-      end
-    elsif defn.catalog_options?
-      validate_catalog_entry!(defn, value, errors)
-    end
-  end
-
-  def validate_multi_options!(defn, value, errors)
-    unless value.is_a?(Array)
-      errors << "#{defn.name} must be an array"
-      return
-    end
-
-    if defn.fixed_options?
-      invalid = value - defn.options
-      if invalid.any?
-        errors << "#{defn.name} contains invalid options: #{invalid.join(', ')}"
-      end
-    elsif defn.catalog_options?
-      value.each { |v| validate_catalog_entry!(defn, v, errors) }
-    end
-  end
-
-  def validate_catalog_ref!(defn, value, errors)
-    unless value.is_a?(String)
+    elsif !value.is_a?(String)
       errors << "#{defn.name} must be a string"
-      return
     end
-
-    validate_catalog_entry!(defn, value, errors)
   end
 
-  def validate_catalog_multi_ref!(defn, value, errors)
-    unless value.is_a?(Array)
-      errors << "#{defn.name} must be an array"
-      return
-    end
-
-    value.each { |v| validate_catalog_entry!(defn, v, errors) }
-  end
-
-  def validate_catalog_entry!(defn, entry_id, errors)
-    return if entry_id.blank?
-
-    catalog_type_id = defn.catalog_type_id
-    return if catalog_type_id.blank?
-
-    unless @workspace.catalog_entries.active.where(catalog_type_id: catalog_type_id, id: entry_id).exists?
-      errors << "#{defn.name} references an invalid catalog entry"
-    end
+  def selectable_values(defn)
+    @selectable_values ||= {}
+    @selectable_values[defn.id] ||= defn.selectable_values
   end
 end

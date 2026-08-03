@@ -66,7 +66,7 @@ class SettingsController < InertiaController
   def custom_fields
     render inertia: "settings/custom-fields", props: {
       customFields: IncidentFieldDefinitionSettingsSerializer.many(
-        current_workspace.incident_field_definitions.ordered.with_usage_counts
+        IncidentFieldDefinition.for_settings(current_workspace.incident_field_definitions)
       ),
       catalogTypes: CatalogTypeOptionSerializer.many(
         current_workspace.catalog_types.active.ordered
@@ -78,7 +78,7 @@ class SettingsController < InertiaController
     render inertia: "settings/forms", props: {
       forms: IncidentFormSettingsSerializer.many(IncidentForm.all_for_workspace(current_workspace)),
       customFields: IncidentFieldDefinitionSettingsSerializer.many(
-        current_workspace.incident_field_definitions.active.ordered.with_usage_counts
+        IncidentFieldDefinition.for_settings(current_workspace.incident_field_definitions.active)
       ),
       incidentTypes: IncidentTypeSettingsSerializer.many(
         current_workspace.incident_types.active.ordered.with_usage_counts

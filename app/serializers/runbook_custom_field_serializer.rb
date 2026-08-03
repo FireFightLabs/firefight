@@ -8,9 +8,9 @@ class RunbookCustomFieldSerializer < BaseSerializer
     field_type: { type: :string }
   )
 
-  type "string[]"
+  type "{ id: string; name: string }[]"
   def options
-    field_definition.options
+    field_definition.incident_field_options.active.ordered.map { |option| { id: option.id, name: option.label } }
   end
 
   type :string, optional: true

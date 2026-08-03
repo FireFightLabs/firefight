@@ -15,10 +15,9 @@ class IncidentFieldDefinitionSettingsSerializer < BaseSerializer
     field_definition.description
   end
 
-  type "string[]"
-  def options
-    field_definition.options
-  end
+  # Named for the association rather than `options`: Oj::Serializer defines its
+  # own `options`, and a matching name reads that instead of the model.
+  has_many :incident_field_options, as: :options, serializer: IncidentFieldOptionSerializer
 
   type :string, optional: true
   def catalog_type_id
@@ -43,5 +42,10 @@ class IncidentFieldDefinitionSettingsSerializer < BaseSerializer
   type :string, optional: true
   def deletion_blocked_reason
     field_definition.deletion_blocked_reason
+  end
+
+  type :string, optional: true
+  def shape_change_blocked_reason
+    field_definition.shape_change_blocked_reason
   end
 end

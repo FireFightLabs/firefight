@@ -30,7 +30,9 @@ module Incident::Snapshots
       initial_message_ts: initial_message_ts,
       announcement_message_ts: announcement_message_ts,
       platform_data: platform_data,
-      custom_fields: custom_fields,
+      # Labels, not ids. The timeline is a historical record and has to keep
+      # rendering after an option is renamed, disabled, or deleted.
+      custom_fields: custom_fields_for_display,
       detected_at: detected_at,
       declared_at: declared_at,
       resolved_at: resolved_at,

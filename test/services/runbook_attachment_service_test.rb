@@ -72,7 +72,7 @@ class RunbookAttachmentServiceTest < ActiveSupport::TestCase
       name: "Primary Service",
       field_type: IncidentFieldDefinition::TYPE_CATALOG_REFERENCE,
       option_source: IncidentFieldDefinition::OPTION_SOURCE_CATALOG,
-      config: { "catalog_type_id" => service_type.id },
+      catalog_type_id: service_type.id,
       position: 10
     )
     @runbook.incident_conditions.create!(

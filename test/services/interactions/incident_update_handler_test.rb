@@ -5,7 +5,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
 
   fixtures :workspaces, :users, :workspace_memberships, :incidents,
            :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_types, :incident_roles,
-           :incident_forms, :incident_form_fields, :incident_field_definitions
+           :incident_forms, :incident_form_fields, :catalog_types, :incident_field_definitions, :incident_field_options
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -173,29 +173,42 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
 
   test "saves custom fields from form" do
     stub_all_side_effects
+    option = incident_field_options(:customer_tier_enterprise)
 
     Interactions::IncidentUpdateHandler.execute(
-      build_interaction(custom_fields: { "customer_tier" => "Enterprise" })
+      build_interaction(custom_fields: { "customer_tier" => option.id })
     )
 
     @incident.reload
-    assert_equal "Enterprise", @incident.custom_fields["customer_tier"]
+    assert_equal option.id, @incident.custom_fields["customer_tier"]
+    assert_equal "Enterprise", @incident.custom_fields_for_display["customer_tier"]
   end
 
-  test "merges custom fields with existing values" do
-    @incident.update!(custom_fields: { "existing_key" => "existing_value" })
+  test "leaves fields the form did not submit untouched" do
+    notes = notes_definition
+    @incident.update!(custom_fields: { notes.key => "existing_value" })
     stub_all_side_effects
 
     Interactions::IncidentUpdateHandler.execute(
-      build_interaction(custom_fields: { "customer_tier" => "Pro" })
+      build_interaction(custom_fields: { "customer_tier" => incident_field_options(:customer_tier_pro).id })
     )
 
     @incident.reload
-    assert_equal "existing_value", @incident.custom_fields["existing_key"]
-    assert_equal "Pro", @incident.custom_fields["customer_tier"]
+    assert_equal "existing_value", @incident.custom_fields[notes.key]
+    assert_equal "Pro", @incident.custom_fields_for_display["customer_tier"]
   end
 
   private
+
+  def notes_definition
+    @workspace.incident_field_definitions.create!(
+      key: "root_cause_notes",
+      name: "Root Cause Notes",
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE,
+      position: 99
+    )
+  end
 
   def build_interaction(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil, custom_fields: {})
     Interaction.new(

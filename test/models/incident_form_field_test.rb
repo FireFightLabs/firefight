@@ -1,7 +1,7 @@
 require "test_helper"
 
 class IncidentFormFieldTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_forms, :incident_form_fields, :incident_field_definitions
+  fixtures :workspaces, :incident_forms, :incident_form_fields, :catalog_types, :incident_field_definitions, :incident_field_options
 
   test "system fields require a valid system_field_key" do
     field = IncidentFormField.new(
