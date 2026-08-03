@@ -37,8 +37,8 @@ export function CellValue({
   }
 
   if (attr.attributeType === "reference") {
-    const refType = attr.referenceTypeId ? allTypes.find(t => t.id === attr.referenceTypeId) : null
-    const displayName = referenceEntries.find(e => e.id === String(value))?.name ?? String(value)
+    const refType = attr.referenceTypeId ? allTypes.find(type => type.id === attr.referenceTypeId) : null
+    const displayName = referenceEntries.find(entry => entry.id === String(value))?.name ?? String(value)
     return (
       <Badge
         variant="secondary"
@@ -71,7 +71,7 @@ export function CellValue({
   }
 
   if (attr.attributeType === "workspace_member") {
-    const member = workspaceMembers.find((m) => m.id === String(value))
+    const member = workspaceMembers.find((candidate) => candidate.id === String(value))
     if (!member) {
       return <span className="text-sm text-muted-foreground/40">-</span>
     }

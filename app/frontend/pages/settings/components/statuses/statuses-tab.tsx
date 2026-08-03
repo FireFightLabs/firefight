@@ -18,7 +18,7 @@ export function StatusesTab({ lifecycleStages }: { lifecycleStages: LifecycleSta
     setCreatingIn(null)
   }
 
-  function startCreating(target: LifecycleStageKey) {
+  function startCreating(target: LifecycleStageWithStatuses) {
     setCreatingIn(target)
     setDialog({ mode: "create" })
   }

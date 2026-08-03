@@ -180,8 +180,8 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
               variant="ghost"
               size="icon"
               className="size-7 text-primary"
-              onMouseDown={(e) => {
-                e.preventDefault()
+              onMouseDown={(event) => {
+                event.preventDefault()
                 const { from, to } = editor.state.selection
                 if (from === to) {
                   return

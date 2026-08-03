@@ -126,10 +126,10 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
     router.patch(incidentFormFieldPath(field.id), {
       visibility_mode: field.visibilityMode,
       required_mode: field.requiredMode,
-      conditions: conditions.map((c) => ({
-        condition_field: c.conditionField,
-        operator: c.operator,
-        values: c.values,
+      conditions: conditions.map((condition) => ({
+        condition_field: condition.conditionField,
+        operator: condition.operator,
+        values: condition.values,
       })),
     }, {
       preserveScroll: true,

@@ -12,8 +12,8 @@ export function IncidentActionsSidebar({
   canAddFollowup: boolean
   incidentId: string
 }) {
-  const actionItems = actions.filter((a) => a.actionType === "action")
-  const followups = actions.filter((a) => a.actionType === "followup")
+  const actionItems = actions.filter((item) => item.actionType === "action")
+  const followups = actions.filter((action) => action.actionType === "followup")
 
   return (
     <div className="flex flex-col gap-3">

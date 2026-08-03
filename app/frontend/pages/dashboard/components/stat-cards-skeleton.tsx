@@ -8,8 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 export function StatCardsSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <Card key={i} className="@container/card">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <Card key={index} className="@container/card">
           <CardHeader>
             <Skeleton className="h-4 w-28" />
             <Skeleton className="h-8 w-16 mt-1" />

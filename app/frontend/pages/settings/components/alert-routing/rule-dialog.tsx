@@ -47,8 +47,8 @@ export function RuleDialog({
   const form = useForm<RuleFormData>(ruleFormData(rule))
   const conditions = rowListOps<ConditionRow>(form.data.conditions, (rows) => form.setData("conditions", rows))
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
     form.transform((data) => rulePayload(data, alertSourceId))
     if (rule) {
       form.patch(policyRulePath(rule.id), { onSuccess: onClose })

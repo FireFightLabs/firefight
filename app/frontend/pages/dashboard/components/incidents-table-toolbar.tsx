@@ -26,11 +26,11 @@ export function IncidentsTableToolbar({
   severityOptions,
 }: IncidentsTableToolbarProps) {
   const severityFilterOptions = useMemo(
-    () => severityOptions.map((s) => ({ value: s.slug, label: s.name })),
+    () => severityOptions.map((option) => ({ value: option.slug, label: option.name })),
     [severityOptions],
   )
   const statusFilterOptions = useMemo(
-    () => STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
+    () => STATUS_OPTIONS.map((status) => ({ value: status, label: STATUS_LABELS[status] })),
     [],
   )
 
@@ -41,7 +41,7 @@ export function IncidentsTableToolbar({
         <Input
           placeholder="Search incidents..."
           value={searchInput}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(event) => onSearchChange(event.target.value)}
           className="pl-9 h-9 focus-visible:ring-1"
         />
       </div>

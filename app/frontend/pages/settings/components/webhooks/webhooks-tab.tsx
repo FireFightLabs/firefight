@@ -40,7 +40,7 @@ export function WebhooksTab({
   onWebhookSelect: (id: string | null) => void
 }) {
   const detailWebhook = activeWebhookId
-    ? webhooks.find((w) => w.id === activeWebhookId) ?? null
+    ? webhooks.find((webhook) => webhook.id === activeWebhookId) ?? null
     : null
   const [deleting, setDeleting] = useState<Webhook | null>(null)
 
@@ -109,7 +109,7 @@ export function WebhooksTab({
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
                       <RowActions onEdit={() => onWebhookSelect(webhook.id)} onDelete={() => setDeleting(webhook)} />
                     </TableCell>
                   </TableRow>

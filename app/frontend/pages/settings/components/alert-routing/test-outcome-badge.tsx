@@ -3,7 +3,7 @@ import type { TestResult } from "@/pages/settings/lib/alerts"
 import { Badge } from "@/components/ui/badge"
 
 export function TestOutcomeBadge({ rule, testResult }: { rule: PolicyRule; testResult: TestResult | null }) {
-  const entry = testResult?.trace.find((t) => t.rule_id === rule.id)
+  const entry = testResult?.trace.find((trace) => trace.rule_id === rule.id)
   if (!entry) {
     return null
   }

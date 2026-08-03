@@ -35,7 +35,7 @@ export function SearchableSelect({
   renderOption,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
-  const selected = options.find((o) => o.value === value)
+  const selected = options.find((candidate) => candidate.value === value)
 
   const defaultRender = (option: SearchableSelectOption) => (
     <div className="flex items-center gap-2">
@@ -51,8 +51,8 @@ export function SearchableSelect({
     }
   }
 
-  function selectOption(value: string) {
-    onValueChange(value)
+  function selectOption(optionValue: string) {
+    onValueChange(optionValue)
     setOpen(false)
   }
 
@@ -68,7 +68,7 @@ export function SearchableSelect({
           <IconChevronDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" onOpenAutoFocus={(event) => event.preventDefault()}>
         <Command className="py-3 outline-none">
           <div className="mx-2 my-1 rounded-md border border-input focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/20 transition-[color,box-shadow] [&_[data-slot=command-input-wrapper]]:border-0">
             <CommandInput placeholder={searchPlaceholder} className="!border-0 !outline-none !shadow-none !ring-0 focus:!border-0 focus:!outline-none focus:!shadow-none focus:!ring-0" />

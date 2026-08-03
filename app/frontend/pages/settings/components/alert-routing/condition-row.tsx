@@ -29,7 +29,7 @@ export function ConditionRowFields({
     <div className="flex items-center gap-2">
       <Input
         value={condition.field}
-        onChange={(e) => onChange({ field: e.target.value })}
+        onChange={(event) => onChange({ field: event.target.value })}
         placeholder="field, e.g. service"
         className="w-36"
       />
@@ -53,12 +53,12 @@ export function ConditionRowFields({
           options={catalog.map((option) => ({ value: option.slug, label: option.name }))}
           placeholder="Add from catalogue…"
           onAdd={(slug) => onChange({ value: [ ...values, slug ].join(", ") })}
-          onRemove={(slug) => onChange({ value: values.filter((v) => v !== slug).join(", ") })}
+          onRemove={(slug) => onChange({ value: values.filter((event) => event !== slug).join(", ") })}
         />
       ) : condition.operator !== "is_empty" && (
         <Input
           value={condition.value}
-          onChange={(e) => onChange({ value: e.target.value })}
+          onChange={(event) => onChange({ value: event.target.value })}
           placeholder={condition.operator === "is_one_of" ? "comma-separated values" : "value"}
           className="flex-1"
         />

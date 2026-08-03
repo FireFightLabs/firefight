@@ -54,7 +54,7 @@ export function AiRewriteDialog({ open, onOpenChange, onSubmit }: AiRewriteDialo
             autoFocus
             rows={4}
             value={instruction}
-            onChange={(e) => setInstruction(e.target.value)}
+            onChange={(event) => setInstruction(event.target.value)}
             placeholder="e.g. make this more concise, add a bulleted list of people involved, expand on the root cause..."
           />
           <DialogFooter>

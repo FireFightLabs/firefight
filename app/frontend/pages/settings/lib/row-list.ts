@@ -9,8 +9,8 @@ export interface RowListOps<T> {
 
 export function rowListOps<T>(rows: T[], onChange: (rows: T[]) => void): RowListOps<T> {
   return {
-    update: (index, patch) => onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row))),
-    remove: (index) => onChange(rows.filter((_, i) => i !== index)),
+    update: (index, patch) => onChange(rows.map((row, event) => (event === index ? { ...row, ...patch } : row))),
+    remove: (index) => onChange(rows.filter((_, event) => event !== index)),
     append: (row) => onChange([...rows, row]),
   }
 }

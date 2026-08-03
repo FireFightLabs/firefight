@@ -79,8 +79,8 @@ export function OptionDialog<T extends OptionRecord>({
 
   const fieldId = (field: string) => `option-${field}-${editing?.id ?? "new"}`
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
     setProcessing(true)
 
     const params = { ...draft, ...extraParams }
@@ -122,7 +122,7 @@ export function OptionDialog<T extends OptionRecord>({
                 id={fieldId("name")}
                 placeholder={namePlaceholder}
                 value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
               />
               {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
             </div>
@@ -134,7 +134,7 @@ export function OptionDialog<T extends OptionRecord>({
                 rows={2}
                 placeholder={descriptionPlaceholder}
                 value={draft.description}
-                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                onChange={(event) => setDraft({ ...draft, description: event.target.value })}
               />
             </div>
 

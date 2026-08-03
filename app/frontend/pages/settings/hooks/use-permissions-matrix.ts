@@ -12,7 +12,7 @@ export function permsToHash(perms: Record<string, Set<string>>): Record<string, 
 
 export function usePermissionsMatrix(initial: Record<string, string[]> = {}) {
   const [perms, setPerms] = useState<Record<string, Set<string>>>(() =>
-    Object.fromEntries(Object.entries(initial).map(([k, v]) => [k, new Set(v)]))
+    Object.fromEntries(Object.entries(initial).map(([resource, actions]) => [resource, new Set(actions)]))
   )
 
   const togglePerm = useCallback((resource: string, action: string) => {
@@ -30,8 +30,8 @@ export function usePermissionsMatrix(initial: Record<string, string[]> = {}) {
     })
   }, [])
 
-  const replace = useCallback((h: Record<string, string[]>) => {
-    setPerms(Object.fromEntries(Object.entries(h).map(([k, v]) => [k, new Set(v)])))
+  const replace = useCallback((next: Record<string, string[]>) => {
+    setPerms(Object.fromEntries(Object.entries(next).map(([resource, actions]) => [resource, new Set(actions)])))
   }, [])
 
   const reset = useCallback(() => setPerms({}), [])

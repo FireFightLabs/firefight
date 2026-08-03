@@ -56,8 +56,8 @@ export function NavMain({ sections }: { sections: NavSection[] }) {
 
   return (
     <>
-      {sections.map((section, i) => (
-        <SidebarGroup key={section.label ?? i} className={i > 0 ? "mt-2" : ""}>
+      {sections.map((section, index) => (
+        <SidebarGroup key={section.label ?? index} className={index > 0 ? "mt-2" : ""}>
           {section.label && (
             <SidebarGroupLabel className="uppercase tracking-wider text-[10px]">
               {section.label}

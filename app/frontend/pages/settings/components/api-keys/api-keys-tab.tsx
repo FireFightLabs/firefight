@@ -36,11 +36,11 @@ import type { ConnectedAgent } from "@/pages/settings/api-keys"
 import { whenClosed } from "@/lib/handlers"
 
 
-function formatRelative(d: string | null | undefined, now: number) {
-  if (!d) {
+function formatRelative(iso: string | null | undefined, now: number) {
+  if (!iso) {
     return "Never"
   }
-  const diff = now - new Date(d).getTime()
+  const diff = now - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
   if (mins < 60) {
     return `${mins}m ago`
@@ -50,7 +50,7 @@ function formatRelative(d: string | null | undefined, now: number) {
     return `${hours}h ago`
   }
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return `${days}iso ago`
 }
 
 interface ApiKeysTabProps {

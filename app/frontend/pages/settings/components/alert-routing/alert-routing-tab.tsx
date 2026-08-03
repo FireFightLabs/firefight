@@ -51,9 +51,9 @@ function conditionsSummary(rule: PolicyRule): string {
   }
 
   return rule.conditions
-    .map((c) => {
-      const value = Array.isArray(c.value) ? c.value.join(", ") : c.value
-      return value ? `${c.field} ${c.operator.replace(/_/g, " ")} ${value}` : `${c.field} ${c.operator.replace(/_/g, " ")}`
+    .map((condition) => {
+      const value = Array.isArray(condition.value) ? condition.value.join(", ") : condition.value
+      return value ? `${condition.field} ${condition.operator.replace(/_/g, " ")} ${value}` : `${condition.field} ${condition.operator.replace(/_/g, " ")}`
     })
     .join(" AND ")
 }
@@ -106,7 +106,7 @@ export function AlertRoutingTab({
     if (!testResult || testedRuleId !== rule.id) {
       return null
     }
-    const winnerIndex = testResult.trace.findIndex((t) => t.matched)
+    const winnerIndex = testResult.trace.findIndex((trace) => trace.matched)
     if (winnerIndex === -1 || testResult.trace[winnerIndex]?.rule_id === rule.id) {
       return null
     }

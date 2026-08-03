@@ -23,7 +23,7 @@ interface FilterDropdownProps {
 
 export function FilterDropdown({ label, options, selected, onToggle }: FilterDropdownProps) {
   const selectedLabel = selected.size === 1
-    ? options.find((o) => selected.has(o.value))?.label
+    ? options.find((option) => selected.has(option.value))?.label
     : null
 
   return (
@@ -45,7 +45,7 @@ export function FilterDropdown({ label, options, selected, onToggle }: FilterDro
             key={option.value}
             checked={selected.has(option.value)}
             onCheckedChange={() => onToggle(option.value)}
-            onSelect={(e) => e.preventDefault()}
+            onSelect={(event) => event.preventDefault()}
           >
             {option.label}
           </DropdownMenuCheckboxItem>

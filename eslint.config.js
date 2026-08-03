@@ -14,6 +14,7 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "warn",
       curly: ["error", "all"],
+      "id-length": ["error", { min: 2, exceptions: ["_"], properties: "never" }],
     },
   },
   {

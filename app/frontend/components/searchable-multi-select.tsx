@@ -41,14 +41,14 @@ export function SearchableMultiSelect({
 
   const toggle = (id: string) => {
     if (value.includes(id)) {
-      onValueChange(value.filter((v) => v !== id))
+      onValueChange(value.filter((selected) => selected !== id))
     } else {
       onValueChange([ ...value, id ])
     }
   }
 
   const remove = (id: string) => {
-    onValueChange(value.filter((v) => v !== id))
+    onValueChange(value.filter((selected) => selected !== id))
   }
 
   const defaultRender = (option: SearchableMultiSelectOption) => (
@@ -70,7 +70,7 @@ export function SearchableMultiSelect({
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((id) => {
-            const option = options.find((o) => o.value === id)
+            const option = options.find((candidate) => candidate.value === id)
             return (
               <Badge key={id} variant="secondary" className="gap-1 pr-1">
                 {renderBadge && option ? renderBadge(option) : (

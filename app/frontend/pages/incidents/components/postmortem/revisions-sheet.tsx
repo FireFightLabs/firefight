@@ -60,7 +60,7 @@ export function RevisionsSheet({
     return () => controller.abort()
   }, [open, incidentId])
 
-  const selectedRevision = selectedId ? revisions.find((r) => r.id === selectedId) : null
+  const selectedRevision = selectedId ? revisions.find((revision) => revision.id === selectedId) : null
   const selectedIndex = selectedRevision ? revisions.indexOf(selectedRevision) : -1
 
   const diffHtml = useMemo(() => {
@@ -89,8 +89,8 @@ export function RevisionsSheet({
         <div className="flex flex-col gap-4 px-6 pb-6">
           {loading && (
             <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+              {Array.from({ length: 4 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full" />
               ))}
             </div>
           )}

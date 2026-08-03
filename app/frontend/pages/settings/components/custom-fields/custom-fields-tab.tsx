@@ -45,7 +45,7 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
     setDialogOpen(true)
   }
 
-  function startEditing(field: IncidentFieldDefinition) {
+  function startEditing(field: IncidentFieldDefinitionSettings) {
     setEditingField(field)
     setDialogOpen(true)
   }

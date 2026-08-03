@@ -141,7 +141,7 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
             {Object.entries(incident.customFields).map(([key, value]) => (
               <div key={key} className="flex items-baseline gap-3 text-sm min-w-0">
                 <span className="text-xs text-muted-foreground shrink-0">
-                  {key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                  {key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}
                 </span>
                 <span className="text-foreground truncate">
                   {Array.isArray(value) ? value.join(", ") : String(value ?? "")}

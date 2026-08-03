@@ -96,8 +96,8 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
     }
   }
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
 
     const data = {
       name: form.data.name,

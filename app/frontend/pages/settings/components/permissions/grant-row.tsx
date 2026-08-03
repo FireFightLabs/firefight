@@ -23,7 +23,7 @@ export function GrantRow({
 }) {
   const [open, setOpen] = useState(false)
   const scoped = environments.filter((environment) => grant.environmentIds.includes(environment.id))
-  const label = scoped.length === 0 ? "All environments" : scoped.map((e) => e.name).join(", ")
+  const label = scoped.length === 0 ? "All environments" : scoped.map((environment) => environment.name).join(", ")
 
   function retarget(environmentId: string) {
     const next = grant.environmentIds.includes(environmentId)

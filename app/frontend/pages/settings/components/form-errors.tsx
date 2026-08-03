@@ -21,8 +21,8 @@ export function FormErrors({
   return (
     <Alert variant="destructive" className={className}>
       <AlertDescription>
-        {messages.map((message, i) => (
-          <p key={i}>{message}</p>
+        {messages.map((message, index) => (
+          <p key={index}>{message}</p>
         ))}
       </AlertDescription>
     </Alert>

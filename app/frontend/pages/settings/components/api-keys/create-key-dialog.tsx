@@ -26,8 +26,8 @@ export function CreateKeyDialog({ canManageServiceKeys }: { canManageServiceKeys
   const { perms, togglePerm, reset: resetPerms } = usePermissionsMatrix()
   const form = useForm({ name: "", expires_at: "", permissions: {} as Record<string, string[]> })
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
     form.transform(() => ({
       kind,
       name: form.data.name,
@@ -104,7 +104,7 @@ export function CreateKeyDialog({ canManageServiceKeys }: { canManageServiceKeys
                 id="key-name"
                 placeholder="e.g. Production Integration"
                 value={form.data.name}
-                onChange={(e) => form.setData("name", e.target.value)}
+                onChange={(event) => form.setData("name", event.target.value)}
               />
               {form.errors.name && (
                 <p className="text-xs text-destructive">{form.errors.name}</p>
@@ -116,7 +116,7 @@ export function CreateKeyDialog({ canManageServiceKeys }: { canManageServiceKeys
                 id="key-expires"
                 type="date"
                 value={form.data.expires_at}
-                onChange={(e) => form.setData("expires_at", e.target.value)}
+                onChange={(event) => form.setData("expires_at", event.target.value)}
               />
               <p className="text-xs text-muted-foreground">
                 Leave empty for a non-expiring key.

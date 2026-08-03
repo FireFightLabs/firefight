@@ -44,8 +44,8 @@ export function AttributeValue({
   }
 
   if (attr.attributeType === "reference") {
-    const refType = attr.referenceTypeId ? allTypes.find(t => t.id === attr.referenceTypeId) : null
-    const displayName = referenceEntries.find(e => e.id === String(value))?.name ?? String(value)
+    const refType = attr.referenceTypeId ? allTypes.find(type => type.id === attr.referenceTypeId) : null
+    const displayName = referenceEntries.find(entry => entry.id === String(value))?.name ?? String(value)
     return (
       <Badge
         variant="secondary"
@@ -64,8 +64,8 @@ export function AttributeValue({
   if (attr.attributeType === "list" && Array.isArray(value)) {
     return (
       <div className="flex flex-wrap gap-1.5">
-        {value.map((item, i) => (
-          <Badge key={i} variant="secondary" className="text-xs">
+        {value.map((item, index) => (
+          <Badge key={index} variant="secondary" className="text-xs">
             {String(item)}
           </Badge>
         ))}
@@ -83,7 +83,7 @@ export function AttributeValue({
   }
 
   if (attr.attributeType === "workspace_member") {
-    const member = workspaceMembers.find((m) => m.id === String(value))
+    const member = workspaceMembers.find((candidate) => candidate.id === String(value))
     if (!member) {
       return <span className="text-sm text-muted-foreground/40 italic">Not set</span>
     }
@@ -102,7 +102,7 @@ export function AttributeValue({
   if (attr.attributeType === "workspace_members" && Array.isArray(value)) {
     const resolvedMembers = (value as string[])
       .flatMap((id) => {
-        const member = workspaceMembers.find((m) => m.id === id)
+        const member = workspaceMembers.find((candidate) => candidate.id === id)
         return member ? [member] : []
       })
     return (

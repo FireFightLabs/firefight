@@ -22,11 +22,11 @@ import { incidentActionsPath } from "@/lib/routes"
 
 function memberOptions(members: { id: string; name: string; avatarUrl?: string }[]): SearchableSelectOption[] {
   const unassigned: SearchableSelectOption = { value: "", label: "Unassigned" }
-  const options = members.map((m) => ({
-    value: m.id,
-    label: m.name,
-    icon: m.avatarUrl
-      ? <img src={m.avatarUrl} alt="" className="size-5 rounded-full" />
+  const options = members.map((member) => ({
+    value: member.id,
+    label: member.name,
+    icon: member.avatarUrl
+      ? <img src={member.avatarUrl} alt="" className="size-5 rounded-full" />
       : <div className="size-5 rounded-full bg-muted" />,
   }))
   return [unassigned, ...options]
@@ -51,8 +51,8 @@ export function AddActionDialog({
     assignee_id: "",
   })
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
     post(incidentActionsPath(incidentId), {
       onSuccess: () => {
         setOpen(false)
@@ -86,7 +86,7 @@ export function AddActionDialog({
         <DialogTrigger asChild>{trigger}</DialogTrigger>
       )}
 
-      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent onOpenAutoFocus={(event) => event.preventDefault()}>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add Action Item</DialogTitle>
@@ -101,7 +101,7 @@ export function AddActionDialog({
                 rows={3}
                 className="resize-none focus-visible:ring-1 focus-visible:ring-ring/20"
                 value={data.description}
-                onChange={(e) => setData("description", e.target.value)}
+                onChange={(event) => setData("description", event.target.value)}
                 required
               />
             </div>
@@ -109,7 +109,7 @@ export function AddActionDialog({
               <Label>Assignee <span className="text-muted-foreground font-normal">(optional)</span></Label>
               <SearchableSelect
                 value={data.assignee_id || null}
-                onValueChange={(v) => setData("assignee_id", v ?? "")}
+                onValueChange={(value) => setData("assignee_id", value ?? "")}
                 options={memberOptions(members)}
                 placeholder="Unassigned"
                 searchPlaceholder="Search members..."

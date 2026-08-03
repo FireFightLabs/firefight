@@ -22,7 +22,7 @@ export function RunbookStepsEditor({ steps, onChange }: {
   onChange: (steps: EditableStep[]) => void
 }) {
   function update(index: number, patch: Partial<EditableStep>) {
-    onChange(steps.map((s, i) => (i === index ? { ...s, ...patch } : s)))
+    onChange(steps.map((step, position) => (position === index ? { ...step, ...patch } : step)))
   }
 
   function add() {
@@ -30,7 +30,7 @@ export function RunbookStepsEditor({ steps, onChange }: {
   }
 
   function remove(index: number) {
-    onChange(steps.filter((_, i) => i !== index))
+    onChange(steps.filter((_, event) => event !== index))
   }
 
   function move(index: number, direction: -1 | 1) {
@@ -85,13 +85,13 @@ export function RunbookStepsEditor({ steps, onChange }: {
               <div className="flex-1 space-y-2">
                 <Input
                   value={step.title}
-                  onChange={(e) => update(index, { title: e.target.value })}
+                  onChange={(event) => update(index, { title: event.target.value })}
                   placeholder={`Step ${index + 1} title`}
                 />
                 <Textarea
                   rows={2}
                   value={step.instruction}
-                  onChange={(e) => update(index, { instruction: e.target.value })}
+                  onChange={(event) => update(index, { instruction: event.target.value })}
                   placeholder="Instruction (optional)"
                 />
               </div>

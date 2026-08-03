@@ -15,12 +15,12 @@ export function ColorPicker({
         id={id}
         type="color"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(event) => onChange(event.target.value)}
         className="h-9 w-12 cursor-pointer p-1"
       />
       <Input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(event) => onChange(event.target.value)}
         className="flex-1 font-mono text-sm"
         placeholder="#3B82F6"
         aria-label="Colour hex value"

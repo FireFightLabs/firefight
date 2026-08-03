@@ -69,7 +69,7 @@ export default function PostmortemPage() {
 
   const handleRestore = useCallback((html: string) => {
     editorContentRef.current = html
-    setEditorKey((k) => k + 1)
+    setEditorKey((key) => key + 1)
     setData("html_content", html)
     patch(incidentPostmortemPath(incident.id))
   }, [incident.id, setData, patch])
@@ -130,7 +130,7 @@ export default function PostmortemPage() {
   useEffect(() => {
     if (wasGeneratingRef.current && !isGenerating && postmortem?.htmlContent) {
       editorContentRef.current = postmortem.htmlContent
-      setEditorKey((k) => k + 1)
+      setEditorKey((key) => key + 1)
     }
     wasGeneratingRef.current = isGenerating
   }, [isGenerating, postmortem?.htmlContent])

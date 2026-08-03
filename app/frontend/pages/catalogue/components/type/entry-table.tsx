@@ -33,7 +33,7 @@ export function EntryTable({
   const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(null)
   const [editingEntry, setEditingEntry] = useState<CatalogEntry | null>(null)
 
-  const visibleAttributes = type.attributeDefinitions.filter((a) => a.key !== "description").slice(0, 4)
+  const visibleAttributes = type.attributeDefinitions.filter((definition) => definition.key !== "description").slice(0, 4)
 
   const filtered = useMemo(() => {
     if (!search) {
@@ -66,7 +66,7 @@ export function EntryTable({
           <Input
             placeholder={`Search ${type.name.toLowerCase()}s...`}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             className="pl-9 h-9"
           />
         </div>
