@@ -31,6 +31,9 @@ interface OptionRowProps {
   defaultSelectable?: boolean
   // Cells between the name and the Default column.
   children?: ReactNode
+  // Turns the name into a button. Opt-in, for lists whose rows carry content
+  // worth reading rather than only settings worth editing.
+  onSelect?: () => void
   onToggleEnabled: () => void
   onEdit: () => void
   onDelete: () => void
@@ -42,6 +45,7 @@ function OptionCells({
   showDefault,
   defaultSelectable = true,
   children,
+  onSelect,
   onToggleEnabled,
   onEdit,
   onDelete,
@@ -51,7 +55,17 @@ function OptionCells({
       <TableCell>
         <div className="flex items-center gap-2.5">
           {(option.color ?? fallbackColor) && <ColorDot color={option.color ?? fallbackColor!} />}
-          <span className="font-medium">{option.name}</span>
+          {onSelect ? (
+            <button
+              type="button"
+              className="font-medium text-left hover:underline"
+              onClick={onSelect}
+            >
+              {option.name}
+            </button>
+          ) : (
+            <span className="font-medium">{option.name}</span>
+          )}
         </div>
       </TableCell>
 
