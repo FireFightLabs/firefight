@@ -41,6 +41,42 @@ class IncidentFieldDefinitionTest < ActiveSupport::TestCase
     assert_includes field.errors[:catalog_type], "must be an active catalog type in the workspace"
   end
 
+  test "every field type maps to exactly one storage kind" do
+    kinds = IncidentFieldDefinition::FIELD_TYPES.map do |field_type|
+      source = if IncidentFieldDefinition.selectable?(field_type)
+        field_type.start_with?("catalog") ? IncidentFieldDefinition::OPTION_SOURCE_CATALOG : IncidentFieldDefinition::OPTION_SOURCE_FIXED
+      else
+        IncidentFieldDefinition::OPTION_SOURCE_NONE
+      end
+
+      IncidentFieldDefinition.new(field_type: field_type, option_source: source).storage_kind
+    end
+
+    assert_equal IncidentFieldDefinition::FIELD_TYPES.size, kinds.size
+    assert_empty kinds - [
+      IncidentFieldDefinition::STORAGE_OPTION,
+      IncidentFieldDefinition::STORAGE_CATALOG_ENTRY,
+      IncidentFieldDefinition::STORAGE_SCALAR
+    ]
+  end
+
+  test "a select on a catalogue stores catalog entries, not its own options" do
+    field = incident_field_definitions(:customer_tier_ws1)
+    assert_equal IncidentFieldDefinition::STORAGE_OPTION, field.storage_kind
+
+    field.option_source = IncidentFieldDefinition::OPTION_SOURCE_CATALOG
+    assert_equal IncidentFieldDefinition::STORAGE_CATALOG_ENTRY, field.storage_kind
+  end
+
+  test "value_attributes_for puts the entry in the column its storage kind owns" do
+    field = incident_field_definitions(:customer_tier_ws1)
+    assert_equal({ incident_field_option_id: "abc" }, field.value_attributes_for("abc"))
+
+    field.field_type = IncidentFieldDefinition::TYPE_NUMBER
+    field.option_source = IncidentFieldDefinition::OPTION_SOURCE_NONE
+    assert_equal({ value_number: 3 }, field.value_attributes_for(3))
+  end
+
   test "key is immutable after creation" do
     field = incident_field_definitions(:customer_tier_ws1)
     field.key = "segment"

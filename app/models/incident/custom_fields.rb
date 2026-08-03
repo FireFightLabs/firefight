@@ -56,30 +56,13 @@ module Incident::CustomFields
           next if entry.blank?
 
           incident_field_values.create!(
-            value_attributes(definition, entry).merge(
+            definition.value_attributes_for(entry).merge(
               incident_field_definition: definition,
               position: index
             )
           )
         end
       end
-    end
-  end
-
-  def value_attributes(definition, entry)
-    case definition.field_type
-    when IncidentFieldDefinition::TYPE_SINGLE_SELECT, IncidentFieldDefinition::TYPE_MULTI_SELECT
-      if definition.catalog_options?
-        { catalog_entry_id: entry }
-      else
-        { incident_field_option_id: entry }
-      end
-    when IncidentFieldDefinition::TYPE_CATALOG_REFERENCE, IncidentFieldDefinition::TYPE_CATALOG_MULTI_REFERENCE
-      { catalog_entry_id: entry }
-    when IncidentFieldDefinition::TYPE_NUMBER
-      { value_number: entry }
-    else
-      { value_text: entry.to_s }
     end
   end
 end

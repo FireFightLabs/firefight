@@ -29,6 +29,20 @@ class IncidentFieldDefinition < ApplicationRecord
   OPTION_SOURCES = [ OPTION_SOURCE_NONE, OPTION_SOURCE_FIXED, OPTION_SOURCE_CATALOG ].freeze
 
   MULTI_VALUED_TYPES = [ TYPE_MULTI_SELECT, TYPE_CATALOG_MULTI_REFERENCE ].freeze
+  SELECTABLE_TYPES = [
+    TYPE_SINGLE_SELECT,
+    TYPE_MULTI_SELECT,
+    TYPE_CATALOG_REFERENCE,
+    TYPE_CATALOG_MULTI_REFERENCE
+  ].freeze
+
+  # Seven field types, but only three things a stored value can be: a pointer
+  # at one of this field's own options, a pointer at a catalog entry, or a
+  # scalar the responder typed. Everything that reads or writes a value
+  # dispatches on this rather than re-deriving it from the type and source.
+  STORAGE_OPTION = :option
+  STORAGE_CATALOG_ENTRY = :catalog_entry
+  STORAGE_SCALAR = :scalar
 
   # Slack caps a select at 100 options and fails the whole views.open beyond
   # that, taking the entire form down rather than just this field.
@@ -88,7 +102,57 @@ class IncidentFieldDefinition < ApplicationRecord
   end
 
   def multi_valued?
+    self.class.multi_valued?(field_type)
+  end
+
+  def self.multi_valued?(field_type)
     MULTI_VALUED_TYPES.include?(field_type)
+  end
+
+  # Whether the field offers a curated set to pick from, however that set is
+  # sourced.
+  def selectable?
+    self.class.selectable?(field_type)
+  end
+
+  def self.selectable?(field_type)
+    SELECTABLE_TYPES.include?(field_type)
+  end
+
+  def storage_kind
+    return STORAGE_SCALAR unless selectable?
+
+    catalog_options? ? STORAGE_CATALOG_ENTRY : STORAGE_OPTION
+  end
+
+  # The column a submitted entry lands in. Owned here because the shape is this
+  # field's business, not the incident's.
+  def value_attributes_for(entry)
+    case storage_kind
+    when STORAGE_OPTION        then { incident_field_option_id: entry }
+    when STORAGE_CATALOG_ENTRY then { catalog_entry_id: entry }
+    when STORAGE_SCALAR
+      field_type == TYPE_NUMBER ? { value_number: entry } : { value_text: entry.to_s }
+    end
+  end
+
+  # Id => label for whatever this field currently offers, disabled and archived
+  # rows excluded so they stop being submittable without disturbing the
+  # incidents already holding them.
+  def selectable_values
+    case storage_kind
+    when STORAGE_OPTION
+      incident_field_options.active.to_h { |option| [ option.id, option.label ] }
+    when STORAGE_CATALOG_ENTRY
+      return {} if catalog_type_id.blank?
+
+      workspace.catalog_entries.active
+        .where(catalog_type_id: catalog_type_id)
+        .order(:name)
+        .to_h { |entry| [ entry.id, entry.name ] }
+    else
+      {}
+    end
   end
 
   def value_count
