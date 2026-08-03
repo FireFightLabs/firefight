@@ -27,7 +27,10 @@ class IncidentFormResolver
     @workspace = workspace
   end
 
-  def resolve(lifecycle_event, context: {})
+  # include_hidden is for the form editor, which has to show a hidden field to
+  # let anyone turn it back on. Every runtime caller leaves it false, so a
+  # hidden field never reaches a responder.
+  def resolve(lifecycle_event, context: {}, include_hidden: false)
     raise ArgumentError, "Unknown form slug: #{lifecycle_event}" unless IncidentForm::DEFAULTS_BY_SLUG.key?(lifecycle_event)
 
     # IncidentForm rows are optional — they exist only when an admin has
@@ -46,7 +49,7 @@ class IncidentFormResolver
     IncidentSystemField.defaults_for(lifecycle_event).each_with_index do |defn, idx|
       override = overrides_by_key[defn.key]
       if override
-        next if override.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
+        next if hidden?(override) && !include_hidden
         merged << override
       else
         merged << default_form_field(lifecycle_event, defn, position: idx)
@@ -54,7 +57,7 @@ class IncidentFormResolver
     end
 
     custom_rows.each do |row|
-      next if row.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
+      next if hidden?(row) && !include_hidden
       # A disabled definition stops being collected without detaching it from
       # the form or touching the values incidents already hold.
       next unless row.incident_field_definition&.enabled?
@@ -122,6 +125,10 @@ class IncidentFormResolver
   # system field. Downstream consumers iterate the same `IncidentFormField`
   # interface whether the field came from defaults or DB. We don't set
   # `incident_form` because the form itself may not be persisted either.
+  def hidden?(form_field)
+    form_field.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
+  end
+
   def default_form_field(lifecycle_event, defn, position:)
     IncidentFormField.new(
       field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,

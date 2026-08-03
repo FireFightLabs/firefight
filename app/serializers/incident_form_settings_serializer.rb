@@ -32,8 +32,10 @@ class IncidentFormSettingsSerializer < BaseSerializer
     incident_form.resolved_fields.size
   end
 
+  # Hidden fields included, greyed out in the editor. Leaving them out is what
+  # made hiding a field a one-way door.
   type "IncidentFormFieldSettings[]"
   def fields
-    IncidentFormFieldSettingsSerializer.many(incident_form.resolved_fields)
+    IncidentFormFieldSettingsSerializer.many(incident_form.resolved_fields(include_hidden: true))
   end
 end

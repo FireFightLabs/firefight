@@ -90,6 +90,32 @@ class IncidentFormFieldsControllerTest < ActionDispatch::IntegrationTest
     assert_not IncidentFormField.exists?(field.id)
   end
 
+  test "a hidden field stays in the editor so it can be turned back on" do
+    patch incident_form_field_path("default:#{IncidentSystemField::KEY_NAME}"), params: {
+      incident_form_id: "default:#{IncidentForm::SLUG_DECLARE}",
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_HIDDEN,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL
+    }
+
+    get settings_forms_url, headers: inertia_headers
+    declare = response.parsed_body.dig("props", "forms").find { |f| f["slug"] == IncidentForm::SLUG_DECLARE }
+    name_field = declare["fields"].find { |f| f["systemFieldKey"] == IncidentSystemField::KEY_NAME }
+
+    assert name_field, "a hidden field must still be listed in the editor"
+    assert_equal IncidentFormField::VISIBILITY_MODE_HIDDEN, name_field["visibilityMode"]
+  end
+
+  test "a hidden field is not resolved for responders" do
+    patch incident_form_field_path("default:#{IncidentSystemField::KEY_NAME}"), params: {
+      incident_form_id: "default:#{IncidentForm::SLUG_DECLARE}",
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_HIDDEN,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL
+    }
+
+    resolved = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_DECLARE)
+    assert_not_includes resolved.map(&:system_field_key), IncidentSystemField::KEY_NAME
+  end
+
   test "a system field that does not belong to the form is refused" do
     patch incident_form_field_path("default:#{IncidentSystemField::KEY_NEXT_UPDATE}"), params: {
       incident_form_id: "default:#{IncidentForm::SLUG_DECLARE}",

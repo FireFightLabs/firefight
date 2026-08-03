@@ -52,8 +52,8 @@ class IncidentForm < ApplicationRecord
   # Code-defaults merged with DB overlay rows. Used by the settings editor
   # so it shows every field that will actually appear in Slack (including
   # the code-driven system fields that have no DB row).
-  def resolved_fields
-    IncidentFormResolver.new(workspace).resolve(lifecycle_event)
+  def resolved_fields(include_hidden: false)
+    IncidentFormResolver.new(workspace).resolve(lifecycle_event, include_hidden: include_hidden)
   end
 
   def default_form?
