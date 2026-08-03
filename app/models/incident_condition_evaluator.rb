@@ -26,7 +26,7 @@ class IncidentConditionEvaluator
 
   def self.evaluate(condition, context)
     if condition.condition_field == IncidentCondition::FIELD_CUSTOM_FIELD
-      actual_value = context.dig(:custom_fields, condition.incident_field_definition.key)
+      actual_value = context.dig(:custom_fields, condition.incident_field_definition.slug)
     else
       actual_value = context[condition.condition_field.to_sym]
     end

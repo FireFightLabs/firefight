@@ -33,7 +33,7 @@ module Mcp
       def self.field_payload(form_field)
         {
           name: form_field.source_name,
-          key: form_field.system_field_key || form_field.incident_field_definition&.key,
+          slug: form_field.system_field_key || form_field.incident_field_definition&.slug,
           source: form_field.field_source_kind,
           visible: form_field.visibility_mode == IncidentFormField::VISIBILITY_MODE_VISIBLE,
           required: form_field.required_mode != IncidentFormField::REQUIRED_MODE_OPTIONAL,

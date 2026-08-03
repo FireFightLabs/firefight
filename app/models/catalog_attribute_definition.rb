@@ -16,12 +16,12 @@ class CatalogAttributeDefinition < ApplicationRecord
   belongs_to :catalog_type
   has_many :catalog_entry_relationships
 
-  validates :key, presence: true, uniqueness: { scope: :catalog_type_id }
+  validates :slug, presence: true, uniqueness: { scope: :catalog_type_id }
   validates :name, presence: true
   validates :attribute_type, presence: true, inclusion: { in: ATTRIBUTE_TYPES }
   validates :position, presence: true
 
-  validate :key_immutable, on: :update
+  validate :slug_immutable, on: :update
   validate :attribute_type_immutable, on: :update
   validate :select_requires_options
   validate :reference_requires_type_id
@@ -42,9 +42,9 @@ class CatalogAttributeDefinition < ApplicationRecord
 
   private
 
-  def key_immutable
-    if key_changed?
-      errors.add(:key, "cannot be changed after creation")
+  def slug_immutable
+    if slug_changed?
+      errors.add(:slug, "cannot be changed after creation")
     end
   end
 

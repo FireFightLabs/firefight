@@ -35,7 +35,7 @@ module Incident::CustomFields
       values = group.map(&block).compact
       next if values.empty?
 
-      result[definition.key] = definition.multi_valued? ? values : values.first
+      result[definition.slug] = definition.multi_valued? ? values : values.first
     end
   end
 
@@ -43,7 +43,7 @@ module Incident::CustomFields
     pending = @pending_custom_fields
     @pending_custom_fields = nil
 
-    definitions = workspace.incident_field_definitions.where(key: pending.keys).index_by(&:key)
+    definitions = workspace.incident_field_definitions.where(slug: pending.keys).index_by(&:slug)
 
     transaction do
       incident_field_values.where(incident_field_definition_id: definitions.values.map(&:id)).delete_all

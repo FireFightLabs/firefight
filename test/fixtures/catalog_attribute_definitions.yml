@@ -1,7 +1,7 @@
 team_description:
   id: bb000001-0000-0000-0000-000000000001
   catalog_type_id: aa000001-0000-0000-0000-000000000001
-  key: description
+  slug: description
   name: Description
   attribute_type: text
   required: false
@@ -11,7 +11,7 @@ team_description:
 team_slack_channel:
   id: bb000001-0000-0000-0000-000000000002
   catalog_type_id: aa000001-0000-0000-0000-000000000001
-  key: slack_channel
+  slug: slack_channel
   name: Slack Channel
   attribute_type: text
   required: false
@@ -21,7 +21,7 @@ team_slack_channel:
 service_description:
   id: bb000001-0000-0000-0000-000000000003
   catalog_type_id: aa000001-0000-0000-0000-000000000002
-  key: description
+  slug: description
   name: Description
   attribute_type: text
   required: false
@@ -31,7 +31,7 @@ service_description:
 service_owner_team:
   id: bb000001-0000-0000-0000-000000000004
   catalog_type_id: aa000001-0000-0000-0000-000000000002
-  key: owner_team
+  slug: owner_team
   name: Owner Team
   attribute_type: reference
   required: false
@@ -41,7 +41,7 @@ service_owner_team:
 service_tier:
   id: bb000001-0000-0000-0000-000000000005
   catalog_type_id: aa000001-0000-0000-0000-000000000002
-  key: tier
+  slug: tier
   name: Tier
   attribute_type: select
   required: false
@@ -51,7 +51,7 @@ service_tier:
 env_is_production:
   id: bb000001-0000-0000-0000-000000000006
   catalog_type_id: aa000001-0000-0000-0000-000000000003
-  key: is_production
+  slug: is_production
   name: Is Production
   attribute_type: boolean
   required: false
@@ -61,7 +61,7 @@ env_is_production:
 vendor_name_attr:
   id: bb000001-0000-0000-0000-000000000007
   catalog_type_id: aa000001-0000-0000-0000-000000000005
-  key: contact_email
+  slug: contact_email
   name: Contact Email
   attribute_type: text
   required: true
@@ -71,7 +71,7 @@ vendor_name_attr:
 vendor_tier:
   id: bb000001-0000-0000-0000-000000000008
   catalog_type_id: aa000001-0000-0000-0000-000000000005
-  key: tier
+  slug: tier
   name: Tier
   attribute_type: select
   required: false

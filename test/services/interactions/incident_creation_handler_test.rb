@@ -112,7 +112,7 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     }
 
     custom_fields.each do |key, value|
-      defn = @workspace.incident_field_definitions.find_by!(key: key)
+      defn = @workspace.incident_field_definitions.find_by!(slug: key)
       block_id = "field_#{key}_block"
       action_id = "field_#{key}_input"
 

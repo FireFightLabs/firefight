@@ -81,7 +81,7 @@ export function SortableFieldRow({ field, incidentTypes, severities, onUpdate, o
                   <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-            ) : field.key === "summary" ? (
+            ) : field.slug === "summary" ? (
               <div className="rounded-md border border-border bg-muted px-3 pt-2.5 pb-12">
                 <span className="text-sm text-muted-foreground/50">Provide a summary...</span>
               </div>

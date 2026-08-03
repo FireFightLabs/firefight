@@ -77,7 +77,7 @@ module Slack
         fields = incident.custom_fields_for_display
         return nil if fields.blank?
 
-        definitions = incident.workspace.incident_field_definitions.active.index_by(&:key)
+        definitions = incident.workspace.incident_field_definitions.active.index_by(&:slug)
 
         lines = fields.filter_map do |key, value|
           next if value.blank?

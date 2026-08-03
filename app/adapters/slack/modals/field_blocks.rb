@@ -32,7 +32,7 @@ module Slack
         return nil unless defn
 
         optional = form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
-        current_value = incident&.custom_fields&.dig(defn.key)
+        current_value = incident&.custom_fields&.dig(defn.slug)
 
         if defn.selectable?
           select_custom_block(defn, optional: optional, current_value: current_value)
@@ -256,7 +256,7 @@ module Slack
       def self.text_custom_block(defn, optional:, initial_value: nil)
         element = {
           type: "plain_text_input",
-          action_id: "field_#{defn.key}_input",
+          action_id: "field_#{defn.slug}_input",
           placeholder: { type: "plain_text", text: "Enter #{defn.name.downcase}" },
           max_length: 3000
         }
@@ -268,7 +268,7 @@ module Slack
       def self.number_custom_block(defn, optional:, initial_value: nil)
         element = {
           type: "plain_text_input",
-          action_id: "field_#{defn.key}_input",
+          action_id: "field_#{defn.slug}_input",
           placeholder: { type: "plain_text", text: "Enter a number" }
         }
         element[:initial_value] = initial_value.to_s if initial_value.present?
@@ -285,7 +285,7 @@ module Slack
 
         element = {
           type: defn.multi_valued? ? "multi_static_select" : "static_select",
-          action_id: "field_#{defn.key}_input",
+          action_id: "field_#{defn.slug}_input",
           placeholder: { type: "plain_text", text: "Select #{defn.name.downcase}" },
           options: options
         }
@@ -310,7 +310,7 @@ module Slack
       def self.wrap_input(defn, element, optional:)
         block = {
           type: "input",
-          block_id: "field_#{defn.key}_block",
+          block_id: "field_#{defn.slug}_block",
           element: element,
           label: { type: "plain_text", text: defn.name },
           optional: optional

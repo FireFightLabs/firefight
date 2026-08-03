@@ -202,7 +202,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
   test "search_catalog resolves member attribute ids to names" do
     catalog_types(:team_ws1).catalog_attribute_definitions.create!(
-      key: "manager", name: "Manager",
+      slug: "manager", name: "Manager",
       attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER, position: 5
     )
     entry = catalog_entries(:platform_team)

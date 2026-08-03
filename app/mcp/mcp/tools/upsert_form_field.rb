@@ -75,7 +75,7 @@ module Mcp
         if args[:system_field].present?
           service.ensure_system_field!(form, args[:system_field].to_s)
         elsif args[:custom_field].present?
-          definition = form.workspace.incident_field_definitions.active.find_by(key: args[:custom_field].to_s)
+          definition = form.workspace.incident_field_definitions.active.find_by(slug: args[:custom_field].to_s)
           raise ArgumentError, "unknown custom field #{args[:custom_field].to_s.inspect}" if definition.nil?
 
           existing = form.incident_form_fields.find_by(incident_field_definition_id: definition.id)

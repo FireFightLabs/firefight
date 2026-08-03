@@ -17,7 +17,7 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
 
     fields = response.parsed_body.dig("props", "customFields")
-    tier = fields.find { |field| field["key"] == @definition.key }
+    tier = fields.find { |field| field["slug"] == @definition.slug }
     assert_equal [ "Enterprise", "Pro", "Free" ], tier["options"].map { |option| option["label"] }
     assert tier["options"].all? { |option| option["enabled"] }
   end
@@ -27,7 +27,7 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
 
     fields = response.parsed_body.dig("props", "customFields")
-    tier = fields.find { |field| field["key"] == @definition.key }
+    tier = fields.find { |field| field["slug"] == @definition.slug }
     assert_equal [ "Enterprise", "Pro", "Free" ], tier["options"].map { |option| option["label"] }
   end
 
@@ -40,7 +40,7 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
     }
     assert_response :redirect
 
-    definition = IncidentFieldDefinition.find_by!(key: "impact_area", workspace: @workspace)
+    definition = IncidentFieldDefinition.find_by!(slug: "impact_area", workspace: @workspace)
     assert_equal [ "Checkout", "Search" ], definition.incident_field_options.ordered.pluck(:label)
   end
 
@@ -52,7 +52,7 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
       options: []
     }
     assert_response :redirect
-    assert_not IncidentFieldDefinition.exists?(key: "impact_area", workspace: @workspace)
+    assert_not IncidentFieldDefinition.exists?(slug: "impact_area", workspace: @workspace)
   end
 
   test "create drops blank option labels" do
@@ -64,14 +64,14 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
     }
     assert_response :redirect
 
-    definition = IncidentFieldDefinition.find_by!(key: "impact_area", workspace: @workspace)
+    definition = IncidentFieldDefinition.find_by!(slug: "impact_area", workspace: @workspace)
     assert_equal [ "Checkout" ], definition.incident_field_options.ordered.pluck(:label)
   end
 
   test "update renames an option without changing what incidents point at" do
     option = incident_field_options(:customer_tier_pro)
     incident = incidents(:active_critical_ws1)
-    incident.update!(custom_fields: { @definition.key => option.id })
+    incident.update!(custom_fields: { @definition.slug => option.id })
 
     patch incident_field_definition_url(@definition), params: base_update_params(
       options: @definition.incident_field_options.ordered.map do |current|
@@ -81,13 +81,13 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
 
     assert_equal "Professional", option.reload.label
-    assert_equal option.id, incident.reload.custom_fields[@definition.key]
-    assert_equal "Professional", incident.custom_fields_for_display[@definition.key]
+    assert_equal option.id, incident.reload.custom_fields[@definition.slug]
+    assert_equal "Professional", incident.custom_fields_for_display[@definition.slug]
   end
 
   test "update refuses to delete an option an incident points at" do
     option = incident_field_options(:customer_tier_pro)
-    incidents(:active_critical_ws1).update!(custom_fields: { @definition.key => option.id })
+    incidents(:active_critical_ws1).update!(custom_fields: { @definition.slug => option.id })
 
     patch incident_field_definition_url(@definition), params: base_update_params(
       options: @definition.incident_field_options.ordered
@@ -142,7 +142,7 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
 
   test "update refuses to change the shape of a field incidents already hold values for" do
     option = incident_field_options(:customer_tier_pro)
-    incidents(:active_critical_ws1).update!(custom_fields: { @definition.key => option.id })
+    incidents(:active_critical_ws1).update!(custom_fields: { @definition.slug => option.id })
 
     patch incident_field_definition_url(@definition), params: base_update_params(
       options: @definition.incident_field_options.ordered.map { |current|
@@ -156,7 +156,7 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
 
   test "update still allows renaming a field incidents already hold values for" do
     option = incident_field_options(:customer_tier_pro)
-    incidents(:active_critical_ws1).update!(custom_fields: { @definition.key => option.id })
+    incidents(:active_critical_ws1).update!(custom_fields: { @definition.slug => option.id })
 
     patch incident_field_definition_url(@definition), params: base_update_params(
       options: @definition.incident_field_options.ordered.map { |current|

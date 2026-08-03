@@ -6,7 +6,7 @@ class IncidentFieldDefinitionTest < ActiveSupport::TestCase
   test "fixed select fields require at least one enabled option" do
     field = IncidentFieldDefinition.new(
       workspace: workspaces(:slack_workspace_one),
-      key: "impact_area",
+      slug: "impact_area",
       name: "Impact Area",
       field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
       option_source: IncidentFieldDefinition::OPTION_SOURCE_FIXED,
@@ -29,7 +29,7 @@ class IncidentFieldDefinitionTest < ActiveSupport::TestCase
   test "catalog-backed fields must reference an active catalog type" do
     field = IncidentFieldDefinition.new(
       workspace: workspaces(:slack_workspace_one),
-      key: "impacted_service",
+      slug: "impacted_service",
       name: "Impacted Service",
       field_type: IncidentFieldDefinition::TYPE_CATALOG_REFERENCE,
       option_source: IncidentFieldDefinition::OPTION_SOURCE_CATALOG,
@@ -77,12 +77,12 @@ class IncidentFieldDefinitionTest < ActiveSupport::TestCase
     assert_equal({ value_number: 3 }, field.value_attributes_for(3))
   end
 
-  test "key is immutable after creation" do
+  test "slug is immutable after creation" do
     field = incident_field_definitions(:customer_tier_ws1)
-    field.key = "segment"
+    field.slug = "segment"
 
     assert_not field.valid?
-    assert_includes field.errors[:key], "cannot be changed after creation"
+    assert_includes field.errors[:slug], "cannot be changed after creation"
   end
 
   test "renaming an option leaves the id every reference points at untouched" do

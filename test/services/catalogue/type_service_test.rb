@@ -42,8 +42,8 @@ class CatalogTypeWriteTest < ActiveSupport::TestCase
     )
 
     assert_equal 2, type.catalog_attribute_definitions.count
-    assert type.catalog_attribute_definitions.find_by!(key: "color").present?
-    assert type.catalog_attribute_definitions.find_by!(key: "weight").required
+    assert type.catalog_attribute_definitions.find_by!(slug: "color").present?
+    assert type.catalog_attribute_definitions.find_by!(slug: "weight").required
   end
 
   test "create_custom! wraps in transaction -- attribute sync failure rolls back type creation" do
@@ -87,7 +87,7 @@ class CatalogTypeWriteTest < ActiveSupport::TestCase
     )
 
     assert_equal "Primary Email", existing_attr.reload.name
-    assert vendor.catalog_attribute_definitions.find_by!(key: "website_url").present?
+    assert vendor.catalog_attribute_definitions.find_by!(slug: "website_url").present?
   end
 
   test "update_with_definitions! wraps in transaction -- attribute sync failure rolls back" do

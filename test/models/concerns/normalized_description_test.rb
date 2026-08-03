@@ -68,7 +68,7 @@ class NormalizedDescriptionTest < ActiveSupport::TestCase
       name: "Scribe", slug: "scribe", position: 92, description: "takes notes"
     )
     field = workspace.incident_field_definitions.create!(
-      key: "probe_field", name: "Probe Field", field_type: IncidentFieldDefinition::TYPE_TEXT,
+      slug: "probe_field", name: "Probe Field", field_type: IncidentFieldDefinition::TYPE_TEXT,
       option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE, position: 93,
       description: "which area is affected"
     )

@@ -2,7 +2,7 @@ module Mcp
   module Tools
     class UpsertCustomField < Base
       tool_name UPSERT_CUSTOM_FIELD
-      description "Create or update a custom incident field definition. Pass key to update an " \
+      description "Create or update a custom incident field definition. Pass slug to update an " \
                   "existing field; omit it to create one (name and field_type required). " \
                   "Options are matched by label, so renaming one keeps every incident pointing " \
                   "at it. A field's type and option source lock once incidents hold values. " \
@@ -11,7 +11,7 @@ module Mcp
       annotations(**WRITE)
       input_schema(
         properties: {
-          key: { type: "string", description: "Existing field key to update; omit to create" },
+          slug: { type: "string", description: "Existing field slug to update; omit to create" },
           name: { type: "string", description: "Field display name (required on create)" },
           description: { type: "string", description: "Help text responders see under the field" },
           field_type: {
@@ -48,7 +48,7 @@ module Mcp
         definition = existing ? service.update(existing, attrs) : service.create(attrs)
 
         respond(
-          key: definition.key, name: definition.name, field_type: definition.field_type,
+          slug: definition.slug, name: definition.name, field_type: definition.field_type,
           option_source: definition.option_source,
           options: definition.incident_field_options.active.map { |o| { id: o.id, label: o.label } }
         )
@@ -97,9 +97,9 @@ module Mcp
       end
 
       def self.existing_field(workspace, args)
-        return nil if args[:key].blank?
+        return nil if args[:slug].blank?
 
-        workspace.incident_field_definitions.active.find_by(key: args[:key].to_s)
+        workspace.incident_field_definitions.active.find_by(slug: args[:slug].to_s)
       end
     end
   end

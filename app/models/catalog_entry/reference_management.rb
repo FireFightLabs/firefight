@@ -2,7 +2,7 @@ module CatalogEntry::ReferenceManagement
   extend ActiveSupport::Concern
 
   def sync_references!(reference_attrs)
-    definitions = catalog_type.catalog_attribute_definitions.reference_type.index_by(&:key)
+    definitions = catalog_type.catalog_attribute_definitions.reference_type.index_by(&:slug)
 
     reference_attrs.each do |key, value|
       attr_def = definitions[key.to_s]
@@ -47,7 +47,7 @@ module CatalogEntry::ReferenceManagement
   def upsert_reference!(attr_def, target_entry)
     rel = outgoing_relationships.find_or_initialize_by(
       catalog_attribute_definition: attr_def,
-      relationship_key: attr_def.key
+      relationship_key: attr_def.slug
     )
     rel.assign_attributes(
       target_entry: target_entry,

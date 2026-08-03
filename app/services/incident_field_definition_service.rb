@@ -6,7 +6,7 @@ class IncidentFieldDefinitionService
   def create(attrs)
     ActiveRecord::Base.transaction do
       definition = @workspace.incident_field_definitions.new(
-        key: IncidentFieldDefinition.generate_key(attrs[:name]),
+        slug: IncidentFieldDefinition.generate_slug(attrs[:name]),
         name: attrs[:name],
         description: attrs[:description],
         field_type: attrs[:field_type],

@@ -33,7 +33,7 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     end
 
     type = CatalogType.find_by!(slug: "region")
-    attr_def = type.catalog_attribute_definitions.find_by!(key: "tier")
+    attr_def = type.catalog_attribute_definitions.find_by!(slug: "tier")
     assert_equal CatalogAttributeDefinition::TYPE_SELECT, attr_def.attribute_type
     assert_equal [ "Primary", "Secondary", "DR" ], attr_def.config["options"]
   end
@@ -59,7 +59,7 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     end
 
     type = CatalogType.find_by!(slug: "runbook")
-    attr_def = type.catalog_attribute_definitions.find_by!(key: "owner_team")
+    attr_def = type.catalog_attribute_definitions.find_by!(slug: "owner_team")
     assert_equal CatalogAttributeDefinition::TYPE_REFERENCE, attr_def.attribute_type
     assert_equal team_type.id, attr_def.config["reference_type_id"]
   end

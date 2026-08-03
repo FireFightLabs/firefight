@@ -29,7 +29,7 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
     })
 
     assert_not is_error
-    assert_equal "impacted_regions", content["key"]
+    assert_equal "impacted_regions", content["slug"]
     assert_equal [ "Payments", "Checkout" ], content["options"].map { |o| o["label"] }
   end
 
@@ -40,11 +40,11 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
       option_source: IncidentFieldDefinition::OPTION_SOURCE_FIXED,
       options: [ "Payments", "Checkout" ]
     })
-    definition = @workspace.incident_field_definitions.find_by!(key: "impacted_regions")
+    definition = @workspace.incident_field_definitions.find_by!(slug: "impacted_regions")
     payments_id = definition.incident_field_options.find_by!(label: "Payments").id
 
     content, _ = call_tool(Mcp::Tools::UPSERT_CUSTOM_FIELD, {
-      key: "impacted_regions",
+      slug: "impacted_regions",
       options: [ "Payments", "Checkout", "Search" ]
     })
 
@@ -75,7 +75,7 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
     production = @workspace.incident_types.find_by!(slug: "service_outage")
     field = @workspace.incident_forms.find_by!(slug: IncidentForm::SLUG_DECLARE)
       .incident_form_fields.joins(:incident_field_definition)
-      .find_by!(incident_field_definitions: { key: "impacted_regions" })
+      .find_by!(incident_field_definitions: { slug: "impacted_regions" })
     assert_equal [ production.id ], field.incident_conditions.first.values
   end
 
@@ -101,7 +101,7 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
     content, is_error = call_tool(Mcp::Tools::GET_FORM, { form: IncidentForm::SLUG_DECLARE })
 
     assert_not is_error
-    name_field = content["fields"].find { |f| f["key"] == IncidentSystemField::KEY_NAME }
+    name_field = content["fields"].find { |f| f["slug"] == IncidentSystemField::KEY_NAME }
     assert name_field
     assert_not name_field["visible"]
   end

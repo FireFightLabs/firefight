@@ -175,8 +175,8 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     declare_fields = @resolver.resolve(IncidentForm::SLUG_DECLARE)
     resolve_fields = @resolver.resolve(IncidentForm::SLUG_RESOLVE)
 
-    declare_keys = declare_fields.map { |f| f.system_field_key || f.incident_field_definition&.key }
-    resolve_keys = resolve_fields.map { |f| f.system_field_key || f.incident_field_definition&.key }
+    declare_keys = declare_fields.map { |f| f.system_field_key || f.incident_field_definition&.slug }
+    resolve_keys = resolve_fields.map { |f| f.system_field_key || f.incident_field_definition&.slug }
 
     assert_not_equal declare_keys, resolve_keys
   end

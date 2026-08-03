@@ -152,7 +152,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
       kind: CatalogType::KIND_CUSTOM, position: 99
     )
     list_type.catalog_attribute_definitions.create!(
-      key: "tags", name: "Tags",
+      slug: "tags", name: "Tags",
       attribute_type: CatalogAttributeDefinition::TYPE_LIST,
       required: false, position: 1, config: {}
     )
@@ -174,7 +174,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
       kind: CatalogType::KIND_CUSTOM, position: 99
     )
     list_type.catalog_attribute_definitions.create!(
-      key: "tags", name: "Tags",
+      slug: "tags", name: "Tags",
       attribute_type: CatalogAttributeDefinition::TYPE_LIST,
       required: false, position: 1, config: {}
     )
@@ -194,7 +194,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
       kind: CatalogType::KIND_CUSTOM, position: 99
     )
     num_type.catalog_attribute_definitions.create!(
-      key: "port", name: "Port",
+      slug: "port", name: "Port",
       attribute_type: CatalogAttributeDefinition::TYPE_NUMBER,
       required: false, position: 1, config: {}
     )
@@ -216,7 +216,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
       kind: CatalogType::KIND_CUSTOM, position: 99
     )
     num_type.catalog_attribute_definitions.create!(
-      key: "port", name: "Port",
+      slug: "port", name: "Port",
       attribute_type: CatalogAttributeDefinition::TYPE_NUMBER,
       required: false, position: 1, config: {}
     )

@@ -83,14 +83,15 @@ export interface IncidentFormFieldSettings {
   incidentFieldDefinitionId?: string
   name: string
   description?: string
-  key: string
+  slug: string
   fieldType: string
   optionSource?: string
   position: number
   visibilityMode: string
   requiredMode: string
   lockedRequired: boolean
-  options?: string[]
+  lockedVisible: boolean
+  options?: { id: string; name: string }[]
   catalogTypeId?: string
   catalogTypeName?: string
   conditions?: IncidentConditionSettings[]

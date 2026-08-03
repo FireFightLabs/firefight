@@ -126,7 +126,7 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
     team_type = catalog_types(:team_ws1)
 
     team_type.catalog_attribute_definitions.create!(
-      key: "team_lead",
+      slug: "team_lead",
       name: "Team Lead",
       attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER,
       required: false,
@@ -153,7 +153,7 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
     team_type = catalog_types(:team_ws1)
 
     team_type.catalog_attribute_definitions.create!(
-      key: "members",
+      slug: "members",
       name: "Members",
       attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS,
       required: false,

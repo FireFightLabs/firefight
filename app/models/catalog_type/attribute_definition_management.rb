@@ -21,7 +21,7 @@ module CatalogType::AttributeDefinitionManagement
 
   def create_attribute_definition!(params, position)
     catalog_attribute_definitions.create!(
-      key: generate_key(params[:name]),
+      slug: generate_slug(params[:name]),
       name: params[:name],
       attribute_type: params[:attribute_type],
       required: params[:required] || false,
@@ -53,7 +53,7 @@ module CatalogType::AttributeDefinitionManagement
       end
     else
       active_entries = catalog_entries.where(deleted_at: nil)
-      if active_entries.where("attributes ? :key", key: attr_def.key).exists?
+      if active_entries.where("attributes ? :key", key: attr_def.slug).exists?
         raise ActiveRecord::RecordNotDestroyed,
           "Cannot remove attribute '#{attr_def.name}' because it is used by active entries"
       end
@@ -83,14 +83,14 @@ module CatalogType::AttributeDefinitionManagement
 
     active_entries = catalog_entries.where(deleted_at: nil)
     removed_options.each do |option|
-      if active_entries.where("attributes ->> :key = :val", key: attr_def.key, val: option).exists?
+      if active_entries.where("attributes ->> :key = :val", key: attr_def.slug, val: option).exists?
         raise ActiveRecord::RecordNotDestroyed,
           "Cannot remove option '#{option}' from '#{attr_def.name}' because it is used by active entries"
       end
     end
   end
 
-  def generate_key(name)
+  def generate_slug(name)
     name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
   end
 end

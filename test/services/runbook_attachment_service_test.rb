@@ -68,7 +68,7 @@ class RunbookAttachmentServiceTest < ActiveSupport::TestCase
     service_type = catalog_types(:service_ws1)
     entry = catalog_entries(:auth_service)
     definition = @workspace.incident_field_definitions.create!(
-      key: "primary_service",
+      slug: "primary_service",
       name: "Primary Service",
       field_type: IncidentFieldDefinition::TYPE_CATALOG_REFERENCE,
       option_source: IncidentFieldDefinition::OPTION_SOURCE_CATALOG,

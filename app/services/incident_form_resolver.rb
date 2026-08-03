@@ -95,7 +95,7 @@ class IncidentFormResolver
         system_attrs[key] = value if value.present?
       else
         defn = form_field.incident_field_definition
-        key = defn.key
+        key = defn.slug
         value = raw_params[key]
         validate_required!(form_field, key, value, errors)
         validate_custom_value!(defn, value, errors) if value.present?
@@ -104,7 +104,7 @@ class IncidentFormResolver
     end
 
     known_keys = visible_fields.map { |f|
-      f.system_field_key || f.incident_field_definition&.key
+      f.system_field_key || f.incident_field_definition&.slug
     }.compact
     unknown = raw_params.keys - known_keys
     errors << "Unknown fields: #{unknown.join(', ')}" if unknown.any?

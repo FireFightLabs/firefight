@@ -42,9 +42,12 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     source_definition.description
   end
 
+  # A system field's identifier comes from the code registry, which keys its
+  # definitions rather than slugging them. Only workspace-defined fields have a
+  # slug column.
   type :string
-  def key
-    source_definition.key
+  def slug
+    form_field.system? ? form_field.system_field_key : source_definition.slug
   end
 
   type :string

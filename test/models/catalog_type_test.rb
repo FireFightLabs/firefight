@@ -287,7 +287,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     ])
 
     assert_equal initial_count + 1, vendor.catalog_attribute_definitions.reload.count
-    new_def = vendor.catalog_attribute_definitions.find_by!(key: "website")
+    new_def = vendor.catalog_attribute_definitions.find_by!(slug: "website")
     assert_equal "Website", new_def.name
     assert_equal CatalogAttributeDefinition::TYPE_TEXT, new_def.attribute_type
   end
@@ -380,7 +380,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     ])
 
     assert_equal initial_count + 1, team_type.catalog_attribute_definitions.reload.count
-    new_attr = team_type.catalog_attribute_definitions.find_by!(key: "oncall_rotation")
+    new_attr = team_type.catalog_attribute_definitions.find_by!(slug: "oncall_rotation")
     assert_equal "On-Call Rotation", new_attr.name
     assert_equal CatalogAttributeDefinition::TYPE_TEXT, new_attr.attribute_type
   end
