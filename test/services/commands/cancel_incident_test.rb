@@ -116,6 +116,28 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
       IncidentSystemField.fetch(IncidentSystemField::KEY_SUMMARY).required_mode_for(IncidentForm::SLUG_CANCEL)
   end
 
+  test "asking for a postmortem on a canceled incident says why, not that the channel is wrong" do
+    Commands::CancelIncident.execute(command)
+
+    result = Commands::GeneratePostmortem.execute(command)
+
+    assert_match "was canceled", result[:text]
+    assert_no_match(/incident channel/, result[:text])
+  end
+
+  test "the cancellation message names who did it and calls it a cancellation" do
+    Commands::CancelIncident.execute(command)
+
+    blocks = Slack::Messages::StatusUpdate.build(
+      @incident.reload, message: nil, updated_by_platform_user_id: "U9", scope: :inline
+    )
+    text = blocks.filter_map { |b| b.dig(:text, :text) || b[:elements]&.map { |e| e[:text] }&.join(" ") }.join(" ")
+
+    assert_match "Incident canceled", text
+    assert_match "Canceled by <@U9>", text
+    assert_no_match(/Incident updated|Updated by/, text)
+  end
+
   test "opens a modal instead when the workspace has attached a field" do
     form = @workspace.ensure_incident_form!(IncidentForm::SLUG_CANCEL)
     IncidentFormService.new(@workspace).add_custom_field(form, incident_field_definitions(:customer_tier_ws1))

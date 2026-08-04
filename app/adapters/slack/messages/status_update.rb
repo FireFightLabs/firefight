@@ -13,9 +13,15 @@ module Slack
         type_text = Formatting.type_diff_text(previous_type_name, incident.incident_type&.name)
         field_lines << type_text if type_text
 
+        # A cancellation posts through the same path as any status change, so
+        # the wording follows the stage rather than calling it an update.
+        canceled = incident.canceled?
+        icon = canceled ? ":wastebasket:" : ":memo:"
+        noun = canceled ? "Incident canceled" : "Incident updated"
+
         header_text = case scope
-        when :inline       then ":memo: *#{incident.identifier} — Incident updated*"
-        when :announcement then ":memo: *Incident updated*"
+        when :inline       then "#{icon} *#{incident.identifier} — #{noun}*"
+        when :announcement then "#{icon} *#{noun}*"
         end
 
         blocks = [ { type: "section", text: { type: "mrkdwn", text: header_text } } ]
@@ -27,7 +33,8 @@ module Slack
       end
 
       def self.context_text(incident, updated_by_platform_user_id)
-        parts = [ "Updated by <@#{updated_by_platform_user_id}>" ]
+        verb = incident.canceled? ? "Canceled" : "Updated"
+        parts = [ "#{verb} by <@#{updated_by_platform_user_id}>" ]
         if incident.next_update_at.present?
           unix_ts = incident.next_update_at.to_i
           fallback = incident.next_update_at.in_time_zone.strftime("%H:%M")
