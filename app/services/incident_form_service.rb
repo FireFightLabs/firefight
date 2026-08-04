@@ -32,12 +32,17 @@ class IncidentFormService
     default_position = IncidentSystemField.defaults_for(form.lifecycle_event).index(definition)
     raise ArgumentError, "#{system_field_key} does not appear on the #{form.lifecycle_event} form" if default_position.nil?
 
+    mode = definition.required_mode_for(form.lifecycle_event)
+    # "available" describes how a field ships, not a stored mode: on the row it
+    # is simply hidden and optional until someone turns it on.
+    available = mode == IncidentFormField::REQUIRED_MODE_AVAILABLE
+
     form.incident_form_fields.create!(
       field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
       system_field_key: system_field_key,
       position: default_position,
-      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
-      required_mode: definition.required_mode_for(form.lifecycle_event)
+      visibility_mode: available ? IncidentFormField::VISIBILITY_MODE_HIDDEN : IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: available ? IncidentFormField::REQUIRED_MODE_OPTIONAL : mode
     )
   end
 

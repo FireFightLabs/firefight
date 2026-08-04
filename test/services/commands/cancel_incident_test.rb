@@ -108,12 +108,26 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
     assert_equal [ IncidentSystemField::KEY_STATUS ], fields.map(&:system_field_key)
   end
 
-  test "summary is available on cancel but off until enabled" do
-    fields = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_CANCEL)
+  test "an available field is offered in the editor but hidden from responders" do
+    resolver = IncidentFormResolver.new(@workspace)
 
-    assert_not_includes fields.map(&:system_field_key), IncidentSystemField::KEY_SUMMARY
-    assert_equal IncidentFormField::REQUIRED_MODE_AVAILABLE,
-      IncidentSystemField.fetch(IncidentSystemField::KEY_SUMMARY).required_mode_for(IncidentForm::SLUG_CANCEL)
+    editor = resolver.resolve(IncidentForm::SLUG_CANCEL, include_hidden: true)
+    assert_includes editor.map(&:system_field_key), IncidentSystemField::KEY_SUMMARY,
+      "an available field must be reachable, or it can never be turned on"
+    assert_empty resolver.resolve(IncidentForm::SLUG_CANCEL)
+  end
+
+  test "enabling an available field puts it in front of responders" do
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_CANCEL)
+    service = IncidentFormService.new(@workspace)
+    field = service.ensure_system_field!(form, IncidentSystemField::KEY_SUMMARY)
+
+    assert_equal IncidentFormField::VISIBILITY_MODE_HIDDEN, field.visibility_mode
+    service.update_field(field, visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+
+    resolved = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_CANCEL)
+    assert_equal [ IncidentSystemField::KEY_SUMMARY ], resolved.map(&:system_field_key)
   end
 
   test "asking for a postmortem on a canceled incident says why, not that the channel is wrong" do

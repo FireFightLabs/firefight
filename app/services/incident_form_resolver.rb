@@ -58,7 +58,9 @@ class IncidentFormResolver
         merged << override
       else
         field = default_form_field(lifecycle_event, defn, position: idx)
-        merged << field if field
+        next if field.nil? || (hidden?(field) && !include_hidden)
+
+        merged << field
       end
     end
 
@@ -150,14 +152,20 @@ class IncidentFormResolver
 
   def default_form_field(lifecycle_event, defn, position:)
     mode = defn.required_mode_for(lifecycle_event)
-    return nil if mode == IncidentFormField::REQUIRED_MODE_AVAILABLE
+
+    # Status with a single option is not a choice, so it is absent rather than
+    # merely off: there is nothing for anyone to enable.
     return nil if redundant_status?(lifecycle_event, defn)
+
+    # An available field ships hidden rather than missing, so the editor can
+    # offer it while responders do not see it until someone turns it on.
+    available = mode == IncidentFormField::REQUIRED_MODE_AVAILABLE
 
     IncidentFormField.new(
       field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
       system_field_key: defn.key,
-      required_mode: mode,
-      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: available ? IncidentFormField::REQUIRED_MODE_OPTIONAL : mode,
+      visibility_mode: available ? IncidentFormField::VISIBILITY_MODE_HIDDEN : IncidentFormField::VISIBILITY_MODE_VISIBLE,
       position: position
     )
   end
