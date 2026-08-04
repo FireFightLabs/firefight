@@ -7,7 +7,6 @@ import {
 import type { Incident } from "@/pages/incidents/types"
 import { severityBadgeStyle } from "@/lib/severity-color"
 import { formatDuration } from "@/lib/formatters"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { MetaCell } from "@/pages/incidents/components/index/meta-cell"
+import { PersonChip } from "@/pages/incidents/components/index/person-chip"
 import { StatusIcon } from "@/pages/dashboard/components/status-icon"
 
 export function IncidentHeader({ incident }: { incident: Incident }) {
@@ -94,23 +94,12 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
         </p>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-4">
         <MetaCell label="Lead">
-          {incident.lead ? (
-            <div className="flex items-center gap-2">
-              <Avatar className="size-5">
-                {incident.lead.avatarUrl ? (
-                  <AvatarImage src={incident.lead.avatarUrl} alt={incident.lead.name} />
-                ) : null}
-                <AvatarFallback className="text-[10px] font-semibold bg-primary/20 text-primary">
-                  {incident.lead.initials}
-                </AvatarFallback>
-              </Avatar>
-              <span className="font-medium truncate">{incident.lead.name}</span>
-            </div>
-          ) : (
-            <span className="text-muted-foreground">Unassigned</span>
-          )}
+          <PersonChip person={incident.lead} fallback="Unassigned" />
+        </MetaCell>
+        <MetaCell label="Declared by">
+          <PersonChip person={incident.declaredBy} fallback="-" />
         </MetaCell>
         <MetaCell label="Declared">
           <div className="flex items-baseline gap-1.5">

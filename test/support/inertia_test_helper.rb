@@ -9,4 +9,8 @@ module InertiaTestHelper
       "X-Inertia-Version" => InertiaRails.configuration.version
     }
   end
+
+  def inertia_props
+    JSON.parse(response.body)["props"]
+  end
 end

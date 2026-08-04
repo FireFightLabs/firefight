@@ -106,8 +106,4 @@ class SettingsAlertsTest < ActionDispatch::IntegrationTest
       last_seen_at: last_seen_at
     )
   end
-
-  def inertia_props
-    JSON.parse(response.body)["props"]
-  end
 end
