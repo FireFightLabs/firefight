@@ -77,6 +77,7 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 | Doc | Read when |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | Touching controllers, dispatchers, handlers, services, adapters, domain events, Slack events, outbound webhooks, or entitlements; adding a command, interaction, or entry point; deciding sync vs job |
+| [docs/forms.md](docs/forms.md) | Touching incident forms, the system field registry, the form editor, or anything that decides which fields a responder is asked |
 | [docs/frontend.md](docs/frontend.md) | Any work under `app/frontend/` or on serializers (Inertia props, TS type generation, page/component structure, dashboard pattern) |
 | [docs/workflows.md](docs/workflows.md) | Creating or modifying a workflow, or touching the SolidWorkflow engine (`engines/solid_workflow/`) |
 | [docs/api.md](docs/api.md) | Working on the public REST API (`/api/v1/`), API keys, auth, or idempotency |
