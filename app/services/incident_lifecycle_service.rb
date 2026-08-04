@@ -62,6 +62,13 @@ class IncidentLifecycleService
       incident.update!(attrs)
     end
 
+    # The same announcement path a status change takes, so the channel topic,
+    # the pinned quick actions, and the announcement all reflect that this is
+    # over. Skipping it left cancelling completely silent.
+    IncidentUpdateWorkflow.start!(incident, context: {
+      updated_by_platform_user_id: changed_by&.platform_user_id
+    })
+
     if workspace.archive_channel_enabled && incident.channel_id.present?
       ChannelArchivalJob.set(wait: workspace.archive_channel_delay_minutes.minutes)
         .perform_later(incident.id, Time.current.iso8601)

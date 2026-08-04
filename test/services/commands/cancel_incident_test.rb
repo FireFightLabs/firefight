@@ -70,6 +70,20 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
     assert_equal 1, @incident.incident_events.where(event_type: IncidentEvent::INCIDENT_CANCELED).count
   end
 
+  test "announces the cancellation so the channel is not left silent" do
+    IncidentUpdateWorkflow.expects(:start!).once
+
+    Commands::CancelIncident.execute(command)
+  end
+
+  test "a canceled incident offers no quick actions" do
+    Commands::CancelIncident.execute(command)
+
+    blocks = Slack::Messages::QuickActions.build(@incident.reload)
+    actions = blocks.find { |b| b[:type] == "actions" }
+    assert_nil actions, "a canceled incident should offer no actions"
+  end
+
   test "opens a modal instead when the workspace has attached a field" do
     form = @workspace.ensure_incident_form!(IncidentForm::SLUG_CANCEL)
     IncidentFormService.new(@workspace).add_custom_field(form, incident_field_definitions(:customer_tier_ws1))

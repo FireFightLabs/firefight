@@ -32,13 +32,22 @@ module Slack
         relationship_text = Formatting.relationship_summary(incident)
         blocks << { type: "section", text: { type: "mrkdwn", text: relationship_text } } if relationship_text
 
-        blocks << { type: "divider" }
-        blocks << { type: "actions", elements: buttons(incident) }
+        # Slack rejects an actions block with no elements, so a terminal
+        # incident drops the block and its divider rather than emptying it.
+        actions = buttons(incident)
+        if actions.any?
+          blocks << { type: "divider" }
+          blocks << { type: "actions", elements: actions }
+        end
 
         blocks
       end
 
       def self.buttons(incident)
+        # A resolved or canceled incident is over. Offering Escalate or Make me
+        # Lead on it invites actions that no longer mean anything.
+        return [] unless incident.incident_status.incident_lifecycle_stage.open?
+
         result = []
 
         if incident.incident_status.triage?
