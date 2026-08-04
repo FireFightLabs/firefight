@@ -118,7 +118,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
       previous_severity_name: previous_severity_name,
       previous_type_name: previous_type_name
     )
-    post_message(channel_id: channel_id, text: "Incident updated", blocks: blocks)
+    post_message(channel_id: channel_id, text: notification_text(incident), blocks: blocks)
   end
 
   def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
@@ -131,7 +131,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
       previous_severity_name: previous_severity_name,
       previous_type_name: previous_type_name
     )
-    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident updated", blocks: blocks)
+    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: notification_text(incident), blocks: blocks)
   end
 
   def post_incident_update_reminder(channel_id:, user_id:, incident:)
@@ -399,6 +399,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   private
+
+  # Push notifications and the channel-list preview show this, never the
+  # blocks, so a cancellation must not announce itself as an update.
+  def notification_text(incident)
+    incident.canceled? ? "Incident canceled" : "Incident updated"
+  end
 
   def timeline_load_more_button(incident_id, current_limit)
     {

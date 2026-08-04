@@ -14,17 +14,22 @@ module Slack
         field_lines << type_text if type_text
 
         # A cancellation posts through the same path as any status change, so
-        # the wording follows the stage rather than calling it an update.
+        # the wording follows the stage rather than calling it an update. It
+        # also ends the incident, so in the announcement thread it takes the
+        # header block that Resolved and Reopened use rather than the smaller
+        # title an ordinary update gets.
         canceled = incident.canceled?
         icon = canceled ? ":wastebasket:" : ":memo:"
         noun = canceled ? "Incident canceled" : "Incident updated"
 
-        header_text = case scope
-        when :inline       then "#{icon} *#{incident.identifier} — #{noun}*"
-        when :announcement then "#{icon} *#{noun}*"
+        blocks = if canceled && scope == :announcement
+          [ { type: "header", text: { type: "plain_text", text: "#{icon} #{noun}", emoji: true } } ]
+        else
+          title = scope == :inline ? "#{incident.identifier} — #{noun}" : noun
+          [ { type: "section", text: { type: "mrkdwn", text: "#{icon}  *#{title}*" } } ]
         end
 
-        blocks = [ { type: "section", text: { type: "mrkdwn", text: header_text } } ]
+        blocks << { type: "divider" }
         blocks << { type: "section", text: { type: "mrkdwn", text: "> #{message}" } } if message.present?
         blocks << { type: "section", text: { type: "mrkdwn", text: field_lines.join("  ·  ") } }
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: context_text(incident, updated_by_platform_user_id) } ] }

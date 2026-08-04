@@ -31,7 +31,8 @@ module Slack
 
       def self.header_blocks(runbook)
         blocks = [
-          { type: "section", text: { type: "mrkdwn", text: ":book:  *Runbook attached: #{runbook.name}*" } }
+          { type: "section", text: { type: "mrkdwn", text: ":book:  *Runbook attached: #{runbook.name}*" } },
+          { type: "divider" }
         ]
 
         if runbook.summary.present?

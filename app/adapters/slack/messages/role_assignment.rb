@@ -7,8 +7,9 @@ module Slack
         [
           {
             type: "section",
-            text: { type: "mrkdwn", text: ":busts_in_silhouette: *Incident roles updated*" }
+            text: { type: "mrkdwn", text: ":busts_in_silhouette:  *Incident roles updated*" }
           },
+          { type: "divider" },
           {
             type: "section",
             text: { type: "mrkdwn", text: changes.map { |change| line(change) }.join("\n") }
