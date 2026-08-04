@@ -12,6 +12,10 @@ class ApiKey < ApplicationRecord
   RESOURCE_STATUSES = "statuses"
   RESOURCE_INCIDENT_TYPES = "incident_types"
   RESOURCE_CUSTOM_FIELDS = "custom_fields"
+  # Which fields a responder is asked at each lifecycle moment. Separate from
+  # custom_fields because defining a field and deciding that Name is required
+  # on every declaration are different powers.
+  RESOURCE_FORMS = "forms"
   RESOURCE_CATALOG = "catalog"
   RESOURCE_ALERTS = "alerts"
   RESOURCE_POLICIES = "policies"
@@ -20,8 +24,8 @@ class ApiKey < ApplicationRecord
 
   RESOURCES = [
     RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
-    RESOURCE_CUSTOM_FIELDS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES, RESOURCE_RUNBOOKS,
-    RESOURCE_APPROVALS
+    RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
+    RESOURCE_RUNBOOKS, RESOURCE_APPROVALS
   ].freeze
 
   # Actions

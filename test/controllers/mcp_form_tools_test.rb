@@ -112,4 +112,46 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
     assert is_error
     assert_empty content
   end
+
+  # The tests above run on a personal token, which carries its human's
+  # authority and so never touches a grant. A service key is the path where
+  # scopes actually decide, and it is the one the permissions screen has to be
+  # able to issue.
+
+  test "a service key scoped to forms can read and configure them" do
+    @token = service_token(ApiKey::RESOURCE_FORMS => [ ApiKey::ACTION_READ, ApiKey::ACTION_UPDATE ])
+
+    _, read_error = call_tool(Mcp::Tools::GET_FORM, { form: IncidentForm::SLUG_DECLARE })
+    assert_not read_error
+
+    _, write_error = call_tool(Mcp::Tools::UPSERT_FORM_FIELD, {
+      form: IncidentForm::SLUG_DECLARE,
+      system_field: IncidentSystemField::KEY_NAME,
+      required: true
+    })
+    assert_not write_error
+  end
+
+  # Defining a custom field and deciding what every responder is asked are
+  # separate powers, so one grant must not buy the other.
+  test "a service key scoped to custom fields cannot configure a form" do
+    @token = service_token(ApiKey::RESOURCE_CUSTOM_FIELDS => [ ApiKey::ACTION_READ, ApiKey::ACTION_UPDATE ])
+
+    _, is_error = call_tool(Mcp::Tools::UPSERT_FORM_FIELD, {
+      form: IncidentForm::SLUG_DECLARE,
+      system_field: IncidentSystemField::KEY_NAME,
+      required: true
+    })
+
+    assert is_error
+  end
+
+  private
+
+  def service_token(permissions)
+    _, token = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: @membership, name: "Service", permissions: permissions
+    )
+    token
+  end
 end

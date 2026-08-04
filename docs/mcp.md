@@ -7,7 +7,7 @@ Firefight ships a [Model Context Protocol](https://modelcontextprotocol.io) serv
 Mint a token under **Settings → API keys**:
 
 - **Personal token** ("acts as you") — reads everything you can see. For your own agent sessions.
-- **Service key** with read scopes (`incidents`, `alerts`, `catalog`, `policies`) — for headless agents and CI.
+- **Service key** scoped per resource and action — for headless agents and CI.
 
 **Claude Code (OAuth — recommended)**
 
@@ -80,4 +80,8 @@ The server is self-describing for agents: server instructions, tool descriptions
 
 `McpController` (entry point: Bearer auth → `Current.principal`, API rate limit, stateless `handle_json` dispatch — no sessions/SSE, multi-worker safe) → `Mcp::ToolDispatcher` (telemetry; routes every call through `AbilityGateway.authorize!`, which resolves the principal's grants and ledgers denials) → tool classes in `app/mcp/` (workspace-scoped reads + formatting only; no business logic, no writes, no adapter calls; tool names from `Mcp::Tools` constants).
 
-Each tool declares what it authorizes as (`authorize_as`, or a dynamic create-vs-update split for upserts). Personal tokens resolve to the human: members pass every read, admins also pass writes. Service keys need the explicit `<resource>:<action>` scope (`incidents`, `alerts`, `catalog`, `policies` for routing, `runbooks`).
+Each tool declares what it authorizes as (`authorize_as`, or a dynamic create-vs-update split for upserts). Personal tokens resolve to the human: members pass every read, admins also pass writes. Service keys need the explicit `<resource>:<action>` scope, drawn from `ApiKey::RESOURCES`: `incidents`, `alerts`, `catalog`, `policies` for routing, `runbooks`, `approvals`, `custom_fields` for field definitions and `forms` for what a lifecycle form asks.
+
+**The API key screen must offer every resource and action.** It once mirrored the `/api/v1` routes alone, which left thirteen of the twenty tools ungrantable to a service key: `runbooks` and `approvals` had no row at all, and `custom_fields` offered only read. The effect was that an agent could not be scoped, it had to run as an admin human over OAuth and inherit everything, which is the reverse of the rule that machines never inherit a human's reach. `permissions-matrix.tsx` now renders `ApiKey::RESOURCES` × `ApiKey::ACTIONS` in full.
+
+Adding a resource means adding the `Ability::Action` rows for it. `Ability::Action.lookup` returning nil denies **everyone**, admins included, so a new resource needs a migration calling `sync_system_actions!` and not just a seeds run.

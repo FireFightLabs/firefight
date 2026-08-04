@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_03_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_04_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -426,7 +426,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_190000) do
     t.datetime "updated_at", null: false
     t.uuid "catalog_type_id"
     t.index ["catalog_type_id"], name: "index_incident_field_definitions_on_catalog_type_id"
-    t.index ["workspace_id", "slug"], name: "index_incident_field_definitions_on_workspace_and_key_active", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["workspace_id", "slug"], name: "index_incident_field_definitions_on_workspace_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id"], name: "index_incident_field_definitions_on_workspace_id"
   end
 
