@@ -10,8 +10,10 @@ module Commands
       workspace = command.workspace
       incident = command.incident
 
-      fields = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_CANCEL)
-      return open_modal(command) if fields.any?
+      # Asks what the modal would actually render, not what the form lists.
+      # Status is configurable on this form but is not shown while there is a
+      # single canceled status, so the field set alone would open an empty one.
+      return open_modal(command) if Slack::Modals::IncidentCancel.renderable_blocks(incident).any?
 
       cancel!(workspace, incident, command.user_id)
       nil

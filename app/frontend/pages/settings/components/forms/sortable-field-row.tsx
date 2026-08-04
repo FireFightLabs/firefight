@@ -77,6 +77,9 @@ export function SortableFieldRow({ field, incidentTypes, severities, onUpdate, o
           {field.hint && (
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{field.hint}</p>
           )}
+          {field.inactiveReason && (
+            <p className="mt-1 text-xs leading-relaxed text-amber-600 dark:text-amber-400">{field.inactiveReason}</p>
+          )}
           <div className="mt-2 max-w-lg">
             {isSelect ? (
               <div className="flex h-9 items-center rounded-md border border-border bg-muted px-3">

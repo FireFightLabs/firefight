@@ -264,6 +264,9 @@ module Slack
         if stage
           statuses = statuses.joins(:incident_lifecycle_stage)
             .where(incident_lifecycle_stages: { key: stage })
+          # One option is not a choice. The transition sets it anyway, so
+          # asking would add a step that can only be answered one way.
+          return nil if statuses.count < 2
         end
         status_options = statuses.map do |status|
           option = { text: { type: "plain_text", text: status.name }, value: status.slug }

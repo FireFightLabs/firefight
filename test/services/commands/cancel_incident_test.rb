@@ -91,21 +91,27 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
     assert_equal @incident.id, found&.id
   end
 
-  test "cancel offers no status field while there is only one canceled status" do
-    fields = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_CANCEL)
+  test "the editor shows status on cancel even when responders will not be asked" do
+    editor = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_CANCEL, include_hidden: true)
 
-    assert_empty fields, "one option is not a choice, so it must not force a modal"
+    # Configuration has to explain what Slack does. A field that can appear must
+    # be visible here, or its appearance later is inexplicable.
+    assert_includes editor.map(&:system_field_key), IncidentSystemField::KEY_STATUS
   end
 
-  test "cancel offers status once a second canceled status exists" do
+  test "slack skips status while a single canceled status leaves nothing to choose" do
+    assert_empty Slack::Modals::IncidentCancel.renderable_blocks(@incident)
+  end
+
+  test "slack asks for status once a second canceled status exists" do
     stage = IncidentLifecycleStage.find_by!(key: IncidentLifecycleStage::CANCELED)
     @workspace.incident_statuses.create!(
       name: "Duplicate", slug: "duplicate", incident_lifecycle_stage: stage,
       position: @workspace.incident_statuses.maximum(:position).to_i + 1
     )
 
-    fields = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_CANCEL)
-    assert_equal [ IncidentSystemField::KEY_STATUS ], fields.map(&:system_field_key)
+    blocks = Slack::Modals::IncidentCancel.renderable_blocks(@incident)
+    assert_equal [ "field_status_block" ], blocks.map { |b| b[:block_id] }
   end
 
   test "an available field is offered in the editor but hidden from responders" do

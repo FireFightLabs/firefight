@@ -54,6 +54,23 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     form_field.system? ? source_definition.placeholder : nil
   end
 
+  # Says why a configured field still will not reach responders, so the editor
+  # never shows something whose absence in Slack is inexplicable.
+  type :string, optional: true
+  def inactive_reason
+    return nil unless form_field.system?
+    return nil unless form_field.system_field_key == IncidentSystemField::KEY_STATUS
+
+    stage = IncidentFormResolver::TERMINAL_STAGE_BY_FORM[form_field.incident_form&.lifecycle_event]
+    return nil if stage.nil?
+
+    count = form_field.incident_form.workspace.incident_statuses.active
+      .joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: stage }).count
+    return nil if count > 1
+
+    "Responders are not asked this while there is only one #{stage} status, since there is nothing to choose."
+  end
+
   # A system field's identifier comes from the code registry, which keys its
   # definitions rather than slugging them. Only workspace-defined fields have a
   # slug column.

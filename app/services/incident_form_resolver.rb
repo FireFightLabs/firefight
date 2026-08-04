@@ -59,6 +59,7 @@ class IncidentFormResolver
       else
         field = default_form_field(lifecycle_event, defn, position: idx)
         next if field.nil? || (hidden?(field) && !include_hidden)
+        next if redundant_status?(lifecycle_event, defn) && !include_hidden
 
         merged << field
       end
@@ -137,9 +138,9 @@ class IncidentFormResolver
     form_field.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
   end
 
-  # Status only earns a place on a terminal form when the stage it moves to
-  # holds more than one status. With a single option there is no choice to
-  # make, so asking would turn a one-command action into a modal.
+  # Status with a single option in the target stage is configuration a user
+  # should see, but not a question worth asking: the transition sets it either
+  # way. The editor keeps it, responders and submission validation do not.
   def redundant_status?(lifecycle_event, defn)
     return false unless defn.key == IncidentSystemField::KEY_STATUS
 
@@ -152,10 +153,6 @@ class IncidentFormResolver
 
   def default_form_field(lifecycle_event, defn, position:)
     mode = defn.required_mode_for(lifecycle_event)
-
-    # Status with a single option is not a choice, so it is absent rather than
-    # merely off: there is nothing for anyone to enable.
-    return nil if redundant_status?(lifecycle_event, defn)
 
     # An available field ships hidden rather than missing, so the editor can
     # offer it while responders do not see it until someone turns it on.

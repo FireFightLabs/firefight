@@ -4,20 +4,24 @@ module Slack
     # With none attached the command cancels outright rather than opening an
     # empty dialog.
     module IncidentCancel
-      def self.build(incident, private_metadata: nil)
+      def self.renderable_blocks(incident)
         workspace = incident.workspace
-        metadata = private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id)
-
         context = IncidentConditionEvaluator.context_for(incident)
-        visible_fields = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_CANCEL, context: context)
 
-        blocks = visible_fields.filter_map do |form_field|
+        IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_CANCEL, context: context).filter_map do |form_field|
           if form_field.system?
             FieldBlocks.build_system(workspace, form_field, incident: incident, terminal_stage: IncidentLifecycleStage::CANCELED)
           else
             FieldBlocks.build_custom(workspace, form_field, incident: incident)
           end
         end
+      end
+
+      def self.build(incident, private_metadata: nil)
+        workspace = incident.workspace
+        metadata = private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id)
+
+        blocks = renderable_blocks(incident)
 
         {
           type: "modal",

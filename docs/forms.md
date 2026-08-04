@@ -67,8 +67,15 @@ that has no row yet.
   not just disabled in the UI.
 - **Status on a terminal form** is scoped to the statuses in the stage that
   transition targets, so nobody can resolve an incident into Investigating.
-  It is omitted entirely when that stage holds fewer than two statuses, because
-  one option is not a choice.
+  When that stage holds a single status it is dropped from `resolve(slug)` but
+  kept under `include_hidden`, so responders are not asked a question with one
+  answer while the editor still shows that the field belongs to the form. The
+  serializer ships an `inactive_reason` explaining why, because a field that
+  appears in Slack without appearing in configuration is inexplicable.
+
+  Suppression like this belongs in the resolver, not the block builder.
+  `validate_submission` reads the same `resolve(slug)`, so hiding a required
+  field only at render makes submission demand something nobody was asked.
 - **Message** writes to `incident_updates.message`, not an incident attribute.
   It is the only system field that does, so `validate_submission` returns it in
   `system_attrs` and the handler reads it from there.
