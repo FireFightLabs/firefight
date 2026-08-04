@@ -65,17 +65,29 @@ that has no row yet.
   Severity and Status are `NOT NULL` on incidents, so hiding either produces a
   form that can never submit. Enforced in `IncidentFormService#update_field`,
   not just disabled in the UI.
+- **A field with no possible answer is dropped**, by
+  `IncidentFormResolver#unanswerable_reason`. Three cases today: Status on a
+  terminal form whose stage holds a single status (the transition sets it
+  anyway), Incident Type in a workspace with no types, and a select or catalog
+  custom field with nothing to pick. Each is dropped from `resolve(slug)` and
+  kept under `include_hidden` carrying the sentence saying why, which the
+  serializer ships as `inactive_reason`. A field that appears in Slack without
+  appearing in configuration is inexplicable, and so is the reverse.
+
+  **This must live in the resolver, never in a block builder.**
+  `validate_submission` reads the same `resolve(slug)`, so a field suppressed
+  only at render is still demanded on submit: the modal names a field it never
+  showed and can never be submitted. That shipped once. It was reachable the
+  moment an admin touched Status in the editor, because materializing the
+  overlay row moved the field onto a code path that skipped the check.
+  `unanswerable_reason` now runs against the merged field, override or default,
+  so there is one path and no way back in.
+
+  The proof that the resolver is authoritative: the modals `map` over the
+  resolved set. Nothing downstream filters, so nothing downstream can disagree.
+
 - **Status on a terminal form** is scoped to the statuses in the stage that
   transition targets, so nobody can resolve an incident into Investigating.
-  When that stage holds a single status it is dropped from `resolve(slug)` but
-  kept under `include_hidden`, so responders are not asked a question with one
-  answer while the editor still shows that the field belongs to the form. The
-  serializer ships an `inactive_reason` explaining why, because a field that
-  appears in Slack without appearing in configuration is inexplicable.
-
-  Suppression like this belongs in the resolver, not the block builder.
-  `validate_submission` reads the same `resolve(slug)`, so hiding a required
-  field only at render makes submission demand something nobody was asked.
 - **Message** writes to `incident_updates.message`, not an incident attribute.
   It is the only system field that does, so `validate_submission` returns it in
   `system_attrs` and the handler reads it from there.
@@ -92,7 +104,9 @@ messages, "Severity is required", the settings row.
 
 1. Add a `Definition` to `IncidentSystemField::DEFINITIONS` with `label`,
    `hint`, `placeholder`, and its `forms:` map.
-2. Add a block builder branch in `FieldBlocks.build_system`.
+2. Add a block builder branch in `FieldBlocks.build_system`. It renders
+   unconditionally. If the field can have nothing to ask, that belongs in
+   `unanswerable_reason`, with the sentence a reader will see in the editor.
 3. Confirm both surfaces: `resolve(slug)` and
    `resolve(slug, include_hidden: true)`.
 

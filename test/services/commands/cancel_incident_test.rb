@@ -102,7 +102,7 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
   end
 
   test "slack skips status while a single canceled status leaves nothing to choose" do
-    assert_empty Slack::Modals::IncidentCancel.renderable_blocks(@incident)
+    assert_empty Slack::Modals::IncidentCancel.build(@incident)[:blocks]
   end
 
   test "slack asks for status once a second canceled status exists" do
@@ -112,7 +112,7 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
       position: @workspace.incident_statuses.maximum(:position).to_i + 1
     )
 
-    blocks = Slack::Modals::IncidentCancel.renderable_blocks(@incident)
+    blocks = Slack::Modals::IncidentCancel.build(@incident)[:blocks]
     assert_equal [ "field_status_block" ], blocks.map { |b| b[:block_id] }
   end
 
@@ -215,7 +215,7 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
     form = @workspace.ensure_incident_form!(IncidentForm::SLUG_CANCEL)
     IncidentFormService.new(@workspace).add_custom_field(form, incident_field_definitions(:customer_tier_ws1))
 
-    CancelModalOpener.expects(:open).once
+    ModalOpener.expects(:open).once
     assert_nil Commands::CancelIncident.execute(command)
 
     assert_not_equal @canceled.id, @incident.reload.incident_status_id

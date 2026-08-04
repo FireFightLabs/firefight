@@ -6,7 +6,8 @@ module Commands
       incident = command.workspace.incidents.terminal.in_channel(command.channel_id).first
       return Command.ephemeral("This command must be run from a resolved or canceled incident channel.") unless incident
 
-      ReopenModalOpener.open(
+      ModalOpener.open(
+        :reopen,
         workspace: command.workspace,
         incident: incident,
         trigger_id: command.trigger_id,

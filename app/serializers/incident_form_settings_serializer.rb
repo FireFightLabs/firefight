@@ -27,15 +27,27 @@ class IncidentFormSettingsSerializer < BaseSerializer
     incident_form.description
   end
 
+  # What a responder is actually asked, which is the resolved set minus the
+  # fields an admin hid and the ones with nothing to ask.
   type :number
   def field_count
-    incident_form.resolved_fields.size
+    resolved.count { |field| field.visibility_mode == IncidentFormField::VISIBILITY_MODE_VISIBLE && field.inactive_reason.nil? }
   end
 
   # Hidden fields included, greyed out in the editor. Leaving them out is what
   # made hiding a field a one-way door.
   type "IncidentFormFieldSettings[]"
   def fields
-    IncidentFormFieldSettingsSerializer.many(incident_form.resolved_fields(include_hidden: true))
+    IncidentFormFieldSettingsSerializer.many(resolved)
+  end
+
+  private
+
+  # One resolve per form. Counting the visible fields with a second pass was a
+  # whole extra round of queries for a number this list already answers.
+  # Serializer instances are reused, so this memoizes into `memo` rather than
+  # an ivar.
+  def resolved
+    memo.fetch(:resolved) { incident_form.resolved_fields(include_hidden: true) }
   end
 end

@@ -1,9 +1,14 @@
 module Slack
   module Modals
-    # Shared field-block builders used by the three incident form modals
-    # (declare, update, close). Each method returns one Slack Block Kit
+    # Shared field-block builders used by the incident form modals (declare,
+    # update, resolve, cancel). Each method returns one Slack Block Kit
     # `input` block. `build_system` and `build_custom` are the dispatchers
     # that pick the right per-type builder.
+    #
+    # Every field handed here renders. Deciding that a field has nothing to ask
+    # belongs to IncidentFormResolver, which is also what `validate_submission`
+    # reads: suppressing a field here alone leaves submission demanding one the
+    # responder was never shown.
     module FieldBlocks
       def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, selected_type_id: nil, terminal_stage: nil)
         case form_field.system_field_key
@@ -31,8 +36,6 @@ module Slack
 
       def self.build_custom(_workspace, form_field, incident: nil)
         defn = form_field.incident_field_definition
-        return nil unless defn
-
         optional = form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
         current_value = incident&.custom_fields&.dig(defn.slug)
 
@@ -218,7 +221,6 @@ module Slack
 
       def self.incident_type_block(workspace, form_field, incident: nil, dispatch: false, selected_type_id: nil)
         types = workspace.incident_types.active.ordered
-        return nil unless types.any?
 
         type_options = types.map do |type|
           option = { text: { type: "plain_text", text: type.name }, value: type.slug }
@@ -264,9 +266,6 @@ module Slack
         if stage
           statuses = statuses.joins(:incident_lifecycle_stage)
             .where(incident_lifecycle_stages: { key: stage })
-          # One option is not a choice. The transition sets it anyway, so
-          # asking would add a step that can only be answered one way.
-          return nil if statuses.count < 2
         end
         status_options = statuses.map do |status|
           option = { text: { type: "plain_text", text: status.name }, value: status.slug }
@@ -321,7 +320,6 @@ module Slack
       # single versus multi only in which Block Kit keys carry the selection.
       def self.select_custom_block(defn, optional:, current_value:)
         options = custom_field_options(defn)
-        return nil if options.empty?
 
         element = {
           type: defn.multi_valued? ? "multi_static_select" : "static_select",

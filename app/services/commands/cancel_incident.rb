@@ -10,10 +10,9 @@ module Commands
       workspace = command.workspace
       incident = command.incident
 
-      # Asks what the modal would actually render, not what the form lists.
-      # Status is configurable on this form but is not shown while there is a
-      # single canceled status, so the field set alone would open an empty one.
-      return open_modal(command) if Slack::Modals::IncidentCancel.renderable_blocks(incident).any?
+      # The resolved set is what the modal renders, so an empty one means there
+      # is nothing to ask and the command should just cancel.
+      return open_modal(command) if Slack::Modals::TerminalForm.fields(incident, IncidentForm::SLUG_CANCEL).any?
 
       cancel!(workspace, incident, command.user_id)
       nil
@@ -22,7 +21,8 @@ module Commands
     end
 
     def self.open_modal(command)
-      CancelModalOpener.open(
+      ModalOpener.open(
+        :cancel,
         workspace: command.workspace,
         incident: command.incident,
         trigger_id: command.trigger_id,

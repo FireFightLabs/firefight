@@ -11,7 +11,8 @@ class Commands::CloseIncidentTest < ActiveSupport::TestCase
   end
 
   test "opens close modal in incident channel" do
-    CloseModalOpener.expects(:open).with(
+    ModalOpener.expects(:open).with(
+      :close,
       workspace: @workspace,
       incident: @incident,
       trigger_id: "12345.trigger",
@@ -52,7 +53,7 @@ class Commands::CloseIncidentTest < ActiveSupport::TestCase
   end
 
   test "handles trigger expiration" do
-    CloseModalOpener.expects(:open).raises(AdapterError::TriggerExpired.new("expired"))
+    ModalOpener.expects(:open).raises(AdapterError::TriggerExpired.new("expired"))
 
     result = Commands::CloseIncident.execute(
       build_command(channel_id: @incident.channel_id)

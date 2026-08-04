@@ -2,7 +2,8 @@ require "test_helper"
 
 class IncidentFormResolverTest < ActiveSupport::TestCase
   fixtures :workspaces, :incident_forms, :incident_form_fields, :incident_field_definitions,
-           :catalog_types, :catalog_entries
+           :catalog_types, :catalog_entries, :incident_lifecycle_stages, :incident_statuses,
+           :incident_types
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -179,5 +180,83 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     resolve_keys = resolve_fields.map { |f| f.system_field_key || f.incident_field_definition&.slug }
 
     assert_not_equal declare_keys, resolve_keys
+  end
+
+  # ============================================================================
+  # UNANSWERABLE FIELDS
+  #
+  # Every one of these used to be suppressed in the Slack block builder alone,
+  # which left validate_submission demanding a field the modal never rendered.
+  # ============================================================================
+
+  test "a status an override row materialized is still dropped while the stage holds one status" do
+    fixtures_workspace_has_one_canceled_status
+
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_CANCEL)
+    IncidentFormService.new(@workspace).ensure_system_field!(form, IncidentSystemField::KEY_STATUS)
+
+    keys = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_CANCEL).map(&:system_field_key)
+    assert_not_includes keys, IncidentSystemField::KEY_STATUS
+  end
+
+  test "a materialized status does not become required on submission after the modal skipped it" do
+    fixtures_workspace_has_one_canceled_status
+
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_CANCEL)
+    row = IncidentFormService.new(@workspace).ensure_system_field!(form, IncidentSystemField::KEY_STATUS)
+    row.update!(required_mode: IncidentFormField::REQUIRED_MODE_REQUIRED)
+
+    result = IncidentFormResolver.new(@workspace).validate_submission(IncidentForm::SLUG_CANCEL, {})
+    assert_empty result[:errors]
+  end
+
+  test "an override row carries the reason it will not reach responders" do
+    fixtures_workspace_has_one_canceled_status
+
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_CANCEL)
+    IncidentFormService.new(@workspace).ensure_system_field!(form, IncidentSystemField::KEY_STATUS)
+
+    field = IncidentFormResolver.new(@workspace)
+      .resolve(IncidentForm::SLUG_CANCEL, include_hidden: true)
+      .find { |f| f.system_field_key == IncidentSystemField::KEY_STATUS }
+
+    assert_match(/only one canceled status/, field.inactive_reason)
+  end
+
+  test "incident type is dropped while the workspace has none" do
+    @workspace.incident_types.update_all(deleted_at: Time.current)
+
+    keys = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_DECLARE).map(&:system_field_key)
+    assert_not_includes keys, IncidentSystemField::KEY_INCIDENT_TYPE
+  end
+
+  test "a catalog field whose type holds no entries is dropped rather than asked" do
+    empty_type = @workspace.catalog_types.create!(
+      name: "Blast radius", slug: "blast_radius", kind: CatalogType::KIND_CUSTOM, position: 90
+    )
+    definition = @workspace.incident_field_definitions.create!(
+      name: "Blast radius", slug: "blast_radius", position: 90,
+      field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_CATALOG,
+      catalog_type: empty_type
+    )
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    IncidentFormService.new(@workspace).add_custom_field(form, definition)
+
+    resolver = IncidentFormResolver.new(@workspace)
+    slugs = resolver.resolve(IncidentForm::SLUG_DECLARE).filter_map { |f| f.incident_field_definition&.slug }
+    assert_not_includes slugs, "blast_radius"
+
+    field = IncidentFormResolver.new(@workspace)
+      .resolve(IncidentForm::SLUG_DECLARE, include_hidden: true)
+      .find { |f| f.incident_field_definition&.slug == "blast_radius" }
+    assert_match(/at least one option/, field.inactive_reason)
+  end
+
+  private
+
+  def fixtures_workspace_has_one_canceled_status
+    stage = IncidentLifecycleStage.find_by!(key: IncidentLifecycleStage::CANCELED)
+    assert_equal 1, @workspace.incident_statuses.active.where(incident_lifecycle_stage: stage).count
   end
 end
