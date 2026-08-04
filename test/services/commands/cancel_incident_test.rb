@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Commands::CancelIncidentTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
            :incident_statuses, :incident_severities, :incidents,
            :catalog_types, :incident_field_definitions, :incident_field_options
@@ -156,6 +158,57 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
     assert_match "Incident canceled", text
     assert_match "Canceled by <@U9>", text
     assert_no_match(/Incident updated|Updated by/, text)
+  end
+
+  test "a canceled incident can be reopened through the modal, not just found" do
+    Commands::CancelIncident.execute(command)
+
+    interaction = Interaction.new(
+      platform: Platforms::SLACK,
+      type: Interaction::VIEW_SUBMISSION,
+      team_id: @workspace.platform_id,
+      user_id: @member.platform_user_id,
+      callback_id: Identifiers::REOPEN_INCIDENT_MODAL,
+      private_metadata: { incident_id: @incident.id }.to_json,
+      values: { "reason_block" => { "reason_input" => { "value" => "It was real after all." } } }
+    )
+
+    result = Interactions::ReopenIncidentHandler.execute(interaction)
+
+    assert_nil result, "reopening a canceled incident must not report it as already active"
+    assert @incident.reload.incident_status.incident_lifecycle_stage.open?
+  end
+
+  test "cancelling schedules the channel archival it promises" do
+    @workspace.update!(archive_channel_enabled: true)
+
+    assert_enqueued_with(job: ChannelArchivalJob) do
+      Commands::CancelIncident.execute(command)
+    end
+  end
+
+  test "a summary typed while cancelling is kept and shown to the channel" do
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_CANCEL)
+    service = IncidentFormService.new(@workspace)
+    field = service.ensure_system_field!(form, IncidentSystemField::KEY_SUMMARY)
+    service.update_field(field, visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+
+    IncidentUpdateWorkflow.expects(:start!).with do |_incident, context:|
+      context[:message] == "Duplicate of INC-041."
+    end
+
+    Interactions::CancelIncidentHandler.execute(Interaction.new(
+      platform: Platforms::SLACK,
+      type: Interaction::VIEW_SUBMISSION,
+      team_id: @workspace.platform_id,
+      user_id: @member.platform_user_id,
+      callback_id: Identifiers::CANCEL_INCIDENT_MODAL,
+      private_metadata: { incident_id: @incident.id }.to_json,
+      values: { "field_summary_block" => { "field_summary_input" => { "value" => "Duplicate of INC-041." } } }
+    ))
+
+    assert_equal "Duplicate of INC-041.", @incident.reload.summary
   end
 
   test "opens a modal instead when the workspace has attached a field" do

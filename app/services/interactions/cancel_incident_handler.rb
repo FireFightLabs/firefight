@@ -27,10 +27,19 @@ module Interactions
       status = (chosen.present? && scope.find_by(slug: chosen)) || scope.first
       return no_status_error if status.nil?
 
+      system_attrs = submission.system_attrs
+      attrs = { incident_status: status }
+      attrs[:name] = system_attrs[IncidentSystemField::KEY_NAME] if system_attrs[IncidentSystemField::KEY_NAME].present?
+      attrs[:summary] = system_attrs[IncidentSystemField::KEY_SUMMARY] if system_attrs[IncidentSystemField::KEY_SUMMARY].present?
+      attrs[:custom_fields] = submission.custom_fields if submission.custom_fields.present?
+
       IncidentLifecycleService.new(workspace).cancel(
         incident,
-        { incident_status: status, custom_fields: submission.custom_fields.presence || {} },
-        changed_by: member
+        attrs,
+        changed_by: member,
+        # The summary a responder typed while cancelling is the explanation of
+        # why, so it belongs in the message the channel sees.
+        message: system_attrs[IncidentSystemField::KEY_SUMMARY].presence
       )
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata)
 

@@ -107,7 +107,7 @@ class AlertIngestService
   def reopen(alert, now)
     alert.record_firing!(now)
 
-    if alert.incident&.closed?
+    if alert.incident&.terminal?
       alert.update!(incident: nil, alert_group: nil, matched_policy_rule: nil,
                     channel_id: nil, channel_message_id: nil, last_notified_at: nil,
                     routing_state: Alert::ROUTING_PENDING, routing_attempts: 0)
@@ -205,7 +205,7 @@ class AlertIngestService
       .order(window_expires_at: :desc)
       .first
     return nil unless group
-    return nil if group.incident.closed?
+    return nil if group.incident.terminal?
 
     alert.alert_group = group
     group.incident

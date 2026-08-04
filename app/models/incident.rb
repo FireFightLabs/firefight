@@ -110,6 +110,12 @@ class Incident < ApplicationRecord
     incident_status.canceled?
   end
 
+  # Over, however it ended. Resolved and canceled differ in what they mean, but
+  # not in whether anyone is still working the incident.
+  def terminal?
+    closed? || canceled?
+  end
+
   def related_incidents
     ids = IncidentRelationship.related
       .where(incident_id: id)
