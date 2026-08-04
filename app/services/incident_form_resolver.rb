@@ -14,6 +14,11 @@
 #
 # `validate_submission` then validates raw params against the resolved set.
 class IncidentFormResolver
+  TERMINAL_STAGE_BY_FORM = {
+    IncidentForm::SLUG_RESOLVE => IncidentLifecycleStage::CLOSED,
+    IncidentForm::SLUG_CANCEL => IncidentLifecycleStage::CANCELED
+  }.freeze
+
   class ValidationError < StandardError
     attr_reader :field_errors
 
@@ -52,7 +57,8 @@ class IncidentFormResolver
         next if hidden?(override) && !include_hidden
         merged << override
       else
-        merged << default_form_field(lifecycle_event, defn, position: idx)
+        field = default_form_field(lifecycle_event, defn, position: idx)
+        merged << field if field
       end
     end
 
@@ -129,11 +135,28 @@ class IncidentFormResolver
     form_field.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
   end
 
+  # Status only earns a place on a terminal form when the stage it moves to
+  # holds more than one status. With a single option there is no choice to
+  # make, so asking would turn a one-command action into a modal.
+  def redundant_status?(lifecycle_event, defn)
+    return false unless defn.key == IncidentSystemField::KEY_STATUS
+
+    stage = TERMINAL_STAGE_BY_FORM[lifecycle_event]
+    return false if stage.nil?
+
+    @workspace.incident_statuses.active.joins(:incident_lifecycle_stage)
+      .where(incident_lifecycle_stages: { key: stage }).count < 2
+  end
+
   def default_form_field(lifecycle_event, defn, position:)
+    mode = defn.required_mode_for(lifecycle_event)
+    return nil if mode == IncidentFormField::REQUIRED_MODE_AVAILABLE
+    return nil if redundant_status?(lifecycle_event, defn)
+
     IncidentFormField.new(
       field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
       system_field_key: defn.key,
-      required_mode: defn.required_mode_for(lifecycle_event),
+      required_mode: mode,
       visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
       position: position
     )

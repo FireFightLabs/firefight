@@ -12,6 +12,7 @@ class IncidentStatus < ApplicationRecord
   scope :live, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: [ IncidentLifecycleStage::TRIAGE, IncidentLifecycleStage::ACTIVE ] }) }
   scope :closed, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::CLOSED }) }
   scope :canceled, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::CANCELED }) }
+  scope :terminal, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: [ IncidentLifecycleStage::CLOSED, IncidentLifecycleStage::CANCELED ] }) }
   scope :default_status, -> { active.find_by(is_default: true) }
 
   delegate :triage?, :active?, :closed?, :canceled?, to: :incident_lifecycle_stage

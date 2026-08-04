@@ -5,7 +5,7 @@ module Slack
     # `input` block. `build_system` and `build_custom` are the dispatchers
     # that pick the right per-type builder.
     module FieldBlocks
-      def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, selected_type_id: nil)
+      def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, selected_type_id: nil, terminal_stage: nil)
         case form_field.system_field_key
         when IncidentSystemField::KEY_NAME
           name_block(form_field, incident: incident)
@@ -17,7 +17,7 @@ module Slack
         when IncidentSystemField::KEY_INCIDENT_TYPE
           incident_type_block(workspace, form_field, incident: incident, dispatch: type_dispatch, selected_type_id: selected_type_id)
         when IncidentSystemField::KEY_STATUS
-          status_block(workspace, form_field, incident: incident)
+          status_block(workspace, form_field, incident: incident, stage: terminal_stage)
         when IncidentSystemField::KEY_LEAD
           lead_block(form_field, incident: incident)
         when IncidentSystemField::KEY_VISIBILITY
@@ -256,8 +256,15 @@ module Slack
         block
       end
 
-      def self.status_block(workspace, form_field, incident: nil)
+      # On a terminal form the only sensible answers are the statuses in the
+      # stage that transition moves to. Offering the full list would let a
+      # responder resolve an incident into Investigating.
+      def self.status_block(workspace, form_field, incident: nil, stage: nil)
         statuses = workspace.incident_statuses.active.ordered
+        if stage
+          statuses = statuses.joins(:incident_lifecycle_stage)
+            .where(incident_lifecycle_stages: { key: stage })
+        end
         status_options = statuses.map do |status|
           option = { text: { type: "plain_text", text: status.name }, value: status.slug }
           option[:description] = { type: "plain_text", text: status.description } if status.description.present?

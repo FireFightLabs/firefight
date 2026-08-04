@@ -84,6 +84,38 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
     assert_nil actions, "a canceled incident should offer no actions"
   end
 
+  test "a canceled incident can be reopened, because dismissing it can be wrong" do
+    Commands::CancelIncident.execute(command)
+
+    found = @workspace.incidents.terminal.in_channel(@incident.channel_id).first
+    assert_equal @incident.id, found&.id
+  end
+
+  test "cancel offers no status field while there is only one canceled status" do
+    fields = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_CANCEL)
+
+    assert_empty fields, "one option is not a choice, so it must not force a modal"
+  end
+
+  test "cancel offers status once a second canceled status exists" do
+    stage = IncidentLifecycleStage.find_by!(key: IncidentLifecycleStage::CANCELED)
+    @workspace.incident_statuses.create!(
+      name: "Duplicate", slug: "duplicate", incident_lifecycle_stage: stage,
+      position: @workspace.incident_statuses.maximum(:position).to_i + 1
+    )
+
+    fields = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_CANCEL)
+    assert_equal [ IncidentSystemField::KEY_STATUS ], fields.map(&:system_field_key)
+  end
+
+  test "summary is available on cancel but off until enabled" do
+    fields = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_CANCEL)
+
+    assert_not_includes fields.map(&:system_field_key), IncidentSystemField::KEY_SUMMARY
+    assert_equal IncidentFormField::REQUIRED_MODE_AVAILABLE,
+      IncidentSystemField.fetch(IncidentSystemField::KEY_SUMMARY).required_mode_for(IncidentForm::SLUG_CANCEL)
+  end
+
   test "opens a modal instead when the workspace has attached a field" do
     form = @workspace.ensure_incident_form!(IncidentForm::SLUG_CANCEL)
     IncidentFormService.new(@workspace).add_custom_field(form, incident_field_definitions(:customer_tier_ws1))

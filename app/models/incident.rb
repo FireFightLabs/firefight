@@ -49,6 +49,7 @@ class Incident < ApplicationRecord
   scope :active, -> { joins(:incident_status).merge(IncidentStatus.live) }
   scope :closed, -> { joins(:incident_status).merge(IncidentStatus.closed) }
   scope :canceled, -> { joins(:incident_status).merge(IncidentStatus.canceled) }
+  scope :terminal, -> { joins(:incident_status).merge(IncidentStatus.terminal) }
   scope :by_severity, -> { joins(:incident_severity).order("incident_severities.rank DESC") }
   scope :recent, -> { order(declared_at: :desc) }
   scope :search, ->(query) {

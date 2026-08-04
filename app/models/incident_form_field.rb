@@ -7,6 +7,9 @@ class IncidentFormField < ApplicationRecord
   VISIBILITY_MODE_HIDDEN = "hidden"
   VISIBILITY_MODES = [ VISIBILITY_MODE_VISIBLE, VISIBILITY_MODE_HIDDEN ].freeze
 
+  # Registry value meaning "belongs on this form, but off until enabled".
+  REQUIRED_MODE_AVAILABLE = "available"
+
   REQUIRED_MODE_OPTIONAL = "optional"
   REQUIRED_MODE_REQUIRED = "required"
   REQUIRED_MODE_FIXED_REQUIRED = "fixed_required"

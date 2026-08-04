@@ -10,6 +10,26 @@ Run `bin/ci` to validate changes. It runs rubocop, bundler-audit, brakeman, rail
 
 - **Never merge a PR without an explicit instruction to merge in the current message.** Opening PRs when asked to build something is fine; merging is always the user's call, every time — prior merge approvals and inferred intent (e.g. a bug report that a feature "isn't working") do not count.
 
+## Product decisions are the user's (always applies)
+
+The user decides how the app behaves. You suggest, they choose. This is not a
+preference, it is the working agreement.
+
+- **Never silently skip, defer, or narrow anything.** No shortcuts, no MVP, no
+  proof of concept, no "good enough for now". This is production software with
+  great UX or it is not shipped.
+- **Any choice that changes what a user sees or experiences is theirs to make.**
+  Whether a Slack message posts, whether a button appears, whether a field is
+  required, what copy says, what a transition does downstream. If you find
+  yourself reasoning "there's nothing to follow up here so I'll skip it", stop
+  and ask instead.
+- **Scoping something out is itself a decision.** "That's a separate piece of
+  work" is a suggestion, never a conclusion. Say it and wait.
+- **Silence reads as complete.** If you did not do part of something, say so in
+  the same message, before they find it.
+- Applies to omissions as much as additions. The bug they cannot see is the one
+  you decided not to build.
+
 ## Documentation (always applies)
 
 Product docs live in a separate repo, `../firefight-landing`, and are served at `firefight.app/docs`. They are part of the change, not a follow-up.

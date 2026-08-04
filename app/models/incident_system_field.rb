@@ -95,7 +95,9 @@ class IncidentSystemField
       placeholder: "Select status",
       field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
       forms: {
-        IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED
+        IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED,
+        IncidentForm::SLUG_RESOLVE => IncidentFormField::REQUIRED_MODE_REQUIRED,
+        IncidentForm::SLUG_CANCEL => IncidentFormField::REQUIRED_MODE_REQUIRED
       }
     ),
     Definition.new(
@@ -121,7 +123,8 @@ class IncidentSystemField
       forms: {
         IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
         IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
-        IncidentForm::SLUG_RESOLVE => IncidentFormField::REQUIRED_MODE_OPTIONAL
+        IncidentForm::SLUG_RESOLVE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
+        IncidentForm::SLUG_CANCEL => IncidentFormField::REQUIRED_MODE_AVAILABLE
       }
     ),
     Definition.new(

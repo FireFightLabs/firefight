@@ -47,6 +47,7 @@ module Identifiers
   SUBCOMMAND_RESOLVE    = "resolve"
   SUBCOMMAND_CANCEL     = "cancel"
   SUBCOMMAND_REOPEN     = "reopen"
+  SUBCOMMAND_OPEN       = "open"
   SUBCOMMAND_POSTMORTEM = "postmortem"
   SUBCOMMAND_CATCHUP    = "catchup"
   SUBCOMMAND_TIMELINE   = "timeline"

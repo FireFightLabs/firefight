@@ -22,7 +22,9 @@ module Interactions
         }
       end
 
-      status = workspace.incident_statuses.canceled.active.ordered.first
+      scope = workspace.incident_statuses.canceled.active.ordered
+      chosen = submission.system_attrs[IncidentSystemField::KEY_STATUS]
+      status = (chosen.present? && scope.find_by(slug: chosen)) || scope.first
       return no_status_error if status.nil?
 
       IncidentLifecycleService.new(workspace).cancel(

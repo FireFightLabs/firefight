@@ -13,7 +13,7 @@ module Slack
 
         blocks = visible_fields.filter_map do |form_field|
           if form_field.system?
-            FieldBlocks.build_system(workspace, form_field, incident: incident)
+            FieldBlocks.build_system(workspace, form_field, incident: incident, terminal_stage: IncidentLifecycleStage::CANCELED)
           else
             FieldBlocks.build_custom(workspace, form_field, incident: incident)
           end
