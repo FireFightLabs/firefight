@@ -59,7 +59,12 @@ class IncidentFormResolver
       else
         field = default_form_field(lifecycle_event, defn, position: idx)
         next if field.nil? || (hidden?(field) && !include_hidden)
-        next if redundant_status?(lifecycle_event, defn) && !include_hidden
+
+        if redundant_status?(lifecycle_event, defn)
+          next unless include_hidden
+
+          field.inactive_reason = single_status_reason(lifecycle_event)
+        end
 
         merged << field
       end
@@ -149,6 +154,11 @@ class IncidentFormResolver
 
     @workspace.incident_statuses.active.joins(:incident_lifecycle_stage)
       .where(incident_lifecycle_stages: { key: stage }).count < 2
+  end
+
+  def single_status_reason(lifecycle_event)
+    stage = TERMINAL_STAGE_BY_FORM[lifecycle_event]
+    "Responders are not asked this while there is only one #{stage} status, since there is nothing to choose."
   end
 
   def default_form_field(lifecycle_event, defn, position:)

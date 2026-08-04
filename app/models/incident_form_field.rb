@@ -16,6 +16,12 @@ class IncidentFormField < ApplicationRecord
   REQUIRED_MODES = [ REQUIRED_MODE_OPTIONAL, REQUIRED_MODE_REQUIRED, REQUIRED_MODE_FIXED_REQUIRED ].freeze
 
   belongs_to :incident_form
+
+  # Why a configured field still will not reach responders. Set by the resolver,
+  # which knows the workspace and the form; a default field carries no
+  # incident_form, so it cannot work this out for itself.
+  attr_accessor :inactive_reason
+
   belongs_to :incident_field_definition, optional: true
   has_many :incident_conditions, as: :conditionable, dependent: :destroy
 

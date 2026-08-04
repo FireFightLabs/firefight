@@ -116,6 +116,16 @@ class IncidentFormFieldsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes resolved.map(&:system_field_key), IncidentSystemField::KEY_NAME
   end
 
+  test "the forms page explains why status will not reach responders" do
+    get settings_forms_url, headers: inertia_headers
+
+    cancel = response.parsed_body.dig("props", "forms").find { |f| f["slug"] == IncidentForm::SLUG_CANCEL }
+    status = cancel["fields"].find { |f| f["systemFieldKey"] == IncidentSystemField::KEY_STATUS }
+
+    assert status, "status must be listed, or its appearance in Slack is inexplicable"
+    assert_match "only one canceled status", status["inactiveReason"].to_s
+  end
+
   test "a system field that does not belong to the form is refused" do
     patch incident_form_field_path("default:#{IncidentSystemField::KEY_NEXT_UPDATE}"), params: {
       incident_form_id: "default:#{IncidentForm::SLUG_DECLARE}",
