@@ -5,8 +5,9 @@ class IncidentUpdate < ApplicationRecord
   REOPENED = "reopened"
   LEAD_ASSIGNED = "lead_assigned"
   ACCEPTED = "accepted"
+  CANCELED = "canceled"
 
-  UPDATE_TYPES = [ CREATED, UPDATED, CLOSED, REOPENED, LEAD_ASSIGNED, ACCEPTED ].freeze
+  UPDATE_TYPES = [ CREATED, UPDATED, CLOSED, REOPENED, LEAD_ASSIGNED, ACCEPTED, CANCELED ].freeze
 
   include Recordable
   records Incident, recorder: :created_by

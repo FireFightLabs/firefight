@@ -59,10 +59,6 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  def inertia_props
-    JSON.parse(response.body)["props"]
-  end
-
   def sign_in(user, workspace)
     ApplicationController.any_instance.stubs(:current_user).returns(user)
     ApplicationController.any_instance.stubs(:current_workspace).returns(workspace)

@@ -16,7 +16,7 @@ module CatalogEntry::AttributeValidation
   def split_attributes(raw_attributes, definitions)
     scalar = {}
     reference = {}
-    definition_keys = definitions.index_by(&:key)
+    definition_keys = definitions.index_by(&:slug)
 
     raw_attributes.each do |key, value|
       key = key.to_s
@@ -43,7 +43,7 @@ module CatalogEntry::AttributeValidation
     definitions.each do |attr_def|
       next if attr_def.reference?
 
-      value = scalar_attrs[attr_def.key]
+      value = scalar_attrs[attr_def.slug]
 
       if attr_def.required && value.blank?
         errors << "#{attr_def.name} is required"

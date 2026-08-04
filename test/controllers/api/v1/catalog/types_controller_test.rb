@@ -11,7 +11,7 @@ class Api::V1::Catalog::TypesControllerTest < ActionDispatch::IntegrationTest
     types = json_response["types"]
     service = types.find { |t| t["slug"] == "service" }
     assert service
-    assert service["attribute_definitions"].any? { |a| a["key"] == "tier" && a["attribute_type"] == "select" }
+    assert service["attribute_definitions"].any? { |a| a["slug"] == "tier" && a["attribute_type"] == "select" }
   end
 
   test "shows a type by slug" do

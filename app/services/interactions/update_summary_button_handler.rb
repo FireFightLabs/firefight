@@ -4,7 +4,8 @@ module Interactions
       workspace = interaction.workspace
       incident = workspace.incidents.find(interaction.action_value)
 
-      SummaryModalOpener.open(
+      ModalOpener.open(
+        :summary,
         workspace: workspace,
         incident: incident,
         trigger_id: interaction.trigger_id,

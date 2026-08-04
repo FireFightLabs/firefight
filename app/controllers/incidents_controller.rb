@@ -68,7 +68,14 @@ class IncidentsController < InertiaController
   def generate_postmortem
     incident = current_workspace.incidents.find(params[:incident_id])
     return redirect_to incident_postmortem_path(incident), alert: "Postmortem already exists." if incident.postmortem.present?
-    return redirect_to incident_path(incident), alert: "Postmortems can be created once the incident is resolved." unless incident.incident_status.closed?
+    unless incident.incident_status.closed?
+      alert = if incident.canceled?
+        "#{incident.identifier} was canceled, so it has no postmortem to write."
+      else
+        "Postmortems can be created once the incident is resolved."
+      end
+      return redirect_to incident_path(incident), alert: alert
+    end
 
     gate = Entitlements.check(current_workspace, Entitlements::AI)
     return redirect_to incident_path(incident), alert: gate.message if gate.blocked?

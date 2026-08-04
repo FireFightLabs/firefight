@@ -52,7 +52,7 @@ class Commands::GeneratePostmortemTest < ActiveSupport::TestCase
     )
 
     assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "closed incident channel"
+    assert_includes result[:text], "resolved incident channel"
   end
 
   test "returns error when incident is active not closed" do
@@ -61,7 +61,7 @@ class Commands::GeneratePostmortemTest < ActiveSupport::TestCase
     )
 
     assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "closed incident channel"
+    assert_includes result[:text], "resolved incident channel"
   end
 
   test "returns error when postmortem already exists" do

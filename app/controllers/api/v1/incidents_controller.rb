@@ -90,7 +90,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
       attrs[:name] = params[:name] if params.key?(:name)
       attrs[:summary] = params[:summary] if params.key?(:summary)
       lifecycle_service.close(@incident, attrs, changed_by: changed_by)
-    elsif new_status && @incident.closed? && new_status.incident_lifecycle_stage.open?
+    elsif new_status && @incident.terminal? && new_status.incident_lifecycle_stage.open?
       lifecycle_service.reopen(@incident, { incident_status: new_status }, changed_by: changed_by)
     elsif params.key?(:lead_id)
       lifecycle_service.assign_lead(@incident, new_lead, changed_by: changed_by)

@@ -49,6 +49,7 @@ class Incident < ApplicationRecord
   scope :active, -> { joins(:incident_status).merge(IncidentStatus.live) }
   scope :closed, -> { joins(:incident_status).merge(IncidentStatus.closed) }
   scope :canceled, -> { joins(:incident_status).merge(IncidentStatus.canceled) }
+  scope :terminal, -> { joins(:incident_status).merge(IncidentStatus.terminal) }
   scope :by_severity, -> { joins(:incident_severity).order("incident_severities.rank DESC") }
   scope :recent, -> { order(declared_at: :desc) }
   scope :search, ->(query) {
@@ -66,6 +67,7 @@ class Incident < ApplicationRecord
     includes(
       { incident_status: :incident_lifecycle_stage },
       :incident_severity,
+      { declared_by: :user },
       incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
     )
   }
@@ -107,6 +109,12 @@ class Incident < ApplicationRecord
 
   def canceled?
     incident_status.canceled?
+  end
+
+  # Over, however it ended. Resolved and canceled differ in what they mean, but
+  # not in whether anyone is still working the incident.
+  def terminal?
+    closed? || canceled?
   end
 
   def related_incidents

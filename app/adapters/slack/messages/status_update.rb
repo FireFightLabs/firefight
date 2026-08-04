@@ -13,12 +13,23 @@ module Slack
         type_text = Formatting.type_diff_text(previous_type_name, incident.incident_type&.name)
         field_lines << type_text if type_text
 
-        header_text = case scope
-        when :inline       then ":memo: *#{incident.identifier} — Incident updated*"
-        when :announcement then ":memo: *Incident updated*"
+        # A cancellation posts through the same path as any status change, so
+        # the wording follows the stage rather than calling it an update. It
+        # also ends the incident, so in the announcement thread it takes the
+        # header block that Resolved and Reopened use rather than the smaller
+        # title an ordinary update gets.
+        canceled = incident.canceled?
+        icon = canceled ? ":wastebasket:" : ":memo:"
+        noun = canceled ? "Incident canceled" : "Incident updated"
+
+        blocks = if canceled && scope == :announcement
+          [ { type: "header", text: { type: "plain_text", text: "#{icon} #{noun}", emoji: true } } ]
+        else
+          title = scope == :inline ? "#{incident.identifier} — #{noun}" : noun
+          [ { type: "section", text: { type: "mrkdwn", text: "#{icon}  *#{title}*" } } ]
         end
 
-        blocks = [ { type: "section", text: { type: "mrkdwn", text: header_text } } ]
+        blocks << { type: "divider" }
         blocks << { type: "section", text: { type: "mrkdwn", text: "> #{message}" } } if message.present?
         blocks << { type: "section", text: { type: "mrkdwn", text: field_lines.join("  ·  ") } }
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: context_text(incident, updated_by_platform_user_id) } ] }
@@ -27,7 +38,8 @@ module Slack
       end
 
       def self.context_text(incident, updated_by_platform_user_id)
-        parts = [ "Updated by <@#{updated_by_platform_user_id}>" ]
+        verb = incident.canceled? ? "Canceled" : "Updated"
+        parts = [ "#{verb} by <@#{updated_by_platform_user_id}>" ]
         if incident.next_update_at.present?
           unix_ts = incident.next_update_at.to_i
           fallback = incident.next_update_at.in_time_zone.strftime("%H:%M")

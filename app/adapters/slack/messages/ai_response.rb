@@ -7,7 +7,7 @@ module Slack
         blocks = [
           {
             type: "header",
-            text: { type: "plain_text", text: ":fire: #{incident.identifier} — #{incident.name}", emoji: true }
+            text: { type: "plain_text", text: ":fire: #{incident.identifier} — #{incident.name || 'Untitled Incident'}", emoji: true }
           },
           { type: "divider" }
         ]

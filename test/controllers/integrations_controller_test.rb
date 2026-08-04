@@ -434,10 +434,6 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     get oauth_callback_integrations_url({ state: "abc", code: "authcode" }.merge(callback))
   end
 
-  def inertia_props
-    JSON.parse(response.body)["props"]
-  end
-
   def sign_in(user, workspace)
     ApplicationController.any_instance.stubs(:current_user).returns(user)
     ApplicationController.any_instance.stubs(:current_workspace).returns(workspace)

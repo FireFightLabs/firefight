@@ -102,7 +102,7 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
 
     sections = result[:blocks].select { |b| b[:type] == "section" }
-    reporter = sections.find { |s| s.dig(:text, :text)&.include?("Reporter") }
+    reporter = sections.find { |s| s.dig(:text, :text)&.include?("Declared by") }
     assert reporter.present?
     assert_includes reporter.dig(:text, :text), "<@U12345678>"
   end
@@ -135,7 +135,7 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
 
     sections = result[:blocks].select { |b| b[:type] == "section" }
-    metadata_sections = sections.select { |s| s.dig(:text, :text)&.match?(/Severity|Status|Reporter/) }
+    metadata_sections = sections.select { |s| s.dig(:text, :text)&.match?(/Severity|Status|Declared by/) }
     assert metadata_sections.length >= 3, "Should have individual sections for severity, status, and reporter"
   end
 

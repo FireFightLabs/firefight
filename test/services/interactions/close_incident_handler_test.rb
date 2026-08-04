@@ -197,13 +197,13 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
 
   test "leaves fields the form did not submit untouched" do
     notes = @workspace.incident_field_definitions.create!(
-      key: "root_cause_notes",
+      slug: "root_cause_notes",
       name: "Root Cause Notes",
       field_type: IncidentFieldDefinition::TYPE_TEXT,
       option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE,
       position: 99
     )
-    @incident.update!(custom_fields: { notes.key => "existing_value" })
+    @incident.update!(custom_fields: { notes.slug => "existing_value" })
     stub_all_side_effects
 
     Interactions::CloseIncidentHandler.execute(
@@ -211,7 +211,7 @@ class Interactions::CloseIncidentHandlerTest < ActiveSupport::TestCase
     )
 
     @incident.reload
-    assert_equal "existing_value", @incident.custom_fields[notes.key]
+    assert_equal "existing_value", @incident.custom_fields[notes.slug]
     assert_equal "Pro", @incident.custom_fields_for_display["customer_tier"]
   end
 

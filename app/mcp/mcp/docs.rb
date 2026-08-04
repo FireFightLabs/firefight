@@ -10,6 +10,8 @@ module Mcp
     ROUTING_RULES = "#{BASE}/alerts/routing-rules.md".freeze
     CATALOG = "#{BASE}/catalog/overview.md".freeze
     RUNBOOKS = "#{BASE}/incidents/runbooks.md".freeze
+    CUSTOM_FIELDS = "#{BASE}/customization/custom-fields.md".freeze
+    INCIDENT_FORMS = "#{BASE}/customization/incident-forms.md".freeze
     MCP_SERVER = "#{BASE}/api/mcp-server.md".freeze
   end
 end

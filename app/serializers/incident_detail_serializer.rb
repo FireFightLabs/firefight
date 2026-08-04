@@ -22,12 +22,12 @@ class IncidentDetailSerializer < BaseSerializer
     IncidentTypeCompactSerializer.one(incident.incident_type)
   end
 
-  type :IncidentLead, optional: true
+  type :ActorCompact, optional: true
   def lead
     member = incident.incident_role_assignments.detect { |a| a.incident_role.slug == IncidentRole::SLUG_INCIDENT_LEAD }&.workspace_membership
     return nil unless member
 
-    IncidentLeadSerializer.one(member)
+    ActorCompactSerializer.one(member)
   end
 
   # The lead has its own field, so this covers the rest of the roster.

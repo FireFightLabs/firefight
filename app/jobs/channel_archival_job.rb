@@ -1,11 +1,14 @@
 class ChannelArchivalJob < ApplicationJob
   queue_as :default
 
-  def perform(incident_id, expected_resolved_at)
+  # expected_resolved_at guards against archiving after a reopen-and-resolve
+  # cycle. A canceled incident has no resolved_at to compare, so it passes nil
+  # and leans on the terminal? and channel_archived_at guards instead.
+  def perform(incident_id, expected_resolved_at = nil)
     incident = Incident.find_by(id: incident_id)
     return unless incident
-    return unless incident.closed?
-    return unless incident.resolved_at&.iso8601 == expected_resolved_at
+    return unless incident.terminal?
+    return if expected_resolved_at.present? && incident.resolved_at&.iso8601 != expected_resolved_at
     return unless incident.workspace.archive_channel_enabled
     return unless incident.channel_id.present?
     return if incident.channel_archived_at.present?

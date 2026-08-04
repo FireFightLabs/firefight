@@ -61,8 +61,4 @@ class SettingsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
-
-  def inertia_props
-    JSON.parse(response.body)["props"]
-  end
 end

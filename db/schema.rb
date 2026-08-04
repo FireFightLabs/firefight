@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_03_100100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_04_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -244,7 +244,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_100100) do
 
   create_table "catalog_attribute_definitions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "catalog_type_id", null: false
-    t.string "key", null: false
+    t.string "slug", null: false
     t.string "name", null: false
     t.string "attribute_type", null: false
     t.boolean "required", default: false, null: false
@@ -252,7 +252,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_100100) do
     t.jsonb "config", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["catalog_type_id", "key"], name: "index_catalog_attr_defs_on_type_and_key", unique: true
+    t.index ["catalog_type_id", "slug"], name: "index_catalog_attr_defs_on_type_and_key", unique: true
     t.index ["catalog_type_id"], name: "index_catalog_attribute_definitions_on_catalog_type_id"
   end
 
@@ -415,7 +415,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_100100) do
 
   create_table "incident_field_definitions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workspace_id", null: false
-    t.string "key", null: false
+    t.string "slug", null: false
     t.string "name", null: false
     t.text "description"
     t.string "field_type", null: false
@@ -426,7 +426,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_100100) do
     t.datetime "updated_at", null: false
     t.uuid "catalog_type_id"
     t.index ["catalog_type_id"], name: "index_incident_field_definitions_on_catalog_type_id"
-    t.index ["workspace_id", "key"], name: "index_incident_field_definitions_on_workspace_and_key_active", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["workspace_id", "slug"], name: "index_incident_field_definitions_on_workspace_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id"], name: "index_incident_field_definitions_on_workspace_id"
   end
 

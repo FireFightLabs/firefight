@@ -20,7 +20,7 @@ class IncidentRelationshipService
   end
 
   def mark_duplicate(source:, canonical:, created_by:)
-    canceled_status = @workspace.incident_statuses.canceled.first
+    canceled_status = @workspace.incident_statuses.canceled.active.ordered.first
     raise ActiveRecord::RecordNotFound, "No canceled status configured for this workspace" unless canceled_status
 
     relationship = IncidentRelationship.create!(

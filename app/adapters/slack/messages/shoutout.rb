@@ -3,11 +3,13 @@ module Slack
     module Shoutout
       def self.build(incident, from_user_id:, recipient_user_id:, message:)
         [
+          { type: "section", text: { type: "mrkdwn", text: ":heart_on_fire:  *Shoutout*" } },
+          { type: "divider" },
           {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: ":heart_on_fire: *Shoutout*\n<@#{from_user_id}> gave a shoutout to <@#{recipient_user_id}>\n> #{message}"
+              text: "<@#{from_user_id}> gave a shoutout to <@#{recipient_user_id}>\n> #{message}"
             }
           },
           {
@@ -21,7 +23,7 @@ module Slack
         [
           {
             type: "section",
-            text: { type: "mrkdwn", text: ":heart_on_fire: *Give a shoutout?*\nRecognize someone on your team for their work on this incident." }
+            text: { type: "mrkdwn", text: ":heart_on_fire:  *Give a shoutout?*\nRecognize someone on your team for their work on this incident." }
           },
           {
             type: "actions",

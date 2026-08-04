@@ -52,11 +52,22 @@ module Interactions
     end
     private_class_method :resolve_lead
 
+    # Honours the status a responder picked when the workspace has more than
+    # one closed status, and falls back to the first by position when the form
+    # never offered the choice.
+    def self.resolve_status(workspace, submission)
+      scope = workspace.incident_statuses.closed.active.ordered
+      chosen = submission.system_attrs[IncidentSystemField::KEY_STATUS]
+
+      (chosen.present? && scope.find_by(slug: chosen)) || scope.first
+    end
+    private_class_method :resolve_status
+
     def self.build_close_attrs(workspace, incident, submission, lead_member)
       system_attrs = submission.system_attrs
 
       attrs = {
-        incident_status: workspace.incident_statuses.closed.first,
+        incident_status: resolve_status(workspace, submission),
         incident_severity: system_attrs["severity"].present? ? workspace.incident_severities.active.find_by!(slug: system_attrs["severity"]) : incident.incident_severity
       }
       attrs[:name] = system_attrs["name"] if system_attrs["name"].present?

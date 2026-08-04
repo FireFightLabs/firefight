@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import {
-  IconPlayerPlay,
+  IconBan,
   IconPlus,
   IconProgressCheck,
   IconRoute,
@@ -47,10 +47,10 @@ function iconForForm(slug: string) {
   switch (slug) {
     case "declare":
       return <IconSparkles className="size-4" />
-    case "accept":
-      return <IconPlayerPlay className="size-4" />
     case "resolve":
       return <IconProgressCheck className="size-4" />
+    case "cancel":
+      return <IconBan className="size-4" />
     default:
       return <IconRoute className="size-4" />
   }
@@ -61,10 +61,11 @@ function iconTintForForm(slug: string) {
   switch (slug) {
     case "declare":
       return "bg-rose-500/12 text-rose-700 dark:text-rose-300"
-    case "accept":
-      return "bg-violet-500/12 text-violet-700 dark:text-violet-300"
     case "resolve":
       return "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+    // Matches the grey the seeded Canceled status already uses.
+    case "cancel":
+      return "bg-slate-500/12 text-slate-600 dark:text-slate-300"
     default:
       return "bg-cyan-500/12 text-cyan-700 dark:text-cyan-300"
   }
@@ -108,10 +109,10 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
 
 
   function handleUpdateField(field: IncidentFormFieldSettings, next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) {
-    if (field.isDefault) {
-      return
-    }
+    // A default field has no row yet, so the id is synthetic and the form has
+    // to come along for the backend to know which one to materialize.
     router.patch(incidentFormFieldPath(field.id), {
+      incident_form_id: selectedForm?.id,
       visibility_mode: next.visibilityMode ?? field.visibilityMode,
       required_mode: next.requiredMode ?? field.requiredMode,
     }, {

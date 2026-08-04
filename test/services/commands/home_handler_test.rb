@@ -96,7 +96,7 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
     response = Commands::HomeHandler.execute(command)
 
     assert_equal Command::EPHEMERAL, response[:response_type]
-    assert_includes response[:text], "closed incident channel"
+    assert_includes response[:text], "resolved incident channel"
   end
 
   # --- Aliases ---

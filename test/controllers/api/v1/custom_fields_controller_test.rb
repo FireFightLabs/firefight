@@ -10,7 +10,7 @@ class Api::V1::CustomFieldsControllerTest < ActionDispatch::IntegrationTest
 
     fields = json_response["custom_fields"]
     assert fields.is_a?(Array)
-    assert fields.all? { |f| f.key?("key") && f.key?("field_type") && f.key?("option_source") }
+    assert fields.all? { |f| f.key?("slug") && f.key?("field_type") && f.key?("option_source") }
   end
 
   test "requires custom_fields:read permission" do

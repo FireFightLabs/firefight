@@ -16,6 +16,12 @@ class IncidentListItemSerializer < BaseSerializer
     assignment&.workspace_membership&.user&.name
   end
 
+  # A name, like `lead`. The table shows text, not chips.
+  type :string, optional: true
+  def declared_by
+    incident.declared_by&.user&.name
+  end
+
   type :string
   def declared_at
     incident.declared_at.utc.iso8601

@@ -3,6 +3,12 @@ class IncidentFormFieldsController < InertiaController
   before_action :require_admin!
   before_action :set_form_field, only: [ :update, :destroy, :move_up, :move_down ]
 
+  # set_form_field runs before any action, so a bad synthetic id cannot be
+  # rescued inline the way the other failures are.
+  rescue_from ArgumentError do |error|
+    redirect_to settings_forms_path, alert: error.message
+  end
+
   def create
     form = resolve_form(params[:incident_form_id])
     field_definition = current_workspace.incident_field_definitions.active.find(params[:incident_field_definition_id])
@@ -25,7 +31,7 @@ class IncidentFormFieldsController < InertiaController
       @form_field.sync_conditions!(conditions)
     end
 
-    redirect_to settings_forms_path(form: @form_field.incident_form_id), notice: "#{@form_field.name} was updated."
+    redirect_to settings_forms_path(form: @form_field.incident_form_id), notice: "#{@form_field.source_name} was updated."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_forms_path(form: @form_field.incident_form_id),
       inertia: { errors: e.record.errors.to_hash }
@@ -33,7 +39,7 @@ class IncidentFormFieldsController < InertiaController
 
   def destroy
     form_id = @form_field.incident_form_id
-    name = @form_field.name
+    name = @form_field.source_name
     form_service.remove_field(@form_field)
     redirect_to settings_forms_path(form: form_id), notice: "#{name} was removed from the form."
   end
@@ -71,10 +77,22 @@ class IncidentFormFieldsController < InertiaController
     end
   end
 
+  # Accepts a persisted overlay row's id, or a `default:<system_field_key>`
+  # synthetic id for a system field this workspace has never customized, which
+  # is materialized into a real row on first edit.
   def set_form_field
-    @form_field = IncidentFormField.joins(:incident_form)
-      .where(incident_forms: { workspace_id: current_workspace.id })
-      .find(params[:id])
+    id = params[:id].to_s
+
+    @form_field = if id.start_with?("default:")
+      form_service.ensure_system_field!(
+        resolve_form(params.require(:incident_form_id)),
+        id.delete_prefix("default:")
+      )
+    else
+      IncidentFormField.joins(:incident_form)
+        .where(incident_forms: { workspace_id: current_workspace.id })
+        .find(id)
+    end
   end
 
   def form_service

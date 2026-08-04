@@ -95,7 +95,7 @@ module Mcp
       def self.member_keys(catalog_type)
         catalog_type.catalog_attribute_definitions
           .select { |definition| MEMBER_ATTRIBUTE_TYPES.include?(definition.attribute_type) }
-          .map(&:key)
+          .map(&:slug)
       end
     end
   end

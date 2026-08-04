@@ -6,7 +6,7 @@ module Interactions
       incident = workspace.incidents.find(metadata[:incident_id])
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
-      return already_active_error unless incident.closed?
+      return already_active_error unless incident.terminal?
 
       reason = interaction.values.dig("reason_block", "reason_input", "value")
       default_status = workspace.incident_statuses.live.find_by(is_default: true) || workspace.incident_statuses.live.first

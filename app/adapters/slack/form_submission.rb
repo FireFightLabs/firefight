@@ -101,7 +101,7 @@ module Slack
     end
 
     def field_key(form_field)
-      form_field.system? ? form_field.system_field_key : form_field.incident_field_definition&.key
+      form_field.system? ? form_field.system_field_key : form_field.incident_field_definition&.slug
     end
 
     def field_type_for(form_field)

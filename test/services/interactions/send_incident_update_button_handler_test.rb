@@ -11,7 +11,8 @@ class Interactions::SendIncidentUpdateButtonHandlerTest < ActiveSupport::TestCas
   end
 
   test "opens incident update modal" do
-    IncidentUpdateModalOpener.expects(:open).with(
+    ModalOpener.expects(:open).with(
+      :update,
       workspace: @workspace,
       incident: @incident,
       trigger_id: "12345.trigger",
@@ -26,7 +27,7 @@ class Interactions::SendIncidentUpdateButtonHandlerTest < ActiveSupport::TestCas
   end
 
   test "handles trigger expiration silently" do
-    IncidentUpdateModalOpener.expects(:open).raises(AdapterError::TriggerExpired.new("expired"))
+    ModalOpener.expects(:open).raises(AdapterError::TriggerExpired.new("expired"))
 
     result = Interactions::SendIncidentUpdateButtonHandler.execute(
       build_interaction
@@ -36,7 +37,7 @@ class Interactions::SendIncidentUpdateButtonHandlerTest < ActiveSupport::TestCas
   end
 
   test "handles missing incident silently" do
-    IncidentUpdateModalOpener.expects(:open).never
+    ModalOpener.expects(:open).never
 
     interaction = Interaction.new(
       platform: Platforms::SLACK,

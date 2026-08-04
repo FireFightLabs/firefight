@@ -50,14 +50,14 @@ module Slack
         stripped + [
           {
             type: "section",
-            text: { type: "mrkdwn", text: ":white_check_mark: *You acknowledged this escalation*" }
+            text: { type: "mrkdwn", text: ":white_check_mark:  *You acknowledged this escalation*" }
           }
         ]
       end
 
       def self.acknowledged(_incident, acknowledged_by_platform_user_id:, escalated_to_platform_user_id:)
         [
-          { type: "section", text: { type: "mrkdwn", text: ":white_check_mark: *Escalation acknowledged*" } },
+          { type: "section", text: { type: "mrkdwn", text: ":white_check_mark:  *Escalation acknowledged*" } },
           {
             type: "context",
             elements: [ { type: "mrkdwn", text: ":firefighter: <@#{escalated_to_platform_user_id}> joined the incident" } ]

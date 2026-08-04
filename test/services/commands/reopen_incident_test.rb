@@ -44,7 +44,7 @@ class Commands::ReopenIncidentTest < ActiveSupport::TestCase
     )
 
     assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "closed incident channel"
+    assert_includes result[:text], "resolved or canceled incident channel"
   end
 
   test "returns error when workspace not found" do

@@ -5,7 +5,7 @@ class IncidentFormService
 
   def add_custom_field(form, incident_field_definition)
     ActiveRecord::Base.transaction do
-      form.incident_form_fields.create!(
+      field = form.incident_form_fields.create!(
         field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_CUSTOM,
         incident_field_definition: incident_field_definition,
         position: next_position(form),
@@ -13,12 +13,43 @@ class IncidentFormService
         required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL
       )
       bust_cache(form)
+      field
     end
+  end
+
+  # A system field has no DB row until an admin changes something about it, so
+  # the editor addresses it by `default:<key>` until one exists. Creating it on
+  # first edit keeps the code defaults as the single source of truth: a row
+  # only ever means "this workspace overrode something".
+  def ensure_system_field!(form, system_field_key)
+    existing = form.incident_form_fields.find_by(
+      field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
+      system_field_key: system_field_key
+    )
+    return existing if existing
+
+    definition = IncidentSystemField.fetch(system_field_key)
+    default_position = IncidentSystemField.defaults_for(form.lifecycle_event).index(definition)
+    raise ArgumentError, "#{system_field_key} does not appear on the #{form.lifecycle_event} form" if default_position.nil?
+
+    mode = definition.required_mode_for(form.lifecycle_event)
+    # "available" describes how a field ships, not a stored mode: on the row it
+    # is simply hidden and optional until someone turns it on.
+    available = mode == IncidentFormField::REQUIRED_MODE_AVAILABLE
+
+    form.incident_form_fields.create!(
+      field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
+      system_field_key: system_field_key,
+      position: default_position,
+      visibility_mode: available ? IncidentFormField::VISIBILITY_MODE_HIDDEN : IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: available ? IncidentFormField::REQUIRED_MODE_OPTIONAL : mode
+    )
   end
 
   def update_field(form_field, visibility_mode:, required_mode:)
     ActiveRecord::Base.transaction do
-      attrs = { visibility_mode: visibility_mode }
+      attrs = {}
+      attrs[:visibility_mode] = visibility_mode unless form_field.locked_visible?
       attrs[:required_mode] = required_mode unless form_field.locked_required?
       form_field.update!(attrs)
       bust_cache(form_field.incident_form)

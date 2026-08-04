@@ -134,7 +134,7 @@ class IncidentConditionTest < ActiveSupport::TestCase
 
   test "custom_field condition rejects unsupported field definition types" do
     text_definition = @workspace.incident_field_definitions.create!(
-      key: "root_cause_notes",
+      slug: "root_cause_notes",
       name: "Root Cause Notes",
       field_type: IncidentFieldDefinition::TYPE_TEXT,
       option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE,

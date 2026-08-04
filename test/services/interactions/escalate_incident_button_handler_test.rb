@@ -11,7 +11,8 @@ class Interactions::EscalateIncidentButtonHandlerTest < ActiveSupport::TestCase
   end
 
   test "opens escalate modal" do
-    EscalateModalOpener.expects(:open).with(
+    ModalOpener.expects(:open).with(
+      :escalate,
       workspace: @workspace,
       incident: @incident,
       trigger_id: "12345.trigger",
@@ -24,7 +25,7 @@ class Interactions::EscalateIncidentButtonHandlerTest < ActiveSupport::TestCase
   end
 
   test "handles trigger expiration gracefully" do
-    EscalateModalOpener.expects(:open).raises(AdapterError::TriggerExpired.new("expired"))
+    ModalOpener.expects(:open).raises(AdapterError::TriggerExpired.new("expired"))
 
     result = Interactions::EscalateIncidentButtonHandler.execute(build_interaction)
 

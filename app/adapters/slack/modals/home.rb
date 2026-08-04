@@ -12,6 +12,7 @@ module Slack
         "invite" => "*Invite responders*\n\nUsage: `/ff invite @user1 @user2`\nInvites responders into the current incident channel. Run `/ff invite` without users to open a picker.",
         "actions" => "*Manage actions*\n\nUsage: `/ff actions`\nView, create, and complete incident action items.",
         "close" => "*Close incident*\n\nUsage: `/ff close` or `/ff resolve`\nMark the incident as resolved.",
+        "cancel" => "*Cancel incident*\n\nUsage: `/ff cancel`\nDismiss a false positive, duplicate, or test. Keeps it out of resolution metrics.",
         "postmortem" => "*Generate postmortem*\n\nUsage: `/ff postmortem`\nGenerate a postmortem document from the incident timeline.",
         "timeline" => "*View timeline*\n\nUsage: `/ff timeline`\nSee the full history of incident events.",
         "list" => "*List active incidents*\n\nUsage: `/ff list`\nShow all currently open incidents.",

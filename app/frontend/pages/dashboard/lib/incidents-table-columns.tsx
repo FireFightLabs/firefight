@@ -74,6 +74,15 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     ),
   },
   {
+    accessorKey: "declaredBy",
+    header: "Declared by",
+    cell: ({ row }) => (
+      row.original.declaredBy
+        ? <span>{row.original.declaredBy}</span>
+        : <span className="text-muted-foreground">-</span>
+    ),
+  },
+  {
     accessorKey: "declaredAt",
     header: "Declared",
     cell: ({ row }) => (

@@ -77,35 +77,8 @@ module Mcp
         Array(args[:conditions]).map do |condition|
           condition = condition.to_h.with_indifferent_access
           { condition_field: condition[:condition_field], operator: condition[:operator],
-            values: resolve_values(workspace, condition),
+            values: ConditionValues.resolve(workspace, condition),
             incident_field_definition_id: condition[:incident_field_definition_id] }
-        end
-      end
-
-      # Conditions match on ids, but an agent knows slugs. Accept either, and
-      # refuse anything that resolves to neither: a stored value that matches no
-      # record produces a runbook that saves cleanly and then never attaches.
-      def self.resolve_values(workspace, condition)
-        values = Array(condition[:values]).map(&:to_s)
-        scope = condition_scope(workspace, condition[:condition_field])
-        return values unless scope
-
-        by_slug = scope.pluck(:slug, :id).to_h
-        known_ids = by_slug.values.to_set
-
-        values.map do |value|
-          next value if known_ids.include?(value)
-          next by_slug[value] if by_slug.key?(value)
-
-          raise ArgumentError,
-            "unknown #{condition[:condition_field]} #{value.inspect}. Valid: #{by_slug.keys.sort.join(', ')}"
-        end
-      end
-
-      def self.condition_scope(workspace, condition_field)
-        case condition_field
-        when IncidentCondition::FIELD_SEVERITY      then workspace.incident_severities.active
-        when IncidentCondition::FIELD_INCIDENT_TYPE then workspace.incident_types.active
         end
       end
     end

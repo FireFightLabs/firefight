@@ -16,8 +16,8 @@ class IncidentRoleAssignmentSerializer < BaseSerializer
     assignment.incident_role.slug
   end
 
-  type :IncidentLead
+  type :ActorCompact
   def member
-    IncidentLeadSerializer.one(assignment.workspace_membership)
+    ActorCompactSerializer.one(assignment.workspace_membership)
   end
 end

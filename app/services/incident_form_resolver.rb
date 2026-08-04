@@ -14,6 +14,11 @@
 #
 # `validate_submission` then validates raw params against the resolved set.
 class IncidentFormResolver
+  TERMINAL_STAGE_BY_FORM = {
+    IncidentForm::SLUG_RESOLVE => IncidentLifecycleStage::CLOSED,
+    IncidentForm::SLUG_CANCEL => IncidentLifecycleStage::CANCELED
+  }.freeze
+
   class ValidationError < StandardError
     attr_reader :field_errors
 
@@ -27,41 +32,30 @@ class IncidentFormResolver
     @workspace = workspace
   end
 
-  def resolve(lifecycle_event, context: {})
+  # include_hidden is for the form editor, which has to show a hidden field to
+  # let anyone turn it back on. Every runtime caller leaves it false, so a
+  # hidden field never reaches a responder.
+  # `form:` is for callers that already hold the row, so resolving does not go
+  # and fetch the record it was called on.
+  def resolve(lifecycle_event, context: {}, include_hidden: false, form: nil)
     raise ArgumentError, "Unknown form slug: #{lifecycle_event}" unless IncidentForm::DEFAULTS_BY_SLUG.key?(lifecycle_event)
 
     # IncidentForm rows are optional — they exist only when an admin has
     # customized the form. Fall back to code defaults when no row exists.
-    form = @workspace.incident_forms.find_by(lifecycle_event: lifecycle_event)
-    db_rows = form ? form.incident_form_fields.includes(:incident_field_definition, :incident_conditions).to_a : []
+    form ||= @workspace.incident_forms.find_by(lifecycle_event: lifecycle_event)
+    db_rows = form ? form.incident_form_fields.includes(:incident_conditions, incident_field_definition: [ :incident_field_options, :catalog_type ]).to_a : []
 
-    overrides_by_key = db_rows
-      .select { |r| r.field_source_kind == IncidentFormField::FIELD_SOURCE_KIND_SYSTEM }
-      .index_by(&:system_field_key)
+    overrides_by_key = db_rows.select(&:system?).index_by(&:system_field_key)
 
-    custom_rows = db_rows.select { |r| r.field_source_kind == IncidentFormField::FIELD_SOURCE_KIND_CUSTOM }
-
-    merged = []
-
-    IncidentSystemField.defaults_for(lifecycle_event).each_with_index do |defn, idx|
-      override = overrides_by_key[defn.key]
-      if override
-        next if override.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
-        merged << override
-      else
-        merged << default_form_field(lifecycle_event, defn, position: idx)
-      end
+    merged = IncidentSystemField.defaults_for(lifecycle_event).each_with_index.map do |defn, idx|
+      overrides_by_key[defn.key] || default_form_field(lifecycle_event, defn, position: idx)
     end
 
-    custom_rows.each do |row|
-      next if row.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
-      # A disabled definition stops being collected without detaching it from
-      # the form or touching the values incidents already hold.
-      next unless row.incident_field_definition&.enabled?
+    # A disabled definition stops being collected without detaching it from the
+    # form or touching the values incidents already hold.
+    merged += db_rows.select { |row| row.custom? && row.incident_field_definition&.enabled? }
 
-      merged << row
-    end
-
+    merged = merged.filter_map { |field| keep(field, lifecycle_event, include_hidden) }
     merged.sort_by!(&:position)
 
     return merged if context.empty?
@@ -92,7 +86,7 @@ class IncidentFormResolver
         system_attrs[key] = value if value.present?
       else
         defn = form_field.incident_field_definition
-        key = defn.key
+        key = defn.slug
         value = raw_params[key]
         validate_required!(form_field, key, value, errors)
         validate_custom_value!(defn, value, errors) if value.present?
@@ -101,7 +95,7 @@ class IncidentFormResolver
     end
 
     known_keys = visible_fields.map { |f|
-      f.system_field_key || f.incident_field_definition&.key
+      f.system_field_key || f.incident_field_definition&.slug
     }.compact
     unknown = raw_params.keys - known_keys
     errors << "Unknown fields: #{unknown.join(', ')}" if unknown.any?
@@ -122,12 +116,104 @@ class IncidentFormResolver
   # system field. Downstream consumers iterate the same `IncidentFormField`
   # interface whether the field came from defaults or DB. We don't set
   # `incident_form` because the form itself may not be persisted either.
+  def hidden?(form_field)
+    form_field.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
+  end
+
+  # Decides one field's fate. Hidden means an admin turned it off. Unanswerable
+  # means it is configured but has nothing to ask, which the editor still shows
+  # so the configuration explains itself.
+  def keep(field, lifecycle_event, include_hidden)
+    return nil if hidden?(field) && !include_hidden
+
+    reason = unanswerable_reason(field, lifecycle_event)
+    return field if reason.nil?
+    return nil unless include_hidden
+
+    field.inactive_reason = reason
+    field
+  end
+
+  # Why a configured field cannot be put to a responder, or nil if it can.
+  #
+  # This has to live here rather than in the Slack block builders, because
+  # `validate_submission` reads the same resolved set: a field suppressed only
+  # at render is still demanded on submit, which produces a modal that can
+  # never be submitted and names a field it never showed.
+  def unanswerable_reason(field, lifecycle_event)
+    if field.system?
+      case field.system_field_key
+      when IncidentSystemField::KEY_STATUS then single_status_reason(lifecycle_event)
+      when IncidentSystemField::KEY_INCIDENT_TYPE then no_incident_types_reason
+      end
+    else
+      no_options_reason(field.incident_field_definition)
+    end
+  end
+
+  # The transition already sets the status. Asking adds a step that can only be
+  # answered one way.
+  def single_status_reason(lifecycle_event)
+    stage = TERMINAL_STAGE_BY_FORM[lifecycle_event]
+    return nil if stage.nil? || statuses_in_stage(stage) >= 2
+
+    "Responders are not asked this while there is only one #{stage} status, since there is nothing to choose."
+  end
+
+  def no_incident_types_reason
+    return nil if incident_types?
+
+    "Responders are not asked this until the workspace has at least one incident type."
+  end
+
+  def no_options_reason(definition)
+    return nil unless definition.selectable?
+    return nil if selectable_any?(definition)
+
+    "Responders are not asked this until #{definition.name} has at least one option."
+  end
+
+  # Fixed options ride along on the preload. Catalog-backed fields are answered
+  # from one query for the whole form rather than an existence check per field.
+  def selectable_any?(definition)
+    case definition.storage_kind
+    when IncidentFieldDefinition::STORAGE_OPTION
+      definition.incident_field_options.any?(&:enabled?)
+    when IncidentFieldDefinition::STORAGE_CATALOG_ENTRY
+      definition.catalog_type_id.present? && stocked_catalog_type_ids.include?(definition.catalog_type_id)
+    else
+      false
+    end
+  end
+
+  def stocked_catalog_type_ids
+    @stocked_catalog_type_ids ||= @workspace.catalog_entries.active.distinct.pluck(:catalog_type_id).to_set
+  end
+
+  def statuses_in_stage(stage)
+    @statuses_in_stage ||= {}
+    @statuses_in_stage[stage] ||= @workspace.incident_statuses.active.joins(:incident_lifecycle_stage)
+      .where(incident_lifecycle_stages: { key: stage }).count
+  end
+
+  def incident_types?
+    return @incident_types if defined?(@incident_types)
+
+    @incident_types = @workspace.incident_types.active.exists?
+  end
+
   def default_form_field(lifecycle_event, defn, position:)
+    mode = defn.required_mode_for(lifecycle_event)
+
+    # An available field ships hidden rather than missing, so the editor can
+    # offer it while responders do not see it until someone turns it on.
+    available = mode == IncidentFormField::REQUIRED_MODE_AVAILABLE
+
     IncidentFormField.new(
       field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
       system_field_key: defn.key,
-      required_mode: defn.required_mode_for(lifecycle_event),
-      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: available ? IncidentFormField::REQUIRED_MODE_OPTIONAL : mode,
+      visibility_mode: available ? IncidentFormField::VISIBILITY_MODE_HIDDEN : IncidentFormField::VISIBILITY_MODE_VISIBLE,
       position: position
     )
   end

@@ -57,14 +57,14 @@ class IncidentFieldDefinition < ApplicationRecord
   has_many :incident_field_options, -> { ordered }, dependent: :destroy, inverse_of: :incident_field_definition
   has_many :incident_field_values, dependent: :restrict_with_error
 
-  validates :key, presence: true,
+  validates :slug, presence: true,
     uniqueness: { scope: :workspace_id, conditions: -> { where(deleted_at: nil) } }
   validates :name, presence: true
   validates :field_type, presence: true, inclusion: { in: FIELD_TYPES }
   validates :option_source, presence: true, inclusion: { in: OPTION_SOURCES }
   validates :position, presence: true
 
-  validate :key_immutable, on: :update
+  validate :slug_immutable, on: :update
   validate :shape_immutable_once_in_use, on: :update
   validate :options_match_field_type
   validate :option_count_within_platform_limit
@@ -97,7 +97,7 @@ class IncidentFieldDefinition < ApplicationRecord
     definitions
   end
 
-  def self.generate_key(name)
+  def self.generate_slug(name)
     name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
   end
 
@@ -207,10 +207,10 @@ class IncidentFieldDefinition < ApplicationRecord
 
   private
 
-  def key_immutable
-    return unless key_changed?
+  def slug_immutable
+    return unless slug_changed?
 
-    errors.add(:key, "cannot be changed after creation")
+    errors.add(:slug, "cannot be changed after creation")
   end
 
   def shape_immutable_once_in_use

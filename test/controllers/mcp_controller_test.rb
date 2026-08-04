@@ -56,7 +56,9 @@ class McpControllerTest < ActionDispatch::IntegrationTest
                    Mcp::Tools::DELETE_ROUTING_RULE, Mcp::Tools::UPDATE_ROUTING_CONFIG,
                    Mcp::Tools::UPSERT_RUNBOOK, Mcp::Tools::ASSIGN_INCIDENT_ROLE,
                    Mcp::Tools::SEARCH_APPROVALS,
-                   Mcp::Tools::APPROVE_APPROVAL, Mcp::Tools::DENY_APPROVAL ].sort,
+                   Mcp::Tools::APPROVE_APPROVAL, Mcp::Tools::DENY_APPROVAL,
+                   Mcp::Tools::GET_FORM, Mcp::Tools::UPSERT_CUSTOM_FIELD,
+                   Mcp::Tools::UPSERT_FORM_FIELD ].sort,
                  tools.map { |t| t["name"] }.sort
 
     read_tools, write_tools = tools.partition { |t| t["name"].start_with?("search", "get", "evaluate") }
@@ -200,7 +202,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
   test "search_catalog resolves member attribute ids to names" do
     catalog_types(:team_ws1).catalog_attribute_definitions.create!(
-      key: "manager", name: "Manager",
+      slug: "manager", name: "Manager",
       attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER, position: 5
     )
     entry = catalog_entries(:platform_team)

@@ -55,7 +55,7 @@ module Catalogue
     private
 
     def provision_member_attributes(type, raw_attrs)
-      definitions = type.catalog_attribute_definitions.index_by(&:key)
+      definitions = type.catalog_attribute_definitions.index_by(&:slug)
       adapter = @workspace.adapter
 
       raw_attrs.each_with_object({}) do |(key, value), result|

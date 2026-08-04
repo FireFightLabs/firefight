@@ -6,15 +6,16 @@ module Slack
         detail = "#{target.incident_severity.name}  ·  #{target.incident_status.name}#{channel_ref}"
 
         [
-          { type: "section", text: { type: "mrkdwn", text: ":link: *Related incident linked*\n*#{target.identifier}* — #{target.name || 'Untitled Incident'}" } },
-          { type: "section", text: { type: "mrkdwn", text: detail } },
+          { type: "section", text: { type: "mrkdwn", text: ":link:  *Related incident linked*" } },
+          { type: "divider" },
+          { type: "section", text: { type: "mrkdwn", text: "*#{target.identifier}* — #{target.name || 'Untitled Incident'}\n#{detail}" } },
           { type: "context", elements: [ { type: "mrkdwn", text: "Linked by <@#{linked_by_platform_user_id}>" } ] }
         ]
       end
 
       def self.duplicate_source(_source, canonical, linked_by_platform_user_id:)
         blocks = [
-          { type: "section", text: { type: "mrkdwn", text: ":repeat: *This incident has been marked as a duplicate*" } },
+          { type: "section", text: { type: "mrkdwn", text: ":repeat:  *This incident has been marked as a duplicate*" } },
           { type: "divider" },
           { type: "section", text: { type: "mrkdwn", text: "Merged into *#{canonical.identifier}* — #{canonical.name || 'Untitled Incident'}\n#{canonical.incident_severity.name}  ·  #{canonical.incident_status.name}" } }
         ]
@@ -28,7 +29,7 @@ module Slack
         detail += "  ·  <##{source.channel_id}>" if source.channel_id
 
         [
-          { type: "section", text: { type: "mrkdwn", text: ":repeat: *Duplicate incident merged in*" } },
+          { type: "section", text: { type: "mrkdwn", text: ":repeat:  *Duplicate incident merged in*" } },
           { type: "divider" },
           { type: "section", text: { type: "mrkdwn", text: "*#{source.identifier}* — #{source.name || 'Untitled Incident'}\n#{detail}" } },
           { type: "context", elements: [ { type: "mrkdwn", text: "Merged by <@#{linked_by_platform_user_id}>" } ] }

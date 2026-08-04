@@ -30,7 +30,7 @@ class IncidentFormServiceTest < ActiveSupport::TestCase
     assert_equal 1, incident_form_fields(:declare_severity_field_ws1).reload.position
   end
 
-  test "locked required field keeps fixed required mode when updated" do
+  test "a locked field keeps both its required mode and its visibility" do
     form_field = incident_form_fields(:declare_severity_field_ws1)
 
     @service.update_field(
@@ -39,8 +39,10 @@ class IncidentFormServiceTest < ActiveSupport::TestCase
       required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL
     )
 
+    # Severity is NOT NULL on incidents, so a form that hides it can never be
+    # submitted. Visibility is locked wherever required is.
     form_field.reload
-    assert_equal IncidentFormField::VISIBILITY_MODE_HIDDEN, form_field.visibility_mode
+    assert_equal IncidentFormField::VISIBILITY_MODE_VISIBLE, form_field.visibility_mode
     assert_equal IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED, form_field.required_mode
   end
 end

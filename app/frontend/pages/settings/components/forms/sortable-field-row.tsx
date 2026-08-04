@@ -41,6 +41,10 @@ export function SortableFieldRow({ field, incidentTypes, severities, onUpdate, o
   const isVisible = field.visibilityMode === "visible"
   const isRequired = field.requiredMode === "required" || field.lockedRequired
   const isSelect = [ "single_select", "multi_select", "catalog_reference", "catalog_multi_reference" ].includes(field.fieldType)
+  const isMultiline = field.slug === "summary"
+  // Falls back only for custom fields, which carry no placeholder of their own.
+  const placeholder = field.placeholder ??
+    (isSelect ? "Select an option..." : field.fieldType === "number" ? "0" : field.fieldType === "link" ? "https://..." : "Enter text...")
 
   return (
     <div
@@ -66,30 +70,31 @@ export function SortableFieldRow({ field, incidentTypes, severities, onUpdate, o
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5">
-            <span className="text-sm font-semibold">{field.name}</span>
+            <span className="text-sm font-semibold">{field.label}</span>
             {isRequired && <span className="text-destructive">*</span>}
             {!isRequired && <span className="text-xs text-muted-foreground/50">(optional)</span>}
           </div>
-          {field.description && (
-            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{field.description}</p>
+          {field.hint && (
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{field.hint}</p>
+          )}
+          {field.inactiveReason && (
+            <p className="mt-1 text-xs italic leading-relaxed text-muted-foreground/70">{field.inactiveReason}</p>
           )}
           <div className="mt-2 max-w-lg">
             {isSelect ? (
               <div className="flex h-9 items-center rounded-md border border-border bg-muted px-3">
-                <span className="flex-1 text-sm text-muted-foreground/50">Select an option...</span>
+                <span className="flex-1 text-sm text-muted-foreground/50">{placeholder}</span>
                 <svg className="size-3.5 text-muted-foreground/30" viewBox="0 0 16 16" fill="none">
                   <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-            ) : field.key === "summary" ? (
+            ) : isMultiline ? (
               <div className="rounded-md border border-border bg-muted px-3 pt-2.5 pb-12">
-                <span className="text-sm text-muted-foreground/50">Provide a summary...</span>
+                <span className="text-sm text-muted-foreground/50">{placeholder}</span>
               </div>
             ) : (
               <div className="flex h-9 items-center rounded-md border border-border bg-muted px-3">
-                <span className="text-sm text-muted-foreground/50">
-                  {field.fieldType === "number" ? "0" : field.fieldType === "link" ? "https://..." : "Enter text..."}
-                </span>
+                <span className="text-sm text-muted-foreground/50">{placeholder}</span>
               </div>
             )}
           </div>
@@ -102,7 +107,7 @@ export function SortableFieldRow({ field, incidentTypes, severities, onUpdate, o
           <span className="text-[11px] text-muted-foreground">Visible</span>
           <Switch
             checked={isVisible}
-            disabled={field.lockedRequired}
+            disabled={field.lockedVisible}
             onCheckedChange={(checked) => onUpdate({ visibilityMode: checked ? "visible" : "hidden" })}
           />
         </label>

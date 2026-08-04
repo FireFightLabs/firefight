@@ -52,6 +52,33 @@ class IncidentLifecycleService
     end
   end
 
+  # A canceled incident was never an incident, so it deliberately does not get
+  # what closing gets: no resolved_at, which keeps it out of time-to-resolve, no
+  # postmortem, which gates on the closed stage, and no close workflow, since
+  # there is nothing to follow up. The channel still archives, because a channel
+  # for a false positive is pure noise.
+  def cancel(incident, attrs, changed_by:, message: nil)
+    previous_status_name = incident.incident_status.name
+
+    incident.record_change!(IncidentEvent::INCIDENT_CANCELED, by: changed_by, message: message) do
+      incident.update!(attrs)
+    end
+
+    # The same announcement path a status change takes, so the channel topic,
+    # the pinned quick actions, and the announcement all reflect that this is
+    # over. Skipping it left cancelling completely silent.
+    IncidentUpdateWorkflow.start!(incident, context: {
+      updated_by_platform_user_id: changed_by&.platform_user_id,
+      previous_status_name: previous_status_name,
+      message: message
+    })
+
+    if workspace.archive_channel_enabled && incident.channel_id.present?
+      ChannelArchivalJob.set(wait: workspace.archive_channel_delay_minutes.minutes)
+        .perform_later(incident.id)
+    end
+  end
+
   def reopen(incident, attrs, changed_by:, reason: nil)
     incident.record_change!(
       IncidentEvent::INCIDENT_REOPENED,

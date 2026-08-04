@@ -10,6 +10,7 @@ class IncidentEvent < ApplicationRecord
   INCIDENT_ESCALATED = "incident.escalated"
   INCIDENT_RESOLVED = "incident.resolved"
   INCIDENT_REOPENED = "incident.reopened"
+  INCIDENT_CANCELED = "incident.canceled"
   POSTMORTEM_GENERATED = "postmortem.generated"
   POSTMORTEM_EDITED = "postmortem.edited"
   RELATIONSHIP_CREATED = "relationship.created"
@@ -30,7 +31,7 @@ class IncidentEvent < ApplicationRecord
     INCIDENT_CREATED, INCIDENT_UPDATED, INCIDENT_ACCEPTED, LEAD_ASSIGNED,
     ROLE_ASSIGNED, ROLE_UNASSIGNED,
     ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED,
-    INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, POSTMORTEM_GENERATED, POSTMORTEM_EDITED,
+    INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, INCIDENT_CANCELED, POSTMORTEM_GENERATED, POSTMORTEM_EDITED,
     RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
     MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED,
     ESCALATION_ACKNOWLEDGED, ESCALATION_NUDGED,
@@ -51,6 +52,7 @@ class IncidentEvent < ApplicationRecord
     INCIDENT_ESCALATED => "escalated the incident",
     INCIDENT_RESOLVED => "resolved the incident",
     INCIDENT_REOPENED => "reopened the incident",
+    INCIDENT_CANCELED => "canceled the incident",
     POSTMORTEM_GENERATED => "generated the postmortem",
     POSTMORTEM_EDITED => "edited the postmortem",
     RELATIONSHIP_CREATED => "linked a related incident",
@@ -77,6 +79,7 @@ class IncidentEvent < ApplicationRecord
     LEAD_ASSIGNED        => IncidentUpdate::LEAD_ASSIGNED,
     INCIDENT_RESOLVED    => IncidentUpdate::CLOSED,
     INCIDENT_REOPENED    => IncidentUpdate::REOPENED,
+    INCIDENT_CANCELED    => IncidentUpdate::CANCELED,
     MERGED_INTO          => IncidentUpdate::CLOSED,
     ACTION_CREATED       => IncidentActionUpdate::CREATED,
     ACTION_PICKED_UP     => IncidentActionUpdate::PICKED_UP,

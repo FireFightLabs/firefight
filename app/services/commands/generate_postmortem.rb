@@ -8,7 +8,14 @@ module Commands
       return Command.ephemeral(gate.message) if gate.blocked?
 
       incident = command.workspace.incidents.closed.in_channel(command.channel_id).first
-      return Command.ephemeral("This command must be run from a closed incident channel.") unless incident
+      unless incident
+        # A canceled incident is finished, so "must be run from a closed
+        # channel" reads like a mistake. Name the real reason instead.
+        canceled = command.workspace.incidents.canceled.in_channel(command.channel_id).first
+        return Command.ephemeral("#{canceled.identifier} was canceled, so it has no postmortem to write.") if canceled
+
+        return Command.ephemeral("This command must be run from a resolved incident channel.")
+      end
       return Command.ephemeral("A postmortem has already been generated for #{incident.identifier}.") if incident.postmortem.present?
 
       member = command.workspace.workspace_memberships.find_by(platform_user_id: command.user_id)

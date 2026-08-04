@@ -7,12 +7,21 @@ class IncidentFormField < ApplicationRecord
   VISIBILITY_MODE_HIDDEN = "hidden"
   VISIBILITY_MODES = [ VISIBILITY_MODE_VISIBLE, VISIBILITY_MODE_HIDDEN ].freeze
 
+  # Registry value meaning "belongs on this form, but off until enabled".
+  REQUIRED_MODE_AVAILABLE = "available"
+
   REQUIRED_MODE_OPTIONAL = "optional"
   REQUIRED_MODE_REQUIRED = "required"
   REQUIRED_MODE_FIXED_REQUIRED = "fixed_required"
   REQUIRED_MODES = [ REQUIRED_MODE_OPTIONAL, REQUIRED_MODE_REQUIRED, REQUIRED_MODE_FIXED_REQUIRED ].freeze
 
   belongs_to :incident_form
+
+  # Why a configured field still will not reach responders. Set by the resolver,
+  # which knows the workspace and the form; a default field carries no
+  # incident_form, so it cannot work this out for itself.
+  attr_accessor :inactive_reason
+
   belongs_to :incident_field_definition, optional: true
   has_many :incident_conditions, as: :conditionable, dependent: :destroy
 
@@ -32,6 +41,13 @@ class IncidentFormField < ApplicationRecord
 
   def custom?
     field_source_kind == FIELD_SOURCE_KIND_CUSTOM
+  end
+
+  # A field the incident cannot be written without. Hiding one produces a form
+  # that always fails to submit, so visibility is locked wherever required is.
+  # incidents.incident_status_id and incident_severity_id are both NOT NULL.
+  def locked_visible?
+    locked_required?
   end
 
   def locked_required?

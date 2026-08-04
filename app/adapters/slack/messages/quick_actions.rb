@@ -5,40 +5,26 @@ module Slack
     # plus the action buttons (accept, lead, summary, escalate).
     module QuickActions
       def self.build(incident)
-        blocks = [
-          {
-            type: "header",
-            text: {
-              type: "plain_text",
-              text: ":rotating_light: #{incident.identifier} · #{incident.name || 'Untitled Incident'}",
-              emoji: true
-            }
-          }
-        ]
+        # No channel line: this message is pinned inside the channel it would
+        # point at.
+        blocks = IncidentDetail.for_incident(incident)
 
-        if incident.summary.present?
-          blocks << { type: "section", text: { type: "mrkdwn", text: "_#{incident.summary}_" } }
+        # Slack rejects an actions block with no elements, so a terminal
+        # incident drops the block and its divider rather than emptying it.
+        actions = buttons(incident)
+        if actions.any?
+          blocks << { type: "divider" }
+          blocks << { type: "actions", elements: actions }
         end
-
-        blocks << { type: "divider" }
-        blocks << { type: "section", text: { type: "mrkdwn", text: ":fire: *Severity:* #{incident.incident_severity.name}" } }
-        blocks << { type: "section", text: { type: "mrkdwn", text: ":construction: *Status:* #{incident.incident_status.name}" } }
-        blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* <@#{incident.lead.platform_user_id}>" } } if incident.lead
-        blocks << { type: "section", text: { type: "mrkdwn", text: ":mega: *Declared by:* <@#{incident.declared_by.platform_user_id}>" } }
-
-        custom_fields_text = Formatting.custom_fields_summary(incident)
-        blocks << { type: "section", text: { type: "mrkdwn", text: custom_fields_text } } if custom_fields_text
-
-        relationship_text = Formatting.relationship_summary(incident)
-        blocks << { type: "section", text: { type: "mrkdwn", text: relationship_text } } if relationship_text
-
-        blocks << { type: "divider" }
-        blocks << { type: "actions", elements: buttons(incident) }
 
         blocks
       end
 
       def self.buttons(incident)
+        # A resolved or canceled incident is over. Offering Escalate or Make me
+        # Lead on it invites actions that no longer mean anything.
+        return [] unless incident.incident_status.incident_lifecycle_stage.open?
+
         result = []
 
         if incident.incident_status.triage?
@@ -48,6 +34,14 @@ module Slack
             action_id: Identifiers::ACCEPT_INCIDENT,
             value: incident.id,
             style: "primary"
+          }
+          # The only other way out of triage. Without it the sole exit is to
+          # accept something you do not believe in, then cancel it.
+          result << {
+            type: "button",
+            text: { type: "plain_text", text: ":wastebasket: Cancel incident", emoji: true },
+            action_id: Identifiers::CANCEL_INCIDENT,
+            value: incident.id
           }
         end
 

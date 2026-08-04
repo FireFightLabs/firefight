@@ -3,7 +3,7 @@ class RunbookCustomFieldSerializer < BaseSerializer
 
   attributes(
     id: { type: :string },
-    key: { type: :string },
+    slug: { type: :string },
     name: { type: :string },
     field_type: { type: :string }
   )

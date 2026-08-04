@@ -1,5 +1,5 @@
 json.custom_fields @custom_fields do |field|
-  json.(field, :id, :key, :name, :field_type, :option_source)
+  json.(field, :id, :slug, :name, :field_type, :option_source)
   if field.fixed_options?
     json.options field.incident_field_options.active.ordered.map { |option| { id: option.id, label: option.label } }
   end

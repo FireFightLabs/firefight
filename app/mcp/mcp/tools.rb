@@ -15,6 +15,9 @@ module Mcp
     DELETE_ROUTING_RULE = "delete_routing_rule".freeze
     UPDATE_ROUTING_CONFIG = "update_routing_config".freeze
     UPSERT_RUNBOOK = "upsert_runbook".freeze
+    GET_FORM = "get_form".freeze
+    UPSERT_CUSTOM_FIELD = "upsert_custom_field".freeze
+    UPSERT_FORM_FIELD = "upsert_form_field".freeze
     ASSIGN_INCIDENT_ROLE = "assign_incident_role".freeze
     SEARCH_APPROVALS = "search_approvals".freeze
     APPROVE_APPROVAL = "approve_approval".freeze
@@ -24,7 +27,8 @@ module Mcp
       [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
         SearchRunbooks, GetRunbook, UpsertCatalogEntry, DeleteCatalogEntry,
         UpsertRoutingRule, DeleteRoutingRule, UpdateRoutingConfig, UpsertRunbook,
-        AssignIncidentRole, SearchApprovals, ApproveApproval, DenyApproval ]
+        AssignIncidentRole, SearchApprovals, ApproveApproval, DenyApproval,
+        GetForm, UpsertCustomField, UpsertFormField ]
     end
   end
 end

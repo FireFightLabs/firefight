@@ -186,7 +186,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
 
   test "leaves fields the form did not submit untouched" do
     notes = notes_definition
-    @incident.update!(custom_fields: { notes.key => "existing_value" })
+    @incident.update!(custom_fields: { notes.slug => "existing_value" })
     stub_all_side_effects
 
     Interactions::IncidentUpdateHandler.execute(
@@ -194,7 +194,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     )
 
     @incident.reload
-    assert_equal "existing_value", @incident.custom_fields[notes.key]
+    assert_equal "existing_value", @incident.custom_fields[notes.slug]
     assert_equal "Pro", @incident.custom_fields_for_display["customer_tier"]
   end
 
@@ -202,7 +202,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
 
   def notes_definition
     @workspace.incident_field_definitions.create!(
-      key: "root_cause_notes",
+      slug: "root_cause_notes",
       name: "Root Cause Notes",
       field_type: IncidentFieldDefinition::TYPE_TEXT,
       option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE,
@@ -210,7 +210,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     )
   end
 
-  def build_interaction(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil, custom_fields: {})
+  def build_interaction(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: "Still investigating.", next_update_minutes: nil, custom_fields: {})
     Interaction.new(
       platform: Platforms::SLACK,
       type: Interaction::VIEW_SUBMISSION,
@@ -222,7 +222,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     )
   end
 
-  def build_values(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: nil, next_update_minutes: nil, custom_fields: {})
+  def build_values(status_slug: "investigating", severity_slug: "critical", type_slug: nil, message: "Still investigating.", next_update_minutes: nil, custom_fields: {})
     vals = {
       "field_status_block" => {
         "field_status_input" => {
@@ -239,8 +239,8 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
           "selected_option" => type_slug ? { "value" => type_slug } : nil
         }
       },
-      "message_block" => {
-        "message_input" => {
+      "field_message_block" => {
+        "field_message_input" => {
           "value" => message
         }
       },
