@@ -12,6 +12,7 @@ module Identifiers
   INCIDENT_FOLLOWUPS_MODAL = "incident_followups_modal"
   CREATE_ACTION_MODAL = "create_action_modal"
   CREATE_FOLLOWUP_MODAL = "create_followup_modal"
+  CANCEL_INCIDENT_MODAL = "cancel_incident_modal"
   CLOSE_INCIDENT_MODAL = "close_incident_modal"
   REOPEN_INCIDENT_MODAL = "reopen_incident_modal"
   LINK_INCIDENT_MODAL = "link_incident_modal"
@@ -44,6 +45,7 @@ module Identifiers
   SUBCOMMAND_DUPLICATE  = "duplicate"
   SUBCOMMAND_CLOSE      = "close"
   SUBCOMMAND_RESOLVE    = "resolve"
+  SUBCOMMAND_CANCEL     = "cancel"
   SUBCOMMAND_REOPEN     = "reopen"
   SUBCOMMAND_POSTMORTEM = "postmortem"
   SUBCOMMAND_CATCHUP    = "catchup"
@@ -74,6 +76,7 @@ module Identifiers
   INCIDENT_HOMEPAGE = "incident_homepage"
   PREVIEW_SUBSCRIBE_DISABLED = "preview_subscribe_disabled"
   ACCEPT_INCIDENT = "accept_incident"
+  CANCEL_INCIDENT = "cancel_incident"
   SET_INCIDENT_LEAD_SELF = "set_incident_lead_self"
   ROLE_SELECT = "role_select"
 

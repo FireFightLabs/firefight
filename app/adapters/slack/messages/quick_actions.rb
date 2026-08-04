@@ -49,6 +49,14 @@ module Slack
             value: incident.id,
             style: "primary"
           }
+          # The only other way out of triage. Without it the sole exit is to
+          # accept something you do not believe in, then cancel it.
+          result << {
+            type: "button",
+            text: { type: "plain_text", text: ":wastebasket: Cancel incident", emoji: true },
+            action_id: Identifiers::CANCEL_INCIDENT,
+            value: incident.id
+          }
         end
 
         unless incident.lead

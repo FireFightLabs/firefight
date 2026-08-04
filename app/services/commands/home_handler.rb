@@ -37,6 +37,8 @@ module Commands
         Commands::LinkIncident.execute(command)
       when Identifiers::SUBCOMMAND_CLOSE, Identifiers::SUBCOMMAND_RESOLVE
         Commands::CloseIncident.execute(command)
+      when Identifiers::SUBCOMMAND_CANCEL
+        Commands::CancelIncident.execute(command)
       when Identifiers::SUBCOMMAND_REOPEN
         Commands::ReopenIncident.execute(command)
       when Identifiers::SUBCOMMAND_POSTMORTEM

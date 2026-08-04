@@ -7,6 +7,7 @@ class Webhook < ApplicationRecord
     IncidentEvent::INCIDENT_ACCEPTED,
     IncidentEvent::INCIDENT_RESOLVED,
     IncidentEvent::INCIDENT_REOPENED,
+    IncidentEvent::INCIDENT_CANCELED,
     IncidentEvent::INCIDENT_ESCALATED,
     IncidentEvent::LEAD_ASSIGNED,
     IncidentEvent::ROLE_ASSIGNED,

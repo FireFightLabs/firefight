@@ -2,7 +2,8 @@ class IncidentForm < ApplicationRecord
   SLUG_DECLARE = "declare"
   SLUG_UPDATE = "update"
   SLUG_RESOLVE = "resolve"
-  SLUGS = [ SLUG_DECLARE, SLUG_UPDATE, SLUG_RESOLVE ].freeze
+  SLUG_CANCEL = "cancel"
+  SLUGS = [ SLUG_DECLARE, SLUG_UPDATE, SLUG_RESOLVE, SLUG_CANCEL ].freeze
 
   # Built-in lifecycle forms the system dispatches on. Workspaces never need
   # these seeded — if no DB row exists, defaults from this constant apply.
@@ -11,7 +12,10 @@ class IncidentForm < ApplicationRecord
   DEFAULTS = [
     { slug: SLUG_DECLARE, name: "Declare", description: "Shown when a responder first declares an incident.", lifecycle_event: SLUG_DECLARE, position: 1 },
     { slug: SLUG_UPDATE,  name: "Update",  description: "Shown when responders share a status update.",       lifecycle_event: SLUG_UPDATE,  position: 2 },
-    { slug: SLUG_RESOLVE, name: "Resolve", description: "Shown when the incident is resolved or closed.",     lifecycle_event: SLUG_RESOLVE, position: 3 }
+    { slug: SLUG_RESOLVE, name: "Resolve", description: "Shown when the incident is resolved or closed.",     lifecycle_event: SLUG_RESOLVE, position: 3 },
+    # No system fields by default. Nothing is asked when an incident turns out
+    # not to be one, unless a workspace attaches something worth asking.
+    { slug: SLUG_CANCEL,  name: "Cancel",  description: "Shown when an incident is canceled as not a real incident.", lifecycle_event: SLUG_CANCEL, position: 4 }
   ].freeze
 
   DEFAULTS_BY_SLUG = DEFAULTS.index_by { |d| d[:slug] }.freeze

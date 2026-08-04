@@ -139,7 +139,7 @@ class IncidentUpdateTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "UPDATE_TYPES contains all types" do
-    expected = %w[created updated closed reopened lead_assigned accepted]
+    expected = %w[created updated closed reopened lead_assigned accepted canceled]
     assert_equal expected.sort, IncidentUpdate::UPDATE_TYPES.sort
   end
 
