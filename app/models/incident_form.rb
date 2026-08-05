@@ -89,8 +89,15 @@ class IncidentForm < ApplicationRecord
     definitions.uniq(&:id).sort_by { |definition| [ definition.position, definition.created_at ] }
   end
 
-  # System fields this form asks for that a condition can read. Severity and
-  # incident type are the two Slack re-renders the dialog for.
+  # System fields this form asks for that a condition can read. Only the ones a
+  # responder picks from a set: a condition on free text has nothing to match.
+  CONDITION_SOURCE_SYSTEM_KEYS = [
+    IncidentSystemField::KEY_INCIDENT_TYPE,
+    IncidentSystemField::KEY_SEVERITY,
+    IncidentSystemField::KEY_STATUS,
+    IncidentSystemField::KEY_VISIBILITY
+  ].freeze
+
   def condition_source_system_keys
     slugs = CONDITION_SOURCE_SLUGS.fetch(lifecycle_event, [ lifecycle_event ])
     resolver = IncidentFormResolver.new(workspace)
@@ -98,6 +105,7 @@ class IncidentForm < ApplicationRecord
     slugs.flat_map { |slug| asked_fields(resolver, slug) }
       .filter_map(&:system_field_key)
       .uniq
+      .select { |key| CONDITION_SOURCE_SYSTEM_KEYS.include?(key) }
   end
 
   def default_form?
