@@ -201,4 +201,39 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
       options: options
     }
   end
+
+  # Detaching a field from every form does not unmake the incidents declared
+  # with it, and the association refuses to cascade those values away, so the
+  # delete used to be offered and then blow up.
+  test "a field holding incident values cannot be deleted even with no form using it" do
+    definition = @workspace.incident_field_definitions.create!(
+      name: "Open ended text", slug: "open_ended_text",
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE, position: 60
+    )
+    IncidentFieldValue.create!(incident: incidents(:active_critical_ws1),
+                               incident_field_definition: definition, value_text: "something")
+
+    assert_equal 0, definition.incident_form_fields.count, "no form uses it"
+
+    delete incident_field_definition_path(definition)
+
+    assert IncidentFieldDefinition.exists?(definition.id)
+    assert_match(/holds a value on 1 incident/, flash[:alert])
+  end
+
+  test "the screen ships the reason so the row can disable Delete" do
+    definition = @workspace.incident_field_definitions.create!(
+      name: "Open ended text", slug: "open_ended_text",
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE, position: 61
+    )
+    IncidentFieldValue.create!(incident: incidents(:active_critical_ws1),
+                               incident_field_definition: definition, value_text: "something")
+
+    get settings_custom_fields_url, headers: inertia_headers
+
+    row = inertia_props["customFields"].find { |field| field["id"] == definition.id }
+    assert_match(/holds a value on 1 incident/, row["deletionBlockedReason"])
+  end
 end

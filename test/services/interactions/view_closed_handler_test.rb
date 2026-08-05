@@ -136,4 +136,29 @@ class Interactions::ViewClosedHandlerTest < ActiveSupport::TestCase
       private_metadata: metadata
     )
   end
+
+  # The allowlist this replaced never got Cancel, so closing that modal left
+  # "is canceling the incident..." in the channel for good.
+  test "deletes the temp message for every modal that opened one" do
+    [ Identifiers::CANCEL_INCIDENT_MODAL, Identifiers::CLOSE_INCIDENT_MODAL,
+      Identifiers::REOPEN_INCIDENT_MODAL, Identifiers::UPDATE_SUMMARY_MODAL,
+      Identifiers::INCIDENT_UPDATE_MODAL, Identifiers::ESCALATE_INCIDENT_MODAL ].each do |callback_id|
+      stub_delete_message
+      Slack::Client.expects(:delete_message).once
+
+      interaction = Interaction.new(
+        platform: Platforms::SLACK,
+        type: Interaction::VIEW_CLOSED,
+        team_id: @workspace.platform_id,
+        user_id: "U12345678",
+        callback_id: callback_id,
+        private_metadata: { incident_id: @incident.id, temp_message_ts: "1234567890.123456",
+                            channel_id: @incident.channel_id }.to_json
+      )
+
+      assert_nil Interactions::ViewClosedHandler.execute(interaction), callback_id
+      mocha_teardown
+      mocha_setup
+    end
+  end
 end

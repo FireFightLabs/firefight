@@ -94,7 +94,10 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
   const isEdit = Boolean(field)
   const form = useForm(fieldToFormData(field))
 
-  useSyncFormData(field?.id, form, () => fieldToFormData(field))
+  // Keyed on the open state as well as the row, because creating twice in a
+  // row leaves the row undefined both times. Without this the second Add
+  // dialog opens holding whatever the last one was filled in with.
+  useSyncFormData(open ? (field?.id ?? "new") : null, form, () => fieldToFormData(field))
 
   const fieldType = form.data.field_type
   const optionSource = normalizeOptionSource(fieldType, form.data.option_source)
@@ -103,11 +106,24 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
   const duplicateLabels = hasDuplicateLabels(form.data.options)
   const showCatalogType = optionSource === "catalog"
 
+  // Changing the field type can invalidate the option source, and with it the
+  // options or the catalogue type. Dropping them here is what stops a list
+  // built for one shape reappearing under another.
   const prevNormalized = useRef(optionSource)
   if (optionSource !== prevNormalized.current) {
     prevNormalized.current = optionSource
+    const cleared: Partial<ReturnType<typeof fieldToFormData>> = {}
     if (form.data.option_source !== optionSource) {
-      form.setData("option_source", optionSource)
+      cleared.option_source = optionSource
+    }
+    if (optionSource !== "fixed" && form.data.options.length > 0) {
+      cleared.options = []
+    }
+    if (optionSource !== "catalog" && form.data.catalog_type_id !== "") {
+      cleared.catalog_type_id = ""
+    }
+    if (Object.keys(cleared).length > 0) {
+      form.setData({ ...form.data, ...cleared })
     }
   }
 

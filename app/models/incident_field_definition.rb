@@ -161,6 +161,17 @@ class IncidentFieldDefinition < ApplicationRecord
 
   attr_writer :value_count
 
+  # Detaching a field from every form does not unmake the incidents that were
+  # declared with it. Those values are history, and the association refuses to
+  # cascade them away, so this has to say no before the screen offers to.
+  def deletion_blocked_reason
+    return super if super
+    return if value_count.zero?
+
+    "#{name} holds a value on #{value_count} #{'incident'.pluralize(value_count)} and cannot be deleted. " \
+      "Disable it instead, which keeps the history and stops it being collected again."
+  end
+
   # field_type and option_source decide how stored values are interpreted, so
   # changing them once incidents hold values silently reinterprets history.
   def shape_change_blocked_reason
