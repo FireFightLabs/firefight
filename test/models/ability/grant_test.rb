@@ -46,5 +46,41 @@ module Ability
       assert_equal [ "alerts.read", "datadog.logs.query", "incidents.read" ], keys.sort
       assert Ability::Grant.exists?(tool_grant.id)
     end
+
+    test "an expiry in the past is refused" do
+      grant = Grant.new(workspace: @workspace, principal: @key,
+                        action: Action.system!("runbooks.read"), expires_at: 1.hour.ago)
+
+      assert_not grant.valid?
+      assert_includes grant.errors[:expires_at], "must be in the future"
+    end
+
+    test "the live scope keeps unexpiring and future grants, and drops lapsed ones" do
+      forever = Grant.create!(workspace: @workspace, principal: @key, action: Action.system!("runbooks.read"))
+      later = Grant.create!(workspace: @workspace, principal: @key,
+                            action: Action.system!("runbooks.create"), expires_at: 1.day.from_now)
+
+      live = Grant.where(principal: @key).live.pluck(:id)
+      assert_includes live, forever.id
+      assert_includes live, later.id
+
+      travel 2.days do
+        lapsed = Grant.where(principal: @key).live.pluck(:id)
+        assert_not_includes lapsed, later.id
+        assert_includes lapsed, forever.id
+      end
+    end
+
+    # A service key's matrix is its write interface, so a switch left on must
+    # never point at a grant that quietly lapsed.
+    test "syncing a service key's permissions clears an expiry" do
+      grant = Grant.create!(workspace: @workspace, principal: @key,
+                            action: Action.system!("runbooks.read"), expires_at: 1.day.from_now)
+
+      Grant.sync_direct!(principal: @key, workspace: @workspace,
+                         desired_keys: [ "runbooks.read" ], managed_keys: [ "runbooks.read" ])
+
+      assert_nil grant.reload.expires_at
+    end
   end
 end

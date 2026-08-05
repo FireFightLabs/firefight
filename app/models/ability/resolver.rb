@@ -20,11 +20,26 @@ module Ability
       end
     end
 
+    # Written rather than fetched because the TTL depends on what was computed:
+    # a grant expiring in ten minutes must not sit in an hour-long cache, or it
+    # keeps working for fifty minutes after it lapsed.
     def self.resolve(principal)
-      by_key = Rails.cache.fetch(cache_key(principal.class.polymorphic_name, principal.id), expires_in: CACHE_TTL) do
-        compute(principal)
+      key = cache_key(principal.class.polymorphic_name, principal.id)
+      by_key = Rails.cache.read(key)
+
+      if by_key.nil?
+        by_key = compute(principal)
+        Rails.cache.write(key, by_key, expires_in: cache_ttl_for(principal))
       end
+
       ResolvedGrants.new(by_key: by_key)
+    end
+
+    def self.cache_ttl_for(principal)
+      next_expiry = Grant.where(principal: principal).live.minimum(:expires_at)
+      return CACHE_TTL if next_expiry.nil?
+
+      [ next_expiry - Time.current, CACHE_TTL ].min.clamp(1.second, CACHE_TTL)
     end
 
     def self.bust!(principal_type:, principal_id:)
@@ -39,7 +54,7 @@ module Ability
 
     def self.compute(principal)
       by_key = {}
-      grants = Grant.where(principal: principal).includes(:action, role: { role_actions: :action })
+      grants = Grant.where(principal: principal).live.includes(:action, role: { role_actions: :action })
 
       grants.each do |grant|
         if grant.action

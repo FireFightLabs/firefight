@@ -7,8 +7,11 @@ import { abilityGrantPath } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
+import { formatDate } from "@/lib/formatters"
 
 type Grant = Principal["grants"][number]
 
@@ -22,8 +25,12 @@ export function GrantRow({
   canManage: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const [expiryOpen, setExpiryOpen] = useState(false)
   const scoped = environments.filter((environment) => grant.environmentIds.includes(environment.id))
   const label = scoped.length === 0 ? "All environments" : scoped.map((environment) => environment.name).join(", ")
+  const expiryLabel = grant.expiresAt
+    ? `${grant.expired ? "Expired" : "Until"} ${formatDate(grant.expiresAt)}`
+    : "No expiry"
 
   function retarget(environmentId: string) {
     const next = grant.environmentIds.includes(environmentId)
@@ -31,6 +38,16 @@ export function GrantRow({
       : [...grant.environmentIds, environmentId]
 
     router.patch(abilityGrantPath(grant.id), { environment_ids: next }, { preserveScroll: true })
+  }
+
+  // The environment scope rides along because an absent environment_ids reads
+  // as "no environments", which would silently widen the grant.
+  function reschedule(value: string) {
+    router.patch(
+      abilityGrantPath(grant.id),
+      { environment_ids: grant.environmentIds, expires_at: value },
+      { preserveScroll: true, onSuccess: () => setExpiryOpen(false) },
+    )
   }
 
   return (
@@ -50,6 +67,11 @@ export function GrantRow({
               {grant.riskLevel}
             </Badge>
           </>
+        )}
+        {grant.expired && (
+          <Badge variant="outline" className="text-muted-foreground shrink-0">
+            Expired
+          </Badge>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
@@ -79,6 +101,33 @@ export function GrantRow({
           </Popover>
         ) : (
           <Badge variant="outline">{label}</Badge>
+        )}
+        {canManage ? (
+          <Popover open={expiryOpen} onOpenChange={setExpiryOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 font-normal">
+                {expiryLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={`grant-expiry-${grant.id}`} className="text-xs">
+                  Expires
+                </Label>
+                <Input
+                  id={`grant-expiry-${grant.id}`}
+                  type="date"
+                  defaultValue={grant.expiresAt?.slice(0, 10) ?? ""}
+                  onChange={(event) => reschedule(event.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  Clear the date to grant indefinitely.
+                </p>
+              </div>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          grant.expiresAt && <Badge variant="outline">{expiryLabel}</Badge>
         )}
         {canManage && (
           <Button

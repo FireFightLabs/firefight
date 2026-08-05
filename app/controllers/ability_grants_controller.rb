@@ -10,28 +10,55 @@ class AbilityGrantsController < InertiaController
 
     grant = current_workspace.ability_grants.find_or_initialize_by({ principal: principal }.merge(target))
     grant.scope = requested_scope
+    grant.expires_at = requested_expiry
     grant.save!
 
-    redirect_to settings_permissions_path
+    redirect_to settings_permissions_path, notice: "#{principal.principal_label} was granted #{grant_label(grant)}#{expiry_suffix(grant)}."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to settings_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
 
+  # Changing the environment scope and changing the expiry are separate
+  # controls, so an absent expires_at means "leave it alone" rather than
+  # "clear it". Clearing is an explicit empty string.
   def update
     grant = current_workspace.ability_grants.find(params[:id])
-    grant.update!(scope: requested_scope)
+    attrs = { scope: requested_scope }
+    attrs[:expires_at] = requested_expiry if params.key?(:expires_at)
+    grant.update!(attrs)
 
-    redirect_to settings_permissions_path
+    redirect_to settings_permissions_path, notice: "#{grant_label(grant)} was updated#{expiry_suffix(grant)}."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to settings_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
 
   def destroy
-    current_workspace.ability_grants.find(params[:id]).destroy!
-    redirect_to settings_permissions_path
+    grant = current_workspace.ability_grants.find(params[:id])
+    label = grant_label(grant)
+    grant.destroy!
+    redirect_to settings_permissions_path, notice: "#{label} was revoked."
   end
 
   private
+
+  # Absent or blank means the grant does not expire, which is how an admin
+  # clears an expiry they set earlier.
+  def requested_expiry
+    return nil if params[:expires_at].blank?
+
+    Time.zone.parse(params[:expires_at].to_s) or
+      raise ActiveRecord::RecordInvalid.new(Ability::Grant.new.tap { |g| g.errors.add(:expires_at, "is not a valid date") })
+  end
+
+  def grant_label(grant)
+    grant.action&.key || grant.role&.name
+  end
+
+  def expiry_suffix(grant)
+    return "" if grant.expires_at.blank?
+
+    " until #{grant.expires_at.to_fs(:long)}"
+  end
 
   # An empty environment list means unrestricted, which Ability::Scope spells
   # as the dimension being absent rather than an empty array.

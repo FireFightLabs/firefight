@@ -39,12 +39,14 @@ export function GrantDialog({
   const [search, setSearch] = useState("")
   const [targetId, setTargetId] = useState("")
   const [environmentIds, setEnvironmentIds] = useState<string[]>([])
+  const [expiresAt, setExpiresAt] = useState("")
 
   useEffect(() => {
     setMode(sets.length > 0 ? "set" : "action")
     setSearch("")
     setTargetId("")
     setEnvironmentIds([])
+    setExpiresAt("")
   }, [principal, sets.length])
 
   const held = useMemo(
@@ -70,6 +72,7 @@ export function GrantDialog({
         principal_id: principal.id,
         ...(mode === "set" ? { role_id: targetId } : { action_id: targetId }),
         environment_ids: environmentIds,
+        expires_at: expiresAt,
       },
       { onFinish: onDismiss },
     )
@@ -208,6 +211,19 @@ export function GrantDialog({
               </p>
             </div>
           )}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="grant-expires">Expires (optional)</Label>
+            <Input
+              id="grant-expires"
+              type="date"
+              value={expiresAt}
+              onChange={(event) => setExpiresAt(event.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">
+              Leave empty to grant indefinitely. An expired grant stops working on its own and stays
+              on this list, so you can see the access lapsed rather than wonder who removed it.
+            </p>
+          </div>
         </div>
 
         <DialogFooter>

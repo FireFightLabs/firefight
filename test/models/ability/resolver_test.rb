@@ -69,5 +69,56 @@ module Ability
       Ability::RoleAction.create!(role: role, action: ability_actions(:alerts_read))
       assert Ability::Resolver.resolve(@key).covers?("alerts.read")
     end
+
+    test "an expired grant stops resolving" do
+      grant = Grant.create!(workspace: @workspace, principal: @key,
+                            action: Action.system!("runbooks.read"), expires_at: 1.hour.from_now)
+      assert Resolver.resolve(@key).covers?("runbooks.read")
+
+      travel 2.hours do
+        Resolver.bust!(principal_type: @key.class.polymorphic_name, principal_id: @key.id)
+        assert_not Resolver.resolve(@key).covers?("runbooks.read")
+      end
+      assert grant.reload.persisted?, "the row stays so the screen can show it lapsed"
+    end
+
+    # The cache lives an hour. Without capping it against the soonest expiry a
+    # grant lapsing in ten minutes would keep working for the other fifty.
+    test "the cache never outlives the next expiry" do
+      Grant.create!(workspace: @workspace, principal: @key,
+                    action: Action.system!("runbooks.read"), expires_at: 10.minutes.from_now)
+
+      assert_in_delta 10.minutes, Resolver.cache_ttl_for(@key), 5.seconds
+    end
+
+    test "a grant with no expiry keeps the full cache window" do
+      Grant.create!(workspace: @workspace, principal: @key, action: Action.system!("runbooks.create"))
+
+      assert_equal Resolver::CACHE_TTL, Resolver.cache_ttl_for(@key)
+    end
+
+    test "an expiry further out than the cache window does not extend it" do
+      Grant.create!(workspace: @workspace, principal: @key,
+                    action: Action.system!("runbooks.update"), expires_at: 5.days.from_now)
+
+      assert_equal Resolver::CACHE_TTL, Resolver.cache_ttl_for(@key)
+    end
+
+    # What the expiry is for: the gateway itself refuses once it lapses.
+    test "the gateway denies a call once the grant expires" do
+      Grant.create!(workspace: @workspace, principal: @key,
+                    action: Action.system!("runbooks.create"), expires_at: 1.hour.from_now)
+
+      assert_nothing_raised do
+        AbilityGateway.authorize!(principal: @key, action_key: "runbooks.create", workspace: @workspace)
+      end
+
+      travel 2.hours do
+        Resolver.bust!(principal_type: @key.class.polymorphic_name, principal_id: @key.id)
+        assert_raises(AbilityGateway::Denied) do
+          AbilityGateway.authorize!(principal: @key, action_key: "runbooks.create", workspace: @workspace)
+        end
+      end
+    end
   end
 end

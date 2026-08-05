@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_04_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_05_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -64,7 +64,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_210000) do
     t.jsonb "scope", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "expires_at"
     t.index ["action_id"], name: "index_ability_grants_on_action_id"
+    t.index ["expires_at"], name: "index_ability_grants_on_expires_at", where: "(expires_at IS NOT NULL)"
     t.index ["principal_type", "principal_id", "action_id"], name: "index_ability_grants_on_principal_action", unique: true, where: "(action_id IS NOT NULL)"
     t.index ["principal_type", "principal_id", "role_id"], name: "index_ability_grants_on_principal_role", unique: true, where: "(role_id IS NOT NULL)"
     t.index ["role_id"], name: "index_ability_grants_on_role_id"
