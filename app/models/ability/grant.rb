@@ -12,6 +12,11 @@ module Ability
     validates :role_id, uniqueness: { scope: [ :principal_type, :principal_id ] }, if: -> { role_id.present? }
     validate :exactly_one_target
     validate :scope_well_formed
+    validate :expiry_in_the_future, if: -> { expires_at_changed? && expires_at.present? }
+
+    # An expired grant is kept rather than deleted, so the screen can say the
+    # access lapsed instead of leaving someone wondering who removed it.
+    scope :live, -> { where(expires_at: nil).or(where(expires_at: Time.current..)) }
 
     after_commit :bust_principal_cache
 
@@ -36,13 +41,28 @@ module Ability
 
         (existing.keys - desired_keys).each { |key| existing[key].destroy! }
 
+        # A service key's permissions matrix is its write interface, and the
+        # two must never disagree. A switch left on cannot quietly point at a
+        # grant that lapsed, so reconciling clears any expiry.
+        (desired_keys & existing.keys).each do |key|
+          existing[key].update!(expires_at: nil) if existing[key].expires_at.present?
+        end
+
         (desired_keys - existing.keys).each do |key|
           create!(workspace: workspace, principal: principal, action: Ability::Action.system!(key))
         end
       end
     end
 
+    def expired?
+      expires_at.present? && expires_at <= Time.current
+    end
+
     private
+
+    def expiry_in_the_future
+      errors.add(:expires_at, "must be in the future") if expires_at <= Time.current
+    end
 
     def exactly_one_target
       errors.add(:base, "grant must target exactly one of role or action") unless role_id.present? ^ action_id.present?
