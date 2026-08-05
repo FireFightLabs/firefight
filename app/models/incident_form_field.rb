@@ -1,4 +1,8 @@
 class IncidentFormField < ApplicationRecord
+  # A system field with no override row has no id, so the editor addresses it
+  # by "default:<key>" until editing or reordering materializes one.
+  SYNTHETIC_PREFIX = "default:".freeze
+
   FIELD_SOURCE_KIND_SYSTEM = "system"
   FIELD_SOURCE_KIND_CUSTOM = "custom"
   FIELD_SOURCE_KINDS = [ FIELD_SOURCE_KIND_SYSTEM, FIELD_SOURCE_KIND_CUSTOM ].freeze

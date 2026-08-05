@@ -78,12 +78,15 @@ class IncidentFormService
     move(form_field, 1)
   end
 
+  # A system field the workspace has never customized has no row to carry a
+  # position, so the editor addresses it by `default:<key>` and dragging it
+  # materializes one, the same way editing it does. Skipping those ids instead
+  # meant reordering a form made only of code defaults saved nothing while
+  # still reporting success.
   def reorder(form, ordered_ids)
     ActiveRecord::Base.transaction do
-      fields = form.incident_form_fields.where(id: ordered_ids).index_by(&:id)
-      ordered_ids.each_with_index do |id, index|
-        field = fields[id]
-        next unless field
+      Array(ordered_ids).each_with_index do |id, index|
+        field = field_for_reorder(form, id.to_s)
         field.update!(position: index + 1) unless field.position == index + 1
       end
       bust_cache(form)
@@ -91,6 +94,15 @@ class IncidentFormService
   end
 
   private
+
+  # Raises rather than skipping: an id the form does not recognize means the
+  # page is stale or the payload is wrong, and silently dropping it is what
+  # produced a "Field order updated" toast over an order that never changed.
+  def field_for_reorder(form, id)
+    return ensure_system_field!(form, id.delete_prefix(IncidentFormField::SYNTHETIC_PREFIX)) if id.start_with?(IncidentFormField::SYNTHETIC_PREFIX)
+
+    form.incident_form_fields.find(id)
+  end
 
   def bust_cache(form)
     IncidentFormResolver.bust_cache(form)
