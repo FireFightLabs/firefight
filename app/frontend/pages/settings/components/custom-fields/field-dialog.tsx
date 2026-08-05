@@ -97,7 +97,8 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
   // Keyed on the open state as well as the row, because creating twice in a
   // row leaves the row undefined both times. Without this the second Add
   // dialog opens holding whatever the last one was filled in with.
-  useSyncFormData(open ? (field?.id ?? "new") : null, form, () => fieldToFormData(field))
+  const syncKey = open ? (field?.id ?? "new") : null
+  useSyncFormData(syncKey, form, () => fieldToFormData(field))
 
   const fieldType = form.data.field_type
   const optionSource = normalizeOptionSource(fieldType, form.data.option_source)
@@ -106,20 +107,34 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
   const duplicateLabels = hasDuplicateLabels(form.data.options)
   const showCatalogType = optionSource === "catalog"
 
-  // Changing the field type can invalidate the option source, and with it the
-  // options or the catalogue type. Dropping them here is what stops a list
-  // built for one shape reappearing under another.
-  const prevNormalized = useRef(optionSource)
-  if (optionSource !== prevNormalized.current) {
-    prevNormalized.current = optionSource
+  // Options and the catalogue type belong to the field type that was chosen
+  // when they were entered, so changing the type discards them rather than
+  // carrying a list built for one shape across to another.
+  //
+  // The sync key rides along because a reset lands a render later than the key
+  // change. Seeding from what the reset will produce, rather than from the
+  // values still on screen, is what stops opening a field for edit being mistaken
+  // for the user having changed its type.
+  const shape = useRef({ key: syncKey, fieldType, optionSource })
+  if (shape.current.key !== syncKey) {
+    const next = fieldToFormData(field)
+    shape.current = {
+      key: syncKey,
+      fieldType: next.field_type,
+      optionSource: normalizeOptionSource(next.field_type, next.option_source),
+    }
+  }
+  else if (shape.current.fieldType !== fieldType || shape.current.optionSource !== optionSource) {
+    shape.current = { key: syncKey, fieldType, optionSource }
+
     const cleared: Partial<ReturnType<typeof fieldToFormData>> = {}
     if (form.data.option_source !== optionSource) {
       cleared.option_source = optionSource
     }
-    if (optionSource !== "fixed" && form.data.options.length > 0) {
+    if (form.data.options.length > 0) {
       cleared.options = []
     }
-    if (optionSource !== "catalog" && form.data.catalog_type_id !== "") {
+    if (form.data.catalog_type_id !== "") {
       cleared.catalog_type_id = ""
     }
     if (Object.keys(cleared).length > 0) {
