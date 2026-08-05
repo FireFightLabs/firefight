@@ -253,7 +253,62 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_match(/at least one option/, field.inactive_reason)
   end
 
+  # ============================================================================
+  # CONDITIONS
+  # ============================================================================
+
+  # The Declare modal opens before anything has been chosen, so the context is
+  # empty. Treating that as "no filtering" showed every conditional field on
+  # first render and then hid it once a type was picked.
+  test "a conditional field is hidden until its condition is met" do
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    definition = @workspace.incident_field_definitions.create!(
+      name: "Affected region", slug: "affected_region", position: 80,
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE
+    )
+    field = IncidentFormService.new(@workspace).add_custom_field(form, definition)
+    production = @workspace.incident_types.active.first
+    field.sync_conditions!([ { condition_field: IncidentCondition::FIELD_INCIDENT_TYPE,
+                               operator: IncidentCondition::OPERATOR_ONE_OF,
+                               values: [ production.id ] } ])
+
+    resolver = IncidentFormResolver.new(@workspace)
+
+    nothing_chosen = resolver.resolve(IncidentForm::SLUG_DECLARE, context: {})
+    assert_not_includes slugs(nothing_chosen), "affected_region"
+
+    other_type = @workspace.incident_types.active.where.not(id: production.id).first
+    wrong_type = resolver.resolve(IncidentForm::SLUG_DECLARE,
+                                  context: IncidentConditionEvaluator.context(incident_type: other_type.id))
+    assert_not_includes slugs(wrong_type), "affected_region"
+
+    matching = resolver.resolve(IncidentForm::SLUG_DECLARE,
+                                context: IncidentConditionEvaluator.context(incident_type: production.id))
+    assert_includes slugs(matching), "affected_region"
+  end
+
+  test "the editor still lists a conditional field so its condition can be changed" do
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    definition = @workspace.incident_field_definitions.create!(
+      name: "Affected region", slug: "affected_region", position: 81,
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE
+    )
+    field = IncidentFormService.new(@workspace).add_custom_field(form, definition)
+    field.sync_conditions!([ { condition_field: IncidentCondition::FIELD_INCIDENT_TYPE,
+                               operator: IncidentCondition::OPERATOR_ONE_OF,
+                               values: [ @workspace.incident_types.active.first.id ] } ])
+
+    editor = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_DECLARE, include_hidden: true)
+    assert_includes slugs(editor), "affected_region"
+  end
+
   private
+
+  def slugs(fields)
+    fields.filter_map { |field| field.system_field_key || field.incident_field_definition&.slug }
+  end
 
   def fixtures_workspace_has_one_canceled_status
     stage = IncidentLifecycleStage.find_by!(key: IncidentLifecycleStage::CANCELED)
