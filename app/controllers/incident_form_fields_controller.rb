@@ -70,8 +70,8 @@ class IncidentFormFieldsController < InertiaController
   # a real DB row on first use via `Workspace#ensure_incident_form!`.
   def resolve_form(id_or_default)
     id = id_or_default.to_s
-    if id.start_with?("default:")
-      current_workspace.ensure_incident_form!(id.delete_prefix("default:"))
+    if id.start_with?(IncidentFormField::SYNTHETIC_PREFIX)
+      current_workspace.ensure_incident_form!(id.delete_prefix(IncidentFormField::SYNTHETIC_PREFIX))
     else
       current_workspace.incident_forms.find(id)
     end
@@ -83,10 +83,10 @@ class IncidentFormFieldsController < InertiaController
   def set_form_field
     id = params[:id].to_s
 
-    @form_field = if id.start_with?("default:")
+    @form_field = if id.start_with?(IncidentFormField::SYNTHETIC_PREFIX)
       form_service.ensure_system_field!(
         resolve_form(params.require(:incident_form_id)),
-        id.delete_prefix("default:")
+        id.delete_prefix(IncidentFormField::SYNTHETIC_PREFIX)
       )
     else
       IncidentFormField.joins(:incident_form)

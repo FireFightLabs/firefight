@@ -45,4 +45,38 @@ class IncidentFormServiceTest < ActiveSupport::TestCase
     assert_equal IncidentFormField::VISIBILITY_MODE_VISIBLE, form_field.visibility_mode
     assert_equal IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED, form_field.required_mode
   end
+
+  # Dragging a system field the workspace never customized sends a synthetic
+  # id. Those used to be skipped, so reordering the Update form, which is
+  # almost all code defaults, saved nothing and still said it had.
+  test "reorder positions default system fields by materializing them" do
+    workspace = workspaces(:slack_workspace_one)
+    form = workspace.ensure_incident_form!(IncidentForm::SLUG_UPDATE)
+    resolver = IncidentFormResolver.new(workspace)
+
+    before = resolver.resolve(IncidentForm::SLUG_UPDATE, include_hidden: true)
+    ids = before.map { |field| field.id || "#{IncidentFormField::SYNTHETIC_PREFIX}#{field.system_field_key}" }
+    assert ids.any? { |id| id.start_with?(IncidentFormField::SYNTHETIC_PREFIX) },
+           "expected the update form to carry code defaults"
+
+    IncidentFormService.new(workspace).reorder(form, ids.reverse)
+
+    after = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_UPDATE, include_hidden: true)
+    assert_equal keys_for(before).reverse, keys_for(after)
+  end
+
+  test "reorder refuses an id the form does not recognize" do
+    workspace = workspaces(:slack_workspace_one)
+    form = workspace.ensure_incident_form!(IncidentForm::SLUG_UPDATE)
+
+    assert_raises(ActiveRecord::RecordNotFound) do
+      IncidentFormService.new(workspace).reorder(form, [ SecureRandom.uuid ])
+    end
+  end
+
+  private
+
+  def keys_for(fields)
+    fields.map { |field| field.system_field_key || field.incident_field_definition&.slug }
+  end
 end

@@ -14,7 +14,7 @@ class IncidentFormSettingsSerializer < BaseSerializer
   # `Workspace#ensure_incident_form!` on first edit.
   type :string
   def id
-    incident_form.id || "default:#{incident_form.slug}"
+    incident_form.id || "#{IncidentFormField::SYNTHETIC_PREFIX}#{incident_form.slug}"
   end
 
   type :boolean

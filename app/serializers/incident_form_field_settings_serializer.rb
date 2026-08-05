@@ -13,7 +13,7 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
   # render, and detect them.
   type :string
   def id
-    form_field.id || "default:#{form_field.system_field_key}"
+    form_field.id || "#{IncidentFormField::SYNTHETIC_PREFIX}#{form_field.system_field_key}"
   end
 
   type :boolean
