@@ -70,8 +70,13 @@ class IncidentSystemField
       hint: "Give a short description of what is happening.",
       placeholder: "Write something",
       field_type: IncidentFieldDefinition::TYPE_TEXT,
+      # Required on declare because the channel is named from it once, at
+      # creation, and cannot be renamed later. A blank name leaves a permanent
+      # inc-<date>-untitled channel and "Untitled Incident" everywhere the
+      # incident is referred to. The API already requires it and alerts derive
+      # it from the alert title, so this is the only path that let it through.
       forms: {
-        IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
+        IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_REQUIRED,
         IncidentForm::SLUG_RESOLVE => IncidentFormField::REQUIRED_MODE_OPTIONAL
       }
     ),

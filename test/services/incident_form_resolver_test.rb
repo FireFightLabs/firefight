@@ -304,6 +304,43 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_includes slugs(editor), "affected_region"
   end
 
+  # The channel is named from the incident name once, at creation, and cannot
+  # be renamed later. The API already requires it and alerts derive it from the
+  # alert title, so Slack was the only path that let a blank through.
+  # Asserted on the registry, since this workspace's fixtures carry an override
+  # row for name and an override is meant to win.
+  test "name ships required on declare" do
+    definition = IncidentSystemField.fetch(IncidentSystemField::KEY_NAME)
+
+    assert_equal IncidentFormField::REQUIRED_MODE_REQUIRED,
+                 definition.required_mode_for(IncidentForm::SLUG_DECLARE)
+  end
+
+  test "a workspace with no override gets the required default" do
+    @workspace.incident_forms.find_by(lifecycle_event: IncidentForm::SLUG_DECLARE)
+      &.incident_form_fields&.where(system_field_key: IncidentSystemField::KEY_NAME)&.destroy_all
+
+    field = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_DECLARE)
+      .find { |f| f.system_field_key == IncidentSystemField::KEY_NAME }
+
+    assert_equal IncidentFormField::REQUIRED_MODE_REQUIRED, field.required_mode
+  end
+
+  test "a workspace can still make name optional again" do
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    row = IncidentFormService.new(@workspace).ensure_system_field!(form, IncidentSystemField::KEY_NAME)
+    IncidentFormService.new(@workspace).update_field(
+      row,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL
+    )
+
+    result = IncidentFormResolver.new(@workspace).validate_submission(
+      IncidentForm::SLUG_DECLARE, { "severity" => "critical" }
+    )
+    assert_empty result[:errors]
+  end
+
   private
 
   def slugs(fields)

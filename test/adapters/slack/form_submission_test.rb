@@ -114,6 +114,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
     @workspace.incident_forms.where(lifecycle_event: IncidentForm::SLUG_DECLARE).destroy_all
 
     values = {
+      "field_name_block" => { "field_name_input" => { "value" => "Checkout failing" } },
       "field_severity_block" => {
         "field_severity_input" => { "selected_option" => { "value" => "critical" } }
       }
@@ -132,6 +133,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
     form.incident_form_fields.destroy_all
 
     values = {
+      "field_name_block" => { "field_name_input" => { "value" => "Checkout failing" } },
       "field_severity_block" => {
         "field_severity_input" => { "selected_option" => { "value" => "critical" } }
       }
