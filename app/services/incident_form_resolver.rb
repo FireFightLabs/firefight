@@ -58,7 +58,14 @@ class IncidentFormResolver
     merged = merged.filter_map { |field| keep(field, lifecycle_event, include_hidden) }
     merged.sort_by!(&:position)
 
-    return merged if context.empty?
+    # The editor lists every field that can apply, conditions included, because
+    # that is the configuration. Responders get the ones that apply right now.
+    #
+    # Skipping this when the context happened to be empty is what made a
+    # conditional field show on the first render of the Declare modal, before
+    # anything had been chosen for its condition to read. An unanswered
+    # condition does not match, so its field stays hidden until it does.
+    return merged if include_hidden
 
     merged.select { |field| IncidentConditionEvaluator.match?(field.incident_conditions, context) }
   end
