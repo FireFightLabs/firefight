@@ -2,10 +2,12 @@ class IncidentConditionEvaluator
   # The one place the shape of a condition context is defined. Every caller
   # builds through here so a condition means the same thing wherever it is
   # evaluated.
-  def self.context(incident_type: nil, severity: nil, custom_fields: nil)
+  def self.context(incident_type: nil, severity: nil, status: nil, visibility: nil, custom_fields: nil)
     {
       incident_type: incident_type,
       severity: severity,
+      status: status,
+      visibility: visibility,
       custom_fields: custom_fields.presence&.dup
     }.compact
   end
@@ -14,6 +16,8 @@ class IncidentConditionEvaluator
     context(
       incident_type: incident.incident_type_id,
       severity: incident.incident_severity_id,
+      status: incident.incident_status_id,
+      visibility: incident.is_private ? Incident::VISIBILITY_PRIVATE : Incident::VISIBILITY_PUBLIC,
       custom_fields: incident.custom_fields
     )
   end

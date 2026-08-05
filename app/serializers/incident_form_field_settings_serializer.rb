@@ -113,7 +113,8 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
   type "IncidentConditionSettings[]", optional: true
   def conditions
     form_field.incident_conditions.map do |c|
-      { id: c.id, conditionField: c.condition_field, operator: c.operator, values: c.values }
+      { id: c.id, conditionField: c.condition_field, operator: c.operator, values: c.values,
+        incidentFieldDefinitionId: c.incident_field_definition_id }
     end
   end
 

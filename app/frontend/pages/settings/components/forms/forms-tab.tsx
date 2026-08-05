@@ -27,7 +27,7 @@ import type {
   IncidentFormFieldSettings,
   IncidentFormSettings,
 } from "@/pages/settings/lib/types"
-import type { IncidentSeveritySettings, IncidentTypeSettings } from "@/types/serializers"
+import type { IncidentSeveritySettings, IncidentStatusSettings, IncidentTypeSettings } from "@/types/serializers"
 import { reorderIncidentFormFieldsPath } from "@/lib/routes"
 import { useOptimisticOrder } from "@/pages/settings/lib/reorder"
 import { cn } from "@/lib/utils"
@@ -78,12 +78,13 @@ interface FormsTabProps {
   customFields: IncidentFieldDefinitionSettings[]
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
+  statuses: IncidentStatusSettings[]
   selectedFormId: string | null
   onSelectForm: (formId: string) => void
   onNavigateToCustomFields?: () => void
 }
 
-export function FormsTab({ forms, customFields, incidentTypes, severities, selectedFormId, onSelectForm, onNavigateToCustomFields }: FormsTabProps) {
+export function FormsTab({ forms, customFields, incidentTypes, severities, statuses, selectedFormId, onSelectForm, onNavigateToCustomFields }: FormsTabProps) {
   const selectedForm = useMemo(() => {
     return forms.find((form) => form.id === selectedFormId) ?? forms[0] ?? null
   }, [forms, selectedFormId])
@@ -120,17 +121,19 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
     })
   }
 
+  // A default field has no row yet, so the form comes along for the backend to
+  // materialize one. Returning early instead meant conditions on a system field
+  // saved nothing and said nothing.
   function handleUpdateConditions(field: IncidentFormFieldSettings, conditions: IncidentConditionSettings[]) {
-    if (field.isDefault) {
-      return
-    }
     router.patch(incidentFormFieldPath(field.id), {
+      incident_form_id: selectedForm?.id,
       visibility_mode: field.visibilityMode,
       required_mode: field.requiredMode,
       conditions: conditions.map((condition) => ({
         condition_field: condition.conditionField,
         operator: condition.operator,
         values: condition.values,
+        incident_field_definition_id: condition.incidentFieldDefinitionId,
       })),
     }, {
       preserveScroll: true,
@@ -217,9 +220,11 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
                   {orderedFields.map((field) => (
                     <SortableFieldRow
                       key={field.id}
+                      form={selectedForm}
                       field={field}
                       incidentTypes={incidentTypes}
                       severities={severities}
+                      statuses={statuses}
                       onUpdate={(next) => handleUpdateField(field, next)}
                       onUpdateConditions={(conditions) => handleUpdateConditions(field, conditions)}
                       onRemove={() => setRemoving(field)}

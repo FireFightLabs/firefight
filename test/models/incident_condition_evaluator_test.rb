@@ -2,7 +2,7 @@ require "test_helper"
 
 class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
   fixtures :workspaces, :incident_forms, :incident_form_fields, :catalog_types, :incident_field_definitions, :incident_field_options,
-           :incident_types, :incident_severities
+           :incident_types, :incident_severities, :incident_lifecycle_stages, :incident_statuses
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -233,8 +233,22 @@ class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
     )
 
     assert_equal(
-      { incident_type: type.id, severity: severity.id, custom_fields: { "primary_service" => "svc-1" } },
+      { incident_type: type.id, severity: severity.id, visibility: Incident::VISIBILITY_PUBLIC,
+        custom_fields: { "primary_service" => "svc-1" } },
       IncidentConditionEvaluator.context_for(incident)
     )
+  end
+
+  test "context_for carries status and visibility so conditions can read them" do
+    incident = Incident.new(
+      incident_status: incident_statuses(:investigating_ws1),
+      incident_severity: incident_severities(:critical_ws1),
+      is_private: true
+    )
+
+    context = IncidentConditionEvaluator.context_for(incident)
+
+    assert_equal incident_statuses(:investigating_ws1).id, context[:status]
+    assert_equal Incident::VISIBILITY_PRIVATE, context[:visibility]
   end
 end

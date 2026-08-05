@@ -20,6 +20,17 @@ class IncidentForm < ApplicationRecord
 
   DEFAULTS_BY_SLUG = DEFAULTS.index_by { |d| d[:slug] }.freeze
 
+  # Which forms could already have been answered by the time this one opens, and
+  # so whose custom fields a condition here may read. Declare always ran. Update
+  # may have run any number of times. Cancel replaces Resolve rather than
+  # following it, so neither can see the other's answers.
+  CONDITION_SOURCE_SLUGS = {
+    SLUG_DECLARE => [ SLUG_DECLARE ],
+    SLUG_UPDATE => [ SLUG_DECLARE, SLUG_UPDATE ],
+    SLUG_RESOLVE => [ SLUG_DECLARE, SLUG_UPDATE, SLUG_RESOLVE ],
+    SLUG_CANCEL => [ SLUG_DECLARE, SLUG_UPDATE, SLUG_CANCEL ]
+  }.freeze
+
   belongs_to :workspace
 
   has_many :incident_form_fields, -> { order(:position, :created_at) }, dependent: :destroy
@@ -60,11 +71,55 @@ class IncidentForm < ApplicationRecord
     )
   end
 
+  # Everything a condition on this form may read: what this form and the forms
+  # before it actually ask a responder for. Mirroring the form is what stops the
+  # picker offering a rule whose answer nobody is ever asked to give, and what
+  # makes hiding a field remove it as a source.
+  #
+  # Conditions are ignored when working this out. A field that is itself
+  # conditional is still asked for, just not always.
+  def condition_source_definitions
+    slugs = CONDITION_SOURCE_SLUGS.fetch(lifecycle_event, [ lifecycle_event ])
+    resolver = IncidentFormResolver.new(workspace)
+
+    definitions = slugs.flat_map { |slug| asked_fields(resolver, slug) }
+      .filter_map(&:incident_field_definition)
+      .select { |definition| IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES.include?(definition.field_type) }
+
+    definitions.uniq(&:id).sort_by { |definition| [ definition.position, definition.created_at ] }
+  end
+
+  # System fields this form asks for that a condition can read. Only the ones a
+  # responder picks from a set: a condition on free text has nothing to match.
+  CONDITION_SOURCE_SYSTEM_KEYS = [
+    IncidentSystemField::KEY_INCIDENT_TYPE,
+    IncidentSystemField::KEY_SEVERITY,
+    IncidentSystemField::KEY_STATUS,
+    IncidentSystemField::KEY_VISIBILITY
+  ].freeze
+
+  def condition_source_system_keys
+    slugs = CONDITION_SOURCE_SLUGS.fetch(lifecycle_event, [ lifecycle_event ])
+    resolver = IncidentFormResolver.new(workspace)
+
+    slugs.flat_map { |slug| asked_fields(resolver, slug) }
+      .filter_map(&:system_field_key)
+      .uniq
+      .select { |key| CONDITION_SOURCE_SYSTEM_KEYS.include?(key) }
+  end
+
   def default_form?
     !persisted?
   end
 
   private
+
+  # What a form puts in front of a responder, before conditions narrow it.
+  def asked_fields(resolver, slug)
+    resolver.resolve(slug, include_hidden: true).select do |field|
+      field.visibility_mode == IncidentFormField::VISIBILITY_MODE_VISIBLE && field.inactive_reason.nil?
+    end
+  end
 
   def slug_immutable
     return unless slug_changed?

@@ -96,15 +96,58 @@ class IncidentConditionTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "valid custom_field condition with a supported field definition" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+    IncidentFormService.new(@workspace).add_custom_field(@form_field.incident_form, definition)
+
     condition = IncidentCondition.new(
       workspace: @workspace,
       conditionable: @form_field,
       condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
-      incident_field_definition: incident_field_definitions(:customer_tier_ws1),
+      incident_field_definition: definition,
       operator: IncidentCondition::OPERATOR_ONE_OF,
       values: [ "Enterprise" ]
     )
     assert condition.valid?
+  end
+
+  # A rule pointing at a field nobody is ever asked never matches, which reads
+  # as the field being broken rather than the rule being wrong.
+  test "a custom field on no form cannot drive a condition" do
+    definition = @workspace.incident_field_definitions.create!(
+      name: "Blast radius", slug: "blast_radius", position: 90,
+      field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_CATALOG,
+      catalog_type: catalog_types(:service_ws1)
+    )
+
+    condition = IncidentCondition.new(
+      workspace: @workspace, conditionable: @form_field,
+      condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+      incident_field_definition: definition,
+      operator: IncidentCondition::OPERATOR_ONE_OF, values: [ "x" ]
+    )
+
+    assert_not condition.valid?
+    assert_match(/is not asked for on the/, condition.errors.full_messages.to_sentence)
+  end
+
+  # Declare runs before Resolve, so a Resolve condition may read what was
+  # answered at declare time. The reverse is not true.
+  test "a later form can read an earlier form's custom field" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+    declare = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    resolve = @workspace.ensure_incident_form!(IncidentForm::SLUG_RESOLVE)
+    IncidentFormService.new(@workspace).add_custom_field(declare, definition)
+    target = IncidentFormService.new(@workspace).ensure_system_field!(resolve, IncidentSystemField::KEY_NAME)
+
+    condition = IncidentCondition.new(
+      workspace: @workspace, conditionable: target,
+      condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+      incident_field_definition: definition,
+      operator: IncidentCondition::OPERATOR_ONE_OF, values: [ "Enterprise" ]
+    )
+
+    assert condition.valid?, condition.errors.full_messages.to_sentence
   end
 
   test "custom_field condition requires an incident_field_definition" do
@@ -209,5 +252,69 @@ class IncidentConditionTest < ActiveSupport::TestCase
 
     resolved = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_DECLARE, context: {})
     assert_includes resolved.map(&:system_field_key), IncidentSystemField::KEY_SEVERITY
+  end
+
+  # Hiding a field takes it out of the picker, the same way it takes it out of
+  # the dialog. Offering it anyway produced a rule reading an answer nobody is
+  # asked to give.
+  test "a hidden field is not offered as a condition source" do
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    service = IncidentFormService.new(@workspace)
+    row = service.ensure_system_field!(form, IncidentSystemField::KEY_INCIDENT_TYPE)
+
+    # Incident Type ships off, so turn it on before proving that turning it off
+    # removes it.
+    service.update_field(row,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+    assert_includes form.reload.condition_source_system_keys, IncidentSystemField::KEY_INCIDENT_TYPE
+
+    service.update_field(row,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_HIDDEN,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+
+    assert_not_includes form.reload.condition_source_system_keys, IncidentSystemField::KEY_INCIDENT_TYPE
+  end
+
+  test "a hidden custom field is not offered as a condition source" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    service = IncidentFormService.new(@workspace)
+    field = service.add_custom_field(form, definition)
+    assert_includes form.condition_source_definitions.map(&:id), definition.id
+
+    service.update_field(field,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_HIDDEN,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+
+    assert_not_includes form.reload.condition_source_definitions.map(&:id), definition.id
+  end
+
+  test "visibility and status are offered once the form asks for them" do
+    declare = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    service = IncidentFormService.new(@workspace)
+    row = service.ensure_system_field!(declare, IncidentSystemField::KEY_VISIBILITY)
+
+    assert_not_includes declare.reload.condition_source_system_keys, IncidentSystemField::KEY_VISIBILITY
+
+    service.update_field(row,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+
+    assert_includes declare.reload.condition_source_system_keys, IncidentSystemField::KEY_VISIBILITY
+
+    update = @workspace.ensure_incident_form!(IncidentForm::SLUG_UPDATE)
+    assert_includes update.condition_source_system_keys, IncidentSystemField::KEY_STATUS
+  end
+
+  test "a visibility condition is a valid condition" do
+    condition = IncidentCondition.new(
+      workspace: @workspace, conditionable: @form_field,
+      condition_field: IncidentCondition::FIELD_VISIBILITY,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ Incident::VISIBILITY_PRIVATE ]
+    )
+
+    assert condition.valid?, condition.errors.full_messages.to_sentence
   end
 end

@@ -97,6 +97,7 @@ module Identifiers
   SHOUTOUT_FROM_REACTION = "shoutout_from_reaction"
   INCIDENT_CREATION_SEVERITY_SELECT = "incident_creation_severity_select"
   INCIDENT_CREATION_TYPE_SELECT = "incident_creation_type_select"
+  INCIDENT_CREATION_VISIBILITY_SELECT = "incident_creation_visibility_select"
   APPLY_RUNBOOK = "apply_runbook"
   APPROVE_ABILITY = "approve_ability"
   DENY_ABILITY = "deny_ability"
