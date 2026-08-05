@@ -177,7 +177,6 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
                   {iconForForm(form.slug)}
                 </span>
                 <span className="flex-1 truncate">{form.name}</span>
-                <span className="text-xs tabular-nums text-muted-foreground/60">{form.fieldCount}</span>
               </button>
             )
           })}
