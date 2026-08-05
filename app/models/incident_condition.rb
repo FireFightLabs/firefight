@@ -26,8 +26,20 @@ class IncidentCondition < ApplicationRecord
   validate :values_is_array
   validate :incident_field_definition_matches_condition_field
   validate :incident_field_definition_type_supported
+  validate :conditionable_may_be_hidden
 
   private
+
+  # A condition is a second way to hide a field, so it has to respect the same
+  # lock the Visible toggle does. Severity and Status are NOT NULL on incidents,
+  # and a condition that fails to match drops them from the resolved set, which
+  # `validate_submission` reads too. The result was a Declare dialog that asked
+  # for no severity and then refused every submission.
+  def conditionable_may_be_hidden
+    return unless conditionable.is_a?(IncidentFormField) && conditionable.locked_visible?
+
+    errors.add(:base, "#{conditionable.source_name} is always asked for, so it cannot be made conditional.")
+  end
 
   def values_is_array
     unless values.is_a?(Array)
