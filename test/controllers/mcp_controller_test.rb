@@ -9,7 +9,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)
-    _, @personal_token = ApiKey.create_with_token!(
+    _, @personal_token = create_service_key(
       workspace: @workspace, created_by: @membership, on_behalf_of: @membership, name: "Personal"
     )
   end
@@ -164,7 +164,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "permission and missing-policy errors link to the relevant docs" do
-    _, alerts_token = ApiKey.create_with_token!(
+    _, alerts_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Alerts only",
       permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
     )
@@ -217,7 +217,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "service keys are scoped per tool resource" do
-    _, alerts_token = ApiKey.create_with_token!(
+    _, alerts_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Alerts only",
       permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
     )
@@ -270,7 +270,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
   test "member personal tokens cannot write config" do
     bob = workspace_memberships(:bob_workspace_one)
-    _, bob_token = ApiKey.create_with_token!(
+    _, bob_token = create_service_key(
       workspace: @workspace, created_by: bob, on_behalf_of: bob, name: "Bob's token"
     )
 
@@ -336,7 +336,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert_not is_error
     assert_equal [ approval.id ], content["approvals"].map { |a| a["id"] }
 
-    _, service_token = ApiKey.create_with_token!(
+    _, service_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Approver bot",
       permissions: { ApiKey::RESOURCE_APPROVALS => [ ApiKey::ACTION_READ, ApiKey::ACTION_UPDATE ] }
     )
@@ -369,7 +369,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
     # A service key holds only what it was granted, so it cannot reach a
     # newly enabled tool without one.
-    _, service_token = ApiKey.create_with_token!(
+    _, service_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Scoped bot",
       permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
     )
@@ -393,7 +393,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "denied tool calls are recorded in the ability ledger" do
-    key, alerts_token = ApiKey.create_with_token!(
+    key, alerts_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Alerts only",
       permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
     )

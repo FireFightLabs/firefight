@@ -14,7 +14,7 @@ class ApiKeySerializer < BaseSerializer
 
   type "Record<string, string[]>"
   def permissions
-    key.permissions
+    key.granted_permissions
   end
 
   type :string

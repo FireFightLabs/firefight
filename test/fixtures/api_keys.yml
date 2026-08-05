@@ -4,7 +4,6 @@ full_access_key:
   name: Full Access Key
   token_digest: <%= Digest::SHA256.hexdigest("ff_test_full_access_token_123456") %>
   token_prefix: "ff_test_full"
-  permissions: <%= { "incidents" => ["read", "create", "update"], "severities" => ["read"], "statuses" => ["read"], "incident_types" => ["read"], "custom_fields" => ["read"], "catalog" => ["read", "create", "update", "delete"] }.to_json %>
   active: true
   expires_at: <%= 1.year.from_now %>
 
@@ -14,7 +13,6 @@ read_only_key:
   name: Read Only Key
   token_digest: <%= Digest::SHA256.hexdigest("ff_test_read_only_token_12345678") %>
   token_prefix: "ff_test_read"
-  permissions: <%= { "incidents" => ["read"], "severities" => ["read"], "statuses" => ["read"], "incident_types" => ["read"] }.to_json %>
   active: true
 
 inactive_key:
@@ -23,7 +21,6 @@ inactive_key:
   name: Inactive Key
   token_digest: <%= Digest::SHA256.hexdigest("ff_test_inactive_token_123456789") %>
   token_prefix: "ff_test_inac"
-  permissions: <%= { "incidents" => ["read", "create"] }.to_json %>
   active: false
 
 expired_key:
@@ -32,7 +29,6 @@ expired_key:
   name: Expired Key
   token_digest: <%= Digest::SHA256.hexdigest("ff_test_expired_token_1234567890") %>
   token_prefix: "ff_test_expi"
-  permissions: <%= { "incidents" => ["read"] }.to_json %>
   active: true
   expires_at: <%= 1.day.ago %>
 
@@ -42,7 +38,6 @@ deleted_key:
   name: Deleted Key
   token_digest: <%= Digest::SHA256.hexdigest("ff_test_deleted_token_1234567890") %>
   token_prefix: "ff_test_dele"
-  permissions: <%= { "incidents" => ["read"] }.to_json %>
   active: true
   deleted_at: <%= 1.day.ago %>
 
@@ -52,5 +47,4 @@ workspace_two_key:
   name: Workspace Two Key
   token_digest: <%= Digest::SHA256.hexdigest("ff_test_ws2_token_1234567890abcd") %>
   token_prefix: "ff_test_ws2_"
-  permissions: <%= { "incidents" => ["read", "create"], "severities" => ["read"], "statuses" => ["read"] }.to_json %>
   active: true

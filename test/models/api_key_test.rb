@@ -17,8 +17,7 @@ class ApiKeyTest < ActiveSupport::TestCase
     api_key, raw_token = ApiKey.create_with_token!(
       workspace: workspaces(:slack_workspace_one),
       created_by: workspace_memberships(:alice_workspace_one),
-      name: "Test Key",
-      permissions: { "incidents" => [ "read" ] }
+      name: "Test Key"
     )
 
     assert api_key.persisted?
@@ -158,8 +157,8 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_not key.has_permission?("unknown", "read")
   end
 
-  test "saving a service key syncs its permissions into ability grants" do
-    key, _ = ApiKey.create_with_token!(
+  test "replace_permissions! writes the matrix straight to grants" do
+    key, _ = create_service_key(
       workspace: workspaces(:slack_workspace_one),
       created_by: workspace_memberships(:alice_workspace_one),
       name: "Synced Key",
@@ -171,10 +170,38 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert key.has_permission?(ApiKey::RESOURCE_ALERTS, ApiKey::ACTION_CREATE)
     assert_not key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ)
 
-    key.update!(permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] })
+    key.replace_permissions!({ ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] })
     granted = Ability::Grant.where(principal: key).joins(:action).pluck("ability_actions.key")
     assert_equal [ "alerts.read" ], granted
     assert_not key.has_permission?(ApiKey::RESOURCE_ALERTS, ApiKey::ACTION_CREATE)
+  end
+
+  test "granted_permissions reads the matrix back out of the grants" do
+    key = api_keys(:read_only_key)
+
+    assert_equal({ "incidents" => [ "read" ], "severities" => [ "read" ],
+                   "statuses" => [ "read" ], "incident_types" => [ "read" ] }.transform_values(&:sort),
+                 key.granted_permissions.transform_values(&:sort))
+  end
+
+  # The bug this replaced: a grant made on the Permissions screen used to be
+  # reconciled away the next time the key was saved for any reason.
+  test "a grant made outside the matrix survives an unrelated save and shows up ticked" do
+    key = api_keys(:read_only_key)
+    Ability::Grant.create!(workspace: key.workspace, principal: key,
+                           action: Ability::Action.system!("runbooks.create"))
+
+    key.update!(name: "renamed, permissions untouched")
+
+    assert_includes Ability::Grant.where(principal: key).joins(:action).pluck("ability_actions.key"),
+                    "runbooks.create"
+    assert_includes key.reload.granted_permissions["runbooks"], "create"
+  end
+
+  test "replace_permissions! refuses a resource outside the matrix" do
+    key = api_keys(:read_only_key)
+
+    assert_raises(ArgumentError) { key.replace_permissions!({ "nonsense" => [ "read" ] }) }
   end
 
   test "personal tokens hold no grants" do
@@ -189,19 +216,6 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_not key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)
   end
 
-  test "fixture grants mirror fixture permissions" do
-    ApiKey.find_each do |key|
-      next if key.personal?
-
-      expected = key.permissions.flat_map do |resource, actions|
-        actions.map { |action| Ability::Action.system_key(resource, action) }
-      end
-      granted = Ability::Grant.where(principal: key).joins(:action).pluck("ability_actions.key")
-
-      assert_equal expected.sort, granted.sort,
-                   "ability_grants.yml is out of sync with api_keys.yml for '#{key.name}'"
-    end
-  end
 
   # ============================================================================
   # SOFT DELETE

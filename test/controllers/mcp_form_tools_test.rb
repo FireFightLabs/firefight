@@ -6,7 +6,7 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)
-    _, @token = ApiKey.create_with_token!(
+    _, @token = create_service_key(
       workspace: @workspace, created_by: @membership, on_behalf_of: @membership, name: "Personal"
     )
   end
@@ -149,7 +149,7 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
   private
 
   def service_token(permissions)
-    _, token = ApiKey.create_with_token!(
+    _, token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Service", permissions: permissions
     )
     token

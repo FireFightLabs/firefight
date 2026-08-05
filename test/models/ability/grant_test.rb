@@ -71,16 +71,16 @@ module Ability
       end
     end
 
-    # A service key's matrix is its write interface, so a switch left on must
-    # never point at a grant that quietly lapsed.
-    test "syncing a service key's permissions clears an expiry" do
+    # Expiry used to be cleared here, because the matrix was a separate copy
+    # that could not express one. It reads the grants now, so it does not.
+    test "syncing a service key's permissions leaves an expiry alone" do
       grant = Grant.create!(workspace: @workspace, principal: @key,
                             action: Action.system!("runbooks.read"), expires_at: 1.day.from_now)
 
       Grant.sync_direct!(principal: @key, workspace: @workspace,
                          desired_keys: [ "runbooks.read" ], managed_keys: [ "runbooks.read" ])
 
-      assert_nil grant.reload.expires_at
+      assert_equal grant.expires_at.to_i, grant.reload.expires_at.to_i
     end
   end
 end

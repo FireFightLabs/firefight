@@ -27,32 +27,41 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
       }
     end
     assert_response :redirect
+    assert_match(/unknown permission/, flash[:alert])
   end
 
   test "update without permissions key preserves existing permissions" do
-    api_key, = ApiKey.create_with_token!(
-      workspace:   @workspace,
-      created_by:  @workspace.workspace_memberships.first,
-      name:        "Existing",
-      permissions: { "incidents" => [ "read" ] }
+    api_key, = create_service_key(
+      workspace: @workspace, created_by: @workspace.workspace_memberships.first,
+      name: "Existing", permissions: { "incidents" => [ "read" ] }
     )
 
     patch api_key_url(api_key), params: { name: "Renamed" }
     assert_response :redirect
-    assert_equal({ "incidents" => [ "read" ] }, api_key.reload.permissions)
+    assert_equal({ "incidents" => [ "read" ] }, api_key.reload.granted_permissions)
   end
 
   test "update narrows permissions when a smaller set is sent" do
-    api_key, = ApiKey.create_with_token!(
-      workspace:   @workspace,
-      created_by:  @workspace.workspace_memberships.first,
-      name:        "Existing",
-      permissions: { "incidents" => [ "read", "create" ] }
+    api_key, = create_service_key(
+      workspace: @workspace, created_by: @workspace.workspace_memberships.first,
+      name: "Existing", permissions: { "incidents" => [ "read", "create" ] }
     )
 
     patch api_key_url(api_key), params: { name: "Existing", permissions: { "incidents" => [ "read" ] } }
     assert_response :redirect
-    assert_equal({ "incidents" => [ "read" ] }, api_key.reload.permissions)
+    assert_equal({ "incidents" => [ "read" ] }, api_key.reload.granted_permissions)
+  end
+
+  test "a rejected permission set leaves the key untouched" do
+    api_key, = create_service_key(
+      workspace: @workspace, created_by: @workspace.workspace_memberships.first,
+      name: "Existing", permissions: { "incidents" => [ "read" ] }
+    )
+
+    patch api_key_url(api_key), params: { name: "Renamed", permissions: { "nonsense" => [ "read" ] } }
+
+    assert_equal({ "incidents" => [ "read" ] }, api_key.reload.granted_permissions)
+    assert_equal "Existing", api_key.name, "the rename must roll back with the permissions"
   end
 
   test "a member can mint a personal token but not a service key" do
@@ -72,7 +81,7 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "abilities preview shows resolved grants for service keys and implicit reads for personal" do
-    service_key = ApiKey.create_with_token!(
+    service_key = create_service_key(
       workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one), name: "Scoped",
       permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
     ).first
@@ -84,7 +93,7 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "alerts.read" ], body["abilities"].map { |a| a["action_key"] }
     assert_equal "read", body["abilities"].first["risk_level"]
 
-    personal_key = ApiKey.create_with_token!(
+    personal_key = create_service_key(
       workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one),
       on_behalf_of: workspace_memberships(:alice_workspace_one), name: "Personal"
     ).first
@@ -97,7 +106,7 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a member cannot touch another principal's key" do
-    admin_key = ApiKey.create_with_token!(
+    admin_key = create_service_key(
       workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one), name: "Admin key"
     ).first
     sign_in(users(:bob), @workspace)

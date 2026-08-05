@@ -10,37 +10,47 @@ class ApiKeysController < InertiaController
     personal = params[:kind] == KIND_PERSONAL
     return require_admin! unless personal || current_membership.admin_access?
 
-    api_key, raw_token = ApiKey.create_with_token!(
-      workspace: current_workspace,
-      created_by: current_membership,
-      on_behalf_of: personal ? current_membership : nil,
-      name: params.require(:name),
-      permissions: personal ? {} : params[:permissions]&.to_unsafe_h || {},
-      expires_at: params[:expires_at].present? ? Time.zone.parse(params[:expires_at]) : nil
-    )
+    api_key, raw_token = ActiveRecord::Base.transaction do
+      key, token = ApiKey.create_with_token!(
+        workspace: current_workspace,
+        created_by: current_membership,
+        on_behalf_of: personal ? current_membership : nil,
+        name: params.require(:name),
+        expires_at: params[:expires_at].present? ? Time.zone.parse(params[:expires_at]) : nil
+      )
+      # A personal token acts as its human and holds no grants of its own.
+      key.replace_permissions!(params[:permissions]&.to_unsafe_h || {}) unless personal
+      [ key, token ]
+    end
 
     flash.inertia[:api_key_token] = raw_token
     redirect_to settings_api_keys_path
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_api_keys_path,
       inertia: { errors: e.record.errors.to_hash }
+  rescue ArgumentError => e
+    redirect_back fallback_location: settings_api_keys_path, alert: e.message
   end
 
-  # Only touch fields the client explicitly passes. Without these guards,
-  # sending `permissions: {}` would wipe permissions (`{}` is truthy so the
-  # old `||` fallback never triggered) and omitting `active` would write nil
-  # into a NOT NULL column.
+  # Only touch fields the client explicitly passes. Omitting `active` would
+  # otherwise write nil into a NOT NULL column, and permissions are grants now,
+  # so they are replaced separately rather than assigned as an attribute.
   def update
     attrs = {}
     attrs[:name] = params[:name] if params.key?(:name)
-    attrs[:permissions] = params[:permissions].to_unsafe_h if params.key?(:permissions)
     attrs[:active] = ActiveModel::Type::Boolean.new.cast(params[:active]) if params.key?(:active)
 
-    @api_key.update!(attrs)
+    ActiveRecord::Base.transaction do
+      @api_key.update!(attrs)
+      @api_key.replace_permissions!(params[:permissions].to_unsafe_h) if params.key?(:permissions)
+    end
+
     redirect_to settings_api_keys_path
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: settings_api_keys_path,
       inertia: { errors: e.record.errors.to_hash }
+  rescue ArgumentError => e
+    redirect_back fallback_location: settings_api_keys_path, alert: e.message
   end
 
   def destroy

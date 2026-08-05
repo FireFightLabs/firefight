@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_05_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_05_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -229,7 +229,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_090000) do
     t.string "name", null: false
     t.string "token_digest", null: false
     t.string "token_prefix", limit: 12, null: false
-    t.jsonb "permissions", default: {}, null: false
     t.boolean "active", default: true, null: false
     t.datetime "expires_at"
     t.datetime "last_used_at"
