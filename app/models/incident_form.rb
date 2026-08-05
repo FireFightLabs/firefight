@@ -20,6 +20,17 @@ class IncidentForm < ApplicationRecord
 
   DEFAULTS_BY_SLUG = DEFAULTS.index_by { |d| d[:slug] }.freeze
 
+  # Which forms could already have been answered by the time this one opens, and
+  # so whose custom fields a condition here may read. Declare always ran. Update
+  # may have run any number of times. Cancel replaces Resolve rather than
+  # following it, so neither can see the other's answers.
+  CONDITION_SOURCE_SLUGS = {
+    SLUG_DECLARE => [ SLUG_DECLARE ],
+    SLUG_UPDATE => [ SLUG_DECLARE, SLUG_UPDATE ],
+    SLUG_RESOLVE => [ SLUG_DECLARE, SLUG_UPDATE, SLUG_RESOLVE ],
+    SLUG_CANCEL => [ SLUG_DECLARE, SLUG_UPDATE, SLUG_CANCEL ]
+  }.freeze
+
   belongs_to :workspace
 
   has_many :incident_form_fields, -> { order(:position, :created_at) }, dependent: :destroy
@@ -58,6 +69,21 @@ class IncidentForm < ApplicationRecord
     IncidentFormResolver.new(workspace).resolve(
       lifecycle_event, include_hidden: include_hidden, form: (self if persisted?)
     )
+  end
+
+  # Custom fields a condition on this form may read: the ones attached to a form
+  # that could already have been filled in. A definition attached to no form is
+  # never offered, since nothing would ever set it.
+  def condition_source_definitions
+    slugs = CONDITION_SOURCE_SLUGS.fetch(lifecycle_event, [ lifecycle_event ])
+
+    workspace.incident_field_definitions
+      .active
+      .where(field_type: IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES)
+      .where(id: IncidentFormField.joins(:incident_form)
+        .where(incident_forms: { workspace_id: workspace_id, lifecycle_event: slugs })
+        .select(:incident_field_definition_id))
+      .ordered
   end
 
   def default_form?

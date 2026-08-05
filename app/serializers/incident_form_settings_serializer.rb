@@ -27,6 +27,18 @@ class IncidentFormSettingsSerializer < BaseSerializer
     incident_form.description
   end
 
+  # Custom fields a condition on this form may read: attached to this form, or
+  # to one that runs before it. Anything else would never be answered.
+  type "{ id: string; name: string; options: { id: string; name: string }[] }[]"
+  def condition_sources
+    return [] unless incident_form.persisted?
+
+    incident_form.condition_source_definitions.map do |definition|
+      { id: definition.id, name: definition.name,
+        options: definition.selectable_values.map { |id, label| { id: id, name: label } } }
+    end
+  end
+
   # Hidden fields included, greyed out in the editor. Leaving them out is what
   # made hiding a field a one-way door.
   type "IncidentFormFieldSettings[]"

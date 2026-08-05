@@ -106,7 +106,8 @@ class IncidentFormFieldsController < InertiaController
       {
         condition_field: c[:condition_field],
         operator: c[:operator],
-        values: Array(c[:values])
+        values: Array(c[:values]),
+        incident_field_definition_id: c[:incident_field_definition_id].presence
       }
     end
   end

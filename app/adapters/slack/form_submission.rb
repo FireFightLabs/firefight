@@ -51,15 +51,35 @@ module Slack
 
     private
 
-    # Custom field values come from the incident rather than the submission:
-    # this context decides which fields are visible, so it has to be built
-    # before the submitted values are parsed.
+    # What the incident will hold once this is submitted: the answers in front
+    # of the responder, over whatever the incident already has. Reading only the
+    # stored ones meant a condition on a custom field from this same form could
+    # never match, because the answer it needed was sitting unread in the
+    # submission. Severity and incident type already worked this way.
+    #
+    # Built before the values are parsed, since it decides which fields are
+    # visible and parsing reads that.
     def build_condition_context
       IncidentConditionEvaluator.context(
         incident_type: resolved_id(:incident_types, IncidentSystemField::KEY_INCIDENT_TYPE, :incident_type_id),
         severity: resolved_id(:incident_severities, IncidentSystemField::KEY_SEVERITY, :incident_severity_id),
-        custom_fields: @incident&.custom_fields
+        custom_fields: (@incident&.custom_fields || {}).merge(submitted_custom_fields)
       )
+    end
+
+    # Read straight off the view state by slug rather than from the resolved
+    # set, which is not known yet.
+    def submitted_custom_fields
+      @workspace.incident_field_definitions.active.each_with_object({}) do |definition, values|
+        block_id = "field_#{definition.slug}_block"
+        block = @values[block_id]
+        next unless block
+
+        value = Slack::BlockValueExtractor.extract(
+          @values, block_id: block_id, action_id: block.keys.first, field_type: definition.field_type
+        )
+        values[definition.slug] = value unless value.nil?
+      end
     end
 
     def resolved_id(association, system_key, incident_attr)

@@ -70,7 +70,8 @@ class IncidentFormField < ApplicationRecord
           workspace: incident_form.workspace,
           condition_field: cp[:condition_field],
           operator: cp[:operator],
-          values: cp[:values]
+          values: cp[:values],
+          incident_field_definition_id: cp[:incident_field_definition_id]
         )
       end
     end

@@ -6,6 +6,7 @@ import { IconGripVertical, IconTrash } from "@tabler/icons-react"
 import type {
   IncidentConditionSettings,
   IncidentFormFieldSettings,
+  IncidentFormSettings,
 } from "@/pages/settings/lib/types"
 import type { IncidentSeveritySettings, IncidentTypeSettings } from "@/types/serializers"
 import { cn } from "@/lib/utils"
@@ -14,8 +15,9 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { ConditionEditor } from "@/pages/settings/components/forms/condition-editor"
 
-export function SortableFieldRow({ field, incidentTypes, severities, onUpdate, onUpdateConditions, onRemove }: {
+export function SortableFieldRow({ field, form, incidentTypes, severities, onUpdate, onUpdateConditions, onRemove }: {
   field: IncidentFormFieldSettings
+  form: IncidentFormSettings
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
   onUpdate: (next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) => void
@@ -130,6 +132,7 @@ export function SortableFieldRow({ field, incidentTypes, severities, onUpdate, o
         {!field.lockedRequired && (
           <ConditionEditor
             field={field}
+            form={form}
             incidentTypes={incidentTypes}
             severities={severities}
             onSave={onUpdateConditions}

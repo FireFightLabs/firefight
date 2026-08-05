@@ -120,17 +120,19 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
     })
   }
 
+  // A default field has no row yet, so the form comes along for the backend to
+  // materialize one. Returning early instead meant conditions on a system field
+  // saved nothing and said nothing.
   function handleUpdateConditions(field: IncidentFormFieldSettings, conditions: IncidentConditionSettings[]) {
-    if (field.isDefault) {
-      return
-    }
     router.patch(incidentFormFieldPath(field.id), {
+      incident_form_id: selectedForm?.id,
       visibility_mode: field.visibilityMode,
       required_mode: field.requiredMode,
       conditions: conditions.map((condition) => ({
         condition_field: condition.conditionField,
         operator: condition.operator,
         values: condition.values,
+        incident_field_definition_id: condition.incidentFieldDefinitionId,
       })),
     }, {
       preserveScroll: true,
@@ -217,6 +219,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, selec
                   {orderedFields.map((field) => (
                     <SortableFieldRow
                       key={field.id}
+                      form={selectedForm}
                       field={field}
                       incidentTypes={incidentTypes}
                       severities={severities}

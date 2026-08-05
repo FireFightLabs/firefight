@@ -4,6 +4,7 @@ import { IconFilter, IconX } from "@tabler/icons-react"
 import type {
   IncidentConditionSettings,
   IncidentFormFieldSettings,
+  IncidentFormSettings,
 } from "@/pages/settings/lib/types"
 import type { IncidentSeveritySettings, IncidentTypeSettings } from "@/types/serializers"
 import { cn } from "@/lib/utils"
@@ -25,19 +26,23 @@ import {
 
 const CONDITION_FIELD_INCIDENT_TYPE = "incident_type"
 const CONDITION_FIELD_SEVERITY = "severity"
+const CONDITION_FIELD_CUSTOM = "custom_field"
 const OPERATOR_ONE_OF = "one_of"
 const OPERATOR_NOT_ONE_OF = "not_one_of"
-
-type ConditionField = typeof CONDITION_FIELD_INCIDENT_TYPE | typeof CONDITION_FIELD_SEVERITY
-
-const FIELD_LABELS: Record<ConditionField, string> = {
-  [CONDITION_FIELD_INCIDENT_TYPE]: "Incident Type",
-  [CONDITION_FIELD_SEVERITY]: "Severity",
-}
 
 const OPERATOR_LABELS: Record<string, string> = {
   [OPERATOR_ONE_OF]: "is one of",
   [OPERATOR_NOT_ONE_OF]: "is not one of",
+}
+
+// One row per thing a condition can read. Custom fields come from the form,
+// which only offers those a responder could already have answered.
+interface ConditionSource {
+  key: string
+  conditionField: string
+  definitionId: string | null
+  label: string
+  options: { id: string; name: string }[]
 }
 
 interface ConditionState {
@@ -46,88 +51,138 @@ interface ConditionState {
   selectedIds: Set<string>
 }
 
-function stateFromCondition(source: IncidentConditionSettings | undefined): ConditionState {
+function buildSources(
+  form: IncidentFormSettings,
+  incidentTypes: IncidentTypeSettings[],
+  severities: IncidentSeveritySettings[],
+): ConditionSource[] {
+  const sources: ConditionSource[] = [
+    {
+      key: CONDITION_FIELD_INCIDENT_TYPE,
+      conditionField: CONDITION_FIELD_INCIDENT_TYPE,
+      definitionId: null,
+      label: "Incident Type",
+      options: incidentTypes.map((type) => ({ id: type.id, name: type.name })),
+    },
+    {
+      key: CONDITION_FIELD_SEVERITY,
+      conditionField: CONDITION_FIELD_SEVERITY,
+      definitionId: null,
+      label: "Severity",
+      options: severities.map((severity) => ({ id: severity.id, name: severity.name })),
+    },
+  ]
+
+  form.conditionSources.forEach((definition) => {
+    sources.push({
+      key: `${CONDITION_FIELD_CUSTOM}:${definition.id}`,
+      conditionField: CONDITION_FIELD_CUSTOM,
+      definitionId: definition.id,
+      label: definition.name,
+      options: definition.options,
+    })
+  })
+
+  return sources
+}
+
+function keyForCondition(condition: IncidentConditionSettings): string {
+  return condition.conditionField === CONDITION_FIELD_CUSTOM
+    ? `${CONDITION_FIELD_CUSTOM}:${condition.incidentFieldDefinitionId}`
+    : condition.conditionField
+}
+
+function stateFor(conditions: IncidentConditionSettings[] | undefined, source: ConditionSource): ConditionState {
+  const match = conditions?.find((condition) => keyForCondition(condition) === source.key)
   return {
-    id: source?.id ?? "",
-    operator: source?.operator ?? OPERATOR_ONE_OF,
-    selectedIds: new Set(source?.values ?? []),
+    id: match?.id ?? "",
+    operator: match?.operator ?? OPERATOR_ONE_OF,
+    selectedIds: new Set(match?.values ?? []),
   }
+}
+
+function stateBySource(conditions: IncidentConditionSettings[] | undefined, sources: ConditionSource[]) {
+  return new Map(sources.map((source) => [source.key, stateFor(conditions, source)]))
 }
 
 function conditionSummary(
   conditions: IncidentConditionSettings[],
-  incidentTypes: IncidentTypeSettings[],
-  severities: IncidentSeveritySettings[],
+  sources: ConditionSource[],
 ): string | null {
   if (!conditions.length) {
     return null
   }
 
-  const typeMap = new Map(incidentTypes.map((type) => [type.id, type.name]))
-  const severityMap = new Map(severities.map((severity) => [severity.id, severity.name]))
-
   return conditions
     .map((condition) => {
-      const map = condition.conditionField === CONDITION_FIELD_SEVERITY ? severityMap : typeMap
-      const fieldLabel = FIELD_LABELS[condition.conditionField as ConditionField] ?? condition.conditionField
-      const names = condition.values.map((value) => map.get(value) ?? value).join(", ")
+      const source = sources.find((candidate) => candidate.key === keyForCondition(condition))
+      const names = condition.values
+        .map((value) => source?.options.find((option) => option.id === value)?.name ?? value)
+        .join(", ")
       const operatorLabel = OPERATOR_LABELS[condition.operator] ?? condition.operator
-      return `${fieldLabel} ${operatorLabel} ${names}`
+      return `${source?.label ?? condition.conditionField} ${operatorLabel} ${names}`
     })
     .join(" AND ")
 }
 
-export function ConditionEditor({ field, incidentTypes, severities, onSave }: {
+export function ConditionEditor({ field, form, incidentTypes, severities, onSave }: {
   field: IncidentFormFieldSettings
+  form: IncidentFormSettings
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
   onSave: (conditions: IncidentConditionSettings[]) => void
 }) {
-  const existingType = field.conditions?.find((condition) => condition.conditionField === CONDITION_FIELD_INCIDENT_TYPE)
-  const existingSeverity = field.conditions?.find((condition) => condition.conditionField === CONDITION_FIELD_SEVERITY)
+  const sources = buildSources(form, incidentTypes, severities)
 
-  const [typeState, setTypeState] = useState<ConditionState>(() => stateFromCondition(existingType))
-  const [severityState, setSeverityState] = useState<ConditionState>(() => stateFromCondition(existingSeverity))
+  const [states, setStates] = useState(() => stateBySource(field.conditions, sources))
   const [open, setOpen] = useState(false)
   const [prevConditions, setPrevConditions] = useState(field.conditions)
   if (field.conditions !== prevConditions) {
     setPrevConditions(field.conditions)
-    setTypeState(stateFromCondition(field.conditions?.find((condition) => condition.conditionField === CONDITION_FIELD_INCIDENT_TYPE)))
-    setSeverityState(stateFromCondition(field.conditions?.find((condition) => condition.conditionField === CONDITION_FIELD_SEVERITY)))
+    setStates(stateBySource(field.conditions, sources))
   }
 
-  function toggleId(state: ConditionState, setState: (next: ConditionState) => void, id: string) {
-    const next = new Set(state.selectedIds)
-    if (next.has(id)) {
-      next.delete(id)
-    } else {
-      next.add(id)
+  function updateState(key: string, next: Partial<ConditionState>) {
+    setStates((current) => {
+      const updated = new Map(current)
+      const existing = updated.get(key)
+      if (existing) {
+        updated.set(key, { ...existing, ...next })
+      }
+      return updated
+    })
+  }
+
+  function toggleId(key: string, id: string) {
+    const existing = states.get(key)
+    if (!existing) {
+      return
     }
-    setState({ ...state, selectedIds: next })
-  }
-
-  function setOperator(state: ConditionState, setState: (next: ConditionState) => void, operator: string) {
-    setState({ ...state, operator })
+    const selectedIds = new Set(existing.selectedIds)
+    if (selectedIds.has(id)) {
+      selectedIds.delete(id)
+    }
+    else {
+      selectedIds.add(id)
+    }
+    updateState(key, { selectedIds })
   }
 
   function handleSave() {
     const conditions: IncidentConditionSettings[] = []
-    if (typeState.selectedIds.size > 0) {
+    sources.forEach((source) => {
+      const state = states.get(source.key)
+      if (!state || state.selectedIds.size === 0) {
+        return
+      }
       conditions.push({
-        id: typeState.id,
-        conditionField: CONDITION_FIELD_INCIDENT_TYPE,
-        operator: typeState.operator,
-        values: Array.from(typeState.selectedIds),
+        id: state.id,
+        conditionField: source.conditionField,
+        incidentFieldDefinitionId: source.definitionId,
+        operator: state.operator,
+        values: Array.from(state.selectedIds),
       })
-    }
-    if (severityState.selectedIds.size > 0) {
-      conditions.push({
-        id: severityState.id,
-        conditionField: CONDITION_FIELD_SEVERITY,
-        operator: severityState.operator,
-        values: Array.from(severityState.selectedIds),
-      })
-    }
+    })
     onSave(conditions)
     setOpen(false)
   }
@@ -138,7 +193,7 @@ export function ConditionEditor({ field, incidentTypes, severities, onSave }: {
   }
 
   const hasConditions = (field.conditions?.length ?? 0) > 0
-  const nothingSelected = typeState.selectedIds.size === 0 && severityState.selectedIds.size === 0
+  const nothingSelected = sources.every((source) => (states.get(source.key)?.selectedIds.size ?? 0) === 0)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -154,35 +209,26 @@ export function ConditionEditor({ field, incidentTypes, severities, onSave }: {
         >
           <IconFilter className="size-3" />
           {hasConditions
-            ? conditionSummary(field.conditions!, incidentTypes, severities)
+            ? conditionSummary(field.conditions!, sources)
             : "Add condition"}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96 p-0">
-        <div className="space-y-4 p-4">
+        <div className="max-h-[26rem] space-y-4 overflow-y-auto p-4">
           <p className="text-xs text-muted-foreground">
             Show this field only when all of the following match.
           </p>
 
-          <ConditionSection
-            label="Incident Type"
-            optionsLabel="Types"
-            emptyLabel="No incident types defined."
-            state={typeState}
-            options={incidentTypes.map((type) => ({ id: type.id, name: type.name }))}
-            onOperatorChange={(op) => setOperator(typeState, setTypeState, op)}
-            onToggle={(id) => toggleId(typeState, setTypeState, id)}
-          />
-
-          <ConditionSection
-            label="Severity"
-            optionsLabel="Severities"
-            emptyLabel="No severities defined."
-            state={severityState}
-            options={severities.map((severity) => ({ id: severity.id, name: severity.name }))}
-            onOperatorChange={(op) => setOperator(severityState, setSeverityState, op)}
-            onToggle={(id) => toggleId(severityState, setSeverityState, id)}
-          />
+          {sources.map((source) => (
+            <ConditionSection
+              key={source.key}
+              label={source.label}
+              state={states.get(source.key)!}
+              options={source.options}
+              onOperatorChange={(operator) => updateState(source.key, { operator })}
+              onToggle={(id) => toggleId(source.key, id)}
+            />
+          ))}
         </div>
 
         <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
@@ -205,16 +251,12 @@ export function ConditionEditor({ field, incidentTypes, severities, onSave }: {
 
 function ConditionSection({
   label,
-  optionsLabel,
-  emptyLabel,
   state,
   options,
   onOperatorChange,
   onToggle,
 }: {
   label: string
-  optionsLabel: string
-  emptyLabel: string
   state: ConditionState
   options: { id: string; name: string }[]
   onOperatorChange: (op: string) => void
@@ -236,7 +278,6 @@ function ConditionSection({
       </div>
 
       <div className="space-y-1">
-        <Label className="text-[11px] font-medium text-muted-foreground">{optionsLabel}</Label>
         <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
           {options.map((option) => (
             <label key={option.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/30">
@@ -248,7 +289,7 @@ function ConditionSection({
             </label>
           ))}
           {options.length === 0 && (
-            <p className="py-2 text-center text-xs text-muted-foreground">{emptyLabel}</p>
+            <p className="py-2 text-center text-xs text-muted-foreground">Nothing to choose from yet.</p>
           )}
         </div>
       </div>

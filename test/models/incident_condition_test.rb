@@ -96,15 +96,58 @@ class IncidentConditionTest < ActiveSupport::TestCase
   # ============================================================================
 
   test "valid custom_field condition with a supported field definition" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+    IncidentFormService.new(@workspace).add_custom_field(@form_field.incident_form, definition)
+
     condition = IncidentCondition.new(
       workspace: @workspace,
       conditionable: @form_field,
       condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
-      incident_field_definition: incident_field_definitions(:customer_tier_ws1),
+      incident_field_definition: definition,
       operator: IncidentCondition::OPERATOR_ONE_OF,
       values: [ "Enterprise" ]
     )
     assert condition.valid?
+  end
+
+  # A rule pointing at a field nobody is ever asked never matches, which reads
+  # as the field being broken rather than the rule being wrong.
+  test "a custom field on no form cannot drive a condition" do
+    definition = @workspace.incident_field_definitions.create!(
+      name: "Blast radius", slug: "blast_radius", position: 90,
+      field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_CATALOG,
+      catalog_type: catalog_types(:service_ws1)
+    )
+
+    condition = IncidentCondition.new(
+      workspace: @workspace, conditionable: @form_field,
+      condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+      incident_field_definition: definition,
+      operator: IncidentCondition::OPERATOR_ONE_OF, values: [ "x" ]
+    )
+
+    assert_not condition.valid?
+    assert_match(/is not asked for on the/, condition.errors.full_messages.to_sentence)
+  end
+
+  # Declare runs before Resolve, so a Resolve condition may read what was
+  # answered at declare time. The reverse is not true.
+  test "a later form can read an earlier form's custom field" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+    declare = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    resolve = @workspace.ensure_incident_form!(IncidentForm::SLUG_RESOLVE)
+    IncidentFormService.new(@workspace).add_custom_field(declare, definition)
+    target = IncidentFormService.new(@workspace).ensure_system_field!(resolve, IncidentSystemField::KEY_NAME)
+
+    condition = IncidentCondition.new(
+      workspace: @workspace, conditionable: target,
+      condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+      incident_field_definition: definition,
+      operator: IncidentCondition::OPERATOR_ONE_OF, values: [ "Enterprise" ]
+    )
+
+    assert condition.valid?, condition.errors.full_messages.to_sentence
   end
 
   test "custom_field condition requires an incident_field_definition" do

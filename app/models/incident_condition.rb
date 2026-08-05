@@ -27,6 +27,7 @@ class IncidentCondition < ApplicationRecord
   validate :incident_field_definition_matches_condition_field
   validate :incident_field_definition_type_supported
   validate :conditionable_may_be_hidden
+  validate :custom_field_is_answerable_here
 
   private
 
@@ -39,6 +40,22 @@ class IncidentCondition < ApplicationRecord
     return unless conditionable.is_a?(IncidentFormField) && conditionable.locked_visible?
 
     errors.add(:base, "#{conditionable.source_name} is always asked for, so it cannot be made conditional.")
+  end
+
+  # A condition can only read a custom field the incident could already hold an
+  # answer for: one attached to this form, or to a form that runs before it.
+  # Pointing at a field nobody is ever asked produces a rule that silently never
+  # matches, which reads as the field being broken.
+  def custom_field_is_answerable_here
+    return unless condition_field == FIELD_CUSTOM_FIELD && incident_field_definition.present?
+    return unless conditionable.is_a?(IncidentFormField)
+
+    form = conditionable.incident_form
+    return if form.blank?
+    return if form.condition_source_definitions.exists?(incident_field_definition_id)
+
+    errors.add(:incident_field_definition,
+               "is not asked for on the #{form.name} form or any form before it")
   end
 
   def values_is_array
