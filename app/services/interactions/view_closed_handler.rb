@@ -1,15 +1,20 @@
 module Interactions
   class ViewClosedHandler
+    # Any modal opened with a placeholder in the channel carries its id in the
+    # private metadata, so that is what decides whether there is something to
+    # clean up. Listing callback_ids here instead meant a new modal was one
+    # forgotten line away from leaving "is canceling the incident..." behind
+    # forever, which is exactly what happened to Cancel.
     def self.execute(interaction)
-      return unless [ Identifiers::UPDATE_SUMMARY_MODAL, Identifiers::INCIDENT_UPDATE_MODAL, Identifiers::CLOSE_INCIDENT_MODAL, Identifiers::REOPEN_INCIDENT_MODAL ].include?(interaction.callback_id)
-
       delete_temp_message(interaction)
       nil
     end
 
     def self.delete_temp_message(interaction)
+      return if interaction.private_metadata.blank?
+
       metadata = JSON.parse(interaction.private_metadata)
-      return unless metadata["temp_message_ts"] && metadata["channel_id"]
+      return unless metadata.is_a?(Hash) && metadata["temp_message_ts"] && metadata["channel_id"]
 
       workspace = interaction.workspace
       workspace.adapter.delete_message(channel_id: metadata["channel_id"], message_id: metadata["temp_message_ts"])
