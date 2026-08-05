@@ -138,7 +138,7 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
       <ConfirmDeleteDialog
         open={Boolean(deleting)}
         title={`Delete ${deleting?.name ?? "this field"}?`}
-        description="No form uses this field, so nothing loses its history. It disappears from the field picker straight away."
+        description="No form uses this field and no incident holds a value for it, so nothing loses its history. It disappears from the field picker straight away."
         onConfirm={() => {
           if (!deleting) {
             return
