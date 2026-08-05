@@ -6,7 +6,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)
-    _, @personal_token = ApiKey.create_with_token!(
+    _, @personal_token = create_service_key(
       workspace: @workspace, created_by: @membership, on_behalf_of: @membership, name: "Personal"
     )
 
@@ -125,7 +125,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a service key without runbooks:read is denied" do
-    _, incidents_token = ApiKey.create_with_token!(
+    _, incidents_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Incidents only",
       permissions: { ApiKey::RESOURCE_INCIDENTS => [ ApiKey::ACTION_READ ] }
     )

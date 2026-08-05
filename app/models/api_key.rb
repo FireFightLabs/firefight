@@ -46,14 +46,10 @@ class ApiKey < ApplicationRecord
   validates :name, presence: true
   validates :token_digest, presence: true, uniqueness: true
   validates :token_prefix, presence: true
-  validate :permissions_well_formed
   validate :on_behalf_of_same_workspace
 
   after_update :invalidate_cache!
   after_destroy :invalidate_cache!
-  # The permissions jsonb is the write interface (UI/API); direct grants are
-  # what checks read. Kept in sync here so the two can never disagree.
-  after_save :sync_ability_grants!, if: :service?
 
   scope :active, -> { where(active: true, deleted_at: nil) }
   scope :not_expired, -> { where("expires_at IS NULL OR expires_at > ?", Time.current) }
@@ -119,6 +115,38 @@ class ApiKey < ApplicationRecord
     Ability::Resolver.resolve(self).covers?(Ability::Action.system_key(resource, action))
   end
 
+  # The permissions matrix, derived from the grants it edits rather than stored
+  # alongside them. There is no second copy to drift out of step, and a grant
+  # made on the Permissions screen shows up here ticked instead of being
+  # silently reconciled away.
+  #
+  # Expired grants are included: the switch says what was granted, and when it
+  # lapses is the Permissions screen's business.
+  def granted_permissions
+    ability_grants.includes(:action).each_with_object({}) do |grant, matrix|
+      key = grant.action&.key
+      next unless key && self.class.managed_ability_keys.include?(key)
+
+      resource, action = key.split(".")
+      (matrix[resource] ||= []) << action
+    end
+  end
+
+  # Replaces this key's system-action grants with the matrix. Tool actions from
+  # integrations are outside the matrix, so they are left alone.
+  def replace_permissions!(matrix)
+    desired = Array(matrix).flat_map do |resource, actions|
+      Array(actions).map { |action| Ability::Action.system_key(resource, action) }
+    end
+    unknown = desired - self.class.managed_ability_keys
+    raise ArgumentError, "unknown permission #{unknown.first}" if unknown.any?
+
+    Ability::Grant.sync_direct!(
+      principal: self, workspace: workspace,
+      desired_keys: desired, managed_keys: self.class.managed_ability_keys
+    )
+  end
+
   def self.managed_ability_keys
     @managed_ability_keys ||= RESOURCES.product(ACTIONS).map do |resource, action|
       Ability::Action.system_key(resource, action)
@@ -164,43 +192,9 @@ class ApiKey < ApplicationRecord
 
   private
 
-  def sync_ability_grants!
-    desired = permissions.flat_map do |resource, actions|
-      Array(actions).map { |action| Ability::Action.system_key(resource, action) }
-    end
-
-    Ability::Grant.sync_direct!(
-      principal: self, workspace: workspace,
-      desired_keys: desired, managed_keys: self.class.managed_ability_keys
-    )
-  end
-
   def on_behalf_of_same_workspace
     return if on_behalf_of.nil? || on_behalf_of.workspace_id == workspace_id
 
     errors.add(:on_behalf_of, "must belong to the same workspace")
-  end
-
-  # Permissions must be a hash of `{ resource_string => [action_strings] }`
-  # using only RESOURCES + ACTIONS values. Anything else (unknown resource,
-  # unknown action, non-array value) is rejected so a malicious or buggy
-  # caller can't write arbitrary jsonb.
-  def permissions_well_formed
-    return errors.add(:permissions, "must be a hash") unless permissions.is_a?(Hash)
-
-    permissions.each do |resource, actions|
-      unless RESOURCES.include?(resource.to_s)
-        return errors.add(:permissions, "unknown resource '#{resource}'")
-      end
-      unless actions.is_a?(Array)
-        return errors.add(:permissions, "actions for '#{resource}' must be an array")
-      end
-
-      actions.each do |action|
-        unless ACTIONS.include?(action.to_s)
-          return errors.add(:permissions, "unknown action '#{action}' for resource '#{resource}'")
-        end
-      end
-    end
   end
 end

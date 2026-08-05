@@ -41,13 +41,6 @@ module Ability
 
         (existing.keys - desired_keys).each { |key| existing[key].destroy! }
 
-        # A service key's permissions matrix is its write interface, and the
-        # two must never disagree. A switch left on cannot quietly point at a
-        # grant that lapsed, so reconciling clears any expiry.
-        (desired_keys & existing.keys).each do |key|
-          existing[key].update!(expires_at: nil) if existing[key].expires_at.present?
-        end
-
         (desired_keys - existing.keys).each do |key|
           create!(workspace: workspace, principal: principal, action: Ability::Action.system!(key))
         end
