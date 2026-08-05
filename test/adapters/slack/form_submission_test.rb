@@ -143,9 +143,10 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
     ).parse
 
     assert_empty result.errors
-    # Defaults include name + severity + summary + incident_type + visibility on declare.
+    # Declare ships asking for name, severity and summary. Incident type and
+    # visibility are offered in the editor but off until a workspace wants them.
     assert result.includes_system_key?(IncidentSystemField::KEY_SEVERITY)
-    assert result.includes_system_key?(IncidentSystemField::KEY_VISIBILITY)
+    assert_not result.includes_system_key?(IncidentSystemField::KEY_VISIBILITY)
   end
 
   test "exposes visible_system_keys for callers that need to distinguish 'on form' from 'absent value'" do

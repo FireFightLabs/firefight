@@ -316,6 +316,33 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
                  definition.required_mode_for(IncidentForm::SLUG_DECLARE)
   end
 
+  # What a brand new workspace is asked, before anyone configures anything.
+  # Everything else stays listed in the editor, switched off.
+  test "the shipped forms ask for a deliberate set" do
+    expected = {
+      IncidentForm::SLUG_DECLARE => [ "Name", "Severity", "Summary" ],
+      IncidentForm::SLUG_UPDATE => [ "Message", "Next Update", "Status", "Severity" ],
+      IncidentForm::SLUG_RESOLVE => [ "Name", "Status", "Severity", "Summary", "Incident Lead" ],
+      IncidentForm::SLUG_CANCEL => [ "Status" ]
+    }
+
+    expected.each do |slug, names|
+      on = IncidentSystemField.defaults_for(slug).reject do |definition|
+        definition.required_mode_for(slug) == IncidentFormField::REQUIRED_MODE_AVAILABLE
+      end
+      assert_equal names, on.map(&:name), "default fields on the #{slug} form"
+    end
+  end
+
+  test "a field that is off by default is still offered in the editor" do
+    workspace = workspaces(:slack_workspace_two)
+    editor = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_DECLARE, include_hidden: true)
+    responders = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_DECLARE)
+
+    assert_includes editor.map(&:system_field_key), IncidentSystemField::KEY_INCIDENT_TYPE
+    assert_not_includes responders.map(&:system_field_key), IncidentSystemField::KEY_INCIDENT_TYPE
+  end
+
   test "a workspace with no override gets the required default" do
     @workspace.incident_forms.find_by(lifecycle_event: IncidentForm::SLUG_DECLARE)
       &.incident_form_fields&.where(system_field_key: IncidentSystemField::KEY_NAME)&.destroy_all

@@ -52,8 +52,11 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     assert_includes button[:text][:text], "Join incident channel"
   end
 
+  # Visibility ships off, so a workspace that wants private incidents turns it
+  # on first. The capability is unchanged, only the default.
   test "sets is_private when visibility is private" do
     stub_create_channel
+    enable_visibility_field!
 
     IncidentCreationWorkflow.stubs(:start!)
 
@@ -63,6 +66,15 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
 
     incident = Incident.find_by!(name: "Test Incident")
     assert incident.is_private
+  end
+
+  def enable_visibility_field!
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    service = IncidentFormService.new(@workspace)
+    row = service.ensure_system_field!(form, IncidentSystemField::KEY_VISIBILITY)
+    service.update_field(row,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
   end
 
   test "returns error for invalid severity" do
