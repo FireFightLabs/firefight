@@ -71,19 +71,33 @@ class IncidentForm < ApplicationRecord
     )
   end
 
-  # Custom fields a condition on this form may read: the ones attached to a form
-  # that could already have been filled in. A definition attached to no form is
-  # never offered, since nothing would ever set it.
+  # Everything a condition on this form may read: what this form and the forms
+  # before it actually ask a responder for. Mirroring the form is what stops the
+  # picker offering a rule whose answer nobody is ever asked to give, and what
+  # makes hiding a field remove it as a source.
+  #
+  # Conditions are ignored when working this out. A field that is itself
+  # conditional is still asked for, just not always.
   def condition_source_definitions
     slugs = CONDITION_SOURCE_SLUGS.fetch(lifecycle_event, [ lifecycle_event ])
+    resolver = IncidentFormResolver.new(workspace)
 
-    workspace.incident_field_definitions
-      .active
-      .where(field_type: IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES)
-      .where(id: IncidentFormField.joins(:incident_form)
-        .where(incident_forms: { workspace_id: workspace_id, lifecycle_event: slugs })
-        .select(:incident_field_definition_id))
-      .ordered
+    definitions = slugs.flat_map { |slug| asked_fields(resolver, slug) }
+      .filter_map(&:incident_field_definition)
+      .select { |definition| IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES.include?(definition.field_type) }
+
+    definitions.uniq(&:id).sort_by { |definition| [ definition.position, definition.created_at ] }
+  end
+
+  # System fields this form asks for that a condition can read. Severity and
+  # incident type are the two Slack re-renders the dialog for.
+  def condition_source_system_keys
+    slugs = CONDITION_SOURCE_SLUGS.fetch(lifecycle_event, [ lifecycle_event ])
+    resolver = IncidentFormResolver.new(workspace)
+
+    slugs.flat_map { |slug| asked_fields(resolver, slug) }
+      .filter_map(&:system_field_key)
+      .uniq
   end
 
   def default_form?
@@ -91,6 +105,13 @@ class IncidentForm < ApplicationRecord
   end
 
   private
+
+  # What a form puts in front of a responder, before conditions narrow it.
+  def asked_fields(resolver, slug)
+    resolver.resolve(slug, include_hidden: true).select do |field|
+      field.visibility_mode == IncidentFormField::VISIBILITY_MODE_VISIBLE && field.inactive_reason.nil?
+    end
+  end
 
   def slug_immutable
     return unless slug_changed?

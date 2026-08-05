@@ -253,4 +253,40 @@ class IncidentConditionTest < ActiveSupport::TestCase
     resolved = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_DECLARE, context: {})
     assert_includes resolved.map(&:system_field_key), IncidentSystemField::KEY_SEVERITY
   end
+
+  # Hiding a field takes it out of the picker, the same way it takes it out of
+  # the dialog. Offering it anyway produced a rule reading an answer nobody is
+  # asked to give.
+  test "a hidden field is not offered as a condition source" do
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    service = IncidentFormService.new(@workspace)
+    row = service.ensure_system_field!(form, IncidentSystemField::KEY_INCIDENT_TYPE)
+
+    # Incident Type ships off, so turn it on before proving that turning it off
+    # removes it.
+    service.update_field(row,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+    assert_includes form.reload.condition_source_system_keys, IncidentSystemField::KEY_INCIDENT_TYPE
+
+    service.update_field(row,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_HIDDEN,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+
+    assert_not_includes form.reload.condition_source_system_keys, IncidentSystemField::KEY_INCIDENT_TYPE
+  end
+
+  test "a hidden custom field is not offered as a condition source" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    service = IncidentFormService.new(@workspace)
+    field = service.add_custom_field(form, definition)
+    assert_includes form.condition_source_definitions.map(&:id), definition.id
+
+    service.update_field(field,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_HIDDEN,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+
+    assert_not_includes form.reload.condition_source_definitions.map(&:id), definition.id
+  end
 end

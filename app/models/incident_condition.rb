@@ -52,7 +52,7 @@ class IncidentCondition < ApplicationRecord
 
     form = conditionable.incident_form
     return if form.blank?
-    return if form.condition_source_definitions.exists?(incident_field_definition_id)
+    return if form.condition_source_definitions.any? { |definition| definition.id == incident_field_definition_id }
 
     errors.add(:incident_field_definition,
                "is not asked for on the #{form.name} form or any form before it")

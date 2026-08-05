@@ -27,8 +27,8 @@ class IncidentFormSettingsSerializer < BaseSerializer
     incident_form.description
   end
 
-  # Custom fields a condition on this form may read: attached to this form, or
-  # to one that runs before it. Anything else would never be answered.
+  # Custom fields a condition on this form may read: asked for by this form, or
+  # by one that runs before it. Anything else would never be answered.
   type "{ id: string; name: string; options: { id: string; name: string }[] }[]"
   def condition_sources
     return [] unless incident_form.persisted?
@@ -37,6 +37,15 @@ class IncidentFormSettingsSerializer < BaseSerializer
       { id: definition.id, name: definition.name,
         options: definition.selectable_values.map { |id, label| { id: id, name: label } } }
     end
+  end
+
+  # Which of the two built-in sources this form asks for. Hiding Incident Type
+  # takes it out of the picker, the same way it takes it out of the dialog.
+  type "string[]"
+  def condition_source_system_keys
+    return [] unless incident_form.persisted?
+
+    incident_form.condition_source_system_keys
   end
 
   # Hidden fields included, greyed out in the editor. Leaving them out is what

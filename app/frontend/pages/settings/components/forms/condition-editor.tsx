@@ -56,22 +56,28 @@ function buildSources(
   incidentTypes: IncidentTypeSettings[],
   severities: IncidentSeveritySettings[],
 ): ConditionSource[] {
-  const sources: ConditionSource[] = [
-    {
+  const asked = new Set(form.conditionSourceSystemKeys)
+  const sources: ConditionSource[] = []
+
+  if (asked.has(CONDITION_FIELD_INCIDENT_TYPE)) {
+    sources.push({
       key: CONDITION_FIELD_INCIDENT_TYPE,
       conditionField: CONDITION_FIELD_INCIDENT_TYPE,
       definitionId: null,
       label: "Incident Type",
       options: incidentTypes.map((type) => ({ id: type.id, name: type.name })),
-    },
-    {
+    })
+  }
+
+  if (asked.has(CONDITION_FIELD_SEVERITY)) {
+    sources.push({
       key: CONDITION_FIELD_SEVERITY,
       conditionField: CONDITION_FIELD_SEVERITY,
       definitionId: null,
       label: "Severity",
       options: severities.map((severity) => ({ id: severity.id, name: severity.name })),
-    },
-  ]
+    })
+  }
 
   form.conditionSources.forEach((definition) => {
     sources.push({
@@ -218,6 +224,12 @@ export function ConditionEditor({ field, form, incidentTypes, severities, onSave
           <p className="text-xs text-muted-foreground">
             Show this field only when all of the following match.
           </p>
+
+          {sources.length === 0 && (
+            <p className="py-4 text-center text-xs text-muted-foreground">
+              Nothing on this form or the ones before it can drive a condition yet.
+            </p>
+          )}
 
           {sources.map((source) => (
             <ConditionSection
