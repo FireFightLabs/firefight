@@ -6,7 +6,7 @@ import type {
   IncidentFormFieldSettings,
   IncidentFormSettings,
 } from "@/pages/settings/lib/types"
-import type { IncidentSeveritySettings, IncidentTypeSettings } from "@/types/serializers"
+import type { IncidentSeveritySettings, IncidentStatusSettings, IncidentTypeSettings } from "@/types/serializers"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -26,7 +26,14 @@ import {
 
 const CONDITION_FIELD_INCIDENT_TYPE = "incident_type"
 const CONDITION_FIELD_SEVERITY = "severity"
+const CONDITION_FIELD_STATUS = "status"
+const CONDITION_FIELD_VISIBILITY = "visibility"
 const CONDITION_FIELD_CUSTOM = "custom_field"
+
+const VISIBILITY_OPTIONS = [
+  { id: "public", name: "Everyone (public)" },
+  { id: "private", name: "Private" },
+]
 const OPERATOR_ONE_OF = "one_of"
 const OPERATOR_NOT_ONE_OF = "not_one_of"
 
@@ -55,6 +62,7 @@ function buildSources(
   form: IncidentFormSettings,
   incidentTypes: IncidentTypeSettings[],
   severities: IncidentSeveritySettings[],
+  statuses: IncidentStatusSettings[],
 ): ConditionSource[] {
   const asked = new Set(form.conditionSourceSystemKeys)
   const sources: ConditionSource[] = []
@@ -76,6 +84,26 @@ function buildSources(
       definitionId: null,
       label: "Severity",
       options: severities.map((severity) => ({ id: severity.id, name: severity.name })),
+    })
+  }
+
+  if (asked.has(CONDITION_FIELD_STATUS)) {
+    sources.push({
+      key: CONDITION_FIELD_STATUS,
+      conditionField: CONDITION_FIELD_STATUS,
+      definitionId: null,
+      label: "Status",
+      options: statuses.map((status) => ({ id: status.id, name: status.name })),
+    })
+  }
+
+  if (asked.has(CONDITION_FIELD_VISIBILITY)) {
+    sources.push({
+      key: CONDITION_FIELD_VISIBILITY,
+      conditionField: CONDITION_FIELD_VISIBILITY,
+      definitionId: null,
+      label: "Visibility",
+      options: VISIBILITY_OPTIONS,
     })
   }
 
@@ -131,14 +159,15 @@ function conditionSummary(
     .join(" AND ")
 }
 
-export function ConditionEditor({ field, form, incidentTypes, severities, onSave }: {
+export function ConditionEditor({ field, form, incidentTypes, severities, statuses, onSave }: {
   field: IncidentFormFieldSettings
   form: IncidentFormSettings
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
+  statuses: IncidentStatusSettings[]
   onSave: (conditions: IncidentConditionSettings[]) => void
 }) {
-  const sources = buildSources(form, incidentTypes, severities)
+  const sources = buildSources(form, incidentTypes, severities, statuses)
 
   const [states, setStates] = useState(() => stateBySource(field.conditions, sources))
   const [open, setOpen] = useState(false)

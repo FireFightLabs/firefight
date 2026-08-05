@@ -289,4 +289,32 @@ class IncidentConditionTest < ActiveSupport::TestCase
 
     assert_not_includes form.reload.condition_source_definitions.map(&:id), definition.id
   end
+
+  test "visibility and status are offered once the form asks for them" do
+    declare = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    service = IncidentFormService.new(@workspace)
+    row = service.ensure_system_field!(declare, IncidentSystemField::KEY_VISIBILITY)
+
+    assert_not_includes declare.reload.condition_source_system_keys, IncidentSystemField::KEY_VISIBILITY
+
+    service.update_field(row,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+
+    assert_includes declare.reload.condition_source_system_keys, IncidentSystemField::KEY_VISIBILITY
+
+    update = @workspace.ensure_incident_form!(IncidentForm::SLUG_UPDATE)
+    assert_includes update.condition_source_system_keys, IncidentSystemField::KEY_STATUS
+  end
+
+  test "a visibility condition is a valid condition" do
+    condition = IncidentCondition.new(
+      workspace: @workspace, conditionable: @form_field,
+      condition_field: IncidentCondition::FIELD_VISIBILITY,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ Incident::VISIBILITY_PRIVATE ]
+    )
+
+    assert condition.valid?, condition.errors.full_messages.to_sentence
+  end
 end

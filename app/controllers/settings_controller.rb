@@ -85,6 +85,9 @@ class SettingsController < InertiaController
       ),
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.ordered.with_usage_counts
+      ),
+      statuses: IncidentStatusSettingsSerializer.many(
+        current_workspace.incident_statuses.active.ordered.with_usage_counts
       )
     }
   end

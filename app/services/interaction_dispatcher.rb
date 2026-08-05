@@ -41,8 +41,9 @@ class InteractionDispatcher
     Identifiers::LOAD_MORE_TIMELINE => Interactions::LoadMoreTimelineHandler,
     Identifiers::ACKNOWLEDGE_ESCALATION => Interactions::AcknowledgeEscalationHandler,
     Identifiers::SHOUTOUT_FROM_REACTION => Interactions::ShoutoutFromReactionHandler,
-    Identifiers::INCIDENT_CREATION_SEVERITY_SELECT => Interactions::IncidentCreationSeveritySelectHandler,
-    Identifiers::INCIDENT_CREATION_TYPE_SELECT => Interactions::IncidentCreationTypeSelectHandler,
+    Identifiers::INCIDENT_CREATION_SEVERITY_SELECT => Interactions::IncidentCreationSelectHandler,
+    Identifiers::INCIDENT_CREATION_TYPE_SELECT => Interactions::IncidentCreationSelectHandler,
+    Identifiers::INCIDENT_CREATION_VISIBILITY_SELECT => Interactions::IncidentCreationSelectHandler,
     Identifiers::APPLY_RUNBOOK => Interactions::ApplyRunbookHandler,
     Identifiers::APPROVE_ABILITY => Interactions::ApproveAbilityHandler,
     Identifiers::DENY_ABILITY => Interactions::DenyAbilityHandler

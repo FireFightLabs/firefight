@@ -1,8 +1,12 @@
 class IncidentCondition < ApplicationRecord
   FIELD_INCIDENT_TYPE = "incident_type"
   FIELD_SEVERITY = "severity"
+  FIELD_STATUS = "status"
+  FIELD_VISIBILITY = "visibility"
   FIELD_CUSTOM_FIELD = "custom_field"
-  CONDITION_FIELDS = [ FIELD_INCIDENT_TYPE, FIELD_SEVERITY, FIELD_CUSTOM_FIELD ].freeze
+  CONDITION_FIELDS = [
+    FIELD_INCIDENT_TYPE, FIELD_SEVERITY, FIELD_STATUS, FIELD_VISIBILITY, FIELD_CUSTOM_FIELD
+  ].freeze
 
   OPERATOR_ONE_OF = "one_of"
   OPERATOR_NOT_ONE_OF = "not_one_of"

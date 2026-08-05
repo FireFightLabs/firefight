@@ -10,7 +10,7 @@ module Slack
     # reads: suppressing a field here alone leaves submission demanding one the
     # responder was never shown.
     module FieldBlocks
-      def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, selected_type_id: nil, terminal_stage: nil)
+      def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, visibility_dispatch: false, selected_type_id: nil, selected_visibility: nil, terminal_stage: nil)
         case form_field.system_field_key
         when IncidentSystemField::KEY_NAME
           name_block(form_field, incident: incident)
@@ -26,7 +26,7 @@ module Slack
         when IncidentSystemField::KEY_LEAD
           lead_block(form_field, incident: incident)
         when IncidentSystemField::KEY_VISIBILITY
-          visibility_block(form_field, incident: incident)
+          visibility_block(form_field, incident: incident, dispatch: visibility_dispatch, selected: selected_visibility)
         when IncidentSystemField::KEY_NEXT_UPDATE
           next_update_block(form_field)
         when IncidentSystemField::KEY_MESSAGE
@@ -65,20 +65,18 @@ module Slack
 
       DEFAULT_NEXT_UPDATE_MINUTES = "15".freeze
 
-      def self.visibility_block(form_field, incident: nil)
-        current = if incident
-          incident.is_private ? Incident::VISIBILITY_PRIVATE : Incident::VISIBILITY_PUBLIC
-        else
-          Incident::VISIBILITY_PUBLIC
-        end
+      def self.visibility_block(form_field, incident: nil, dispatch: false, selected: nil)
+        stored = incident&.is_private ? Incident::VISIBILITY_PRIVATE : Incident::VISIBILITY_PUBLIC
+        current = selected.presence || stored
         initial = VISIBILITY_OPTIONS.find { |o| o[:value] == current } || VISIBILITY_OPTIONS.first
+        action_id = dispatch ? Identifiers::INCIDENT_CREATION_VISIBILITY_SELECT : "field_visibility_input"
 
-        {
+        block = {
           type: "input",
           block_id: "field_visibility_block",
           element: {
             type: "static_select",
-            action_id: "field_visibility_input",
+            action_id: action_id,
             options: VISIBILITY_OPTIONS,
             initial_option: initial
           },
@@ -86,6 +84,8 @@ module Slack
           hint: copy_hint(IncidentSystemField::KEY_VISIBILITY),
           optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
         }.compact
+        block[:dispatch_action] = true if dispatch
+        block
       end
 
       def self.lead_block(form_field, incident: nil)

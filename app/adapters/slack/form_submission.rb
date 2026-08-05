@@ -63,6 +63,8 @@ module Slack
       IncidentConditionEvaluator.context(
         incident_type: resolved_id(:incident_types, IncidentSystemField::KEY_INCIDENT_TYPE, :incident_type_id),
         severity: resolved_id(:incident_severities, IncidentSystemField::KEY_SEVERITY, :incident_severity_id),
+        status: resolved_id(:incident_statuses, IncidentSystemField::KEY_STATUS, :incident_status_id),
+        visibility: submitted_visibility,
         custom_fields: (@incident&.custom_fields || {}).merge(submitted_custom_fields)
       )
     end
@@ -80,6 +82,16 @@ module Slack
         )
         values[definition.slug] = value unless value.nil?
       end
+    end
+
+    # Visibility is a plain value rather than a record, so it reads straight off
+    # the block, falling back to what the incident already is.
+    def submitted_visibility
+      submitted = read_slug(IncidentSystemField::KEY_VISIBILITY)
+      return submitted if submitted.present?
+      return nil if @incident.nil?
+
+      @incident.is_private ? Incident::VISIBILITY_PRIVATE : Incident::VISIBILITY_PUBLIC
     end
 
     def resolved_id(association, system_key, incident_attr)

@@ -8,7 +8,7 @@ import type {
   IncidentFieldDefinitionSettings,
   IncidentFormSettings,
 } from "@/pages/settings/lib/types"
-import type { IncidentSeveritySettings, IncidentTypeSettings } from "@/types/serializers"
+import type { IncidentSeveritySettings, IncidentStatusSettings, IncidentTypeSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
 interface FormsPageProps extends SharedProps {
@@ -17,10 +17,11 @@ interface FormsPageProps extends SharedProps {
   customFields: IncidentFieldDefinitionSettings[]
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
+  statuses: IncidentStatusSettings[]
 }
 
 export default function Forms() {
-  const { forms, customFields, incidentTypes, severities } = usePage<FormsPageProps>().props
+  const { forms, customFields, incidentTypes, severities, statuses } = usePage<FormsPageProps>().props
 
   const [selectedFormId, setSelectedFormId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search)
@@ -49,6 +50,7 @@ export default function Forms() {
           customFields={customFields}
           incidentTypes={incidentTypes}
           severities={severities}
+          statuses={statuses}
           selectedFormId={selectedFormId}
           onSelectForm={updateFormParam}
           onNavigateToCustomFields={() => router.visit(settingsCustomFieldsPath())}

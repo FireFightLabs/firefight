@@ -4,9 +4,9 @@ module Slack::WorkspaceAdapter::IncidentModals
   # Refreshes the open incident-creation modal with new dispatch context
   # (severity / type selected via dispatch_action) without losing other
   # user-entered values.
-  def update_incident_creation_modal(view_id:, selected_severity_slug: nil, selected_type_id: nil)
+  def update_incident_creation_modal(view_id:, state: {})
     translate_errors do
-      view = Slack::Modals::IncidentCreation.build(workspace: @workspace, selected_severity_slug: selected_severity_slug, selected_type_id: selected_type_id)
+      view = Slack::Modals::IncidentCreation.build(workspace: @workspace, state: state)
       Slack::Client.update_modal(workspace: @workspace, view_id: view_id, view: view)
       { success: true }
     end

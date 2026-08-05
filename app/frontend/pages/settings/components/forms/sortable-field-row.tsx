@@ -8,18 +8,19 @@ import type {
   IncidentFormFieldSettings,
   IncidentFormSettings,
 } from "@/pages/settings/lib/types"
-import type { IncidentSeveritySettings, IncidentTypeSettings } from "@/types/serializers"
+import type { IncidentSeveritySettings, IncidentStatusSettings, IncidentTypeSettings } from "@/types/serializers"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { ConditionEditor } from "@/pages/settings/components/forms/condition-editor"
 
-export function SortableFieldRow({ field, form, incidentTypes, severities, onUpdate, onUpdateConditions, onRemove }: {
+export function SortableFieldRow({ field, form, incidentTypes, severities, statuses, onUpdate, onUpdateConditions, onRemove }: {
   field: IncidentFormFieldSettings
   form: IncidentFormSettings
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
+  statuses: IncidentStatusSettings[]
   onUpdate: (next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) => void
   onUpdateConditions: (conditions: IncidentConditionSettings[]) => void
   onRemove: () => void
@@ -135,6 +136,7 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, onUpd
             form={form}
             incidentTypes={incidentTypes}
             severities={severities}
+            statuses={statuses}
             onSave={onUpdateConditions}
           />
         )}
