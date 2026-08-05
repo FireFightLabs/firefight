@@ -70,8 +70,13 @@ class IncidentSystemField
       hint: "Give a short description of what is happening.",
       placeholder: "Write something",
       field_type: IncidentFieldDefinition::TYPE_TEXT,
+      # Required on declare because the channel is named from it once, at
+      # creation, and cannot be renamed later. A blank name leaves a permanent
+      # inc-<date>-untitled channel and "Untitled Incident" everywhere the
+      # incident is referred to. The API already requires it and alerts derive
+      # it from the alert title, so this is the only path that let it through.
       forms: {
-        IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
+        IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_REQUIRED,
         IncidentForm::SLUG_RESOLVE => IncidentFormField::REQUIRED_MODE_OPTIONAL
       }
     ),
@@ -82,9 +87,11 @@ class IncidentSystemField
       hint: "Categorize the incident to improve reporting and routing.",
       placeholder: "Select a type",
       field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
+      # Off by default on both. Categorizing is worth having, but not at the
+      # cost of a longer dialog before a workspace has decided it wants it.
       forms: {
-        IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
-        IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_OPTIONAL
+        IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_AVAILABLE,
+        IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_AVAILABLE
       }
     ),
     Definition.new(
@@ -120,9 +127,10 @@ class IncidentSystemField
       hint: "Your current understanding of what happened in the incident, and the impact it had. It's fine to go into detail here.",
       placeholder: "Think about what you'd like to read if you were coming to the incident fresh...",
       field_type: IncidentFieldDefinition::TYPE_TEXT,
+      # Off on Update, where the Message field already carries what changed.
       forms: {
         IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
-        IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
+        IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_AVAILABLE,
         IncidentForm::SLUG_RESOLVE => IncidentFormField::REQUIRED_MODE_OPTIONAL,
         IncidentForm::SLUG_CANCEL => IncidentFormField::REQUIRED_MODE_AVAILABLE
       }
@@ -133,8 +141,10 @@ class IncidentSystemField
       label: "Who should be able to see this incident?",
       hint: "Public incidents are visible to everyone in the workspace. Private incidents are only accessible to invited members.",
       field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
+      # Off by default: most workspaces run every incident public, and the
+      # ones that do not can turn this on.
       forms: {
-        IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_OPTIONAL
+        IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_AVAILABLE
       }
     ),
     Definition.new(

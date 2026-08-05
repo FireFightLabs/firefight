@@ -304,6 +304,70 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_includes slugs(editor), "affected_region"
   end
 
+  # The channel is named from the incident name once, at creation, and cannot
+  # be renamed later. The API already requires it and alerts derive it from the
+  # alert title, so Slack was the only path that let a blank through.
+  # Asserted on the registry, since this workspace's fixtures carry an override
+  # row for name and an override is meant to win.
+  test "name ships required on declare" do
+    definition = IncidentSystemField.fetch(IncidentSystemField::KEY_NAME)
+
+    assert_equal IncidentFormField::REQUIRED_MODE_REQUIRED,
+                 definition.required_mode_for(IncidentForm::SLUG_DECLARE)
+  end
+
+  # What a brand new workspace is asked, before anyone configures anything.
+  # Everything else stays listed in the editor, switched off.
+  test "the shipped forms ask for a deliberate set" do
+    expected = {
+      IncidentForm::SLUG_DECLARE => [ "Name", "Severity", "Summary" ],
+      IncidentForm::SLUG_UPDATE => [ "Message", "Next Update", "Status", "Severity" ],
+      IncidentForm::SLUG_RESOLVE => [ "Name", "Status", "Severity", "Summary", "Incident Lead" ],
+      IncidentForm::SLUG_CANCEL => [ "Status" ]
+    }
+
+    expected.each do |slug, names|
+      on = IncidentSystemField.defaults_for(slug).reject do |definition|
+        definition.required_mode_for(slug) == IncidentFormField::REQUIRED_MODE_AVAILABLE
+      end
+      assert_equal names, on.map(&:name), "default fields on the #{slug} form"
+    end
+  end
+
+  test "a field that is off by default is still offered in the editor" do
+    workspace = workspaces(:slack_workspace_two)
+    editor = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_DECLARE, include_hidden: true)
+    responders = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_DECLARE)
+
+    assert_includes editor.map(&:system_field_key), IncidentSystemField::KEY_INCIDENT_TYPE
+    assert_not_includes responders.map(&:system_field_key), IncidentSystemField::KEY_INCIDENT_TYPE
+  end
+
+  test "a workspace with no override gets the required default" do
+    @workspace.incident_forms.find_by(lifecycle_event: IncidentForm::SLUG_DECLARE)
+      &.incident_form_fields&.where(system_field_key: IncidentSystemField::KEY_NAME)&.destroy_all
+
+    field = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_DECLARE)
+      .find { |f| f.system_field_key == IncidentSystemField::KEY_NAME }
+
+    assert_equal IncidentFormField::REQUIRED_MODE_REQUIRED, field.required_mode
+  end
+
+  test "a workspace can still make name optional again" do
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    row = IncidentFormService.new(@workspace).ensure_system_field!(form, IncidentSystemField::KEY_NAME)
+    IncidentFormService.new(@workspace).update_field(
+      row,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL
+    )
+
+    result = IncidentFormResolver.new(@workspace).validate_submission(
+      IncidentForm::SLUG_DECLARE, { "severity" => "critical" }
+    )
+    assert_empty result[:errors]
+  end
+
   private
 
   def slugs(fields)

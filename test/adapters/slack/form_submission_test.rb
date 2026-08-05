@@ -114,6 +114,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
     @workspace.incident_forms.where(lifecycle_event: IncidentForm::SLUG_DECLARE).destroy_all
 
     values = {
+      "field_name_block" => { "field_name_input" => { "value" => "Checkout failing" } },
       "field_severity_block" => {
         "field_severity_input" => { "selected_option" => { "value" => "critical" } }
       }
@@ -132,6 +133,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
     form.incident_form_fields.destroy_all
 
     values = {
+      "field_name_block" => { "field_name_input" => { "value" => "Checkout failing" } },
       "field_severity_block" => {
         "field_severity_input" => { "selected_option" => { "value" => "critical" } }
       }
@@ -141,9 +143,10 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
     ).parse
 
     assert_empty result.errors
-    # Defaults include name + severity + summary + incident_type + visibility on declare.
+    # Declare ships asking for name, severity and summary. Incident type and
+    # visibility are offered in the editor but off until a workspace wants them.
     assert result.includes_system_key?(IncidentSystemField::KEY_SEVERITY)
-    assert result.includes_system_key?(IncidentSystemField::KEY_VISIBILITY)
+    assert_not result.includes_system_key?(IncidentSystemField::KEY_VISIBILITY)
   end
 
   test "exposes visible_system_keys for callers that need to distinguish 'on form' from 'absent value'" do
