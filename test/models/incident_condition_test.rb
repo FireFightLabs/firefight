@@ -173,4 +173,41 @@ class IncidentConditionTest < ActiveSupport::TestCase
     assert_includes IncidentCondition::OPERATORS, IncidentCondition::OPERATOR_ONE_OF
     assert_includes IncidentCondition::OPERATORS, IncidentCondition::OPERATOR_NOT_ONE_OF
   end
+
+  # A condition is a second way to hide a field, and it used to bypass the lock
+  # the Visible toggle respects. Severity dropped out of the Declare form, took
+  # itself out of validate_submission with it, and every declaration then failed
+  # on a nil severity. The editor already refused this; the MCP tool did not.
+  test "a locked field cannot be made conditional" do
+    workspace = workspaces(:slack_workspace_one)
+    form = workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    severity = IncidentFormService.new(workspace).ensure_system_field!(form, IncidentSystemField::KEY_SEVERITY)
+    assert severity.locked_visible?, "expected severity to be locked"
+
+    condition = IncidentCondition.new(
+      workspace: workspace, conditionable: severity,
+      condition_field: IncidentCondition::FIELD_INCIDENT_TYPE,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ workspace.incident_types.active.first.id ]
+    )
+
+    assert_not condition.valid?
+    assert_match(/cannot be made conditional/, condition.errors.full_messages.to_sentence)
+  end
+
+  test "a locked field stays in the form even if a condition predates the rule" do
+    workspace = workspaces(:slack_workspace_one)
+    form = workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    severity = IncidentFormService.new(workspace).ensure_system_field!(form, IncidentSystemField::KEY_SEVERITY)
+
+    IncidentCondition.new(
+      workspace: workspace, conditionable: severity,
+      condition_field: IncidentCondition::FIELD_INCIDENT_TYPE,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ workspace.incident_types.active.first.id ]
+    ).save!(validate: false)
+
+    resolved = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_DECLARE, context: {})
+    assert_includes resolved.map(&:system_field_key), IncidentSystemField::KEY_SEVERITY
+  end
 end

@@ -67,7 +67,12 @@ class IncidentFormResolver
     # condition does not match, so its field stays hidden until it does.
     return merged if include_hidden
 
-    merged.select { |field| IncidentConditionEvaluator.match?(field.incident_conditions, context) }
+    # A locked field is asked for on every incident, so a condition can never
+    # take it away. Writing one is refused, and any that predate that rule are
+    # ignored here rather than left able to break declaring.
+    merged.select do |field|
+      field.locked_visible? || IncidentConditionEvaluator.match?(field.incident_conditions, context)
+    end
   end
 
   # Kept for backwards compatibility with callers that still bust the cache
