@@ -142,6 +142,18 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
     assert_redirected_to login_path
   end
 
+  # Rails.env.local? is true under test, so the SSL rule never fires here.
+  # Call it the way production would to prove loopback clients still register.
+  test "a loopback redirect URI is exempt from the HTTPS requirement" do
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))
+    forces_ssl = Doorkeeper.config.force_ssl_in_redirect_uri
+
+    assert_not forces_ssl.call(URI("http://localhost:33418/callback"))
+    assert_not forces_ssl.call(URI("http://127.0.0.1:33418/callback"))
+    assert_not forces_ssl.call(URI("http://[::1]:33418/callback"))
+    assert forces_ssl.call(URI("http://claude.localhost.example.com/callback"))
+  end
+
   # The registration rate limit itself relies on Rails' rate_limit + the
   # production cache store; the null store in test can't exercise it.
   test "registration rejects invalid client metadata" do
