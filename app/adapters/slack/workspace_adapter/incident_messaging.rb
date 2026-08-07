@@ -280,20 +280,20 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_action_message(channel_id:, action:)
-    type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
+    type_label = Slack::Messages::Action.label_for(action)
     blocks = Slack::Messages::Action.created(action)
     post_message(channel_id: channel_id, text: "New #{type_label} added", blocks: blocks)
   end
 
   def update_action_picked_up(channel_id:, message_id:, action:)
     blocks = Slack::Messages::Action.picked_up(action)
-    type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
+    type_label = Slack::Messages::Action.label_for(action)
     update_message(channel_id: channel_id, message_id: message_id, text: "#{type_label.capitalize} updated", blocks: blocks)
   end
 
   def update_action_completed(channel_id:, message_id:, action:)
     blocks = Slack::Messages::Action.completed(action)
-    type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
+    type_label = Slack::Messages::Action.label_for(action)
     update_message(channel_id: channel_id, message_id: message_id, text: "#{type_label.capitalize} updated", blocks: blocks)
   end
 
@@ -308,26 +308,27 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_action_handed_over(channel_id:, action:, reassigned_by:)
-    blocks = Slack::Messages::Action.handed_over(action, reassigned_by)
-    type_label = action_label(action)
+    post_handover(channel_id, action, Slack::Messages::Action.handed_over(action, reassigned_by))
+  end
+
+  def post_action_handover_notice(channel_id:, action:, reassigned_by:, link: nil)
+    post_handover(channel_id, action, Slack::Messages::Action.handover_notice(action, reassigned_by, link: link))
+  end
+
+  def post_action_completed(channel_id:, action:, completed_by:, link: nil)
     post_message(
       channel_id: channel_id,
-      text: "#{action.assignee&.display_name} now has this #{type_label}: #{action.description}",
-      blocks: blocks
+      text: "#{Slack::Messages::Action.label_for(action).capitalize} completed: #{action.description}",
+      blocks: Slack::Messages::Action.completed_notice(action, completed_by, link: link)
     )
   end
 
-  def post_action_completed(channel_id:, action:, completed_by:, origin_url: nil, origin_label: nil)
-    blocks = Slack::Messages::Action.completed_notice(action, completed_by, origin_url: origin_url, origin_label: origin_label)
+  def post_handover(channel_id, action, blocks)
     post_message(
       channel_id: channel_id,
-      text: "#{action_label(action).capitalize} completed: #{action.description}",
+      text: "#{action.assignee&.display_name} now has this #{Slack::Messages::Action.label_for(action)}: #{action.description}",
       blocks: blocks
     )
-  end
-
-  def action_label(action)
-    action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
   end
 
   def post_shoutout_message(channel_id:, incident:, from_user_id:, recipient_user_id:, message:)

@@ -82,33 +82,49 @@ class IncidentActionService
   # Editing a message notifies nobody, so giving work to someone else has to
   # post. Taking it yourself does not, because you already know.
   #
-  # An item with no message of its own gets one here, so the new holder can act
-  # on it where they were told about it rather than hunting for the row it came
-  # from.
+  # An item holds exactly one message, the one carrying its controls. A handover
+  # either becomes that message or points at it, never posts a second set of
+  # controls that nothing would keep up to date.
   def announce_handover(action, actor)
     return if action.assignee == actor
+    return adopt_handover_as_message(action, actor) if action.message_ts.blank?
 
+    @workspace.adapter.post_action_handover_notice(
+      channel_id: action.incident.channel_id,
+      action: action,
+      reassigned_by: actor,
+      link: origin_link(action)
+    )
+  end
+
+  def adopt_handover_as_message(action, actor)
     result = @workspace.adapter.post_action_handed_over(
       channel_id: action.incident.channel_id,
       action: action,
       reassigned_by: actor
     )
-    action.update!(message_ts: result[:message_id]) if action.message_ts.blank?
+    action.update!(message_ts: result[:message_id])
   end
 
   # Work spread across an incident is invisible if finishing it only edits a
   # message nobody is looking at.
   def announce_completion(action, completed_by)
-    origin = action.origin_reference
-    url = origin.url.presence || permalink(action.incident.channel_id, origin.message_ts)
-
     @workspace.adapter.post_action_completed(
       channel_id: action.incident.channel_id,
       action: action,
       completed_by: completed_by,
-      origin_url: url,
-      origin_label: url && origin.label
+      link: origin_link(action)
     )
+  end
+
+  # A link is a url and a label together or it is nothing, so it resolves to one
+  # value rather than two that callers have to keep in step.
+  def origin_link(action)
+    reference = action.origin_reference
+    url = reference.url.presence || permalink(action.incident.channel_id, reference.message_ts)
+    return nil if url.blank?
+
+    reference.with(url: url)
   end
 
   def permalink(channel_id, message_ts)

@@ -75,35 +75,60 @@ module Slack
         }
       end
 
-      # Editing a message notifies nobody, so a handover has to post. When the
-      # item has no message of its own yet this becomes it, controls and all,
-      # so the new holder can act without hunting for it.
+      # Editing a message notifies nobody, so a handover has to post. This one
+      # carries the controls and becomes the item's own message, for an item
+      # that has none yet.
       def self.handed_over(action, reassigned_by)
         emoji, label = display(action)
 
-        [
-          { type: "section", text: { type: "mrkdwn", text: "#{emoji}  *#{Slack::Mrkdwn.mention(action.assignee)} now has this #{label}*" } },
-          { type: "divider" },
-          { type: "section", text: { type: "mrkdwn", text: "> #{action.description}" } },
-          { type: "context", elements: [ { type: "mrkdwn", text: "Handed over by #{Slack::Mrkdwn.mention(reassigned_by)}" } ] },
-          controls(action)
-        ]
+        notice(
+          action,
+          title: "#{emoji}  *#{Slack::Mrkdwn.mention(action.assignee)} now has this #{label}*",
+          footer: "Handed over by #{Slack::Mrkdwn.mention(reassigned_by)}"
+        ) + [ controls(action) ]
       end
 
-      # Posted when an item is completed, because the item's own message only
-      # updates in place and an edit notifies nobody. Origin is attribution, so
-      # it sits in the footer rather than competing with what was done.
-      def self.completed_notice(action, completed_by, origin_url: nil, origin_label: nil)
+      # The same handover for an item that already has a message. It points at
+      # that one rather than carrying a second set of controls that nothing
+      # would keep up to date.
+      def self.handover_notice(action, reassigned_by, link: nil)
+        emoji, label = display(action)
+
+        notice(
+          action,
+          title: "#{emoji}  *#{Slack::Mrkdwn.mention(action.assignee)} now has this #{label}*",
+          footer: "Handed over by #{Slack::Mrkdwn.mention(reassigned_by)}",
+          link: link
+        )
+      end
+
+      def self.completed_notice(action, completed_by, link: nil)
         _emoji, label = display(action)
-        footer = "Completed by #{Slack::Mrkdwn.mention(completed_by)}"
-        footer += "  ·  <#{origin_url}|#{origin_label}>" if origin_url.present? && origin_label.present?
+
+        notice(
+          action,
+          title: ":white_check_mark:  *#{label.capitalize} completed*",
+          footer: "Completed by #{Slack::Mrkdwn.mention(completed_by)}",
+          link: link
+        )
+      end
+
+      # Something happened to an item and the channel has moved on. Title, what
+      # it was, then attribution, with the link demoted to the footer so it
+      # never competes with what was done.
+      def self.notice(action, title:, footer:, link: nil)
+        footer += "  ·  <#{link.url}|#{link.label}>" if link
 
         [
-          { type: "section", text: { type: "mrkdwn", text: ":white_check_mark:  *#{label.capitalize} completed*" } },
+          { type: "section", text: { type: "mrkdwn", text: title } },
           { type: "divider" },
           { type: "section", text: { type: "mrkdwn", text: "> #{action.description}" } },
           { type: "context", elements: [ { type: "mrkdwn", text: footer } ] }
         ]
+      end
+
+      def self.label_for(action)
+        display(action).last
       end
 
       def self.completed(action)

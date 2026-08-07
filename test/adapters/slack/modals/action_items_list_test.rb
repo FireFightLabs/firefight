@@ -2,11 +2,19 @@ require "test_helper"
 
 class Slack::Modals::ActionItemsListTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incident_statuses,
-           :incident_severities, :incident_lifecycle_stages, :incidents
+           :incident_severities, :incident_lifecycle_stages
 
+  # Counting rows means owning every row, and fixture incidents carry action
+  # items declared by other tests.
   setup do
+    @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
-    @incident = incidents(:active_critical_ws1)
+    @incident = Incident.create!(
+      workspace: @workspace, declared_by: @member,
+      incident_status: incident_statuses(:investigating_ws1),
+      incident_severity: incident_severities(:critical_ws1),
+      name: "Test incident", is_private: false, channel_id: "C_LIST", source: Incident::SOURCE_SLACK
+    )
   end
 
   test "an open item can be worked without leaving the modal" do

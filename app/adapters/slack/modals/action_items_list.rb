@@ -28,6 +28,12 @@ module Slack
       MAX_OPEN_ITEMS = 20
       MAX_DONE_ITEMS = 10
 
+      # The callback_id already names which list this is, so a caller
+      # rebuilding an open view does not have to remember.
+      def self.kind_for(callback_id)
+        KINDS.find { |_kind, cfg| cfg[:callback_id].call == callback_id }&.first
+      end
+
       def self.build(incident, kind:)
         cfg = KINDS.fetch(kind)
         items = incident.incident_actions.active.public_send(cfg[:scope]).recent

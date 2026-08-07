@@ -135,8 +135,16 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Posted when an item is handed to someone who has no message of their own to
+  # act on. Becomes that item's message.
   # @return [Hash] { message_id: ... }
-  def post_action_completed(channel_id:, action:, completed_by:, origin_url: nil, origin_label: nil)
+  def post_action_handover_notice(channel_id:, action:, reassigned_by:, link: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @param link [IncidentAction::OriginReference, nil] where to look for context
+  # @return [Hash] { message_id: ... }
+  def post_action_completed(channel_id:, action:, completed_by:, link: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 
