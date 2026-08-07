@@ -11,7 +11,7 @@ module Catalogue
       end
       return [] if member_defs.empty?
 
-      member_keys = member_defs.map(&:key)
+      member_keys = member_defs.map(&:slug)
       member_ids = entries.flat_map do |entry|
         attrs = entry.entry_attributes
         member_keys.flat_map { |k| Array(attrs[k]) }
