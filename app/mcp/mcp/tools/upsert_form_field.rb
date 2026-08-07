@@ -28,7 +28,7 @@ module Mcp
             description: "Show the field only when these match, e.g. " \
                          "[{\"condition_field\": \"incident_type\", \"operator\": \"one_of\", \"values\": [\"production\"]}]. " \
                          "A custom_field condition names its field too, e.g. [{\"condition_field\": \"custom_field\", " \
-                         "\"custom_field\": \"affected_service\", \"operator\": \"one_of\", \"values\": [\"listo\"]}]. " \
+                         "\"custom_field\": \"affected_service\", \"operator\": \"one_of\", \"values\": [\"checkout\"]}]. " \
                          "Values accept ids or names: a severity or incident_type slug, an option label for a fixed list, " \
                          "a catalog entry slug for a catalog-backed field. Replaces existing conditions, pass [] to clear them",
             items: { type: "object" }

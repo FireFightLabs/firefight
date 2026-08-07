@@ -68,6 +68,8 @@ Results are workspace-scoped to the token, capped at 50 items with explicit `tru
 | `update_routing_config` | Grouping window + content match fields on the routing policy |
 | `upsert_runbook` | Create or update a runbook (steps and attach conditions replace the existing set) |
 
+Ids never leave the read tools, so every reference here resolves by slug too. `Mcp::ConditionValues` turns a condition into the row it needs: severity and incident type by slug, the custom field by its key, and values by option label or catalog entry slug. Anything matching no record raises rather than storing a condition that saves cleanly and then never fires. `CatalogEntry::ReferenceManagement` resolves reference attributes the same way, guarding the id lookup so a slug reaching a uuid column cannot raise out of the driver.
+
 ## Incident-write tools
 
 | Tool | Does |
