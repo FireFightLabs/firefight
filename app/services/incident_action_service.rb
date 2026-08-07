@@ -74,20 +74,50 @@ class IncidentActionService
 
     update_action_message(action, :completed)
     refresh_runbook_message(action)
+    announce_completion(action, completed_by)
   end
 
   private
 
   # Editing a message notifies nobody, so giving work to someone else has to
   # post. Taking it yourself does not, because you already know.
+  #
+  # An item with no message of its own gets one here, so the new holder can act
+  # on it where they were told about it rather than hunting for the row it came
+  # from.
   def announce_handover(action, actor)
     return if action.assignee == actor
 
-    @workspace.adapter.post_action_reassigned(
+    result = @workspace.adapter.post_action_handed_over(
       channel_id: action.incident.channel_id,
       action: action,
       reassigned_by: actor
     )
+    action.update!(message_ts: result[:message_id]) if action.message_ts.blank?
+  end
+
+  # Work spread across an incident is invisible if finishing it only edits a
+  # message nobody is looking at.
+  def announce_completion(action, completed_by)
+    origin = action.origin_reference
+    url = origin.url.presence || permalink(action.incident.channel_id, origin.message_ts)
+
+    @workspace.adapter.post_action_completed(
+      channel_id: action.incident.channel_id,
+      action: action,
+      completed_by: completed_by,
+      origin_url: url,
+      origin_label: url && origin.label
+    )
+  end
+
+  def permalink(channel_id, message_ts)
+    return nil if message_ts.blank?
+
+    @workspace.adapter.get_message_permalink(channel_id: channel_id, message_id: message_ts)[:permalink]
+  rescue AdapterError => e
+    Rails.logger.warn({ event: "incident_action.permalink_failed", error: e.message })
+    nil
   end
 
   def refresh_runbook_message(action)

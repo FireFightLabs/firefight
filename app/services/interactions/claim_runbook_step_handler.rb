@@ -14,6 +14,7 @@ module Interactions
         assigned_by: member
       )
 
+      OpenModalRefresh.call(interaction, workspace)
       nil
     rescue ActiveRecord::RecordNotFound, JSON::ParserError
       nil

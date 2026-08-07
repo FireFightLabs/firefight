@@ -12,6 +12,7 @@ module Interactions
         completed_by: member
       )
 
+      OpenModalRefresh.call(interaction, workspace)
       nil
     rescue ActiveRecord::RecordNotFound
       nil

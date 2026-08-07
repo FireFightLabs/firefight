@@ -46,6 +46,22 @@ class IncidentAction < ApplicationRecord
     runbook_step_id.present?
   end
 
+  # Where a reader should look to see this item in the context it came from.
+  # A url is already absolute; a message_ts needs the adapter to resolve one.
+  OriginReference = Data.define(:label, :url, :message_ts)
+
+  def origin_reference
+    source_link = platform_data["source_message_link"]
+    return OriginReference.new(label: "From a message", url: source_link, message_ts: nil) if source_link.present?
+
+    if from_runbook_step?
+      attachment = incident.incident_runbooks.find_by(runbook_id: runbook_step.runbook_id)
+      return OriginReference.new(label: runbook_step.runbook.name, url: nil, message_ts: attachment&.message_ts)
+    end
+
+    OriginReference.new(label: "View #{action_type == ACTION_TYPE_FOLLOWUP ? 'follow-up' : 'action'}", url: nil, message_ts: message_ts)
+  end
+
   def to_context_hash
     { type: action_type, description:, status:, assignee: assignee&.user&.name }
   end

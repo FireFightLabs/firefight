@@ -22,6 +22,7 @@ class Interactions::MarkActionDoneHandlerTest < ActiveSupport::TestCase
     )
 
     stub_post_message
+    stub_get_permalink
     stub_update_message
     @action = IncidentActionService.new(@workspace).create_action(
       incident: @incident,

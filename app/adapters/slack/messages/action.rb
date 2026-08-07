@@ -75,22 +75,34 @@ module Slack
         }
       end
 
-      # Editing a message notifies nobody, so a handover has to post.
-      def self.reassigned(action, reassigned_by)
+      # Editing a message notifies nobody, so a handover has to post. When the
+      # item has no message of its own yet this becomes it, controls and all,
+      # so the new holder can act without hunting for it.
+      def self.handed_over(action, reassigned_by)
         emoji, label = display(action)
 
         [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "#{emoji}  <@#{action.assignee.platform_user_id}> now has this #{label}\n> #{action.description.truncate(200)}"
-            }
-          },
-          {
-            type: "context",
-            elements: [ { type: "mrkdwn", text: "Handed over by <@#{reassigned_by.platform_user_id}>" } ]
-          }
+          { type: "section", text: { type: "mrkdwn", text: "#{emoji}  *#{Slack::Mrkdwn.mention(action.assignee)} now has this #{label}*" } },
+          { type: "divider" },
+          { type: "section", text: { type: "mrkdwn", text: "> #{action.description}" } },
+          { type: "context", elements: [ { type: "mrkdwn", text: "Handed over by #{Slack::Mrkdwn.mention(reassigned_by)}" } ] },
+          controls(action)
+        ]
+      end
+
+      # Posted when an item is completed, because the item's own message only
+      # updates in place and an edit notifies nobody. Origin is attribution, so
+      # it sits in the footer rather than competing with what was done.
+      def self.completed_notice(action, completed_by, origin_url: nil, origin_label: nil)
+        _emoji, label = display(action)
+        footer = "Completed by #{Slack::Mrkdwn.mention(completed_by)}"
+        footer += "  ·  <#{origin_url}|#{origin_label}>" if origin_url.present? && origin_label.present?
+
+        [
+          { type: "section", text: { type: "mrkdwn", text: ":white_check_mark:  *#{label.capitalize} completed*" } },
+          { type: "divider" },
+          { type: "section", text: { type: "mrkdwn", text: "> #{action.description}" } },
+          { type: "context", elements: [ { type: "mrkdwn", text: footer } ] }
         ]
       end
 
