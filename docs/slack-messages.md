@@ -114,8 +114,22 @@ argument rather than two methods (see `StatusUpdate.build`).
   `RUNBOOK_STEP_BLOCK_PREFIX`), because `action_id` has to stay an exact match
   for `InteractionDispatcher` to route it.
 - **Editing a message notifies nobody.** `chat.update` is right for state a
-  reader will come back to, and wrong for telling someone they now own
-  something. A handover updates the row and posts a line.
+  reader will come back to, and wrong for telling someone something happened.
+  A handover and a completion both post. `IncidentActionService` owns both, so
+  every surface that changes an item announces it the same way.
+- **An item holds exactly one message**, the one carrying its controls. A
+  handover either becomes that message, for an item that has none, or points at
+  it. Posting a second set of controls looks harmless and is not: only the one
+  in `message_ts` is ever updated, so the other keeps a live button on finished
+  work.
+- **A control inside a modal does not redraw it.** Slack leaves the open view
+  exactly as it was, so a row keeps its old button and the click reads as
+  broken. `Interactions::OpenModalRefresh` rebuilds the view from the same
+  inputs it was opened with, keyed on its `callback_id`.
+- **A modal's context lives in `Slack::PrivateMetadata`**, never a bare id.
+  Invite read it as a bare incident id while the modal encoded JSON, so every
+  invite failed, and its test asserted the handler's shape rather than the
+  modal's, which is how that shipped.
 
 ## The fallback text is user-facing
 

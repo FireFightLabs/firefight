@@ -131,7 +131,20 @@ class PlatformAdapter
   end
 
   # @return [Hash] { message_id: ... }
-  def post_action_reassigned(channel_id:, action:, reassigned_by:)
+  def post_action_handed_over(channel_id:, action:, reassigned_by:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Posted when an item is handed to someone who has no message of their own to
+  # act on. Becomes that item's message.
+  # @return [Hash] { message_id: ... }
+  def post_action_handover_notice(channel_id:, action:, reassigned_by:, link: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @param link [IncidentAction::OriginReference, nil] where to look for context
+  # @return [Hash] { message_id: ... }
+  def post_action_completed(channel_id:, action:, completed_by:, link: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -140,6 +153,12 @@ class PlatformAdapter
   # @param view [Hash] Opaque platform-specific view descriptor.
   # @return [Hash] { success: true }
   def open_modal(trigger_id:, view:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @param view [Hash] Opaque platform-specific view descriptor.
+  # @return [Hash] { success: true }
+  def update_modal(view_id:, view:)
     raise NotImplemented.new(__method__, self.class)
   end
 

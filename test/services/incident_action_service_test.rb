@@ -22,6 +22,7 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     )
 
     @service = IncidentActionService.new(@workspace)
+    stub_get_permalink
   end
 
   test "create_action creates record and posts message" do
@@ -253,14 +254,14 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     assert_nil action.message_ts
   end
 
-  test "handing a step to someone else posts the handover but never a card" do
+  test "handing a step to someone else posts a card the new holder can act on" do
     step = @workspace.runbooks.create!(name: "Runbook").runbook_steps.create!(title: "Check the pool", position: 1)
     Slack::Client.expects(:post_message).once.returns({ ok: true, ts: "1.1" })
 
     action = @service.assign_step(incident: @incident, runbook_step: step, assignee: @bob, assigned_by: @member)
 
     assert_equal @bob, action.assignee
-    assert_nil action.message_ts, "a step's row is its message, so it gets no card of its own"
+    assert_equal "1.1", action.message_ts, "the handover post becomes the item's own message"
   end
 
   test "assigning a step someone already holds hands it over rather than duplicating it" do
@@ -273,5 +274,92 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     end
 
     assert_equal @bob, @incident.incident_actions.find_by!(runbook_step: step).assignee
+  end
+
+  test "completing an item posts a notice linking back to where it came from" do
+    stub_post_message
+    stub_update_message
+    action = @service.create_action(
+      incident: @incident, created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "Restart the worker", assignee: @member
+    )
+
+    posted = []
+    Slack::Client.stubs(:post_message).with { |args| posted << args }.returns({ ok: true, ts: "9.9" })
+
+    @service.complete_action(action: action, completed_by: @member)
+
+    notice = posted.last
+    assert_includes notice[:text], "Action completed"
+    assert_includes notice[:blocks].to_s, "Restart the worker"
+    assert_includes notice[:blocks].to_s, "Completed by"
+  end
+
+  test "a completed runbook step points back at the runbook rather than a card it never had" do
+    stub_post_message
+    stub_update_message
+    runbook = @workspace.runbooks.create!(name: "Database outage")
+    step = runbook.runbook_steps.create!(title: "Check the pool", position: 1)
+    @incident.incident_runbooks.create!(runbook: runbook, workspace: @workspace, message_ts: "5.5")
+    action = @service.assign_step(incident: @incident, runbook_step: step, assignee: @member, assigned_by: @member)
+
+    posted = []
+    Slack::Client.stubs(:post_message).with { |args| posted << args }.returns({ ok: true, ts: "9.9" })
+
+    @service.complete_action(action: action, completed_by: @member)
+
+    assert_includes posted.last[:blocks].to_s, "Database outage"
+  end
+
+  test "a permalink failure does not stop the completion being announced" do
+    stub_post_message
+    stub_update_message
+    action = @service.create_action(
+      incident: @incident, created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "Restart the worker", assignee: @member
+    )
+    Slack::Client.stubs(:get_permalink).raises(Slack::Client::ApiError.new("boom"))
+
+    posted = []
+    Slack::Client.stubs(:post_message).with { |args| posted << args }.returns({ ok: true, ts: "9.9" })
+
+    @service.complete_action(action: action, completed_by: @member)
+
+    assert_includes posted.last[:text], "Action completed"
+  end
+
+  # An item that already has controls in the channel must not get a second set,
+  # because only the first is ever updated and the other keeps a live button on
+  # finished work.
+  test "handing over an item that already has a message points at it instead of duplicating its controls" do
+    stub_post_message
+    stub_update_message
+    action = @service.create_action(
+      incident: @incident, created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "Restart the worker", assignee: @member
+    )
+    original_ts = action.message_ts
+
+    posted = []
+    Slack::Client.stubs(:post_message).with { |args| posted << args }.returns({ ok: true, ts: "SECOND" })
+
+    @service.reassign_action(action: action, assignee: @bob, reassigned_by: @member)
+
+    assert_equal 1, posted.size
+    assert_not_includes posted.first[:blocks].to_s, Identifiers::MARK_ACTION_DONE
+    assert_equal original_ts, action.reload.message_ts, "the item keeps the one message that carries its controls"
+  end
+
+  test "handing over an item with no message of its own gives it one, controls and all" do
+    stub_post_message
+    stub_update_message
+    step = @workspace.runbooks.create!(name: "Runbook").runbook_steps.create!(title: "Check the pool", position: 1)
+    action = @service.assign_step(incident: @incident, runbook_step: step, assignee: @member, assigned_by: @member)
+    assert_nil action.message_ts
+
+    Slack::Client.stubs(:post_message).returns({ ok: true, ts: "ADOPTED" })
+    @service.reassign_action(action: action, assignee: @bob, reassigned_by: @member)
+
+    assert_equal "ADOPTED", action.reload.message_ts
   end
 end

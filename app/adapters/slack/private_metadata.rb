@@ -3,18 +3,24 @@ module Slack
   #
   # Slack allows a single string up to 3KB on a view, returned verbatim on
   # submission. We use it to carry context between modal-open and modal-submit:
-  # the incident the modal acts on, and optional coordinates for a temporary
-  # "writing..." message that needs cleanup after submit.
+  # the incident the modal acts on, the runbook attachment when the modal is
+  # scoped to one, and optional coordinates for a temporary "writing..."
+  # message that needs cleanup after submit.
   #
   # Contract is strict: encoded form is always a JSON object with an
   # `incident_id`. `parse` raises `InvalidError` on anything else.
   module PrivateMetadata
     InvalidError = Class.new(StandardError)
 
-    Result = Data.define(:incident_id, :temp_message_ts, :channel_id)
+    Result = Data.define(:incident_id, :incident_runbook_id, :temp_message_ts, :channel_id) do
+      def initialize(incident_id:, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil)
+        super
+      end
+    end
 
-    def self.encode(incident_id:, temp_message_ts: nil, channel_id: nil)
+    def self.encode(incident_id:, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil)
       payload = { incident_id: incident_id }
+      payload[:incident_runbook_id] = incident_runbook_id if incident_runbook_id
       payload[:temp_message_ts] = temp_message_ts if temp_message_ts
       payload[:channel_id] = channel_id if channel_id
       payload.to_json
@@ -28,6 +34,7 @@ module Slack
 
       Result.new(
         incident_id: parsed.fetch("incident_id"),
+        incident_runbook_id: parsed["incident_runbook_id"],
         temp_message_ts: parsed["temp_message_ts"],
         channel_id: parsed["channel_id"]
       )

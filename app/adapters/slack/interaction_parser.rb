@@ -17,6 +17,7 @@ module Slack
         block_id: payload.dig(:actions, 0, :block_id),
         private_metadata: payload.dig(:view, :private_metadata),
         view: payload[:view],
+        view_id: payload.dig(:view, :id),
         values: payload.dig(:view, :state, :values),
         raw: payload
       )

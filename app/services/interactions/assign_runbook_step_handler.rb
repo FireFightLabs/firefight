@@ -2,7 +2,8 @@ module Interactions
   class AssignRunbookStepHandler
     def self.execute(interaction)
       workspace = interaction.workspace
-      incident_runbook = workspace.incident_runbooks.find(interaction.private_metadata)
+      metadata = Slack::PrivateMetadata.parse(interaction.private_metadata)
+      incident_runbook = workspace.incident_runbooks.find(metadata.incident_runbook_id)
       step_id = interaction.block_id.to_s.delete_prefix(Identifiers::RUNBOOK_STEP_BLOCK_PREFIX)
       step = incident_runbook.runbook.runbook_steps.find(step_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
@@ -19,8 +20,9 @@ module Interactions
         assigned_by: member
       )
 
+      OpenModalRefresh.call(interaction, workspace)
       nil
-    rescue ActiveRecord::RecordNotFound
+    rescue ActiveRecord::RecordNotFound, Slack::PrivateMetadata::InvalidError
       nil
     end
   end

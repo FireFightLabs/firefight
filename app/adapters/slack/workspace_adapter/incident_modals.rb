@@ -1,6 +1,13 @@
 module Slack::WorkspaceAdapter::IncidentModals
   extend ActiveSupport::Concern
 
+  def update_modal(view_id:, view:)
+    translate_errors do
+      Slack::Client.update_modal(workspace: @workspace, view_id: view_id, view: view)
+      { success: true }
+    end
+  end
+
   # Refreshes the open incident-creation modal with new dispatch context
   # (severity / type selected via dispatch_action) without losing other
   # user-entered values.

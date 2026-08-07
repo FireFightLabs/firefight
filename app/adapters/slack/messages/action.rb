@@ -75,23 +75,60 @@ module Slack
         }
       end
 
-      # Editing a message notifies nobody, so a handover has to post.
-      def self.reassigned(action, reassigned_by)
+      # Editing a message notifies nobody, so a handover has to post. This one
+      # carries the controls and becomes the item's own message, for an item
+      # that has none yet.
+      def self.handed_over(action, reassigned_by)
         emoji, label = display(action)
 
+        notice(
+          action,
+          title: "#{emoji}  *#{Slack::Mrkdwn.mention(action.assignee)} now has this #{label}*",
+          footer: "Handed over by #{Slack::Mrkdwn.mention(reassigned_by)}"
+        ) + [ controls(action) ]
+      end
+
+      # The same handover for an item that already has a message. It points at
+      # that one rather than carrying a second set of controls that nothing
+      # would keep up to date.
+      def self.handover_notice(action, reassigned_by, link: nil)
+        emoji, label = display(action)
+
+        notice(
+          action,
+          title: "#{emoji}  *#{Slack::Mrkdwn.mention(action.assignee)} now has this #{label}*",
+          footer: "Handed over by #{Slack::Mrkdwn.mention(reassigned_by)}",
+          link: link
+        )
+      end
+
+      def self.completed_notice(action, completed_by, link: nil)
+        _emoji, label = display(action)
+
+        notice(
+          action,
+          title: ":white_check_mark:  *#{label.capitalize} completed*",
+          footer: "Completed by #{Slack::Mrkdwn.mention(completed_by)}",
+          link: link
+        )
+      end
+
+      # Something happened to an item and the channel has moved on. Title, what
+      # it was, then attribution, with the link demoted to the footer so it
+      # never competes with what was done.
+      def self.notice(action, title:, footer:, link: nil)
+        footer += "  ·  <#{link.url}|#{link.label}>" if link
+
         [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "#{emoji}  <@#{action.assignee.platform_user_id}> now has this #{label}\n> #{action.description.truncate(200)}"
-            }
-          },
-          {
-            type: "context",
-            elements: [ { type: "mrkdwn", text: "Handed over by <@#{reassigned_by.platform_user_id}>" } ]
-          }
+          { type: "section", text: { type: "mrkdwn", text: title } },
+          { type: "divider" },
+          { type: "section", text: { type: "mrkdwn", text: "> #{action.description}" } },
+          { type: "context", elements: [ { type: "mrkdwn", text: footer } ] }
         ]
+      end
+
+      def self.label_for(action)
+        display(action).last
       end
 
       def self.completed(action)

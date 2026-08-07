@@ -23,6 +23,17 @@ module Slack
         }
       }.freeze
 
+      # An open item costs four blocks (divider, text, status, controls) and a
+      # completed one costs a line, against Slack's 100-block modal ceiling.
+      MAX_OPEN_ITEMS = 20
+      MAX_DONE_ITEMS = 10
+
+      # The callback_id already names which list this is, so a caller
+      # rebuilding an open view does not have to remember.
+      def self.kind_for(callback_id)
+        KINDS.find { |_kind, cfg| cfg[:callback_id].call == callback_id }&.first
+      end
+
       def self.build(incident, kind:)
         cfg = KINDS.fetch(kind)
         items = incident.incident_actions.active.public_send(cfg[:scope]).recent
@@ -30,7 +41,7 @@ module Slack
         {
           type: "modal",
           callback_id: cfg[:callback_id].call,
-          private_metadata: incident.id,
+          private_metadata: Slack::PrivateMetadata.encode(incident_id: incident.id),
           title: { type: "plain_text", text: cfg[:title] },
           close: { type: "plain_text", text: "Done" },
           blocks: list_blocks(items, cfg, incident.id)
@@ -42,15 +53,19 @@ module Slack
 
         if items.any?
           open_items, done_items = items.partition { |i| !i.done? }
-          open_items.each_with_index do |item, idx|
+          open_items.first(MAX_OPEN_ITEMS).each_with_index do |item, idx|
             blocks << { type: "divider" } if idx > 0
             blocks.concat(item_blocks(item))
+          end
+
+          if (hidden = open_items.size - MAX_OPEN_ITEMS).positive?
+            blocks << { type: "context", elements: [ { type: "mrkdwn", text: "#{hidden} more open, worked from the channel" } ] }
           end
 
           if done_items.any?
             blocks << { type: "divider" }
             blocks << { type: "context", elements: [ { type: "mrkdwn", text: ":white_check_mark: *#{done_items.size} completed*" } ] }
-            done_items.each do |item|
+            done_items.first(MAX_DONE_ITEMS).each do |item|
               blocks << { type: "context", elements: [ { type: "mrkdwn", text: "~#{item.description.truncate(80)}~" } ] }
             end
           end
@@ -96,7 +111,8 @@ module Slack
 
         [
           { type: "section", text: { type: "mrkdwn", text: "#{STATUS_ICON[action.status]}  *#{action.description}*" } },
-          { type: "context", elements: context_parts }
+          { type: "context", elements: context_parts },
+          Slack::Messages::Action.controls(action)
         ]
       end
     end

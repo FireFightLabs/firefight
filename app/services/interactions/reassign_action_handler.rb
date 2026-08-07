@@ -15,6 +15,7 @@ module Interactions
         action: action, assignee: assignee, reassigned_by: member
       )
 
+      OpenModalRefresh.call(interaction, workspace)
       nil
     rescue ActiveRecord::RecordNotFound
       nil
