@@ -6,7 +6,7 @@ Firefight ships a [Model Context Protocol](https://modelcontextprotocol.io) serv
 
 Mint a token under **Settings → API keys**:
 
-- **Personal token** ("acts as you") — reads everything you can see. For your own agent sessions.
+- **Personal token** ("acts as you") — reads everything you can see, and writes whatever you can write, which for an admin is everything (`ApiKey#has_permission?` short-circuits on `on_behalf_of.admin_access?`). For your own agent sessions.
 - **Service key** scoped per resource and action — for headless agents and CI.
 
 **Claude Code (OAuth — recommended)**
