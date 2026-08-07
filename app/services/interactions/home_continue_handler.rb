@@ -55,7 +55,7 @@ module Interactions
       when Identifiers::HOME_ACTION_ACTIONS
         { response_action: "update", view: Slack::Modals::ActionItemsList.build(incident, kind: :action) }
       when Identifiers::HOME_ACTION_RUNBOOK
-        available = workspace.runbooks.active.ordered.where.not(id: incident.incident_runbooks.select(:runbook_id))
+        available = incident.attachable_runbooks
         if available.empty?
           return { response_action: "errors", errors: { "action_select_block" => "No runbooks left to attach. Add them in Settings." } }
         end

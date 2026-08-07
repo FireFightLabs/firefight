@@ -32,16 +32,7 @@ class IncidentRunbookSerializer < BaseSerializer
   end
 
   type :number
-  def claimed_count
-    incident_runbook.incident.incident_actions.active
-      .where(runbook_step_id: incident_runbook.runbook.runbook_steps.select(:id))
-      .count
-  end
-
-  type :number
   def done_count
-    incident_runbook.incident.incident_actions.active
-      .where(runbook_step_id: incident_runbook.runbook.runbook_steps.select(:id), status: IncidentAction::STATUS_DONE)
-      .count
+    incident_runbook.actions_by_step.count { |_step_id, action| action.done? }
   end
 end

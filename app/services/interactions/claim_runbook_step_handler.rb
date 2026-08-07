@@ -7,10 +7,11 @@ module Interactions
       step = incident_runbook.runbook.runbook_steps.find(payload["step_id"])
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
-      IncidentActionService.new(workspace).claim_step(
+      IncidentActionService.new(workspace).assign_step(
         incident: incident_runbook.incident,
         runbook_step: step,
-        claimed_by: member
+        assignee: member,
+        assigned_by: member
       )
 
       nil

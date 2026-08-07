@@ -242,14 +242,36 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     end
   end
 
-  test "claim_step creates an unannounced action bound to the step" do
+  test "taking a step yourself creates the action and posts nothing" do
     step = @workspace.runbooks.create!(name: "Runbook").runbook_steps.create!(title: "Check the pool", position: 1)
     Slack::Client.expects(:post_message).never
 
-    action = @service.claim_step(incident: @incident, runbook_step: step, claimed_by: @member)
+    action = @service.assign_step(incident: @incident, runbook_step: step, assignee: @member, assigned_by: @member)
 
     assert_equal step, action.runbook_step
     assert_equal @member, action.assignee
     assert_nil action.message_ts
+  end
+
+  test "handing a step to someone else posts the handover but never a card" do
+    step = @workspace.runbooks.create!(name: "Runbook").runbook_steps.create!(title: "Check the pool", position: 1)
+    Slack::Client.expects(:post_message).once.returns({ ok: true, ts: "1.1" })
+
+    action = @service.assign_step(incident: @incident, runbook_step: step, assignee: @bob, assigned_by: @member)
+
+    assert_equal @bob, action.assignee
+    assert_nil action.message_ts, "a step's row is its message, so it gets no card of its own"
+  end
+
+  test "assigning a step someone already holds hands it over rather than duplicating it" do
+    step = @workspace.runbooks.create!(name: "Runbook").runbook_steps.create!(title: "Check the pool", position: 1)
+    @service.assign_step(incident: @incident, runbook_step: step, assignee: @member, assigned_by: @member)
+    Slack::Client.expects(:post_message).at_least_once.returns({ ok: true, ts: "1.1" })
+
+    assert_no_difference "@incident.incident_actions.count" do
+      @service.assign_step(incident: @incident, runbook_step: step, assignee: @bob, assigned_by: @member)
+    end
+
+    assert_equal @bob, @incident.incident_actions.find_by!(runbook_step: step).assignee
   end
 end

@@ -11,7 +11,7 @@ module Slack
       def self.attached(incident_runbook)
         runbook = incident_runbook.runbook
         steps = runbook.runbook_steps.to_a
-        actions = actions_by_step(incident_runbook)
+        actions = incident_runbook.actions_by_step
 
         blocks = [
           { type: "section", text: { type: "mrkdwn", text: ":book:  *Runbook attached: #{runbook.name}*" } },
@@ -50,8 +50,8 @@ module Slack
       end
 
       def self.step_text(step, position, action)
-        return "*#{position}.* ~#{step.title}~\n_:white_check_mark: Completed by #{mention(action.assignee)}_" if action&.done?
-        return "*#{position}.* #{step.title}\n_Claimed by #{mention(action.assignee)}_" if action&.assigned?
+        return "*#{position}.* ~#{step.title}~\n_:white_check_mark: Completed by #{Slack::Mrkdwn.mention(action.assignee)}_" if action&.done?
+        return "*#{position}.* #{step.title}\n_Claimed by #{Slack::Mrkdwn.mention(action.assignee)}_" if action&.assigned?
 
         "*#{position}.* #{step.title}"
       end
@@ -99,17 +99,6 @@ module Slack
         return nil if elements.empty?
 
         { type: "actions", elements: elements }
-      end
-
-      def self.actions_by_step(incident_runbook)
-        incident_runbook.incident.incident_actions.active
-          .where.not(runbook_step_id: nil)
-          .includes(:assignee)
-          .index_by(&:runbook_step_id)
-      end
-
-      def self.mention(membership)
-        membership ? "<@#{membership.platform_user_id}>" : "someone"
       end
     end
   end

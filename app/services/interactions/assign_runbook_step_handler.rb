@@ -12,22 +12,12 @@ module Interactions
       )
       return nil unless assignee
 
-      incident = incident_runbook.incident
-      service = IncidentActionService.new(workspace)
-      existing = incident.incident_actions.active.find_by(runbook_step: step)
-
-      if existing
-        service.reassign_action(action: existing, assignee: assignee, reassigned_by: member)
-      else
-        service.create_action(
-          incident: incident,
-          created_by: member,
-          action_type: IncidentAction::ACTION_TYPE_ACTION,
-          description: step.title,
-          assignee: assignee,
-          runbook_step: step
-        )
-      end
+      IncidentActionService.new(workspace).assign_step(
+        incident: incident_runbook.incident,
+        runbook_step: step,
+        assignee: assignee,
+        assigned_by: member
+      )
 
       nil
     rescue ActiveRecord::RecordNotFound

@@ -22,9 +22,7 @@ class Commands::AttachRunbookTest < ActiveSupport::TestCase
     attached = @workspace.runbooks.create!(name: "Already on this incident")
     @incident.incident_runbooks.create!(runbook: attached, workspace: @workspace)
 
-    view = Slack::Modals::AttachRunbook.build(
-      @incident, Commands::AttachRunbook.available_runbooks(command)
-    )
+    view = Slack::Modals::AttachRunbook.build(@incident, @incident.attachable_runbooks)
 
     assert_equal Identifiers::ATTACH_RUNBOOK_MODAL, view[:callback_id]
     values = view[:blocks].first[:element][:options].map { |option| option[:value] }

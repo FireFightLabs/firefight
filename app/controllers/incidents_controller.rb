@@ -137,8 +137,6 @@ class IncidentsController < InertiaController
   private
 
   def attachable_runbooks(incident)
-    current_workspace.runbooks.active.ordered
-      .where.not(id: incident.incident_runbooks.select(:runbook_id))
-      .map { |runbook| { slug: runbook.slug, name: runbook.name } }
+    incident.attachable_runbooks.map { |runbook| { slug: runbook.slug, name: runbook.name } }
   end
 end

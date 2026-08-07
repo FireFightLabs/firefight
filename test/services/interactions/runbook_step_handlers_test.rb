@@ -88,6 +88,24 @@ class Interactions::RunbookStepHandlersTest < ActiveSupport::TestCase
     end
   end
 
+  test "an action from another workspace cannot be reassigned" do
+    Interactions::ClaimRunbookStepHandler.execute(claim_interaction(@step))
+    action = @incident.incident_actions.find_by!(runbook_step: @step)
+    outsider = workspaces(:slack_workspace_two)
+
+    interaction = Interaction.new(
+      platform: Platforms::SLACK, type: Interaction::BLOCK_ACTIONS,
+      team_id: outsider.platform_id,
+      user_id: workspace_memberships(:alice_workspace_two).platform_user_id,
+      action_id: Identifiers::REASSIGN_ACTION,
+      block_id: "#{Identifiers::ACTION_BLOCK_PREFIX}#{action.id}",
+      selected_user: workspace_memberships(:alice_workspace_two).platform_user_id
+    )
+
+    assert_nil Interactions::ReassignActionHandler.execute(interaction)
+    assert_equal @member, action.reload.assignee
+  end
+
   test "a missing incident runbook is handled silently" do
     assert_nil Interactions::ApplyRunbookHandler.execute(apply_interaction(SecureRandom.uuid))
   end

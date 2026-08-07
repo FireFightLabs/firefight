@@ -3,7 +3,7 @@ module Interactions
     def self.execute(interaction)
       workspace = interaction.workspace
       action_id = interaction.block_id.to_s.delete_prefix(Identifiers::ACTION_BLOCK_PREFIX)
-      action = IncidentAction.find(action_id)
+      action = IncidentAction.in_workspace(workspace).find(action_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
       assignee = WorkspaceMemberProvisioner.find_or_provision!(

@@ -21,6 +21,9 @@ class IncidentAction < ApplicationRecord
   validates :description, presence: true
 
   scope :active, -> { where(deleted_at: nil) }
+  # Interaction payloads carry ids from whoever clicked, so a lookup that
+  # crosses workspaces is a lookup that writes to another tenant.
+  scope :in_workspace, ->(workspace) { joins(:incident).where(incidents: { workspace_id: workspace.id }) }
   scope :actions, -> { where(action_type: ACTION_TYPE_ACTION) }
   scope :followups, -> { where(action_type: ACTION_TYPE_FOLLOWUP) }
   scope :open, -> { where(status: STATUS_OPEN) }

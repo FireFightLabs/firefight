@@ -10,7 +10,7 @@ module Slack
       def self.build(incident_runbook)
         runbook = incident_runbook.runbook
         steps = runbook.runbook_steps.to_a
-        actions = Slack::Messages::Runbook.actions_by_step(incident_runbook)
+        actions = incident_runbook.actions_by_step
 
         {
           type: "modal",
@@ -73,8 +73,8 @@ module Slack
       end
 
       def self.status_line(action)
-        return ":white_check_mark: Completed by #{Slack::Messages::Runbook.mention(action.assignee)}" if action&.done?
-        return ":large_blue_circle: Claimed by #{Slack::Messages::Runbook.mention(action.assignee)}" if action&.assigned?
+        return ":white_check_mark: Completed by #{Slack::Mrkdwn.mention(action.assignee)}" if action&.done?
+        return ":large_blue_circle: Claimed by #{Slack::Mrkdwn.mention(action.assignee)}" if action&.assigned?
 
         ":white_circle: Unclaimed"
       end

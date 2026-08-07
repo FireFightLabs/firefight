@@ -22,15 +22,13 @@ module Mcp
         incident = GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), args[:incident].to_s)
         raise ActiveRecord::RecordNotFound unless incident
 
-        slug = args[:runbook].to_s
-        runbook = workspace.runbooks.active.find_by(slug: slug)
-        return unknown_runbook_error(workspace, slug) unless runbook
-
-        already_attached = incident.incident_runbooks.exists?(runbook: runbook)
         attached_by = principal if principal.is_a?(WorkspaceMembership)
-        RunbookAttachmentService.new(workspace).attach(
-          incident: incident, runbook: runbook, attached_by: attached_by
+        already_attached = incident.incident_runbooks.joins(:runbook).exists?(runbooks: { slug: args[:runbook].to_s })
+
+        incident_runbook = RunbookAttachmentService.new(workspace).attach_by_slug(
+          incident: incident, slug: args[:runbook], attached_by: attached_by
         )
+        runbook = incident_runbook.runbook
 
         respond(
           incident: incident.identifier,
@@ -38,13 +36,6 @@ module Mcp
           name: runbook.name,
           steps_count: runbook.runbook_steps.size,
           newly_attached: !already_attached
-        )
-      end
-
-      def self.unknown_runbook_error(workspace, slug)
-        available = workspace.runbooks.active.ordered.pluck(:slug)
-        Mcp::ToolDispatcher.error_response(
-          "unknown runbook #{slug.inspect}. Valid: #{available.join(', ')}"
         )
       end
     end

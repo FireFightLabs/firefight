@@ -3,7 +3,7 @@ class IncidentActionService
     @workspace = workspace
   end
 
-  def create_action(incident:, created_by:, action_type:, description:, assignee: nil, platform_data: {}, runbook_step: nil, announce: true)
+  def create_action(incident:, created_by:, action_type:, description:, assignee: nil, platform_data: {}, runbook_step: nil)
     action = incident.incident_actions.create!(
       created_by: created_by,
       action_type: action_type,
@@ -16,7 +16,8 @@ class IncidentActionService
 
     action.record_change!(IncidentEvent::ACTION_CREATED, by: created_by)
 
-    if announce
+    # A step's row in the runbook message is its message, so it gets no card.
+    unless action.from_runbook_step?
       result = @workspace.adapter.post_action_message(channel_id: incident.channel_id, action: action)
       action.update!(message_ts: result[:message_id])
     end
@@ -25,17 +26,22 @@ class IncidentActionService
     action
   end
 
-  # The row redraws itself, so claiming announces nothing.
-  def claim_step(incident:, runbook_step:, claimed_by:)
-    create_action(
+  # Taking a step and handing one out are the same operation, differing only in
+  # who ends up holding it.
+  def assign_step(incident:, runbook_step:, assignee:, assigned_by:)
+    existing = incident.incident_actions.active.find_by(runbook_step: runbook_step)
+    return reassign_action(action: existing, assignee: assignee, reassigned_by: assigned_by) if existing
+
+    action = create_action(
       incident: incident,
-      created_by: claimed_by,
+      created_by: assigned_by,
       action_type: IncidentAction::ACTION_TYPE_ACTION,
       description: runbook_step.title,
-      assignee: claimed_by,
-      runbook_step: runbook_step,
-      announce: false
+      assignee: assignee,
+      runbook_step: runbook_step
     )
+    announce_handover(action, assigned_by)
+    action
   rescue ActiveRecord::RecordNotUnique
     incident.incident_actions.active.find_by(runbook_step: runbook_step)
   end
@@ -57,7 +63,7 @@ class IncidentActionService
     end
 
     update_action_message(action, :picked_up)
-    announce_reassignment(action, reassigned_by)
+    announce_handover(action, reassigned_by)
     refresh_runbook_message(action)
   end
 
@@ -72,11 +78,15 @@ class IncidentActionService
 
   private
 
-  def announce_reassignment(action, reassigned_by)
+  # Editing a message notifies nobody, so giving work to someone else has to
+  # post. Taking it yourself does not, because you already know.
+  def announce_handover(action, actor)
+    return if action.assignee == actor
+
     @workspace.adapter.post_action_reassigned(
       channel_id: action.incident.channel_id,
       action: action,
-      reassigned_by: reassigned_by
+      reassigned_by: actor
     )
   end
 
