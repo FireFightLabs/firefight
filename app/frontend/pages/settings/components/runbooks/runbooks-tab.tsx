@@ -27,7 +27,7 @@ import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-
 import { OptionsTable } from "@/pages/settings/components/options-table"
 import { RunbookDetailSheet } from "@/pages/settings/components/runbooks/runbook-detail-sheet"
 import { RunbookDialog } from "@/pages/settings/components/runbooks/runbook-dialog"
-import { conditionSummary } from "@/pages/settings/lib/runbook-conditions"
+import { attachSummary } from "@/pages/settings/lib/runbook-conditions"
 
 interface RunbooksTabProps {
   runbooks: RunbookSettings[]
@@ -139,7 +139,7 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
                 </span>
               </TableCell>
               <TableCell className="hidden md:table-cell text-sm text-muted-foreground max-w-sm truncate">
-                {conditionSummary(runbook.conditions ?? [], incidentTypes, severities, customFields) ?? "Always shown"}
+                {attachSummary(runbook, incidentTypes, severities, customFields)}
               </TableCell>
               <TableCell className="text-center">
                 <Badge variant="outline" className="font-mono tabular-nums">{runbook.usageCount}</Badge>

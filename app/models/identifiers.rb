@@ -10,6 +10,7 @@ module Identifiers
   SEND_INCIDENT_UPDATE = "send_incident_update"
   INCIDENT_ACTIONS_MODAL = "incident_actions_modal"
   RUNBOOK_DETAIL_MODAL = "runbook_detail_modal"
+  ATTACH_RUNBOOK_MODAL = "attach_runbook_modal"
   INCIDENT_FOLLOWUPS_MODAL = "incident_followups_modal"
   CREATE_ACTION_MODAL = "create_action_modal"
   CREATE_FOLLOWUP_MODAL = "create_followup_modal"
@@ -54,6 +55,8 @@ module Identifiers
   SUBCOMMAND_TIMELINE   = "timeline"
   SUBCOMMAND_LIST       = "list"
   SUBCOMMAND_SHOUTOUT   = "shoutout"
+  SUBCOMMAND_RUNBOOK    = "runbook"
+  SUBCOMMAND_RUNBOOKS   = "runbooks"
 
   # Home modal action values
   HOME_ACTION_NEW        = "new"
@@ -69,6 +72,7 @@ module Identifiers
   HOME_ACTION_TIMELINE   = "timeline"
   HOME_ACTION_LIST       = "list"
   HOME_ACTION_POSTMORTEM = "postmortem"
+  HOME_ACTION_RUNBOOK    = "runbook"
 
   # Block action_ids
   HOME_ACTION_SELECT = "home_action_select"

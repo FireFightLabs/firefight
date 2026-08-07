@@ -68,7 +68,8 @@ class Incident < ApplicationRecord
       { incident_status: :incident_lifecycle_stage },
       :incident_severity,
       { declared_by: :user },
-      incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
+      incident_role_assignments: [ :incident_role, { workspace_membership: :user } ],
+      incident_runbooks: { runbook: :runbook_steps }
     )
   }
   scope :with_detail_associations, -> {
@@ -78,7 +79,8 @@ class Incident < ApplicationRecord
       :incident_type,
       { declared_by: :user },
       :postmortem,
-      incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
+      incident_role_assignments: [ :incident_role, { workspace_membership: :user } ],
+      incident_runbooks: { runbook: :runbook_steps }
     )
   }
 

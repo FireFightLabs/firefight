@@ -2,6 +2,7 @@ require "test_helper"
 
 class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   fixtures :workspaces, :users, :workspace_memberships, :incident_severities,
+           :incident_lifecycle_stages, :incident_statuses,
            :catalog_types, :catalog_entries, :incident_field_definitions, :incident_field_options
 
   setup do
@@ -209,5 +210,45 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
 
     _, is_error = call_tool(Mcp::Tools::GET_RUNBOOK, { slug: @failover.slug }, token: incidents_token)
     assert is_error
+  end
+
+  test "attach_runbook posts the runbook into the incident and is idempotent" do
+    incident = Incident.create!(
+      workspace: @workspace, declared_by: @membership,
+      incident_status: incident_statuses(:investigating_ws1),
+      incident_severity: @workspace.incident_severities.active.find_by!(slug: "critical"),
+      name: "Test incident", is_private: false, channel_id: "C_ATTACH", source: Incident::SOURCE_SLACK
+    )
+    stub_post_message
+
+    content, is_error = call_tool(Mcp::Tools::ATTACH_RUNBOOK, {
+      incident: incident.identifier, runbook: @failover.slug
+    })
+    assert_not is_error
+    assert_equal @failover.slug, content["runbook"]
+    assert content["newly_attached"]
+
+    content, is_error = call_tool(Mcp::Tools::ATTACH_RUNBOOK, {
+      incident: incident.identifier, runbook: @failover.slug
+    })
+    assert_not is_error
+    assert_not content["newly_attached"]
+    assert_equal 1, incident.incident_runbooks.count
+  end
+
+  test "attach_runbook refuses an unknown slug and names what is available" do
+    incident = Incident.create!(
+      workspace: @workspace, declared_by: @membership,
+      incident_status: incident_statuses(:investigating_ws1),
+      incident_severity: @workspace.incident_severities.active.find_by!(slug: "critical"),
+      name: "Test incident", is_private: false, channel_id: "C_ATTACH2", source: Incident::SOURCE_SLACK
+    )
+
+    _, is_error = call_tool(Mcp::Tools::ATTACH_RUNBOOK, {
+      incident: incident.identifier, runbook: "not_a_runbook"
+    })
+
+    assert is_error
+    assert_equal 0, incident.incident_runbooks.count
   end
 end

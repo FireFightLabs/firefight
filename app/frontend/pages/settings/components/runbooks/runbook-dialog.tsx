@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { RunbookContentEditor } from "@/pages/settings/components/runbooks/runbook-content-editor"
 import {
@@ -57,6 +58,7 @@ interface EditModel {
   typeState: ConditionSectionState
   severityState: ConditionSectionState
   customFieldStates: CustomFieldConditionState[]
+  alwaysAttach: boolean
 }
 
 function sectionState(runbook: RunbookSettings | null | undefined, field: string): ConditionSectionState {
@@ -92,6 +94,7 @@ function initModel(runbook: RunbookSettings | null | undefined): EditModel {
     typeState: sectionState(runbook, CONDITION_FIELD_INCIDENT_TYPE),
     severityState: sectionState(runbook, CONDITION_FIELD_SEVERITY),
     customFieldStates: customFieldStates(runbook),
+    alwaysAttach: runbook?.alwaysAttach ?? false,
   }
 }
 
@@ -112,6 +115,10 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
 
   function patch(next: Partial<EditModel>) {
     setModel((prev) => ({ ...prev, ...next }))
+  }
+
+  function setAlwaysAttach(alwaysAttach: boolean) {
+    patch({ alwaysAttach })
   }
 
   function handleSubmit(event: FormEvent) {
@@ -151,6 +158,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       external_url: model.externalUrl,
       steps: model.steps.map((step) => ({ title: step.title, instruction: step.instruction })),
       conditions,
+      always_attach: model.alwaysAttach,
     }
 
     const options = {
@@ -236,6 +244,21 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
               onSeverityChange={(severityState) => patch({ severityState })}
               onCustomFieldStatesChange={(customFieldStates) => patch({ customFieldStates })}
             />
+
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-border px-4 py-3">
+              <div className="space-y-1">
+                <Label htmlFor="runbook-always-attach">Attach to every incident</Label>
+                <p className="text-xs text-muted-foreground">
+                  Without conditions or this, the runbook only appears when someone attaches it with{" "}
+                  <span className="font-mono">/ff runbook</span>.
+                </p>
+              </div>
+              <Switch
+                id="runbook-always-attach"
+                checked={model.alwaysAttach}
+                onCheckedChange={setAlwaysAttach}
+              />
+            </div>
           </div>
 
           <DialogFooter>

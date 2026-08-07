@@ -15,6 +15,7 @@ class InteractionDispatcher
     Identifiers::CLOSE_INCIDENT_MODAL => Interactions::CloseIncidentHandler,
     Identifiers::REOPEN_INCIDENT_MODAL => Interactions::ReopenIncidentHandler,
     Identifiers::LINK_INCIDENT_MODAL => Interactions::LinkIncidentHandler,
+    Identifiers::ATTACH_RUNBOOK_MODAL => Interactions::AttachRunbookHandler,
     Identifiers::ESCALATE_INCIDENT_MODAL => Interactions::EscalateIncidentHandler,
     Identifiers::INVITE_RESPONDERS_MODAL => Interactions::InviteRespondersHandler,
     Identifiers::SHOUTOUT_MODAL => Interactions::ShoutoutHandler

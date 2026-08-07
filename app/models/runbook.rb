@@ -28,8 +28,13 @@ class Runbook < ApplicationRecord
     name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
   end
 
+  # No conditions means no automatic attachment, because a runbook that lands
+  # on every incident should be a decision rather than the consequence of
+  # leaving a form empty. Reaching every incident is what always_attach is for.
   def self.matching(workspace, context)
     workspace.runbooks.active.ordered.includes(incident_conditions: :incident_field_definition).select do |runbook|
+      next runbook.always_attach? if runbook.incident_conditions.empty?
+
       IncidentConditionEvaluator.match?(runbook.incident_conditions, context)
     end
   end

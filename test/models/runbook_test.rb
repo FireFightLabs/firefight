@@ -53,7 +53,10 @@ class RunbookTest < ActiveSupport::TestCase
     assert_not_includes Runbook.matching(@workspace, { severity: @major.id }), @scoped_runbook
   end
 
-  test "matching returns runbooks with no conditions for any context" do
+  test "matching leaves an unconditioned runbook off unless it is marked always attach" do
+    assert_not_includes Runbook.matching(@workspace, { severity: @critical.id }), @generic_runbook
+
+    @generic_runbook.update!(always_attach: true)
     assert_includes Runbook.matching(@workspace, { severity: @critical.id }), @generic_runbook
     assert_includes Runbook.matching(@workspace, {}), @generic_runbook
   end

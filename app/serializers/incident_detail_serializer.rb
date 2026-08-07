@@ -71,4 +71,10 @@ class IncidentDetailSerializer < BaseSerializer
   def alerts
     incident.alerts.includes(:alert_source).order(:received_at)
   end
+
+  has_many :runbooks, serializer: IncidentRunbookSerializer
+
+  def runbooks
+    incident.incident_runbooks.includes(runbook: :runbook_steps).order(:created_at)
+  end
 end

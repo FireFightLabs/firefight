@@ -11,6 +11,13 @@ class RunbookAttachmentService
     end
   end
 
+  def attach_by_slug(incident:, slug:, attached_by: nil)
+    runbook = @workspace.runbooks.active.find_by(slug: slug)
+    raise ActiveRecord::RecordNotFound, "unknown runbook #{slug.inspect}" if runbook.nil?
+
+    attach(incident: incident, runbook: runbook, attached_by: attached_by)
+  end
+
   def attach(incident:, runbook:, attached_by: nil)
     existing = incident.incident_runbooks.find_by(runbook: runbook)
     return existing if existing

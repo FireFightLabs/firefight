@@ -51,6 +51,8 @@ module Commands
         Commands::ListActiveIncidents.execute(command)
       when Identifiers::SUBCOMMAND_SHOUTOUT
         Commands::GiveShoutout.execute(command)
+      when Identifiers::SUBCOMMAND_RUNBOOK, Identifiers::SUBCOMMAND_RUNBOOKS
+        Commands::AttachRunbook.execute(command)
       else
         suggestion = suggest_subcommand(subcommand)
         msg = if suggestion
