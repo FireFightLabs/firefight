@@ -19,6 +19,8 @@ On first use your browser opens Firefight's consent screen, which names the clie
 
 A token belongs to exactly one workspace, because its Doorkeeper resource owner is a `WorkspaceMembership` — the same principal an `ApiKey` resolves to, which is what lets `Current.principal` stay a membership through the Ability Gateway, the ledger and the per-principal rate limit. Members of several workspaces pick one on the consent screen; the pick is resolved through the user's own memberships, so `workspace_id` cannot be forged. Reaching a second workspace means a second `claude mcp add` under a different name, with its own client and token.
 
+The `initialize` instructions are built per request from `Current.workspace` and `Current.principal`, so the handshake names the workspace and who the connection acts as. An agent never needs a tool call to know where it is, and the answer cannot drift from the token — which is why there is no `get_workspace` tool.
+
 **Claude Code (header token — for automation)**
 
 ```sh

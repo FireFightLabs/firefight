@@ -135,6 +135,14 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert content["trace"].is_a?(Array)
   end
 
+  test "initialize names the workspace the connection reaches and who it acts as" do
+    body = rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } })
+
+    instructions = body.dig("result", "instructions")
+    assert_includes instructions, @workspace.name
+    assert_includes instructions, @membership.display_name
+  end
+
   test "initialize advertises product docs and tool descriptions link to them" do
     body = rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } })
     assert_includes body.dig("result", "instructions"), Mcp::Docs::INDEX

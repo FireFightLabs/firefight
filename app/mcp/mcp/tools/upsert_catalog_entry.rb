@@ -14,7 +14,8 @@ module Mcp
           name: { type: "string", description: "Entry display name (required on create)" },
           attributes: {
             type: "object",
-            description: "Attribute key/value pairs per the type's definitions, e.g. {\"description\": \"...\", \"owner_team\": \"platform\"}"
+            description: "Attribute key/value pairs per the type's definitions, e.g. {\"description\": \"...\", \"owner_team\": \"platform\"}. " \
+                         "An attribute referencing another entry takes that entry's slug or id"
           },
           approval_id: { type: "string", description: "Approval id when retrying an approved call" }
         },

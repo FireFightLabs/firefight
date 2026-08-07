@@ -23,7 +23,10 @@ module Mcp
           conditions: {
             type: "array",
             description: "Attach conditions, e.g. [{\"condition_field\": \"severity\", \"operator\": \"one_of\", \"values\": [\"critical\"]}]. " \
-                         "severity and incident_type values accept slugs or ids; custom_field values are option ids. Replaces existing conditions",
+                         "A custom_field condition names its field too, e.g. [{\"condition_field\": \"custom_field\", " \
+                         "\"custom_field\": \"affected_service\", \"operator\": \"one_of\", \"values\": [\"listo\"]}]. " \
+                         "Values accept ids or names: a severity or incident_type slug, an option label for a fixed list, " \
+                         "a catalog entry slug for a catalog-backed field. Replaces existing conditions",
             items: { type: "object" }
           },
           approval_id: { type: "string", description: "Approval id when retrying an approved call" }
@@ -75,10 +78,7 @@ module Mcp
 
       def self.condition_params(workspace, args)
         Array(args[:conditions]).map do |condition|
-          condition = condition.to_h.with_indifferent_access
-          { condition_field: condition[:condition_field], operator: condition[:operator],
-            values: ConditionValues.resolve(workspace, condition),
-            incident_field_definition_id: condition[:incident_field_definition_id] }
+          ConditionValues.attributes(workspace, condition.to_h.with_indifferent_access)
         end
       end
     end
