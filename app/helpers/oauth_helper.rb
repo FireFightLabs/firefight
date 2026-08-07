@@ -1,4 +1,14 @@
 module OauthHelper
+  # Every workspace the consenting member could grant, so the picker offers
+  # exactly the set the resource owner authenticator will accept.
+  def oauth_consent_memberships(membership)
+    membership.user.workspace_memberships.joins(:workspace).includes(:workspace).order("workspaces.name")
+  end
+
+  def oauth_workspace_options(membership, memberships)
+    options_for_select(memberships.map { |option| [ option.workspace.name, option.workspace_id ] }, membership.workspace_id)
+  end
+
   # The hidden fields both consent forms must round-trip so Doorkeeper can
   # re-validate the exact authorization request (incl. PKCE challenge).
   def oauth_pre_auth_fields(pre_auth)

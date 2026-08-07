@@ -1,7 +1,8 @@
 require "test_helper"
 
 class McpRunbookToolsTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities
+  fixtures :workspaces, :users, :workspace_memberships, :incident_severities,
+           :catalog_types, :catalog_entries, :incident_field_definitions, :incident_field_options
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -112,6 +113,78 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
 
     runbook = @workspace.runbooks.find_by!(slug: content["slug"])
     assert_equal [ major.id ], runbook.incident_conditions.first.values
+  end
+
+  test "upsert_runbook resolves a custom field slug and a catalog entry slug into the ids conditions match on" do
+    definition = incident_field_definitions(:affected_services_ws1)
+    auth_service = catalog_entries(:auth_service)
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "Catalog conditions",
+      conditions: [ { condition_field: "custom_field", custom_field: definition.slug,
+                      operator: "one_of", values: [ auth_service.slug ] } ]
+    })
+    assert_not is_error
+
+    condition = @workspace.runbooks.find_by!(slug: content["slug"]).incident_conditions.first
+    assert_equal definition, condition.incident_field_definition
+    assert_equal [ auth_service.id ], condition.values
+  end
+
+  test "upsert_runbook resolves an option label for a fixed list custom field" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+    enterprise = incident_field_options(:customer_tier_enterprise)
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "Option conditions",
+      conditions: [ { condition_field: "custom_field", custom_field: definition.slug,
+                      operator: "one_of", values: [ enterprise.label ] } ]
+    })
+    assert_not is_error
+
+    condition = @workspace.runbooks.find_by!(slug: content["slug"]).incident_conditions.first
+    assert_equal definition, condition.incident_field_definition
+    assert_equal [ enterprise.id ], condition.values
+  end
+
+  test "upsert_runbook still accepts a custom field condition given entirely as ids" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+    pro = incident_field_options(:customer_tier_pro)
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "Id custom conditions",
+      conditions: [ { condition_field: "custom_field", incident_field_definition_id: definition.id,
+                      operator: "one_of", values: [ pro.id ] } ]
+    })
+    assert_not is_error
+
+    condition = @workspace.runbooks.find_by!(slug: content["slug"]).incident_conditions.first
+    assert_equal definition, condition.incident_field_definition
+    assert_equal [ pro.id ], condition.values
+  end
+
+  test "upsert_runbook refuses a custom field condition naming no field" do
+    _, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "Unknown field",
+      conditions: [ { condition_field: "custom_field", custom_field: "not_a_field",
+                      operator: "one_of", values: [ "Enterprise" ] } ]
+    })
+
+    assert is_error
+    assert_not @workspace.runbooks.exists?(name: "Unknown field")
+  end
+
+  test "upsert_runbook refuses a custom field value matching none of what the field offers" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+
+    _, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "Unknown option",
+      conditions: [ { condition_field: "custom_field", custom_field: definition.slug,
+                      operator: "one_of", values: [ "Platinum" ] } ]
+    })
+
+    assert is_error
+    assert_not @workspace.runbooks.exists?(name: "Unknown option")
   end
 
   test "upsert_runbook refuses a value matching no severity rather than storing a dead condition" do

@@ -50,6 +50,34 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
     assert_equal platform_team, rel.target_entry
   end
 
+  test "create resolves a reference attribute given as a slug" do
+    service_type = catalog_types(:service_ws1)
+    platform_team = catalog_entries(:platform_team)
+
+    entry = @service.create(
+      type: service_type,
+      name: "Search Service",
+      raw_attributes: { "owner_team" => platform_team.slug }
+    )
+
+    rel = entry.outgoing_relationships.find_by!(relationship_key: "owner_team")
+    assert_equal platform_team, rel.target_entry
+  end
+
+  test "create refuses a reference matching no entry and names the value it could not resolve" do
+    service_type = catalog_types(:service_ws1)
+
+    error = assert_raises(ActiveRecord::RecordInvalid) do
+      @service.create(
+        type: service_type,
+        name: "Orphan Service",
+        raw_attributes: { "owner_team" => "no_such_team" }
+      )
+    end
+
+    assert_includes error.message, "no_such_team"
+  end
+
   test "create wraps in transaction -- sync_references failure rolls back entry creation" do
     service_type = catalog_types(:service_ws1)
 

@@ -4,10 +4,6 @@
 class McpController < ActionController::API
   SERVER_NAME = "firefight".freeze
   SERVER_VERSION = "1.0.0".freeze
-  INSTRUCTIONS = "Read-only access to a Firefight incident-management workspace: incidents, " \
-                 "alerts, the service catalog, and alert-routing dry runs. All data is scoped " \
-                 "to the token's workspace. Product docs: #{Mcp::Docs::BASE} — every page is " \
-                 "fetchable as raw markdown; index at #{Mcp::Docs::INDEX}.".freeze
 
   before_action :authenticate!, only: :create
   before_action :block_suspended_workspace, only: :create
@@ -84,11 +80,21 @@ class McpController < ActionController::API
     }, status: :unauthorized
   end
 
+  # Named per connection, so an agent knows which workspace it is in from the
+  # handshake rather than a tool call, and the answer cannot drift from the
+  # token it authenticated with.
+  def instructions
+    "Read-only access to the #{Current.workspace.name} workspace, acting as " \
+      "#{Current.principal.actor_display_name}: incidents, alerts, the service catalog, and " \
+      "alert-routing dry runs. All data is scoped to this workspace. Product docs: " \
+      "#{Mcp::Docs::BASE} — every page is fetchable as raw markdown; index at #{Mcp::Docs::INDEX}."
+  end
+
   def mcp_server
     MCP::Server.new(
       name: SERVER_NAME,
       version: SERVER_VERSION,
-      instructions: INSTRUCTIONS,
+      instructions: instructions,
       tools: Mcp::Tools.all + Mcp::ConnectionToolFactory.tools_for(Current.workspace),
       server_context: {
         workspace: Current.workspace,

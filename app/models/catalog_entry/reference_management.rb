@@ -1,6 +1,8 @@
 module CatalogEntry::ReferenceManagement
   extend ActiveSupport::Concern
 
+  UUID_FORMAT = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
+
   def sync_references!(reference_attrs)
     definitions = catalog_type.catalog_attribute_definitions.reference_type.index_by(&:slug)
 
@@ -27,18 +29,21 @@ module CatalogEntry::ReferenceManagement
 
   private
 
-  def resolve_reference_target!(attr_def, target_id)
-    reference_type_id = attr_def.config["reference_type_id"]
-    target = CatalogEntry.where(
-      id: target_id,
-      catalog_type_id: reference_type_id,
+  # The dashboard holds entry ids, an agent holds slugs. The id lookup is
+  # guarded because a slug reaching a uuid column raises out of the driver
+  # before the missing-entry message below can be reported.
+  def resolve_reference_target!(attr_def, target_reference)
+    reference = target_reference.to_s
+    scope = CatalogEntry.where(
+      catalog_type_id: attr_def.config["reference_type_id"],
       workspace_id: workspace_id,
       deleted_at: nil
-    ).first
+    )
+    target = reference.match?(UUID_FORMAT) ? scope.find_by(id: reference) : scope.find_by(slug: reference)
 
     unless target
       raise ActiveRecord::RecordInvalid.new(self),
-        "Referenced entry not found for '#{attr_def.name}'"
+        "Referenced entry #{reference.inspect} not found for '#{attr_def.name}'"
     end
 
     target

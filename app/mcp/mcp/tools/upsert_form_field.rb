@@ -27,7 +27,10 @@ module Mcp
             type: "array",
             description: "Show the field only when these match, e.g. " \
                          "[{\"condition_field\": \"incident_type\", \"operator\": \"one_of\", \"values\": [\"production\"]}]. " \
-                         "Replaces existing conditions; pass [] to clear them",
+                         "A custom_field condition names its field too, e.g. [{\"condition_field\": \"custom_field\", " \
+                         "\"custom_field\": \"affected_service\", \"operator\": \"one_of\", \"values\": [\"listo\"]}]. " \
+                         "Values accept ids or names: a severity or incident_type slug, an option label for a fixed list, " \
+                         "a catalog entry slug for a catalog-backed field. Replaces existing conditions, pass [] to clear them",
             items: { type: "object" }
           },
           approval_id: { type: "string", description: "Approval id when retrying an approved call" }
@@ -99,9 +102,7 @@ module Mcp
 
       def self.condition_params(workspace, args)
         Array(args[:conditions]).map do |condition|
-          condition = condition.to_h.with_indifferent_access
-          { condition_field: condition[:condition_field], operator: condition[:operator],
-            values: ConditionValues.resolve(workspace, condition) }
+          ConditionValues.attributes(workspace, condition.to_h.with_indifferent_access)
         end
       end
     end

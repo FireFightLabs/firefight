@@ -1,7 +1,8 @@
 require "test_helper"
 
 class McpFormToolsTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_types, :incident_severities
+  fixtures :workspaces, :users, :workspace_memberships, :incident_types, :incident_severities,
+           :catalog_types, :catalog_entries, :incident_field_definitions, :incident_field_options
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -77,6 +78,35 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
       .incident_form_fields.joins(:incident_field_definition)
       .find_by!(incident_field_definitions: { slug: "impacted_regions" })
     assert_equal [ production.id ], field.incident_conditions.first.values
+  end
+
+  test "upsert_form_field stores the field a custom field condition is gated on" do
+    gating = incident_field_definitions(:customer_tier_ws1)
+    enterprise = incident_field_options(:customer_tier_enterprise)
+
+    call_tool(Mcp::Tools::UPSERT_CUSTOM_FIELD, {
+      name: "Escalation contact",
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE
+    })
+    call_tool(Mcp::Tools::UPSERT_FORM_FIELD, { form: IncidentForm::SLUG_DECLARE, custom_field: gating.slug })
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_FORM_FIELD, {
+      form: IncidentForm::SLUG_DECLARE,
+      custom_field: "escalation_contact",
+      conditions: [ { condition_field: "custom_field", custom_field: gating.slug,
+                      operator: "one_of", values: [ enterprise.label ] } ]
+    })
+
+    assert_not is_error
+    assert_equal 1, content["conditions"]
+
+    field = @workspace.incident_forms.find_by!(slug: IncidentForm::SLUG_DECLARE)
+      .incident_form_fields.joins(:incident_field_definition)
+      .find_by!(incident_field_definitions: { slug: "escalation_contact" })
+    condition = field.incident_conditions.first
+    assert_equal gating, condition.incident_field_definition
+    assert_equal [ enterprise.id ], condition.values
   end
 
   test "upsert_form_field refuses to hide a field the incident cannot be written without" do
