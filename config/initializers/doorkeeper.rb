@@ -35,7 +35,11 @@ Doorkeeper.configure do
   default_scopes :"mcp:read"
   enforce_configured_scopes
 
-  force_ssl_in_redirect_uri !Rails.env.local?
+  # HTTPS everywhere except loopback: native MCP clients (Claude Code) receive
+  # the code on a localhost listener, which RFC 8252 §7.3 exempts from TLS.
+  force_ssl_in_redirect_uri do |uri|
+    !Rails.env.local? && !%w[ localhost 127.0.0.1 ::1 ].include?(uri.hostname)
+  end
 
   # Tokens are hashed at rest, matching the ApiKey digest posture.
   hash_token_secrets
