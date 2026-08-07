@@ -7,6 +7,7 @@ class IncidentEvent < ApplicationRecord
   ACTION_CREATED = "action.created"
   ACTION_PICKED_UP = "action.picked_up"
   ACTION_COMPLETED = "action.completed"
+  ACTION_REASSIGNED = "action.reassigned"
   INCIDENT_ESCALATED = "incident.escalated"
   INCIDENT_RESOLVED = "incident.resolved"
   INCIDENT_REOPENED = "incident.reopened"
@@ -30,7 +31,7 @@ class IncidentEvent < ApplicationRecord
   EVENT_TYPES = [
     INCIDENT_CREATED, INCIDENT_UPDATED, INCIDENT_ACCEPTED, LEAD_ASSIGNED,
     ROLE_ASSIGNED, ROLE_UNASSIGNED,
-    ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED,
+    ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED, ACTION_REASSIGNED,
     INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, INCIDENT_CANCELED, POSTMORTEM_GENERATED, POSTMORTEM_EDITED,
     RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
     MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED,
@@ -48,6 +49,7 @@ class IncidentEvent < ApplicationRecord
     ACTION_CREATED => "created an action item",
     ACTION_PICKED_UP => "picked up an action item",
     ACTION_COMPLETED => "completed an action item",
+    ACTION_REASSIGNED => "reassigned an action item",
     INCIDENT_ACCEPTED => "accepted the incident from triage",
     INCIDENT_ESCALATED => "escalated the incident",
     INCIDENT_RESOLVED => "resolved the incident",
@@ -84,6 +86,7 @@ class IncidentEvent < ApplicationRecord
     ACTION_CREATED       => IncidentActionUpdate::CREATED,
     ACTION_PICKED_UP     => IncidentActionUpdate::PICKED_UP,
     ACTION_COMPLETED     => IncidentActionUpdate::COMPLETED,
+    ACTION_REASSIGNED    => IncidentActionUpdate::REASSIGNED,
     POSTMORTEM_GENERATED => PostmortemUpdate::GENERATED,
     POSTMORTEM_EDITED    => PostmortemUpdate::EDITED
   }.freeze

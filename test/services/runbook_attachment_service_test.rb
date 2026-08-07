@@ -113,36 +113,6 @@ class RunbookAttachmentServiceTest < ActiveSupport::TestCase
     assert_equal 1, @incident.incident_runbooks.where(runbook: @runbook).count
   end
 
-  test "apply creates one action per step in order and marks applied" do
-    stub_post_message
-    incident_runbook = @service.attach(incident: @incident, runbook: @runbook)
-    stub_update_message
-
-    assert_difference "@incident.incident_actions.count", 2 do
-      @service.apply(incident_runbook: incident_runbook, applied_by: @member)
-    end
-
-    descriptions = @incident.incident_actions.order(:created_at).pluck(:description)
-    assert_equal "Check connection pool\nInspect current connection count against max_connections", descriptions.first
-    assert_equal "Failover to replica", descriptions.last
-
-    incident_runbook.reload
-    assert incident_runbook.applied?
-    assert_equal @member, incident_runbook.applied_by
-    assert @incident.incident_events.exists?(event_type: IncidentEvent::RUNBOOK_APPLIED)
-  end
-
-  test "apply is a no-op when already applied" do
-    stub_post_message
-    incident_runbook = @service.attach(incident: @incident, runbook: @runbook)
-    stub_update_message
-    @service.apply(incident_runbook: incident_runbook, applied_by: @member)
-
-    assert_no_difference "@incident.incident_actions.count" do
-      @service.apply(incident_runbook: incident_runbook, applied_by: @member)
-    end
-  end
-
   test "attach does not raise when the same runbook is inserted concurrently" do
     stub_post_message
     existing = @incident.incident_runbooks.create!(runbook: @runbook, workspace: @workspace)
@@ -154,21 +124,5 @@ class RunbookAttachmentServiceTest < ActiveSupport::TestCase
     assert_equal existing.id, result.id
     assert_equal 1, IncidentRunbook.where(incident: @incident, runbook: @runbook).count
     assert_equal 0, @incident.incident_events.where(event_type: IncidentEvent::RUNBOOK_ATTACHED).count
-  end
-
-  test "apply creates one set of actions when two workers race on the same attachment" do
-    stub_post_message
-    incident_runbook = @service.attach(incident: @incident, runbook: @runbook)
-    stub_update_message
-
-    first_worker = IncidentRunbook.find(incident_runbook.id)
-    second_worker = IncidentRunbook.find(incident_runbook.id)
-
-    assert_difference "@incident.incident_actions.count", 2 do
-      @service.apply(incident_runbook: first_worker, applied_by: @member)
-      @service.apply(incident_runbook: second_worker, applied_by: @member)
-    end
-
-    assert_equal 1, @incident.incident_events.where(event_type: IncidentEvent::RUNBOOK_APPLIED).count
   end
 end

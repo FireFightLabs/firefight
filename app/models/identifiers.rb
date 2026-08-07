@@ -9,6 +9,7 @@ module Identifiers
   INCIDENT_UPDATE_MODAL = "incident_update_modal"
   SEND_INCIDENT_UPDATE = "send_incident_update"
   INCIDENT_ACTIONS_MODAL = "incident_actions_modal"
+  RUNBOOK_DETAIL_MODAL = "runbook_detail_modal"
   INCIDENT_FOLLOWUPS_MODAL = "incident_followups_modal"
   CREATE_ACTION_MODAL = "create_action_modal"
   CREATE_FOLLOWUP_MODAL = "create_followup_modal"
@@ -98,7 +99,15 @@ module Identifiers
   INCIDENT_CREATION_SEVERITY_SELECT = "incident_creation_severity_select"
   INCIDENT_CREATION_TYPE_SELECT = "incident_creation_type_select"
   INCIDENT_CREATION_VISIBILITY_SELECT = "incident_creation_visibility_select"
+  # Retired, still routed so buttons on older messages re-render the checklist.
   APPLY_RUNBOOK = "apply_runbook"
+  CLAIM_RUNBOOK_STEP = "claim_runbook_step"
+  VIEW_RUNBOOK = "view_runbook"
+  ASSIGN_RUNBOOK_STEP = "assign_runbook_step"
+  REASSIGN_ACTION = "reassign_action"
+  # A users_select carries no value, so block_id holds the id it acts on.
+  ACTION_BLOCK_PREFIX = "action_block_"
+  RUNBOOK_STEP_BLOCK_PREFIX = "runbook_step_block_"
   APPROVE_ABILITY = "approve_ability"
   DENY_ABILITY = "deny_ability"
 

@@ -200,4 +200,56 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     assert_equal IncidentAction::STATUS_DONE, action_update.status
     assert_includes action_update.changed_fields, "status"
   end
+
+  test "reassign_action moves the item and posts a line so the new holder hears about it" do
+    stub_post_message
+    stub_update_message
+    action = @service.create_action(
+      incident: @incident, created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "Check logs", assignee: @member
+    )
+
+    @service.reassign_action(action: action, assignee: @bob, reassigned_by: @member)
+
+    assert_equal @bob, action.reload.assignee
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_REASSIGNED)
+  end
+
+  test "reassign_action leaves a completed item alone" do
+    stub_post_message
+    stub_update_message
+    action = @service.create_action(
+      incident: @incident, created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "Check logs", assignee: @member
+    )
+    @service.complete_action(action: action, completed_by: @member)
+
+    @service.reassign_action(action: action, assignee: @bob, reassigned_by: @member)
+
+    assert_equal @member, action.reload.assignee
+  end
+
+  test "reassign_action to the current holder does nothing" do
+    stub_post_message
+    stub_update_message
+    action = @service.create_action(
+      incident: @incident, created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "Check logs", assignee: @member
+    )
+
+    assert_no_difference -> { @incident.incident_events.where(event_type: IncidentEvent::ACTION_REASSIGNED).count } do
+      @service.reassign_action(action: action, assignee: @member, reassigned_by: @bob)
+    end
+  end
+
+  test "claim_step creates an unannounced action bound to the step" do
+    step = @workspace.runbooks.create!(name: "Runbook").runbook_steps.create!(title: "Check the pool", position: 1)
+    Slack::Client.expects(:post_message).never
+
+    action = @service.claim_step(incident: @incident, runbook_step: step, claimed_by: @member)
+
+    assert_equal step, action.runbook_step
+    assert_equal @member, action.assignee
+    assert_nil action.message_ts
+  end
 end

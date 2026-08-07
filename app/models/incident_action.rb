@@ -13,6 +13,7 @@ class IncidentAction < ApplicationRecord
   belongs_to :incident
   belongs_to :created_by, class_name: "WorkspaceMembership"
   belongs_to :assignee, class_name: "WorkspaceMembership", optional: true
+  belongs_to :runbook_step, optional: true
   has_many :incident_action_updates, dependent: :destroy
 
   validates :action_type, inclusion: { in: ACTION_TYPES }
@@ -36,6 +37,10 @@ class IncidentAction < ApplicationRecord
 
   def assigned?
     assignee_id.present?
+  end
+
+  def from_runbook_step?
+    runbook_step_id.present?
   end
 
   def to_context_hash
