@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_05_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_07_100513) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -375,9 +375,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_110000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.datetime "deleted_at"
+    t.uuid "runbook_step_id"
     t.index ["assignee_id"], name: "index_incident_actions_on_assignee_id"
     t.index ["deleted_at"], name: "index_incident_actions_on_deleted_at"
     t.index ["incident_id", "action_type"], name: "index_incident_actions_on_incident_id_and_action_type"
+    t.index ["incident_id", "runbook_step_id"], name: "index_incident_actions_on_incident_and_runbook_step", unique: true, where: "((runbook_step_id IS NOT NULL) AND (deleted_at IS NULL))"
     t.index ["incident_id", "status"], name: "index_incident_actions_on_incident_id_and_status"
   end
 
@@ -553,12 +555,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_110000) do
     t.uuid "runbook_id", null: false
     t.uuid "workspace_id", null: false
     t.uuid "attached_by_id"
-    t.datetime "applied_at"
-    t.uuid "applied_by_id"
     t.string "message_ts"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["applied_by_id"], name: "index_incident_runbooks_on_applied_by_id"
     t.index ["attached_by_id"], name: "index_incident_runbooks_on_attached_by_id"
     t.index ["incident_id", "runbook_id"], name: "index_incident_runbooks_on_incident_id_and_runbook_id", unique: true
     t.index ["incident_id"], name: "index_incident_runbooks_on_incident_id"
@@ -970,6 +969,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_110000) do
     t.datetime "deleted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "always_attach", default: false, null: false
     t.index ["workspace_id", "slug"], name: "index_runbooks_on_workspace_id_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id"], name: "index_runbooks_on_workspace_id"
   end
@@ -1281,6 +1281,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_110000) do
   add_foreign_key "incident_action_updates", "workspace_memberships", column: "assignee_id"
   add_foreign_key "incident_action_updates", "workspace_memberships", column: "created_by_id"
   add_foreign_key "incident_actions", "incidents"
+  add_foreign_key "incident_actions", "runbook_steps"
   add_foreign_key "incident_actions", "workspace_memberships", column: "assignee_id"
   add_foreign_key "incident_actions", "workspace_memberships", column: "created_by_id"
   add_foreign_key "incident_conditions", "incident_field_definitions"
@@ -1306,7 +1307,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_110000) do
   add_foreign_key "incident_roles", "workspaces"
   add_foreign_key "incident_runbooks", "incidents"
   add_foreign_key "incident_runbooks", "runbooks"
-  add_foreign_key "incident_runbooks", "workspace_memberships", column: "applied_by_id"
   add_foreign_key "incident_runbooks", "workspace_memberships", column: "attached_by_id"
   add_foreign_key "incident_runbooks", "workspaces"
   add_foreign_key "incident_severities", "workspaces"

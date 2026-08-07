@@ -27,23 +27,7 @@ module Slack
           }
         ]
 
-        button = if action.assigned?
-          { text: ":white_check_mark: Mark as done", action_id: Identifiers::MARK_ACTION_DONE }
-        else
-          { text: ":raised_hands: I can take this", action_id: Identifiers::PICK_UP_ACTION }
-        end
-
-        blocks << {
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: button[:text], emoji: true },
-              action_id: button[:action_id],
-              value: action.id
-            }
-          ]
-        }
+        blocks << controls(action)
         blocks
       end
 
@@ -58,16 +42,54 @@ module Slack
             type: "context",
             elements: [ { type: "mrkdwn", text: ":large_blue_circle: Picked up by <@#{action.assignee.platform_user_id}>" } ]
           },
+          controls(action)
+        ]
+      end
+
+      def self.controls(action)
+        button = if action.assigned?
+          { text: ":white_check_mark: Mark as done", action_id: Identifiers::MARK_ACTION_DONE }
+        else
+          { text: ":raised_hands: I can take this", action_id: Identifiers::PICK_UP_ACTION }
+        end
+
+        picker = {
+          type: "users_select",
+          action_id: Identifiers::REASSIGN_ACTION,
+          placeholder: { type: "plain_text", text: action.assigned? ? "Reassign" : "Assign to" }
+        }
+        picker[:initial_user] = action.assignee.platform_user_id if action.assigned?
+
+        {
+          type: "actions",
+          block_id: "#{Identifiers::ACTION_BLOCK_PREFIX}#{action.id}",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: button[:text], emoji: true },
+              action_id: button[:action_id],
+              value: action.id
+            },
+            picker
+          ]
+        }
+      end
+
+      # Editing a message notifies nobody, so a handover has to post.
+      def self.reassigned(action, reassigned_by)
+        emoji, label = display(action)
+
+        [
           {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: { type: "plain_text", text: ":white_check_mark: Mark as done", emoji: true },
-                action_id: Identifiers::MARK_ACTION_DONE,
-                value: action.id
-              }
-            ]
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "#{emoji}  <@#{action.assignee.platform_user_id}> now has this #{label}\n> #{action.description.truncate(200)}"
+            }
+          },
+          {
+            type: "context",
+            elements: [ { type: "mrkdwn", text: "Handed over by <@#{reassigned_by.platform_user_id}>" } ]
           }
         ]
       end

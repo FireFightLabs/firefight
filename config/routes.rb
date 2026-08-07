@@ -203,6 +203,7 @@ Rails.application.routes.draw do
       end
     end
     post "/incidents/:incident_id/actions", to: "incident_actions#create", as: :incident_actions
+    post "/incidents/:incident_id/runbooks", to: "incident_runbooks#create", as: :incident_runbooks
     get "/incidents/:id", to: "incidents#show", as: :incident
     get "/incidents/:incident_id/postmortem", to: "incidents#postmortem", as: :incident_postmortem
     patch "/incidents/:incident_id/postmortem", to: "incidents#update_postmortem"

@@ -11,6 +11,7 @@ class EventRouter
     IncidentEvent::ACTION_CREATED => WEBHOOK_SUBSCRIBER,
     IncidentEvent::ACTION_PICKED_UP => WEBHOOK_SUBSCRIBER,
     IncidentEvent::ACTION_COMPLETED => WEBHOOK_SUBSCRIBER,
+    IncidentEvent::ACTION_REASSIGNED => WEBHOOK_SUBSCRIBER,
     IncidentEvent::INCIDENT_ESCALATED => WEBHOOK_SUBSCRIBER,
     IncidentEvent::INCIDENT_RESOLVED => WEBHOOK_SUBSCRIBER,
     IncidentEvent::INCIDENT_REOPENED => WEBHOOK_SUBSCRIBER,
@@ -28,7 +29,7 @@ class EventRouter
     IncidentEvent::ALERT_ATTACHED => [],
     IncidentEvent::ALERT_RESOLVED => [],
     IncidentEvent::RUNBOOK_ATTACHED => WEBHOOK_SUBSCRIBER,
-    IncidentEvent::RUNBOOK_APPLIED => WEBHOOK_SUBSCRIBER
+    IncidentEvent::RUNBOOK_APPLIED => []
   }.freeze
 
   def self.route(event)

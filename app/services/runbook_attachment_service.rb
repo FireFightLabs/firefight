@@ -11,6 +11,16 @@ class RunbookAttachmentService
     end
   end
 
+  def attach_by_slug(incident:, slug:, attached_by: nil)
+    runbook = @workspace.runbooks.active.find_by(slug: slug.to_s)
+    if runbook.nil?
+      available = @workspace.runbooks.active.ordered.pluck(:slug)
+      raise ActiveRecord::RecordNotFound, "unknown runbook #{slug.to_s.inspect}. Valid: #{available.join(', ')}"
+    end
+
+    attach(incident: incident, runbook: runbook, attached_by: attached_by)
+  end
+
   def attach(incident:, runbook:, attached_by: nil)
     existing = incident.incident_runbooks.find_by(runbook: runbook)
     return existing if existing
@@ -39,57 +49,19 @@ class RunbookAttachmentService
     incident_runbook
   end
 
-  def apply(incident_runbook:, applied_by:)
-    return unless claim(incident_runbook, applied_by)
+  def refresh_message(incident_runbook)
+    return unless incident_runbook&.message_ts
 
-    incident = incident_runbook.incident
-    runbook = incident_runbook.runbook
-    action_service = IncidentActionService.new(@workspace)
-
-    runbook.runbook_steps.each do |step|
-      action_service.create_action(
-        incident: incident,
-        created_by: applied_by,
-        action_type: IncidentAction::ACTION_TYPE_ACTION,
-        description: step_description(step)
-      )
-    end
-
-    incident.incident_events.create!(
-      event_type: IncidentEvent::RUNBOOK_APPLIED,
-      actor: applied_by,
-      metadata: { runbook_id: runbook.id, runbook_slug: runbook.slug, runbook_name: runbook.name, action_count: runbook.runbook_steps.size }
-    )
-
-    return unless incident_runbook.message_ts
-
-    @workspace.adapter.update_runbook_applied(
-      channel_id: incident.channel_id,
+    @workspace.adapter.update_runbook_message(
+      channel_id: incident_runbook.incident.channel_id,
       message_id: incident_runbook.message_ts,
       incident_runbook: incident_runbook
     )
   end
 
-  private
+  def refresh_message_for_step(incident, runbook_step)
+    return unless runbook_step
 
-  # Marks the attachment applied before any action is created, so a double
-  # click or a redelivered interaction cannot fan out a second set of actions.
-  def claim(incident_runbook, applied_by)
-    claimed = IncidentRunbook.where(id: incident_runbook.id, applied_at: nil).update_all(
-      applied_at: Time.current,
-      applied_by_id: applied_by&.id,
-      updated_at: Time.current
-    ) == 1
-
-    incident_runbook.reload if claimed
-    claimed
-  end
-
-  def step_description(step)
-    if step.instruction.present?
-      "#{step.title}\n#{step.instruction}"
-    else
-      step.title
-    end
+    refresh_message(incident.incident_runbooks.find_by(runbook_id: runbook_step.runbook_id))
   end
 end

@@ -13,6 +13,7 @@ class IncidentAction < ApplicationRecord
   belongs_to :incident
   belongs_to :created_by, class_name: "WorkspaceMembership"
   belongs_to :assignee, class_name: "WorkspaceMembership", optional: true
+  belongs_to :runbook_step, optional: true
   has_many :incident_action_updates, dependent: :destroy
 
   validates :action_type, inclusion: { in: ACTION_TYPES }
@@ -20,6 +21,9 @@ class IncidentAction < ApplicationRecord
   validates :description, presence: true
 
   scope :active, -> { where(deleted_at: nil) }
+  # Interaction payloads carry ids from whoever clicked, so a lookup that
+  # crosses workspaces is a lookup that writes to another tenant.
+  scope :in_workspace, ->(workspace) { joins(:incident).where(incidents: { workspace_id: workspace.id }) }
   scope :actions, -> { where(action_type: ACTION_TYPE_ACTION) }
   scope :followups, -> { where(action_type: ACTION_TYPE_FOLLOWUP) }
   scope :open, -> { where(status: STATUS_OPEN) }
@@ -36,6 +40,10 @@ class IncidentAction < ApplicationRecord
 
   def assigned?
     assignee_id.present?
+  end
+
+  def from_runbook_step?
+    runbook_step_id.present?
   end
 
   def to_context_hash

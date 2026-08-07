@@ -76,6 +76,7 @@ module Slack
               { text: { type: "plain_text", text: ":dart: Set incident lead", emoji: true }, value: Identifiers::HOME_ACTION_LEAD },
               { text: { type: "plain_text", text: ":busts_in_silhouette: Assign incident roles", emoji: true }, value: Identifiers::HOME_ACTION_ROLES },
               { text: { type: "plain_text", text: ":ballot_box_with_check: Manage actions", emoji: true }, value: Identifiers::HOME_ACTION_ACTIONS },
+              { text: { type: "plain_text", text: ":book: Attach runbook",   emoji: true }, value: Identifiers::HOME_ACTION_RUNBOOK },
               { text: { type: "plain_text", text: ":lock: Close incident",    emoji: true }, value: Identifiers::HOME_ACTION_CLOSE }
             ]
           },

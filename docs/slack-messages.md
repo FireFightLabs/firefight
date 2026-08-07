@@ -102,6 +102,20 @@ argument rather than two methods (see `StatusUpdate.build`).
   at **3000**. Use `Formatting.truncate_block_text` rather than trusting input
   to be short.
 - A `context` block holds at most **10 elements**.
+- A message holds at most **50 blocks** and a modal **100**. Anything rendering
+  one block per record needs a ceiling and a line saying what it held back.
+  `Messages::Runbook::MAX_STEP_ROWS` and `Modals::RunbookDetail::MAX_STEPS` are
+  those ceilings, sized against the header and footer around them.
+- A `section` accessory is **one element**, so a row cannot carry both a button
+  and a picker. Put the second control in an `actions` block, as the action
+  item message does, or move it to a modal, as a runbook row does.
+- A `users_select` carries **no `value`**, unlike a button. The id it acts on
+  goes in the enclosing `block_id` (`ACTION_BLOCK_PREFIX`,
+  `RUNBOOK_STEP_BLOCK_PREFIX`), because `action_id` has to stay an exact match
+  for `InteractionDispatcher` to route it.
+- **Editing a message notifies nobody.** `chat.update` is right for state a
+  reader will come back to, and wrong for telling someone they now own
+  something. A handover updates the row and posts a line.
 
 ## The fallback text is user-facing
 

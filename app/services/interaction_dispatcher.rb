@@ -15,6 +15,7 @@ class InteractionDispatcher
     Identifiers::CLOSE_INCIDENT_MODAL => Interactions::CloseIncidentHandler,
     Identifiers::REOPEN_INCIDENT_MODAL => Interactions::ReopenIncidentHandler,
     Identifiers::LINK_INCIDENT_MODAL => Interactions::LinkIncidentHandler,
+    Identifiers::ATTACH_RUNBOOK_MODAL => Interactions::AttachRunbookHandler,
     Identifiers::ESCALATE_INCIDENT_MODAL => Interactions::EscalateIncidentHandler,
     Identifiers::INVITE_RESPONDERS_MODAL => Interactions::InviteRespondersHandler,
     Identifiers::SHOUTOUT_MODAL => Interactions::ShoutoutHandler
@@ -34,6 +35,10 @@ class InteractionDispatcher
     Identifiers::SEND_INCIDENT_UPDATE => Interactions::SendIncidentUpdateButtonHandler,
     Identifiers::PICK_UP_ACTION => Interactions::PickUpActionHandler,
     Identifiers::MARK_ACTION_DONE => Interactions::MarkActionDoneHandler,
+    Identifiers::REASSIGN_ACTION => Interactions::ReassignActionHandler,
+    Identifiers::CLAIM_RUNBOOK_STEP => Interactions::ClaimRunbookStepHandler,
+    Identifiers::VIEW_RUNBOOK => Interactions::ViewRunbookHandler,
+    Identifiers::ASSIGN_RUNBOOK_STEP => Interactions::AssignRunbookStepHandler,
     Identifiers::ADD_NEW_ACTION => Interactions::AddNewActionHandler,
     Identifiers::ADD_NEW_FOLLOWUP => Interactions::AddNewFollowupHandler,
     Identifiers::CREATE_ACTION_FROM_REACTION => Interactions::CreateActionFromReactionHandler,

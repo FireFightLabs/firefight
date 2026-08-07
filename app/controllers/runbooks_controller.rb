@@ -8,7 +8,8 @@ class RunbooksController < InertiaController
       name: params[:name],
       summary: params[:summary],
       content: params[:content],
-      external_url: params[:external_url]
+      external_url: params[:external_url],
+      always_attach: params[:always_attach] || false
     )
 
     Runbook.transaction do
@@ -27,7 +28,8 @@ class RunbooksController < InertiaController
       name: params[:name],
       summary: params[:summary],
       content: params[:content],
-      external_url: params[:external_url]
+      external_url: params[:external_url],
+      always_attach: params[:always_attach]
     }.compact
 
     Runbook.transaction do

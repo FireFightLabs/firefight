@@ -75,6 +75,7 @@ Ids never leave the read tools, so every reference here resolves by slug too. `M
 | Tool | Does |
 |---|---|
 | `assign_incident_role` | Assign one person to an incident role, or clear it (omit `member`) |
+| `attach_runbook` | Attach a runbook to an incident by slug, idempotent |
 
 `assign_incident_role` authorizes as `incidents:update`. Roles hold one person each, so assigning replaces the current holder; the Incident Lead cannot be cleared, only handed over. `get_incident` returns every configured role with its holder, which is how an agent discovers the slugs it may pass. The rest of the incident lifecycle (declare, status, severity, close) stays out of MCP for now.
 

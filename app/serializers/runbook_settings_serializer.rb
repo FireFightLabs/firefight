@@ -36,6 +36,11 @@ class RunbookSettingsSerializer < BaseSerializer
   end
 
   type :boolean
+  def always_attach
+    runbook.always_attach?
+  end
+
+  type :boolean
   def enabled
     runbook.enabled?
   end

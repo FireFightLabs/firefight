@@ -302,9 +302,15 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Runbook attached: #{incident_runbook.runbook.name}", blocks: blocks)
   end
 
-  def update_runbook_applied(channel_id:, message_id:, incident_runbook:)
-    blocks = Slack::Messages::Runbook.applied(incident_runbook)
-    update_message(channel_id: channel_id, message_id: message_id, text: "Runbook applied: #{incident_runbook.runbook.name}", blocks: blocks)
+  def update_runbook_message(channel_id:, message_id:, incident_runbook:)
+    blocks = Slack::Messages::Runbook.attached(incident_runbook)
+    update_message(channel_id: channel_id, message_id: message_id, text: "Runbook: #{incident_runbook.runbook.name}", blocks: blocks)
+  end
+
+  def post_action_reassigned(channel_id:, action:, reassigned_by:)
+    blocks = Slack::Messages::Action.reassigned(action, reassigned_by)
+    type_label = action.action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
+    post_message(channel_id: channel_id, text: "Reassigned #{type_label}: #{action.description}", blocks: blocks)
   end
 
   def post_shoutout_message(channel_id:, incident:, from_user_id:, recipient_user_id:, message:)

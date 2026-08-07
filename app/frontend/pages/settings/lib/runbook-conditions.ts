@@ -58,6 +58,21 @@ export function conditionSummary(
     .join(" AND ")
 }
 
+// What the Conditions column says. A runbook with neither conditions nor the
+// always flag never attaches on its own, and saying so beats an empty cell.
+export function attachSummary(
+  runbook: { conditions?: IncidentConditionSettings[] | null; alwaysAttach: boolean },
+  incidentTypes: IncidentTypeSettings[],
+  severities: IncidentSeveritySettings[],
+  customFields: RunbookCustomField[],
+): string {
+  const summary = conditionSummary(runbook.conditions ?? [], incidentTypes, severities, customFields)
+  if (summary) {
+    return summary
+  }
+  return runbook.alwaysAttach ? "Every incident" : "Attach by hand"
+}
+
 export function valueOptions(field: RunbookCustomField): { id: string; name: string }[] {
   if (field.entries.length > 0) {
     return field.entries.map((entry) => ({ id: entry.id, name: entry.name }))

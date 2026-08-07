@@ -54,6 +54,13 @@ module Interactions
         { response_action: "update", view: Slack::Modals::Roles.build(incident, roles) }
       when Identifiers::HOME_ACTION_ACTIONS
         { response_action: "update", view: Slack::Modals::ActionItemsList.build(incident, kind: :action) }
+      when Identifiers::HOME_ACTION_RUNBOOK
+        available = incident.attachable_runbooks
+        if available.empty?
+          return { response_action: "errors", errors: { "action_select_block" => "No runbooks left to attach. Add them in Settings." } }
+        end
+
+        { response_action: "update", view: Slack::Modals::AttachRunbook.build(incident, available) }
       when Identifiers::HOME_ACTION_CLOSE
         { response_action: "update", view: Slack::Modals::IncidentClose.build(incident, private_metadata: incident_metadata) }
       when Identifiers::HOME_ACTION_TIMELINE

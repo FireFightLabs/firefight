@@ -78,7 +78,8 @@ class Incident < ApplicationRecord
       :incident_type,
       { declared_by: :user },
       :postmortem,
-      incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
+      incident_role_assignments: [ :incident_role, { workspace_membership: :user } ],
+      incident_runbooks: { runbook: :runbook_steps }
     )
   }
 
@@ -115,6 +116,19 @@ class Incident < ApplicationRecord
   # not in whether anyone is still working the incident.
   def terminal?
     closed? || canceled?
+  end
+
+  # Every attached runbook renders the state of its own steps, so they share
+  # one load rather than querying per attachment.
+  def runbook_step_actions
+    @runbook_step_actions ||= incident_actions.active
+      .where.not(runbook_step_id: nil)
+      .includes(assignee: :user)
+      .index_by(&:runbook_step_id)
+  end
+
+  def attachable_runbooks
+    workspace.runbooks.active.ordered.where.not(id: incident_runbooks.select(:runbook_id))
   end
 
   def related_incidents

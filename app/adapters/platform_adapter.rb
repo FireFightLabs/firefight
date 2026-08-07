@@ -126,7 +126,12 @@ class PlatformAdapter
   end
 
   # @return [Hash] { success: true }
-  def update_runbook_applied(channel_id:, message_id:, incident_runbook:)
+  def update_runbook_message(channel_id:, message_id:, incident_runbook:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id: ... }
+  def post_action_reassigned(channel_id:, action:, reassigned_by:)
     raise NotImplemented.new(__method__, self.class)
   end
 

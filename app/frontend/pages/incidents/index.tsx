@@ -8,7 +8,9 @@ import { IncidentTimeline } from "@/pages/incidents/components/index/incident-ti
 import { IncidentActionsSidebar } from "@/pages/incidents/components/index/incident-actions-sidebar"
 import { IncidentPostmortemCard } from "@/pages/incidents/components/index/incident-postmortem-card"
 import { RolesPanel } from "@/pages/incidents/components/index/roles-panel"
+import { RunbooksPanel } from "@/pages/incidents/components/index/runbooks-panel"
 import { TimelineSkeleton } from "@/pages/incidents/components/index/timeline-skeleton"
+import type { AttachableRunbook } from "@/pages/incidents/components/index/attach-runbook-dialog"
 import type { Incident, IncidentAction, TimelineEvent } from "@/pages/incidents/types"
 import type { SharedProps } from "@/types"
 import { dashboardPath } from "@/lib/routes"
@@ -19,10 +21,11 @@ interface IncidentPageProps extends SharedProps {
   actions?: IncidentAction[]
   hasPostmortem: boolean
   postmortemStatus?: string
+  attachableRunbooks: AttachableRunbook[]
 }
 
 export default function IncidentPage() {
-  const { incident, timelineEvents, actions, hasPostmortem, postmortemStatus } = usePage<IncidentPageProps>().props
+  const { incident, timelineEvents, actions, hasPostmortem, postmortemStatus, attachableRunbooks } = usePage<IncidentPageProps>().props
   const canAddAction = ["triage", "active"].includes(incident.status.lifecycleStage)
   const canAddFollowup = ["closed", "canceled"].includes(incident.status.lifecycleStage)
 
@@ -68,6 +71,11 @@ export default function IncidentPage() {
                 <IncidentActionsSidebar actions={actions ?? []} canAddAction={canAddAction} canAddFollowup={canAddFollowup} incidentId={incident.id} />
               </Deferred>
               <AlertsPanel alerts={incident.alerts} />
+              <RunbooksPanel
+                runbooks={incident.runbooks}
+                attachable={attachableRunbooks}
+                incidentId={incident.id}
+              />
               <IncidentPostmortemCard
                 incidentId={incident.id}
                 hasPostmortem={hasPostmortem}

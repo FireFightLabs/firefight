@@ -18,6 +18,7 @@ class IncidentsController < InertiaController
           incident.incident_actions.active.includes(assignee: :user, created_by: :user)
         )
       },
+      attachableRunbooks: attachable_runbooks(incident),
       hasPostmortem: incident.postmortem.present?,
       postmortemStatus: incident.postmortem&.status
     }
@@ -131,5 +132,11 @@ class IncidentsController < InertiaController
       .rewrite(incident, selected_html: selected_html, instruction: instruction)
 
     render json: { rewritten_html: rewritten }
+  end
+
+  private
+
+  def attachable_runbooks(incident)
+    incident.attachable_runbooks.map { |runbook| { slug: runbook.slug, name: runbook.name } }
   end
 end
