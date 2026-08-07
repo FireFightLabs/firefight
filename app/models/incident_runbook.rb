@@ -7,9 +7,6 @@ class IncidentRunbook < ApplicationRecord
   # Every surface rendering this attachment asks the same question: which
   # action, if any, belongs to each step.
   def actions_by_step
-    @actions_by_step ||= incident.incident_actions.active
-      .where(runbook_step_id: runbook.runbook_steps.select(:id))
-      .includes(assignee: :user)
-      .index_by(&:runbook_step_id)
+    @actions_by_step ||= incident.runbook_step_actions.slice(*runbook.runbook_steps.map(&:id))
   end
 end

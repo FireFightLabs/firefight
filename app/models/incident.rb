@@ -118,6 +118,15 @@ class Incident < ApplicationRecord
     closed? || canceled?
   end
 
+  # Every attached runbook renders the state of its own steps, so they share
+  # one load rather than querying per attachment.
+  def runbook_step_actions
+    @runbook_step_actions ||= incident_actions.active
+      .where.not(runbook_step_id: nil)
+      .includes(assignee: :user)
+      .index_by(&:runbook_step_id)
+  end
+
   def attachable_runbooks
     workspace.runbooks.active.ordered.where.not(id: incident_runbooks.select(:runbook_id))
   end
