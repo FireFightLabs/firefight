@@ -15,7 +15,9 @@ Mint a token under **Settings → API keys**:
 claude mcp add --transport http firefight https://<your-host>/mcp
 ```
 
-On first use your browser opens Firefight's consent screen ("<client> wants read-only access to <workspace> as <you>") — click Authorize and you're connected. The client self-registers via dynamic client registration; tokens are short-lived with refresh rotation, PKCE (S256) is required, and you can revoke any connection under **Settings → API keys → Connected agents**.
+On first use your browser opens Firefight's consent screen, which names the client and the workspace it would reach — click Authorize and you're connected. The client self-registers via dynamic client registration; tokens are short-lived with refresh rotation, PKCE (S256) is required, and you can revoke any connection under **Settings → API keys → Connected agents**.
+
+A token belongs to exactly one workspace, because its Doorkeeper resource owner is a `WorkspaceMembership` — the same principal an `ApiKey` resolves to, which is what lets `Current.principal` stay a membership through the Ability Gateway, the ledger and the per-principal rate limit. Members of several workspaces pick one on the consent screen; the pick is resolved through the user's own memberships, so `workspace_id` cannot be forged. Reaching a second workspace means a second `claude mcp add` under a different name, with its own client and token.
 
 **Claude Code (header token — for automation)**
 

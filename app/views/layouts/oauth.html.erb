@@ -26,6 +26,14 @@
       .card { width: min(380px, calc(100vw - 48px)); text-align: center; padding: 24px; }
       .logo { width: 44px; height: 44px; margin-bottom: 24px; }
       h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; line-height: 1.35; }
+      .subject { margin: 12px 0 0; font-size: 14px; line-height: 1.5; color: var(--muted-foreground); }
+      .subject strong { font-weight: 500; color: var(--foreground); }
+      .picker { display: block; margin-top: 24px; text-align: left; font-size: 13px;
+                font-weight: 500; color: var(--muted-foreground); }
+      .picker select { width: 100%; margin-top: 6px; padding: 10px 12px; border-radius: var(--radius);
+                       border: 1px solid var(--border); background: transparent; color: var(--foreground);
+                       font-family: inherit; font-size: 14px; font-weight: 400; }
+      .picker select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
       .error { margin-top: 12px; font-size: 14px; color: #ff8080; }
       .actions { display: flex; gap: 12px; margin-top: 32px; }
       .actions form { flex: 1; }

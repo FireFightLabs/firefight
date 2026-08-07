@@ -6,13 +6,15 @@
 Doorkeeper.configure do
   orm :active_record
 
-  # The consent screen requires a signed-in Slack session; the owner is the
-  # user's membership in their currently selected workspace.
+  # The consent screen requires a signed-in Slack session. The owner is the
+  # membership the member picked on that screen, falling back to the workspace
+  # their dashboard session has selected. Looking the pick up through the
+  # user's own memberships is what keeps workspace_id from being forgeable.
   resource_owner_authenticator do
     user = session[:user_id] && User.find_by(id: session[:user_id])
-    workspace = user && (user.workspaces.find_by(id: session[:workspace_id]) ||
-                         user.workspace_memberships.order(joined_at: :desc).first&.workspace)
-    membership = workspace && workspace.workspace_memberships.find_by(user: user)
+    membership = user && (user.workspace_memberships.find_by(workspace_id: params[:workspace_id]) ||
+                          user.workspace_memberships.find_by(workspace_id: session[:workspace_id]) ||
+                          user.workspace_memberships.order(joined_at: :desc).first)
 
     unless membership
       session[:return_to] = request.fullpath

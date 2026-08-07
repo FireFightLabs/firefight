@@ -22,11 +22,26 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
   end
 
   def sign_in_alice
+    sign_in(@membership)
+  end
+
+  def sign_in(membership)
     OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
-      uid: @membership.platform_user_id,
-      info: { email: users(:alice).email, team_id: @workspace.platform_id, team_name: @workspace.name }
+      uid: membership.platform_user_id,
+      info: { name: membership.user.name, email: membership.user.email,
+              team_id: membership.workspace.platform_id, team_name: membership.workspace.name }
     )
     get "/auth/slack_openid/callback"
+  end
+
+  def granted_membership_id(client_id, params)
+    post oauth_authorization_path, params: params
+    code = Rack::Utils.parse_query(URI.parse(response.location).query).fetch("code")
+    post oauth_token_path, params: {
+      grant_type: "authorization_code", code: code, redirect_uri: REDIRECT_URI,
+      client_id: client_id, code_verifier: @verifier
+    }
+    Doorkeeper::AccessToken.by_token(JSON.parse(response.body).fetch("access_token")).resource_owner_id
   end
 
   def register_client
@@ -132,6 +147,49 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
     get oauth_authorization_path(client_id: client_id, redirect_uri: REDIRECT_URI, response_type: "code", state: "s")
 
     assert_response :bad_request
+  end
+
+  test "the consent screen names the one workspace a member belongs to" do
+    client_id = register_client
+    sign_in(workspace_memberships(:bob_workspace_one))
+
+    get oauth_authorization_path(authorize_params(client_id))
+
+    assert_response :success
+    assert_select "p.subject", text: /#{@workspace.name}.*Bob Jones/
+    assert_select "select[name=workspace_id]", false
+  end
+
+  test "a member of several workspaces picks which one the agent reaches" do
+    client_id = register_client
+    sign_in_alice
+
+    get oauth_authorization_path(authorize_params(client_id))
+
+    assert_response :success
+    assert_select "select[name=workspace_id] option", 2
+    assert_select "select[name=workspace_id] option[selected][value=?]", @workspace.id, text: @workspace.name
+    assert_select "select[name=workspace_id] option[value=?]", workspaces(:slack_workspace_two).id
+  end
+
+  test "the token is bound to the picked workspace, not the session's" do
+    client_id = register_client
+    sign_in_alice
+    picked = workspace_memberships(:alice_workspace_two)
+
+    granted = granted_membership_id(client_id, authorize_params(client_id).merge(workspace_id: picked.workspace_id))
+
+    assert_equal picked.id, granted
+  end
+
+  test "a workspace the member does not belong to cannot be granted" do
+    client_id = register_client
+    sign_in_alice
+    outsider = workspaces(:slack_workspace_expired)
+
+    granted = granted_membership_id(client_id, authorize_params(client_id).merge(workspace_id: outsider.id))
+
+    assert_equal @membership.id, granted
   end
 
   test "the consent screen requires a session" do
