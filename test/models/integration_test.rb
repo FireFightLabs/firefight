@@ -18,6 +18,13 @@ class IntegrationTest < ActiveSupport::TestCase
     assert_not @integration.valid?
   end
 
+  test "executor is selected by kind and unimplemented kinds raise" do
+    assert_equal Integrations::McpExecutor, @integration.executor
+    assert_equal Integrations::NativeExecutor, Integration.new(kind: Integration::KIND_NATIVE).executor
+
+    assert_raises(Integrations::Error) { Integration.new(kind: Integration::KIND_HTTP).executor }
+  end
+
   test "second instance of a provider mints distinct action keys" do
     eu = Integration.create!(workspace: @workspace, kind: Integration::KIND_MCP, provider: "newrelic",
                              name: "New Relic EU", settings: { "server_url" => "https://eu.example/mcp" })

@@ -38,6 +38,46 @@ module Integrations
       assert Ability::Action.exists?(key: "new_relic.logs.query"), "action row survives"
     end
 
+    class FailingHealthPack < FakeNativePack
+      def check_health!(environment_row)
+        raise NativePack::Error, "credentials rejected"
+      end
+    end
+
+    test "sync! reads a native integration's tools from its pack, same reconciliation semantics" do
+      native = Integration.create!(
+        workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_NATIVE,
+        provider: "fake", name: "Fake Native"
+      )
+      leftover = native.tools.create!(name: "gone_tool", enabled: true)
+      NativePack.stubs(:for).with("fake").returns(FakeNativePack)
+
+      DiscoveryService.sync!(native)
+
+      tool = native.tools.find_by!(name: "echo_text")
+      assert tool.read_only?
+      assert_not tool.enabled?, "pack tools arrive disabled like discovered ones"
+      assert_equal "Echoes text back", tool.description
+      assert_not leftover.reload.enabled?, "tools the pack no longer declares are disabled"
+    end
+
+    test "native health check runs the pack probe and records failures readably" do
+      native = Integration.create!(
+        workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_NATIVE,
+        provider: "fake", name: "Fake Native"
+      )
+      row = native.integration_environments.create!
+
+      NativePack.stubs(:for).with("fake").returns(FakeNativePack)
+      assert HealthCheckService.check!(row)
+      assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.reload.health_status
+
+      NativePack.stubs(:for).with("fake").returns(FailingHealthPack)
+      assert_not HealthCheckService.check!(row)
+      assert_equal IntegrationEnvironment::HEALTH_FAILING, row.reload.health_status
+      assert_equal "credentials rejected", row.health_error
+    end
+
     test "health check records status" do
       row = @integration.integration_environments.first
 

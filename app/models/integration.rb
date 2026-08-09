@@ -1,6 +1,7 @@
 # A connected provider instance: credentials per environment, tools that
-# mint gateway actions. kind selects the executor; v1 implements mcp
-# (consume any external MCP server); http packs and native tools follow.
+# mint gateway actions. kind selects the executor: mcp consumes any external
+# MCP server, native runs a first-party Integrations::NativePack; http packs
+# follow.
 class Integration < ApplicationRecord
   include Sluggable
 
@@ -27,6 +28,22 @@ class Integration < ApplicationRecord
 
   def operational?
     disabled_at.nil? && deleted_at.nil?
+  end
+
+  def native?
+    kind == KIND_NATIVE
+  end
+
+  # The per-kind facade for talking to the provider (call, tool_definitions,
+  # check_health!). The one place the kinds diverge; everything downstream
+  # stays executor-agnostic.
+  def executor
+    case kind
+    when KIND_MCP then Integrations::McpExecutor
+    when KIND_NATIVE then Integrations::NativeExecutor
+    else
+      raise Integrations::Error, "No executor implemented for kind '#{kind}'"
+    end
   end
 
   def deleted?
