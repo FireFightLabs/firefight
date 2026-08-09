@@ -1,7 +1,7 @@
 # Curated integration catalog shown on Configure -> Integrations.
 # Providers connect through the generic MCP connector unless kind: native
 # marks one as executing through a first-party pack registered in
-# Integrations::NativePacks (a pack is code; this listing stays config).
+# Integrations::NativePack (a pack is code; this listing stays config).
 # server_url pre-fills the connect flow where an official MCP endpoint is
 # known (blank = the admin pastes their own). mark/color drive the logo
 # tile until real brand assets land.

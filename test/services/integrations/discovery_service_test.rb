@@ -50,7 +50,7 @@ module Integrations
         provider: "fake", name: "Fake Native"
       )
       leftover = native.tools.create!(name: "gone_tool", enabled: true)
-      NativePacks.stubs(:for).with("fake").returns(FakeNativePack)
+      NativePack.stubs(:for).with("fake").returns(FakeNativePack)
 
       DiscoveryService.sync!(native)
 
@@ -68,11 +68,11 @@ module Integrations
       )
       row = native.integration_environments.create!
 
-      NativePacks.stubs(:for).with("fake").returns(FakeNativePack)
+      NativePack.stubs(:for).with("fake").returns(FakeNativePack)
       assert HealthCheckService.check!(row)
       assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.reload.health_status
 
-      NativePacks.stubs(:for).with("fake").returns(FailingHealthPack)
+      NativePack.stubs(:for).with("fake").returns(FailingHealthPack)
       assert_not HealthCheckService.check!(row)
       assert_equal IntegrationEnvironment::HEALTH_FAILING, row.reload.health_status
       assert_equal "credentials rejected", row.health_error

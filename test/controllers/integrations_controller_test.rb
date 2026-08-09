@@ -415,7 +415,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
       description: "Test pack", server_url: "", kind: Integration::KIND_NATIVE
     )
     IntegrationProvider.stubs(:find).with("fakepack").returns(native_entry)
-    Integrations::NativePacks.stubs(:for).with("fakepack").returns(FakeNativePack)
+    Integrations::NativePack.stubs(:for).with("fakepack").returns(FakeNativePack)
 
     post integrations_url, params: { provider: "fakepack", name: "Fake Pack" }
 
@@ -435,7 +435,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
       assert_includes Integration::KINDS, provider.kind,
                       "provider '#{provider.key}' declares unknown kind '#{provider.kind}'"
       if provider.kind == Integration::KIND_NATIVE
-        assert Integrations::NativePacks.for(provider.key),
+        assert Integrations::NativePack.for(provider.key),
                "provider '#{provider.key}' is kind: native but has no registered pack"
       end
     end

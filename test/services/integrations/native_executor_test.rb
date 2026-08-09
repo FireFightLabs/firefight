@@ -10,7 +10,7 @@ module Integrations
         provider: "fake", name: "Fake"
       )
       @integration.tools.create!(name: "echo_text", read_only: true, enabled: true)
-      NativePacks.stubs(:for).with("fake").returns(FakeNativePack)
+      NativePack.stubs(:for).with("fake").returns(FakeNativePack)
     end
 
     test "call dispatches through the pack and wraps plain results in MCP content shape" do
@@ -36,7 +36,7 @@ module Integrations
     end
 
     test "a provider without a registered pack raises" do
-      NativePacks.unstub(:for)
+      NativePack.unstub(:for)
       tool = @integration.tools.find_by!(name: "echo_text")
 
       assert_raises(NativePack::Error) do

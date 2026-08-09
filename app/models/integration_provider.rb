@@ -13,7 +13,7 @@ class IntegrationProvider
         mark: raw.fetch("mark"), color: raw.fetch("color"),
         description: raw.fetch("description"), server_url: raw["server_url"].to_s,
         # kind: native marks a provider that executes through a first-party
-        # pack (Integrations::NativePacks) instead of an MCP server.
+        # pack (Integrations::NativePack) instead of an MCP server.
         kind: raw["kind"] || Integration::KIND_MCP
       )
     end.freeze

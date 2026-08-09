@@ -7,7 +7,24 @@ module Integrations
   class NativePack
     class Error < Integrations::Error; end
 
+    # Provider key -> pack class. A provider listed here executes through its
+    # pack instead of an MCP server; its registry entry declares kind: native
+    # so the connect flow skips the server URL. Listing and execution stay
+    # decoupled on purpose - the gallery is config, the pack is code.
+    REGISTRY = {}.freeze
+
     class << self
+      def for(provider_key)
+        REGISTRY[provider_key.to_s]&.constantize
+      end
+
+      def fetch!(integration)
+        pack_class = self.for(integration.provider)
+        raise Error, "No native pack registered for '#{integration.provider}'" unless pack_class
+
+        pack_class.new(integration)
+      end
+
       def tool_definitions
         @tool_definitions ||= []
       end
