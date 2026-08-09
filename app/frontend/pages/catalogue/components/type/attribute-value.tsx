@@ -130,7 +130,7 @@ export function AttributeValue({
     )
   }
 
-  if (attr.key === "repository") {
+  if (attr.slug === "repository") {
     return (
       <div className="flex items-center gap-1.5">
         <IconBrandGithub className="size-3.5 text-muted-foreground" />

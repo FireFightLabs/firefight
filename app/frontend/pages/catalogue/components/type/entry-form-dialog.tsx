@@ -113,8 +113,8 @@ export function EntryFormDialog({
               </Label>
               <AttributeField
                 attr={attr}
-                value={attributes[attr.key]}
-                onChange={(event) => updateAttribute(attr.key, event)}
+                value={attributes[attr.slug]}
+                onChange={(event) => updateAttribute(attr.slug, event)}
                 allTypes={allTypes}
                 referenceEntries={referenceEntries}
                 slackMembers={slackMembers}

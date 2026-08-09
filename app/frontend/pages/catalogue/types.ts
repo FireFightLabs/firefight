@@ -2,7 +2,7 @@ export type AttributeType = "text" | "number" | "boolean" | "select" | "referenc
 
 export interface AttributeDefinition {
   id: string
-  key: string
+  slug: string
   name: string
   attributeType: AttributeType
   required: boolean
