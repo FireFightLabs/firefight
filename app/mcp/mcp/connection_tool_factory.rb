@@ -46,12 +46,11 @@ module Mcp
         context: { source: "mcp", approval_id: args[APPROVAL_ID_ARG] }
       ) do
         environment_row = tool.integration.resolve_environment(environment_entry&.id)
-        Integrations::Executor.for(tool.integration)
-                              .call(tool: tool, environment_row: environment_row, arguments: arguments)
+        tool.integration.executor.call(tool: tool, environment_row: environment_row, arguments: arguments)
       end
 
       ::MCP::Tool::Response.new(
-        result["content"] || [ { type: "text", text: JSON.pretty_generate(result) } ],
+        result["content"],
         structured_content: result["structuredContent"],
         error: result["isError"] == true
       )
@@ -65,7 +64,7 @@ module Mcp
         "Approval required (id: #{e.approval.id}): a workspace #{e.approval.required_role} must approve " \
         "this call. Retry the identical call with approval_id: \"#{e.approval.id}\" once approved."
       )
-    rescue Integrations::McpClient::Error, Integrations::NativePack::Error => e
+    rescue Integrations::Error => e
       ToolDispatcher.error_response("Upstream tool failed: #{e.message}")
     end
 

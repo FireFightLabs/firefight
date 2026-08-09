@@ -5,9 +5,7 @@ module Integrations
   # executor dispatches to the methods, so the pack is the single source of
   # truth for what a native provider offers.
   class NativePack
-    class Error < StandardError; end
-
-    ToolDefinition = Data.define(:name, :description, :params_schema, :read_only)
+    class Error < Integrations::Error; end
 
     class << self
       def tool_definitions
@@ -32,8 +30,12 @@ module Integrations
       @integration = integration
     end
 
+    def tool_definitions
+      self.class.tool_definitions
+    end
+
     def call(tool_name, environment_row:, arguments:)
-      definition = self.class.tool_definitions.find { |candidate| candidate.name == tool_name }
+      definition = tool_definitions.find { |candidate| candidate.name == tool_name }
       raise Error, "Unknown tool '#{tool_name}' for #{self.class.name}" unless definition
 
       public_send(definition.name, environment_row: environment_row, arguments: arguments)

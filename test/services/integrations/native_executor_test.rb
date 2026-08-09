@@ -4,31 +4,13 @@ module Integrations
   class NativeExecutorTest < ActiveSupport::TestCase
     fixtures :workspaces, :users, :workspace_memberships
 
-    class EchoPack < NativePack
-      tool :echo_text, description: "Echoes", params_schema: {}, read_only: true
-      tool :structured, description: "Already MCP-shaped", params_schema: {}, read_only: true
-      tool :data_result, description: "Returns a hash", params_schema: {}, read_only: true
-
-      def echo_text(environment_row:, arguments:)
-        "echo: #{arguments['text']}"
-      end
-
-      def structured(environment_row:, arguments:)
-        { "content" => [ { "type" => "text", "text" => "as-is" } ], "isError" => false }
-      end
-
-      def data_result(environment_row:, arguments:)
-        { "rows" => [ 1, 2 ] }
-      end
-    end
-
     setup do
       @integration = Integration.create!(
         workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_NATIVE,
         provider: "fake", name: "Fake"
       )
       @integration.tools.create!(name: "echo_text", read_only: true, enabled: true)
-      NativePacks.stubs(:for).with("fake").returns(EchoPack)
+      NativePacks.stubs(:for).with("fake").returns(FakeNativePack)
     end
 
     test "call dispatches through the pack and wraps plain results in MCP content shape" do
@@ -62,14 +44,8 @@ module Integrations
       end
     end
 
-    test "Executor.for selects by kind and rejects unimplemented kinds" do
-      assert_equal NativeExecutor, Executor.for(@integration)
-
-      mcp = Integration.new(kind: Integration::KIND_MCP)
-      assert_equal McpExecutor, Executor.for(mcp)
-
-      http = Integration.new(kind: Integration::KIND_HTTP)
-      assert_raises(NativePack::Error) { Executor.for(http) }
+    test "tool_definitions come from the pack" do
+      assert_equal FakeNativePack.tool_definitions, NativeExecutor.tool_definitions(@integration)
     end
   end
 end

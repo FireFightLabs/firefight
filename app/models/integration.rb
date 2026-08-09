@@ -34,6 +34,18 @@ class Integration < ApplicationRecord
     kind == KIND_NATIVE
   end
 
+  # The per-kind facade for talking to the provider (call, tool_definitions,
+  # check_health!). The one place the kinds diverge; everything downstream
+  # stays executor-agnostic.
+  def executor
+    case kind
+    when KIND_MCP then Integrations::McpExecutor
+    when KIND_NATIVE then Integrations::NativeExecutor
+    else
+      raise Integrations::Error, "No executor implemented for kind '#{kind}'"
+    end
+  end
+
   def deleted?
     deleted_at.present?
   end

@@ -38,14 +38,6 @@ module Integrations
       assert Ability::Action.exists?(key: "new_relic.logs.query"), "action row survives"
     end
 
-    class FakeNativePack < NativePack
-      tool :fetch_thing, description: "Fetches a thing", params_schema: { "type" => "object" }, read_only: true
-
-      def fetch_thing(environment_row:, arguments:)
-        "thing"
-      end
-    end
-
     class FailingHealthPack < FakeNativePack
       def check_health!(environment_row)
         raise NativePack::Error, "credentials rejected"
@@ -62,10 +54,10 @@ module Integrations
 
       DiscoveryService.sync!(native)
 
-      tool = native.tools.find_by!(name: "fetch_thing")
+      tool = native.tools.find_by!(name: "echo_text")
       assert tool.read_only?
       assert_not tool.enabled?, "pack tools arrive disabled like discovered ones"
-      assert_equal "Fetches a thing", tool.description
+      assert_equal "Echoes text back", tool.description
       assert_not leftover.reload.enabled?, "tools the pack no longer declares are disabled"
     end
 

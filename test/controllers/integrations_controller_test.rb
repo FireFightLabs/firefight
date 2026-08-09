@@ -409,21 +409,13 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "rt-2", persisted["refresh_token"]
   end
 
-  class FakeControllerPack < Integrations::NativePack
-    tool :fetch_thing, description: "Fetches a thing", params_schema: { "type" => "object" }, read_only: true
-
-    def fetch_thing(environment_row:, arguments:)
-      "thing"
-    end
-  end
-
   test "connecting a native provider needs no server URL and reads tools from its pack" do
     native_entry = IntegrationProvider::Entry.new(
       key: "fakepack", name: "Fake Pack", category: "Custom", mark: "FP", color: "#000000",
       description: "Test pack", server_url: "", kind: Integration::KIND_NATIVE
     )
     IntegrationProvider.stubs(:find).with("fakepack").returns(native_entry)
-    Integrations::NativePacks.stubs(:for).with("fakepack").returns(FakeControllerPack)
+    Integrations::NativePacks.stubs(:for).with("fakepack").returns(FakeNativePack)
 
     post integrations_url, params: { provider: "fakepack", name: "Fake Pack" }
 
@@ -432,7 +424,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Integration::KIND_NATIVE, integration.kind
     assert_nil integration.server_url
 
-    tool = integration.tools.find_by!(name: "fetch_thing")
+    tool = integration.tools.find_by!(name: "echo_text")
     assert_not tool.enabled?, "pack tools arrive disabled like discovered ones"
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY,
                  integration.integration_environments.first.health_status

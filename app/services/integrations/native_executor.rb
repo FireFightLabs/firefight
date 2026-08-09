@@ -1,18 +1,19 @@
 module Integrations
-  # Runs an authorized tool call against a first-party pack. Same contract as
-  # McpExecutor: the gateway has already said yes, this only executes. Results
-  # are normalized into MCP content shape so callers stay executor-agnostic.
+  # Everything kind: native knows about talking to its provider, all of it
+  # delegated to the registered Integrations::NativePack. Same contract as
+  # McpExecutor, so callers never branch on kind.
   class NativeExecutor
     def self.call(tool:, environment_row:, arguments:)
       pack = NativePacks.fetch!(tool.integration)
-      normalize(pack.call(tool.remote_name, environment_row: environment_row, arguments: arguments))
+      ToolResult.normalize(pack.call(tool.remote_name, environment_row: environment_row, arguments: arguments))
     end
 
-    def self.normalize(result)
-      return result if result.is_a?(Hash) && result.key?("content")
+    def self.tool_definitions(integration)
+      NativePacks.fetch!(integration).tool_definitions
+    end
 
-      text = result.is_a?(String) ? result : JSON.pretty_generate(result)
-      { "content" => [ { "type" => "text", "text" => text } ] }
+    def self.check_health!(environment_row)
+      NativePacks.fetch!(environment_row.integration).check_health!(environment_row)
     end
   end
 end

@@ -5,7 +5,7 @@ module Integrations
   # notifications/initialized before other calls. Handles plain JSON and
   # single-event SSE bodies.
   class McpClient
-    class Error < StandardError; end
+    class Error < Integrations::Error; end
 
     PROTOCOL_VERSION = "2025-06-18".freeze
     OPEN_TIMEOUT = 5

@@ -31,7 +31,7 @@ class IntegrationsController < InertiaController
       kind: kind,
       provider: provider&.key || params[:provider].to_s,
       name: params.require(:name),
-      settings: kind == Integration::KIND_NATIVE ? {} : { "server_url" => params.require(:server_url) }
+      settings: settings_for(kind) { params.require(:server_url) }
     )
     integration.integration_environments.create!(
       catalog_entry_id: params[:environment_id].presence,
@@ -154,7 +154,7 @@ class IntegrationsController < InertiaController
 
     integration.assign_attributes(
       kind: provider.kind, provider: provider.key, name: name,
-      settings: provider.kind == Integration::KIND_NATIVE ? {} : { "server_url" => provider.server_url },
+      settings: settings_for(provider.kind) { provider.server_url },
       deleted_at: nil, disabled_at: nil
     )
     integration.save!
@@ -163,6 +163,13 @@ class IntegrationsController < InertiaController
 
   def set_integration
     @integration = current_workspace.integrations.where(deleted_at: nil).find(params[:id])
+  end
+
+  # Native integrations execute through their pack, so only MCP kinds carry a
+  # server URL. The block defers reading it, so a native connect never
+  # demands a URL param it will not store.
+  def settings_for(kind)
+    kind == Integration::KIND_NATIVE ? {} : { "server_url" => yield }
   end
 
   # Arrives on a full-page URL, so it is confirmed to be one of this
