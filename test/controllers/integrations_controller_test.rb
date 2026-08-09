@@ -121,36 +121,36 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
   test "oauth_start redirects to the provider without persisting anything" do
     stub_begin_flow
 
-    get oauth_start_integrations_url(provider: "github")
+    get oauth_start_integrations_url(provider: "linear")
 
     assert_redirected_to "https://auth.example/authorize"
-    assert_not @workspace.integrations.exists?(provider: "github"),
+    assert_not @workspace.integrations.exists?(provider: "linear"),
                "abandoning the provider's screen must not leave a half-connected row"
   end
 
   test "reconnecting a disconnected provider revives it instead of colliding on the slug" do
     integration = @workspace.integrations.create!(
-      kind: Integration::KIND_MCP, provider: "github", name: "GitHub",
-      settings: { "server_url" => "https://api.githubcopilot.com/mcp/" }
+      kind: Integration::KIND_MCP, provider: "linear", name: "Linear",
+      settings: { "server_url" => "https://mcp.linear.app/mcp" }
     )
     integration.update!(deleted_at: Time.current)
 
     complete_oauth_flow
 
-    assert_equal 1, @workspace.integrations.where(provider: "github").count
+    assert_equal 1, @workspace.integrations.where(provider: "linear").count
     assert_nil integration.reload.deleted_at
   end
 
   test "one provider backs several accounts, each with its own action keys" do
-    complete_oauth_flow(name: "GitHub Platform")
-    complete_oauth_flow(name: "GitHub Payments")
+    complete_oauth_flow(name: "Linear Platform")
+    complete_oauth_flow(name: "Linear Payments")
 
-    slugs = @workspace.integrations.where(provider: "github").order(:slug).pluck(:slug)
-    assert_equal [ "github_payments", "github_platform" ], slugs
+    slugs = @workspace.integrations.where(provider: "linear").order(:slug).pluck(:slug)
+    assert_equal [ "linear_payments", "linear_platform" ], slugs
 
     keys = Integration::Tool.where(integration: @workspace.integrations).map(&:action_key)
-    assert_includes keys, "github_platform.pr.list"
-    assert_includes keys, "github_payments.pr.list"
+    assert_includes keys, "linear_platform.pr.list"
+    assert_includes keys, "linear_payments.pr.list"
   end
 
   test "connecting per environment gives one connection two credential sets" do
@@ -160,8 +160,8 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     complete_oauth_flow(start: { environment_id: production.id })
     complete_oauth_flow(start: { environment_id: development.id })
 
-    integration = @workspace.integrations.find_by!(provider: "github")
-    assert_equal 1, @workspace.integrations.where(provider: "github").count
+    integration = @workspace.integrations.find_by!(provider: "linear")
+    assert_equal 1, @workspace.integrations.where(provider: "linear").count
     assert_equal [ development.id, production.id ].sort,
                  integration.integration_environments.pluck(:catalog_entry_id).sort
     assert_equal 1, integration.tools.where(name: "pr.list").count,
@@ -173,14 +173,14 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     complete_oauth_flow(start: { environment_id: vendor.id })
 
-    row = @workspace.integrations.find_by!(provider: "github").integration_environments.sole
+    row = @workspace.integrations.find_by!(provider: "linear").integration_environments.sole
     assert_nil row.catalog_entry_id, "an unverified environment id must not bind credentials"
   end
 
   test "an existing connection can be narrowed to one environment and widened back" do
     development = catalog_entries(:development_env)
     complete_oauth_flow
-    row = @workspace.integrations.find_by!(provider: "github").integration_environments.sole
+    row = @workspace.integrations.find_by!(provider: "linear").integration_environments.sole
     assert_nil row.catalog_entry_id
 
     patch retarget_environment_integration_url(row.integration),
@@ -194,7 +194,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
   test "retargeting refuses an entry that is not one of this workspace's environments" do
     complete_oauth_flow
-    row = @workspace.integrations.find_by!(provider: "github").integration_environments.sole
+    row = @workspace.integrations.find_by!(provider: "linear").integration_environments.sole
 
     patch retarget_environment_integration_url(row.integration),
           params: { environment_row_id: row.id, environment_id: catalog_entries(:vendor_acme).id }
@@ -208,7 +208,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     complete_oauth_flow(start: { environment_id: production.id })
     complete_oauth_flow(start: { environment_id: catalog_entries(:development_env).id })
 
-    integration = @workspace.integrations.find_by!(provider: "github")
+    integration = @workspace.integrations.find_by!(provider: "linear")
     development_row = integration.integration_environments.find_by!(catalog_entry_id: catalog_entries(:development_env).id)
 
     patch retarget_environment_integration_url(integration),
@@ -220,7 +220,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
   test "members cannot retarget an environment" do
     complete_oauth_flow
-    row = @workspace.integrations.find_by!(provider: "github").integration_environments.sole
+    row = @workspace.integrations.find_by!(provider: "linear").integration_environments.sole
     sign_in(users(:bob), @workspace)
 
     patch retarget_environment_integration_url(row.integration),
@@ -239,34 +239,34 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "sentry", sentry.reload.provider
     assert_match(/already uses that name/, flash[:alert])
-    assert_not @workspace.integrations.exists?(provider: "github")
+    assert_not @workspace.integrations.exists?(provider: "linear")
   end
 
   # The controller looks a connection up by the slug a name *would* derive to.
   # If that rule ever drifts from the model's, reconnecting silently creates a
   # duplicate instead of finding the row, so pin them to the same helper.
   test "a name the slug rule has to rewrite still reuses one connection" do
-    complete_oauth_flow(name: "GitHub read-only")
-    complete_oauth_flow(name: "GitHub read-only")
+    complete_oauth_flow(name: "Linear read-only")
+    complete_oauth_flow(name: "Linear read-only")
 
     integration = @workspace.integrations.sole
-    assert_equal "github_read_only", integration.slug
-    assert_equal Integration.slug_for("GitHub read-only"), integration.slug
+    assert_equal "linear_read_only", integration.slug
+    assert_equal Integration.slug_for("Linear read-only"), integration.slug
   end
 
   test "reconnecting under the default name reuses the connection" do
     complete_oauth_flow
     complete_oauth_flow
 
-    assert_equal 1, @workspace.integrations.where(provider: "github").count
+    assert_equal 1, @workspace.integrations.where(provider: "linear").count
   end
 
   test "oauth callback with the right state stores tokens and discovers tools" do
     complete_oauth_flow
 
     assert_redirected_to integrations_path
-    integration = @workspace.integrations.find_by!(provider: "github")
-    assert_equal "https://api.githubcopilot.com/mcp/", integration.server_url
+    integration = @workspace.integrations.find_by!(provider: "linear")
+    assert_equal "https://mcp.linear.app/mcp", integration.server_url
 
     row = integration.integration_environments.first
     assert_equal "at-1", row.oauth["access_token"]
@@ -275,12 +275,57 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
   end
 
-  test "a GitHub App install id is captured for later server-to-server tokens" do
-    complete_oauth_flow(callback: { installation_id: "98765" })
+  test "connecting GitHub sends the browser to the App install screen without persisting anything" do
+    IntegrationProvider.stubs(:oauth_client).with("github").returns(app_slug: "firefight", client_id: "Iv1.abc")
 
-    row = @workspace.integrations.find_by!(provider: "github").integration_environments.first
+    get oauth_start_integrations_url(provider: "github")
+
+    assert_response :redirect
+    assert_match %r{\Ahttps://github\.com/apps/firefight/installations/new\?state=}, response.location
+    assert_not @workspace.integrations.exists?(provider: "github"),
+               "abandoning the install screen must not leave a half-connected row"
+  end
+
+  test "the install callback stores the installation id and discovers the pack's tools" do
+    IntegrationProvider.stubs(:oauth_client).with("github").returns(app_slug: "firefight", client_id: "Iv1.abc")
+    Integrations::GithubApp.stubs(:installation_token).returns("ghs_token")
+    get oauth_start_integrations_url(provider: "github")
+    state = Rack::Utils.parse_query(URI.parse(response.location).query)["state"]
+
+    get oauth_callback_integrations_url(state: state, installation_id: "98765")
+
+    assert_redirected_to integrations_path
+    integration = @workspace.integrations.find_by!(provider: "github")
+    assert_equal Integration::KIND_NATIVE, integration.kind
+    assert_nil integration.server_url
+
+    row = integration.integration_environments.sole
     assert_equal "98765", row.base_config["installation_id"]
-    assert_equal "at-1", row.oauth["access_token"]
+    assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
+    assert integration.tools.exists?(name: "pr_lookup")
+    assert_not integration.tools.find_by!(name: "pr_lookup").enabled?,
+               "pack tools arrive disabled like discovered ones"
+  end
+
+  test "an install callback without an installation id connects nothing" do
+    IntegrationProvider.stubs(:oauth_client).with("github").returns(app_slug: "firefight", client_id: "Iv1.abc")
+    get oauth_start_integrations_url(provider: "github")
+    state = Rack::Utils.parse_query(URI.parse(response.location).query)["state"]
+
+    get oauth_callback_integrations_url(state: state)
+
+    assert_redirected_to integrations_path
+    assert_match(/did not complete/, flash[:alert])
+    assert_not @workspace.integrations.exists?(provider: "github")
+  end
+
+  test "GitHub connect without an app slug configured explains itself" do
+    IntegrationProvider.stubs(:oauth_client).with("github").returns({})
+
+    get oauth_start_integrations_url(provider: "github")
+
+    assert_redirected_to integrations_path
+    assert_match(/not configured/, flash[:alert])
   end
 
   # Every provider with a hosted server must be connectable through the
@@ -331,32 +376,32 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a configured provider app skips dynamic registration" do
-    ENV["INTEGRATION_GITHUB_CLIENT_ID"] = "Iv1.abc"
-    ENV["INTEGRATION_GITHUB_APP_SLUG"] = "firefight-dev"
+    ENV["INTEGRATION_DATADOG_CLIENT_ID"] = "dd-client"
+    ENV["INTEGRATION_DATADOG_APP_SLUG"] = "firefight-dev"
 
     Integrations::OauthClient.expects(:begin_flow)
-      .with(has_entries(client_id: "Iv1.abc", app_slug: "firefight-dev"))
-      .returns(authorize_url: "https://github.com/login/oauth/authorize", state: "abc",
-               verifier: nil, client_id: "Iv1.abc",
-               token_endpoint: "https://github.com/login/oauth/access_token")
+      .with(has_entries(client_id: "dd-client", app_slug: "firefight-dev"))
+      .returns(authorize_url: "https://auth.example/authorize", state: "abc",
+               verifier: nil, client_id: "dd-client",
+               token_endpoint: "https://auth.example/token")
 
-    get oauth_start_integrations_url(provider: "github")
+    get oauth_start_integrations_url(provider: "datadog")
 
     assert_response :redirect
   ensure
-    ENV.delete("INTEGRATION_GITHUB_CLIENT_ID")
-    ENV.delete("INTEGRATION_GITHUB_APP_SLUG")
+    ENV.delete("INTEGRATION_DATADOG_CLIENT_ID")
+    ENV.delete("INTEGRATION_DATADOG_APP_SLUG")
   end
 
   test "the client secret never reaches the browser session" do
-    ENV["INTEGRATION_GITHUB_CLIENT_SECRET"] = "shh"
+    ENV["INTEGRATION_DATADOG_CLIENT_SECRET"] = "shh"
     stub_begin_flow
 
-    get oauth_start_integrations_url(provider: "github")
+    get oauth_start_integrations_url(provider: "datadog")
 
     assert_not_includes session[:integration_oauth].to_s, "shh"
   ensure
-    ENV.delete("INTEGRATION_GITHUB_CLIENT_SECRET")
+    ENV.delete("INTEGRATION_DATADOG_CLIENT_SECRET")
   end
 
   test "a failed oauth start leaves no broken connection behind" do
@@ -364,11 +409,11 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
       Integrations::OauthClient::Error, "this provider needs a one-time OAuth app setup"
     )
 
-    get oauth_start_integrations_url(provider: "github")
+    get oauth_start_integrations_url(provider: "linear")
 
     assert_redirected_to integrations_path
     assert_match(/one-time OAuth app setup/, flash[:alert])
-    assert_not @workspace.integrations.exists?(provider: "github"),
+    assert_not @workspace.integrations.exists?(provider: "linear"),
                "no credential-less row should be persisted when OAuth cannot start"
   end
 
@@ -377,12 +422,12 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
       authorize_url: "https://auth.example/authorize", state: "abc",
       verifier: "ver", client_id: "cid", token_endpoint: "https://auth.example/token"
     )
-    get oauth_start_integrations_url(provider: "github")
+    get oauth_start_integrations_url(provider: "linear")
 
     get oauth_callback_integrations_url(state: "WRONG", code: "authcode")
 
     assert_redirected_to integrations_path
-    assert_not @workspace.integrations.exists?(provider: "github")
+    assert_not @workspace.integrations.exists?(provider: "linear")
   end
 
   test "expired oauth credentials refresh and persist on use" do
@@ -454,7 +499,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
   # so tests assert on the connection the whole flow produces.
   def complete_oauth_flow(callback: {}, name: nil, start: {})
     stub_begin_flow
-    get oauth_start_integrations_url({ provider: "github" }.merge(name ? { name: name } : {}).merge(start))
+    get oauth_start_integrations_url({ provider: "linear" }.merge(name ? { name: name } : {}).merge(start))
 
     Integrations::OauthClient.stubs(:exchange).returns(
       "access_token" => "at-1", "refresh_token" => "rt-1",

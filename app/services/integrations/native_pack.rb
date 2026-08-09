@@ -11,11 +11,20 @@ module Integrations
     # pack instead of an MCP server; its registry entry declares kind: native
     # so the connect flow skips the server URL. Listing and execution stay
     # decoupled on purpose - the gallery is config, the pack is code.
-    REGISTRY = {}.freeze
+    REGISTRY = {
+      "github" => "Integrations::Packs::Github"
+    }.freeze
 
     class << self
       def for(provider_key)
         REGISTRY[provider_key.to_s]&.constantize
+      end
+
+      # Packs whose provider gates access behind installing an app return the
+      # URL the connect flow sends the customer to; nil means the provider has
+      # no install-first flow.
+      def install_url(state:)
+        nil
       end
 
       def fetch!(integration)

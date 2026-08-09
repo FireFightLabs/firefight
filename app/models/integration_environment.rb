@@ -51,6 +51,13 @@ class IntegrationEnvironment < ApplicationRecord
     oauth_credentials
   end
 
+  # The native install-first path (GitHub App): no OAuth credentials come
+  # back, only the installation id that server-to-server tokens are minted
+  # from at call time.
+  def store_installation!(installation_id)
+    update!(base_config: base_config.merge("installation_id" => installation_id.to_s))
+  end
+
   def rotate_oauth!(oauth_credentials)
     update!(credentials: credentials_hash.merge(OAUTH_KEY => oauth_credentials).to_json)
     oauth_credentials

@@ -81,6 +81,7 @@ A provider marked `kind: native` in the registry executes through a first-party 
 - **Errors share one hierarchy.** `Integrations::Error` is the base; `McpClient::Error` and `NativePack::Error` subclass it, and rescue sites catch the base so they never grow with new kinds. A pack's `check_health!` raises `NativePack::Error` with a readable reason and the row records as failing.
 - **Results share one shape.** Executors normalize through `Integrations::ToolResult` on the way out (MCP content shape), so callers read `result["content"]` without defending.
 - Adding a native provider = the registry entry with `kind: native`, the pack class, and its `REGISTRY` line. The `http` kind remains a constant with no executor.
+- **GitHub is the first native pack** (`Integrations::Packs::Github`): `pr_lookup` and `commit_lookup` over the REST API. Connect is install-first without OAuth discovery — the customer installs the Firefight GitHub App, the callback brings back an `installation_id` (no tokens), and `Integrations::GithubApp` mints short-lived server-to-server installation tokens from it at call time, cached on the environment row. Requires `INTEGRATION_GITHUB_CLIENT_ID`, `_APP_SLUG`, and `_PRIVATE_KEY` (the App's PEM; the client id doubles as the JWT issuer). Clone-backed tools (fetch_file, code_search, blame) arrive with the clone manager.
 
 ## Connections
 

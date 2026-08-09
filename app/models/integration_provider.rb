@@ -54,6 +54,10 @@ class IntegrationProvider
       # anything (GitHub). Connecting then starts at the provider's install
       # screen instead of a bare authorize page.
       app_slug: ENV["#{prefix}_APP_SLUG"].presence ||
-                Rails.application.credentials.dig(:integrations, key.to_sym, :app_slug) }
+                Rails.application.credentials.dig(:integrations, key.to_sym, :app_slug),
+      # PEM for providers whose server-to-server tokens are minted with a
+      # signed app JWT (GitHub App installation tokens).
+      private_key: ENV["#{prefix}_PRIVATE_KEY"].presence ||
+                   Rails.application.credentials.dig(:integrations, key.to_sym, :private_key) }
   end
 end

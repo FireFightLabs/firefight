@@ -23,8 +23,9 @@ providers:
     category: Code
     mark: GH
     color: "#24292f"
-    description: Correlate incidents with recent pull requests and deploys, and fetch code on demand.
-    server_url: https://api.githubcopilot.com/mcp/
+    description: Correlate incidents with recent pull requests and commits from your repositories.
+    server_url: ""
+    kind: native
   - key: gitlab
     name: GitLab
     category: Code

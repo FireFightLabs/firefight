@@ -54,8 +54,9 @@ export function ConnectDialog({
   const [useToken, setUseToken] = useState(false)
   const [separateAccount, setSeparateAccount] = useState(false)
 
-  const oauthAvailable = provider !== null && provider.serverUrl !== ""
-  const showManualForm = !oauthAvailable || useToken
+  const nativeConnect = provider !== null && provider.kind === "native"
+  const oauthAvailable = nativeConnect || (provider !== null && provider.serverUrl !== "")
+  const showManualForm = (!oauthAvailable || useToken) && !nativeConnect
   const alreadyConnected = existingNames.length > 0
   const nameTaken = separateAccount && existingNames.includes(name.trim())
 
@@ -109,7 +110,9 @@ export function ConnectDialog({
           <DialogDescription className="mx-auto max-w-xs leading-relaxed">
             {alreadyConnected
               ? "Authorize another environment on the connection you have, or name this one to keep a second account's permissions separate."
-              : "Firefight discovers this server's tools and you pick which to enable. Nothing turns on automatically."}
+              : nativeConnect
+                ? "Install the Firefight app, choose what it can reach, and pick which tools to enable. Nothing turns on automatically."
+                : "Firefight discovers this server's tools and you pick which to enable. Nothing turns on automatically."}
           </DialogDescription>
         </DialogHeader>
 
@@ -179,23 +182,27 @@ export function ConnectDialog({
                 </Button>
               )}
               <p className="text-muted-foreground text-center text-xs">
-                You approve access on {provider.name}'s consent screen. No keys to copy.
+                {nativeConnect
+                  ? `You choose what Firefight can reach on ${provider.name}'s install screen. No keys to copy.`
+                  : `You approve access on ${provider.name}'s consent screen. No keys to copy.`}
               </p>
             </div>
 
-            <div className="border-border text-muted-foreground flex items-center justify-center gap-3 border-t pt-3 text-xs">
-              {!separateAccount && (
-                <>
+            {(!separateAccount || !nativeConnect) && (
+              <div className="border-border text-muted-foreground flex items-center justify-center gap-3 border-t pt-3 text-xs">
+                {!separateAccount && (
                   <button type="button" onClick={toggleSeparateAccount} className="hover:text-foreground">
                     Add a second account
                   </button>
-                  <span aria-hidden className="bg-border h-3 w-px" />
-                </>
-              )}
-              <button type="button" onClick={() => setUseToken(true)} className="hover:text-foreground">
-                Use a token instead
-              </button>
-            </div>
+                )}
+                {!separateAccount && !nativeConnect && <span aria-hidden className="bg-border h-3 w-px" />}
+                {!nativeConnect && (
+                  <button type="button" onClick={() => setUseToken(true)} className="hover:text-foreground">
+                    Use a token instead
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
