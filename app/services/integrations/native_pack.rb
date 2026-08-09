@@ -62,9 +62,17 @@ module Integrations
 
     def call(tool_name, environment_row:, arguments:)
       definition = tool_definitions.find { |candidate| candidate.name == tool_name }
-      raise Error, "Unknown tool '#{tool_name}' for #{self.class.name}" unless definition
+      fail! "Unknown tool '#{tool_name}' for #{self.class.name}" unless definition
 
       public_send(definition.name, environment_row: environment_row, arguments: arguments)
+    end
+
+    # Packs raise through this instead of `raise Error, ...`: inside a pack
+    # file a bare Error resolves lexically to Integrations::Error, not this
+    # class. Defined here, where the constant resolves correctly, the trap
+    # is gone.
+    def fail!(message)
+      raise Error, message
     end
 
     # Probes the provider with the row's credentials. Packs override with a

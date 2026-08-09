@@ -11,8 +11,6 @@ module Integrations
     TOKEN_CACHE_KEY = "github_app_token".freeze
     JWT_LIFETIME = 9.minutes
     TOKEN_REFRESH_MARGIN = 5.minutes
-    OPEN_TIMEOUT = 5
-    READ_TIMEOUT = 15
 
     class << self
       def install_url(state:)
@@ -37,7 +35,7 @@ module Integrations
         request = Net::HTTP::Get.new(uri)
         request["Authorization"] = "Bearer #{token}"
         apply_api_headers(request)
-        parse_response(http(uri) { |connection| connection.request(request) })
+        parse_response(Http.request(uri, request, error_class: Error))
       end
 
       private
@@ -52,12 +50,10 @@ module Integrations
         request = Net::HTTP::Post.new(uri)
         request["Authorization"] = "Bearer #{app_jwt}"
         apply_api_headers(request)
-        body = parse_response(http(uri) { |connection| connection.request(request) })
+        body = parse_response(Http.request(uri, request, error_class: Error))
 
         token = body.fetch("token") { raise Error, "GitHub returned no installation token" }
-        environment_row.update!(credentials: environment_row.credentials_hash.merge(
-          TOKEN_CACHE_KEY => { "token" => token, "expires_at" => body["expires_at"] }
-        ).to_json)
+        environment_row.store_credential!(TOKEN_CACHE_KEY, "token" => token, "expires_at" => body["expires_at"])
         token
       end
 
@@ -91,13 +87,6 @@ module Integrations
         body
       rescue JSON::ParserError
         raise Error, "GitHub returned invalid JSON (HTTP #{response.code})"
-      end
-
-      def http(uri, &block)
-        Net::HTTP.start(uri.hostname, uri.port, use_ssl: true,
-                        open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT, &block)
-      rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError => e
-        raise Error, "Could not reach GitHub: #{e.class.name}"
       end
     end
   end

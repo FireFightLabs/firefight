@@ -58,6 +58,13 @@ class IntegrationEnvironment < ApplicationRecord
     update!(base_config: base_config.merge("installation_id" => installation_id.to_s))
   end
 
+  # Adapters own the shape of what they cache (minted tokens and the like);
+  # this row owns writing it, same as store_oauth!. Nothing else touches the
+  # credentials column directly.
+  def store_credential!(key, value)
+    update!(credentials: credentials_hash.merge(key => value).to_json)
+  end
+
   def rotate_oauth!(oauth_credentials)
     update!(credentials: credentials_hash.merge(OAUTH_KEY => oauth_credentials).to_json)
     oauth_credentials

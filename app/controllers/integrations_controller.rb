@@ -172,8 +172,6 @@ class IntegrationsController < InertiaController
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     redirect_to integrations_path
-  rescue NameTaken
-    redirect_to integrations_path, alert: "Another connection already uses that name. Pick a different one."
   end
 
   # Keyed on the slug rather than the provider so one provider can back

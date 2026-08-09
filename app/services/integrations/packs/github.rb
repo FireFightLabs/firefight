@@ -38,7 +38,7 @@ module Integrations
       def pr_lookup(environment_row:, arguments:)
         repo = repo_argument(arguments)
         number = Integer(arguments["number"].to_s, exception: false)
-        raise NativePack::Error, "number must be an integer" unless number
+        fail! "number must be an integer" unless number
 
         token = GithubApp.installation_token(environment_row)
         pull = GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token)
@@ -59,7 +59,7 @@ module Integrations
       def commit_lookup(environment_row:, arguments:)
         repo = repo_argument(arguments)
         sha = arguments["sha"].to_s
-        raise NativePack::Error, "sha must be a commit SHA" unless sha.match?(/\A\h{6,40}\z/)
+        fail! "sha must be a commit SHA" unless sha.match?(/\A\h{6,40}\z/)
 
         token = GithubApp.installation_token(environment_row)
         commit = GithubApp.get("/repos/#{repo}/commits/#{sha}", token: token)
@@ -83,7 +83,7 @@ module Integrations
 
       def repo_argument(arguments)
         repo = arguments["repo"].to_s
-        raise NativePack::Error, "repo must be in owner/name form" unless repo.match?(REPO_FORMAT)
+        fail! "repo must be in owner/name form" unless repo.match?(REPO_FORMAT)
 
         repo
       end

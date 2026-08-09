@@ -57,6 +57,8 @@ export function ConnectDialog({
   const nativeConnect = provider !== null && provider.kind === "native"
   const oauthAvailable = nativeConnect || (provider !== null && provider.serverUrl !== "")
   const showManualForm = (!oauthAvailable || useToken) && !nativeConnect
+  const showSecondAccountLink = !separateAccount
+  const showTokenLink = !nativeConnect
   const alreadyConnected = existingNames.length > 0
   const nameTaken = separateAccount && existingNames.includes(name.trim())
 
@@ -188,15 +190,15 @@ export function ConnectDialog({
               </p>
             </div>
 
-            {(!separateAccount || !nativeConnect) && (
+            {(showSecondAccountLink || showTokenLink) && (
               <div className="border-border text-muted-foreground flex items-center justify-center gap-3 border-t pt-3 text-xs">
-                {!separateAccount && (
+                {showSecondAccountLink && (
                   <button type="button" onClick={toggleSeparateAccount} className="hover:text-foreground">
                     Add a second account
                   </button>
                 )}
-                {!separateAccount && !nativeConnect && <span aria-hidden className="bg-border h-3 w-px" />}
-                {!nativeConnect && (
+                {showSecondAccountLink && showTokenLink && <span aria-hidden className="bg-border h-3 w-px" />}
+                {showTokenLink && (
                   <button type="button" onClick={() => setUseToken(true)} className="hover:text-foreground">
                     Use a token instead
                   </button>
