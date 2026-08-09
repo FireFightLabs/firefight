@@ -34,7 +34,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 const DEFAULT_TYPE_COLOR = "#3B82F6"
 
-function generateKey(name: string): string {
+function generateSlug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
 }
 
@@ -68,7 +68,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
       ...prev,
       {
         id: `new-${Date.now()}`,
-        key: "",
+        slug: "",
         name: "",
         attributeType: "text" as AttributeType,
         required: false,
@@ -84,8 +84,8 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
           return attribute
         }
         const merged = { ...attribute, ...updates }
-        if (updates.name !== undefined && !attribute.key) {
-          merged.key = generateKey(updates.name)
+        if (updates.name !== undefined && !attribute.slug) {
+          merged.slug = generateSlug(updates.name)
         }
         return merged
       })
@@ -100,7 +100,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
     setProcessing(true)
     const attributeDefinitions = attributes.map((attr, index) => ({
       id: attr.id.startsWith("new-") ? undefined : attr.id,
-      key: attr.key,
+      slug: attr.slug,
       name: attr.name,
       attributeType: attr.attributeType,
       required: attr.required,

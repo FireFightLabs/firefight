@@ -33,7 +33,7 @@ export function EntryTable({
   const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(null)
   const [editingEntry, setEditingEntry] = useState<CatalogEntry | null>(null)
 
-  const visibleAttributes = type.attributeDefinitions.filter((definition) => definition.key !== "description").slice(0, 4)
+  const visibleAttributes = type.attributeDefinitions.filter((definition) => definition.slug !== "description").slice(0, 4)
 
   const filtered = useMemo(() => {
     if (!search) {
@@ -45,7 +45,7 @@ export function EntryTable({
         return true
       }
       return type.attributeDefinitions.some((attr) => {
-        const value = entry.attributes[attr.key]
+        const value = entry.attributes[attr.slug]
         if (typeof value !== "string") {
           return false
         }
@@ -98,7 +98,7 @@ export function EntryTable({
                   {visibleAttributes.map((attr) => (
                     <TableCell key={attr.id}>
                       <CellValue
-                        value={entry.attributes[attr.key]}
+                        value={entry.attributes[attr.slug]}
                         attr={attr}
                         allTypes={allTypes}
                         referenceEntries={referenceEntries}

@@ -49,9 +49,9 @@ export function EntryDetailSheet({
     return null
   }
 
-  const descAttr = type.attributeDefinitions.find((definition) => definition.key === "description")
-  const descValue = descAttr ? entry.attributes[descAttr.key] : null
-  const otherAttrs = type.attributeDefinitions.filter((definition) => definition.key !== "description")
+  const descAttr = type.attributeDefinitions.find((definition) => definition.slug === "description")
+  const descValue = descAttr ? entry.attributes[descAttr.slug] : null
+  const otherAttrs = type.attributeDefinitions.filter((definition) => definition.slug !== "description")
 
   const handleDelete = () => {
     router.delete(`/app/catalogue/entries/${entry.id}`, {
@@ -122,7 +122,7 @@ export function EntryDetailSheet({
 
           <div className="grid gap-4">
             {otherAttrs.map((attr) => {
-              const value = entry.attributes[attr.key]
+              const value = entry.attributes[attr.slug]
               return (
                 <div
                   key={attr.id}
