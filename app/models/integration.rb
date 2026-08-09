@@ -1,6 +1,7 @@
 # A connected provider instance: credentials per environment, tools that
-# mint gateway actions. kind selects the executor; v1 implements mcp
-# (consume any external MCP server); http packs and native tools follow.
+# mint gateway actions. kind selects the executor: mcp consumes any external
+# MCP server, native runs a first-party Integrations::NativePack; http packs
+# follow.
 class Integration < ApplicationRecord
   include Sluggable
 
@@ -27,6 +28,10 @@ class Integration < ApplicationRecord
 
   def operational?
     disabled_at.nil? && deleted_at.nil?
+  end
+
+  def native?
+    kind == KIND_NATIVE
   end
 
   def deleted?

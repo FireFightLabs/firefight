@@ -8,7 +8,7 @@ module Integrations
       DiscoveryService.sync!(integration)
       environments(integration).each { |row| HealthCheckService.check!(row) }
       true
-    rescue McpClient::Error => e
+    rescue McpClient::Error, NativePack::Error => e
       environments(integration).each { |row| row.record_health!(false, error: e.message) }
       false
     end

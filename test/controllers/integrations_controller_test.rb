@@ -409,6 +409,46 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "rt-2", persisted["refresh_token"]
   end
 
+  class FakeControllerPack < Integrations::NativePack
+    tool :fetch_thing, description: "Fetches a thing", params_schema: { "type" => "object" }, read_only: true
+
+    def fetch_thing(environment_row:, arguments:)
+      "thing"
+    end
+  end
+
+  test "connecting a native provider needs no server URL and reads tools from its pack" do
+    native_entry = IntegrationProvider::Entry.new(
+      key: "fakepack", name: "Fake Pack", category: "Custom", mark: "FP", color: "#000000",
+      description: "Test pack", server_url: "", kind: Integration::KIND_NATIVE
+    )
+    IntegrationProvider.stubs(:find).with("fakepack").returns(native_entry)
+    Integrations::NativePacks.stubs(:for).with("fakepack").returns(FakeControllerPack)
+
+    post integrations_url, params: { provider: "fakepack", name: "Fake Pack" }
+
+    assert_redirected_to integrations_path
+    integration = @workspace.integrations.find_by!(provider: "fakepack")
+    assert_equal Integration::KIND_NATIVE, integration.kind
+    assert_nil integration.server_url
+
+    tool = integration.tools.find_by!(name: "fetch_thing")
+    assert_not tool.enabled?, "pack tools arrive disabled like discovered ones"
+    assert_equal IntegrationEnvironment::HEALTH_HEALTHY,
+                 integration.integration_environments.first.health_status
+  end
+
+  test "every registry provider declares a known kind and native ones have a pack" do
+    IntegrationProvider.all.each do |provider|
+      assert_includes Integration::KINDS, provider.kind,
+                      "provider '#{provider.key}' declares unknown kind '#{provider.kind}'"
+      if provider.kind == Integration::KIND_NATIVE
+        assert Integrations::NativePacks.for(provider.key),
+               "provider '#{provider.key}' is kind: native but has no registered pack"
+      end
+    end
+  end
+
   private
 
   def stub_begin_flow

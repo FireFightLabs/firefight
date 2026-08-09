@@ -4,14 +4,17 @@
 class IntegrationProvider
   REGISTRY_PATH = Rails.root.join("config/integration_providers.yml")
 
-  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url)
+  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind)
 
   def self.all
     @all ||= registry.fetch("providers").map do |raw|
       Entry.new(
         key: raw.fetch("key"), name: raw.fetch("name"), category: raw.fetch("category"),
         mark: raw.fetch("mark"), color: raw.fetch("color"),
-        description: raw.fetch("description"), server_url: raw["server_url"].to_s
+        description: raw.fetch("description"), server_url: raw["server_url"].to_s,
+        # kind: native marks a provider that executes through a first-party
+        # pack (Integrations::NativePacks) instead of an MCP server.
+        kind: raw["kind"] || Integration::KIND_MCP
       )
     end.freeze
   end

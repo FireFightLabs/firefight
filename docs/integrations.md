@@ -71,6 +71,16 @@ Before adding one, confirm the endpoint rather than guessing it: `/.well-known/o
 
 **That is the whole job. No code.** A provider later gaining a first-party pack changes how it executes, never how it is listed.
 
+## Native packs
+
+A provider marked `kind: native` in the registry executes through a first-party Ruby pack instead of an MCP server. Everything downstream of execution is identical — same `Integration::Tool` allowlist, same minted actions, same gateway, same ledger — and the connect flow simply skips the server URL.
+
+- A pack subclasses `Integrations::NativePack`, declares its tools with the `tool` DSL (name, description, params schema, read-only flag), and implements one instance method per tool. The declarations are the native analogue of an MCP server's `tools/list`: `DiscoveryService` reads them and reconciles with the same semantics (arrive disabled, vanished tools disabled never deleted).
+- `Integrations::NativePacks::REGISTRY` maps provider key to pack class. A registry sanity test fails if a `kind: native` provider has no pack.
+- `Integrations::Executor.for(integration)` selects `McpExecutor` or `NativeExecutor` — the one place kinds diverge. **The gateway and `ConnectionToolFactory` never branch on kind.** Native results are normalized into MCP content shape so callers stay executor-agnostic.
+- A pack can override `check_health!(environment_row)` to probe the provider with the row's credentials; raise `NativePack::Error` with a readable reason and the row records as failing.
+- Adding a native provider = the registry entry with `kind: native`, the pack class, and its `REGISTRY` line. The `http` kind remains a constant with no executor.
+
 ## Connections
 
 ```
