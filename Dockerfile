@@ -83,6 +83,14 @@ RUN apt-get update -qq && \
 # Install frontend dependencies
 RUN npm install
 
+# Pages contributed by the cloud engine live inside that gem, and the host
+# directory Vite globs is gitignored, so it is empty in the build context.
+# Without this the bundle ships without them and the routes render blank.
+RUN if [ -n "$FIREFIGHT_CLOUD" ]; then \
+      export FIREFIGHT_CLOUD=1; \
+      bundle exec rake firefight_cloud:sync_frontend; \
+    fi
+
 # Build Vite assets
 RUN bundle exec vite build
 
