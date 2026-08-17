@@ -57,7 +57,7 @@ module Mcp
     rescue AbilityGateway::Denied
       ToolDispatcher.error_response(
         "No grant covers '#{tool.action_key}' here (or the connection is not wired for this environment). " \
-        "Token scopes are documented at #{Docs::MCP_SERVER}"
+        "Token scopes are documented at #{Docs::MCP_SERVER}#{environment_hint(tool)}"
       )
     rescue AbilityGateway::PendingApproval => e
       ToolDispatcher.error_response(
@@ -66,6 +66,21 @@ module Mcp
       )
     rescue Integrations::Error => e
       ToolDispatcher.error_response("Upstream tool failed: #{e.message}")
+    end
+
+    # When the connection is wired per environment and none was named, the
+    # deny is really "pick one" - so say which. Slugs are catalog data any
+    # member can read, and naming one still has to pass the grant and config
+    # checks, so nothing is disclosed that the caller could not already see.
+    def self.environment_hint(tool)
+      integration = tool.integration
+      return "" if integration.resolve_environment(nil).present?
+
+      slugs = integration.integration_environments.enabled.includes(:environment)
+                         .filter_map { |row| row.environment&.slug }
+      return "" if slugs.size < 2
+
+      " This connection is wired per environment. Retry with environment set to one of: #{slugs.join(', ')}."
     end
 
     def self.description_for(tool)

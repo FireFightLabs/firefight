@@ -5,10 +5,8 @@ module Integrations
   # registration when the server supports it), run PKCE, exchange and
   # refresh tokens.
   class OauthClient
-    class Error < StandardError; end
+    class Error < Integrations::Error; end
 
-    OPEN_TIMEOUT = 5
-    READ_TIMEOUT = 15
     REFRESH_MARGIN = 60.seconds
 
     class << self
@@ -143,7 +141,7 @@ module Integrations
         request = Net::HTTP::Post.new(uri)
         request["Accept"] = "application/json"
         request.set_form_data(params.compact)
-        response = http(uri) { |conn| conn.request(request) }
+        response = Http.request(uri, request, error_class: Error)
         body = JSON.parse(response.body.to_s)
         raise Error, body["error_description"] || body["error"] || "token request failed (HTTP #{response.code})" unless response.code.to_i.between?(200, 299)
 
@@ -162,7 +160,7 @@ module Integrations
         request["Content-Type"] = "application/json"
         request["Accept"] = "application/json"
         request.body = payload.to_json
-        response = http(uri) { |conn| conn.request(request) }
+        response = Http.request(uri, request, error_class: Error)
         raise Error, "registration failed (HTTP #{response.code})" unless response.code.to_i.between?(200, 299)
 
         JSON.parse(response.body.to_s)
@@ -174,19 +172,12 @@ module Integrations
         uri = URI.parse(url)
         request = Net::HTTP::Get.new(uri)
         request["Accept"] = "application/json"
-        response = http(uri) { |conn| conn.request(request) }
+        response = Http.request(uri, request, error_class: Error)
         return nil unless response.code.to_i == 200
 
         JSON.parse(response.body.to_s)
       rescue JSON::ParserError
         nil
-      end
-
-      def http(uri, &block)
-        Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == "https",
-                        open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT, &block)
-      rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError => e
-        raise Error, "could not reach the authorization server: #{e.class.name}"
       end
     end
   end

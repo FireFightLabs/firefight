@@ -15,7 +15,7 @@ class IntegrationsController < InertiaController
       providers: IntegrationProvider.all.map do |provider|
         { key: provider.key, name: provider.name, category: provider.category,
           mark: provider.mark, color: provider.color,
-          description: provider.description, serverUrl: provider.server_url }
+          description: provider.description, serverUrl: provider.server_url, kind: provider.kind }
       end,
       categories: IntegrationProvider.categories,
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
@@ -89,7 +89,9 @@ class IntegrationsController < InertiaController
   # half-connected row behind.
   def oauth_start
     provider = IntegrationProvider.find(params[:provider].to_s)
-    if provider.nil? || provider.server_url.blank?
+    return redirect_to integrations_path, alert: "Unknown integration." if provider.nil?
+    return native_install_start(provider) if provider.kind == Integration::KIND_NATIVE
+    if provider.server_url.blank?
       return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
     end
 
@@ -116,6 +118,7 @@ class IntegrationsController < InertiaController
            ActiveSupport::SecurityUtils.secure_compare(pending["state"].to_s, params[:state].to_s)
       return redirect_to integrations_path, alert: "The connection attempt expired. Try again."
     end
+    return native_install_callback(provider, pending) if pending["native"]
 
     credentials = Integrations::OauthClient.exchange(
       token_endpoint: pending["token_endpoint"], code: params[:code].to_s,
@@ -141,6 +144,35 @@ class IntegrationsController < InertiaController
   end
 
   private
+
+  # Install-first without OAuth discovery: the provider's app is installed on
+  # the customer's account and the callback brings back an installation id,
+  # not tokens. Server-to-server tokens are minted from it at call time.
+  def native_install_start(provider)
+    state = SecureRandom.hex(16)
+    install_url = Integrations::NativePack.for(provider.key)&.install_url(state: state)
+    if install_url.blank?
+      return redirect_to integrations_path, alert: "One-click connect is not configured for this integration on this install."
+    end
+
+    session[:integration_oauth] = {
+      "provider" => provider.key, "name" => params[:name].presence || provider.name,
+      "environment_id" => environment_id_param, "state" => state, "native" => true
+    }
+    redirect_to install_url, allow_other_host: true
+  end
+
+  def native_install_callback(provider, pending)
+    if params[:installation_id].blank?
+      return redirect_to integrations_path, alert: "The installation did not complete. Try again."
+    end
+
+    environment_row = connect!(provider, pending["name"], pending["environment_id"])
+    environment_row.store_installation!(params[:installation_id])
+    Integrations::ConnectionRefresh.run!(environment_row.integration)
+
+    redirect_to integrations_path
+  end
 
   # Keyed on the slug rather than the provider so one provider can back
   # several accounts (two AWS accounts, two PlanetScale orgs), each with its

@@ -8,7 +8,6 @@ module Integrations
     class Error < Integrations::Error; end
 
     PROTOCOL_VERSION = "2025-06-18".freeze
-    OPEN_TIMEOUT = 5
     READ_TIMEOUT = 30
 
     def initialize(server_url:, headers: {})
@@ -78,12 +77,7 @@ module Integrations
       @headers.each { |key, value| req[key] = value }
       req.body = payload.to_json
 
-      Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == "https",
-                      open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT) do |http|
-        http.request(req)
-      end
-    rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError => e
-      raise Error, "server unreachable (#{e.class.name})"
+      Http.request(uri, req, error_class: Error, read_timeout: READ_TIMEOUT)
     end
 
     def capture_session(response)

@@ -57,6 +57,9 @@ gem "mcp"
 # HTTP client for API requests
 gem "httparty"
 
+# Signed GitHub App JWTs for minting installation tokens
+gem "jwt"
+
 # Persistent HTTP connection pool (for Slack API keep-alive)
 gem "net-http-persistent"
 

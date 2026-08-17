@@ -11,11 +11,20 @@ module Integrations
     # pack instead of an MCP server; its registry entry declares kind: native
     # so the connect flow skips the server URL. Listing and execution stay
     # decoupled on purpose - the gallery is config, the pack is code.
-    REGISTRY = {}.freeze
+    REGISTRY = {
+      "github" => "Integrations::Packs::Github"
+    }.freeze
 
     class << self
       def for(provider_key)
         REGISTRY[provider_key.to_s]&.constantize
+      end
+
+      # Packs whose provider gates access behind installing an app return the
+      # URL the connect flow sends the customer to; nil means the provider has
+      # no install-first flow.
+      def install_url(state:)
+        nil
       end
 
       def fetch!(integration)
@@ -53,9 +62,17 @@ module Integrations
 
     def call(tool_name, environment_row:, arguments:)
       definition = tool_definitions.find { |candidate| candidate.name == tool_name }
-      raise Error, "Unknown tool '#{tool_name}' for #{self.class.name}" unless definition
+      fail! "Unknown tool '#{tool_name}' for #{self.class.name}" unless definition
 
       public_send(definition.name, environment_row: environment_row, arguments: arguments)
+    end
+
+    # Packs raise through this instead of `raise Error, ...`: inside a pack
+    # file a bare Error resolves lexically to Integrations::Error, not this
+    # class. Defined here, where the constant resolves correctly, the trap
+    # is gone.
+    def fail!(message)
+      raise Error, message
     end
 
     # Probes the provider with the row's credentials. Packs override with a

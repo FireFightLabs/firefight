@@ -6,4 +6,5 @@ export interface ProviderEntry {
   color: string
   description: string
   serverUrl: string
+  kind: string
 }
