@@ -74,6 +74,72 @@ module Integrations
       test "the registry resolves github to this pack" do
         assert_equal Github, NativePack.for("github")
       end
+
+      test "fetch_file returns a numbered slice with context around the requested lines" do
+        with_fixture_clone do
+          text = @pack.fetch_file(environment_row: @row,
+                                  arguments: { "repo" => "acme/checkout", "path" => "payment.rb",
+                                               "start_line" => 3, "end_line" => 3 })
+
+          assert_match(/payment\.rb:1-9 \(of 9 lines\)/, text)
+          assert_match(/   3\s+retry_budget\(amount\)/, text)
+        end
+      end
+
+      test "fetch_file refuses secrets-shaped and traversal paths" do
+        error = assert_raises(NativePack::Error) do
+          @pack.fetch_file(environment_row: @row, arguments: { "repo" => "acme/checkout", "path" => ".env" })
+        end
+        assert_match(/not readable/, error.message)
+
+        assert_raises(NativePack::Error) do
+          @pack.fetch_file(environment_row: @row, arguments: { "repo" => "acme/checkout", "path" => "../outside.rb" })
+        end
+      end
+
+      test "code_search returns path:line references and hides sensitive files" do
+        with_fixture_clone do
+          text = @pack.code_search(environment_row: @row,
+                                   arguments: { "repo" => "acme/checkout", "pattern" => "retry_budget|SECRET" })
+
+          assert_match(/payment\.rb:3:/, text)
+          assert_no_match(/\.env/, text, "denylisted paths never appear in results")
+        end
+      end
+
+      test "code_search reports zero matches readably" do
+        with_fixture_clone do
+          assert_equal "No matches.",
+                       @pack.code_search(environment_row: @row,
+                                         arguments: { "repo" => "acme/checkout", "pattern" => "nothing_matches_this" })
+        end
+      end
+
+      test "blame attributes lines to their commits and points at the lookup tools" do
+        with_fixture_clone do
+          text = @pack.blame(environment_row: @row,
+                             arguments: { "repo" => "acme/checkout", "path" => "payment.rb",
+                                          "start_line" => 1, "end_line" => 6 })
+
+          assert_match(/Tighten retry budget \(Grace Retries\)/, text)
+          assert_match(/Add payment charging \(Ada Payments\)/, text)
+          assert_match(/Use commit_lookup or pr_lookup/, text)
+        end
+      end
+
+      test "blame validates its line range" do
+        assert_raises(NativePack::Error) do
+          @pack.blame(environment_row: @row,
+                      arguments: { "repo" => "acme/checkout", "path" => "payment.rb",
+                                   "start_line" => 9, "end_line" => 2 })
+        end
+      end
+
+      private
+
+      def with_fixture_clone(&block)
+        FixtureRepo.with_clone_env(&block)
+      end
     end
   end
 end
