@@ -10,6 +10,9 @@
 #     schedule: at 5am every day
 
 development:
+  integration_health_sweep:
+    class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
+    schedule: every 30 minutes
   alert_routing_sweep:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events
@@ -27,6 +30,9 @@ development:
     schedule: at 4am every day
 
 staging:
+  integration_health_sweep:
+    class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
+    schedule: every 30 minutes
   alert_routing_sweep:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events
@@ -54,6 +60,9 @@ staging:
     schedule: at 4am every day
 
 production:
+  integration_health_sweep:
+    class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
+    schedule: every 30 minutes
   alert_routing_sweep:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events

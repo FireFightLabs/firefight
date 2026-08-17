@@ -81,7 +81,20 @@ A provider marked `kind: native` in the registry executes through a first-party 
 - **Errors share one hierarchy.** `Integrations::Error` is the base; `McpClient::Error` and `NativePack::Error` subclass it, and rescue sites catch the base so they never grow with new kinds. A pack's `check_health!` raises `NativePack::Error` with a readable reason and the row records as failing.
 - **Results share one shape.** Executors normalize through `Integrations::ToolResult` on the way out (MCP content shape), so callers read `result["content"]` without defending.
 - Adding a native provider = the registry entry with `kind: native`, the pack class, and its `REGISTRY` line. The `http` kind remains a constant with no executor.
-- **GitHub is the first native pack** (`Integrations::Packs::Github`): `pr_lookup` and `commit_lookup` over the REST API. Connect is install-first without OAuth discovery — the customer installs the Firefight GitHub App, the callback brings back an `installation_id` (no tokens), and `Integrations::GithubApp` mints short-lived server-to-server installation tokens from it at call time, cached on the environment row. Requires `INTEGRATION_GITHUB_CLIENT_ID`, `_APP_SLUG`, and `_PRIVATE_KEY` (the App's PEM; the client id doubles as the JWT issuer). Clone-backed tools (fetch_file, code_search, blame) arrive with the clone manager.
+- **GitHub is the first native pack** (`Integrations::Packs::Github`): `pr_lookup` and `commit_lookup` over the REST API, plus `fetch_file`, `code_search`, and `blame` against a warm local clone. Connect is install-first without OAuth discovery — the customer installs the Firefight GitHub App, the callback brings back an `installation_id` (no tokens), and `Integrations::GithubApp` mints short-lived server-to-server installation tokens from it at call time, cached on the environment row. Requires `INTEGRATION_GITHUB_CLIENT_ID`, `_APP_SLUG`, and `_PRIVATE_KEY` (the App's PEM; the client id doubles as the JWT issuer).
+
+## Clone manager
+
+`Integrations::CloneManager` keeps warm local clones for the code tools. Repo content is untrusted input, so the rules are structural, not advisory:
+
+- git runs with hooks disabled, prompts off, and no system config; arguments are exec'd as arrays, never through a shell.
+- Tools read content only through git object commands (`git show`/`grep`/`blame`) — repo bytes never cross the filesystem API directly, and `..`/absolute paths are rejected at the argument boundary on top of git's own containment.
+- Secrets-shaped paths (`.env`, credentials, key files) are refused in the executor and filtered from search results — the denylist lives in code, not in a prompt.
+- The installation token rides a per-invocation `http.extraHeader` and is never written into the clone's config; git stderr is sanitized before it can reach an error message.
+- Clones live under `REPO_CLONE_ROOT` (default `tmp/repo_clones`), namespaced per workspace, refreshed when older than 5 minutes at use, LRU-evicted over `REPO_CLONE_LIMIT` (default 20). An exclusive per-repo lock covers clone, fetch, eviction, and the read, so nothing rips a directory out from under a caller.
+- In production the workers running these tools are the isolation boundary (dedicated service, restricted egress, volume encryption) — that part is infrastructure, documented in the deploy notes, not enforced by this class.
+
+`Integrations::HealthCheckSweepJob` (recurring, every 30 minutes) probes every enabled environment row of every active integration with the executor's `check_health!` and records the result, so dead credentials surface before an incident needs the connection. Transitions to failing are logged; the admin-facing alert is a pending product decision.
 
 ## Connections
 
