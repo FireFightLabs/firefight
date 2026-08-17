@@ -59,4 +59,17 @@ module FixtureRepo
     _, stderr, status = Open3.capture3("git", "-C", dir, *args)
     raise "fixture repo git #{args.first} failed: #{stderr}" unless status.success?
   end
+
+  # The standard clone-tool test rig: a fixture repo, a scratch clone root,
+  # and CloneManager pointed at both. Yields [fixture_path, clone_root].
+  def self.with_clone_env
+    fixture = create!
+    clone_root = Dir.mktmpdir("clone-root")
+    Integrations::CloneManager.stubs(:root).returns(Pathname.new(clone_root))
+    Integrations::CloneManager.stubs(:remote_url).returns(fixture)
+    yield fixture, Pathname.new(clone_root)
+  ensure
+    FileUtils.rm_rf(fixture) if fixture
+    FileUtils.rm_rf(clone_root) if clone_root
+  end
 end

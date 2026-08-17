@@ -130,8 +130,7 @@ module Integrations
         path = path_argument(arguments)
 
         CloneManager.with_repo(environment_row: environment_row, repo: repo) do |dir|
-          content = show_file(dir, path)
-          lines = content.lines
+          lines = read_file_lines(dir, path)
           from, to = slice_range(arguments, lines.size)
 
           numbered = lines[(from - 1)..(to - 1)].each_with_index.map do |line, index|
@@ -147,12 +146,9 @@ module Integrations
         fail! "pattern is required" if pattern.blank?
 
         CloneManager.with_repo(environment_row: environment_row, repo: repo) do |dir|
-          grep_args = [ "grep", "-nE", "--no-color", "-e", pattern, "--" ]
-          grep_args << arguments["path_prefix"].to_s if arguments["path_prefix"].present?
-          output = CloneManager.git!(dir, *grep_args, ok_statuses: [ 0, 1 ])
-
-          hits = output.lines.reject { |line| line.split(":", 2).first.to_s.match?(SENSITIVE_PATHS) }
-          shown = hits.first(MATCH_LIMIT).map { |line| line.chomp.truncate(200) }
+          hits = CloneManager.grep(dir, pattern, arguments["path_prefix"].presence)
+                             .reject { |line| line.split(":", 2).first.to_s.match?(SENSITIVE_PATHS) }
+          shown = hits.first(MATCH_LIMIT).map { |line| line.truncate(200) }
           return "No matches." if shown.empty?
 
           result = shown.join("\n")
@@ -170,8 +166,7 @@ module Integrations
         fail! "line range must be ascending and at most #{LINE_LIMIT} lines" unless from <= to && (to - from) < LINE_LIMIT
 
         CloneManager.with_repo(environment_row: environment_row, repo: repo) do |dir|
-          porcelain = CloneManager.git!(dir, "blame", "-L", "#{from},#{to}", "--line-porcelain", "HEAD", "--", path)
-          format_blame(porcelain)
+          format_blame(CloneManager.blame(dir, path, from, to))
         end
       end
 
@@ -181,8 +176,8 @@ module Integrations
 
       private
 
-      def show_file(dir, path)
-        CloneManager.git!(dir, "show", "HEAD:#{path}")
+      def read_file_lines(dir, path)
+        CloneManager.show_file(dir, path).lines
       rescue CloneManager::Error
         fail! "No file at '#{path}' on the default branch."
       end
@@ -198,25 +193,13 @@ module Integrations
         [ from, to ]
       end
 
-      def format_blame(porcelain)
-        commits = {}
-        lines = []
-        current = nil
-        porcelain.each_line do |raw|
-          case raw
-          when /\A([0-9a-f]{40}) \d+ (\d+)/
-            current = { sha: Regexp.last_match(1), line: Regexp.last_match(2).to_i }
-          when /\Aauthor (.+)/ then commits[current[:sha]] ||= { author: Regexp.last_match(1) }
-          when /\Aauthor-time (\d+)/ then commits[current[:sha]][:date] = Time.at(Regexp.last_match(1).to_i).utc.to_date
-          when /\Asummary (.+)/ then commits[current[:sha]][:summary] = Regexp.last_match(1)
-          when /\A\t(.*)/m
-            meta = commits[current[:sha]]
-            lines << format("L%-5d %s %s %s (%s)", current[:line], current[:sha][0, 8], meta[:date], meta[:summary], meta[:author])
-          end
+      def format_blame(blame_lines)
+        rendered = blame_lines.map do |entry|
+          format("L%-5d %s %s %s (%s)", entry.line, entry.sha[0, 8], entry.date, entry.summary, entry.author)
         end
+        distinct = blame_lines.map { |entry| entry.sha[0, 8] }.uniq
 
-        distinct = commits.keys.map { |sha| sha[0, 8] }.uniq
-        "#{lines.join("\n")}\n\nCommits touching this range: #{distinct.join(', ')}. " \
+        "#{rendered.join("\n")}\n\nCommits touching this range: #{distinct.join(', ')}. " \
           "Use commit_lookup or pr_lookup for the full change."
       end
 

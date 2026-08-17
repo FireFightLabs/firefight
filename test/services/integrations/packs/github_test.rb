@@ -137,15 +137,8 @@ module Integrations
 
       private
 
-      def with_fixture_clone
-        fixture = FixtureRepo.create!
-        clone_root = Dir.mktmpdir("clone-root")
-        CloneManager.stubs(:root).returns(Pathname.new(clone_root))
-        CloneManager.stubs(:remote_url).returns(fixture)
-        yield
-      ensure
-        FileUtils.rm_rf(fixture) if fixture
-        FileUtils.rm_rf(clone_root) if clone_root
+      def with_fixture_clone(&block)
+        FixtureRepo.with_clone_env(&block)
       end
     end
   end
