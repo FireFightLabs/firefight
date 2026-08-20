@@ -81,10 +81,25 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 | [docs/slack-messages.md](docs/slack-messages.md) | Adding or changing anything Firefight posts to Slack: block layout, titles, dividers, emoji, fallback text, escaping |
 | [docs/frontend.md](docs/frontend.md) | Any work under `app/frontend/` or on serializers (Inertia props, TS type generation, page/component structure, dashboard pattern) |
 | [docs/workflows.md](docs/workflows.md) | Creating or modifying a workflow, or touching the SolidWorkflow engine (`engines/solid_workflow/`) |
+| [docs/alerts.md](docs/alerts.md) | Touching alert ingestion, provider adapters, routing policies (`Policy`/`PolicyRule`), grouping, or the alert digest |
 | [docs/api.md](docs/api.md) | Working on the public REST API (`/api/v1/`), API keys, auth, or idempotency |
 | [docs/mcp.md](docs/mcp.md) | Working on the MCP server (`/mcp`, `app/mcp/`), its tools, or agent-facing auth |
 | [docs/integrations.md](docs/integrations.md) | Adding or changing an integration provider or connection, and anything touching the Ability Gateway (actions, grants, approvals, the invocation ledger) |
 | [docs/ai.md](docs/ai.md) | AI features (`engines/firefight_ai/`), the Inference ledger, transcript store/scrubbing, or model configuration |
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in the **Firefight Issues** Notion database, reached through the Notion MCP server, never GitHub Issues. See [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+The five canonical triage roles are values of the `Triage` single-select property, not labels. See [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` and one `docs/adr/` at the root, alongside the deep-dives above. See [docs/agents/domain.md](docs/agents/domain.md).
 
 ## Code Style
 

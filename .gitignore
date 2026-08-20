@@ -62,3 +62,5 @@ node_modules
 /.infisical.json
 
 app/frontend/cloud_pages/
+
+docs/agents/*
