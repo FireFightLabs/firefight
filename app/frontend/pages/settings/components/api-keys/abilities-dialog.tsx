@@ -78,39 +78,41 @@ export function AbilitiesDialog({
             This key holds no abilities, so it cannot do anything until granted.
           </p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Action</TableHead>
-                <TableHead>Risk</TableHead>
-                <TableHead>Scope</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {response.abilities.map((ability) => (
-                <TableRow key={ability.action_key}>
-                  <TableCell>
-                    <code className="text-xs">{ability.action_key}</code>
-                    {ability.implicit && (
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        implicit
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={ability.risk_level === "destructive" ? "destructive" : "outline"}>
-                      {ability.risk_level ?? "unknown"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-xs">
-                    {ability.scopes.every((scope) => Object.keys(scope).length === 0)
-                      ? "unrestricted"
-                      : JSON.stringify(ability.scopes)}
-                  </TableCell>
+          <div className="rounded-lg border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Risk</TableHead>
+                  <TableHead>Scope</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {response.abilities.map((ability) => (
+                  <TableRow key={ability.action_key}>
+                    <TableCell>
+                      <code className="text-xs">{ability.action_key}</code>
+                      {ability.implicit && (
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          implicit
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={ability.risk_level === "destructive" ? "destructive" : "outline"}>
+                        {ability.risk_level ?? "unknown"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {ability.scopes.every((scope) => Object.keys(scope).length === 0)
+                        ? "unrestricted"
+                        : JSON.stringify(ability.scopes)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </DialogContent>
     </Dialog>

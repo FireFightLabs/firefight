@@ -76,12 +76,8 @@ export function ActivityTab({
           </Select>
         </div>
       </CardHeader>
-      <CardContent>
-        {invocations.length === 0 ? (
-          <p className="text-muted-foreground py-8 text-center text-sm">
-            No governed activity yet. Actions taken by agents and API keys will appear here.
-          </p>
-        ) : (
+      {invocations.length > 0 ? (
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -119,8 +115,14 @@ export function ActivityTab({
               ))}
             </TableBody>
           </Table>
-        )}
-      </CardContent>
+        </CardContent>
+      ) : (
+        <CardContent>
+          <p className="text-muted-foreground py-8 text-center text-sm">
+            No governed activity yet. Actions taken by agents and API keys will appear here.
+          </p>
+        </CardContent>
+      )}
     </Card>
   )
 }

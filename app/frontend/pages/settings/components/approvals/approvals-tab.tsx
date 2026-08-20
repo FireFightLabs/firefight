@@ -50,10 +50,8 @@ export function ApprovalsTab({
             The requester then retries with the approval id.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {pendingApprovals.length === 0 ? (
-            <p className="text-muted-foreground py-8 text-center text-sm">Nothing waiting for approval.</p>
-          ) : (
+        {pendingApprovals.length > 0 ? (
+          <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -93,18 +91,20 @@ export function ApprovalsTab({
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
+          </CardContent>
+        ) : (
+          <CardContent>
+            <p className="text-muted-foreground py-8 text-center text-sm">Nothing waiting for approval.</p>
+          </CardContent>
+        )}
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>Recently resolved</CardTitle>
         </CardHeader>
-        <CardContent>
-          {resolvedApprovals.length === 0 ? (
-            <p className="text-muted-foreground py-8 text-center text-sm">No resolved approvals yet.</p>
-          ) : (
+        {resolvedApprovals.length > 0 ? (
+          <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -137,8 +137,12 @@ export function ApprovalsTab({
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
+          </CardContent>
+        ) : (
+          <CardContent>
+            <p className="text-muted-foreground py-8 text-center text-sm">No resolved approvals yet.</p>
+          </CardContent>
+        )}
       </Card>
     </>
   )
