@@ -24,6 +24,7 @@ import { Link, usePage } from "@inertiajs/react"
 
 import { FireFightLogo } from "@/components/fire-fight-logo"
 import { NavMain } from "@/components/navigation/nav-main"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { NavUser } from "@/components/navigation/nav-user"
 import {
   Sidebar,
@@ -121,8 +122,24 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
               <Link href={dashboardPath()}>
-                <FireFightLogo style={{ width: "2rem", height: "2rem" }} className="shrink-0" />
-                <span className="text-base font-bold tracking-tight">FireFight</span>
+                {currentWorkspace ? (
+                  <>
+                    <Avatar className="size-8 rounded-lg">
+                      <AvatarImage src={currentWorkspace.avatarUrl} alt={currentWorkspace.name} />
+                      <AvatarFallback className="rounded-lg text-xs">
+                        {currentWorkspace.name.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="truncate text-base font-bold tracking-tight">
+                      {currentWorkspace.name}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <FireFightLogo style={{ width: "2rem", height: "2rem" }} className="shrink-0" />
+                    <span className="text-base font-bold tracking-tight">FireFight</span>
+                  </>
+                )}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
