@@ -174,6 +174,13 @@ app/frontend/
   - Features with a single page (e.g. `pages/dashboard/`) keep the flat `components/` layout — no per-page subfolder needed.
 - The Inertia resolver does a string lookup against `import.meta.glob('../pages/**/*.tsx')` so co-located components (anything other than the file the controller names) are inert — they're imported into the bundle but never resolved as a page.
 
+**Every table sits in a `Card`:**
+- The `Table` primitive draws no surface of its own. The container is always `Card` + `CardContent className="p-0"`, so the table runs edge to edge on the card background rather than on the page background.
+- Anything scoped to the table (title, description, search, filters, the primary action) goes in `CardHeader`. Settings tabs put a `CardTitle`/`CardDescription` there; `catalogue/type.tsx` puts the search input there because the page header already carries the title.
+- A card with no header takes `className="overflow-hidden py-0"` so the table fills it instead of floating inside the card's vertical padding — see `components/data-table.tsx` and `members-table.tsx`.
+- Empty states follow the shape of the list: an in-table row for a filtered list that keeps its column headers, a plain padded `<CardContent>` for a list that is empty outright.
+- Tables inside a `Dialog` or `Sheet` are the exception. The dialog is already an elevated surface, so they use `<div className="rounded-lg border overflow-hidden">` instead of a nested card.
+
 ## Configurable option lists (severities, statuses, types, roles)
 
 These four settings tabs are one pattern, not four screens. Anything positioned,
