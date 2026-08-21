@@ -130,6 +130,17 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "pending", replay.state
   end
 
+  test "a member cannot replay a delivery" do
+    sign_in(users(:bob), @workspace)
+    original = webhook_deliveries(:errored_delivery)
+
+    assert_no_difference -> { WebhookDelivery.count } do
+      post replay_webhook_delivery_url(@webhook, original)
+    end
+
+    assert_redirected_to dashboard_path
+  end
+
   test "replay cannot reach a webhook from another workspace" do
     other_webhook = webhooks(:workspace_two_webhook)
     original = webhook_deliveries(:errored_delivery)

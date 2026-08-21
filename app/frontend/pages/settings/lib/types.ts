@@ -29,7 +29,6 @@ export interface Webhook {
   name: string
   url: string
   active: boolean
-  signingSecret: string
   subscribedEvents: string[]
   createdAt: string
   deliveries: WebhookDelivery[]
