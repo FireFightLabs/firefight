@@ -1,5 +1,8 @@
 module Interactions
   class IncidentUpdateHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+
     def self.execute(interaction)
       workspace = interaction.workspace
       metadata = Slack::PrivateMetadata.parse(interaction.private_metadata)

@@ -4,6 +4,9 @@ module Interactions
   # dismiss. A workspace wanting to capture a reason attaches a field to the
   # Cancel form, which routes through CancelIncidentHandler instead.
   class CancelIncidentButtonHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+
     def self.execute(interaction)
       workspace = interaction.workspace
       incident = workspace.incidents.find(interaction.action_value)

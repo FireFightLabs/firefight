@@ -111,6 +111,17 @@ Route to handlers using lookup tables. Fall back to `UnknownHandler`.
 - `CommandDispatcher` — routes on `command.command_name` + `command.subcommand`
 - `InteractionDispatcher` — routes on `interaction.type` + `callback_id`/`action_id`
 
+### Authorization
+
+Slack is an entry point like the API and MCP, so it has one gate, in its dispatchers. Every handler declares what it authorizes as with `authorize_as` (`HandlerAuthorization`, the same idiom as `Mcp::Tools::Base`), and the dispatcher runs `handler.execute` inside `AbilityGateway.authorize!` via `AuthorizedDispatch`. A handler that touches nothing declares `authorizes_nothing`; a handler that declares neither raises, so a new one cannot arrive ungated.
+
+- `/ff` routes through `Commands::HomeHandler`, so `CommandDispatcher.authorizing_handler` resolves the leaf the subcommand names and checks *its* declaration. `HomeHandler::SUBCOMMAND_HANDLERS` is the single routing table both the dispatch and the authorization read.
+- Modal openers declare a read and the submission handler declares the write, so a refusal for a gated user lands on submit rather than on the button.
+- The acting principal is the clicker's `WorkspaceMembership`, provisioned on demand by `Interaction#principal` / `Command#principal`. No principal means no dispatch: the call is refused rather than run unattributed.
+- `Denied` and `PendingApproval` both come back as an ephemeral. Slack has no retry, so a parked call stores its payload on the approval (`ApprovalResumption.park!`) and is replayed by `AbilityApprovalResumptionJob` once someone approves.
+- Slack participation by a human is exempt from the invocation ledger, since `record_change!` already writes the `IncidentEvent` timeline. Tool calls are still ledgered.
+- **`EventDispatcher` is not gated.** Reaction-to-action, reaction-to-followup, and shoutout-from-reaction write through the same services a gated button does, so an approval policy on `incidents.update` parks the button and not the emoji. The actor on an event is always a human in a channel, so nothing an agent can reach is currently ungated, but that stops being true the moment an event handler can be triggered by anything else.
+
 ## Handlers
 
 The "handler" layer is split by namespace, with different naming conventions reflecting different semantics:

@@ -1,5 +1,8 @@
 module Interactions
   class IncidentCreationHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE
+
     def self.execute(interaction)
       workspace = interaction.workspace
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)

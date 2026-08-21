@@ -1,5 +1,7 @@
 module Interactions
   class ViewClosedHandler
+    extend HandlerAuthorization
+    authorizes_nothing
     # Any modal opened with a placeholder in the channel carries its id in the
     # private metadata, so that is what decides whether there is something to
     # clean up. Listing callback_ids here instead meant a new modal was one

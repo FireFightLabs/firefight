@@ -1,6 +1,8 @@
 require "test_helper"
 
 class CommandDispatcherTest < ActiveSupport::TestCase
+  fixtures :workspaces, :users, :workspace_memberships
+
   test "routes /firefight to Firefight::HomeHandler" do
     command = build_command(command_name: "/firefight", text: Identifiers::SUBCOMMAND_NEW)
     assert_equal Commands::HomeHandler, CommandDispatcher.find(command)
@@ -34,11 +36,35 @@ class CommandDispatcherTest < ActiveSupport::TestCase
   end
 
   test "dispatch calls execute on the resolved handler" do
+    membership = workspace_memberships(:bob_workspace_one)
     command = build_command(command_name: "/ff", text: Identifiers::SUBCOMMAND_SUMMARY)
+    command.workspace_id = membership.workspace_id
+    command.user_id = membership.platform_user_id
 
     Commands::HomeHandler.expects(:execute).with(command).once
 
     CommandDispatcher.dispatch(command)
+  end
+
+  test "dispatch authorizes the command the subcommand names, not the sub-dispatcher" do
+    command = build_command(command_name: "/ff", text: Identifiers::SUBCOMMAND_CLOSE)
+    assert_equal Commands::CloseIncident, CommandDispatcher.authorizing_handler(command)
+  end
+
+  test "dispatch refuses a member a subcommand they do not hold" do
+    membership = workspace_memberships(:bob_workspace_one)
+    command = build_command(command_name: "/ff", text: Identifiers::SUBCOMMAND_POSTMORTEM)
+    command.workspace_id = membership.workspace_id
+    command.user_id = membership.platform_user_id
+
+    Commands::GeneratePostmortem.expects(:execute).never
+    Commands::HomeHandler.expects(:execute).never
+    WorkspaceMembership.any_instance.stubs(:implicitly_allowed?).returns(false)
+
+    response = CommandDispatcher.dispatch(command)
+
+    assert_equal Command::EPHEMERAL, response[:response_type]
+    assert_match(/don't have permission/, response[:text])
   end
 
   private

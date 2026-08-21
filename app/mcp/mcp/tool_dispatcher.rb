@@ -18,7 +18,7 @@ module Mcp
         action_key: Ability::Action.system_key(resource, crud_action),
         workspace: workspace,
         params: args.except(APPROVAL_ID_ARG),
-        context: { source: "mcp", approval_id: args[APPROVAL_ID_ARG] }
+        context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] }
       ) do
         # Most tools only need the workspace; tools acting AS someone
         # (approval resolution) opt into receiving the principal.

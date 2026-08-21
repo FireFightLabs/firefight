@@ -1,5 +1,7 @@
 module Commands
   class ListActiveIncidents
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS
     MAX_RESULTS = 10
 
     def self.execute(command)

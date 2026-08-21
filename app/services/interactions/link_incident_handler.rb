@@ -1,5 +1,8 @@
 module Interactions
   class LinkIncidentHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+
     def self.execute(interaction)
       workspace = interaction.workspace
       incident_id = interaction.private_metadata

@@ -1,5 +1,8 @@
 module Interactions
   class ClaimRunbookStepHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+
     def self.execute(interaction)
       workspace = interaction.workspace
       payload = JSON.parse(interaction.action_value.to_s)

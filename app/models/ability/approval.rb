@@ -23,6 +23,7 @@ module Ability
     scope :pending, -> { where(status: STATUS_PENDING) }
 
     after_create_commit :notify_approvers, if: :pending?
+    after_update_commit :resume_parked_request, if: :saved_change_to_status?
 
     def self.digest(action_key, params, scope)
       Digest::SHA256.hexdigest(JSON.generate([ action_key, canonical(params), canonical(scope) ]))
@@ -81,6 +82,15 @@ module Ability
 
     def notify_approvers
       AbilityApprovalNotificationJob.perform_later(approval_id: id)
+    end
+
+    # Slack requests carry the payload that produced them, because a person
+    # cannot retry a click the way the API and MCP callers retry a call.
+    def resume_parked_request
+      return if resume_payload.blank?
+      return unless approved? || denied?
+
+      AbilityApprovalResumptionJob.perform_later(approval_id: id)
     end
 
     # Approver re-validated at click time: still pending and holds the

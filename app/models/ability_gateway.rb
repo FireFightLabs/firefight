@@ -8,6 +8,10 @@
 # row finalized after the call. Reads of Firefight's own data are left out;
 # they run at request volume and the request log already covers them.
 class AbilityGateway
+  SOURCE_API = "api"
+  SOURCE_MCP = "mcp"
+  SOURCE_SLACK = "slack"
+
   class Denied < StandardError
     attr_reader :action_key
 
@@ -72,7 +76,7 @@ class AbilityGateway
                               workspace: workspace, scope: scope, params: params, context: context)
 
     invocation = nil
-    if ledger_execution?(action)
+    if ledger_execution?(action, principal, context)
       invocation = record!(decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil,
                            principal: principal, action: action, action_key: action_key,
                            workspace: workspace, scope: scope, params: params, context: context,
@@ -158,8 +162,21 @@ class AbilityGateway
   # agent touch in our systems" is the question the ledger exists to answer.
   # Reads of our own data are not, since they run at request volume and the
   # request log already covers them.
-  def self.ledger_execution?(action)
-    action.kind == Ability::Action::KIND_TOOL || action.risk_level != Ability::Action::RISK_READ
+  #
+  # Slack participation is the other exemption. A responder clicking buttons in
+  # their own incident channel writes an IncidentEvent through record_change!
+  # already, and that timeline is the better record; ledgering it twice buries
+  # the agent and API rows the ledger exists for. Tool calls from Slack are
+  # still recorded, because they leave Firefight.
+  def self.ledger_execution?(action, principal, context)
+    return true if action.kind == Ability::Action::KIND_TOOL
+    return false if slack_participation?(principal, context)
+
+    action.risk_level != Ability::Action::RISK_READ
+  end
+
+  def self.slack_participation?(principal, context)
+    context[:source] == SOURCE_SLACK && principal.is_a?(WorkspaceMembership)
   end
 
   def self.record!(decision:, completed_at:, principal:, action:, action_key:, workspace:, scope:, params:, context:, approval: nil)

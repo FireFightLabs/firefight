@@ -1,5 +1,8 @@
 module Interactions
   class SetLeadHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+
     def self.execute(interaction)
       workspace = interaction.workspace
       incident = workspace.incidents.find(interaction.private_metadata)

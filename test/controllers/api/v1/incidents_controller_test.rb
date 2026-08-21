@@ -17,7 +17,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
   # AUTHENTICATION
   # ============================================================================
 
-  test "a member's personal token reads incidents but cannot create them" do
+  test "a member's personal token participates in incidents but cannot configure the workspace" do
     membership = workspace_memberships(:bob_workspace_one)
     _, raw = ApiKey.create_with_token!(
       workspace: @workspace, created_by: membership, on_behalf_of: membership, name: "Personal"
@@ -27,8 +27,13 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     get api_v1_incidents_url, headers: headers, as: :json
     assert_response :success
 
-    post api_v1_incidents_url, headers: headers,
-         params: { incident: { name: "Nope", severity_id: @severity.id } }, as: :json
+    post api_v1_incidents_url, headers: headers, params: {
+      idempotency_key: SecureRandom.uuid, name: "Member declared", severity_id: @severity.id
+    }, as: :json
+    assert_response :created
+
+    post api_v1_catalog_type_entries_url(slug: "service"), headers: headers,
+         params: { name: "Nope" }, as: :json
     assert_response :forbidden
   end
 

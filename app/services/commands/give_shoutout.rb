@@ -1,5 +1,8 @@
 module Commands
   class GiveShoutout
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS
+
     def self.execute(command)
       return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
       return Command.ephemeral("No active incident in this channel.") unless command.incident

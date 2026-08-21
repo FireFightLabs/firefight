@@ -28,7 +28,7 @@ app/models/idempotency_key.rb                    # Deduplication
 app/views/api/v1/                                # Jbuilder response templates
 ```
 
-**Token kinds**: an ApiKey is either a **service key** (standalone principal, scoped by its `permissions` jsonb) or a **personal token** (`workspace_membership_id` set — acts with that member's authority: read everything, write nothing; destroyed with the membership). `ApiKey#principal` resolves who a request is authorized as; `Current.principal` carries it.
+**Token kinds**: an ApiKey is either a **service key** (standalone principal, scoped by its `permissions` jsonb) or a **personal token** (`workspace_membership_id` set — acts with that member's authority: read everything, participate in incidents, configure nothing; destroyed with the membership). `ApiKey#principal` resolves who a request is authorized as; `Current.principal` carries it. The rule itself lives on `WorkspaceMembership#implicitly_permits?` so the token and the human can never drift.
 
 **Namespace gotcha**: `commands_controller.rb`, `interactions_controller.rb`, and `events_controller.rb` also live under `app/controllers/api/v1/`, but they are the **Slack entry points** (inherit `Api::V1::BaseController`, Slack signature verification) — not part of the public API.
 

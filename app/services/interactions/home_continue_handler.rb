@@ -1,5 +1,8 @@
 module Interactions
   class HomeContinueHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS
+
     def self.execute(interaction)
       selected = interaction.values.dig(
         "action_select_block",

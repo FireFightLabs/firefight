@@ -3,6 +3,9 @@ module Interactions
   # view state back so the modal re-renders with conditions re-evaluated. One
   # handler rather than one per select, so adding a source is a block change.
   class IncidentCreationSelectHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS
+
     def self.execute(interaction)
       interaction.workspace.adapter.update_incident_creation_modal(
         view_id: interaction.view["id"],
