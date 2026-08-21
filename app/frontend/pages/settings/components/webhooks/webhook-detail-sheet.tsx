@@ -6,6 +6,7 @@ import type { Webhook } from "@/types/serializers"
 import {
   activateWebhookPath,
   deactivateWebhookPath,
+  replayWebhookDeliveryPath,
   signingSecretWebhookPath,
   testWebhookPath,
 } from "@/lib/routes"
@@ -78,6 +79,19 @@ export function WebhookDetailSheet({
     } finally {
       setSecretPending(false)
     }
+  }, [ webhookId ])
+
+  // preserveState keeps the sheet open, so the new attempt appears in the list
+  // the person is already looking at instead of dropping them back to the page.
+  const replayDelivery = useCallback((deliveryId: string) => {
+    if (!webhookId) {
+      return
+    }
+
+    router.post(replayWebhookDeliveryPath(webhookId, deliveryId), {}, {
+      preserveState: true,
+      preserveScroll: true,
+    })
   }, [ webhookId ])
 
   const toggleSecret = secret === null ? revealSecret : hideSecret
@@ -197,6 +211,9 @@ export function WebhookDetailSheet({
                       <TableHead>Event</TableHead>
                       <TableHead className="w-20 text-center">Status</TableHead>
                       <TableHead className="w-28 text-right">Delivered</TableHead>
+                      <TableHead className="w-20 text-right">
+                        <span className="sr-only">Actions</span>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -237,6 +254,15 @@ export function WebhookDetailSheet({
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => replayDelivery(delivery.id)}
+                            >
+                              Replay
+                            </Button>
                           </TableCell>
                         </TableRow>
                       )

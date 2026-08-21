@@ -130,6 +130,16 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "pending", replay.state
   end
 
+  test "replay sends the original bytes rather than re-rendering a drifted event" do
+    original = webhook_deliveries(:errored_delivery)
+    original.update!(signed_payload: { data: { name: "As it was sent" } }.to_json)
+
+    post replay_webhook_delivery_url(@webhook, original)
+
+    replay = @webhook.webhook_deliveries.where(incident_event_id: original.incident_event_id).order(:created_at).last
+    assert_equal original.signed_payload, replay.signed_payload
+  end
+
   test "a member cannot replay a delivery" do
     sign_in(users(:bob), @workspace)
     original = webhook_deliveries(:errored_delivery)
