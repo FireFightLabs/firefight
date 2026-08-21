@@ -46,7 +46,7 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_equal service, service.principal
   end
 
-  test "member personal tokens read everything and write nothing" do
+  test "member personal tokens read everything, participate in incidents, and configure nothing" do
     membership = workspace_memberships(:bob_workspace_one)
     key, _ = ApiKey.create_with_token!(
       workspace: workspaces(:slack_workspace_one), created_by: membership,
@@ -55,8 +55,15 @@ class ApiKeyTest < ActiveSupport::TestCase
 
     ApiKey::RESOURCES.each do |resource|
       assert key.has_permission?(resource, ApiKey::ACTION_READ)
-      assert_not key.has_permission?(resource, ApiKey::ACTION_CREATE)
       assert_not key.has_permission?(resource, ApiKey::ACTION_DELETE)
+    end
+
+    assert key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)
+    assert key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE)
+
+    (ApiKey::RESOURCES - [ ApiKey::RESOURCE_INCIDENTS ]).each do |resource|
+      assert_not key.has_permission?(resource, ApiKey::ACTION_CREATE)
+      assert_not key.has_permission?(resource, ApiKey::ACTION_UPDATE)
     end
   end
 
@@ -213,7 +220,7 @@ class ApiKeyTest < ActiveSupport::TestCase
 
     assert_empty Ability::Grant.where(principal: key)
     assert key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ)
-    assert_not key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)
+    assert_not key.has_permission?(ApiKey::RESOURCE_SEVERITIES, ApiKey::ACTION_CREATE)
   end
 
 

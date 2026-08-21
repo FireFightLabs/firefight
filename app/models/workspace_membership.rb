@@ -34,21 +34,39 @@ class WorkspaceMembership < ApplicationRecord
     admin_role? || owner_role?
   end
 
-  # Member-level authority: humans read everything in their workspace;
-  # admins additionally hold every system write — mirroring the settings
-  # rule (mutations are admin territory). Personal tokens and OAuth
-  # connections inherit exactly this, so an admin's agent can write config
-  # with the admin's authority, still ledgered and approval-gated.
-  # Admins hold every catalogued ability, including the tools an integration
-  # mints: enabling a capability on a connection is itself the deliberate
-  # decision, so it takes effect without a second grant step. Approval
-  # policies still gate the risky ones. Members read Firefight's own data;
-  # anything reaching another system stays an explicit grant for them, as it
-  # does for API keys and agents.
+  # Incident participation is member-level authority. Responding to an
+  # incident is what a member is for, so declaring, updating, closing and
+  # staffing one needs no grant — and it must read the same whether the
+  # member is clicking a button in Slack, calling the API with a personal
+  # token, or driving MCP. Configuring the workspace stays admin territory.
+  PARTICIPATION = { ApiKey::RESOURCE_INCIDENTS => [ ApiKey::ACTION_CREATE, ApiKey::ACTION_UPDATE ].freeze }.freeze
+
+  # Member-level authority: humans read everything in their workspace and
+  # participate in incidents; admins additionally hold every system write —
+  # mirroring the settings rule (mutations are admin territory). Personal
+  # tokens and OAuth connections inherit exactly this, so an admin's agent
+  # can write config with the admin's authority, still ledgered and
+  # approval-gated. Admins hold every catalogued ability, including the tools
+  # an integration mints: enabling a capability on a connection is itself the
+  # deliberate decision, so it takes effect without a second grant step.
+  # Approval policies still gate the risky ones. Anything reaching another
+  # system stays an explicit grant for members, as it does for API keys and
+  # agents.
   def implicitly_allowed?(action)
     return true if admin_access?
+    return false unless action.system?
 
-    action.system? && action.risk_level == Ability::Action::RISK_READ
+    implicitly_permits?(*action.key.split("."))
+  end
+
+  # The same rule expressed over a resource/action pair, for callers holding
+  # those rather than an Ability::Action. ApiKey's personal-token path reads
+  # it, so the two can never drift.
+  def implicitly_permits?(resource, crud_action)
+    return true if admin_access?
+    return true if crud_action.to_s == ApiKey::ACTION_READ
+
+    PARTICIPATION.fetch(resource, []).include?(crud_action.to_s)
   end
 
   def implicit_authority

@@ -10,7 +10,7 @@ Every privileged operation goes through one method:
 AbilityGateway.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {}) { execute }
 ```
 
-API controllers, MCP dispatch, and connection tools all route here. **Never check permissions inline** anywhere else; the convergence is the safety property.
+API controllers, MCP dispatch, Slack dispatch, and connection tools all route here. **Never check permissions inline** anywhere else; the convergence is the safety property. Each entry point has exactly one gate, at its own dispatcher: `Api::V1::ApiController#authorize!`, `Mcp::ToolDispatcher`, and `AuthorizedDispatch` for `CommandDispatcher`/`InteractionDispatcher`. The gate stays at the entry point rather than moving down into the services, because the approval digest is computed from the caller's params and that is what makes a retry match.
 
 Three verdicts: returns normally, raises `Denied`, or raises `PendingApproval`. Four gates, in order:
 
@@ -37,12 +37,14 @@ Block form wraps execution. Handle form returns an `Authorization` the caller fi
 | Principal | Implicit authority |
 |---|---|
 | Admin or owner membership | every catalogued action, tool actions included |
-| Member membership | system reads only |
+| Member membership | system reads, plus `incidents.create` and `incidents.update` |
 | Personal token / OAuth connection | exactly what that human holds |
 | Service key | nothing, explicit grants only |
 | `Agent` | nothing, explicit grants only |
 
 Enabling a capability **is** the admin's deliberate decision, so it takes effect without a second grant step. The rule that must not bend: **machines never inherit a human's reach.** A service key or agent reaches an external system only through a grant someone created for it.
+
+**Incident participation is member-level authority**, because responding to an incident is what a member is for, and it has to read the same on every surface — a responder closing an incident from Slack, from the API with a personal token, and through MCP is one person doing one thing. `WorkspaceMembership::PARTICIPATION` is the whole list. Configuring the workspace stays admin territory. This is deliberately *implicit* rather than a grant every workspace would have to hand out: making it revocable would mean deny-grants, and a permission system with a deny list stops being readable.
 
 `Principal#implicit_authority` names what a principal holds before any grant, and `implicitly_allowed?` enforces it. **They are two halves of one rule, so change them together** — the permissions page explains the first and the gateway obeys the second, and a drift between them is a lie told to whoever is handing out access.
 

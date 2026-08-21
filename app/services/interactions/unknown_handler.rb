@@ -1,5 +1,8 @@
 module Interactions
   class UnknownHandler
+    extend HandlerAuthorization
+    authorizes_nothing
+
     def self.execute(interaction)
       Rails.logger.warn({
         event: "interactions.unknown",

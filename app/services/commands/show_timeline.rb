@@ -1,5 +1,7 @@
 module Commands
   class ShowTimeline
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS
     DEFAULT_LIMIT = 15
 
     def self.execute(command)

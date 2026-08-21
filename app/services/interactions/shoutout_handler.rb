@@ -1,5 +1,8 @@
 module Interactions
   class ShoutoutHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+
     def self.execute(interaction)
       workspace = interaction.workspace
       metadata = JSON.parse(interaction.private_metadata)

@@ -1,5 +1,8 @@
 module Commands
   class GeneratePostmortem
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+
     def self.execute(command)
       return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
       return Command.ephemeral("AI features are not available.") unless defined?(FirefightAi)

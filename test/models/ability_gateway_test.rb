@@ -19,6 +19,42 @@ class AbilityGatewayTest < ActiveSupport::TestCase
     policy
   end
 
+  test "a member holds incident participation without a grant" do
+    member = workspace_memberships(:bob_workspace_one)
+
+    assert_equal :payload, AbilityGateway.authorize!(
+      principal: member, action_key: "incidents.create", workspace: @workspace
+    ) { :payload }
+    assert_equal :payload, AbilityGateway.authorize!(
+      principal: member, action_key: "incidents.update", workspace: @workspace
+    ) { :payload }
+  end
+
+  test "a member holds no configuration writes and no destructive incident action" do
+    member = workspace_memberships(:bob_workspace_one)
+
+    assert_raises(AbilityGateway::Denied) do
+      AbilityGateway.authorize!(principal: member, action_key: "severities.create", workspace: @workspace)
+    end
+    assert_raises(AbilityGateway::Denied) do
+      AbilityGateway.authorize!(principal: member, action_key: "incidents.delete", workspace: @workspace)
+    end
+  end
+
+  test "Slack participation by a human skips the ledger, the API path does not" do
+    member = workspace_memberships(:bob_workspace_one)
+
+    assert_no_difference "Ability::Invocation.count" do
+      AbilityGateway.authorize!(principal: member, action_key: "incidents.update", workspace: @workspace,
+                                context: { source: AbilityGateway::SOURCE_SLACK }) { :ok }
+    end
+
+    assert_difference "Ability::Invocation.count", 1 do
+      AbilityGateway.authorize!(principal: member, action_key: "incidents.update", workspace: @workspace,
+                                context: { source: AbilityGateway::SOURCE_API }) { :ok }
+    end
+  end
+
   test "allowed reads execute without a ledger row" do
     result = assert_no_difference "Ability::Invocation.count" do
       AbilityGateway.authorize!(principal: @key, action_key: "incidents.read", workspace: @workspace) { :payload }

@@ -3,6 +3,9 @@ module Commands
   # positive, a duplicate, a test. That should cost one command, so the modal
   # only appears when a workspace has attached something worth asking.
   class CancelIncident
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+
     def self.execute(command)
       return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
       return Command.ephemeral("This command must be run from an incident channel.") unless command.incident

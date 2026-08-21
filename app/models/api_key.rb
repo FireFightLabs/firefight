@@ -106,11 +106,11 @@ class ApiKey < ApplicationRecord
     has_permission?(resource, ACTION_READ)
   end
 
-  # Personal tokens carry the member's authority: read everything a member
-  # sees, write only what an admin can (mirrors Principal#implicitly_allowed?).
+  # Personal tokens carry the member's authority exactly, so the rule lives on
+  # the membership and is read from here rather than restated.
   # Service keys resolve against their ability grants.
   def has_permission?(resource, action)
-    return action.to_s == ACTION_READ || on_behalf_of.admin_access? if personal?
+    return on_behalf_of.implicitly_permits?(resource, action) if personal?
 
     Ability::Resolver.resolve(self).covers?(Ability::Action.system_key(resource, action))
   end

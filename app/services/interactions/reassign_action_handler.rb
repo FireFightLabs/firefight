@@ -1,5 +1,8 @@
 module Interactions
   class ReassignActionHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+
     def self.execute(interaction)
       workspace = interaction.workspace
       action_id = interaction.block_id.to_s.delete_prefix(Identifiers::ACTION_BLOCK_PREFIX)

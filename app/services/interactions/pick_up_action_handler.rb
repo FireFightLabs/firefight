@@ -1,5 +1,8 @@
 module Interactions
   class PickUpActionHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+
     def self.execute(interaction)
       workspace = interaction.workspace
       action = IncidentAction.in_workspace(workspace).find(interaction.action_value)

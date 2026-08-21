@@ -1,67 +1,61 @@
 module Commands
+  # Sub-dispatcher for /ff. Routes a subcommand to the command that owns it;
+  # the table is also what CommandDispatcher reads to find the leaf whose
+  # authorization the Ability Gateway checks, so routing has one source.
   class HomeHandler
-    SUBCOMMANDS = Identifiers.constants
-      .select { |c| c.to_s.start_with?("SUBCOMMAND_") }
-      .map { |c| Identifiers.const_get(c) }
-      .freeze
+    extend HandlerAuthorization
+    # Only reached directly for a subcommand nothing owns, which just prints
+    # a suggestion.
+    authorizes_nothing
+
+    SUBCOMMAND_HANDLERS = {
+      Identifiers::SUBCOMMAND_NEW => Commands::DeclareIncident,
+      Identifiers::SUBCOMMAND_HOME => Commands::OpenHome,
+      Identifiers::SUBCOMMAND_SUMMARY => Commands::UpdateSummary,
+      Identifiers::SUBCOMMAND_LEAD => Commands::AssignLead,
+      Identifiers::SUBCOMMAND_ROLE => Commands::AssignRoles,
+      Identifiers::SUBCOMMAND_ROLES => Commands::AssignRoles,
+      Identifiers::SUBCOMMAND_STATUS => Commands::ChangeStatus,
+      Identifiers::SUBCOMMAND_UPDATE => Commands::UpdateIncident,
+      Identifiers::SUBCOMMAND_SEVERITY => Commands::ChangeSeverity,
+      Identifiers::SUBCOMMAND_ESCALATE => Commands::EscalateIncident,
+      Identifiers::SUBCOMMAND_INVITE => Commands::InviteResponders,
+      Identifiers::SUBCOMMAND_ACTION => Commands::ListActions,
+      Identifiers::SUBCOMMAND_ACTIONS => Commands::ListActions,
+      Identifiers::SUBCOMMAND_FOLLOWUP => Commands::ListFollowups,
+      Identifiers::SUBCOMMAND_FOLLOWUPS => Commands::ListFollowups,
+      Identifiers::SUBCOMMAND_LINK => Commands::LinkIncident,
+      Identifiers::SUBCOMMAND_RELATE => Commands::LinkIncident,
+      Identifiers::SUBCOMMAND_DUPLICATE => Commands::LinkIncident,
+      Identifiers::SUBCOMMAND_CLOSE => Commands::CloseIncident,
+      Identifiers::SUBCOMMAND_RESOLVE => Commands::CloseIncident,
+      Identifiers::SUBCOMMAND_CANCEL => Commands::CancelIncident,
+      Identifiers::SUBCOMMAND_REOPEN => Commands::ReopenIncident,
+      Identifiers::SUBCOMMAND_OPEN => Commands::ReopenIncident,
+      Identifiers::SUBCOMMAND_POSTMORTEM => Commands::GeneratePostmortem,
+      Identifiers::SUBCOMMAND_CATCHUP => Commands::GenerateCatchup,
+      Identifiers::SUBCOMMAND_TIMELINE => Commands::ShowTimeline,
+      Identifiers::SUBCOMMAND_LIST => Commands::ListActiveIncidents,
+      Identifiers::SUBCOMMAND_SHOUTOUT => Commands::GiveShoutout,
+      Identifiers::SUBCOMMAND_RUNBOOK => Commands::AttachRunbook,
+      Identifiers::SUBCOMMAND_RUNBOOKS => Commands::AttachRunbook
+    }.freeze
+
+    SUBCOMMANDS = SUBCOMMAND_HANDLERS.keys.freeze
+
+    # Bare /ff opens the home modal, same as `/ff home`.
+    def self.handler_for(subcommand)
+      return Commands::OpenHome if subcommand.blank?
+
+      SUBCOMMAND_HANDLERS[subcommand.downcase]
+    end
 
     def self.execute(command)
       subcommand = command.subcommand&.downcase
+      handler = handler_for(subcommand)
+      return handler.execute(command) if handler
 
-      case subcommand
-      when Identifiers::SUBCOMMAND_NEW
-        Commands::DeclareIncident.execute(command)
-      when Identifiers::SUBCOMMAND_HOME, nil
-        Commands::OpenHome.execute(command)
-      when Identifiers::SUBCOMMAND_SUMMARY
-        Commands::UpdateSummary.execute(command)
-      when Identifiers::SUBCOMMAND_LEAD
-        Commands::AssignLead.execute(command)
-      when Identifiers::SUBCOMMAND_ROLE, Identifiers::SUBCOMMAND_ROLES
-        Commands::AssignRoles.execute(command)
-      when Identifiers::SUBCOMMAND_STATUS
-        Commands::ChangeStatus.execute(command)
-      when Identifiers::SUBCOMMAND_UPDATE
-        Commands::UpdateIncident.execute(command)
-      when Identifiers::SUBCOMMAND_SEVERITY
-        Commands::ChangeSeverity.execute(command)
-      when Identifiers::SUBCOMMAND_ESCALATE
-        Commands::EscalateIncident.execute(command)
-      when Identifiers::SUBCOMMAND_INVITE
-        Commands::InviteResponders.execute(command)
-      when Identifiers::SUBCOMMAND_ACTION, Identifiers::SUBCOMMAND_ACTIONS
-        Commands::ListActions.execute(command)
-      when Identifiers::SUBCOMMAND_FOLLOWUP, Identifiers::SUBCOMMAND_FOLLOWUPS
-        Commands::ListFollowups.execute(command)
-      when Identifiers::SUBCOMMAND_LINK, Identifiers::SUBCOMMAND_RELATE, Identifiers::SUBCOMMAND_DUPLICATE
-        Commands::LinkIncident.execute(command)
-      when Identifiers::SUBCOMMAND_CLOSE, Identifiers::SUBCOMMAND_RESOLVE
-        Commands::CloseIncident.execute(command)
-      when Identifiers::SUBCOMMAND_CANCEL
-        Commands::CancelIncident.execute(command)
-      when Identifiers::SUBCOMMAND_REOPEN, Identifiers::SUBCOMMAND_OPEN
-        Commands::ReopenIncident.execute(command)
-      when Identifiers::SUBCOMMAND_POSTMORTEM
-        Commands::GeneratePostmortem.execute(command)
-      when Identifiers::SUBCOMMAND_CATCHUP
-        Commands::GenerateCatchup.execute(command)
-      when Identifiers::SUBCOMMAND_TIMELINE
-        Commands::ShowTimeline.execute(command)
-      when Identifiers::SUBCOMMAND_LIST
-        Commands::ListActiveIncidents.execute(command)
-      when Identifiers::SUBCOMMAND_SHOUTOUT
-        Commands::GiveShoutout.execute(command)
-      when Identifiers::SUBCOMMAND_RUNBOOK, Identifiers::SUBCOMMAND_RUNBOOKS
-        Commands::AttachRunbook.execute(command)
-      else
-        suggestion = suggest_subcommand(subcommand)
-        msg = if suggestion
-          "Unknown subcommand `#{subcommand}`. Did you mean `#{suggestion}`?"
-        else
-          "Unknown subcommand `#{subcommand}`. Type `/ff` for available commands."
-        end
-        Command.ephemeral(msg)
-      end
+      Command.ephemeral(unknown_message(subcommand))
     rescue => e
       Rails.logger.error({
         event: "firefight.command_error",
@@ -72,6 +66,13 @@ module Commands
       }.to_json)
 
       Command.ephemeral("Sorry, something went wrong. Please try again.")
+    end
+
+    private_class_method def self.unknown_message(subcommand)
+      suggestion = suggest_subcommand(subcommand)
+      return "Unknown subcommand `#{subcommand}`. Did you mean `#{suggestion}`?" if suggestion
+
+      "Unknown subcommand `#{subcommand}`. Type `/ff` for available commands."
     end
 
     private_class_method def self.suggest_subcommand(input)

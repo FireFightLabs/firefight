@@ -180,7 +180,8 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     stub_get_user_info
 
     interaction = Interaction.new(
-      type: Interaction::VIEW_CLOSED,
+      type: Interaction::BLOCK_ACTIONS,
+      action_id: Identifiers::HOME_ACTION_SELECT,
       platform: Platforms::SLACK,
       team_id: workspace.platform_id,
       user_id: "U_NEW_USER"

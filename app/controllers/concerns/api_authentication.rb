@@ -31,7 +31,7 @@ module ApiAuthentication
       action_key: Ability::Action.system_key(resource, action),
       workspace: Current.workspace,
       params: request_binding_params,
-      context: { source: "api", approval_id: request.headers["X-Approval-Id"] }
+      context: { source: AbilityGateway::SOURCE_API, approval_id: request.headers["X-Approval-Id"] }
     )
   rescue AbilityGateway::Denied
     raise ForbiddenError, "API key lacks '#{action}' permission on '#{resource}'"

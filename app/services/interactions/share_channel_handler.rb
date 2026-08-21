@@ -1,5 +1,8 @@
 module Interactions
   class ShareChannelHandler
+    extend HandlerAuthorization
+    authorize_as ApiKey::RESOURCE_INCIDENTS
+
     def self.execute(interaction)
       workspace = interaction.workspace
 

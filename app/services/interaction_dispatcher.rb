@@ -59,7 +59,6 @@ class InteractionDispatcher
   }.freeze
 
   def self.dispatch(interaction)
-    ensure_member_provisioned(interaction)
     handler = find(interaction)
     OpenTelemetry::Trace.current_span.add_attributes({
       "slack.interaction_type" => interaction.type,
@@ -67,24 +66,42 @@ class InteractionDispatcher
       "slack.action_id" => interaction.action_id,
       "slack.handler" => handler.name
     }.compact)
-    handler.execute(interaction)
+
+    AuthorizedDispatch.call(handler, interaction, context: { incident_id: interaction.incident_id }) do
+      handler.execute(interaction)
+    end
+  rescue AuthorizedDispatch::PrincipalUnresolved
+    refuse(interaction, AuthorizedDispatch::UNRESOLVED_MESSAGE)
+  rescue AbilityGateway::Denied => e
+    refuse(interaction, AuthorizedDispatch.denied_message(e))
+  rescue AbilityGateway::PendingApproval => e
+    ApprovalResumption.park!(e.approval, interaction, ApprovalResumption::KIND_INTERACTION)
+    refuse(interaction, AuthorizedDispatch.pending_message(e.approval))
   end
 
-  def self.ensure_member_provisioned(interaction)
+  # A refused interaction closes its modal and explains itself where the person
+  # is looking. A button click carries its channel; a modal submission does
+  # not, so it falls back to the incident the modal was opened against.
+  def self.refuse(interaction, text)
     workspace = interaction.workspace
-    WorkspaceMemberProvisioner.find_or_provision!(
-      workspace: workspace,
-      platform_user_id: interaction.user_id,
-      adapter: workspace.adapter
-    )
-  rescue StandardError => e
-    Rails.logger.warn({
-      event: "interaction_dispatcher.provisioning_failed",
-      user_id: interaction.user_id,
-      error: e.message
-    })
+    channel_id = interaction.channel_id.presence || refusal_channel(workspace, interaction)
+    return nil if channel_id.blank?
+
+    workspace.adapter.post_ephemeral(channel_id: channel_id, user_id: interaction.user_id, text: text)
+    nil
+  rescue AdapterError, ActiveRecord::RecordNotFound => e
+    Rails.logger.warn({ event: "interaction_dispatcher.refusal_undelivered", error: e.class.name }.to_json)
+    nil
   end
-  private_class_method :ensure_member_provisioned
+  private_class_method :refuse
+
+  def self.refusal_channel(workspace, interaction)
+    incident_id = interaction.incident_id
+    return workspace.incidents_channel_id if incident_id.blank?
+
+    workspace.incidents.find_by(id: incident_id)&.channel_id.presence || workspace.incidents_channel_id
+  end
+  private_class_method :refusal_channel
 
   def self.find(interaction)
     case interaction.type
