@@ -19,7 +19,7 @@ module AlertProviders
     end
 
     def self.normalize_status(value)
-      RESOLVED_STATUS_VALUES.include?(value.to_s.downcase) ? Alert::STATUS_RESOLVED : Alert::STATUS_FIRING
+      RESOLVED_STATUS_VALUES.include?(value.to_s.downcase.strip) ? Alert::STATUS_RESOLVED : Alert::STATUS_FIRING
     end
 
     def self.item(fields, payload)
