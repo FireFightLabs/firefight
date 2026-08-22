@@ -111,6 +111,29 @@ class Api::V1::Catalog::EntriesControllerTest < ActionDispatch::IntegrationTest
     assert_not_nil CatalogEntry.find("cc000001-0000-0000-0000-000000000001").deleted_at
   end
 
+  test "create returns 422 when a member attribute cannot be resolved" do
+    catalog_types(:team_ws1).catalog_attribute_definitions.create!(
+      slug: "team_lead",
+      name: "Team Lead",
+      attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER,
+      required: false,
+      position: 20,
+      config: {}
+    )
+    WorkspaceMemberProvisioner.stubs(:find_or_provision!).returns(nil)
+
+    assert_no_difference -> { CatalogEntry.count } do
+      post api_v1_catalog_type_entries_path(slug: "team"),
+        params: { name: "Unresolved Team", attributes: { team_lead: "U12345678" } }.to_json,
+        headers: api_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "validation_error", json_response["error"]["type"]
+    assert_includes json_response["error"]["message"], "U12345678"
+    assert_equal [ "base" ], json_response["error"]["errors"].map { |error| error["field"] }
+  end
+
   test "write requires catalog:create permission" do
     post api_v1_catalog_type_entries_path(slug: "team"),
       params: { name: "Nope" }.to_json,
