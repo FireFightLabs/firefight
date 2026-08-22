@@ -3,7 +3,7 @@ import { useForm } from "@inertiajs/react"
 
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
 import { alertSourcePath } from "@/lib/routes"
-import { rowListOps } from "@/pages/settings/lib/row-list"
+import { newRow, rowListOps, withRowIds, type RowListItem } from "@/pages/settings/lib/row-list"
 import { FieldMappingEditor, type MappingRow } from "@/pages/settings/components/alert-sources/field-mapping-editor"
 import { omitErrors } from "@/lib/form-errors"
 import { FormErrors } from "@/pages/settings/components/form-errors"
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 
-interface SeverityMapping {
+interface SeverityMapping extends RowListItem {
   raw: string
   severityId: string
 }
@@ -58,8 +58,8 @@ export function EditSourceDialog({
     fingerprintFields: source.fingerprintFields.join(", "),
     flapWindow: String(source.flapWindowMinutes),
     itemsPath: source.itemsPath ?? "",
-    mappings: Object.entries(source.severityMap).map(([raw, severityId]) => ({ raw, severityId })),
-    mappingRows: Object.entries(source.fieldMap).map(([field, path]) => ({ field, path })),
+    mappings: withRowIds(Object.entries(source.severityMap).map(([raw, severityId]) => ({ raw, severityId }))),
+    mappingRows: withRowIds(Object.entries(source.fieldMap).map(([field, path]) => ({ field, path }))),
   })
   const mappings = rowListOps<SeverityMapping>(form.data.mappings, (rows) => form.setData("mappings", rows))
 
@@ -165,7 +165,7 @@ export function EditSourceDialog({
             <div className="flex flex-col gap-2">
               <Label>Severity map</Label>
               {form.data.mappings.map((mapping, index) => (
-                <div key={index} className="flex items-center gap-2">
+                <div key={mapping.rowId} className="flex items-center gap-2">
                   <Input
                     value={mapping.raw}
                     onChange={(event) => mappings.update(index, { raw: event.target.value })}
@@ -190,7 +190,7 @@ export function EditSourceDialog({
                   <RemoveRowButton label="Remove mapping" onClick={() => mappings.remove(index)} />
                 </div>
               ))}
-              <AddRowButton label="Add mapping" onClick={() => mappings.append({ raw: "", severityId: "" })} />
+              <AddRowButton label="Add mapping" onClick={() => mappings.append(newRow({ raw: "", severityId: "" }))} />
             </div>
           </div>
 

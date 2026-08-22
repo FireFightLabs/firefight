@@ -106,6 +106,7 @@ module Identifiers
   INCIDENT_CREATION_SEVERITY_SELECT = "incident_creation_severity_select"
   INCIDENT_CREATION_TYPE_SELECT = "incident_creation_type_select"
   INCIDENT_CREATION_VISIBILITY_SELECT = "incident_creation_visibility_select"
+  INCIDENT_UPDATE_STATUS_SELECT = "incident_update_status_select"
   # Retired, still routed so buttons on older messages re-render the checklist.
   APPLY_RUNBOOK = "apply_runbook"
   CLAIM_RUNBOOK_STEP = "claim_runbook_step"

@@ -1,4 +1,5 @@
 import type { PolicyRule } from "@/types/serializers"
+import { withRowIds, type RowListItem } from "@/pages/settings/lib/row-list"
 import {
   TARGET_CHANNEL,
   TARGET_MEMBER,
@@ -14,7 +15,7 @@ export const NONE_SEVERITY = "none"
 
 export type NotifyKind = "channel" | "person" | "owning_team"
 
-export interface ConditionRow {
+export interface ConditionRow extends RowListItem {
   field: string
   operator: ConditionOperator
   value: string
@@ -43,11 +44,11 @@ export function conditionValues(condition: ConditionRow): string[] {
 export function ruleFormData(rule: PolicyRule | null): RuleFormData {
   const outcome = rule?.outcome
   return {
-    conditions: (rule?.conditions ?? []).map((condition) => ({
+    conditions: withRowIds((rule?.conditions ?? []).map((condition) => ({
       field: condition.field,
       operator: condition.operator,
       value: Array.isArray(condition.value) ? condition.value.join(", ") : (condition.value ?? ""),
-    })),
+    }))),
     action: outcome?.action ?? "auto_create_incident",
     severityId: outcome?.severityId ?? NONE_SEVERITY,
     notifyKind:

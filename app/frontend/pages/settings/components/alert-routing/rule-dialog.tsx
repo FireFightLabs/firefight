@@ -5,7 +5,7 @@ import type { IncidentSeveritySettings, PolicyRule, WorkspaceMembership } from "
 import { policyRulePath, policyRulesPath } from "@/lib/routes"
 import type { SlackChannel } from "@/types"
 import { type CatalogOptionMap } from "@/pages/settings/lib/alerts"
-import { rowListOps } from "@/pages/settings/lib/row-list"
+import { newRow, rowListOps } from "@/pages/settings/lib/row-list"
 import {
   ruleFormData,
   rulePayload,
@@ -80,7 +80,7 @@ export function RuleDialog({
               <Label>Conditions</Label>
               {form.data.conditions.map((condition, index) => (
                 <ConditionRowFields
-                  key={index}
+                  key={condition.rowId}
                   condition={condition}
                   catalogOptions={catalogOptions}
                   onChange={(patch) => conditions.update(index, patch)}
@@ -89,7 +89,7 @@ export function RuleDialog({
               ))}
               <AddRowButton
                 label="Add condition"
-                onClick={() => conditions.append({ field: "", operator: "is_one_of", value: "" })}
+                onClick={() => conditions.append(newRow({ field: "", operator: "is_one_of", value: "" }))}
               />
             </div>
 

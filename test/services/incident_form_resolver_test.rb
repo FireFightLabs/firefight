@@ -288,6 +288,44 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_includes slugs(matching), "affected_region"
   end
 
+  test "the next update timer is dropped once the picked status ends the incident" do
+    resolver = IncidentFormResolver.new(@workspace)
+
+    live = resolver.resolve(IncidentForm::SLUG_UPDATE,
+                            context: IncidentConditionEvaluator.context(status: incident_statuses(:investigating_ws1).id))
+    assert_includes slugs(live), IncidentSystemField::KEY_NEXT_UPDATE
+
+    closed = resolver.resolve(IncidentForm::SLUG_UPDATE,
+                              context: IncidentConditionEvaluator.context(status: incident_statuses(:resolved_ws1).id))
+    assert_not_includes slugs(closed), IncidentSystemField::KEY_NEXT_UPDATE
+
+    canceled = resolver.resolve(IncidentForm::SLUG_UPDATE,
+                                context: IncidentConditionEvaluator.context(status: incident_statuses(:canceled_ws1).id))
+    assert_not_includes slugs(canceled), IncidentSystemField::KEY_NEXT_UPDATE
+  end
+
+  test "the next update timer survives a context that names no status" do
+    fields = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_UPDATE, context: {})
+
+    assert_includes slugs(fields), IncidentSystemField::KEY_NEXT_UPDATE
+  end
+
+  test "the editor still lists the next update timer, which no status can take away" do
+    editor = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_UPDATE, include_hidden: true)
+
+    assert_includes slugs(editor), IncidentSystemField::KEY_NEXT_UPDATE
+  end
+
+  test "a terminal status is not asked for a next update on submission either" do
+    result = IncidentFormResolver.new(@workspace).validate_submission(
+      IncidentForm::SLUG_UPDATE,
+      { IncidentSystemField::KEY_NEXT_UPDATE => "30" },
+      context: IncidentConditionEvaluator.context(status: incident_statuses(:resolved_ws1).id)
+    )
+
+    assert_includes result[:errors].join, "Unknown fields: next_update"
+  end
+
   test "the editor still lists a conditional field so its condition can be changed" do
     form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
     definition = @workspace.incident_field_definitions.create!(
