@@ -262,6 +262,47 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     assert_includes ids, bob.id
   end
 
+  test "update_type asks for an attribute name rather than naming the slug column" do
+    type = catalog_types(:custom_vendor_ws1)
+    email_def = catalog_attribute_definitions(:vendor_name_attr)
+    tier_def = catalog_attribute_definitions(:vendor_tier)
+
+    patch "/app/catalogue/types/#{type.id}", params: {
+      name: "Vendor",
+      color: "#EC4899",
+      icon: "box",
+      attribute_definitions: [
+        { id: email_def.id, name: "Contact Email", attributeType: "text", required: true },
+        { id: tier_def.id, name: "Tier", attributeType: "select", required: false, options: [ "Gold", "Silver", "Bronze" ] },
+        { name: "", attributeType: "text", required: false }
+      ]
+    }
+
+    assert_response :redirect
+    assert_nil session["inertia_errors"][:name]
+    assert_equal [ "Every attribute needs a name" ], session["inertia_errors"][:base]
+  end
+
+  test "update_type reports a duplicate attribute name without mentioning slugs" do
+    type = catalog_types(:custom_vendor_ws1)
+    email_def = catalog_attribute_definitions(:vendor_name_attr)
+    tier_def = catalog_attribute_definitions(:vendor_tier)
+
+    patch "/app/catalogue/types/#{type.id}", params: {
+      name: "Vendor",
+      color: "#EC4899",
+      icon: "box",
+      attribute_definitions: [
+        { id: email_def.id, name: "Contact Email", attributeType: "text", required: true },
+        { id: tier_def.id, name: "Tier", attributeType: "select", required: false, options: [ "Gold", "Silver", "Bronze" ] },
+        { name: "Tier", attributeType: "text", required: false }
+      ]
+    }
+
+    assert_response :redirect
+    assert_equal [ "Tier: an attribute with this name already exists" ], session["inertia_errors"][:base]
+  end
+
   private
 
   def stub_list_users(known_platform_user_id, deactivated: nil)

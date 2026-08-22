@@ -46,6 +46,10 @@ function generalErrors(errors: Errors): Errors {
   return Object.fromEntries(Object.entries(errors).filter(([field]) => !NAME_FIELDS.includes(field)))
 }
 
+function nameErrors(errors: Errors): Errors {
+  return Object.fromEntries(Object.entries(errors).filter(([field]) => NAME_FIELDS.includes(field)))
+}
+
 interface TypeFormDialogProps {
   type?: CatalogType | null
   availableTypes: CatalogType[]
@@ -81,7 +85,13 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
     }
   }
 
+  const updateName = (value: string) => {
+    setName(value)
+    setErrors(generalErrors)
+  }
+
   const addAttribute = () => {
+    setErrors(nameErrors)
     setAttributes((prev) => [
       ...prev,
       {
@@ -96,6 +106,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
   }
 
   const updateAttribute = (id: string, updates: Partial<AttributeDefinition>) => {
+    setErrors(nameErrors)
     setAttributes((prev) =>
       prev.map((attribute) => {
         if (attribute.id !== id) {
@@ -111,6 +122,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
   }
 
   const removeAttribute = (id: string) => {
+    setErrors(nameErrors)
     setAttributes((prev) => prev.filter((attribute) => attribute.id !== id))
   }
 
@@ -170,7 +182,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
               <Input
                 id="type-name"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => updateName(event.target.value)}
                 placeholder="e.g. Service, Team, Environment"
               />
               {nameError && <p className="text-xs text-destructive">{nameError}</p>}
