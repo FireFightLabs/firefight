@@ -7,6 +7,10 @@ module Interactions
       workspace = interaction.workspace
       incident = workspace.incidents.find(interaction.private_metadata)
       acting_member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
+
+      blocked_reason = incident.lead_assignment_blocked_reason
+      return { response_action: "errors", errors: { "lead_block" => blocked_reason } } if blocked_reason
+
       selected_user_id = interaction.values.dig("lead_block", "lead_select", "selected_user")
       selected_member = WorkspaceMemberProvisioner.find_or_provision!(
         workspace: workspace,

@@ -51,6 +51,22 @@ class Interactions::SetLeadHandlerTest < ActiveSupport::TestCase
     assert_equal @bob.platform_user_id, workflow.context["lead_platform_user_id"]
   end
 
+  test "refuses to assign a lead on a canceled incident" do
+    @incident.update!(incident_status: incident_statuses(:canceled_ws1))
+
+    assert_no_difference "IncidentEvent.count" do
+      result = Interactions::SetLeadHandler.execute(
+        build_interaction(selected_user_id: @bob.platform_user_id)
+      )
+
+      assert_equal "errors", result[:response_action]
+      assert_equal "#{@incident.identifier} is canceled, so it can no longer be assigned a lead.",
+                   result[:errors]["lead_block"]
+    end
+
+    assert_nil @incident.reload.lead
+  end
+
   private
 
   def build_interaction(selected_user_id:)

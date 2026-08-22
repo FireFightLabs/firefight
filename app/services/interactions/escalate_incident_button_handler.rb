@@ -7,6 +7,9 @@ module Interactions
       workspace = interaction.workspace
       incident = workspace.incidents.find(interaction.action_value)
 
+      blocked_reason = incident.escalation_blocked_reason
+      return TerminalNotice.post(workspace, incident, interaction.user_id, blocked_reason) if blocked_reason
+
       ModalOpener.open(
         :escalate,
         workspace: workspace,

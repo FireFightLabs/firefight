@@ -118,6 +118,14 @@ class Incident < ApplicationRecord
     closed? || canceled?
   end
 
+  def escalation_blocked_reason
+    terminal_blocked_reason("escalated")
+  end
+
+  def lead_assignment_blocked_reason
+    terminal_blocked_reason("assigned a lead")
+  end
+
   # Every attached runbook renders the state of its own steps, so they share
   # one load rather than querying per attachment.
   def runbook_step_actions
@@ -147,5 +155,16 @@ class Incident < ApplicationRecord
 
   def duplicates
     inverse_incident_relationships.duplicates.map(&:incident)
+  end
+
+  private
+
+  # One sentence saying why a responder action cannot run on an incident that
+  # is over, or nil when it can. Every entry point renders this rather than
+  # deciding the rule again.
+  def terminal_blocked_reason(action)
+    return nil unless terminal?
+
+    "#{identifier} is #{canceled? ? "canceled" : "closed"}, so it can no longer be #{action}."
   end
 end

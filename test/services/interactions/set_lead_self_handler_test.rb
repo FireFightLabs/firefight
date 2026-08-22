@@ -44,6 +44,21 @@ class Interactions::SetLeadSelfHandlerTest < ActiveSupport::TestCase
     assert_equal @alice.platform_user_id, workflow.context["lead_platform_user_id"]
   end
 
+  test "explains itself instead of assigning a lead on a closed incident" do
+    @incident.update!(incident_status: incident_statuses(:resolved_ws1))
+    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with(
+      channel_id: @incident.channel_id,
+      user_id: @alice.platform_user_id,
+      text: "#{@incident.identifier} is closed, so it can no longer be assigned a lead."
+    ).once
+
+    assert_no_difference "IncidentEvent.count" do
+      assert_nil Interactions::SetLeadSelfHandler.execute(build_interaction)
+    end
+
+    assert_nil @incident.reload.lead
+  end
+
   private
 
   def build_interaction
