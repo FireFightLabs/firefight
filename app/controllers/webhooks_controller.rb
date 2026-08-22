@@ -1,7 +1,7 @@
 class WebhooksController < InertiaController
   before_action :require_authentication
   before_action :require_admin!, except: [ :sample_payload ]
-  before_action :set_webhook, only: [ :update, :destroy, :test, :activate, :deactivate ]
+  before_action :set_webhook, only: [ :update, :destroy, :test, :activate, :deactivate, :signing_secret ]
 
   def create
     webhook = current_workspace.webhooks.new(webhook_params)
@@ -19,6 +19,13 @@ class WebhooksController < InertiaController
     else
       redirect_back fallback_location: settings_webhooks_path, inertia: { errors: @webhook.errors.to_hash }
     end
+  end
+
+  # The secret leaves the server only when an admin asks for it, so it is not
+  # sitting in every page load of the settings screen waiting to be read out
+  # of the props.
+  def signing_secret
+    render json: { signingSecret: @webhook.signing_secret }
   end
 
   def destroy

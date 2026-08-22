@@ -29,14 +29,18 @@ class WebhookDelivery < ApplicationRecord
     (errored? || completed?) && !succeeded?
   end
 
-  # Creates a fresh delivery against the same webhook + event so the replay
-  # has its own audit row, attempt counter, and signed_payload. The new row's
-  # after_create_commit enqueues Webhooks::DeliveryJob.
+  # Creates a fresh delivery against the same webhook + event so the replay has
+  # its own audit row and attempt counter, carrying the original bytes so a
+  # replay sends what was sent before rather than re-rendering an event that
+  # may have drifted since. A row that never rendered one falls back to
+  # rendering at delivery. The new row's after_create_commit enqueues
+  # Webhooks::DeliveryJob.
   def replay!
     self.class.create!(
       webhook: webhook,
       incident_event: incident_event,
-      event_type: event_type
+      event_type: event_type,
+      signed_payload: signed_payload
     )
   end
 

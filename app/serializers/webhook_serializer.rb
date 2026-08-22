@@ -9,8 +9,7 @@ class WebhookSerializer < BaseSerializer
   attributes(
     name: { type: :string },
     url: { type: :string },
-    active: { type: :boolean },
-    signing_secret: { type: :string }
+    active: { type: :boolean }
   )
 
   type "string[]"

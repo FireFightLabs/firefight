@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { router } from "@inertiajs/react"
 import { IconCircleCheck, IconCircleX } from "@tabler/icons-react"
 
@@ -6,8 +6,11 @@ import type { Webhook } from "@/types/serializers"
 import {
   activateWebhookPath,
   deactivateWebhookPath,
+  replayWebhookDeliveryPath,
+  signingSecretWebhookPath,
   testWebhookPath,
 } from "@/lib/routes"
+import { requestJson } from "@/lib/http"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -37,11 +40,66 @@ export function WebhookDetailSheet({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const [secretVisible, setSecretVisible] = useState(false)
+  const [secret, setSecret] = useState<string | null>(null)
+  const [secretPending, setSecretPending] = useState(false)
+  const [secretError, setSecretError] = useState<string | null>(null)
+  const webhookId = webhook?.id
+
+  // A secret held in component state must not outlive the sheet it was asked
+  // for, or the next webhook opens showing the previous one's.
+  useEffect(() => {
+    setSecret(null)
+    setSecretError(null)
+  }, [ webhookId, open ])
+
+  const hideSecret = useCallback(() => {
+    setSecret(null)
+    setSecretError(null)
+  }, [])
+
+  const revealSecret = useCallback(async () => {
+    if (!webhookId) {
+      return
+    }
+
+    setSecretPending(true)
+    setSecretError(null)
+    try {
+      const { ok, data } = await requestJson<{ signingSecret: string }>(
+        signingSecretWebhookPath(webhookId),
+        { method: "GET" }
+      )
+      if (ok && data) {
+        setSecret(data.signingSecret)
+      } else {
+        setSecretError("Couldn't load the signing secret. You may not have admin access.")
+      }
+    } catch {
+      setSecretError("Couldn't load the signing secret. Please try again.")
+    } finally {
+      setSecretPending(false)
+    }
+  }, [ webhookId ])
+
+  // preserveState keeps the sheet open, so the new attempt appears in the list
+  // the person is already looking at instead of dropping them back to the page.
+  const replayDelivery = useCallback((deliveryId: string) => {
+    if (!webhookId) {
+      return
+    }
+
+    router.post(replayWebhookDeliveryPath(webhookId, deliveryId), {}, {
+      preserveState: true,
+      preserveScroll: true,
+    })
+  }, [ webhookId ])
+
+  const toggleSecret = secret === null ? revealSecret : hideSecret
+  const secretButtonLabel = secretPending ? "Loading" : secret === null ? "Reveal" : "Hide"
 
   function handleOpenChange(next: boolean) {
     if (!next) {
-      setSecretVisible(false)
+      hideSecret()
     }
     onOpenChange(next)
   }
@@ -106,16 +164,18 @@ export function WebhookDetailSheet({
             </h4>
             <div className="flex items-center gap-2">
               <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-sm break-all">
-                {secretVisible ? webhook.signingSecret : "••••••••••••••••••••••••••"}
+                {secret ?? "••••••••••••••••••••••••••"}
               </code>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSecretVisible(!secretVisible)}
+                onClick={toggleSecret}
+                disabled={secretPending}
               >
-                {secretVisible ? "Hide" : "Reveal"}
+                {secretButtonLabel}
               </Button>
             </div>
+            {secretError ? <p className="text-destructive text-xs">{secretError}</p> : null}
           </div>
 
           <Separator />
@@ -151,6 +211,9 @@ export function WebhookDetailSheet({
                       <TableHead>Event</TableHead>
                       <TableHead className="w-20 text-center">Status</TableHead>
                       <TableHead className="w-28 text-right">Delivered</TableHead>
+                      <TableHead className="w-20 text-right">
+                        <span className="sr-only">Actions</span>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -191,6 +254,15 @@ export function WebhookDetailSheet({
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => replayDelivery(delivery.id)}
+                            >
+                              Replay
+                            </Button>
                           </TableCell>
                         </TableRow>
                       )

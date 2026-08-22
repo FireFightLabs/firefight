@@ -2,7 +2,8 @@ require "test_helper"
 
 class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
   fixtures :workspaces, :users, :workspace_memberships, :incident_severities,
-           :incident_statuses, :incident_lifecycle_stages
+           :incident_statuses, :incident_lifecycle_stages, :webhooks,
+           :webhook_delinquency_trackers
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -20,6 +21,7 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
       -> { post alert_routing_send_test_url, params: { fields: {} }, as: :json },
       -> { post policy_rules_url, params: { rule: { conditions: [], outcome: {} } } },
       -> { post webhooks_url, params: { webhook: { url: "https://x.test" } } },
+      -> { get signing_secret_webhook_url(webhooks(:active_webhook)) },
       -> { post incident_severities_url, params: { name: "Sev X" } },
       -> { post catalogue_types_url, params: { name: "Type X" } }
     ]
@@ -42,6 +44,25 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
 
     post alert_routing_test_url, params: { fields: { service: "x" } }, as: :json
     assert_response :success
+  end
+
+  test "the webhooks page never carries a signing secret" do
+    secret = webhooks(:active_webhook).signing_secret
+    sign_in(users(:alice), @workspace)
+
+    get settings_webhooks_url, headers: inertia_headers
+    assert_response :success
+    assert_not_includes response.body, secret,
+                        "an admin's page props must not embed the secret either"
+  end
+
+  test "an admin fetches a signing secret only by asking for it" do
+    sign_in(users(:alice), @workspace)
+
+    get signing_secret_webhook_url(webhooks(:active_webhook))
+    assert_response :success
+    assert_equal webhooks(:active_webhook).signing_secret,
+                 JSON.parse(response.body)["signingSecret"]
   end
 
   test "admins pass the same gates" do
