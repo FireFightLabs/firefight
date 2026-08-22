@@ -175,7 +175,7 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :redirect
     assert_nil session["inertia_errors"][:name]
-    assert_equal [ "Region: Config must include non-empty options for select attributes" ],
+    assert_equal [ "Region: needs at least one option" ],
       session["inertia_errors"][:base]
   end
 

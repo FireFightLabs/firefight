@@ -58,7 +58,7 @@ class CatalogAttributeDefinition < ApplicationRecord
     return unless attribute_type == TYPE_SELECT
 
     if config["options"].blank? || !config["options"].is_a?(Array) || config["options"].empty?
-      errors.add(:config, "must include non-empty options for select attributes")
+      errors.add(:base, "needs at least one option")
     end
   end
 
@@ -66,7 +66,7 @@ class CatalogAttributeDefinition < ApplicationRecord
     return unless attribute_type == TYPE_REFERENCE
 
     if config["reference_type_id"].blank?
-      errors.add(:config, "must include reference_type_id for reference attributes")
+      errors.add(:base, "needs a type to reference")
     end
   end
 end
