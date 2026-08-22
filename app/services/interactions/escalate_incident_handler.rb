@@ -12,31 +12,11 @@ module Interactions
       blocked_reason = incident.escalation_blocked_reason
       return { response_action: "errors", errors: { "escalate_to_block" => blocked_reason } } if blocked_reason
 
-      escalated_to_user_id = interaction.values.dig("escalate_to_block", "escalate_to_select", "selected_user")
-      reason = interaction.values.dig("reason_block", "reason_input", "value")
-
-      escalation_event = incident.incident_events.create!(
-        event_type: IncidentEvent::INCIDENT_ESCALATED,
-        actor: member,
-        metadata: {
-          escalated_to_platform_user_id: escalated_to_user_id,
-          reason: reason
-        }
-      )
-
-      IncidentEscalationWorkflow.start!(incident, context: {
-        escalated_by_platform_user_id: interaction.user_id,
-        escalated_to_platform_user_id: escalated_to_user_id,
-        escalation_event_id: escalation_event.id,
-        reason: reason
-      })
-
-      EscalationAcknowledgementReminderJob.set(wait: 10.minutes).perform_later(
-        incident.id,
-        escalation_event.id,
-        interaction.user_id,
-        escalated_to_user_id,
-        reason
+      IncidentLifecycleService.new(workspace).escalate(
+        incident,
+        escalated_to_platform_user_id: interaction.values.dig("escalate_to_block", "escalate_to_select", "selected_user"),
+        reason: interaction.values.dig("reason_block", "reason_input", "value"),
+        changed_by: member
       )
 
       delete_temp_message(workspace, metadata)

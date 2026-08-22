@@ -124,11 +124,19 @@ class Incident < ApplicationRecord
   end
 
   def escalation_blocked_reason
-    terminal_blocked_reason("escalated")
+    terminal_blocked_reason("it can no longer be escalated")
   end
 
   def lead_assignment_blocked_reason
-    terminal_blocked_reason("assigned a lead")
+    terminal_blocked_reason("it can no longer be assigned a lead")
+  end
+
+  # Named after the role rather than the verb: a workspace renames these, and
+  # the same sentence has to cover clearing a role as well as filling one.
+  def role_assignment_blocked_reason(role)
+    return lead_assignment_blocked_reason if role.slug == IncidentRole::SLUG_INCIDENT_LEAD
+
+    terminal_blocked_reason("its #{role.name} can no longer be changed")
   end
 
   # Every attached runbook renders the state of its own steps, so they share
@@ -167,9 +175,9 @@ class Incident < ApplicationRecord
   # One sentence saying why a responder action cannot run on an incident that
   # is over, or nil when it can. Every entry point renders this rather than
   # deciding the rule again.
-  def terminal_blocked_reason(action)
+  def terminal_blocked_reason(clause)
     return nil unless terminal?
 
-    "#{identifier} is #{canceled? ? "canceled" : "closed"}, so it can no longer be #{action}."
+    "#{identifier} is #{canceled? ? "canceled" : "closed"}, so #{clause}."
   end
 end
