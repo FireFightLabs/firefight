@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react"
 import { router } from "@inertiajs/react"
-import type { Errors } from "@inertiajs/core"
+import type { Errors, VisitOptions } from "@inertiajs/core"
 
 import type {
   IncidentSeveritySettings,
@@ -161,7 +161,8 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       always_attach: model.alwaysAttach,
     }
 
-    const options = {
+    const options: VisitOptions = {
+      preserveState: "errors",
       preserveScroll: true,
       onStart: () => setProcessing(true),
       onFinish: () => setProcessing(false),

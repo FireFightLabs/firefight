@@ -113,6 +113,104 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     assert_equal "box", type.icon
   end
 
+  # ============================================================================
+  # REGRESSION: VALIDATION ERROR SHAPE
+  # ============================================================================
+
+  test "update_type returns field level errors when the type is invalid" do
+    type = catalog_types(:custom_vendor_ws1)
+
+    patch "/app/catalogue/types/#{type.id}", params: {
+      name: "",
+      description: "Updated description",
+      color: "#EC4899",
+      icon: "box"
+    }
+
+    assert_response :redirect
+    assert_equal "Vendor", type.reload.name
+    assert_equal [ "can't be blank" ], session["inertia_errors"][:name]
+  end
+
+  test "update_type returns a base error when an attribute is still in use" do
+    type = catalog_types(:custom_vendor_ws1)
+    email_def = catalog_attribute_definitions(:vendor_name_attr)
+
+    patch "/app/catalogue/types/#{type.id}", params: {
+      name: "Vendor",
+      description: "Updated description",
+      color: "#EC4899",
+      icon: "box",
+      attribute_definitions: [
+        {
+          id: email_def.id,
+          name: "Contact Email",
+          attributeType: "text",
+          required: true
+        }
+      ]
+    }
+
+    assert_response :redirect
+    assert catalog_attribute_definitions(:vendor_tier).reload.persisted?
+    assert_equal [ "Cannot remove attribute 'Tier' because it is used by active entries" ], session["inertia_errors"][:base]
+  end
+
+  test "update_type names the attribute in a base error rather than blaming the type's own fields" do
+    type = catalog_types(:custom_vendor_ws1)
+    email_def = catalog_attribute_definitions(:vendor_name_attr)
+    tier_def = catalog_attribute_definitions(:vendor_tier)
+
+    patch "/app/catalogue/types/#{type.id}", params: {
+      name: "Vendor",
+      description: "Updated description",
+      color: "#EC4899",
+      icon: "box",
+      attribute_definitions: [
+        { id: email_def.id, name: "Contact Email", attributeType: "text", required: true },
+        { id: tier_def.id, name: "Tier", attributeType: "select", required: false, options: [ "Gold", "Silver", "Bronze" ] },
+        { name: "Region", attributeType: "select", required: false }
+      ]
+    }
+
+    assert_response :redirect
+    assert_nil session["inertia_errors"][:name]
+    assert_equal [ "Region: Config must include non-empty options for select attributes" ],
+      session["inertia_errors"][:base]
+  end
+
+  test "create_entry returns one base error per invalid attribute" do
+    assert_no_difference -> { CatalogEntry.count } do
+      post "/app/catalogue/vendor/entries", params: { name: "Globex", attributes: { tier: "Platinum" } }
+    end
+
+    assert_response :redirect
+    assert_equal [ "Contact Email is required", "Tier must be one of: Gold, Silver, Bronze" ],
+      session["inertia_errors"][:base]
+  end
+
+  test "create_entry returns a blank name on the name field" do
+    assert_no_difference -> { CatalogEntry.count } do
+      post "/app/catalogue/vendor/entries", params: { name: "", attributes: { contact_email: "hi@globex.com" } }
+    end
+
+    assert_response :redirect
+    assert_equal [ "can't be blank" ], session["inertia_errors"][:name]
+  end
+
+  test "update_entry returns the invalid attribute on base" do
+    entry = catalog_entries(:vendor_acme)
+
+    patch "/app/catalogue/entries/#{entry.id}", params: {
+      name: "Acme Corp",
+      attributes: { contact_email: "support@acme.com", tier: "Platinum" }
+    }
+
+    assert_response :redirect
+    assert_equal "Gold", entry.reload.entry_attributes["tier"]
+    assert_equal [ "Tier must be one of: Gold, Silver, Bronze" ], session["inertia_errors"][:base]
+  end
+
   private
 
   def sign_in(user, workspace)
