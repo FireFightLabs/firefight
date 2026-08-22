@@ -4,6 +4,29 @@ class WebhookTest < ActiveSupport::TestCase
   fixtures :workspaces, :webhooks, :webhook_delinquency_trackers
 
   # ============================================================================
+  # SUBSCRIBABLE EVENTS
+  # ============================================================================
+
+  # The dashboard's list is a hand-maintained copy of this constant, and it
+  # drifted by five events before anyone noticed. An event the server delivers
+  # but nobody can tick is a feature the customer does not have.
+  EVENTS_FILE = Rails.root.join("app/frontend/pages/settings/lib/webhook-events.ts")
+
+  test "the dashboard offers exactly the events the server accepts" do
+    offered = EVENTS_FILE.read.scan(/value: "([a-z._]+)"/).flatten
+
+    assert_equal Webhook::SUBSCRIBABLE_EVENTS, offered,
+                 "webhook-events.ts has drifted from Webhook::SUBSCRIBABLE_EVENTS"
+  end
+
+  test "every subscribable event renders a payload" do
+    Webhook::SUBSCRIBABLE_EVENTS.each do |event_type|
+      assert Webhooks::PayloadRenderer::TEMPLATE_MAP.key?(event_type),
+             "#{event_type} is subscribable but has no payload template"
+    end
+  end
+
+  # ============================================================================
   # ASSOCIATIONS
   # ============================================================================
 
