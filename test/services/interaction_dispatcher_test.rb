@@ -100,9 +100,14 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::CreateFollowupFromReactionHandler, InteractionDispatcher.find(interaction)
   end
 
-  test "routes load_more_timeline to LoadMoreTimelineHandler" do
+  test "routes timeline_page to TimelinePageHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::TIMELINE_PAGE)
+    assert_equal Interactions::TimelinePageHandler, InteractionDispatcher.find(interaction)
+  end
+
+  test "routes the retired load_more_timeline to TimelinePageHandler" do
     interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::LOAD_MORE_TIMELINE)
-    assert_equal Interactions::LoadMoreTimelineHandler, InteractionDispatcher.find(interaction)
+    assert_equal Interactions::TimelinePageHandler, InteractionDispatcher.find(interaction)
   end
 
   test "routes acknowledge_escalation to AcknowledgeEscalationHandler" do

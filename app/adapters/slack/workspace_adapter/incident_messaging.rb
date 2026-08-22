@@ -1,9 +1,9 @@
 module Slack::WorkspaceAdapter::IncidentMessaging
   extend ActiveSupport::Concern
 
-  TIMELINE_DEFAULT_LIMIT = 15
-  TIMELINE_PAGE_SIZE = 15
-  TIMELINE_MAX_EVENTS = 45
+  # Two blocks per event against Slack's 100-block modal ceiling, leaving room
+  # for the header, the divider, the pager and its caption.
+  TIMELINE_PAGE_SIZE = 45
 
   def post_alert_message(channel_id:, alert:)
     blocks = Slack::Messages::Alert.build(alert)
@@ -160,22 +160,22 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     ].join("\n")
   end
 
-  def open_timeline_modal(trigger_id:, incident:, limit: TIMELINE_DEFAULT_LIMIT)
-    view = build_timeline_view(incident, limit: limit)
+  def open_timeline_modal(trigger_id:, incident:, offset: 0)
+    view = build_timeline_view(incident, offset: offset)
     return unless view
 
     open_modal(trigger_id: trigger_id, view: view)
   end
 
-  def push_timeline_modal(trigger_id:, incident:, limit: TIMELINE_DEFAULT_LIMIT)
-    view = build_timeline_view(incident, limit: limit)
+  def push_timeline_modal(trigger_id:, incident:, offset: 0)
+    view = build_timeline_view(incident, offset: offset)
     return unless view
 
     push_modal(trigger_id: trigger_id, view: view)
   end
 
-  def update_timeline_modal(view_id:, incident:, limit: TIMELINE_DEFAULT_LIMIT)
-    view = build_timeline_view(incident, limit: limit)
+  def update_timeline_modal(view_id:, incident:, offset: 0)
+    view = build_timeline_view(incident, offset: offset)
     return unless view
 
     translate_errors do
@@ -383,9 +383,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def build_timeline_view(incident, limit: TIMELINE_DEFAULT_LIMIT)
-    capped_limit = [ [ limit.to_i, TIMELINE_DEFAULT_LIMIT ].max, TIMELINE_MAX_EVENTS ].min
-    events = incident.incident_events.includes(:eventable).recent.limit(capped_limit).reverse
+  def build_timeline_view(incident, offset: 0)
+    total_events = incident.incident_events.count
+    # Events can be written while a modal sits open, so a stale offset is
+    # clamped back onto the timeline rather than rendering an empty window.
+    offset = offset.to_i.clamp(0, [ total_events - 1, 0 ].max)
+    events = incident.incident_events.includes(:eventable).recent.offset(offset).limit(TIMELINE_PAGE_SIZE).reverse
     return nil if events.empty?
 
     lead_text = incident.lead ? "<@#{incident.lead.platform_user_id}>" : "Unassigned"
@@ -401,12 +404,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     ]
     blocks.concat(Slack::IncidentTimelineFormatter.to_blocks(events))
 
-    total_events = incident.incident_events.count
-    if total_events > capped_limit
-      blocks << { type: "actions", elements: [ timeline_load_more_button(incident.id, capped_limit) ] }
+    if total_events > events.size
+      newest_shown = total_events - offset
+      oldest_shown = newest_shown - events.size + 1
+
+      blocks << { type: "actions", elements: timeline_pager(incident, offset, total_events) }
       blocks << {
         type: "context",
-        elements: [ { type: "mrkdwn", text: "Showing latest #{capped_limit} of #{total_events} events" } ]
+        elements: [ { type: "mrkdwn", text: "Showing events #{oldest_shown} to #{newest_shown} of #{total_events}" } ]
       }
     end
 
@@ -430,15 +435,29 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     incident.canceled? ? "Incident canceled" : "Incident updated"
   end
 
-  def timeline_load_more_button(incident_id, current_limit)
+  def timeline_pager(incident, offset, total_events)
+    elements = []
+    if offset + TIMELINE_PAGE_SIZE < total_events
+      elements << timeline_page_button("Older", incident.id, offset + TIMELINE_PAGE_SIZE)
+    end
+    if offset.positive?
+      elements << timeline_page_button("Newer", incident.id, [ offset - TIMELINE_PAGE_SIZE, 0 ].max)
+    end
+
+    url = Slack::DashboardUrl.incident(incident)
+    if url
+      elements << { type: "button", text: { type: "plain_text", text: "View full timeline", emoji: true }, url: url }
+    end
+
+    elements
+  end
+
+  def timeline_page_button(label, incident_id, offset)
     {
       type: "button",
-      text: { type: "plain_text", text: "Load more", emoji: true },
-      action_id: Identifiers::LOAD_MORE_TIMELINE,
-      value: {
-        incident_id: incident_id,
-        limit: [ current_limit + TIMELINE_PAGE_SIZE, TIMELINE_MAX_EVENTS ].min
-      }.to_json
+      text: { type: "plain_text", text: label, emoji: true },
+      action_id: Identifiers::TIMELINE_PAGE,
+      value: { incident_id: incident_id, offset: offset }.to_json
     }
   end
 end
