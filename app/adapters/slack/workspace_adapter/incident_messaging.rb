@@ -403,7 +403,9 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
     total_events = incident.incident_events.count
     if total_events > capped_limit
-      blocks << { type: "actions", elements: [ timeline_load_more_button(incident.id, capped_limit) ] }
+      if capped_limit < TIMELINE_MAX_EVENTS
+        blocks << { type: "actions", elements: [ timeline_load_more_button(incident.id, capped_limit) ] }
+      end
       blocks << {
         type: "context",
         elements: [ { type: "mrkdwn", text: "Showing latest #{capped_limit} of #{total_events} events" } ]

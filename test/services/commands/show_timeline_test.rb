@@ -36,6 +36,21 @@ class Commands::ShowTimelineTest < ActiveSupport::TestCase
     assert_equal Identifiers::LOAD_MORE_TIMELINE, button[:action_id]
   end
 
+  test "omits load more button once the modal cap is reached" do
+    member = workspace_memberships(:alice_workspace_one)
+    (50 - @incident.incident_events.count).times do
+      @incident.incident_events.create!(event_type: IncidentEvent::MESSAGE_PINNED, actor: member)
+    end
+
+    view = @workspace.adapter.build_timeline_view(@incident, limit: Slack::WorkspaceAdapter::IncidentMessaging::TIMELINE_MAX_EVENTS)
+
+    assert_nil view[:blocks].find { |block| block[:type] == "actions" }
+    context_block = view[:blocks].find do |block|
+      block[:type] == "context" && block.dig(:elements, 0, :text)&.include?("Showing latest 45 of 50 events")
+    end
+    refute_nil context_block
+  end
+
   test "returns error when command is outside incident channel" do
     response = Commands::ShowTimeline.execute(build_command(channel_id: "C_NOT_INCIDENT"))
 
