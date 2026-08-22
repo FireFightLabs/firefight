@@ -278,20 +278,26 @@ module Slack
       end
     end
 
-    def list_members
+    # One users.list call, split the way a picker needs it: the people to offer,
+    # and the ids the platform says are deactivated. Someone in neither list is
+    # someone the platform did not return, which is not the same as gone, so a
+    # caller can keep them.
+    def member_directory
       translate_errors do
-        raw_users = Slack::Client.list_users(workspace: @workspace)
+        humans = Slack::Client.list_users(workspace: @workspace)
+          .reject { |user| user[:is_bot] || user[:id] == "USLACKBOT" }
+        active, deactivated = humans.partition { |user| !user[:deleted] }
 
-        raw_users
-          .reject { |u| u[:is_bot] || u[:deleted] || u[:id] == "USLACKBOT" }
-          .map do |u|
-            profile = u[:profile] || {}
-            {
-              id: u[:id],
-              name: profile[:real_name].presence || profile[:display_name].presence || u[:name],
-              avatarUrl: profile[:image_48]
-            }
-          end
+        members = active.map do |user|
+          profile = user[:profile] || {}
+          {
+            id: user[:id],
+            name: profile[:real_name].presence || profile[:display_name].presence || user[:name],
+            avatarUrl: profile[:image_48]
+          }
+        end
+
+        { members: members, deactivated_ids: deactivated.map { |user| user[:id] } }
       end
     end
 

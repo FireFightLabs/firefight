@@ -29,13 +29,20 @@ module Catalogue
     # hands back, so the same person cannot appear twice under two identifiers.
     # Everyone else is offered under their platform id and becomes a member the
     # moment they are picked.
+    #
+    # A member the platform has deactivated is dropped. One the platform simply
+    # did not return is kept, because an incomplete answer is not the same as a
+    # person who has left, and they may still hold entries.
     def pickable_members
       known = @workspace.workspace_memberships.includes(:user).index_by(&:platform_user_id)
+      directory = @workspace.adapter.member_directory
 
-      offered = @workspace.adapter.list_members.map do |member|
+      offered = directory[:members].map do |member|
         membership = known.delete(member[:id])
         membership ? member_row(membership) : member
       end
+
+      directory[:deactivated_ids].each { |platform_user_id| known.delete(platform_user_id) }
 
       offered + known.values.map { |membership| member_row(membership) }
     end
