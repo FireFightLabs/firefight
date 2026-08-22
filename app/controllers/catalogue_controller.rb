@@ -91,7 +91,7 @@ class CatalogueController < InertiaController
   private
 
   def entry_service
-    @entry_service ||= Catalogue::EntryService.new(current_workspace)
+    @entry_service ||= Catalogue::EntryService.new(current_workspace, may_provision_members: true)
   end
 
   def member_resolution_service
