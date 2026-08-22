@@ -40,4 +40,34 @@ class IncidentLinkWorkflowTest < ActiveSupport::TestCase
     workflow = SolidWorkflow::Workflow.find_by!(name: "incident.link.v1", subject: @source)
     assert_equal "succeeded", workflow.state
   end
+
+  test "duplicate workflow refreshes the source channel topic" do
+    stub_post_message
+    stub_update_message
+    canceled_status = @workspace.incident_statuses.canceled.active.ordered.first
+    @source.update!(incident_status: canceled_status)
+
+    Slack::Client.expects(:set_channel_topic).with do |**args|
+      args[:channel] == @source.channel_id && args[:topic].include?(canceled_status.name)
+    end.returns({ ok: true })
+
+    IncidentLinkWorkflow.start_inline!(@source, context: {
+      linked_by_platform_user_id: @member.platform_user_id,
+      target_incident_id: @target.id,
+      relationship_type: IncidentRelationship::DUPLICATE
+    })
+  end
+
+  test "related workflow leaves the source channel topic alone" do
+    stub_post_message
+    stub_update_message
+
+    Slack::Client.expects(:set_channel_topic).never
+
+    IncidentLinkWorkflow.start_inline!(@source, context: {
+      linked_by_platform_user_id: @member.platform_user_id,
+      target_incident_id: @target.id,
+      relationship_type: IncidentRelationship::RELATED
+    })
+  end
 end
