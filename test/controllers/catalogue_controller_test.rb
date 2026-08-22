@@ -240,6 +240,18 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Sam Stranger", stranger["name"]
   end
 
+  test "search_members drops a member the platform has deactivated" do
+    bob = workspace_memberships(:bob_workspace_one)
+    stub_list_users(workspace_memberships(:alice_workspace_one).platform_user_id,
+                    deactivated: bob.platform_user_id)
+
+    get catalogue_search_members_path
+
+    ids = JSON.parse(response.body).map { |row| row["id"] }
+    assert_not_includes ids, bob.id
+    assert_not_includes ids, bob.platform_user_id
+  end
+
   test "search_members still offers a member the platform list left out" do
     bob = workspace_memberships(:bob_workspace_one)
     stub_list_users(workspace_memberships(:alice_workspace_one).platform_user_id)
@@ -252,13 +264,19 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  def stub_list_users(known_platform_user_id)
-    Slack::Client.stubs(:list_users).returns([
+  def stub_list_users(known_platform_user_id, deactivated: nil)
+    rows = [
       { id: known_platform_user_id, name: "alice",
         profile: { real_name: "Alice Example", image_48: "https://example.com/alice.png" } },
       { id: "U_STRANGER", name: "stranger",
         profile: { real_name: "Sam Stranger", image_48: "https://example.com/sam.png" } }
-    ])
+    ]
+
+    if deactivated
+      rows << { id: deactivated, name: "departed", deleted: true, profile: { real_name: "Dana Departed" } }
+    end
+
+    Slack::Client.stubs(:list_users).returns(rows)
   end
 
   def sign_in(user, workspace)
