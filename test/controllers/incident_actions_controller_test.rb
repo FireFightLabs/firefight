@@ -55,6 +55,40 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to incident_path(@incident)
   end
 
+  test "create provisions the assignee when they don't have a workspace membership yet" do
+    stub_post_message
+    stub_get_user_info
+
+    assert_difference -> { @workspace.workspace_memberships.count }, 1 do
+      post incident_actions_path(incident_id: @incident.id), params: {
+        action_type: IncidentAction::ACTION_TYPE_ACTION,
+        description: "Assign to new employee",
+        assignee_id: "U_NEW_USER"
+      }
+    end
+
+    action = @incident.incident_actions.find_by!(description: "Assign to new employee")
+    assert_equal "U_NEW_USER", action.assignee.platform_user_id
+    assert_redirected_to incident_path(@incident)
+  end
+
+  test "create alerts and skips the action when the assignee profile can't be loaded" do
+    Slack::WorkspaceAdapter.any_instance
+      .stubs(:get_user_info)
+      .raises(AdapterError.new("users.info failed"))
+
+    assert_no_difference [ -> { @incident.incident_actions.count }, -> { @workspace.workspace_memberships.count } ] do
+      post incident_actions_path(incident_id: @incident.id), params: {
+        action_type: IncidentAction::ACTION_TYPE_ACTION,
+        description: "Assign to new employee",
+        assignee_id: "U_NEW_USER"
+      }
+    end
+
+    assert_redirected_to incident_path(@incident)
+    assert_equal IncidentActionsController::ASSIGNEE_UNAVAILABLE, flash[:alert]
+  end
+
   test "create swallows AdapterError from the Slack post and still redirects" do
     Slack::WorkspaceAdapter.any_instance
       .stubs(:post_action_message)
