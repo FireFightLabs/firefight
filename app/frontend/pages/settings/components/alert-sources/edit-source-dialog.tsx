@@ -5,6 +5,7 @@ import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/seri
 import { alertSourcePath } from "@/lib/routes"
 import { rowListOps } from "@/pages/settings/lib/row-list"
 import { FieldMappingEditor, type MappingRow } from "@/pages/settings/components/alert-sources/field-mapping-editor"
+import { omitErrors } from "@/lib/form-errors"
 import { FormErrors } from "@/pages/settings/components/form-errors"
 import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 import { Button } from "@/components/ui/button"
@@ -115,6 +116,7 @@ export function EditSourceDialog({
             <div className="flex flex-col gap-2">
               <Label htmlFor="edit-source-name">Name</Label>
               <Input id="edit-source-name" value={form.data.name} onChange={(event) => form.setData("name", event.target.value)} />
+              {form.errors.name && <p className="text-xs text-destructive">{form.errors.name}</p>}
             </div>
 
             <div className="flex items-center justify-between">
@@ -192,7 +194,7 @@ export function EditSourceDialog({
             </div>
           </div>
 
-          <FormErrors errors={form.errors} className="mb-3" />
+          <FormErrors errors={omitErrors(form.errors, "name")} className="mb-3" />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
