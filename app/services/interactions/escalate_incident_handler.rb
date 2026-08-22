@@ -9,6 +9,9 @@ module Interactions
       incident = workspace.incidents.find(metadata[:incident_id])
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
+      blocked_reason = incident.escalation_blocked_reason
+      return { response_action: "errors", errors: { "escalate_to_block" => blocked_reason } } if blocked_reason
+
       escalated_to_user_id = interaction.values.dig("escalate_to_block", "escalate_to_select", "selected_user")
       reason = interaction.values.dig("reason_block", "reason_input", "value")
 

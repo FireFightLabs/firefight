@@ -74,6 +74,29 @@ class Interactions::EscalateIncidentHandlerTest < ActiveSupport::TestCase
     Interactions::EscalateIncidentHandler.execute(build_interaction)
   end
 
+  test "refuses to escalate a closed incident" do
+    @incident.update!(incident_status: incident_statuses(:resolved_ws1))
+
+    assert_no_difference [ "IncidentEvent.count", "SolidWorkflow::Workflow.count" ] do
+      result = Interactions::EscalateIncidentHandler.execute(build_interaction)
+
+      assert_equal "errors", result[:response_action]
+      assert_equal "#{@incident.identifier} is closed, so it can no longer be escalated.",
+                   result[:errors]["escalate_to_block"]
+    end
+  end
+
+  test "refuses to escalate a canceled incident" do
+    @incident.update!(incident_status: incident_statuses(:canceled_ws1))
+
+    assert_no_enqueued_jobs only: EscalationAcknowledgementReminderJob do
+      result = Interactions::EscalateIncidentHandler.execute(build_interaction)
+
+      assert_equal "#{@incident.identifier} is canceled, so it can no longer be escalated.",
+                   result[:errors]["escalate_to_block"]
+    end
+  end
+
   test "returns error when incident not found" do
     stub_delete_message
 

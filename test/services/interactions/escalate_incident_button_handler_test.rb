@@ -24,6 +24,30 @@ class Interactions::EscalateIncidentButtonHandlerTest < ActiveSupport::TestCase
     assert_nil result
   end
 
+  test "explains itself instead of opening the modal on a closed incident" do
+    @incident.update!(incident_status: incident_statuses(:resolved_ws1))
+    ModalOpener.expects(:open).never
+    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with(
+      channel_id: @incident.channel_id,
+      user_id: @member.platform_user_id,
+      text: "#{@incident.identifier} is closed, so it can no longer be escalated."
+    ).once
+
+    assert_nil Interactions::EscalateIncidentButtonHandler.execute(build_interaction)
+  end
+
+  test "explains itself instead of opening the modal on a canceled incident" do
+    @incident.update!(incident_status: incident_statuses(:canceled_ws1))
+    ModalOpener.expects(:open).never
+    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with(
+      channel_id: @incident.channel_id,
+      user_id: @member.platform_user_id,
+      text: "#{@incident.identifier} is canceled, so it can no longer be escalated."
+    ).once
+
+    assert_nil Interactions::EscalateIncidentButtonHandler.execute(build_interaction)
+  end
+
   test "handles trigger expiration gracefully" do
     ModalOpener.expects(:open).raises(AdapterError::TriggerExpired.new("expired"))
 

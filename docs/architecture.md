@@ -142,6 +142,8 @@ Never put in a handler: DB queries beyond `command.workspace` / `command.inciden
 
 `command.workspace` and `command.incident` are memoized on `Command` — call them directly, no local variable needed.
 
+**Terminal-state guards.** `Command#incident` resolves through the `active` scope, so a slash command run in a resolved or canceled incident channel never finds one. Buttons and modals have no such filter: `QuickActions` drops Escalate and Make me Lead once the incident is over, but a Slack client can still be rendering the version that had them, and a modal can sit open while someone else closes the incident. Any handler acting on an incident asks the model, never the lifecycle stage directly — `Incident#escalation_blocked_reason` and `Incident#lead_assignment_blocked_reason` return one sentence or nil on top of `Incident#terminal?`. A view submission returns that sentence as `response_action: "errors"`; a button click posts it with `Interactions::TerminalNotice`. A stale click always gets an answer, never silence.
+
 Handlers decide whether to dispatch sync or enqueue a job — see [When to enqueue from a handler](#when-to-enqueue-from-a-handler). The controller never decides; it always calls the handler the same way.
 
 **Naming new commands:** verb first, noun after — `DeclareIncident`, `ChangeStatus`, `AssignLead`, `GeneratePostmortem`. Filename matches: `declare_incident.rb`, etc. If the command opens a modal as its only action, name it after the *intent* rather than the implementation (`AssignLead`, not `OpenLeadModal`). Only fall back to `Open<Thing>` when the intent really is "show this view" (`OpenHome`).
