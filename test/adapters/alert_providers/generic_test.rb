@@ -50,4 +50,16 @@ class AlertProviders::GenericTest < ActiveSupport::TestCase
 
     assert_equal Alert::STATUS_RESOLVED, item[:fields]["status"]
   end
+
+  test "a padded resolved status still normalizes to resolved" do
+    item = AlertProviders::Generic.normalize({ "title" => "x", "status" => " ok \n" }, source: @source).first
+
+    assert_equal Alert::STATUS_RESOLVED, item[:fields]["status"]
+  end
+
+  test "a padded unrecognized status still normalizes to firing" do
+    item = AlertProviders::Generic.normalize({ "title" => "x", "status" => " alerting " }, source: @source).first
+
+    assert_equal Alert::STATUS_FIRING, item[:fields]["status"]
+  end
 end
