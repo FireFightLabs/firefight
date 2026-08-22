@@ -39,6 +39,11 @@ class IncidentRelationshipService
 
     record_relationship_event(canonical, IncidentEvent::MARKED_DUPLICATE, created_by, source)
 
+    if @workspace.archive_channel_enabled && source.channel_id.present?
+      ChannelArchivalJob.set(wait: @workspace.archive_channel_delay_minutes.minutes)
+        .perform_later(source.id)
+    end
+
     relationship
   end
 

@@ -63,6 +63,8 @@ class IncidentLinkWorkflow < SolidWorkflow::Base
   def update_source_context(workflow:, step:, input:)
     source = workflow.subject
     service = IncidentUpdateService.new(source.workspace)
+    # Only a duplicate changes the source's status, so only it leaves a stale topic.
+    service.update_channel_topic(source) if duplicate?(workflow) && source.channel_id
     service.update_quick_actions(source)
     service.update_announcement(source)
   end
@@ -75,6 +77,10 @@ class IncidentLinkWorkflow < SolidWorkflow::Base
   end
 
   private
+
+  def duplicate?(workflow)
+    workflow.context["relationship_type"] == IncidentRelationship::DUPLICATE
+  end
 
   def target_incident(workflow)
     Incident.find(workflow.context["target_incident_id"])

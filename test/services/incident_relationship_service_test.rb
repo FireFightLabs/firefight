@@ -1,6 +1,8 @@
 require "test_helper"
 
 class IncidentRelationshipServiceTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
            :incident_statuses, :incident_severities, :incidents
 
@@ -104,5 +106,30 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
     assert_difference "IncidentUpdate.count", 1 do
       @service.mark_duplicate(source: @incident1, canonical: @incident2, created_by: @member)
     end
+  end
+
+  test "mark_duplicate schedules channel archival when enabled" do
+    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 30)
+
+    assert_enqueued_with(job: ChannelArchivalJob, args: [ @incident1.id ]) do
+      @service.mark_duplicate(source: @incident1, canonical: @incident2, created_by: @member)
+    end
+  end
+
+  test "mark_duplicate does not schedule channel archival when disabled" do
+    @workspace.update!(archive_channel_enabled: false)
+
+    @service.mark_duplicate(source: @incident1, canonical: @incident2, created_by: @member)
+
+    assert_no_enqueued_jobs(only: ChannelArchivalJob)
+  end
+
+  test "mark_duplicate does not schedule channel archival without a channel" do
+    @workspace.update!(archive_channel_enabled: true)
+    @incident1.update!(channel_id: nil)
+
+    @service.mark_duplicate(source: @incident1, canonical: @incident2, created_by: @member)
+
+    assert_no_enqueued_jobs(only: ChannelArchivalJob)
   end
 end
