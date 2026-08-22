@@ -34,12 +34,15 @@ class WebhooksController < InertiaController
   end
 
   def test
-    event = current_workspace.incidents
-      .joins(:incident_events)
-      .order("incident_events.created_at DESC")
+    # Narrow to the events this webhook actually subscribes to before picking the
+    # most recent one. Picking the newest incident first and only then looking
+    # for a subscribed event inside it finds nothing whenever the latest
+    # workspace activity happens to be an event type the webhook ignores.
+    event = IncidentEvent.joins(:incident)
+      .where(incidents: { workspace_id: current_workspace.id })
+      .where(event_type: @webhook.subscribed_events)
+      .order(created_at: :desc)
       .first
-      &.incident_events
-      &.find_by(event_type: @webhook.subscribed_events)
 
     if event
       WebhookDelivery.create!(
