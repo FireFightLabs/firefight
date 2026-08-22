@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { useForm } from "@inertiajs/react"
 import { IconPlus } from "@tabler/icons-react"
 
@@ -29,6 +29,13 @@ import {
 export function AddSourceDialog() {
   const [open, setOpen] = useState(false)
   const form = useForm<{ name: string; provider: string }>({ name: "", provider: "generic" })
+
+  // A server error outlives the state that produced it, so without this the
+  // message sits next to a field the user has already corrected.
+  const { data: formData, clearErrors } = form
+  useEffect(() => {
+    clearErrors()
+  }, [formData, clearErrors])
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()

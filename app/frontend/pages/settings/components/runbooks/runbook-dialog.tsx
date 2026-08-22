@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { router } from "@inertiajs/react"
 import type { Errors, VisitOptions } from "@inertiajs/core"
 
@@ -112,6 +112,12 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       setErrors({})
     }
   }
+
+  // A server error outlives the state that produced it, so without this the
+  // message sits next to a field the user has already corrected.
+  useEffect(() => {
+    setErrors({})
+  }, [model])
 
   function patch(next: Partial<EditModel>) {
     setModel((prev) => ({ ...prev, ...next }))

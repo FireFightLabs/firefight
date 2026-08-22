@@ -1,4 +1,4 @@
-import { type FormEvent } from "react"
+import { useEffect, type FormEvent } from "react"
 import { useForm } from "@inertiajs/react"
 
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
@@ -61,6 +61,13 @@ export function EditSourceDialog({
     mappingRows: Object.entries(source.fieldMap).map(([field, path]) => ({ field, path })),
   })
   const mappings = rowListOps<SeverityMapping>(form.data.mappings, (rows) => form.setData("mappings", rows))
+
+  // A server error outlives the state that produced it, so without this the
+  // message sits next to a field the user has already corrected.
+  const { data: formData, clearErrors } = form
+  useEffect(() => {
+    clearErrors()
+  }, [formData, clearErrors])
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()

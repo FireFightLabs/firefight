@@ -1,4 +1,4 @@
-import { type FormEvent } from "react"
+import { useEffect, type FormEvent } from "react"
 import { useForm } from "@inertiajs/react"
 
 import type { IncidentSeveritySettings, PolicyRule, WorkspaceMembership } from "@/types/serializers"
@@ -46,6 +46,13 @@ export function RuleDialog({
 }) {
   const form = useForm<RuleFormData>(ruleFormData(rule))
   const conditions = rowListOps<ConditionRow>(form.data.conditions, (rows) => form.setData("conditions", rows))
+
+  // A server error outlives the state that produced it, so without this the
+  // message sits next to a field the user has already corrected.
+  const { data: formData, clearErrors } = form
+  useEffect(() => {
+    clearErrors()
+  }, [formData, clearErrors])
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
