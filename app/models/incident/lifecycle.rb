@@ -19,15 +19,22 @@ module Incident::Lifecycle
   end
 
   def apply_lifecycle_side_effects
+    apply_resolved_at
+
+    # An incident that is over is never waiting on a next update, whichever
+    # save put it there. Checked on every save rather than only on a status
+    # change, so a write that sets a reminder on an already-terminal incident
+    # cannot leave one behind.
+    self.next_update_at = nil if next_update_at.present? && terminal?
+  end
+
+  def apply_resolved_at
     return unless incident_status_id_changed?
 
     stage = incident_status.incident_lifecycle_stage
 
     if stage.closed?
       self.resolved_at ||= Time.current
-      self.next_update_at = nil
-    elsif stage.canceled?
-      self.next_update_at = nil
     elsif stage.active? || stage.triage?
       self.resolved_at = nil if resolved_at.present?
     end
