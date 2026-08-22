@@ -1,3 +1,4 @@
+import type { Errors, VisitOptions } from "@inertiajs/core"
 import { router } from "@inertiajs/react"
 import {
   IconGripVertical,
@@ -31,11 +32,16 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { FormErrors } from "@/pages/settings/components/form-errors"
 
 const DEFAULT_TYPE_COLOR = "#3B82F6"
 
 function generateSlug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
+}
+
+function errorsWithoutName(errors: Errors): Errors {
+  return Object.fromEntries(Object.entries(errors).filter(([field]) => field !== "name"))
 }
 
 interface TypeFormDialogProps {
@@ -54,6 +60,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
     type?.attributeDefinitions ?? []
   )
   const [processing, setProcessing] = useState(false)
+  const [errors, setErrors] = useState<Errors>({})
   const [prevType, setPrevType] = useState(type)
   if (type !== prevType) {
     setPrevType(type)
@@ -61,6 +68,15 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
     setDescription(type?.description ?? "")
     setColor(type?.color ?? DEFAULT_TYPE_COLOR)
     setAttributes(type?.attributeDefinitions ?? [])
+    setErrors({})
+  }
+
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setErrors({})
+    }
   }
 
   const addAttribute = () => {
@@ -98,6 +114,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
 
   const handleSubmit = () => {
     setProcessing(true)
+    setErrors({})
     const attributeDefinitions = attributes.map((attr, index) => ({
       id: attr.id.startsWith("new-") ? undefined : attr.id,
       slug: attr.slug,
@@ -111,16 +128,18 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
 
     const data = { name, description, color, icon: isEdit ? type?.icon ?? "box" : "box", attribute_definitions: attributeDefinitions }
 
+    const options: VisitOptions = {
+      preserveState: "errors",
+      preserveScroll: "errors",
+      onSuccess: () => onOpenChange(false),
+      onError: (formErrors: Errors) => setErrors(formErrors),
+      onFinish: () => setProcessing(false),
+    }
+
     if (isEdit && type) {
-      router.patch(`/app/catalogue/types/${type.id}`, data, {
-        onSuccess: () => onOpenChange(false),
-        onFinish: () => setProcessing(false),
-      })
+      router.patch(`/app/catalogue/types/${type.id}`, data, options)
     } else {
-      router.post("/app/catalogue/types", data, {
-        onSuccess: () => onOpenChange(false),
-        onFinish: () => setProcessing(false),
-      })
+      router.post("/app/catalogue/types", data, options)
     }
   }
 
@@ -137,6 +156,8 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
         </DialogHeader>
 
         <div className="flex flex-col gap-5 py-2">
+          <FormErrors errors={errorsWithoutName(errors)} />
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="type-name">
@@ -148,6 +169,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                 onChange={(event) => setName(event.target.value)}
                 placeholder="e.g. Service, Team, Environment"
               />
+              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="catalog-type-color">Color</Label>

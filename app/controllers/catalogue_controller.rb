@@ -42,7 +42,7 @@ class CatalogueController < InertiaController
     )
     redirect_to catalogue_type_path(type.slug)
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: catalogue_path, inertia: { errors: e.record.errors.to_hash }
+    redirect_back fallback_location: catalogue_path, inertia: { errors: type_errors(e.record) }
   end
 
   def update_type
@@ -52,7 +52,9 @@ class CatalogueController < InertiaController
       attribute_definitions: parse_attribute_definitions
     )
     redirect_to catalogue_type_path(type.slug)
-  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: catalogue_path, inertia: { errors: type_errors(e.record) }
+  rescue ActiveRecord::RecordNotDestroyed => e
     redirect_back fallback_location: catalogue_path, inertia: { errors: { base: [ e.message ] } }
   end
 
@@ -89,6 +91,19 @@ class CatalogueController < InertiaController
   end
 
   private
+
+  # An invalid attribute definition carries its errors on name, slug and
+  # attribute_type, which are field names on the type itself, so left alone they
+  # render against the type's own inputs. Move them to base, named.
+  def type_errors(record)
+    return record.errors.to_hash if record.is_a?(CatalogType)
+
+    { base: record.errors.full_messages.map { |message| attribute_error(record, message) } }
+  end
+
+  def attribute_error(definition, message)
+    definition.name.present? ? "#{definition.name}: #{message}" : message
+  end
 
   def entry_service
     @entry_service ||= Catalogue::EntryService.new(current_workspace)
