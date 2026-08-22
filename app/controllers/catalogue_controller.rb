@@ -100,11 +100,18 @@ class CatalogueController < InertiaController
   def type_errors(record)
     return record.errors.to_hash if record.is_a?(CatalogType)
 
-    { base: record.errors.full_messages.map { |message| attribute_error(record, message) } }
+    { base: attribute_definition_errors(record) }
   end
 
-  def attribute_error(definition, message)
-    definition.name.present? ? "#{definition.name}: #{message}" : message
+  # The slug is generated from the name and has no input of its own, so its
+  # errors are the name's errors wearing a name nobody recognises.
+  def attribute_definition_errors(definition)
+    return [ "Every attribute needs a name" ] if definition.name.blank?
+
+    messages = definition.errors.reject { |error| error.attribute == :slug }
+      .map { |error| "#{definition.name}: #{error.message}" }
+    messages << "#{definition.name}: an attribute with this name already exists" if definition.errors.of_kind?(:slug, :taken)
+    messages
   end
 
   def entry_service

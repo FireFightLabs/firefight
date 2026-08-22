@@ -26,6 +26,10 @@ function generalErrors(errors: Errors): Errors {
   return Object.fromEntries(Object.entries(errors).filter(([field]) => !NAME_FIELDS.includes(field)))
 }
 
+function nameErrors(errors: Errors): Errors {
+  return Object.fromEntries(Object.entries(errors).filter(([field]) => NAME_FIELDS.includes(field)))
+}
+
 interface EntryFormDialogProps {
   type: CatalogType
   entry?: CatalogEntry | null
@@ -69,7 +73,13 @@ export function EntryFormDialog({
   }
   const { members: slackMembers, channels: slackChannels, loadMembers, loadChannels } = useSlackData()
 
+  const updateName = (value: string) => {
+    setName(value)
+    setErrors(generalErrors)
+  }
+
   const updateAttribute = (attrKey: string, value: FormDataConvertible) => {
+    setErrors(nameErrors)
     setAttributes((prev) => ({ ...prev, [attrKey]: value }))
   }
 
@@ -118,7 +128,7 @@ export function EntryFormDialog({
             <Input
               id="entry-name"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => updateName(event.target.value)}
               placeholder={`e.g. ${type.slug === "service" ? "payment-service" : type.slug === "team" ? "Platform" : "Checkout"}`}
               className="font-mono"
             />
