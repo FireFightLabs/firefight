@@ -59,6 +59,32 @@ class WorkspaceTest < ActiveSupport::TestCase
                  workspace.incident_types.pluck(:slug).sort
   end
 
+  test "the first joiner owns the workspace and the next one does not" do
+    team_id = "T#{SecureRandom.hex(8)}"
+    first = Workspace.process_slack_installation(auth_hash_for(team_id))
+    workspace = first[:workspace]
+
+    second = Workspace.process_slack_installation(
+      auth_hash_for(team_id, uid: "U_SECOND", info: { name: "Second", email: "second@example.com" })
+    )
+
+    assert_equal "owner", first[:membership].role
+    assert_equal "member", second[:membership].role
+    assert_equal workspace.id, second[:workspace].id
+    assert_equal 1, workspace.reload.workspace_memberships.owners.count
+  end
+
+  # The check and the insert that answers it have to be one serialized step, or
+  # two people finishing the install together both read an empty workspace and
+  # both come out as owner.
+  test "the first-member check runs under a workspace lock" do
+    relation = mock
+    relation.expects(:find).at_least_once.returns(nil)
+    Workspace.expects(:lock).at_least_once.returns(relation)
+
+    Workspace.process_slack_installation(mock_slack_auth_hash)
+  end
+
   test "process_slack_installation returns existing workspace for reinstall" do
     # Create existing workspace with specific team_id
     team_id = "T#{SecureRandom.hex(8)}"
@@ -214,5 +240,11 @@ class WorkspaceTest < ActiveSupport::TestCase
 
     assert_not result[:first_install]
     assert_equal existing.id, result[:workspace].id
+  end
+
+  private
+
+  def auth_hash_for(team_id, overrides = {})
+    mock_slack_auth_hash(overrides.merge(extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }))
   end
 end
