@@ -15,7 +15,9 @@ module Mcp
           attributes: {
             type: "object",
             description: "Attribute key/value pairs per the type's definitions, e.g. {\"description\": \"...\", \"owner_team\": \"platform\"}. " \
-                         "An attribute referencing another entry takes that entry's slug or id"
+                         "An attribute referencing another entry takes that entry's slug or id. " \
+                         "An attribute holding a person takes the email they sign in with, or their platform user id, " \
+                         "and names someone who is already a workspace member"
           },
           approval_id: { type: "string", description: "Approval id when retrying an approved call" }
         },

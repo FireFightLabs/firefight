@@ -144,74 +144,41 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
-  # MEMBER PROVISIONING
+  # MEMBER ATTRIBUTES
   # ============================================================================
 
-  test "create provisions workspace_member attributes via WorkspaceMemberProvisioner" do
+  test "create resolves a member by the email they sign in with" do
     membership = workspace_memberships(:alice_workspace_one)
-
-    workspace = workspaces(:slack_workspace_one)
     team_type = catalog_types(:team_ws1)
-
-    team_type.catalog_attribute_definitions.create!(
-      slug: "team_lead",
-      name: "Team Lead",
-      attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER,
-      required: false,
-      position: 10,
-      config: {}
-    )
-
-    WorkspaceMemberProvisioner.stubs(:find_or_provision!).returns(membership)
+    define_member_attribute(team_type, "team_lead", "Team Lead")
 
     entry = @service.create(
       type: team_type,
-      name: "Provisioned Team",
-      raw_attributes: { "team_lead" => "U12345678" }
+      name: "Email Lead Team",
+      raw_attributes: { "team_lead" => "Alice@Example.com" }
     )
 
-    assert entry.persisted?
     assert_equal membership.id, entry.entry_attributes["team_lead"]
   end
 
-  test "create provisions workspace_members attributes as array" do
-    alice_membership = workspace_memberships(:alice_workspace_one)
-    bob_membership = workspace_memberships(:bob_workspace_one)
-
+  test "create resolves a member by platform user id" do
+    membership = workspace_memberships(:alice_workspace_one)
     team_type = catalog_types(:team_ws1)
-
-    team_type.catalog_attribute_definitions.create!(
-      slug: "members",
-      name: "Members",
-      attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS,
-      required: false,
-      position: 11,
-      config: {}
-    )
-
-    WorkspaceMemberProvisioner.stubs(:find_or_provision!)
-      .with(workspace: @workspace, platform_user_id: "U12345678", adapter: anything)
-      .returns(alice_membership)
-    WorkspaceMemberProvisioner.stubs(:find_or_provision!)
-      .with(workspace: @workspace, platform_user_id: "U87654321", adapter: anything)
-      .returns(bob_membership)
+    define_member_attribute(team_type, "team_lead", "Team Lead")
 
     entry = @service.create(
       type: team_type,
-      name: "Multi Member Team",
-      raw_attributes: { "members" => [ "U12345678", "U87654321" ] }
+      name: "Platform Id Team",
+      raw_attributes: { "team_lead" => membership.platform_user_id }
     )
 
-    assert entry.persisted?
-    assert_equal [ alice_membership.id, bob_membership.id ], entry.entry_attributes["members"]
+    assert_equal membership.id, entry.entry_attributes["team_lead"]
   end
 
   test "create keeps a member value that is already a workspace membership id" do
     membership = workspace_memberships(:alice_workspace_one)
     team_type = catalog_types(:team_ws1)
     define_member_attribute(team_type, "team_lead", "Team Lead")
-
-    WorkspaceMemberProvisioner.expects(:find_or_provision!).never
 
     entry = @service.create(
       type: team_type,
@@ -222,51 +189,63 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
     assert_equal membership.id, entry.entry_attributes["team_lead"]
   end
 
-  test "create refuses a member the platform cannot resolve instead of storing nil" do
-    team_type = catalog_types(:team_ws1)
-    define_member_attribute(team_type, "team_lead", "Team Lead")
-
-    WorkspaceMemberProvisioner.stubs(:find_or_provision!).returns(nil)
-
-    error = assert_raises(ActiveRecord::RecordInvalid) do
-      @service.create(
-        type: team_type,
-        name: "Unresolvable Lead Team",
-        raw_attributes: { "team_lead" => "U12345678" }
-      )
-    end
-
-    assert_includes error.message, "Team Lead"
-    assert_includes error.message, "U12345678"
-    assert_nil CatalogEntry.find_by(slug: "unresolvable_lead_team")
-  end
-
-  test "create refuses when one of several members cannot be resolved and names only that one" do
-    alice_membership = workspace_memberships(:alice_workspace_one)
+  test "create resolves several members at once" do
+    alice = workspace_memberships(:alice_workspace_one)
+    bob = workspace_memberships(:bob_workspace_one)
     team_type = catalog_types(:team_ws1)
     define_member_attribute(team_type, "members", "Members", CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS)
 
-    WorkspaceMemberProvisioner.stubs(:find_or_provision!)
-      .with(workspace: @workspace, platform_user_id: "U12345678", adapter: anything)
-      .returns(alice_membership)
-    WorkspaceMemberProvisioner.stubs(:find_or_provision!)
-      .with(workspace: @workspace, platform_user_id: "U87654321", adapter: anything)
-      .returns(nil)
+    entry = @service.create(
+      type: team_type,
+      name: "Multi Member Team",
+      raw_attributes: { "members" => [ "alice@example.com", bob.platform_user_id ] }
+    )
+
+    assert_equal [ alice.id, bob.id ], entry.entry_attributes["members"]
+  end
+
+  test "create refuses a member nobody matches, and mints no membership for them" do
+    team_type = catalog_types(:team_ws1)
+    define_member_attribute(team_type, "team_lead", "Team Lead")
+
+    WorkspaceMemberProvisioner.expects(:find_or_provision!).never
+
+    error = nil
+    assert_no_difference -> { WorkspaceMembership.count } do
+      error = assert_raises(ActiveRecord::RecordInvalid) do
+        @service.create(
+          type: team_type,
+          name: "Stranger Lead Team",
+          raw_attributes: { "team_lead" => "nobody@example.com" }
+        )
+      end
+    end
+
+    assert_includes error.message, "Team Lead"
+    assert_includes error.message, "nobody@example.com"
+    assert_includes error.message, "email they sign in with"
+    assert_nil CatalogEntry.find_by(slug: "stranger_lead_team")
+  end
+
+  test "create names only the members it could not match" do
+    bob = workspace_memberships(:bob_workspace_one)
+    team_type = catalog_types(:team_ws1)
+    define_member_attribute(team_type, "members", "Members", CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS)
 
     error = assert_raises(ActiveRecord::RecordInvalid) do
       @service.create(
         type: team_type,
         name: "Partial Member Team",
-        raw_attributes: { "members" => [ "U12345678", "U87654321" ] }
+        raw_attributes: { "members" => [ bob.platform_user_id, "nobody@example.com" ] }
       )
     end
 
-    assert_includes error.message, "U87654321"
-    assert_not_includes error.message, "U12345678"
+    assert_includes error.message, "nobody@example.com"
+    assert_not_includes error.message, bob.platform_user_id
     assert_nil CatalogEntry.find_by(slug: "partial_member_team")
   end
 
-  test "update refuses an unresolvable member instead of clearing the stored value" do
+  test "update refuses an unmatched member instead of clearing the stored value" do
     membership = workspace_memberships(:alice_workspace_one)
     team_type = catalog_types(:team_ws1)
     define_member_attribute(team_type, "team_lead", "Team Lead")
@@ -277,16 +256,54 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
       raw_attributes: { "team_lead" => membership.id }
     )
 
-    WorkspaceMemberProvisioner.stubs(:find_or_provision!).returns(nil)
-
     assert_raises(ActiveRecord::RecordInvalid) do
-      @service.update(entry, raw_attributes: { "team_lead" => "U99999999" })
+      @service.update(entry, raw_attributes: { "team_lead" => "nobody@example.com" })
     end
 
     assert_equal membership.id, entry.reload.entry_attributes["team_lead"]
   end
 
+  test "the dashboard provisions a member the workspace has never seen" do
+    membership = workspace_memberships(:alice_workspace_one)
+    team_type = catalog_types(:team_ws1)
+    define_member_attribute(team_type, "team_lead", "Team Lead")
+
+    WorkspaceMemberProvisioner.expects(:find_or_provision!)
+      .with(workspace: @workspace, platform_user_id: "U99999999", adapter: anything)
+      .returns(membership)
+
+    entry = provisioning_service.create(
+      type: team_type,
+      name: "Freshly Picked Team",
+      raw_attributes: { "team_lead" => "U99999999" }
+    )
+
+    assert_equal membership.id, entry.entry_attributes["team_lead"]
+  end
+
+  test "the dashboard reports a platform failure instead of storing nil" do
+    team_type = catalog_types(:team_ws1)
+    define_member_attribute(team_type, "team_lead", "Team Lead")
+
+    WorkspaceMemberProvisioner.stubs(:find_or_provision!).returns(nil)
+
+    error = assert_raises(ActiveRecord::RecordInvalid) do
+      provisioning_service.create(
+        type: team_type,
+        name: "Slack Down Team",
+        raw_attributes: { "team_lead" => "U99999999" }
+      )
+    end
+
+    assert_includes error.message, "Couldn't load the Slack profile"
+    assert_nil CatalogEntry.find_by(slug: "slack_down_team")
+  end
+
   private
+
+  def provisioning_service
+    @provisioning_service ||= Catalogue::EntryService.new(@workspace, may_provision_members: true)
+  end
 
   def define_member_attribute(type, slug, name, attribute_type = CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER)
     type.catalog_attribute_definitions.create!(

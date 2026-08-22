@@ -45,9 +45,7 @@ module Mcp
       end
 
       def self.find_member(workspace, reference)
-        memberships = workspace.workspace_memberships
-        memberships.find_by(platform_user_id: reference) ||
-          memberships.joins(:user).find_by(users: { email: reference.downcase })
+        workspace.workspace_memberships.resolve(reference)
       end
       private_class_method :find_member
 

@@ -80,6 +80,21 @@ class WorkspaceMembership < ApplicationRecord
   scope :members, -> { where(role: :member) }
 
   # Class Methods
+  # Finds a member from whatever identifier a caller holds. Email is the one
+  # people can type and the one that survives a platform move, so it is what
+  # machine-facing surfaces ask for; ids are accepted because our own pickers
+  # and API reads hand them back. Resolves only, never provisions: creating a
+  # member is a billable act and belongs to a deliberate flow, not to a write
+  # that happens to name someone.
+  def self.resolve(reference)
+    return nil if reference.blank?
+
+    reference = reference.to_s
+    find_by(id: reference) ||
+      find_by(platform_user_id: reference) ||
+      joins(:user).find_by(users: { email: reference.downcase })
+  end
+
   # Locks the workspace so "am I the first member" and the insert that answers
   # it are one serialized step. Two people completing the install in the same
   # moment would otherwise both read an empty workspace and both become owner,
