@@ -205,4 +205,97 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
     assert entry.persisted?
     assert_equal [ alice_membership.id, bob_membership.id ], entry.entry_attributes["members"]
   end
+
+  test "create keeps a member value that is already a workspace membership id" do
+    membership = workspace_memberships(:alice_workspace_one)
+    team_type = catalog_types(:team_ws1)
+    define_member_attribute(team_type, "team_lead", "Team Lead")
+
+    WorkspaceMemberProvisioner.expects(:find_or_provision!).never
+
+    entry = @service.create(
+      type: team_type,
+      name: "Resubmitted Team",
+      raw_attributes: { "team_lead" => membership.id }
+    )
+
+    assert_equal membership.id, entry.entry_attributes["team_lead"]
+  end
+
+  test "create refuses a member the platform cannot resolve instead of storing nil" do
+    team_type = catalog_types(:team_ws1)
+    define_member_attribute(team_type, "team_lead", "Team Lead")
+
+    WorkspaceMemberProvisioner.stubs(:find_or_provision!).returns(nil)
+
+    error = assert_raises(ActiveRecord::RecordInvalid) do
+      @service.create(
+        type: team_type,
+        name: "Unresolvable Lead Team",
+        raw_attributes: { "team_lead" => "U12345678" }
+      )
+    end
+
+    assert_includes error.message, "Team Lead"
+    assert_includes error.message, "U12345678"
+    assert_nil CatalogEntry.find_by(slug: "unresolvable_lead_team")
+  end
+
+  test "create refuses when one of several members cannot be resolved and names only that one" do
+    alice_membership = workspace_memberships(:alice_workspace_one)
+    team_type = catalog_types(:team_ws1)
+    define_member_attribute(team_type, "members", "Members", CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS)
+
+    WorkspaceMemberProvisioner.stubs(:find_or_provision!)
+      .with(workspace: @workspace, platform_user_id: "U12345678", adapter: anything)
+      .returns(alice_membership)
+    WorkspaceMemberProvisioner.stubs(:find_or_provision!)
+      .with(workspace: @workspace, platform_user_id: "U87654321", adapter: anything)
+      .returns(nil)
+
+    error = assert_raises(ActiveRecord::RecordInvalid) do
+      @service.create(
+        type: team_type,
+        name: "Partial Member Team",
+        raw_attributes: { "members" => [ "U12345678", "U87654321" ] }
+      )
+    end
+
+    assert_includes error.message, "U87654321"
+    assert_not_includes error.message, "U12345678"
+    assert_nil CatalogEntry.find_by(slug: "partial_member_team")
+  end
+
+  test "update refuses an unresolvable member instead of clearing the stored value" do
+    membership = workspace_memberships(:alice_workspace_one)
+    team_type = catalog_types(:team_ws1)
+    define_member_attribute(team_type, "team_lead", "Team Lead")
+
+    entry = @service.create(
+      type: team_type,
+      name: "Kept Lead Team",
+      raw_attributes: { "team_lead" => membership.id }
+    )
+
+    WorkspaceMemberProvisioner.stubs(:find_or_provision!).returns(nil)
+
+    assert_raises(ActiveRecord::RecordInvalid) do
+      @service.update(entry, raw_attributes: { "team_lead" => "U99999999" })
+    end
+
+    assert_equal membership.id, entry.reload.entry_attributes["team_lead"]
+  end
+
+  private
+
+  def define_member_attribute(type, slug, name, attribute_type = CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER)
+    type.catalog_attribute_definitions.create!(
+      slug: slug,
+      name: name,
+      attribute_type: attribute_type,
+      required: false,
+      position: 20,
+      config: {}
+    )
+  end
 end

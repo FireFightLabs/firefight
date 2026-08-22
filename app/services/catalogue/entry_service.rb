@@ -5,17 +5,16 @@ module Catalogue
     end
 
     def create(type:, name:, raw_attributes:, source: nil, external_id: nil)
-      provisioned_attrs = provision_member_attributes(type, raw_attributes)
+      entry = type.catalog_entries.new(
+        workspace: @workspace,
+        name: name,
+        slug: CatalogType.generate_slug(name),
+        source: source,
+        external_id: external_id
+      )
+      provisioned_attrs = provision_member_attributes(entry, raw_attributes)
 
       CatalogEntry.transaction do
-        entry = type.catalog_entries.new(
-          workspace: @workspace,
-          name: name,
-          slug: CatalogType.generate_slug(name),
-          source: source,
-          external_id: external_id
-        )
-
         _scalar_attrs, reference_attrs = entry.assign_validated_attributes!(provisioned_attrs)
         entry.save!
         entry.sync_references!(reference_attrs)
@@ -37,7 +36,7 @@ module Catalogue
     end
 
     def update(entry, name: nil, raw_attributes: {})
-      provisioned_attrs = provision_member_attributes(entry.catalog_type, raw_attributes)
+      provisioned_attrs = provision_member_attributes(entry, raw_attributes)
 
       CatalogEntry.transaction do
         entry.name = name if name.present?
@@ -54,8 +53,14 @@ module Catalogue
 
     private
 
-    def provision_member_attributes(type, raw_attrs)
-      definitions = type.catalog_attribute_definitions.index_by(&:slug)
+    # A member value is either a WorkspaceMembership id (what the entry already
+    # stores, handed back by the picker on edit) or a platform user id (a fresh
+    # pick from the member list). Both resolve here, and a value that resolves
+    # to neither fails the write rather than persisting nil, which the dashboard
+    # renders as "Not set" and nobody notices. Runs outside the transaction
+    # because provisioning calls the platform adapter.
+    def provision_member_attributes(entry, raw_attrs)
+      definitions = entry.catalog_type.catalog_attribute_definitions.index_by(&:slug)
       adapter = @workspace.adapter
 
       raw_attrs.each_with_object({}) do |(key, value), result|
@@ -67,33 +72,46 @@ module Catalogue
 
         case attr_def.attribute_type
         when CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER
-          result[key] = provision_single_member(value, adapter)
+          result[key] = resolve_single_member(entry, attr_def, value, adapter)
         when CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS
-          result[key] = provision_multiple_members(value, adapter)
+          result[key] = resolve_multiple_members(entry, attr_def, value, adapter)
         else
           result[key] = value
         end
       end
     end
 
-    def provision_single_member(value, adapter)
+    def resolve_single_member(entry, attr_def, value, adapter)
       return value if value.blank?
 
-      membership = WorkspaceMemberProvisioner.find_or_provision!(
-        workspace: @workspace, platform_user_id: value, adapter: adapter
-      )
-      membership&.id
+      membership = resolve_member(value, adapter)
+      raise_unresolved_members!(entry, attr_def, [ value ]) unless membership
+
+      membership.id
     end
 
-    def provision_multiple_members(value, adapter)
+    def resolve_multiple_members(entry, attr_def, value, adapter)
       return value unless value.is_a?(Array)
 
-      value.filter_map do |slack_id|
-        membership = WorkspaceMemberProvisioner.find_or_provision!(
-          workspace: @workspace, platform_user_id: slack_id, adapter: adapter
+      resolved = value.map { |member_id| [ member_id, resolve_member(member_id, adapter) ] }
+      unresolved = resolved.filter_map { |member_id, membership| member_id unless membership }
+      raise_unresolved_members!(entry, attr_def, unresolved) if unresolved.any?
+
+      resolved.map { |_member_id, membership| membership.id }
+    end
+
+    def resolve_member(value, adapter)
+      @workspace.workspace_memberships.find_by(id: value) ||
+        WorkspaceMemberProvisioner.find_or_provision!(
+          workspace: @workspace, platform_user_id: value, adapter: adapter
         )
-        membership&.id
-      end
+    end
+
+    def raise_unresolved_members!(entry, attr_def, values)
+      message = "Couldn't load the Slack profile for #{attr_def.name} (#{values.join(', ')}). " \
+                "Please try again in a moment."
+      entry.errors.add(:base, message)
+      raise ActiveRecord::RecordInvalid.new(entry), message
     end
   end
 end
