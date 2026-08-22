@@ -29,7 +29,13 @@ module Incident::RoleManagement
     role_holder(lead_role)
   end
 
+  # Refuses rather than reports, because every caller that forgot to ask is
+  # how a resolved incident ends up DMing someone that they are now its lead
+  # and rewriting the topic of an archived channel.
   def lead=(workspace_membership)
+    blocked_reason = lead_assignment_blocked_reason
+    raise Incident::NotActive, blocked_reason if blocked_reason
+
     # Lazy-materialize the lead role on first assignment so workspaces never
     # need it seeded.
     assign_role!(workspace.ensure_incident_role!(IncidentRole::SLUG_INCIDENT_LEAD), workspace_membership)

@@ -698,4 +698,40 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal "P0", incident.incident_severity.name
     assert_equal "Triaging", incident.incident_status.name
   end
+
+  # ============================================================================
+  # LEAD ASSIGNMENT GUARD
+  # ============================================================================
+
+  test "assigns a lead while the incident is live" do
+    incident = incidents(:active_critical_ws1)
+    lead = workspace_memberships(:bob_workspace_one)
+
+    incident.lead = lead
+
+    assert_equal lead, incident.reload.lead
+  end
+
+  test "refuses a lead on a closed incident" do
+    incident = incidents(:active_critical_ws1)
+    incident.update!(incident_status: incident_statuses(:resolved_ws1))
+
+    error = assert_raises(Incident::NotActive) do
+      incident.lead = workspace_memberships(:bob_workspace_one)
+    end
+
+    assert_equal "#{incident.identifier} is closed, so it can no longer be assigned a lead.", error.message
+    assert_nil incident.reload.lead
+  end
+
+  test "refuses a lead on a canceled incident" do
+    incident = incidents(:active_critical_ws1)
+    incident.update!(incident_status: incident_statuses(:canceled_ws1))
+
+    error = assert_raises(Incident::NotActive) do
+      incident.lead = workspace_memberships(:bob_workspace_one)
+    end
+
+    assert_equal "#{incident.identifier} is canceled, so it can no longer be assigned a lead.", error.message
+  end
 end
