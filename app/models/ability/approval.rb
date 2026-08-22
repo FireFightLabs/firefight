@@ -51,10 +51,16 @@ module Ability
       update!(status: STATUS_EXPIRED, resolved_at: Time.current) if pending?
     end
 
+    # One statement, so two callers racing for the same approval cannot both
+    # win. Checking consumed_at and then writing it leaves a window where both
+    # read nil, and an approval admits exactly one execution.
     def consume!
-      raise NotAllowed, "approval already used" if consumed_at.present?
+      now = Time.current
+      claimed = self.class.where(id: id, consumed_at: nil).update_all(consumed_at: now, updated_at: now)
+      raise NotAllowed, "approval already used" if claimed.zero?
 
-      update!(consumed_at: Time.current)
+      self.consumed_at = now
+      self
     end
 
     def pending? = status == STATUS_PENDING

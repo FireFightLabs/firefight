@@ -80,8 +80,21 @@ class WorkspaceMembership < ApplicationRecord
   scope :members, -> { where(role: :member) }
 
   # Class Methods
+  # Locks the workspace so "am I the first member" and the insert that answers
+  # it are one serialized step. Two people completing the install in the same
+  # moment would otherwise both read an empty workspace and both become owner,
+  # which hands workspace administration to whoever happened to race.
   def self.find_or_create_from_omniauth!(user, workspace, auth_hash)
-    # Check if this is the first member (should be owner)
+    transaction do
+      # Locks a separate instance on purpose. workspace.with_lock reloads, and
+      # reload clears previously_new_record?, which the install flow reads
+      # afterwards to decide whether to seed a brand new workspace.
+      Workspace.lock.find(workspace.id)
+      create_from_omniauth!(user, workspace, auth_hash)
+    end
+  end
+
+  def self.create_from_omniauth!(user, workspace, auth_hash)
     is_first_member = workspace.workspace_memberships.empty?
 
     find_or_create_by!(

@@ -36,6 +36,17 @@ module Ability
       assert_raises(Ability::Approval::NotAllowed) { @approval.consume! }
     end
 
+    test "two copies of the same approval cannot both consume it" do
+      @approval.approve!(by: @admin)
+      first = Ability::Approval.find(@approval.id)
+      second = Ability::Approval.find(@approval.id)
+
+      first.consume!
+
+      assert_raises(Ability::Approval::NotAllowed) { second.consume! }
+      assert_equal first.consumed_at.to_i, @approval.reload.consumed_at.to_i
+    end
+
     test "approver must hold the required role at click time" do
       member = workspace_memberships(:bob_workspace_one)
 
