@@ -60,6 +60,11 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::HomeActionSelectHandler, InteractionDispatcher.find(interaction)
   end
 
+  test "routes incident_update_status_select to IncidentUpdateSelectHandler" do
+    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::INCIDENT_UPDATE_STATUS_SELECT)
+    assert_equal Interactions::IncidentUpdateSelectHandler, InteractionDispatcher.find(interaction)
+  end
+
   test "routes send_incident_update to SendIncidentUpdateButtonHandler" do
     interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::SEND_INCIDENT_UPDATE)
     assert_equal Interactions::SendIncidentUpdateButtonHandler, InteractionDispatcher.find(interaction)

@@ -12,3 +12,11 @@ export function whenClosed(handler: () => void) {
     }
   }
 }
+
+export function whenOpened(handler: () => void) {
+  return (open: boolean) => {
+    if (open) {
+      handler()
+    }
+  }
+}

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react"
 
+import { whenOpened } from "@/lib/handlers"
 import { samplePayloadAlertSourcePath } from "@/lib/routes"
 import { NORMALIZED_FIELDS } from "@/pages/settings/lib/alerts"
-import { rowListOps } from "@/pages/settings/lib/row-list"
+import { newRow, rowListOps, type RowListItem } from "@/pages/settings/lib/row-list"
 import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -15,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-export interface MappingRow {
+export interface MappingRow extends RowListItem {
   field: string
   path: string
 }
@@ -79,9 +80,19 @@ export function FieldMappingEditor({
     if (activeRow !== null && rows[activeRow]) {
       mappingRows.update(activeRow, { path })
     } else {
-      mappingRows.append({ field: "", path })
+      mappingRows.append(newRow({ field: "", path }))
       setActiveRow(rows.length)
     }
+  }
+
+  function removeRow(index: number) {
+    mappingRows.remove(index)
+    setActiveRow((current) => {
+      if (current === null || current < index) {
+        return current
+      }
+      return current === index ? null : current - 1
+    })
   }
 
   const usedFields = rows.map((row) => row.field)
@@ -102,8 +113,12 @@ export function FieldMappingEditor({
       <div className="flex flex-col gap-2">
         <Label>Field mapping</Label>
         {rows.map((row, index) => (
-          <div key={index} className="flex items-center gap-2">
-            <Select value={row.field} onValueChange={(field) => mappingRows.update(index, { field })}>
+          <div key={row.rowId} className="flex items-center gap-2">
+            <Select
+              value={row.field}
+              onValueChange={(field) => mappingRows.update(index, { field })}
+              onOpenChange={whenOpened(() => setActiveRow(index))}
+            >
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Field" />
               </SelectTrigger>
@@ -120,10 +135,10 @@ export function FieldMappingEditor({
               placeholder="payload path, e.g. alert.name"
               className="flex-1 font-mono text-xs"
             />
-            <RemoveRowButton label="Remove mapping" onClick={() => mappingRows.remove(index)} />
+            <RemoveRowButton label="Remove mapping" onClick={() => removeRow(index)} />
           </div>
         ))}
-        <AddRowButton label="Add mapping" onClick={() => mappingRows.append({ field: "", path: "" })} />
+        <AddRowButton label="Add mapping" onClick={() => mappingRows.append(newRow({ field: "", path: "" }))} />
       </div>
 
       {payloadKeys.length > 0 && (

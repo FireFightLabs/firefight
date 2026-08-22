@@ -71,6 +71,8 @@ class IncidentFormResolver
     # take it away. Writing one is refused, and any that predate that rule are
     # ignored here rather than left able to break declaring.
     merged.select do |field|
+      next false if moot_for_context?(field, context)
+
       field.locked_visible? || IncidentConditionEvaluator.match?(field.incident_conditions, context)
     end
   end
@@ -144,6 +146,34 @@ class IncidentFormResolver
 
     field.inactive_reason = reason
     field
+  end
+
+  # A field the answers so far have made pointless. Distinct from
+  # `unanswerable_reason`, which is about how the workspace is configured and
+  # so belongs in the editor: this reads what the responder has just picked and
+  # changes from one submission to the next, which is why it sits with the
+  # condition match and never reaches the editor.
+  def moot_for_context?(field, context)
+    return false unless field.system?
+
+    case field.system_field_key
+    when IncidentSystemField::KEY_NEXT_UPDATE then ending_incident?(context)
+    else false
+    end
+  end
+
+  # An incident being closed or canceled is not waiting on anything, and
+  # Incident::Lifecycle clears next_update_at for a terminal stage regardless.
+  # Asking for a time that is then discarded reads as a bug to the responder
+  # who picked it.
+  def ending_incident?(context)
+    return false if context[:status].blank?
+
+    terminal_status_ids.include?(context[:status])
+  end
+
+  def terminal_status_ids
+    @terminal_status_ids ||= @workspace.incident_statuses.terminal.pluck(:id).to_set
   end
 
   # Why a configured field cannot be put to a responder, or nil if it can.

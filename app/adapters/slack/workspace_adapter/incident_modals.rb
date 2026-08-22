@@ -19,6 +19,16 @@ module Slack::WorkspaceAdapter::IncidentModals
     end
   end
 
+  # Refreshes the open update modal after its status select dispatches, so the
+  # fields on it match the status the responder has just picked.
+  def update_incident_update_modal(view_id:, incident:, state: {}, private_metadata: nil)
+    translate_errors do
+      view = Slack::Modals::IncidentUpdate.build(incident, private_metadata: private_metadata, state: state)
+      Slack::Client.update_modal(workspace: @workspace, view_id: view_id, view: view)
+      { success: true }
+    end
+  end
+
   # Patches the home modal's help section based on the selected command,
   # preserving everything else about the open view.
   def update_home_modal(view:, selected_command:)

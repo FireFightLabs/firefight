@@ -10,7 +10,7 @@ module Slack
     # reads: suppressing a field here alone leaves submission demanding one the
     # responder was never shown.
     module FieldBlocks
-      def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, visibility_dispatch: false, selected_type_id: nil, selected_visibility: nil, terminal_stage: nil)
+      def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, visibility_dispatch: false, status_dispatch: false, selected_type_id: nil, selected_visibility: nil, terminal_stage: nil)
         case form_field.system_field_key
         when IncidentSystemField::KEY_NAME
           name_block(form_field, incident: incident)
@@ -22,7 +22,7 @@ module Slack
         when IncidentSystemField::KEY_INCIDENT_TYPE
           incident_type_block(workspace, form_field, incident: incident, dispatch: type_dispatch, selected_type_id: selected_type_id)
         when IncidentSystemField::KEY_STATUS
-          status_block(workspace, form_field, incident: incident, stage: terminal_stage)
+          status_block(workspace, form_field, incident: incident, stage: terminal_stage, dispatch: status_dispatch)
         when IncidentSystemField::KEY_LEAD
           lead_block(form_field, incident: incident)
         when IncidentSystemField::KEY_VISIBILITY
@@ -261,7 +261,7 @@ module Slack
       # On a terminal form the only sensible answers are the statuses in the
       # stage that transition moves to. Offering the full list would let a
       # responder resolve an incident into Investigating.
-      def self.status_block(workspace, form_field, incident: nil, stage: nil)
+      def self.status_block(workspace, form_field, incident: nil, stage: nil, dispatch: false)
         statuses = workspace.incident_statuses.active.ordered
         if stage
           statuses = statuses.joins(:incident_lifecycle_stage)
@@ -277,19 +277,21 @@ module Slack
 
         element = {
           type: "static_select",
-          action_id: "field_status_input",
+          action_id: dispatch ? Identifiers::INCIDENT_UPDATE_STATUS_SELECT : "field_status_input",
           placeholder: copy_placeholder(IncidentSystemField::KEY_STATUS),
           options: status_options
         }
         element[:initial_option] = initial_status if initial_status
 
-        {
+        block = {
           type: "input",
           block_id: "field_status_block",
           element: element,
           label: copy_label(IncidentSystemField::KEY_STATUS),
           hint: copy_hint(IncidentSystemField::KEY_STATUS)
         }.compact
+        block[:dispatch_action] = true if dispatch
+        block
       end
 
       def self.text_custom_block(defn, optional:, initial_value: nil)

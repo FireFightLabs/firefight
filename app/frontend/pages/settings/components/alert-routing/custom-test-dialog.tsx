@@ -19,11 +19,11 @@ import {
   type SendTestResult,
   type TestResult,
 } from "@/pages/settings/lib/alerts"
-import { rowListOps } from "@/pages/settings/lib/row-list"
+import { newRow, rowListOps, withRowIds, type RowListItem } from "@/pages/settings/lib/row-list"
 import { FormErrors } from "@/pages/settings/components/form-errors"
 import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 
-interface TesterField {
+interface TesterField extends RowListItem {
   key: string
   value: string
 }
@@ -41,10 +41,12 @@ export function CustomTestDialog({
   alertSourceId: string | null
 }) {
   const [open, setOpen] = useState(false)
-  const [fields, setFields] = useState<TesterField[]>([
-    { key: "service", value: "" },
-    { key: "title", value: "" },
-  ])
+  const [fields, setFields] = useState<TesterField[]>(() =>
+    withRowIds([
+      { key: "service", value: "" },
+      { key: "title", value: "" },
+    ])
+  )
   const [result, setResult] = useState<TestResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
@@ -112,7 +114,7 @@ export function CustomTestDialog({
 
         <div className="flex flex-col gap-2">
           {fields.map((field, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div key={field.rowId} className="flex items-center gap-2">
               <Input
                 value={field.key}
                 onChange={(event) => fieldRows.update(index, { key: event.target.value })}
@@ -129,7 +131,7 @@ export function CustomTestDialog({
             </div>
           ))}
           <div className="flex items-center justify-between">
-            <AddRowButton label="Add field" onClick={() => fieldRows.append({ key: "", value: "" })} />
+            <AddRowButton label="Add field" onClick={() => fieldRows.append(newRow({ key: "", value: "" }))} />
             <Button size="sm" onClick={runTest} disabled={testing}>
               <IconFlask className="size-4" />
               Run test
