@@ -50,10 +50,10 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
     secret = webhooks(:active_webhook).signing_secret
     sign_in(users(:alice), @workspace)
 
-    get settings_webhooks_url
+    get settings_webhooks_url, headers: inertia_headers
     assert_response :success
     assert_not_includes response.body, secret,
-                        "an admin's page load must not embed the secret either"
+                        "an admin's page props must not embed the secret either"
   end
 
   test "an admin fetches a signing secret only by asking for it" do
