@@ -99,6 +99,69 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
+  test "test delivery finds a subscribed event from any incident, not just the most recently active one" do
+    most_recent_event = incident_events(:inc1_lead_assigned)
+    resolved_event = incident_events(:inc3_resolved)
+
+    assert_not_equal IncidentEvent::INCIDENT_RESOLVED, most_recent_event.event_type
+    assert_not_equal resolved_event.incident, most_recent_event.incident
+    assert resolved_event.created_at < most_recent_event.created_at
+
+    webhook = Webhook.create!(
+      workspace: @workspace,
+      name: "Resolved Only",
+      url: "https://example.com/test",
+      subscribed_events: [ IncidentEvent::INCIDENT_RESOLVED ],
+      active: true
+    )
+
+    assert_difference -> { WebhookDelivery.count }, 1 do
+      post test_webhook_url(webhook)
+    end
+    assert_response :redirect
+
+    delivery = webhook.webhook_deliveries.last
+    assert_equal resolved_event, delivery.incident_event
+    assert_equal IncidentEvent::INCIDENT_RESOLVED, delivery.event_type
+  end
+
+  test "test delivery reports no match when the workspace has no subscribed event" do
+    webhook = Webhook.create!(
+      workspace: @workspace,
+      name: "Canceled Only",
+      url: "https://example.com/test",
+      subscribed_events: [ IncidentEvent::INCIDENT_CANCELED ],
+      active: true
+    )
+
+    assert_no_difference -> { WebhookDelivery.count } do
+      post test_webhook_url(webhook)
+    end
+    assert_response :redirect
+    assert_equal "No matching events found to test with", flash[:alert]
+  end
+
+  test "test delivery ignores events from other workspaces" do
+    other_workspace_event = incident_events(:ws2_inc1_created)
+    assert_not_equal @workspace, other_workspace_event.incident.workspace
+    assert other_workspace_event.created_at > incident_events(:inc1_created).created_at
+
+    webhook = Webhook.create!(
+      workspace: @workspace,
+      name: "Created Only",
+      url: "https://example.com/test",
+      subscribed_events: [ IncidentEvent::INCIDENT_CREATED ],
+      active: true
+    )
+
+    assert_difference -> { WebhookDelivery.count }, 1 do
+      post test_webhook_url(webhook)
+    end
+
+    delivery = webhook.webhook_deliveries.last
+    assert_equal @workspace, delivery.incident_event.incident.workspace
+  end
+
   # ============================================================================
   # SAMPLE PAYLOAD
   # ============================================================================
