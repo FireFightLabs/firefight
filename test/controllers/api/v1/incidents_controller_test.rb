@@ -335,6 +335,38 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert incident.incident_events.exists?(event_type: IncidentEvent::LEAD_ASSIGNED)
   end
 
+  test "refuses to assign a lead on a closed incident" do
+    incident = incidents(:active_critical_ws1)
+    incident.update!(incident_status: incident_statuses(:resolved_ws1))
+    lead = workspace_memberships(:bob_workspace_one)
+
+    assert_no_difference "IncidentEvent.count" do
+      patch api_v1_incident_url(incident),
+        params: { lead_id: lead.id }.to_json,
+        headers: api_headers
+    end
+
+    assert_response :unprocessable_entity
+    body = JSON.parse(response.body)
+    assert_equal "incident_not_active", body.dig("error", "type")
+    assert_equal "#{incident.identifier} is closed, so it can no longer be assigned a lead.",
+                 body.dig("error", "message")
+    assert_nil incident.reload.lead
+  end
+
+  test "refuses to assign a lead on a canceled incident" do
+    incident = incidents(:active_critical_ws1)
+    incident.update!(incident_status: incident_statuses(:canceled_ws1))
+
+    patch api_v1_incident_url(incident),
+      params: { lead_id: workspace_memberships(:bob_workspace_one).id }.to_json,
+      headers: api_headers
+
+    assert_response :unprocessable_entity
+    assert_equal "#{incident.identifier} is canceled, so it can no longer be assigned a lead.",
+                 JSON.parse(response.body).dig("error", "message")
+  end
+
   test "returns 404 when updating incident from different workspace" do
     ws2_incident = incidents(:active_p0_ws2)
     patch api_v1_incident_url(ws2_incident),

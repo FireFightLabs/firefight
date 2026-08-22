@@ -36,6 +36,8 @@ module Mcp
     rescue AbilityGateway::PendingApproval => e
       error_response("Approval required (id: #{e.approval.id}): a workspace #{e.approval.required_role} " \
                      "must approve this call. Retry the identical call with approval_id: \"#{e.approval.id}\" once approved.")
+    rescue Incident::NotActive => e
+      error_response(e.message)
     rescue ActiveRecord::RecordNotFound
       error_response("Not found in this workspace.")
     rescue ActiveRecord::RecordInvalid => e

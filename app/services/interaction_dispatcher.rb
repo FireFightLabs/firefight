@@ -77,6 +77,8 @@ class InteractionDispatcher
   rescue AbilityGateway::PendingApproval => e
     ApprovalResumption.park!(e.approval, interaction, ApprovalResumption::KIND_INTERACTION)
     refuse(interaction, AuthorizedDispatch.pending_message(e.approval))
+  rescue Incident::NotActive => e
+    refuse(interaction, e.message)
   end
 
   # A refused interaction closes its modal and explains itself where the person

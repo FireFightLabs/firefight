@@ -40,5 +40,7 @@ class CommandDispatcher
   rescue AbilityGateway::PendingApproval => e
     ApprovalResumption.park!(e.approval, command, ApprovalResumption::KIND_COMMAND)
     Command.ephemeral(AuthorizedDispatch.pending_message(e.approval))
+  rescue Incident::NotActive => e
+    Command.ephemeral(e.message)
   end
 end

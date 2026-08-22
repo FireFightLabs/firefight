@@ -37,9 +37,12 @@ class IncidentLifecycleService
   def close(incident, attrs, changed_by:)
     lead = attrs.delete(:lead)
 
+    # Lead first: the same save closes the incident, and `lead=` refuses once
+    # the status has landed. The tracked diff is taken across the whole block,
+    # so the order changes nothing about what is recorded.
     incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, by: changed_by) do
-      incident.update!(attrs)
       incident.lead = lead if lead
+      incident.update!(attrs)
     end
 
     IncidentCloseWorkflow.start!(incident, context: {
