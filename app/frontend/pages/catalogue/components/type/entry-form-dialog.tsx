@@ -1,5 +1,5 @@
 import { router } from "@inertiajs/react"
-import type { FormDataConvertible } from "@inertiajs/core"
+import type { Errors, FormDataConvertible, VisitOptions } from "@inertiajs/core"
 import { useState } from "react"
 
 import type { CatalogEntry, CatalogType, ReferenceEntry, WorkspaceMember } from "@/pages/catalogue/types"
@@ -18,6 +18,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useSlackData } from "@/pages/catalogue/hooks/use-slack-data"
+import { FormErrors } from "@/pages/settings/components/form-errors"
+
+const NAME_FIELDS = ["name", "slug"]
+
+function generalErrors(errors: Errors): Errors {
+  return Object.fromEntries(Object.entries(errors).filter(([field]) => !NAME_FIELDS.includes(field)))
+}
 
 interface EntryFormDialogProps {
   type: CatalogType
@@ -44,11 +51,21 @@ export function EntryFormDialog({
     (entry?.attributes as Record<string, FormDataConvertible>) ?? {}
   )
   const [processing, setProcessing] = useState(false)
+  const [errors, setErrors] = useState<Errors>({})
   const [prevEntry, setPrevEntry] = useState(entry)
   if (entry !== prevEntry) {
     setPrevEntry(entry)
     setName(entry?.name ?? "")
     setAttributes((entry?.attributes as Record<string, FormDataConvertible>) ?? {})
+    setErrors({})
+  }
+
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setErrors({})
+    }
   }
   const { members: slackMembers, channels: slackChannels, loadMembers, loadChannels } = useSlackData()
 
@@ -56,20 +73,25 @@ export function EntryFormDialog({
     setAttributes((prev) => ({ ...prev, [attrKey]: value }))
   }
 
+  const nameError = errors.name ?? errors.slug
+
   const handleSubmit = () => {
     setProcessing(true)
+    setErrors({})
     const data = { name, attributes }
 
+    const options: VisitOptions = {
+      preserveState: "errors",
+      preserveScroll: "errors",
+      onSuccess: () => onOpenChange(false),
+      onError: (formErrors: Errors) => setErrors(formErrors),
+      onFinish: () => setProcessing(false),
+    }
+
     if (isEdit && entry) {
-      router.patch(`/app/catalogue/entries/${entry.id}`, data, {
-        onSuccess: () => onOpenChange(false),
-        onFinish: () => setProcessing(false),
-      })
+      router.patch(`/app/catalogue/entries/${entry.id}`, data, options)
     } else {
-      router.post(`/app/catalogue/${type.slug}/entries`, data, {
-        onSuccess: () => onOpenChange(false),
-        onFinish: () => setProcessing(false),
-      })
+      router.post(`/app/catalogue/${type.slug}/entries`, data, options)
     }
   }
 
@@ -87,6 +109,8 @@ export function EntryFormDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">
+          <FormErrors errors={generalErrors(errors)} />
+
           <div className="flex flex-col gap-2">
             <Label htmlFor="entry-name">
               Name <span className="text-red-500">*</span>
@@ -98,6 +122,7 @@ export function EntryFormDialog({
               placeholder={`e.g. ${type.slug === "service" ? "payment-service" : type.slug === "team" ? "Platform" : "Checkout"}`}
               className="font-mono"
             />
+            {nameError && <p className="text-xs text-destructive">{nameError}</p>}
           </div>
 
           {type.attributeDefinitions.map((attr) => (

@@ -179,6 +179,38 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
       session["inertia_errors"][:base]
   end
 
+  test "create_entry returns one base error per invalid attribute" do
+    assert_no_difference -> { CatalogEntry.count } do
+      post "/app/catalogue/vendor/entries", params: { name: "Globex", attributes: { tier: "Platinum" } }
+    end
+
+    assert_response :redirect
+    assert_equal [ "Contact Email is required", "Tier must be one of: Gold, Silver, Bronze" ],
+      session["inertia_errors"][:base]
+  end
+
+  test "create_entry returns a blank name on the name field" do
+    assert_no_difference -> { CatalogEntry.count } do
+      post "/app/catalogue/vendor/entries", params: { name: "", attributes: { contact_email: "hi@globex.com" } }
+    end
+
+    assert_response :redirect
+    assert_equal [ "can't be blank" ], session["inertia_errors"][:name]
+  end
+
+  test "update_entry returns the invalid attribute on base" do
+    entry = catalog_entries(:vendor_acme)
+
+    patch "/app/catalogue/entries/#{entry.id}", params: {
+      name: "Acme Corp",
+      attributes: { contact_email: "support@acme.com", tier: "Platinum" }
+    }
+
+    assert_response :redirect
+    assert_equal "Gold", entry.reload.entry_attributes["tier"]
+    assert_equal [ "Tier must be one of: Gold, Silver, Bronze" ], session["inertia_errors"][:base]
+  end
+
   private
 
   def sign_in(user, workspace)

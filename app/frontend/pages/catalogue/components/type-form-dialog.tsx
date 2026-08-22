@@ -40,8 +40,10 @@ function generateSlug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
 }
 
-function errorsWithoutName(errors: Errors): Errors {
-  return Object.fromEntries(Object.entries(errors).filter(([field]) => field !== "name"))
+const NAME_FIELDS = ["name", "slug"]
+
+function generalErrors(errors: Errors): Errors {
+  return Object.fromEntries(Object.entries(errors).filter(([field]) => !NAME_FIELDS.includes(field)))
 }
 
 interface TypeFormDialogProps {
@@ -112,6 +114,8 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
     setAttributes((prev) => prev.filter((attribute) => attribute.id !== id))
   }
 
+  const nameError = errors.name ?? errors.slug
+
   const handleSubmit = () => {
     setProcessing(true)
     setErrors({})
@@ -156,7 +160,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
         </DialogHeader>
 
         <div className="flex flex-col gap-5 py-2">
-          <FormErrors errors={errorsWithoutName(errors)} />
+          <FormErrors errors={generalErrors(errors)} />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
@@ -169,7 +173,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                 onChange={(event) => setName(event.target.value)}
                 placeholder="e.g. Service, Team, Environment"
               />
-              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+              {nameError && <p className="text-xs text-destructive">{nameError}</p>}
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="catalog-type-color">Color</Label>
