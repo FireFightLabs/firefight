@@ -33,7 +33,7 @@ module Interactions
         message: message
       )
 
-      apply_next_update_reminder(incident, submission)
+      schedule_next_update_reminder(incident) if attrs[:next_update_at].present?
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata)
 
       nil
@@ -59,26 +59,34 @@ module Interactions
       # Only the submitted fields. Values are rows now, so writing a subset
       # leaves the rest untouched without reading them back first.
       attrs[:custom_fields] = submission.custom_fields if submission.custom_fields.present?
-      attrs
+      attrs.merge(next_update_attrs(submission))
     end
     private_class_method :build_update_attrs
 
     # Reads `next_update` from the form submission. If the field isn't on the
     # configured form at all, leave `next_update_at` untouched (the workspace
     # has opted out of update reminders). If it's on the form but the user
-    # picked nothing, clear it.
-    def self.apply_next_update_reminder(incident, submission)
-      return unless submission.includes_system_key?(IncidentSystemField::KEY_NEXT_UPDATE)
+    # picked nothing, clear it. It rides along with the status rather than
+    # being written afterwards, so a terminal status wins: Incident::Lifecycle
+    # clears next_update_at in the same save, and a later write would undo it.
+    def self.next_update_attrs(submission)
+      return {} unless submission.includes_system_key?(IncidentSystemField::KEY_NEXT_UPDATE)
 
-      next_update_minutes = submission.system_attrs["next_update"]
-
-      if next_update_minutes.present?
-        incident.update!(next_update_at: Time.current + next_update_minutes.to_i.minutes)
-        IncidentUpdateReminderJob.set(wait: next_update_minutes.to_i.minutes).perform_later(incident.id, incident.next_update_at.iso8601)
-      else
-        incident.update!(next_update_at: nil)
-      end
+      minutes = submission.system_attrs[IncidentSystemField::KEY_NEXT_UPDATE]
+      { next_update_at: minutes.present? ? Time.current + minutes.to_i.minutes : nil }
     end
-    private_class_method :apply_next_update_reminder
+    private_class_method :next_update_attrs
+
+    # Only called when the responder asked for a reminder, so a blank
+    # next_update_at here means the save cleared it: the incident is over and
+    # nobody is waiting on a next update.
+    def self.schedule_next_update_reminder(incident)
+      next_update_at = incident.next_update_at
+      return if next_update_at.blank?
+
+      IncidentUpdateReminderJob.set(wait: next_update_at - Time.current)
+        .perform_later(incident.id, next_update_at.iso8601)
+    end
+    private_class_method :schedule_next_update_reminder
   end
 end

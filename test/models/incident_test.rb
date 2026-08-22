@@ -606,6 +606,21 @@ class IncidentTest < ActiveSupport::TestCase
     assert_nil incident.next_update_at
   end
 
+  test "closed clears next_update_at" do
+    incident = incidents(:active_critical_ws1)
+    incident.update_column(:next_update_at, 30.minutes.from_now)
+
+    incident.update!(incident_status: incident_statuses(:resolved_ws1))
+    assert_nil incident.next_update_at
+  end
+
+  test "next_update_at cannot be set on an incident that is already over" do
+    incident = incidents(:resolved_minor_ws1)
+
+    incident.update!(next_update_at: 30.minutes.from_now)
+    assert_nil incident.reload.next_update_at
+  end
+
   test "canceled? returns true for canceled status" do
     incident = incidents(:active_critical_ws1)
     incident.update!(incident_status: incident_statuses(:canceled_ws1))

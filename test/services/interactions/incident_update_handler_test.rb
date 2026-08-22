@@ -152,6 +152,49 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     end
   end
 
+  test "clears next_update_at when the status closes the incident" do
+    stub_all_side_effects
+
+    Interactions::IncidentUpdateHandler.execute(
+      build_interaction(status_slug: "resolved", next_update_minutes: "30")
+    )
+
+    assert_nil @incident.reload.next_update_at
+  end
+
+  test "clears next_update_at when the status cancels the incident" do
+    stub_all_side_effects
+
+    Interactions::IncidentUpdateHandler.execute(
+      build_interaction(status_slug: "canceled", next_update_minutes: "30")
+    )
+
+    assert_nil @incident.reload.next_update_at
+  end
+
+  test "does not schedule a reminder when the status ends the incident" do
+    stub_all_side_effects
+
+    assert_no_enqueued_jobs only: IncidentUpdateReminderJob do
+      Interactions::IncidentUpdateHandler.execute(
+        build_interaction(status_slug: "resolved", next_update_minutes: "30")
+      )
+    end
+  end
+
+  test "snapshots the next_update_at the submission asked for" do
+    stub_all_side_effects
+
+    freeze_time do
+      Interactions::IncidentUpdateHandler.execute(
+        build_interaction(next_update_minutes: "30")
+      )
+
+      event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_UPDATED)
+      assert_equal 30.minutes.from_now.to_i, event.eventable.next_update_at.to_i
+    end
+  end
+
   test "returns modal error when incident not found" do
     stub_delete_message
 
