@@ -21,7 +21,29 @@ module Catalogue
 
       @workspace.workspace_memberships.where(id: member_ids)
         .includes(:user)
-        .map { |m| { id: m.id, name: m.display_name, avatarUrl: m.user.avatar_url } }
+        .map { |membership| member_row(membership) }
+    end
+
+    # One row per person for the member pickers. Anyone already here is offered
+    # under their membership id, which is what an entry stores and what a read
+    # hands back, so the same person cannot appear twice under two identifiers.
+    # Everyone else is offered under their platform id and becomes a member the
+    # moment they are picked.
+    def pickable_members
+      known = @workspace.workspace_memberships.includes(:user).index_by(&:platform_user_id)
+
+      offered = @workspace.adapter.list_members.map do |member|
+        membership = known.delete(member[:id])
+        membership ? member_row(membership) : member
+      end
+
+      offered + known.values.map { |membership| member_row(membership) }
+    end
+
+    private
+
+    def member_row(membership)
+      { id: membership.id, name: membership.display_name, avatarUrl: membership.user.avatar_url }
     end
   end
 end

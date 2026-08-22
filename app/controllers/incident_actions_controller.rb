@@ -29,13 +29,16 @@ class IncidentActionsController < InertiaController
 
   private
 
+  # The picker offers people already here under their membership id and
+  # everyone else under their platform id, so both have to resolve.
   def resolve_assignee
     return nil if params[:assignee_id].blank?
 
-    WorkspaceMemberProvisioner.find_or_provision!(
-      workspace: current_workspace,
-      platform_user_id: params[:assignee_id],
-      adapter: current_workspace.adapter
-    )
+    current_workspace.workspace_memberships.resolve(params[:assignee_id]) ||
+      WorkspaceMemberProvisioner.find_or_provision!(
+        workspace: current_workspace,
+        platform_user_id: params[:assignee_id],
+        adapter: current_workspace.adapter
+      )
   end
 end

@@ -211,7 +211,55 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "Tier must be one of: Gold, Silver, Bronze" ], session["inertia_errors"][:base]
   end
 
+  # ============================================================================
+  # MEMBER PICKER
+  # ============================================================================
+
+  test "search_members offers a member already here under their membership id, once" do
+    alice = workspace_memberships(:alice_workspace_one)
+    stub_list_users(alice.platform_user_id)
+
+    get catalogue_search_members_path
+
+    assert_response :success
+    ids = JSON.parse(response.body).map { |row| row["id"] }
+
+    assert_includes ids, alice.id
+    assert_not_includes ids, alice.platform_user_id
+    assert_equal ids.uniq, ids
+  end
+
+  test "search_members offers someone the workspace has never seen under their platform id" do
+    stub_list_users(workspace_memberships(:alice_workspace_one).platform_user_id)
+
+    get catalogue_search_members_path
+
+    rows = JSON.parse(response.body)
+    stranger = rows.find { |row| row["id"] == "U_STRANGER" }
+
+    assert_equal "Sam Stranger", stranger["name"]
+  end
+
+  test "search_members still offers a member the platform list left out" do
+    bob = workspace_memberships(:bob_workspace_one)
+    stub_list_users(workspace_memberships(:alice_workspace_one).platform_user_id)
+
+    get catalogue_search_members_path
+
+    ids = JSON.parse(response.body).map { |row| row["id"] }
+    assert_includes ids, bob.id
+  end
+
   private
+
+  def stub_list_users(known_platform_user_id)
+    Slack::Client.stubs(:list_users).returns([
+      { id: known_platform_user_id, name: "alice",
+        profile: { real_name: "Alice Example", image_48: "https://example.com/alice.png" } },
+      { id: "U_STRANGER", name: "stranger",
+        profile: { real_name: "Sam Stranger", image_48: "https://example.com/sam.png" } }
+    ])
+  end
 
   def sign_in(user, workspace)
     ApplicationController.any_instance.stubs(:current_user).returns(user)
