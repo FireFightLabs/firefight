@@ -1,7 +1,13 @@
 require "test_helper"
 
 class IncidentConditionTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_forms, :incident_form_fields, :catalog_types, :incident_field_definitions, :incident_field_options
+  # :incident_types is load-bearing, not decoration. The resolver marks the
+  # Incident Type field unanswerable when a workspace has no types, which drops
+  # it out of the condition sources these tests assert on, and leaves
+  # `incident_types.active.first` nil. Without it declared here the class passes
+  # only when some other test class happens to have loaded the table first.
+  fixtures :workspaces, :incident_forms, :incident_form_fields, :catalog_types,
+           :incident_field_definitions, :incident_field_options, :incident_types
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
