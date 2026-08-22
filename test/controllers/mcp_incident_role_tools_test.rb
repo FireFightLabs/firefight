@@ -106,6 +106,17 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
     assert_nil @incident.reload.lead
   end
 
+  test "refuses any role once the incident is over" do
+    @incident.update!(incident_status: incident_statuses(:resolved_ws1))
+
+    _, is_error, text = call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+      incident: @incident.identifier, role: @comms_role.slug, member: @membership.email
+    })
+
+    assert is_error
+    assert_equal "#{@incident.identifier} is closed, so its Communications Lead can no longer be changed.", text
+  end
+
   test "refuses to clear the lead" do
     @incident.assign_role!(@lead_role, @bob)
 

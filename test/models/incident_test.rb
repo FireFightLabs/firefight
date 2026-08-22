@@ -734,4 +734,42 @@ class IncidentTest < ActiveSupport::TestCase
 
     assert_equal "#{incident.identifier} is canceled, so it can no longer be assigned a lead.", error.message
   end
+
+  test "refuses any other role on an incident that is over, named after the role" do
+    incident = incidents(:active_critical_ws1)
+    role = incident_roles(:communications_lead_ws1)
+    alice = workspace_memberships(:alice_workspace_one)
+    incident.update!(incident_status: incident_statuses(:resolved_ws1))
+
+    error = assert_raises(Incident::NotActive) do
+      incident.assign_role!(role, alice)
+    end
+
+    assert_equal "#{incident.identifier} is closed, so its Communications Lead can no longer be changed.", error.message
+    assert_not incident.incident_role_assignments.exists?(incident_role: role, workspace_membership: alice)
+  end
+
+  test "refuses to clear a role on an incident that is over" do
+    incident = incidents(:active_critical_ws1)
+    role = incident_roles(:communications_lead_ws1)
+    incident.assign_role!(role, workspace_memberships(:bob_workspace_one))
+    incident.update!(incident_status: incident_statuses(:canceled_ws1))
+
+    error = assert_raises(Incident::NotActive) do
+      incident.unassign_role!(role)
+    end
+
+    assert_equal "#{incident.identifier} is canceled, so its Communications Lead can no longer be changed.", error.message
+    assert incident.incident_role_assignments.exists?(incident_role: role)
+  end
+
+  test "assigns any role while the incident is live" do
+    incident = incidents(:active_critical_ws1)
+    role = incident_roles(:communications_lead_ws1)
+    alice = workspace_memberships(:alice_workspace_one)
+
+    incident.assign_role!(role, alice)
+
+    assert incident.incident_role_assignments.exists?(incident_role: role, workspace_membership: alice)
+  end
 end

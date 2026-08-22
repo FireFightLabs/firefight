@@ -219,6 +219,54 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
   end
 
   # ============================================================================
+  # ESCALATE
+  # ============================================================================
+
+  test "escalate records the event, starts the workflow, and schedules the chase" do
+    target = workspace_memberships(:bob_workspace_one)
+
+    event = nil
+    assert_difference -> { @incident.incident_events.count }, 1 do
+      assert_enqueued_with(job: EscalationAcknowledgementReminderJob) do
+        event = @service.escalate(
+          @incident,
+          escalated_to_platform_user_id: target.platform_user_id,
+          reason: "Need backend support",
+          changed_by: @member
+        )
+      end
+    end
+
+    assert_equal IncidentEvent::INCIDENT_ESCALATED, event.event_type
+    assert_equal @member, event.actor
+    assert_equal target.platform_user_id, event.metadata["escalated_to_platform_user_id"]
+
+    workflow = SolidWorkflow::Workflow.find_by!(name: "incident.escalation.v1", subject: @incident)
+    assert_equal @member.platform_user_id, workflow.context["escalated_by_platform_user_id"]
+    assert_equal event.id, workflow.context["escalation_event_id"]
+  end
+
+  test "escalate refuses an incident that is over" do
+    @incident.update!(incident_status: incident_statuses(:resolved_ws1))
+
+    error = nil
+    assert_no_difference -> { @incident.incident_events.count } do
+      assert_no_enqueued_jobs only: EscalationAcknowledgementReminderJob do
+        error = assert_raises(Incident::NotActive) do
+          @service.escalate(
+            @incident,
+            escalated_to_platform_user_id: workspace_memberships(:bob_workspace_one).platform_user_id,
+            reason: "Need backend support",
+            changed_by: @member
+          )
+        end
+      end
+    end
+
+    assert_equal "#{@incident.identifier} is closed, so it can no longer be escalated.", error.message
+  end
+
+  # ============================================================================
   # ASSIGN ROLES
   # ============================================================================
 

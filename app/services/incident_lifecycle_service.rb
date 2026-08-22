@@ -1,6 +1,8 @@
 class IncidentLifecycleService
   class RoleNotUnassignable < StandardError; end
 
+  ESCALATION_ACK_WAIT = 10.minutes
+
   attr_reader :workspace
 
   def initialize(workspace)
@@ -122,6 +124,41 @@ class IncidentLifecycleService
     LeadAssignmentWorkflow.start!(incident, context: {
       lead_platform_user_id: lead&.platform_user_id
     })
+  end
+
+  # Escalation writes an event, pages someone through a workflow, and schedules
+  # a chase. Slack is its only entry point today, so the guard lives here
+  # rather than on the event: the next entry point inherits it instead of
+  # having to remember it.
+  def escalate(incident, escalated_to_platform_user_id:, reason:, changed_by:)
+    blocked_reason = incident.escalation_blocked_reason
+    raise Incident::NotActive, blocked_reason if blocked_reason
+
+    event = incident.incident_events.create!(
+      event_type: IncidentEvent::INCIDENT_ESCALATED,
+      actor: changed_by,
+      metadata: {
+        escalated_to_platform_user_id: escalated_to_platform_user_id,
+        reason: reason
+      }
+    )
+
+    IncidentEscalationWorkflow.start!(incident, context: {
+      escalated_by_platform_user_id: changed_by&.platform_user_id,
+      escalated_to_platform_user_id: escalated_to_platform_user_id,
+      escalation_event_id: event.id,
+      reason: reason
+    })
+
+    EscalationAcknowledgementReminderJob.set(wait: ESCALATION_ACK_WAIT).perform_later(
+      incident.id,
+      event.id,
+      changed_by&.platform_user_id,
+      escalated_to_platform_user_id,
+      reason
+    )
+
+    event
   end
 
   # Takes role => member (a nil member clears the role) and applies every
