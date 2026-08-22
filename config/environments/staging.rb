@@ -78,7 +78,11 @@ Rails.application.configure do
   config.active_record.attributes_for_inspect = [ :id ]
 
   # Enable DNS rebinding protection and other `Host` header attacks.
-  config.hosts = [ ENV.fetch("APP_HOST") ]
+  # A blank APP_HOST is never empty here, so it would not disable the check the
+  # way it does in production. It would leave one host name matching nothing
+  # and reject every request instead, which is a confusing way to find out.
+  require Rails.root.join("lib/allowed_hosts")
+  config.hosts = AllowedHosts.parse!(ENV.fetch("APP_HOST"), source: "APP_HOST")
 
   # Skip DNS rebinding protection for the default health check endpoint.
   config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
