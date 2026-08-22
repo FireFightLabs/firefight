@@ -13,7 +13,7 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: "#{title_line}\n#{meta_line}" } }
         ]
 
-        url = postmortem_dashboard_url(incident)
+        url = Slack::DashboardUrl.postmortem(incident)
         if url
           blocks << {
             type: "actions",
@@ -35,22 +35,6 @@ module Slack
 
         blocks
       end
-
-      def self.postmortem_dashboard_url(incident)
-        host = ENV["APP_HOST"].presence
-        return nil unless host
-
-        protocol = ENV.fetch("APP_PROTOCOL", "https")
-        Rails.application.routes.url_helpers.incident_postmortem_url(
-          incident_id: incident.id,
-          host: host,
-          protocol: protocol
-        )
-      rescue StandardError => e
-        Rails.logger.warn({ event: "postmortem_message.url_build_failed", error: e.message }.to_json)
-        nil
-      end
-      private_class_method :postmortem_dashboard_url
     end
   end
 end
