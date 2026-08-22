@@ -51,7 +51,7 @@ export function CreateKeyDialog({ canManageServiceKeys }: { canManageServiceKeys
           Create key
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create API key</DialogTitle>
