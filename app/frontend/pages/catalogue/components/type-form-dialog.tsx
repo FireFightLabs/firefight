@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { omitErrors, pickErrors } from "@/lib/form-errors"
 import { FormErrors } from "@/pages/settings/components/form-errors"
 
 const DEFAULT_TYPE_COLOR = "#3B82F6"
@@ -43,11 +44,11 @@ function generateSlug(name: string): string {
 const NAME_FIELDS = ["name", "slug"]
 
 function generalErrors(errors: Errors): Errors {
-  return Object.fromEntries(Object.entries(errors).filter(([field]) => !NAME_FIELDS.includes(field)))
+  return omitErrors(errors, ...NAME_FIELDS)
 }
 
 function nameErrors(errors: Errors): Errors {
-  return Object.fromEntries(Object.entries(errors).filter(([field]) => NAME_FIELDS.includes(field)))
+  return pickErrors(errors, ...NAME_FIELDS)
 }
 
 interface TypeFormDialogProps {

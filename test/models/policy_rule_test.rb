@@ -31,19 +31,19 @@ class PolicyRuleTest < ActiveSupport::TestCase
   test "rejects non-array conditions" do
     rule = @policy.policy_rules.build(priority: 1, conditions: { field: "x" })
     assert_not rule.valid?
-    assert_includes rule.errors[:conditions].join, "must be an array"
+    assert_includes rule.errors[:conditions].join, "must be a list of conditions"
   end
 
   test "rejects unknown operator" do
     rule = @policy.policy_rules.build(priority: 1, conditions: [ { field: "service", operator: "equals", value: "x" } ])
     assert_not rule.valid?
-    assert_includes rule.errors[:conditions].join, "unknown operator"
+    assert_includes rule.errors[:conditions].join, "Condition 1 has an unknown operator"
   end
 
   test "rejects condition without field" do
     rule = @policy.policy_rules.build(priority: 1, conditions: [ { operator: PolicyRule::OPERATOR_IS_EMPTY } ])
     assert_not rule.valid?
-    assert_includes rule.errors[:conditions].join, "missing a field"
+    assert_includes rule.errors[:conditions].join, "Condition 1 needs a field"
   end
 
   test "is_one_of requires a non-empty array value" do
@@ -62,7 +62,7 @@ class PolicyRuleTest < ActiveSupport::TestCase
   test "rejects invalid regex at write time" do
     rule = @policy.policy_rules.build(priority: 1, conditions: [ { field: "title", operator: PolicyRule::OPERATOR_MATCHES_REGEX, value: "([" } ])
     assert_not rule.valid?
-    assert_includes rule.errors[:conditions].join, "invalid regex"
+    assert_includes rule.errors[:conditions].join, "Condition 1 has a pattern Firefight cannot read"
   end
 
   test "priority is unique per policy" do

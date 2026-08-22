@@ -36,22 +36,22 @@ class PolicyRule < ApplicationRecord
 
   def conditions_are_well_formed
     unless conditions.is_a?(Array)
-      errors.add(:conditions, "must be an array")
+      errors.add(:conditions, "must be a list of conditions")
       return
     end
 
     conditions.each_with_index do |condition, index|
       unless condition.is_a?(Hash)
-        errors.add(:conditions, "condition #{index} must be an object")
+        errors.add(:conditions, "Condition #{index + 1} is not readable")
         next
       end
 
       condition = condition.with_indifferent_access
-      errors.add(:conditions, "condition #{index} is missing a field") if condition[:field].blank?
+      errors.add(:conditions, "Condition #{index + 1} needs a field") if condition[:field].blank?
 
       operator = condition[:operator]
       unless OPERATORS.include?(operator)
-        errors.add(:conditions, "condition #{index} has unknown operator #{operator.inspect}")
+        errors.add(:conditions, "Condition #{index + 1} has an unknown operator")
         next
       end
 
@@ -63,18 +63,18 @@ class PolicyRule < ApplicationRecord
     value = condition[:value]
 
     if ARRAY_VALUE_OPERATORS.include?(operator) && !(value.is_a?(Array) && value.any?)
-      errors.add(:conditions, "condition #{index} (#{operator}) requires a non-empty array value")
+      errors.add(:conditions, "Condition #{index + 1} needs at least one value")
     end
 
     if STRING_VALUE_OPERATORS.include?(operator) && !(value.is_a?(String) && value.present?)
-      errors.add(:conditions, "condition #{index} (#{operator}) requires a string value")
+      errors.add(:conditions, "Condition #{index + 1} needs a value")
     end
 
     if operator == OPERATOR_MATCHES_REGEX && value.is_a?(String)
       begin
         Regexp.new(value)
       rescue RegexpError => e
-        errors.add(:conditions, "condition #{index} has an invalid regex: #{e.message}")
+        errors.add(:conditions, "Condition #{index + 1} has a pattern Firefight cannot read: #{e.message}")
       end
     end
   end
