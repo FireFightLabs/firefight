@@ -26,7 +26,7 @@ class CatalogueController < InertiaController
   end
 
   def search_members
-    render json: current_workspace.adapter.list_members
+    render json: member_resolution_service.pickable_members
   end
 
   def search_channels

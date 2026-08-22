@@ -72,6 +72,21 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to incident_path(@incident)
   end
 
+  test "create assigns from a membership id, which is how the picker offers an existing member" do
+    stub_post_message
+    WorkspaceMemberProvisioner.expects(:find_or_provision!).never
+
+    post incident_actions_path(incident_id: @incident.id), params: {
+      action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "Roll back the deploy",
+      assignee_id: @assignee.id
+    }
+
+    action = @incident.incident_actions.find_by!(description: "Roll back the deploy")
+    assert_equal @assignee, action.assignee
+    assert_redirected_to incident_path(@incident)
+  end
+
   test "create alerts and skips the action when the assignee profile can't be loaded" do
     Slack::WorkspaceAdapter.any_instance
       .stubs(:get_user_info)
