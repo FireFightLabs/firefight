@@ -77,21 +77,24 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
       required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
   end
 
-  test "returns error for invalid severity" do
-    result = Interactions::IncidentCreationHandler.execute(
-      build_interaction(severity: "nonexistent")
-    )
-
-    assert_equal "errors", result[:response_action]
-    assert result[:errors][:field_severity_block].present?
-  end
-
-  test "returns error for unknown workspace member" do
+  test "returns an account error rather than a severity error for an unknown workspace member" do
     result = Interactions::IncidentCreationHandler.execute(
       build_interaction(user_id: "U_UNKNOWN")
     )
 
     assert_equal "errors", result[:response_action]
+    assert_not result[:errors].key?(:field_severity_block)
+    assert_includes result[:errors][:field_name_block], "verify your account"
+  end
+
+  test "returns a severity error when the member is known and the severity is not" do
+    result = Interactions::IncidentCreationHandler.execute(
+      build_interaction(severity: "nonexistent")
+    )
+
+    assert_equal "errors", result[:response_action]
+    assert_not result[:errors].key?(:field_name_block)
+    assert_includes result[:errors][:field_severity_block], "Invalid severity selection"
   end
 
   test "creates incident with custom fields from form" do

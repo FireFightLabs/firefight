@@ -5,7 +5,19 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
-      member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
+      member = workspace.workspace_memberships.find_by(platform_user_id: interaction.user_id)
+
+      unless member
+        Rails.logger.error({
+          event: "incident.creation_member_not_found",
+          workspace_id: workspace.id,
+          user_id: interaction.user_id
+        })
+        return {
+          response_action: "errors",
+          errors: { field_name_block: "We could not verify your account. Please try again or contact support." }
+        }
+      end
 
       submission = Slack::FormSubmission.new(
         workspace: workspace,
@@ -50,7 +62,7 @@ module Interactions
 
       { response_action: "update", view: Slack::Modals::IncidentCreated.build(incident, team_id: workspace.platform_id) }
     rescue ActiveRecord::RecordNotFound => e
-      Rails.logger.error({ event: "incident.creation_error", error: e.message })
+      Rails.logger.error({ event: "incident.creation_severity_not_found", error: e.message })
       { response_action: "errors", errors: { field_severity_block: "Invalid severity selection. Please try again." } }
     rescue => e
       Rails.logger.error({ event: "incident.creation_error", error: e.message })
