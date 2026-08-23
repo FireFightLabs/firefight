@@ -6,7 +6,7 @@ import { ConnectDialog } from "@/pages/integrations/components/connect-dialog"
 import { ConnectedCard } from "@/pages/integrations/components/connected-card"
 import { ProviderGallery } from "@/pages/integrations/components/provider-gallery"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import type { ProviderEntry } from "@/pages/integrations/types"
+import type { IntegrationProvider } from "@/types/serializers"
 import type { EnvironmentOption, Integration } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 import { whenClosed } from "@/lib/handlers"
@@ -14,7 +14,7 @@ import { whenClosed } from "@/lib/handlers"
 interface IntegrationsPageProps extends SharedProps {
   [key: string]: unknown
   integrations: Integration[]
-  providers: ProviderEntry[]
+  providers: IntegrationProvider[]
   categories: Record<string, string>
   environments: EnvironmentOption[]
   canManage: boolean
@@ -22,7 +22,7 @@ interface IntegrationsPageProps extends SharedProps {
 
 export default function Integrations() {
   const { integrations, providers, categories, environments, canManage } = usePage<IntegrationsPageProps>().props
-  const [connecting, setConnecting] = useState<ProviderEntry | null>(null)
+  const [connecting, setConnecting] = useState<IntegrationProvider | null>(null)
   const [detailsId, setDetailsId] = useState<string | null>(null)
 
   const details = integrations.find((integration) => integration.id === detailsId) ?? null

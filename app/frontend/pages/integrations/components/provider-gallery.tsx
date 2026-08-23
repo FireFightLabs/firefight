@@ -3,7 +3,7 @@ import { useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { ProviderTile } from "@/pages/integrations/components/provider-tile"
 import type { Integration } from "@/types/serializers"
-import type { ProviderEntry } from "@/pages/integrations/types"
+import type { IntegrationProvider } from "@/types/serializers"
 
 const FILTERS = ["All applications", "Connected", "Disconnected"] as const
 type Filter = (typeof FILTERS)[number]
@@ -16,11 +16,11 @@ export function ProviderGallery({
   onConnect,
   onDetails,
 }: {
-  providers: ProviderEntry[]
+  providers: IntegrationProvider[]
   categories: Record<string, string>
   integrations: Integration[]
   canManage: boolean
-  onConnect: (provider: ProviderEntry) => void
+  onConnect: (provider: IntegrationProvider) => void
   onDetails: (integration: Integration) => void
 }) {
   const [search, setSearch] = useState("")
@@ -44,7 +44,7 @@ export function ProviderGallery({
         .toLowerCase()
         .includes(search.toLowerCase())
     })
-    const byCategory = new Map<string, ProviderEntry[]>()
+    const byCategory = new Map<string, IntegrationProvider[]>()
     matching.forEach((provider) => {
       byCategory.set(provider.category, [...(byCategory.get(provider.category) ?? []), provider])
     })

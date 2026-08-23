@@ -2,8 +2,8 @@ import { useEffect, useState } from "react"
 import { router } from "@inertiajs/react"
 import { IconArrowLeft } from "@tabler/icons-react"
 
-import type { EnvironmentOption } from "@/types/serializers"
-import type { ProviderEntry } from "@/pages/integrations/types"
+import type { EnvironmentOption, IntegrationProvider } from "@/types/serializers"
+import { CUSTOM_MCP_PROVIDER_KEY, INTEGRATION_KINDS } from "@/lib/constants"
 import { integrationsPath, oauthStartIntegrationsPath } from "@/lib/routes"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,7 +41,7 @@ export function ConnectDialog({
   existingNames,
   onDismiss,
 }: {
-  provider: ProviderEntry | null
+  provider: IntegrationProvider | null
   environments: EnvironmentOption[]
   existingNames: string[]
   onDismiss: () => void
@@ -54,7 +54,7 @@ export function ConnectDialog({
   const [useToken, setUseToken] = useState(false)
   const [separateAccount, setSeparateAccount] = useState(false)
 
-  const nativeConnect = provider !== null && provider.kind === "native"
+  const nativeConnect = provider !== null && provider.kind === INTEGRATION_KINDS.NATIVE
   const oauthAvailable = nativeConnect || (provider !== null && provider.serverUrl !== "")
   const showManualForm = (!oauthAvailable || useToken) && !nativeConnect
   const showSecondAccountLink = !separateAccount
@@ -66,7 +66,7 @@ export function ConnectDialog({
     if (!provider) {
       return
     }
-    setName(provider.key === "custom_mcp" ? "" : provider.name)
+    setName(provider.key === CUSTOM_MCP_PROVIDER_KEY ? "" : provider.name)
     setServerUrl(provider.serverUrl)
     setAuthorization("")
     setEnvironmentId(ALL_ENVIRONMENTS)
@@ -226,7 +226,7 @@ export function ConnectDialog({
                 id="connect-name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder={provider?.key === "custom_mcp" ? "e.g. Internal tools" : provider?.name}
+                placeholder={provider?.key === CUSTOM_MCP_PROVIDER_KEY ? "e.g. Internal tools" : provider?.name}
               />
             </div>
             <div className="flex flex-col gap-1.5">
