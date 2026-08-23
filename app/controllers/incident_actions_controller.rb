@@ -1,6 +1,4 @@
 class IncidentActionsController < InertiaController
-  before_action :require_authentication
-
   ASSIGNEE_UNAVAILABLE = "Couldn't load that user's profile from Slack. Please try again in a moment.".freeze
 
   def create

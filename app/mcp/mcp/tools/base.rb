@@ -41,6 +41,24 @@ module Mcp
           @authorization || raise(NotImplementedError, "#{name} declares no authorization")
         end
 
+        # For tools whose one call either creates or updates: the key names
+        # the record, so a blank key is a create, a key that resolves is an
+        # update, and a key that resolves to nothing is an error rather than
+        # a silent duplicate under a fresh slug. The dispatcher renders the
+        # raise as "Not found in this workspace.".
+        def upserts(resource, scope:, key: :slug)
+          define_singleton_method(:upsert_target) do |workspace, args|
+            value = args[key]
+            next nil if value.blank?
+
+            scope.call(workspace).find_by!(slug: value.to_s)
+          end
+
+          define_singleton_method(:authorization) do |workspace, args|
+            [ resource, upsert_target(workspace, args) ? ApiKey::ACTION_UPDATE : ApiKey::ACTION_CREATE ]
+          end
+        end
+
         private
 
         def respond(payload)

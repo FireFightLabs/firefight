@@ -1,9 +1,6 @@
 require "test_helper"
 
 class SettingsControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incident_types, :incidents
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     sign_in(users(:alice), @workspace)

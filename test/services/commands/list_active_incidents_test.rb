@@ -1,9 +1,6 @@
 require "test_helper"
 
 class Commands::ListActiveIncidentsTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)

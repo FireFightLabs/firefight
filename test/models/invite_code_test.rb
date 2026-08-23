@@ -1,8 +1,6 @@
 require "test_helper"
 
 class InviteCodeTest < ActiveSupport::TestCase
-  fixtures :users, :invite_codes
-
   test "redeem! raises when invite was already redeemed" do
     invite_code = invite_codes(:active_public_beta_code)
 

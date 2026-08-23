@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Events::ReactionAddedHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_lifecycle_stages, :incident_statuses
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
@@ -28,7 +26,7 @@ class Events::ReactionAddedHandlerTest < ActiveSupport::TestCase
 
     Slack::Client.expects(:post_ephemeral).once.returns({ ok: true, ts: "1234567890.123456" })
 
-    Events::ReactionAddedHandler.execute(Platforms::SLACK, build_payload(reaction: "boom"))
+    Events::ReactionAddedHandler.execute(@workspace, build_payload(reaction: "boom"))
   end
 
   test "posts followup prompt for arrow_forward reaction" do
@@ -38,28 +36,20 @@ class Events::ReactionAddedHandlerTest < ActiveSupport::TestCase
 
     Slack::Client.expects(:post_ephemeral).once.returns({ ok: true, ts: "1234567890.123456" })
 
-    Events::ReactionAddedHandler.execute(Platforms::SLACK, build_payload(reaction: "arrow_forward"))
+    Events::ReactionAddedHandler.execute(@workspace, build_payload(reaction: "arrow_forward"))
   end
 
   test "ignores non-action reactions" do
     Slack::Client.expects(:post_ephemeral).never
 
-    Events::ReactionAddedHandler.execute(Platforms::SLACK, build_payload(reaction: "thumbsup"))
+    Events::ReactionAddedHandler.execute(@workspace, build_payload(reaction: "thumbsup"))
   end
 
   test "ignores reactions in non-incident channels" do
     Slack::Client.expects(:post_ephemeral).never
 
     payload = build_payload(reaction: "boom", channel: "C_NOT_INCIDENT")
-    Events::ReactionAddedHandler.execute(Platforms::SLACK, payload)
-  end
-
-  test "ignores reactions from unknown workspace" do
-    Slack::Client.expects(:post_ephemeral).never
-
-    payload = build_payload(reaction: "boom")
-    payload["team_id"] = "T_UNKNOWN"
-    Events::ReactionAddedHandler.execute(Platforms::SLACK, payload)
+    Events::ReactionAddedHandler.execute(@workspace, payload)
   end
 
   private

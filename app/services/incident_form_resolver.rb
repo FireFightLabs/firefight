@@ -245,19 +245,7 @@ class IncidentFormResolver
   end
 
   def default_form_field(lifecycle_event, defn, position:)
-    mode = defn.required_mode_for(lifecycle_event)
-
-    # An available field ships hidden rather than missing, so the editor can
-    # offer it while responders do not see it until someone turns it on.
-    available = mode == IncidentFormField::REQUIRED_MODE_AVAILABLE
-
-    IncidentFormField.new(
-      field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
-      system_field_key: defn.key,
-      required_mode: available ? IncidentFormField::REQUIRED_MODE_OPTIONAL : mode,
-      visibility_mode: available ? IncidentFormField::VISIBILITY_MODE_HIDDEN : IncidentFormField::VISIBILITY_MODE_VISIBLE,
-      position: position
-    )
+    IncidentFormField.new(defn.default_overlay_for(lifecycle_event).merge(position: position))
   end
 
   def validate_required!(form_field, key, value, errors)

@@ -26,6 +26,16 @@ class IncidentSystemField
   # responder actually reads above and inside the input, and are rendered
   # identically by Slack and by the form editor's preview. Keeping them here
   # rather than in the Slack adapter is what stops the two surfaces drifting.
+  # How a ship mode from the registry lands on an IncidentFormField row. The
+  # one table the resolver's unpersisted default and the form service's
+  # materialized row both read, so the two can never disagree.
+  SHIPS_AS = {
+    IncidentFormField::REQUIRED_MODE_AVAILABLE => { visibility_mode: IncidentFormField::VISIBILITY_MODE_HIDDEN, required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL },
+    IncidentFormField::REQUIRED_MODE_OPTIONAL => { visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE, required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL },
+    IncidentFormField::REQUIRED_MODE_REQUIRED => { visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE, required_mode: IncidentFormField::REQUIRED_MODE_REQUIRED },
+    IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED => { visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE, required_mode: IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED }
+  }.freeze
+
   Definition = Struct.new(:key, :name, :label, :hint, :placeholder, :field_type, :forms, keyword_init: true) do
     # Returns the default required_mode for this field on the given form slug,
     # or nil if the field doesn't appear on that form by default.
@@ -35,6 +45,19 @@ class IncidentSystemField
 
     def appears_on?(form_slug)
       forms.key?(form_slug.to_s)
+    end
+
+    # The row attributes this field ships with on a form, position included,
+    # or nil when it does not appear there by default.
+    def default_overlay_for(form_slug)
+      mode = required_mode_for(form_slug)
+      return nil unless mode
+
+      IncidentSystemField::SHIPS_AS.fetch(mode).merge(
+        field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
+        system_field_key: key,
+        position: IncidentSystemField.defaults_for(form_slug).index(self)
+      )
     end
   end
 

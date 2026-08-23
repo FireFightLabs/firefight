@@ -1,9 +1,6 @@
 require "test_helper"
 
 class AuthorizedDispatchTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents, :ability_actions
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:bob_workspace_one)

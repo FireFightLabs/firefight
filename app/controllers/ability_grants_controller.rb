@@ -1,5 +1,4 @@
 class AbilityGrantsController < InertiaController
-  before_action :require_authentication
   before_action :require_admin!
 
   # A grant targets exactly one of a set or a single action, which the DB

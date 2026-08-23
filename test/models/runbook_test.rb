@@ -1,8 +1,6 @@
 require "test_helper"
 
 class RunbookTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_types, :incident_lifecycle_stages, :incident_statuses, :incidents, :incident_actions
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @critical = incident_severities(:critical_ws1)

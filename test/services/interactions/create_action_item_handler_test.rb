@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Interactions::CreateActionItemHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_lifecycle_stages, :incident_statuses
-
   KINDS = {
     Identifiers::CREATE_ACTION_MODAL => IncidentAction::ACTION_TYPE_ACTION,
     Identifiers::CREATE_FOLLOWUP_MODAL => IncidentAction::ACTION_TYPE_FOLLOWUP

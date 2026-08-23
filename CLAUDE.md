@@ -53,7 +53,7 @@ Production-grade or not at all. Every one of these has already been violated onc
 - **Never silence a linter or type checker.** No `eslint-disable`, `rubocop:disable`, `@ts-ignore`, `@ts-expect-error`, `as any`, or `as unknown as`. The rule is pointing at a real problem, so fix the code it points at. `react-hooks/exhaustive-deps` firing on a mount-only effect means the effect is reading something it claims not to depend on, so capture it in a ref or restructure. If a suppression is genuinely the only option, say so out loud and explain why in the same message, never quietly in a comment.
 - **`bin/ci` does not check the frontend.** No eslint, no `tsc`. Run `npm run lint` and `npx tsc -p tsconfig.app.json --noEmit` yourself before calling frontend work done, and green `bin/ci` says nothing about it.
 - **`npx tsc --noEmit` checks nothing here.** The root `tsconfig.json` is a solution file: `"files": []` plus project references, so that command exits 0 having compiled no application code. Always name the project (`-p tsconfig.app.json`) or use `--build`. It reports pre-existing errors in the generated `app/frontend/lib/routes.ts`, which are not yours; filter it out.
-- **There are pre-existing type errors on `main`** (17 at the time of writing, mostly `custom-fields-tab.tsx` passing the wrong option type to `OptionsTable`). Compare your branch's count against `main` rather than expecting zero.
+- **There are pre-existing type errors on `main`** (5 at the time of writing: `progress-rail.tsx`, `postmortem.tsx`, `field-dialog.tsx`, `option-dialog.tsx` ×2). Compare your branch's count against `main` rather than expecting zero.
 - **Finish the whole path, or say exactly what you left undone.** Deferring part of a task is fine when it is stated. Silence reads as complete, which makes it a false claim.
 
 ## Settings screen UX standards (always apply)
@@ -143,7 +143,7 @@ Controller → Dispatcher → Handler → Service → Adapter → Slack::Client
 - Framework: Minitest + Mocha (mocking)
 - Tests run in parallel (14 processes)
 - **Never use `Model.last`** in tests. It is unreliable with parallel execution. Use `find_by!` with specific attributes or scoped queries like `@incident.incident_events.find_by!(event_type: ...)`
-- Fixtures require complete FK loading, so declare all dependencies up the chain. `incidents` needs `:workspaces, :users, :workspace_memberships, :incident_statuses, :incident_severities, :incident_lifecycle_stages`. Missing fixtures cause random FK violations under parallel execution.
+- `fixtures :all` is on in `test_helper.rb`: every test sees the whole fixture set, so never declare per-class `fixtures` lists, and scope count assertions to their workspace.
 - Slack API stubs: `test/support/slack_client_stub_helper.rb` provides `stub_create_channel`, `stub_post_message`, `stub_successful_slack_workflow`, etc.
 - Mocha auto-unstubs after each test, giving thread-safe isolation
 - Handler tests build `Interaction.new(platform: Platforms::SLACK, ...)` or `Command` objects directly, never raw hashes

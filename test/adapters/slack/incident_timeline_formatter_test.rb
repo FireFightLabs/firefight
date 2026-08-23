@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Slack::IncidentTimelineFormatterTest < ActiveSupport::TestCase
-  fixtures :incident_events, :incidents, :incident_statuses, :incident_severities, :incident_lifecycle_stages, :workspace_memberships, :workspaces, :users
-
   test "renders archived flag for file shared events" do
     event = incident_events(:inc1_created)
     event.update!(

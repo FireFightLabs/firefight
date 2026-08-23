@@ -1,10 +1,6 @@
 require "test_helper"
 
 class PostmortemUpdateTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities,
-           :postmortems, :postmortem_updates
-
   test "belongs to postmortem" do
     update = postmortem_updates(:postmortem_update_generated_ws1)
     assert_equal postmortems(:postmortem_resolved_ws1), update.postmortem

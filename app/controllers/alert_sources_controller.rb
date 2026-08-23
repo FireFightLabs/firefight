@@ -1,5 +1,4 @@
 class AlertSourcesController < InertiaController
-  before_action :require_authentication
   before_action :require_admin!
   before_action :set_alert_source, only: [ :update, :destroy, :token, :sample_payload ]
 

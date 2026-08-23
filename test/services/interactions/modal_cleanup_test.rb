@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Interactions::ModalCleanupTest < ActiveSupport::TestCase
-  fixtures :workspaces
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @adapter = mock("adapter")

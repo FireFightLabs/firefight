@@ -1,9 +1,6 @@
 require "test_helper"
 
 class Slack::Messages::RunbookTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_statuses,
-           :incident_severities, :incident_lifecycle_stages, :incidents
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)

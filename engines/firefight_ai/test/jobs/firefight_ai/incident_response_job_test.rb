@@ -1,9 +1,6 @@
 require "test_helper"
 
 class FirefightAi::IncidentResponseJobTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities
-
   setup do
     @incident = incidents(:active_critical_ws1)
   end

@@ -1,8 +1,6 @@
 require "test_helper"
 
 class ApiKeyTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :api_keys, :ability_actions, :ability_grants
-
   # Token generation
 
   test "generate_token produces token with ff_ prefix" do

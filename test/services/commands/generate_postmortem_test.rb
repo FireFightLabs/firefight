@@ -3,8 +3,6 @@ require "test_helper"
 class Commands::GeneratePostmortemTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-  fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

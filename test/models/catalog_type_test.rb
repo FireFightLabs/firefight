@@ -1,8 +1,6 @@
 require "test_helper"
 
 class CatalogTypeTest < ActiveSupport::TestCase
-  fixtures :workspaces, :catalog_types, :catalog_attribute_definitions, :catalog_entries, :catalog_entry_relationships
-
   # Basic validations
 
   test "requires name" do

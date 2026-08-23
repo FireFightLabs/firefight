@@ -1,8 +1,6 @@
 require "test_helper"
 
 class CommandDispatcherTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships
-
   test "routes /firefight to Firefight::HomeHandler" do
     command = build_command(command_name: "/firefight", text: Identifiers::SUBCOMMAND_NEW)
     assert_equal Commands::HomeHandler, CommandDispatcher.find(command)

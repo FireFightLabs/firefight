@@ -1,10 +1,6 @@
 require "test_helper"
 
 class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incident_types, :incident_roles,
-           :incidents, :incident_role_assignments
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)

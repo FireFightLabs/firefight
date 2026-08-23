@@ -3,8 +3,6 @@ require "test_helper"
 class Events::AppMentionHandlerTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-  fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -16,14 +14,14 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
     stub_add_reaction
 
     assert_enqueued_with(job: FirefightAi::IncidentResponseJob) do
-      Events::AppMentionHandler.execute(Platforms::SLACK, payload)
+      Events::AppMentionHandler.execute(@workspace, payload)
     end
   end
 
   test "passes thread_ts as the mention message ts" do
     stub_add_reaction
 
-    Events::AppMentionHandler.execute(Platforms::SLACK, payload)
+    Events::AppMentionHandler.execute(@workspace, payload)
 
     job = enqueued_jobs.find { |j| j["job_class"] == "FirefightAi::IncidentResponseJob" }
     assert_equal "1234567890.123456", job["arguments"][2]
@@ -32,7 +30,7 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
   test "strips bot mention from text" do
     stub_add_reaction
 
-    Events::AppMentionHandler.execute(Platforms::SLACK, payload(text: "<@U99999999> what's going on?"))
+    Events::AppMentionHandler.execute(@workspace, payload(text: "<@U99999999> what's going on?"))
 
     job = enqueued_jobs.find { |j| j["job_class"] == "FirefightAi::IncidentResponseJob" }
     assert_equal "what's going on?", job["arguments"][3]
@@ -46,18 +44,12 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
       name: "eyes"
     ).once
 
-    Events::AppMentionHandler.execute(Platforms::SLACK, payload)
-  end
-
-  test "skips when workspace not found" do
-    assert_no_enqueued_jobs do
-      Events::AppMentionHandler.execute(Platforms::SLACK, payload(team_id: "T_UNKNOWN"))
-    end
+    Events::AppMentionHandler.execute(@workspace, payload)
   end
 
   test "skips when no active incident in channel" do
     assert_no_enqueued_jobs do
-      Events::AppMentionHandler.execute(Platforms::SLACK, payload(channel: "C_NO_INCIDENT"))
+      Events::AppMentionHandler.execute(@workspace, payload(channel: "C_NO_INCIDENT"))
     end
   end
 
@@ -68,13 +60,13 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
     ).once
 
     assert_no_enqueued_jobs do
-      Events::AppMentionHandler.execute(Platforms::SLACK, payload)
+      Events::AppMentionHandler.execute(@workspace, payload)
     end
   end
 
   test "skips when text is empty after stripping mention" do
     assert_no_enqueued_jobs do
-      Events::AppMentionHandler.execute(Platforms::SLACK, payload(text: "<@U99999999>"))
+      Events::AppMentionHandler.execute(@workspace, payload(text: "<@U99999999>"))
     end
   end
 

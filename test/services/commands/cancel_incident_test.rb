@@ -3,9 +3,6 @@ require "test_helper"
 class Commands::CancelIncidentTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents,
-           :catalog_types, :incident_field_definitions, :incident_field_options
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

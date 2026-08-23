@@ -1,8 +1,6 @@
 require "test_helper"
 
 class AbilityGatewayTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :api_keys, :ability_actions, :ability_grants
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @key = api_keys(:read_only_key)

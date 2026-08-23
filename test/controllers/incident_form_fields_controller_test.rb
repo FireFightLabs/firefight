@@ -1,10 +1,6 @@
 require "test_helper"
 
 class IncidentFormFieldsControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :catalog_types,
-           :incident_field_definitions, :incident_field_options
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @user = users(:alice)

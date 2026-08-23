@@ -1,8 +1,6 @@
 require "test_helper"
 
 class WorkspaceTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_lifecycle_stages
-
   test "slack workspace fixture loads correctly" do
     workspace = workspaces(:slack_workspace_one)
     assert_equal "slack", workspace.platform

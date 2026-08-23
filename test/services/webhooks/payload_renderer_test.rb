@@ -1,9 +1,6 @@
 require "test_helper"
 
 class Webhooks::PayloadRendererTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents, :incident_events
-
   setup do
     @event = incident_events(:inc1_created)
     @delivery_id = SecureRandom.uuid
@@ -59,15 +56,17 @@ class Webhooks::PayloadRendererTest < ActiveSupport::TestCase
       Webhooks::PayloadRenderer.template_for(IncidentEvent::INCIDENT_RESOLVED)
   end
 
-  test "template_for returns generic for unknown event types" do
-    assert_equal "webhooks/events/generic",
-      Webhooks::PayloadRenderer.template_for("unknown.event")
+  test "every subscribable event resolves to a template file that exists" do
+    Webhook::SUBSCRIBABLE_EVENT_TEMPLATES.each_value do |template|
+      path = Rails.root.join("app/views/#{template}.json.jbuilder")
+      assert File.exist?(path), "missing template #{template}"
+    end
   end
 
   test "all subscribable events have a template mapping" do
     Webhook::SUBSCRIBABLE_EVENTS.each do |event_type|
       template = Webhooks::PayloadRenderer.template_for(event_type)
-      assert_not_equal "webhooks/events/generic", template,
+      assert template.present?,
         "Event type #{event_type} should have a dedicated template"
     end
   end

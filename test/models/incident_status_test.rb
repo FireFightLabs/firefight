@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentStatusTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_statuses, :incident_lifecycle_stages
-
   # Basic validations
 
   test "requires name" do

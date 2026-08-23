@@ -2,8 +2,6 @@
 # the API-keys page. Revoking kills the application's tokens and grants for
 # this member only.
 class ConnectedAgentsController < InertiaController
-  before_action :require_authentication
-
   def destroy
     application = Doorkeeper::Application.find(params[:id])
     Doorkeeper::AccessToken.revoke_all_for(application.id, current_membership)

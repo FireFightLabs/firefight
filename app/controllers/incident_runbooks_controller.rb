@@ -1,6 +1,4 @@
 class IncidentRunbooksController < InertiaController
-  before_action :require_authentication
-
   def create
     incident = current_workspace.incidents.find(params[:incident_id])
     member = current_workspace.workspace_memberships.find_by!(user: current_user)

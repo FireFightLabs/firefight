@@ -1,6 +1,4 @@
 class DashboardController < InertiaController
-  before_action :require_authentication
-
   def index
     result = current_workspace.incidents.filtered_list(
       filters: { search: params[:search], severities: severity_slugs, lifecycle_stages: lifecycle_keys },

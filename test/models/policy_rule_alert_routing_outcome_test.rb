@@ -1,8 +1,6 @@
 require "test_helper"
 
 class PolicyRuleAlertRoutingOutcomeTest < ActiveSupport::TestCase
-  fixtures :workspaces
-
   setup do
     @policy = Policy.create!(workspace: workspaces(:slack_workspace_one),
                              domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")

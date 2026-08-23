@@ -1,7 +1,6 @@
 class ApiKeysController < InertiaController
   KIND_PERSONAL = "personal"
 
-  before_action :require_authentication
   before_action :set_api_key, only: [ :update, :destroy, :abilities ]
 
   # Personal tokens are self-service (any member can mint their own, GitHub

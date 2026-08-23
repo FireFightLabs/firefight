@@ -1,8 +1,6 @@
 require "test_helper"
 
 class WorkspaceMembershipTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)

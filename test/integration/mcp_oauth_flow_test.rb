@@ -3,8 +3,6 @@ require "test_helper"
 class McpOauthFlowTest < ActionDispatch::IntegrationTest
   include OmniauthTestHelper
 
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents
 
   REDIRECT_URI = "http://localhost:33418/callback".freeze
 

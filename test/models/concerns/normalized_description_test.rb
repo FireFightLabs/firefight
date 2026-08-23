@@ -1,9 +1,6 @@
 require "test_helper"
 
 class NormalizedDescriptionTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities
-
   def build_severity(description)
     workspace = workspaces(:slack_workspace_one)
     workspace.incident_severities.new(

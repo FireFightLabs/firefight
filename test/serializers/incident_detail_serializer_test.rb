@@ -1,10 +1,6 @@
 require "test_helper"
 
 class IncidentDetailSerializerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incident_types, :incident_roles,
-           :incident_role_assignments, :incidents
-
   test "nested people and type ride through their own serializers" do
     incident = incidents(:active_critical_ws1)
     json = IncidentDetailSerializer.one(incident).as_json

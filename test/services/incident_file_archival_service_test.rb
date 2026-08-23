@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentFileArchivalServiceTest < ActiveSupport::TestCase
-  fixtures :incident_events, :incidents, :workspaces, :incident_statuses, :incident_severities, :incident_lifecycle_stages, :workspace_memberships, :users
-
   test "backfills blob metadata after successful archive" do
     incident_event = incident_events(:inc1_created)
     incident_event.update!(

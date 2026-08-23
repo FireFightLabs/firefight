@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Commands::OpenHomeTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_severities, :incident_statuses, :incident_lifecycle_stages
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
   end

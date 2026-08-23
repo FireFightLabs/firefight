@@ -1,6 +1,4 @@
 class IncidentsController < InertiaController
-  before_action :require_authentication
-
   def show
     incident = current_workspace.incidents
       .with_detail_associations

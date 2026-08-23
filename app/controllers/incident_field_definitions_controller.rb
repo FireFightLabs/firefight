@@ -1,5 +1,4 @@
 class IncidentFieldDefinitionsController < InertiaController
-  before_action :require_authentication
   before_action :require_admin!
   before_action :set_field_definition, only: [ :update, :disable, :enable, :destroy ]
 

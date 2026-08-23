@@ -1,9 +1,6 @@
 require "test_helper"
 
 class Catalogue::MemberResolutionServiceTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :catalog_types, :catalog_attribute_definitions,
-           :catalog_entries
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)

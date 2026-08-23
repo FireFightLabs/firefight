@@ -1,9 +1,6 @@
 require "test_helper"
 
 class Api::V1::IncidentTypesControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incident_types, :api_keys, :ability_actions, :ability_grants
-
   test "returns 401 without authorization" do
     get api_v1_incident_types_url
     assert_response :unauthorized

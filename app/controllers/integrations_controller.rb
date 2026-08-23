@@ -1,7 +1,6 @@
 class IntegrationsController < InertiaController
   class NameTaken < StandardError; end
 
-  before_action :require_authentication
   before_action :require_admin!, except: :index
   before_action :set_integration,
                 only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :destroy ]

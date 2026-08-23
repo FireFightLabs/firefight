@@ -3,7 +3,6 @@ require "test_helper"
 class SettingsAlertsTest < ActionDispatch::IntegrationTest
   include InertiaTestHelper
 
-  fixtures :workspaces, :users, :workspace_memberships
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

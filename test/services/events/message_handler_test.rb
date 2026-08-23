@@ -3,7 +3,6 @@ require "test_helper"
 class Events::MessageHandlerTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_lifecycle_stages, :incident_statuses
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -24,7 +23,7 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
   end
 
   test "new message creates a transcript row with resolved fields" do
-    Events::MessageHandler.execute(Platforms::SLACK, text_message_payload)
+    Events::MessageHandler.execute(@workspace, text_message_payload)
 
     message = @incident.incident_transcript_messages.find_by!(slack_ts: "1234567890.000100")
     assert_equal @workspace, message.workspace
@@ -38,22 +37,22 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
   test "threaded reply preserves parent ts" do
     payload = text_message_payload
     payload["event"]["thread_ts"] = "1234567890.000000"
-    Events::MessageHandler.execute(Platforms::SLACK, payload)
+    Events::MessageHandler.execute(@workspace, payload)
 
     message = @incident.incident_transcript_messages.find_by!(slack_ts: "1234567890.000100")
     assert_equal "1234567890.000000", message.slack_thread_ts
   end
 
   test "duplicate delivery does not raise and does not dup" do
-    Events::MessageHandler.execute(Platforms::SLACK, text_message_payload)
-    Events::MessageHandler.execute(Platforms::SLACK, text_message_payload)
+    Events::MessageHandler.execute(@workspace, text_message_payload)
+    Events::MessageHandler.execute(@workspace, text_message_payload)
 
     assert_equal 1, @incident.incident_transcript_messages.where(slack_ts: "1234567890.000100").count
   end
 
   test "edit updates content on existing row" do
-    Events::MessageHandler.execute(Platforms::SLACK, text_message_payload)
-    Events::MessageHandler.execute(Platforms::SLACK, edit_payload(ts: "1234567890.000100", text: "new context"))
+    Events::MessageHandler.execute(@workspace, text_message_payload)
+    Events::MessageHandler.execute(@workspace, edit_payload(ts: "1234567890.000100", text: "new context"))
 
     message = @incident.incident_transcript_messages.find_by!(slack_ts: "1234567890.000100")
     assert_equal "new context", message.content
@@ -61,13 +60,13 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
 
   test "edit on unknown ts is a no-op" do
     assert_no_difference "IncidentTranscriptMessage.count" do
-      Events::MessageHandler.execute(Platforms::SLACK, edit_payload(ts: "9999.999", text: "ghost"))
+      Events::MessageHandler.execute(@workspace, edit_payload(ts: "9999.999", text: "ghost"))
     end
   end
 
   test "delete soft-deletes the existing row" do
-    Events::MessageHandler.execute(Platforms::SLACK, text_message_payload)
-    Events::MessageHandler.execute(Platforms::SLACK, delete_payload(ts: "1234567890.000100"))
+    Events::MessageHandler.execute(@workspace, text_message_payload)
+    Events::MessageHandler.execute(@workspace, delete_payload(ts: "1234567890.000100"))
 
     message = @incident.incident_transcript_messages.find_by!(slack_ts: "1234567890.000100")
     assert_not_nil message.deleted_at
@@ -76,7 +75,7 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
 
   test "delete on unknown ts is a no-op" do
     assert_nothing_raised do
-      Events::MessageHandler.execute(Platforms::SLACK, delete_payload(ts: "9999.999"))
+      Events::MessageHandler.execute(@workspace, delete_payload(ts: "9999.999"))
     end
   end
 
@@ -84,7 +83,7 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
     stub_get_permalink
 
     assert_difference "IncidentEvent.count", 1 do
-      Events::MessageHandler.execute(Platforms::SLACK, file_message_payload)
+      Events::MessageHandler.execute(@workspace, file_message_payload)
     end
 
     assert_enqueued_jobs 1, only: ArchiveIncidentFileJob
@@ -97,8 +96,8 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
     stub_get_permalink
 
     assert_difference "IncidentEvent.count", 1 do
-      Events::MessageHandler.execute(Platforms::SLACK, file_message_payload)
-      Events::MessageHandler.execute(Platforms::SLACK, file_message_payload)
+      Events::MessageHandler.execute(@workspace, file_message_payload)
+      Events::MessageHandler.execute(@workspace, file_message_payload)
     end
 
     assert_enqueued_jobs 1, only: ArchiveIncidentFileJob
@@ -107,7 +106,7 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
   test "file_share also creates a transcript row" do
     stub_get_permalink
 
-    Events::MessageHandler.execute(Platforms::SLACK, file_message_payload)
+    Events::MessageHandler.execute(@workspace, file_message_payload)
 
     assert @incident.incident_transcript_messages.exists?(slack_ts: "1234567890.123456")
   end
@@ -117,7 +116,7 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
     payload["event"]["bot_id"] = "B_RUNAWAY_BOT"
 
     assert_no_difference "IncidentTranscriptMessage.count" do
-      Events::MessageHandler.execute(Platforms::SLACK, payload)
+      Events::MessageHandler.execute(@workspace, payload)
     end
   end
 
@@ -128,7 +127,7 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
 
     assert_no_difference "IncidentTranscriptMessage.count" do
       assert_difference "IncidentEvent.count", 1 do
-        Events::MessageHandler.execute(Platforms::SLACK, payload)
+        Events::MessageHandler.execute(@workspace, payload)
       end
     end
 
@@ -140,7 +139,7 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
     payload["event"]["subtype"] = "channel_topic"
 
     assert_no_difference "IncidentTranscriptMessage.count" do
-      Events::MessageHandler.execute(Platforms::SLACK, payload)
+      Events::MessageHandler.execute(@workspace, payload)
     end
   end
 

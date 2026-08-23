@@ -1,8 +1,6 @@
 require "test_helper"
 
 class AbilityRolesControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :catalog_types, :catalog_entries
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:bob_workspace_one)

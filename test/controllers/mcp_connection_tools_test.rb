@@ -1,8 +1,6 @@
 require "test_helper"
 
 class McpConnectionToolsTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :catalog_types, :catalog_entries
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @integration = @workspace.integrations.create!(

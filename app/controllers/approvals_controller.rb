@@ -2,7 +2,6 @@
 # settings#approvals). The model enforces role-at-click-time and
 # self-approval rules. These endpoints only require a signed-in member.
 class ApprovalsController < InertiaController
-  before_action :require_authentication
   before_action :set_approval
 
   def approve

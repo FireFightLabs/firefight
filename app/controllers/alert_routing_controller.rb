@@ -1,5 +1,4 @@
 class AlertRoutingController < InertiaController
-  before_action :require_authentication
   before_action :require_admin!, only: [ :update, :send_test ]
 
   def update

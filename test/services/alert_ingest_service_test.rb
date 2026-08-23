@@ -1,11 +1,6 @@
 require "test_helper"
 
 class AlertIngestServiceTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incident_types, :incident_roles,
-           :incidents, :incident_events, :catalog_types, :catalog_attribute_definitions,
-           :catalog_entries, :catalog_entry_relationships
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @source = AlertSource.create!(workspace: @workspace, name: "Monitoring", provider: AlertSource::PROVIDER_GENERIC)

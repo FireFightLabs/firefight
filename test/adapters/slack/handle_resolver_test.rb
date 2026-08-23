@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Slack::HandleResolverTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @resolver = Slack::HandleResolver.new(@workspace)

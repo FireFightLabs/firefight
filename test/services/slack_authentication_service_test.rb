@@ -2,8 +2,6 @@ require "test_helper"
 require "ostruct"
 
 class SlackAuthenticationServiceTest < ActiveSupport::TestCase
-  fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships, :invite_codes
-
   setup do
     @service = SlackAuthenticationService.new
     @auth_hash = mock_slack_auth_hash

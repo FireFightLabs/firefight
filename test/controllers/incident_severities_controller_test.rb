@@ -1,9 +1,6 @@
 require "test_helper"
 
 class IncidentSeveritiesControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @user = users(:alice)

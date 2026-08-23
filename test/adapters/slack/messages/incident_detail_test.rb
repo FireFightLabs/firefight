@@ -1,10 +1,6 @@
 require "test_helper"
 
 class Slack::Messages::IncidentDetailTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents, :incident_types,
-           :catalog_types, :incident_field_definitions, :incident_field_options
-
   setup do
     @incident = incidents(:active_critical_ws1)
   end

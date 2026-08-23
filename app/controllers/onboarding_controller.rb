@@ -6,6 +6,7 @@
 class OnboardingController < InertiaController
   # Onboarding runs before a workspace exists or targets a new one.
   skip_before_action :block_suspended_workspace
+  skip_before_action :require_authentication, except: [ :welcome, :reinstall ]
   def invite_code
     return redirect_to(login_path) if session[:pending_team_id].blank?
     return redirect_to(onboarding_install_path) if claimed_invite_code.present?
@@ -28,7 +29,6 @@ class OnboardingController < InertiaController
   # an admin of that workspace. The install callback finds the existing
   # workspace by team id and refreshes its tokens in place.
   def reinstall
-    return redirect_to(login_path) unless user_signed_in?
     return redirect_to(dashboard_path, alert: "You need admin access to reconnect Slack.") unless current_membership&.admin_access?
 
     session[:pending_user_id] = current_user.id
@@ -41,7 +41,6 @@ class OnboardingController < InertiaController
   # consumed here so the founder's letter renders exactly once. Direct visits
   # after onboarding (or refreshes) fall through to the dashboard.
   def welcome
-    return redirect_to(login_path) unless user_signed_in?
     return redirect_to(dashboard_path) unless session.delete(:show_welcome_note)
 
     render inertia: "onboarding/welcome", props: {

@@ -1,12 +1,6 @@
 require "test_helper"
 
 class Slack::FormSubmissionTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships,
-           :incident_severities, :incident_types,
-           :incident_lifecycle_stages, :incident_statuses,
-           :incident_forms, :incident_form_fields, :incident_field_definitions,
-           :catalog_types, :catalog_entries, :incidents
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)

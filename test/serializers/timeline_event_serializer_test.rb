@@ -1,10 +1,6 @@
 require "test_helper"
 
 class TimelineEventSerializerTest < ActiveSupport::TestCase
-  fixtures :incident_events, :incidents, :workspaces, :incident_statuses,
-           :incident_severities, :incident_lifecycle_stages,
-           :workspace_memberships, :users
-
   test "changes render aliased association names not raw field names" do
     incident = incidents(:active_critical_ws1)
     member = workspace_memberships(:alice_workspace_one)

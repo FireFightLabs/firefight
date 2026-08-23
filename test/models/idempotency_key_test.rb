@@ -1,9 +1,6 @@
 require "test_helper"
 
 class IdempotencyKeyTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents, :idempotency_keys
-
   test "enforces uniqueness of key per workspace and resource_type at DB level" do
     assert_raises(ActiveRecord::RecordNotUnique) do
       IdempotencyKey.create!(

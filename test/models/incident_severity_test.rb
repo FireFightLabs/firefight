@@ -1,9 +1,6 @@
 require "test_helper"
 
 class IncidentSeverityTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents
-
   # Basic validations
 
   test "requires name" do

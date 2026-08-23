@@ -28,22 +28,10 @@ class IncidentFormService
     )
     return existing if existing
 
-    definition = IncidentSystemField.fetch(system_field_key)
-    default_position = IncidentSystemField.defaults_for(form.lifecycle_event).index(definition)
-    raise ArgumentError, "#{system_field_key} does not appear on the #{form.lifecycle_event} form" if default_position.nil?
+    overlay = IncidentSystemField.fetch(system_field_key).default_overlay_for(form.lifecycle_event)
+    raise ArgumentError, "#{system_field_key} does not appear on the #{form.lifecycle_event} form" if overlay.nil?
 
-    mode = definition.required_mode_for(form.lifecycle_event)
-    # "available" describes how a field ships, not a stored mode. On the row it
-    # is hidden and optional until someone turns it on.
-    available = mode == IncidentFormField::REQUIRED_MODE_AVAILABLE
-
-    form.incident_form_fields.create!(
-      field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
-      system_field_key: system_field_key,
-      position: default_position,
-      visibility_mode: available ? IncidentFormField::VISIBILITY_MODE_HIDDEN : IncidentFormField::VISIBILITY_MODE_VISIBLE,
-      required_mode: available ? IncidentFormField::REQUIRED_MODE_OPTIONAL : mode
-    )
+    form.incident_form_fields.create!(overlay)
   end
 
   def update_field(form_field, visibility_mode:, required_mode:)

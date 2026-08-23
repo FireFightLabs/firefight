@@ -12,8 +12,8 @@ class IncidentDetailSerializer < BaseSerializer
     is_private: { type: :boolean }
   )
 
-  has_one :incident_severity, as: :severity, serializer: SeverityDetailSerializer
-  has_one :incident_status, as: :status, serializer: StatusDetailSerializer
+  has_one :incident_severity, as: :severity, serializer: SeverityCompactSerializer
+  has_one :incident_status, as: :status, serializer: StatusCompactSerializer
 
   # Nested serializer output goes through the association DSL so the
   # generator emits a sibling import. A bare `type :Name` is treated as a
