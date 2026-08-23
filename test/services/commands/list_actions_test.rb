@@ -42,17 +42,6 @@ class Commands::ListActionsTest < ActiveSupport::TestCase
     assert_match(/incident channel/, result[:text])
   end
 
-  test "returns ephemeral error when trigger expires" do
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
-
-    result = Commands::ListActions.execute(
-      build_command(channel_id: @incident.channel_id)
-    )
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_match(/expired/, result[:text])
-  end
-
   private
 
   def build_command(channel_id:)

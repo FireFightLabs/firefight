@@ -127,6 +127,16 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("it can no longer be escalated")
   end
 
+  # The one rule the status machine refuses: an incident that is over cannot
+  # swap between closed and canceled. Reopen it, then close or cancel.
+  def status_change_blocked_reason(new_status)
+    return nil unless terminal?
+    return nil if incident_status.incident_lifecycle_stage_id == new_status.incident_lifecycle_stage_id
+    return nil if new_status.live?
+
+    terminal_blocked_reason("it cannot be #{new_status.canceled? ? "canceled" : "closed"} without being reopened first")
+  end
+
   def lead_assignment_blocked_reason
     terminal_blocked_reason("it can no longer be assigned a lead")
   end

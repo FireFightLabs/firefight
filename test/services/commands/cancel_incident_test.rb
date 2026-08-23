@@ -73,7 +73,7 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
   end
 
   test "announces the cancellation so the channel is not left silent" do
-    IncidentUpdateWorkflow.expects(:start!).once
+    IncidentCancelWorkflow.expects(:start!).once
 
     Commands::CancelIncident.execute(command)
   end
@@ -194,7 +194,7 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
     service.update_field(field, visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
       required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
 
-    IncidentUpdateWorkflow.expects(:start!).with do |_incident, context:|
+    IncidentCancelWorkflow.expects(:start!).with do |_incident, context:|
       context[:message] == "Duplicate of INC-041."
     end
 

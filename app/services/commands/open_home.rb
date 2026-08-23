@@ -4,16 +4,12 @@ module Commands
     authorize_as ApiKey::RESOURCE_INCIDENTS
 
     def self.execute(command)
-      return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
-
       if command.incident
         command.workspace.adapter.open_modal(trigger_id: command.trigger_id, view: Slack::Modals::Home.build(channel_id: command.channel_id))
       else
         command.workspace.adapter.open_modal(trigger_id: command.trigger_id, view: Slack::Modals::IncidentCreation.build(workspace: command.workspace))
       end
       nil
-    rescue AdapterError::TriggerExpired
-      Command.ephemeral("This command has expired. Please try `/ff` again.")
     end
   end
 end

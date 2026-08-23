@@ -5,8 +5,6 @@ module Commands
     MAX_RESULTS = 10
 
     def self.execute(command)
-      return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
-
       build_response(command.workspace)
     end
 

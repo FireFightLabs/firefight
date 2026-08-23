@@ -26,7 +26,9 @@ module Interactions
       attrs = build_update_attrs(workspace, incident, submission)
       message = submission.system_attrs[IncidentSystemField::KEY_MESSAGE]
 
-      IncidentLifecycleService.new(workspace).update(
+      # The modal offers every enabled status, so a responder picking a closed
+      # or canceled one gets the real close or cancel, not a silent update.
+      IncidentLifecycleService.new(workspace).change_status(
         incident,
         attrs,
         changed_by: member,

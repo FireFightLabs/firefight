@@ -30,19 +30,6 @@ class Commands::ChangeSeverityTest < ActiveSupport::TestCase
     assert_includes result[:text], "incident channel"
   end
 
-  test "handles trigger expiration" do
-    stub_post_message
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
-    stub_delete_message
-
-    result = Commands::ChangeSeverity.execute(
-      build_command(channel_id: @incident.channel_id)
-    )
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "expired"
-  end
-
   private
 
   def build_command(channel_id: "C12345678")

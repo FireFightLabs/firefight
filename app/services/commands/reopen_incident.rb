@@ -4,8 +4,6 @@ module Commands
     authorize_as ApiKey::RESOURCE_INCIDENTS
 
     def self.execute(command)
-      return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
-
       incident = command.workspace.incidents.terminal.in_channel(command.channel_id).first
       return Command.ephemeral("This command must be run from a resolved or canceled incident channel.") unless incident
 
@@ -18,8 +16,6 @@ module Commands
       )
 
       nil
-    rescue AdapterError::TriggerExpired
-      Command.ephemeral("This command has expired. Please try `/ff reopen` again.")
     end
   end
 end

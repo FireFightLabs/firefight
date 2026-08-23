@@ -42,5 +42,15 @@ class CommandDispatcher
     Command.ephemeral(AuthorizedDispatch.pending_message(e.approval))
   rescue Incident::NotActive => e
     Command.ephemeral(e.message)
+  rescue AdapterError::TriggerExpired
+    Command.ephemeral(expired_message(command))
+  end
+
+  # Slack's trigger_id lives three seconds. The hint echoes exactly what the
+  # person typed, aliases and all, so `/ff resolve` is never told to retry
+  # `/ff close`.
+  def self.expired_message(command)
+    typed = "/#{command.command_name} #{command.text}".strip
+    "This command has expired. Please try `#{typed}` again."
   end
 end

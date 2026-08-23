@@ -30,7 +30,7 @@ module Interactions
 
       attrs = build_close_attrs(workspace, incident, submission, lead_member)
 
-      IncidentLifecycleService.new(workspace).close(incident, attrs, changed_by: member)
+      IncidentLifecycleService.new(workspace).change_status(incident, attrs, changed_by: member)
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata)
 
       nil

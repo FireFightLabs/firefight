@@ -27,7 +27,7 @@ There is a third inbound path for Slack **events** (messages, reactions, pins, m
 
 ### What entry points do (boundary concerns only)
 1. **Normalize input** — parse platform-specific payload into resolved records (Slack: dig into interaction values, resolve slugs; API: parse JSON params, resolve UUIDs)
-2. **Call shared service** — `IncidentLifecycleService.new(workspace).create(...)` / `.update(...)` / `.close(...)` etc.
+2. **Call shared service** — `IncidentLifecycleService.new(workspace).create(...)` / `.change_status(...)` / `.assign_role(...)` etc.
 3. **Platform-specific response** — Slack: return modal hash, delete temp messages; API: render JSON
 4. **Platform-specific extras** — only when the platform requires it (e.g., Slack handler creates channel synchronously before the workflow so the confirmation modal can include a channel link)
 
@@ -45,7 +45,7 @@ There is a third inbound path for Slack **events** (messages, reactions, pins, m
 
 ## IncidentLifecycleService
 
-All incident write operations go through `IncidentLifecycleService` (`app/services/incident_lifecycle_service.rb`). This is the single source of truth for what happens when an incident is created, updated, closed, reopened, or has a lead assigned.
+All incident write operations go through `IncidentLifecycleService` (`app/services/incident_lifecycle_service.rb`). This is the single source of truth for what happens when an incident is created, updated, closed, canceled, reopened, accepted, or has a lead assigned.
 
 ```ruby
 service = IncidentLifecycleService.new(workspace)
@@ -53,18 +53,25 @@ service = IncidentLifecycleService.new(workspace)
 # Create — creates incident record, starts IncidentCreationWorkflow (channel, announcements, etc.)
 incident = service.create(declared_by:, incident_status:, incident_severity:, name:, source:, ...)
 
-# Update — records change event, starts IncidentUpdateWorkflow (channel topic, announcement update)
-service.update(incident, { summary: "New info" }, changed_by: member, message: "Status update")
+# Every status change. The verb is decided once, from the stage the incident
+# is in and the stage the new status belongs to:
+#   same stage            → update  (IncidentUpdateWorkflow)
+#   live → closed         → close   (IncidentCloseWorkflow, resolved_at, archival)
+#   live → canceled       → cancel  (IncidentCancelWorkflow, archival, no runbooks)
+#   terminal → live       → reopen  (IncidentReopenWorkflow, unarchive)
+#   triage → active       → accept
+#   closed ↔ canceled     → refused with Incident#status_change_blocked_reason
+# attrs may carry any incident column plus :lead. No status means a plain update.
+service.change_status(incident, { incident_status: resolved_status, summary: "New info" }, changed_by: member, message: "Status update")
 
-# Close — records change, expires transcript cache, starts IncidentCloseWorkflow, schedules channel archival
-service.close(incident, { incident_status: resolved_status }, changed_by: member)
-
-# Reopen — records change, clears transcript cache, unarchives channel, starts IncidentReopenWorkflow
-service.reopen(incident, { incident_status: active_status }, changed_by: member, reason: "False alarm")
+# Cancel with the workspace's default canceled status (the Cancel button, /ff cancel)
+service.cancel_with_default_status(incident, changed_by: member)
 
 # Assign lead — records change, starts LeadAssignmentWorkflow (channel topic, lead DM, announcement)
 service.assign_lead(incident, lead_member, changed_by: member)
 ```
+
+The verbs themselves (`update`, `close`, `cancel`, `reopen`, `accept`) are private. Every entry point, Slack handler or API, calls `change_status`, so none of them can pick the wrong verb for the status it was handed. Each lifecycle event owns its own workflow and step list, so a step that belongs to one event (runbook attachment on update, archival on close and cancel) is declared there rather than skipped elsewhere.
 
 The service:
 - Takes `changed_by` as a `WorkspaceMembership` (works for both Slack users and API key creators)

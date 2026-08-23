@@ -56,22 +56,6 @@ class Commands::ListActiveIncidentsTest < ActiveSupport::TestCase
     assert_equal 10, response[:text].lines.count { |line| line.start_with?("> *INC-") }
   end
 
-  test "returns error when workspace not found" do
-    command = Command.new(
-      platform: Platforms::SLACK,
-      workspace_id: SecureRandom.uuid,
-      user_id: "U12345678",
-      text: Identifiers::SUBCOMMAND_LIST,
-      channel_id: "C12345678",
-      metadata: { command: "/ff" }
-    )
-
-    response = Commands::ListActiveIncidents.execute(command)
-
-    assert_equal Command::EPHEMERAL, response[:response_type]
-    assert_includes response[:text], "Workspace not found"
-  end
-
   private
 
   def build_command

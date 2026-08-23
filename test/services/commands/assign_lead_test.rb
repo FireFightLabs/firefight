@@ -28,34 +28,6 @@ class Commands::AssignLeadTest < ActiveSupport::TestCase
     assert_includes result[:text], "incident channel"
   end
 
-  test "handles trigger expiration" do
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
-
-    result = Commands::AssignLead.execute(
-      build_command(channel_id: @incident.channel_id)
-    )
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "expired"
-  end
-
-  test "returns error when workspace not found" do
-    command = Command.new(
-      platform: Platforms::SLACK,
-      workspace_id: SecureRandom.uuid,
-      user_id: "U12345678",
-      text: Identifiers::SUBCOMMAND_LEAD,
-      trigger_id: "12345.trigger",
-      channel_id: @incident.channel_id,
-      metadata: { command: "/ff" }
-    )
-
-    result = Commands::AssignLead.execute(command)
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "Workspace not found"
-  end
-
   private
 
   def build_command(channel_id: "C12345678")

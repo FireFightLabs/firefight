@@ -291,6 +291,92 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal new_severity.id, json_response["incident"]["severity"]["id"]
   end
 
+  test "canceling over the API records a cancel and still archives the channel" do
+    incident = incidents(:active_critical_ws1)
+    canceled = @workspace.incident_statuses.canceled.active.first
+    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 30)
+
+    assert_enqueued_with(job: ChannelArchivalJob) do
+      patch api_v1_incident_url(incident), params: { status_id: canceled.id }.to_json, headers: api_headers
+    end
+
+    assert_response :ok
+    assert incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_CANCELED)
+    assert_not incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_RESOLVED)
+    assert_nil incident.reload.resolved_at
+  end
+
+  test "a closed incident cannot be canceled over the API without reopening" do
+    incident = incidents(:active_critical_ws1)
+    closed = @workspace.incident_statuses.closed.active.first
+    canceled = @workspace.incident_statuses.canceled.active.first
+    patch api_v1_incident_url(incident), params: { status_id: closed.id }.to_json, headers: api_headers
+    assert_response :ok
+
+    patch api_v1_incident_url(incident), params: { status_id: canceled.id }.to_json, headers: api_headers
+
+    assert_response :unprocessable_entity
+    assert_match(/reopened first/, json_response.dig("error", "message"))
+    assert_equal closed.id, incident.reload.incident_status_id
+  end
+
+  test "every field in one PATCH lands, whatever the status change" do
+    incident = incidents(:active_critical_ws1)
+    closed = @workspace.incident_statuses.closed.active.first
+    live = @workspace.incident_statuses.live.find_by(is_default: true)
+    other_type = @workspace.incident_types.active.first
+    lead = workspace_memberships(:bob_workspace_one)
+
+    patch api_v1_incident_url(incident),
+      params: { status_id: closed.id, incident_type_id: other_type.id, lead_id: lead.id, name: "Closed with type" }.to_json,
+      headers: api_headers
+    assert_response :ok
+    incident.reload
+    assert_equal closed.id, incident.incident_status_id
+    assert_equal other_type.id, incident.incident_type_id
+    assert_equal lead, incident.lead
+    assert_equal "Closed with type", incident.name
+
+    severity = @workspace.incident_severities.active.where.not(id: incident.incident_severity_id).first
+    patch api_v1_incident_url(incident),
+      params: { status_id: live.id, severity_id: severity.id, summary: "Back on" }.to_json,
+      headers: api_headers
+    assert_response :ok
+    incident.reload
+    assert_equal live.id, incident.incident_status_id
+    assert_equal severity.id, incident.incident_severity_id
+    assert_equal "Back on", incident.summary
+    assert incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_REOPENED)
+  end
+
+  test "a lead with a name change lands both, and a lead alone keeps its own event" do
+    incident = incidents(:active_critical_ws1)
+    lead = workspace_memberships(:bob_workspace_one)
+
+    patch api_v1_incident_url(incident), params: { lead_id: lead.id, name: "Renamed" }.to_json, headers: api_headers
+    assert_response :ok
+    assert_equal "Renamed", incident.reload.name
+    assert_equal lead, incident.lead
+
+    other = workspace_memberships(:alice_workspace_one)
+    assert_difference -> { incident.incident_events.where(event_type: IncidentEvent::LEAD_ASSIGNED).count }, 1 do
+      patch api_v1_incident_url(incident), params: { lead_id: other.id }.to_json, headers: api_headers
+    end
+    assert_equal other, incident.reload.lead
+  end
+
+  test "clearing the lead is refused with the reason instead of crashing" do
+    incident = incidents(:active_critical_ws1)
+    lead = workspace_memberships(:bob_workspace_one)
+    patch api_v1_incident_url(incident), params: { lead_id: lead.id }.to_json, headers: api_headers
+
+    patch api_v1_incident_url(incident), params: { lead_id: nil }.to_json, headers: api_headers
+
+    assert_response :unprocessable_entity
+    assert_match(/cannot be cleared/, json_response.dig("error", "message"))
+    assert_equal lead, incident.reload.lead
+  end
+
   test "update creates incident event" do
     incident = incidents(:active_critical_ws1)
 

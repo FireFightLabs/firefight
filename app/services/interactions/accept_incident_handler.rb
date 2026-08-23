@@ -23,7 +23,7 @@ module Interactions
         .ordered
         .first!
 
-      IncidentLifecycleService.new(workspace).accept(
+      IncidentLifecycleService.new(workspace).change_status(
         incident,
         { incident_status: active_status },
         changed_by: member

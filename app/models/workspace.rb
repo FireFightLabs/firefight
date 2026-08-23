@@ -67,6 +67,12 @@ class Workspace < ApplicationRecord
     fields
   end
 
+  # Every stage keeps at least one enabled status (IncidentStatus refuses to
+  # disable or delete the last one), so this is a lookup, not a question.
+  def default_canceled_status
+    incident_statuses.canceled.active.ordered.first!
+  end
+
   def find_or_create_alert_routing_policy!
     alert_routing_policy ||
       policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: Policy::DEFAULT_ALERT_ROUTING_NAME)

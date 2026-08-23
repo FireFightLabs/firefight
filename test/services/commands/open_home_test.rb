@@ -32,30 +32,6 @@ class Commands::OpenHomeTest < ActiveSupport::TestCase
     assert_nil Commands::OpenHome.execute(command)
   end
 
-  test "handles trigger expiration" do
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError)
-    command = build_command("")
-    response = Commands::OpenHome.execute(command)
-
-    assert_equal Command::EPHEMERAL, response[:response_type]
-    assert_includes response[:text], "expired"
-  end
-
-  test "returns error when workspace not found" do
-    command = Command.new(
-      platform: Platforms::SLACK,
-      workspace_id: SecureRandom.uuid,
-      user_id: "U12345678",
-      text: "",
-      channel_id: "C12345678",
-      metadata: { command: "/ff" }
-    )
-    response = Commands::OpenHome.execute(command)
-
-    assert_equal Command::EPHEMERAL, response[:response_type]
-    assert_includes response[:text], "Workspace not found"
-  end
-
   private
 
   def build_command(text)

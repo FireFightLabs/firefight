@@ -102,22 +102,6 @@ class Commands::ShowTimelineTest < ActiveSupport::TestCase
     assert_includes response[:text], "incident channel"
   end
 
-  test "returns workspace error when workspace not found" do
-    command = Command.new(
-      platform: Platforms::SLACK,
-      workspace_id: SecureRandom.uuid,
-      user_id: "U12345678",
-      text: Identifiers::SUBCOMMAND_TIMELINE,
-      channel_id: @incident.channel_id,
-      metadata: { command: "/ff" }
-    )
-
-    response = Commands::ShowTimeline.execute(command)
-
-    assert_equal Command::EPHEMERAL, response[:response_type]
-    assert_includes response[:text], "Workspace not found"
-  end
-
   private
 
   def fill_timeline_to(count)

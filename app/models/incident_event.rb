@@ -82,7 +82,7 @@ class IncidentEvent < ApplicationRecord
     INCIDENT_RESOLVED    => IncidentUpdate::CLOSED,
     INCIDENT_REOPENED    => IncidentUpdate::REOPENED,
     INCIDENT_CANCELED    => IncidentUpdate::CANCELED,
-    MERGED_INTO          => IncidentUpdate::CLOSED,
+    MERGED_INTO          => IncidentUpdate::CANCELED,
     ACTION_CREATED       => IncidentActionUpdate::CREATED,
     ACTION_PICKED_UP     => IncidentActionUpdate::PICKED_UP,
     ACTION_COMPLETED     => IncidentActionUpdate::COMPLETED,
