@@ -30,7 +30,7 @@ function DisconnectedBanner() {
   return (
     <Alert
       variant="destructive"
-      className="mx-6 mt-6 flex items-center justify-between gap-4"
+      className="mx-6 mt-6 w-auto flex items-center justify-between gap-4"
     >
       <div className="flex items-start gap-3">
         <IconPlugConnectedX className="mt-0.5 size-5 shrink-0" />
