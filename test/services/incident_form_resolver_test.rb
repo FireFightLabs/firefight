@@ -46,7 +46,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     end
   end
 
-  # validate_submission — system fields
+  # validate_submission, system fields
 
   test "valid submission with system fields returns no errors" do
     result = @resolver.validate_submission(IncidentForm::SLUG_DECLARE, {
@@ -84,7 +84,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert result[:errors].any? { |e| e.include?("Severity") && e.include?("required") }
   end
 
-  # validate_submission — custom fields
+  # validate_submission, custom fields
 
   test "valid catalog_multi_reference value accepted" do
     entry = catalog_entries(:auth_service)
@@ -116,7 +116,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert result[:errors].any? { |e| e.include?("Affected Services") && e.include?("array") }
   end
 
-  # validate_submission — unknown fields
+  # validate_submission, unknown fields
 
   test "unknown fields are rejected" do
     result = @resolver.validate_submission(IncidentForm::SLUG_DECLARE, {
@@ -127,7 +127,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert result[:errors].any? { |e| e.include?("Unknown fields") && e.include?("unknown_field") }
   end
 
-  # validate_submission — symbol keys
+  # validate_submission, symbol keys
 
   test "symbol keys are normalized to strings" do
     result = @resolver.validate_submission(IncidentForm::SLUG_DECLARE, {

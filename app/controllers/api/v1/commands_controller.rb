@@ -37,7 +37,7 @@ class Api::V1::CommandsController < Api::V1::BaseController
   end
 
   # APP_HOST falls back to the request host so the install link is always
-  # generated even if the env var is missing — the outer rescue would
+  # generated even if the env var is missing, the outer rescue would
   # otherwise swallow ENV.fetch's KeyError and the user would see the
   # generic "something went wrong" message instead of the install link.
   def unknown_workspace_message

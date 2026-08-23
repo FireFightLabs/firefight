@@ -1,7 +1,7 @@
 module Integrations
   # Everything kind: mcp knows about talking to its provider: executing an
   # authorized call, listing what the server offers, probing health. The
-  # gateway has already said yes before call is reached; this only executes.
+  # gateway has already said yes before call is reached. This only executes.
   class McpExecutor
     def self.call(tool:, environment_row:, arguments:)
       result = client_for(tool.integration, environment_row)
@@ -9,8 +9,8 @@ module Integrations
       ToolResult.normalize(result)
     end
 
-    # tools/list, normalized. Names are sanitized into action-key-safe form;
-    # spec keeps the server's own name for the call.
+    # tools/list, normalized. Names are sanitized into action-key-safe form.
+    # Spec keeps the server's own name for the call.
     def self.tool_definitions(integration)
       environment_row = integration.resolve_environment(nil) || integration.integration_environments.enabled.first
 

@@ -58,7 +58,7 @@ module Integrations
       end
 
       # GitHub accepts the App's client id as the JWT issuer, so the same
-      # INTEGRATION_GITHUB_CLIENT_ID that serves OAuth serves signing; only
+      # INTEGRATION_GITHUB_CLIENT_ID that serves OAuth serves signing. Only
       # the private key is extra.
       def app_jwt
         oauth = IntegrationProvider.oauth_client(PROVIDER_KEY)

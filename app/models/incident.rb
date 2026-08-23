@@ -131,7 +131,7 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("it can no longer be assigned a lead")
   end
 
-  # Named after the role rather than the verb: a workspace renames these, and
+  # Named after the role rather than the verb. A workspace renames these, and
   # the same sentence has to cover clearing a role as well as filling one.
   def role_assignment_blocked_reason(role)
     return lead_assignment_blocked_reason if role.slug == IncidentRole::SLUG_INCIDENT_LEAD

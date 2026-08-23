@@ -16,7 +16,7 @@ class IncidentSeverity < ApplicationRecord
   scope :by_rank, -> { order(rank: :desc) } # Highest severity first
   scope :default_severity, -> { active.find_by(is_default: true) }
 
-  # Position is the source of truth for how severe a severity is: first in the
+  # Position is the source of truth for how severe a severity is. First in the
   # list is the most severe. rank is a derived mirror kept in step so existing
   # consumers (the public API, `/firefight list` ordering) keep working and can
   # never drift from the order the settings screen shows.

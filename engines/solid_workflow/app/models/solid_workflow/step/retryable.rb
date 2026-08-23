@@ -12,7 +12,7 @@ module SolidWorkflow
         attempts < max_attempts
       end
 
-      # Terminal errors are never retried — the next attempt produces the
+      # Terminal errors are never retried, the next attempt produces the
       # same outcome. The class list is engine config so host apps register
       # their own (see SolidWorkflow.terminal_error_classes).
       def terminal_error?

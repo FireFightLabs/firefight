@@ -3,7 +3,7 @@ class AbilityGrantsController < InertiaController
   before_action :require_admin!
 
   # A grant targets exactly one of a set or a single action, which the DB
-  # enforces; which one arrived decides how the row is looked up.
+  # enforces. Which one arrived decides how the row is looked up.
   def create
     principal = find_principal!
     target = params[:role_id].present? ? { role: find_role! } : { action: find_action! }
@@ -68,7 +68,7 @@ class AbilityGrantsController < InertiaController
     ids.any? ? { Ability::Scope::DIMENSION_ENVIRONMENT => ids } : {}
   end
 
-  # Grants attach to principals of this workspace only; the polymorphic type
+  # Grants attach to principals of this workspace only. The polymorphic type
   # arrives from the client, so it is matched against a fixed allowlist
   # rather than constantized.
   def find_principal!

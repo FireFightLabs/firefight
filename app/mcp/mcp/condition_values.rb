@@ -1,6 +1,6 @@
 module Mcp
   # Conditions match on ids, but an agent knows slugs. Accept either, and
-  # refuse anything that resolves to neither: a stored value matching no record
+  # refuse anything that resolves to neither. A stored value matching no record
   # produces a condition that saves cleanly and then never fires.
   module ConditionValues
     UUID_FORMAT = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/

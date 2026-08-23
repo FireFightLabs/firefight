@@ -4,7 +4,7 @@ class CollapseSystemFieldOverlayRows < ActiveRecord::Migration[8.1]
   # After flipping the resolver to use code defaults + DB overlay, the
   # IncidentFormField rows seeded by previous workspace setups are no-op
   # overlays restating the default. Delete the ones that match defaults
-  # exactly; preserve any that represent real customizations (different
+  # exactly. Preserve any that represent real customizations (different
   # required_mode, hidden visibility, or conditions attached).
   def up
     IncidentFormField
@@ -24,7 +24,7 @@ class CollapseSystemFieldOverlayRows < ActiveRecord::Migration[8.1]
       # Delete iff this row matches the default exactly.
       row.destroy if row.required_mode == default_required
     rescue KeyError
-      # Unknown system_field_key — leave the row alone, somebody can clean
+      # Unknown system_field_key, leave the row alone, somebody can clean
       # it up separately.
       next
     end

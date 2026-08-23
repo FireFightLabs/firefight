@@ -2,18 +2,17 @@
 #
 # `WorkspaceAdapter.for(workspace)` returns a concrete subclass
 # (`Slack::WorkspaceAdapter` today, `Teams::WorkspaceAdapter` planned).
-# Services and workflows depend only on this contract — never on the
+# Services and workflows depend only on this contract, never on the
 # concrete adapter class.
 #
 # Vocabulary:
-#   - `channel_id`     — opaque platform-specific conversation identifier
-#   - `message_id`     — opaque platform-specific message identifier
-#                        (Slack's `ts`, Teams's message id, etc.)
-#   - `parent_message_id` — identifier of the parent message when threading
-#   - `user_id`        — opaque platform-specific user identifier
-#   - `view`           — opaque platform-specific modal/form descriptor;
-#                        callers obtain one via the platform's own
-#                        `Modals::X.build(...)` helpers
+#   - `channel_id` is an opaque platform-specific conversation identifier.
+#   - `message_id` is an opaque platform-specific message identifier, Slack's
+#     `ts`, a Teams message id, and so on.
+#   - `parent_message_id` identifies the parent message when threading.
+#   - `user_id` is an opaque platform-specific user identifier.
+#   - `view` is an opaque platform-specific modal or form descriptor. Callers
+#     obtain one from the platform's own `Modals::X.build(...)` helpers.
 #
 # Errors: every method raises `AdapterError` (or a subclass) when the
 # platform call fails. Subclasses use `translate_errors` to convert

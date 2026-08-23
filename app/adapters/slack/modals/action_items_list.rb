@@ -2,7 +2,7 @@ module Slack
   module Modals
     # The "Actions" and "Follow-ups" list modals. Both render the same
     # list-of-items + add-button shape against the same `IncidentAction`
-    # scope — only the kind (action vs. follow-up) differs.
+    # scope. Only the kind (action vs. follow-up) differs.
     module ActionItemsList
       KINDS = {
         action: {

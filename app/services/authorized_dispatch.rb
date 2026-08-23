@@ -1,6 +1,6 @@
 # Slack's single gate into the Ability Gateway, the role Mcp::ToolDispatcher
 # plays for tools and the API controllers play for REST. Handlers declare what
-# they authorize as; this resolves the acting principal and runs the call
+# they authorize as. This resolves the acting principal and runs the call
 # through the gateway.
 module AuthorizedDispatch
   # Raised when the platform never gave us an identity to authorize as. The

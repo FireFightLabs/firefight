@@ -1,6 +1,6 @@
-# Per-environment wiring for an integration: encrypted credentials + config
+# Per-environment wiring for an integration, encrypted credentials + config
 # + the enabled flag. "Configured for prod" (this row) and "permitted in
-# prod" (a grant) are separate facts; the gateway requires both.
+# prod" (a grant) are separate facts. The gateway requires both.
 class IntegrationEnvironment < ApplicationRecord
   HEALTH_UNKNOWN = "unknown"
   HEALTH_HEALTHY = "healthy"
@@ -35,8 +35,8 @@ class IntegrationEnvironment < ApplicationRecord
     {}
   end
 
-  # OAuth credential sets are produced and read by Integrations::OauthClient;
-  # this row owns storing them and nothing else looks inside.
+  # OAuth credential sets are produced and read by Integrations::OauthClient.
+  # This row owns storing them and nothing else looks inside.
   def oauth
     credentials_hash[OAUTH_KEY]
   end
@@ -44,7 +44,7 @@ class IntegrationEnvironment < ApplicationRecord
   def store_oauth!(oauth_credentials, installation_id: nil)
     self.credentials = credentials_hash.merge(OAUTH_KEY => oauth_credentials).to_json
     # GitHub App installs return an installation id alongside the code. It is
-    # not a secret, so it lives in base_config; server-to-server tokens (the
+    # not a secret, so it lives in base_config. Server-to-server tokens (the
     # bot identity for autonomous agent writes) are minted from it later.
     self.base_config = base_config.merge("installation_id" => installation_id.to_s) if installation_id.present?
     save!
@@ -58,8 +58,8 @@ class IntegrationEnvironment < ApplicationRecord
     update!(base_config: base_config.merge("installation_id" => installation_id.to_s))
   end
 
-  # Adapters own the shape of what they cache (minted tokens and the like);
-  # this row owns writing it, same as store_oauth!. Nothing else touches the
+  # Adapters own the shape of what they cache (minted tokens and the like).
+  # This row owns writing it, same as store_oauth!. Nothing else touches the
   # credentials column directly.
   def store_credential!(key, value)
     update!(credentials: credentials_hash.merge(key => value).to_json)

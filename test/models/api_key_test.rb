@@ -183,7 +183,7 @@ class ApiKeyTest < ActiveSupport::TestCase
                  key.granted_permissions.transform_values(&:sort))
   end
 
-  # The bug this replaced: a grant made on the Permissions screen used to be
+  # The bug this replaced, a grant made on the Permissions screen used to be
   # reconciled away the next time the key was saved for any reason.
   test "a grant made outside the matrix survives an unrelated save and shows up ticked" do
     key = api_keys(:read_only_key)

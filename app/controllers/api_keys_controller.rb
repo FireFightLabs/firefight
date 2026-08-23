@@ -5,7 +5,7 @@ class ApiKeysController < InertiaController
   before_action :set_api_key, only: [ :update, :destroy, :abilities ]
 
   # Personal tokens are self-service (any member can mint their own, GitHub
-  # PAT style); service keys carry workspace-wide scopes and need an admin.
+  # PAT style). Service keys carry workspace-wide scopes and need an admin.
   def create
     personal = params[:kind] == KIND_PERSONAL
     return require_admin! unless personal || current_membership.admin_access?
@@ -58,8 +58,8 @@ class ApiKeysController < InertiaController
     redirect_to settings_api_keys_path
   end
 
-  # The grant preview: what this key can actually do, as resolved by the
-  # gateway — the debugging answer to "why was this call denied?"
+  # The grant preview, what this key can actually do, as resolved by the
+  # gateway, the debugging answer to "why was this call denied?"
   def abilities
     if @api_key.personal?
       render json: { principal: @api_key.principal.principal_label, mode: KIND_PERSONAL,
@@ -72,7 +72,7 @@ class ApiKeysController < InertiaController
 
   private
 
-  # Admins manage every key; members only their own personal tokens.
+  # Admins manage every key. Members only their own personal tokens.
   def set_api_key
     scope = current_workspace.api_keys.where(deleted_at: nil)
     scope = scope.where(workspace_membership_id: current_membership.id) unless current_membership.admin_access?

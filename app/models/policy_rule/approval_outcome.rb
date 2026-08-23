@@ -1,4 +1,4 @@
-# Outcome vocabulary + write-time validation for the approvals domain: which
+# Outcome vocabulary + write-time validation for the approvals domain, which
 # role must approve, and how many approvers (v1 supports exactly one).
 module PolicyRule::ApprovalOutcome
   REQUIRE_KEY = "require"

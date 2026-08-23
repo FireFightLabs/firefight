@@ -1,5 +1,5 @@
 module Interactions
-  # Every dispatching select on the declare dialog does the same thing: hand the
+  # Every dispatching select on the declare dialog does the same thing, hand the
   # view state back so the modal re-renders with conditions re-evaluated. One
   # handler rather than one per select, so adding a source is a block change.
   class IncidentCreationSelectHandler

@@ -1,6 +1,6 @@
 Rails.application.routes.draw do
   # Redirect to localhost from 127.0.0.1 to use same IP address with Vite server.
-  # Development only — in production this catch-all 301s the internal health
+  # Development only, in production this catch-all 301s the internal health
   # check (Northflank probes http://127.0.0.1:3000/up), marking the pod unhealthy.
   if Rails.env.development?
     constraints(host: "127.0.0.1") do
@@ -52,7 +52,7 @@ Rails.application.routes.draw do
   get "/.well-known/oauth-protected-resource", to: "oauth/metadata#protected_resource"
   get "/.well-known/oauth-protected-resource/mcp", to: "oauth/metadata#protected_resource"
 
-  # MCP server (stateless Streamable HTTP; Bearer ApiKey auth)
+  # MCP server (stateless Streamable HTTP, Bearer ApiKey auth)
   post "/mcp", to: "mcp#create", as: :mcp
   match "/mcp", to: "mcp#method_not_allowed", via: [ :get, :delete, :put, :patch ]
 
@@ -62,13 +62,13 @@ Rails.application.routes.draw do
   delete "/logout", to: "sessions#destroy", as: :logout
   post "/invite-code/claim", to: "invite_codes#create", as: :claim_invite_code
 
-  # OmniAuth callbacks — explicit per-strategy so each maps to its own action.
+  # OmniAuth callbacks, explicit per-strategy so each maps to its own action.
   get "/auth/slack_openid/callback", to: "auth/omniauth_callbacks#slack_openid", as: :slack_openid_callback
   get "/auth/slack/callback",        to: "auth/omniauth_callbacks#slack",        as: :slack_install_callback
   get "/auth/failure",               to: "auth/omniauth_callbacks#failure"
 
   # OmniAuth start endpoints. The OmniAuth middleware intercepts these before
-  # Rails routing — these declarations exist only so we get named path helpers.
+  # Rails routing, these declarations exist only so we get named path helpers.
   # The redirect target is a safety net in case the middleware is misconfigured.
   get "/auth/slack_openid", to: redirect("/login"), as: :sign_in_with_slack
   get "/auth/slack",        to: redirect("/login"), as: :install_slack_app

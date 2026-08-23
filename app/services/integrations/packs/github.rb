@@ -1,7 +1,7 @@
 module Integrations
   module Packs
     # First-party GitHub pack. PR and commit correlation run over the REST
-    # API with server-to-server installation tokens; fetch_file, code_search,
+    # API with server-to-server installation tokens. fetch_file, code_search,
     # and blame run against a warm local clone (CloneManager), reading only
     # through git object commands so repo content never touches the
     # filesystem API directly.

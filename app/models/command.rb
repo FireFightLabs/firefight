@@ -37,7 +37,7 @@ class Command
   end
 
   # Who the Ability Gateway authorizes this command as. Provisioned on demand
-  # so a first-time caller is a principal like anyone else; nil when the
+  # so a first-time caller is a principal like anyone else. nil when the
   # platform lookup fails and the dispatcher then refuses the call.
   def principal
     return @principal if defined?(@principal)
@@ -50,7 +50,7 @@ class Command
     @principal = nil
   end
 
-  # What the approval digest is bound to. Deterministic and replayable: a
+  # What the approval digest is bound to. Deterministic and replayable. A
   # resumed command rebuilds the same hash, so the approval matches.
   def authorization_params
     { command: command_name, subcommand: subcommand, text: text }.compact

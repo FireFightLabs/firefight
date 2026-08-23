@@ -26,7 +26,7 @@ class RunbookAttachmentService
     return existing if existing
 
     # Creation and update workflows can both evaluate the same incident
-    # concurrently; the loser of the unique-index race takes the found row and
+    # concurrently. The loser of the unique-index race takes the found row and
     # leaves the announcement to the winner.
     incident_runbook = incident.incident_runbooks.create_or_find_by!(runbook: runbook) do |record|
       record.workspace = @workspace

@@ -109,7 +109,7 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     get onboarding_welcome_path, headers: inertia_headers
     assert_response :success
 
-    # Second visit redirects — the flag was consumed.
+    # Second visit redirects, the flag was consumed.
     get onboarding_welcome_path
     assert_redirected_to dashboard_path
   end

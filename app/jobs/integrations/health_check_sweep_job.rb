@@ -1,7 +1,7 @@
 module Integrations
   # Probes every enabled connection on a cadence so a dead credential is
   # discovered on a quiet afternoon, not mid-incident by a failing agent
-  # call. Transitions to failing are logged; surfacing them to admins in
+  # call. Transitions to failing are logged. Surfacing them to admins in
   # Slack is a pending product decision.
   class HealthCheckSweepJob < ApplicationJob
     queue_as :default

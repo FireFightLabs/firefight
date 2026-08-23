@@ -1,8 +1,8 @@
 module Mcp
   module Tools
-    # Read-only MCP tools: workspace-scoped queries + formatting, nothing
-    # else — no writes, no adapter calls, no business logic. Dispatch
-    # (permissions, telemetry) lives in Mcp::ToolDispatcher; tools never
+    # Read-only MCP tools. Workspace-scoped queries and formatting, nothing
+    # else. No writes, no adapter calls, no business logic. Dispatch, meaning
+    # permissions and telemetry, lives in Mcp::ToolDispatcher, and tools never
     # read Current.
     class Base < ::MCP::Tool
       DEFAULT_LIMIT = 25
@@ -31,7 +31,7 @@ module Mcp
         end
 
         # The [resource, crud_action] pair the gateway authorizes this call
-        # as. Static for most tools; upserts override the instance method to
+        # as. Static for most tools. Upserts override the instance method to
         # split create vs update by whether the target exists.
         def authorize_as(resource, action = ApiKey::ACTION_READ)
           @authorization = [ resource, action ]
@@ -50,7 +50,7 @@ module Mcp
           )
         end
 
-        # Shared body for approve/deny tools. Structurally human-only: the
+        # Shared body for approve/deny tools. Structurally human-only. The
         # model's approve!/deny! take a WorkspaceMembership, so service keys
         # (and future Agent principals) cannot resolve approvals at all.
         def resolve_approval(workspace, principal, args, decision)

@@ -10,7 +10,7 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     sign_in(@user, @workspace)
   end
 
-  # Regression: attribute config persistence
+  # Regression, attribute config persistence
 
   test "create_type persists select config from frontend-shaped payload" do
     assert_difference -> { CatalogType.count }, 1 do
@@ -95,7 +95,7 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     assert tier_def.required
   end
 
-  # Regression: icon persistence
+  # Regression, icon persistence
 
   test "create_type persists icon" do
     post "/app/catalogue/types", params: {
@@ -109,7 +109,7 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     assert_equal "box", type.icon
   end
 
-  # Regression: validation error shape
+  # Regression, validation error shape
 
   test "update_type returns field level errors when the type is invalid" do
     type = catalog_types(:custom_vendor_ws1)

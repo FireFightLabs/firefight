@@ -4,8 +4,8 @@
 # IncidentLifecycleService, and throttled Slack digest updates.
 #
 # Concurrency invariants:
-# - At most one open alert per (source, fingerprint): partial unique index;
-#   losers of the insert race fold into the record_firing! path.
+# - At most one open alert per (source, fingerprint): partial unique index.
+#   Losers of the insert race fold into the record_firing! path.
 # - Routing runs under a row-lock CAS on routing_state, so a duplicate
 #   delivery, an overlapping sweep, and the inline path never double-apply.
 # - Grouping takes a per-signature advisory lock inside that transaction, so
@@ -33,8 +33,8 @@ class AlertIngestService
       return handle_resolved(fingerprint, now)
     end
 
-    # Dedup: a firing for an already-open fingerprint is one indexed UPDATE;
-    # no new row, no new incident, no new channel.
+    # Dedup: a firing for an already-open fingerprint is one indexed UPDATE.
+    # No new row, no new incident, no new channel.
     if (open_alert = @source.alerts.open_status.find_by(fingerprint: fingerprint))
       open_alert.record_firing!(now)
       notify_digest(open_alert)
@@ -49,14 +49,14 @@ class AlertIngestService
     end
 
     alert, created = persist(fields, payload, fingerprint, now)
-    # Only the request that won the insert routes inline; losers leave it to
+    # Only the request that won the insert routes inline. Losers leave it to
     # the winner (or the sweep, whose CAS makes retries safe).
     route(alert) if created && alert.routing_state == Alert::ROUTING_PENDING
     alert
   end
 
   # Routing failures leave the alert pending for the sweep job (until
-  # MAX_ROUTING_ATTEMPTS, then failed); the alert row itself is already safe,
+  # MAX_ROUTING_ATTEMPTS, then failed). The alert row itself is already safe,
   # so ingestion never surfaces a 500 for a routing problem.
   def route(alert)
     deferred_notification = nil
@@ -101,7 +101,7 @@ class AlertIngestService
       .first
   end
 
-  # A flap onto a closed incident is a fresh episode: detach and re-route so
+  # A flap onto a closed incident is a fresh episode. Detach and re-route so
   # the regression is visible somewhere, instead of editing a digest in a
   # closed (possibly archived) channel.
   def reopen(alert, now)
@@ -135,8 +135,8 @@ class AlertIngestService
     if (duplicate = @source.alerts.find_by(external_id: external_id))
       [ duplicate, false ]
     else
-      # Lost the open-fingerprint insert race: the winner's row is
-      # authoritative; count this firing there.
+      # Lost the open-fingerprint insert race, the winner's row is
+      # authoritative. Count this firing there.
       winner = @source.alerts.open_status.find_by!(fingerprint: fingerprint)
       winner.record_firing!(now)
       notify_digest(winner)
@@ -164,7 +164,7 @@ class AlertIngestService
     )
   end
 
-  # DB writes happen here, inside the routing transaction; anything that
+  # DB writes happen here, inside the routing transaction. Anything that
   # talks to Slack is returned as a deferred callable and runs after commit.
   def apply_outcome(alert, outcome)
     case outcome["action"]
@@ -305,7 +305,7 @@ class AlertIngestService
   # post per firing. Status transitions (attach/resolve) bypass the interval.
   # The send is claimed with one conditional UPDATE on last_notified_at (the
   # same CAS shape as routing), so concurrent firings race on an indexed
-  # write instead of queuing behind a row lock for the Slack call; the claim
+  # write instead of queuing behind a row lock for the Slack call. The claim
   # sticking even when the send fails means a storm into a broken channel
   # doesn't retry on every delivery.
   def notify_digest(alert, force: false)

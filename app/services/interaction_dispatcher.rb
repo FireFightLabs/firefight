@@ -1,5 +1,5 @@
 # Routes interactions to appropriate handlers based on type and callback/action ID
-# Platform-agnostic — works with any Interaction object
+# Platform-agnostic, works with any Interaction object
 class InteractionDispatcher
   VIEW_SUBMISSION_HANDLERS = {
     Identifiers::INCIDENT_HOME_MODAL => Interactions::HomeContinueHandler,
@@ -84,7 +84,7 @@ class InteractionDispatcher
   end
 
   # A refused interaction closes its modal and explains itself where the person
-  # is looking. A button click carries its channel; a modal submission does
+  # is looking. A button click carries its channel. A modal submission does
   # not, so it falls back to the incident the modal was opened against.
   def self.refuse(interaction, text)
     workspace = interaction.workspace

@@ -18,7 +18,7 @@ class User < ApplicationRecord
   end
 
   # Sibling of `find_or_create_from_omniauth!` for the Slack OIDC flow.
-  # OIDC auth hash uses different fields than OAuth v2 (no nested authed_user;
+  # OIDC auth hash uses different fields than OAuth v2 (no nested authed_user,
   # identity comes straight from `info`).
   def self.find_or_create_from_openid!(auth_hash)
     user = find_or_initialize_by(email: auth_hash.info.email)

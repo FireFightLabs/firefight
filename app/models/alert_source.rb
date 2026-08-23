@@ -28,7 +28,7 @@ class AlertSource < ApplicationRecord
     AlertProviders.for(provider)
   end
 
-  # What fires at ingest: this source's own policy wins; the workspace-wide
+  # What fires at ingest, this source's own policy wins. The workspace-wide
   # policy is the shared fallback for sources without one. For the policy
   # being edited (never the inherited fallback), use alert_routing_policy.
   def effective_alert_routing_policy
@@ -40,7 +40,7 @@ class AlertSource < ApplicationRecord
       workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: Policy::DEFAULT_ALERT_ROUTING_NAME, scoped_to: self)
   end
 
-  # Ingest diagnostics for the sources UI; update_columns keeps the hot path
+  # Ingest diagnostics for the sources UI. update_columns keeps the hot path
   # free of callbacks and updated_at churn.
   def record_received!
     update_columns(last_received_at: Time.current)

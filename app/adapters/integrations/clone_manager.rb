@@ -2,10 +2,10 @@ require "open3"
 
 module Integrations
   # Warm local clones of customer repositories, and the only place git is
-  # spoken. Callers get semantic operations (show_file, grep, blame); argv
+  # spoken. Callers get semantic operations (show_file, grep, blame). argv
   # construction, exit-code quirks, and wire-format parsing all live here so
   # the untrusted-input safety reasoning has exactly one home. Repo content
-  # is untrusted: git runs with hooks disabled and prompts off, arguments
+  # is untrusted. Git runs with hooks disabled and prompts off, arguments
   # are exec'd as arrays (never a shell), content is read only through git
   # object commands, and the installation token rides a per-invocation
   # header so it is never written into the clone's config.
@@ -27,7 +27,7 @@ module Integrations
 
       # Yields the clone's path with an exclusive lock held, so eviction or a
       # concurrent fetch can never rip the directory out from under a read.
-      # This serializes tool calls per repo; when parallel investigations
+      # This serializes tool calls per repo. When parallel investigations
       # need concurrent reads, this is the lock to split.
       def with_repo(environment_row:, repo:)
         dir = repo_dir(environment_row.integration.workspace_id, repo)
@@ -50,7 +50,7 @@ module Integrations
         git!(dir, "show", "HEAD:#{path}")
       end
 
-      # Chomped "path:line:snippet" reference lines; zero matches is an
+      # Chomped "path:line:snippet" reference lines. Zero matches is an
       # answer (git grep exits 1), not a failure.
       def grep(dir, pattern, path_prefix = nil)
         args = [ "grep", "-nE", "--no-color", "-e", pattern, "--" ]
@@ -92,7 +92,7 @@ module Integrations
 
       # Freshness is gated on when we last FETCHED, never on when the clone
       # was last used - a hot repo mid-investigation must keep refreshing.
-      # FETCH_HEAD is git's own record of the last fetch; a fresh clone has
+      # FETCH_HEAD is git's own record of the last fetch. A fresh clone has
       # none, so the .git directory's ctime stands in for it.
       def fetch_if_stale!(dir, environment_row)
         return if last_fetched_at(dir) > STALE_AFTER.ago
@@ -178,7 +178,7 @@ module Integrations
       end
 
       # Auth values must never surface in an error a caller might persist or
-      # show; strip anything header-shaped from git's stderr.
+      # show. Strip anything header-shaped from git's stderr.
       def sanitize(stderr)
         stderr.to_s.gsub(/Authorization: \S+ \S+/, "Authorization: [redacted]").strip.presence || "unknown git error"
       end

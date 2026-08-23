@@ -9,7 +9,7 @@ class Slack::Messages::IncidentDetailTest < ActiveSupport::TestCase
     @incident = incidents(:active_critical_ws1)
   end
 
-  # These two used to build the same layout separately, and had drifted: the
+  # These two used to build the same layout separately, and had drifted. The
   # same person was the Reporter in one and Declared by in the other.
   test "the announcement and the pinned message describe the incident identically" do
     announcement = detail_lines(Slack::Messages::Announcement.build(@incident))

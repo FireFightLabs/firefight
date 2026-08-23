@@ -105,7 +105,7 @@ module Slack
       # - [text](url) links      -> <url|text>
       # Bullet syntax (- and *) is left intact -- Slack renders both.
       # Single-asterisk italic is NOT converted (would collide with Slack's
-      # *bold* syntax); ask the LLM to use underscores instead.
+      # *bold* syntax). Ask the LLM to use underscores instead.
       def self.markdown_to_mrkdwn(text)
         return "" if text.nil?
 

@@ -9,7 +9,7 @@ class IncidentFormSettingsSerializer < BaseSerializer
   )
 
   # Persisted forms expose their DB id. Code-default forms (no DB row yet)
-  # get a synthetic id (`default:<slug>`) — the frontend uses it verbatim,
+  # get a synthetic id (`default:<slug>`), the frontend uses it verbatim,
   # and mutation controllers translate it back via
   # `Workspace#ensure_incident_form!` on first edit.
   type :string
@@ -27,7 +27,7 @@ class IncidentFormSettingsSerializer < BaseSerializer
     incident_form.description
   end
 
-  # Custom fields a condition on this form may read: asked for by this form, or
+  # Custom fields a condition on this form may read, asked for by this form, or
   # by one that runs before it. Anything else would never be answered.
   type "{ id: string; name: string; options: { id: string; name: string }[] }[]"
   def condition_sources

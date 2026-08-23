@@ -41,7 +41,7 @@ module SolidWorkflow
 
         # Pushes the timeout check into Postgres so we don't materialize
         # every active workflow into Ruby just to filter. timeout lives in
-        # workflow_config (jsonb); the regex guard keeps one non-numeric
+        # workflow_config (jsonb). The regex guard keeps one non-numeric
         # value from raising and breaking the sweep for every workflow.
         def timed_out
           active.where(

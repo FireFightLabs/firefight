@@ -1,6 +1,6 @@
 class WorkspaceMemberProvisioner
   # Ensures a WorkspaceMembership exists for the given Slack user. Returns the
-  # existing membership if one is already present; otherwise creates a user +
+  # existing membership if one is already present. Otherwise creates a user +
   # membership row.
   #
   # @param workspace        [Workspace]
@@ -10,7 +10,7 @@ class WorkspaceMemberProvisioner
   #   provided, skips the User.find_or_initialize_by(email:) lookup.
   # @param user_profile     [Hash, nil] Pre-fetched profile (name/email/image).
   #   When provided, skips the `adapter.get_user_info` call. Keys may be
-  #   symbols or strings; supports both OIDC's `auth_hash.info` shape and
+  #   symbols or strings. Supports both OIDC's `auth_hash.info` shape and
   #   Slack's `users.info` profile shape.
   # @return [WorkspaceMembership, nil] nil on AdapterError.
   def self.find_or_provision!(workspace:, platform_user_id:, adapter:, user: nil, user_profile: nil)
@@ -43,8 +43,8 @@ class WorkspaceMemberProvisioner
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
     # Lost a concurrent provision race for the same Slack user. The unique
     # [workspace_id, platform_user_id] index (or its validation) rejected our
-    # insert; the winner's row exists now, so return it. Re-raise if nothing
-    # materialized — then it was a genuine validation failure, not the race.
+    # insert. The winner's row exists now, so return it. Re-raise if nothing
+    # materialized, then it was a genuine validation failure, not the race.
     workspace.workspace_memberships.find_by(platform_user_id: platform_user_id) || raise
   rescue AdapterError => e
     Rails.logger.warn({
@@ -57,7 +57,7 @@ class WorkspaceMemberProvisioner
   end
 
   # Returns a flat profile hash via the platform adapter. The adapter
-  # normalizes platform-specific shapes; we may also receive an
+  # normalizes platform-specific shapes. We may also receive an
   # OmniAuth::AuthHash::InfoHash from the OIDC path, which `pick` handles.
   def self.fetch_profile(adapter, platform_user_id)
     adapter.get_user_info(user_id: platform_user_id)

@@ -21,7 +21,7 @@ class Api::V1::BaseController < ActionController::API
   end
 
   # Provision a workspace membership if one doesn't exist yet.
-  # Centralized here so commands and interactions share the same path —
+  # Centralized here so commands and interactions share the same path,
   # downstream handlers can trust find_by!(platform_user_id:) for the actor.
   # Best-effort: provisioning failure logs a warning, dispatch continues.
   def ensure_membership!(workspace:, platform_user_id:)

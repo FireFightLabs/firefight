@@ -1,4 +1,4 @@
-# The canonical native pack for tests: one read tool per return shape plus a
+# The canonical native pack for tests, one read tool per return shape plus a
 # write tool. Stub Integrations::NativePack.for to return it (or a subclass
 # for behavior-specific cases like failing health checks).
 class FakeNativePack < Integrations::NativePack

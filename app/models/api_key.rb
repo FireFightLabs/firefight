@@ -38,7 +38,7 @@ class ApiKey < ApplicationRecord
 
   belongs_to :workspace
   belongs_to :created_by, class_name: "WorkspaceMembership"
-  # Personal token: acts with this human's authority; nil = service key.
+  # Personal token: acts with this human's authority. nil = service key.
   belongs_to :on_behalf_of, class_name: "WorkspaceMembership",
              foreign_key: :workspace_membership_id, optional: true, inverse_of: :personal_api_keys
 
@@ -120,7 +120,7 @@ class ApiKey < ApplicationRecord
   # made on the Permissions screen shows up here ticked instead of being
   # silently reconciled away.
   #
-  # Expired grants are included: the switch says what was granted, and when it
+  # Expired grants are included. The switch says what was granted, and when it
   # lapses is the Permissions screen's business.
   def granted_permissions
     ability_grants.includes(:action).each_with_object({}) do |grant, matrix|

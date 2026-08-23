@@ -50,7 +50,7 @@ interface PostmortemPageProps extends SharedProps {
 export default function PostmortemPage() {
   const { incident, postmortem } = usePage<PostmortemPageProps>().props
 
-  // All hooks run unconditionally — the null-postmortem branch returns after.
+  // All hooks run unconditionally, the null-postmortem branch returns after.
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const { setData, patch, processing, recentlySuccessful } = useHttp({ html_content: "" })
   const [editorKey, setEditorKey] = useState(0)
@@ -93,7 +93,7 @@ export default function PostmortemPage() {
   useEffect(() => {
     // Uses raw fetch with keepalive instead of Inertia's router.patch so the
     // request survives page unload / tab close. Inertia's router has no
-    // keepalive equivalent — the request would be cancelled on navigation.
+    // keepalive equivalent, the request would be cancelled on navigation.
     const flushPendingSave = () => {
       if (!saveTimerRef.current) {
         return

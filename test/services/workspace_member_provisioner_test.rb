@@ -83,7 +83,7 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
     )
 
     # Top-level existence check misses (the row was created concurrently after
-    # it ran); the rescue's re-query then finds the winner's row.
+    # it ran). The rescue's re-query then finds the winner's row.
     @workspace.workspace_memberships.stubs(:find_by).returns(nil).then.returns(existing)
     @adapter.stubs(:get_user_info).returns({ real_name: "Racer", email: "racer@example.com" })
 

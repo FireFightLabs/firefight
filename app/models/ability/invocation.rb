@@ -1,7 +1,7 @@
 module Ability
   # The write-ahead audit ledger. A row is written before execution with the
-  # immutable decision facts; outcome and completed_at are finalized exactly
-  # once afterwards. completed_at: nil means "attempted, outcome unknown" —
+  # immutable decision facts. Outcome and completed_at are finalized exactly
+  # once afterwards. completed_at: nil means "attempted, outcome unknown",
   # the signal a crash mid-execution would otherwise erase. No result bodies:
   # outputs live with the consumer, the ledger records that and how it ran.
   class Invocation < ApplicationRecord

@@ -213,7 +213,7 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
   end
 
   # The registration rate limit itself relies on Rails' rate_limit + the
-  # production cache store; the null store in test can't exercise it.
+  # production cache store. The null store in test can't exercise it.
   test "registration rejects invalid client metadata" do
     post oauth_register_path, params: { client_name: "Bad", redirect_uris: [] }, as: :json
 

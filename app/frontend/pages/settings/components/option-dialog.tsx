@@ -84,7 +84,7 @@ export function OptionDialog<T extends OptionRecord>({
     setProcessing(true)
 
     const params = { ...draft, ...extraParams }
-    // Called on router, never pulled off it: router.patch pulled into a
+    // Called on router, never pulled off it. Router.patch pulled into a
     // variable loses its binding and throws on this.visit.
     const options = {
       preserveScroll: true,

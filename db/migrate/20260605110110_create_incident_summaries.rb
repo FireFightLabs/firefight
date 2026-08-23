@@ -1,7 +1,7 @@
 class CreateIncidentSummaries < ActiveRecord::Migration[8.1]
   def change
     create_table :incident_summaries, id: :uuid do |t|
-      # One summary per incident; upsert into this row
+      # One summary per incident. Upsert into this row
       t.references :incident, type: :uuid, null: false, foreign_key: true, index: { unique: true }
       t.references :workspace, type: :uuid, null: false, foreign_key: true
 

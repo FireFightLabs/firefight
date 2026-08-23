@@ -1,4 +1,4 @@
-# Delivers the route tester's "Send test message": re-evaluates the policy,
+# Delivers the route tester's "Send test message", re-evaluates the policy,
 # resolves the notify target server-side, and posts one labeled message via
 # the adapter. A service because it crosses into the platform adapter.
 class AlertRoutingTestService

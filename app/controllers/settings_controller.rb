@@ -92,7 +92,7 @@ class SettingsController < InertiaController
     }
   end
 
-  # Who may do what: every principal that can hold a grant, the abilities and
+  # Who may do what, every principal that can hold a grant, the abilities and
   # sets available to hand out, and the environments a grant can be scoped to.
   def permissions
     render inertia: "settings/permissions", props: {
@@ -106,7 +106,7 @@ class SettingsController < InertiaController
     }
   end
 
-  # The gateway ledger: everything agents and API keys did (or were denied),
+  # The gateway ledger, everything agents and API keys did (or were denied),
   # rendered read-only. This is the oversight surface for governed writes.
   def activity
     scope = current_workspace.ability_invocations.order(created_at: :desc)
@@ -210,7 +210,7 @@ class SettingsController < InertiaController
     (memberships.to_a + agents.to_a + keys.to_a).map { |principal| PrincipalSerializer.one(principal) }
   end
 
-  # MCP clients this member authorized via OAuth consent; one row per
+  # MCP clients this member authorized via OAuth consent. One row per
   # application with a live (non-revoked) token or refresh chain.
   def connected_agents
     Doorkeeper::AccessToken
@@ -226,8 +226,8 @@ class SettingsController < InertiaController
       end
   end
 
-  # Rule filter options follow the source filter: a selected source offers the
-  # rules of its effective policy; no selection offers every routing rule in
+  # Rule filter options follow the source filter. A selected source offers the
+  # rules of its effective policy. No selection offers every routing rule in
   # the workspace, prefixed with its scope.
   def routing_rule_options(source)
     policies =

@@ -102,7 +102,7 @@ module Integrations
     private
 
     # Freshness is judged by FETCH_HEAD's mtime (or .git ctime for a clone
-    # that never fetched); writing an old FETCH_HEAD makes the clone stale.
+    # that never fetched). Writing an old FETCH_HEAD makes the clone stale.
     def age_fetch_record(clone_root, repo_dir_name)
       fetch_head = clone_root.join(@workspace_id, repo_dir_name, ".git/FETCH_HEAD")
       FileUtils.touch(fetch_head, mtime: 10.minutes.ago.to_time)

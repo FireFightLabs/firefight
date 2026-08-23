@@ -1,4 +1,4 @@
-# A name-derived, immutable-by-convention slug. One rule, one place: callers
+# A name-derived, immutable-by-convention slug. One rule, one place, callers
 # that need to look a record up by the slug a name *would* produce must use
 # `slug_for` rather than repeating the derivation, or a drift between the two
 # silently creates duplicates instead of finding the existing row.

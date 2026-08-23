@@ -220,7 +220,7 @@ class IncidentConditionTest < ActiveSupport::TestCase
   # A condition is a second way to hide a field, and it used to bypass the lock
   # the Visible toggle respects. Severity dropped out of the Declare form, took
   # itself out of validate_submission with it, and every declaration then failed
-  # on a nil severity. The editor already refused this; the MCP tool did not.
+  # on a nil severity. The editor already refused this. The MCP tool did not.
   test "a locked field cannot be made conditional" do
     workspace = workspaces(:slack_workspace_one)
     form = workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)

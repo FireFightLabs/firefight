@@ -117,7 +117,7 @@ class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
   end
 
   # With Content-Type: application/json, Rails' params middleware already
-  # rejects malformed bodies with a 400 before the controller runs; this covers
+  # rejects malformed bodies with a 400 before the controller runs. This covers
   # the non-JSON content type path where the controller parses raw_post itself.
   test "invalid JSON body returns 400" do
     post api_v1_alert_ingest_path(endpoint_path: @source.endpoint_path),

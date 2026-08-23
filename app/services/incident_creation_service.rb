@@ -68,7 +68,7 @@ class IncidentCreationService
   end
 
   # Alert-routed incidents: put the resolved responders in the room. They are
-  # invited, not assigned; leadership is taken via the existing quick action,
+  # invited, not assigned. Leadership is taken via the existing quick action,
   # never imposed on someone who has not acknowledged.
   def invite_members(incident, membership_ids)
     return { skipped: true } if membership_ids.blank?

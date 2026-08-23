@@ -38,7 +38,7 @@ module ApiAuthentication
   end
 
   # Binds an approval to the exact request body without putting the body
-  # (potential PII) into the ledger: an approved retry must be byte-identical.
+  # (potential PII) into the ledger. An approved retry must be byte-identical.
   def request_binding_params
     return {} if request.raw_post.blank?
 

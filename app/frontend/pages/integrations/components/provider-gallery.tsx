@@ -27,7 +27,7 @@ export function ProviderGallery({
   const [filter, setFilter] = useState<Filter>("All applications")
 
   // The Connected/Disconnected split only means something once something is
-  // connected; until then it's an empty filter, so hide the tabs entirely.
+  // connected. Until then it's an empty filter, so hide the tabs entirely.
   const showFilters = integrations.length > 0
   const activeFilter = showFilters ? filter : "All applications"
 

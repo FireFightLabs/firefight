@@ -10,9 +10,9 @@ module SolidWorkflow
   mattr_accessor :max_default_attempts, default: 5
   mattr_accessor :default_backoff, default: "exponential"
 
-  # Error classes (as strings) that should never be retried — the next
+  # Error classes (as strings) that should never be retried, the next
   # attempt produces the same outcome. Host apps append their own via an
-  # initializer; the engine ships only generic Ruby/AR classes.
+  # initializer. The engine ships only generic Ruby/AR classes.
   mattr_accessor :terminal_error_classes, default: %w[
     ActiveRecord::RecordNotFound
     ActiveRecord::RecordInvalid

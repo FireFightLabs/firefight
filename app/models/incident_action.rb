@@ -47,7 +47,7 @@ class IncidentAction < ApplicationRecord
   end
 
   # Where a reader should look to see this item in the context it came from.
-  # A url is already absolute; a message_ts needs the adapter to resolve one.
+  # A url is already absolute. A message_ts needs the adapter to resolve one.
   OriginReference = Data.define(:label, :url, :message_ts)
 
   def origin_reference

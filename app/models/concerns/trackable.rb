@@ -57,7 +57,7 @@ module Trackable
   end
 
   # Reduce associations to their primary key so `belongs_to` swaps register as
-  # changes — AR objects themselves are reference-distinct on every reload.
+  # changes, AR objects themselves are reference-distinct on every reload.
   def tracked_snapshot
     snapshot_attributes.transform_values { |v| v.respond_to?(:id) ? v.id : v }
   end

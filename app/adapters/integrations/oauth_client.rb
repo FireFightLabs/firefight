@@ -1,6 +1,6 @@
 module Integrations
   # The client half of the MCP OAuth story (we already ship the server half
-  # on /mcp): discover the remote server's authorization metadata, obtain a
+  # on /mcp). Discover the remote server's authorization metadata, obtain a
   # client (a pre-registered one when the provider needs it, or dynamic
   # registration when the server supports it), run PKCE, exchange and
   # refresh tokens.
@@ -19,8 +19,8 @@ module Integrations
           # Install-first: providers like GitHub gate all access behind
           # installing their app on the customer's account, and choosing the
           # repositories is part of that screen. Starting here means the
-          # customer never has to find the app on the provider's own site;
-          # they land on install, pick their scope, authorize, and come back.
+          # customer never has to find the app on the provider's own site.
+          # They land on install, pick their scope, authorize, and come back.
           # The app is a registered confidential client, so the client secret
           # authenticates the exchange in place of PKCE.
           origin = origin_of(URI.parse(metadata[:authorization_endpoint]))
@@ -45,7 +45,7 @@ module Integrations
           token_endpoint: metadata[:token_endpoint] }
       end
 
-      # A credential set is a closed shape owned here: exchange produces it,
+      # A credential set is a closed shape owned here. Exchange produces it,
       # refresh consumes and reproduces it, stale? reads it. Callers persist
       # it verbatim and never index into it, so the keys stay private to this
       # class.
@@ -79,7 +79,7 @@ module Integrations
         expires_at.present? && expires_at <= REFRESH_MARGIN.from_now
       end
 
-      # Resource metadata (RFC 9728) names the authorization server; the
+      # Resource metadata (RFC 9728) names the authorization server. The
       # authorization server metadata (RFC 8414) names the endpoints.
       def discover(server_url)
         server_uri = URI.parse(server_url.to_s)
@@ -105,7 +105,7 @@ module Integrations
       private
 
       # RFC 8414 places the metadata at the origin with the issuer's path
-      # inserted after the well-known segment (GitHub does this); some servers
+      # inserted after the well-known segment (GitHub does this). Some servers
       # use the simpler issuer-suffix form or OIDC discovery. Try each.
       def authorization_server_metadata(issuer)
         issuer_uri = URI.parse(issuer.to_s)

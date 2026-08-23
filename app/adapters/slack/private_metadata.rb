@@ -7,7 +7,7 @@ module Slack
   # scoped to one, and optional coordinates for a temporary "writing..."
   # message that needs cleanup after submit.
   #
-  # Contract is strict: encoded form is always a JSON object with an
+  # Contract is strict. Encoded form is always a JSON object with an
   # `incident_id`. `parse` raises `InvalidError` on anything else.
   module PrivateMetadata
     InvalidError = Class.new(StandardError)

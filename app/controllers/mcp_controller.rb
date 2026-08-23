@@ -1,6 +1,6 @@
-# The MCP entry point: stateless Streamable HTTP (every POST self-contained,
+# The MCP entry point, stateless Streamable HTTP (every POST self-contained,
 # no sessions, no SSE) so it runs under multi-worker Puma. Auth is the same
-# Bearer ApiKey as the REST API — either token kind resolves to a principal.
+# Bearer ApiKey as the REST API, either token kind resolves to a principal.
 class McpController < ActionController::API
   SERVER_NAME = "firefight".freeze
   SERVER_VERSION = "1.0.0".freeze
@@ -23,7 +23,7 @@ class McpController < ActionController::API
 
   private
 
-  # Two credential kinds resolve to one principal model: ff_-prefixed API
+  # Two credential kinds resolve to one principal model. ff_-prefixed API
   # tokens (either mode) and OAuth access tokens minted by the consent flow
   # (resource owner = the consenting membership).
   def authenticate!

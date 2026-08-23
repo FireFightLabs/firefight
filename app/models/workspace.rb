@@ -47,7 +47,7 @@ class Workspace < ApplicationRecord
   scope :slack_platform, -> { where(platform: Platforms::SLACK) }
   scope :recent, -> { order(created_at: :desc) }
 
-  # The workspace-wide policy: edited directly at workspace scope and the
+  # The workspace-wide policy, edited directly at workspace scope and the
   # shared fallback for sources without their own. Mirrors the AlertSource
   # methods of the same names so callers can treat (source || workspace) as
   # one routing scope.
@@ -55,7 +55,7 @@ class Workspace < ApplicationRecord
     policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).workspace_wide.first
   end
 
-  # What fires at ingest for this scope; nil when the policy is disabled,
+  # What fires at ingest for this scope. nil when the policy is disabled,
   # matching AlertSource#effective_alert_routing_policy.
   def effective_alert_routing_policy
     [ alert_routing_policy ].compact.detect(&:enabled?)
@@ -71,7 +71,7 @@ class Workspace < ApplicationRecord
   end
 
   # Lazily materializes a built-in incident form. Returns the existing DB
-  # row when an admin has already customized the form; otherwise creates
+  # row when an admin has already customized the form. otherwise creates
   # one from `IncidentForm::DEFAULTS`. Callers that need to attach overlay
   # rows (custom fields, system field overrides) use this to get a real
   # `incident_form_id`.
@@ -85,7 +85,7 @@ class Workspace < ApplicationRecord
   end
 
   # Lazily materializes a built-in incident role. Returns the existing DB
-  # row when present; otherwise creates one from `IncidentRole::DEFAULTS`.
+  # row when present. otherwise creates one from `IncidentRole::DEFAULTS`.
   # Callers that need to create assignments use this to get a real
   # `incident_role_id`.
   def ensure_incident_role!(slug)
@@ -124,7 +124,7 @@ class Workspace < ApplicationRecord
   # @param auth_hash [OmniAuth::AuthHash] OAuth response from Slack
   # @param user [User, nil] Pre-identified user from the prior OIDC sign-in.
   #   When provided, skips the auth_hash email lookup. The bot install's
-  #   users.info fetch is brittle and not required — identity already exists.
+  #   users.info fetch is brittle and not required, identity already exists.
   # @return [Hash] Result with :workspace, :user, :membership, :first_install
   def self.process_slack_installation(auth_hash, user: nil)
     transaction do

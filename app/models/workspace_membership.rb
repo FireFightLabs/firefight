@@ -32,18 +32,18 @@ class WorkspaceMembership < ApplicationRecord
 
   # Incident participation is member-level authority. Responding to an
   # incident is what a member is for, so declaring, updating, closing and
-  # staffing one needs no grant — and it must read the same whether the
+  # staffing one needs no grant, and it must read the same whether the
   # member is clicking a button in Slack, calling the API with a personal
   # token, or driving MCP. Configuring the workspace stays admin territory.
   PARTICIPATION = { ApiKey::RESOURCE_INCIDENTS => [ ApiKey::ACTION_CREATE, ApiKey::ACTION_UPDATE ].freeze }.freeze
 
   # Member-level authority: humans read everything in their workspace and
-  # participate in incidents; admins additionally hold every system write —
+  # participate in incidents. Admins additionally hold every system write,
   # mirroring the settings rule (mutations are admin territory). Personal
   # tokens and OAuth connections inherit exactly this, so an admin's agent
   # can write config with the admin's authority, still ledgered and
   # approval-gated. Admins hold every catalogued ability, including the tools
-  # an integration mints: enabling a capability on a connection is itself the
+  # an integration mints. Enabling a capability on a connection is itself the
   # deliberate decision, so it takes effect without a second grant step.
   # Approval policies still gate the risky ones. Anything reaching another
   # system stays an explicit grant for members, as it does for API keys and
@@ -76,8 +76,8 @@ class WorkspaceMembership < ApplicationRecord
 
   # Finds a member from whatever identifier a caller holds. Email is the one
   # people can type and the one that survives a platform move, so it is what
-  # machine-facing surfaces ask for; ids are accepted because our own pickers
-  # and API reads hand them back. Resolves only, never provisions: creating a
+  # machine-facing surfaces ask for. ids are accepted because our own pickers
+  # and API reads hand them back. Resolves only, never provisions. Creating a
   # member is a billable act and belongs to a deliberate flow, not to a write
   # that happens to name someone.
   def self.resolve(reference)

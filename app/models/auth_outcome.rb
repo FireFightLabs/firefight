@@ -4,7 +4,7 @@
 class AuthOutcome
   attr_reader :type, :membership, :user, :team_id, :team_name, :message, :first_install
 
-  # message is optional: a plain returning sign-in needs no announcing.
+  # message is optional, a plain returning sign-in needs no announcing.
   def self.signed_in(membership:, message: nil, first_install: false)
     new(:signed_in, membership: membership, message: message, first_install: first_install)
   end

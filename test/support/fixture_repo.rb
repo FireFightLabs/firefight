@@ -1,7 +1,7 @@
 # Builds a real git repository in a tempdir for clone-manager and code-tool
 # tests: two commits by distinct authors so blame has history, a nested file
 # for path handling, and a secrets-shaped file for denylist coverage. Tests
-# stub CloneManager.remote_url to point at the returned path; git clones
+# stub CloneManager.remote_url to point at the returned path. Git clones
 # happily from a local directory.
 module FixtureRepo
   FIRST_AUTHOR = [ "Ada Payments", "ada@example.com" ].freeze

@@ -1,7 +1,7 @@
 # One callable operation on an integration. Enabling it mints exactly one
-# tool-kind Ability::Action (key: "<integration_slug>.<name>") — from that
+# tool-kind Ability::Action (key: "<integration_slug>.<name>"), from that
 # moment it is grantable, approvable, and ledgered like any other action.
-# Vanished/disabled tools keep their action row; the gateway's config check
+# Vanished/disabled tools keep their action row. The gateway's config check
 # stops the calls.
 class Integration::Tool < ApplicationRecord
   self.table_name = "integration_tools"

@@ -10,14 +10,14 @@ slack_client_id     = ENV["SLACK_CLIENT_ID"]     || Rails.application.credential
 slack_client_secret = ENV["SLACK_CLIENT_SECRET"] || Rails.application.credentials.dig(:slack, :client_secret)
 
 Rails.application.config.middleware.use OmniAuth::Builder do
-  # Step 1 — identity only (Slack shows its native workspace picker).
+  # Step 1, identity only (Slack shows its native workspace picker).
   # Used for every dashboard sign-in. No bot scopes, no install.
   provider :slack_openid, slack_client_id, slack_client_secret
 
-  # Step 2 — bot install. Only triggered when a user without an existing
+  # Step 2, bot install. Only triggered when a user without an existing
   # workspace explicitly chooses to install Firefight. The team_id is read
   # from session (set by the OIDC handler) so the picker is skipped.
-  # Only bot scopes are requested here — user identity was already established
+  # Only bot scopes are requested here, user identity was already established
   # by the :slack_openid provider in step 1.
   provider :slack, slack_client_id, slack_client_secret,
     scope: slack_scopes[:bot_scope],

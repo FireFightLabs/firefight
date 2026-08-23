@@ -411,7 +411,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal incident.resolved_at.utc.iso8601, item[:resolvedAt]
   end
 
-  # Concern: sequencing
+  # Sequencing
 
   test "auto-assigns sequence_number on create" do
     incident = Incident.create!(
@@ -501,7 +501,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_match(/^INC-\d{3}$/, incident.identifier)
   end
 
-  # Concern: lifecycle
+  # Lifecycle
 
   test "auto-sets declared_at on create" do
     incident = Incident.new(
@@ -621,7 +621,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_nil incident.resolved_at
   end
 
-  # Concern: role management
+  # Role management
 
   test "lead returns nil when no incident lead assigned" do
     incident = incidents(:active_critical_ws1)

@@ -1,5 +1,5 @@
 module Interactions
-  # Retired button on older messages: redraw rather than do nothing.
+  # Retired button on older messages, redraw rather than do nothing.
   class ApplyRunbookHandler
     extend HandlerAuthorization
     authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE

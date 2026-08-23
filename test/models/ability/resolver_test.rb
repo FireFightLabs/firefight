@@ -104,7 +104,7 @@ module Ability
       assert_equal Resolver::CACHE_TTL, Resolver.cache_ttl_for(@key)
     end
 
-    # What the expiry is for: the gateway itself refuses once it lapses.
+    # What the expiry is for, the gateway itself refuses once it lapses.
     test "the gateway denies a call once the grant expires" do
       Grant.create!(workspace: @workspace, principal: @key,
                     action: Action.system!("runbooks.create"), expires_at: 1.hour.from_now)

@@ -6,9 +6,9 @@ class IncidentForm < ApplicationRecord
   SLUGS = [ SLUG_DECLARE, SLUG_UPDATE, SLUG_RESOLVE, SLUG_CANCEL ].freeze
 
   # Built-in lifecycle forms the system dispatches on. Workspaces never need
-  # these seeded — if no DB row exists, defaults from this constant apply.
+  # these seeded. With no DB row, defaults from this constant apply.
   # A DB row only needs to exist when an admin customizes the form (renames
-  # it, reorders, adds a custom field) — see `Workspace#ensure_incident_form!`.
+  # it, reorders, adds a custom field). See `Workspace#ensure_incident_form!`.
   DEFAULTS = [
     { slug: SLUG_DECLARE, name: "Declare", description: "Shown when a responder first declares an incident.", lifecycle_event: SLUG_DECLARE, position: 1 },
     { slug: SLUG_UPDATE,  name: "Update",  description: "Shown when responders share a status update.",       lifecycle_event: SLUG_UPDATE,  position: 2 },
@@ -48,7 +48,7 @@ class IncidentForm < ApplicationRecord
     SLUGS.include?(slug)
   end
 
-  # Returns the merged set of all forms for a workspace: code-default forms
+  # Returns the merged set of all forms for a workspace. Code-default forms
   # for slugs that have no DB row (unpersisted instances), plus any
   # persisted DB rows (which override the default name/description/position).
   def self.all_for_workspace(workspace)
@@ -71,7 +71,7 @@ class IncidentForm < ApplicationRecord
     )
   end
 
-  # Everything a condition on this form may read: what this form and the forms
+  # Everything a condition on this form may read. What this form and the forms
   # before it actually ask a responder for. Mirroring the form is what stops the
   # picker offering a rule whose answer nobody is ever asked to give, and what
   # makes hiding a field remove it as a source.
@@ -90,7 +90,7 @@ class IncidentForm < ApplicationRecord
   end
 
   # System fields this form asks for that a condition can read. Only the ones a
-  # responder picks from a set: a condition on free text has nothing to match.
+  # responder picks from a set, a condition on free text has nothing to match.
   CONDITION_SOURCE_SYSTEM_KEYS = [
     IncidentSystemField::KEY_INCIDENT_TYPE,
     IncidentSystemField::KEY_SEVERITY,

@@ -5,7 +5,7 @@
 #   1. Build a conditions context (severity_id, incident_type_id) from the
 #      submitted values, falling back to the existing incident when present.
 #   2. Resolve visible fields via `IncidentFormResolver` for the given slug.
-#      Raises `ActiveRecord::RecordNotFound` if the form isn't seeded — this
+#      Raises `ActiveRecord::RecordNotFound` if the form isn't seeded, this
 #      is a workspace setup invariant, not a runtime fallback.
 #   3. Extract each visible field's value from the Slack `view.state.values`
 #      payload, using whichever action_id the modal builder used for the block
@@ -51,7 +51,7 @@ module Slack
 
     private
 
-    # What the incident will hold once this is submitted: the answers in front
+    # What the incident will hold once this is submitted, the answers in front
     # of the responder, over whatever the incident already has. Reading only the
     # stored ones meant a condition on a custom field from this same form could
     # never match, because the answer it needed was sitting unread in the

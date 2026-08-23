@@ -16,8 +16,8 @@ module SlackConstants
   # Slack signature version prefix
   SIGNATURE_VERSION = "v0"
 
-  # Load signing secret at boot time — ENV takes precedence, falls back to credentials
-  # Fail fast if missing from both — better than runtime errors
+  # Load signing secret at boot time, ENV takes precedence, falls back to credentials
+  # Fail fast if missing from both, better than runtime errors
   SIGNING_SECRET = (ENV["SLACK_SIGNING_SECRET"] || Rails.application.credentials.dig(:slack, :signing_secret)).tap do |secret|
     raise "Missing SLACK_SIGNING_SECRET env var or slack.signing_secret in credentials." if secret.blank?
   end.freeze

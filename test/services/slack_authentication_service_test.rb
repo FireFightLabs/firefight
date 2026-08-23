@@ -171,8 +171,8 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     end
   end
 
-  # handle_openid_signin — signed_in + install_needed. No invite gate here;
-  # installs are gated in handle_install.
+  # handle_openid_signin, signed_in + install_needed. No invite gate here.
+  # Installs are gated in handle_install.
 
   test "handle_openid_signin returns install_needed when workspace doesn't exist" do
     auth_hash = mock_slack_openid_auth_hash(
@@ -221,7 +221,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     end
   end
 
-  # handle_install — wraps install path in AuthOutcome
+  # handle_install, wraps install path in AuthOutcome
 
   test "handle_install returns signed_in outcome and triggers setup on first install" do
     stub_successful_slack_workflow

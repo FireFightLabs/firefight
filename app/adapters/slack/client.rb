@@ -240,7 +240,7 @@ module Slack
       channels = []
       cursor = nil
 
-      # Paginate with a hard cap; conversations.list is Tier 2 rate limited.
+      # Paginate with a hard cap. conversations.list is Tier 2 rate limited.
       10.times do
         payload = { types: types, exclude_archived: true, limit: 200 }
         payload[:cursor] = cursor if cursor.present?
@@ -326,7 +326,7 @@ module Slack
       response = pool_request(uri, request, endpoint: "files.download")
 
       # Slack private file URLs redirect to a presigned CDN URL. Follow the
-      # redirect without the Bearer token — the presigned URL carries its own auth.
+      # redirect without the Bearer token, the presigned URL carries its own auth.
       # Auth failures redirect back to the Slack login page (same host, ?redir= param).
       if response.code.to_i.between?(301, 302) && response["location"].present?
         redirect_location = response["location"]

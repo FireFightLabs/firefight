@@ -1,9 +1,9 @@
 # Resolves outcome targets against the catalog at fire time, never stored,
 # so routing follows catalog reorgs. Resolution is pure lookups and soft-fails:
-# every miss is a note, never an exception; the incident must always win.
+# every miss is a note, never an exception. The incident must always win.
 #
 # owning_team: alert.service -> service entry -> owner-team reference -> team.
-# A team's people are its `members` + `manager` attributes; its channel is the
+# A team's people are its `members` + `manager` attributes. Its channel is the
 # service's own `slack_channel` first (specific wins), then the team's.
 class Alert::TargetResolver
   def initialize(workspace, fields)

@@ -273,7 +273,7 @@ module Slack
       end
     end
 
-    # One users.list call, split the way a picker needs it: the people to offer,
+    # One users.list call, split the way a picker needs it, the people to offer,
     # and the ids the platform says are deactivated. Someone in neither list is
     # someone the platform did not return, which is not the same as gone, so a
     # caller can keep them.

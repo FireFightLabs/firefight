@@ -74,7 +74,7 @@ module Slack::WorkspaceAdapter::IncidentModals
   end
 
   # Skip opening the link modal when there's nothing in the workspace to
-  # link to — the build returns nil in that case.
+  # link to. The build returns nil in that case.
   def open_link_incident_modal(trigger_id:, incident:, private_metadata: nil, default_type: IncidentRelationship::RELATED)
     view = Slack::Modals::Link.build(incident, private_metadata: private_metadata, default_type: default_type)
     return unless view

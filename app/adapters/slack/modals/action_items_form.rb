@@ -1,6 +1,6 @@
 module Slack
   module Modals
-    # The "Create action" and "Create follow-up" modals. Same shape — only
+    # The "Create action" and "Create follow-up" modals. Same shape, only
     # the title, callback_id, and emoji hint differ by kind.
     module ActionItemsForm
       KINDS = {

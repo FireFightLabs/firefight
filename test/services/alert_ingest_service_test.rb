@@ -352,7 +352,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     assert alert.channel_message_id.present?
 
     # A partial routing failure leaves the alert pending with the digest
-    # already posted; the sweep's retry must not post again.
+    # already posted. The sweep's retry must not post again.
     alert.update!(routing_state: Alert::ROUTING_PENDING)
     Slack::WorkspaceAdapter.any_instance.expects(:post_alert_message).never
     @service.route(alert.reload)
