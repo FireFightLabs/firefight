@@ -136,6 +136,22 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert content["trace"].is_a?(Array)
   end
 
+  test "evaluate_routing scoped to a source sees its name and provider like ingest" do
+    source = @workspace.alert_sources.create!(name: "Prod Northflank", provider: AlertSource::PROVIDER_NORTHFLANK)
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: "provider", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ AlertSource::PROVIDER_NORTHFLANK ] } ],
+      outcome: { "action" => AlertIngestService::ACTION_AUTO_CREATE }
+    )
+
+    content, = call_tool(Mcp::Tools::EVALUATE_ROUTING, { source: source.name, fields: { service: "checkout" } })
+    assert content["matched"]
+
+    content, = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+    assert_not content["matched"]
+  end
+
   test "initialize names the workspace the connection reaches and who it acts as" do
     body = rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } })
 

@@ -31,4 +31,13 @@ class IncidentFileArchivalServiceTest < ActiveSupport::TestCase
     assert_equal 456, metadata["byte_size"]
     assert_equal "xyz", metadata["checksum"]
   end
+
+  test "an event whose artifact is already attached is not archived again" do
+    incident_event = incident_events(:inc1_created)
+    incident_event.update!(event_type: IncidentEvent::MESSAGE_FILE_SHARED, metadata: { file_name: "runbook.png" })
+    incident_event.artifact.attach(io: StringIO.new("png"), filename: "runbook.png", content_type: "image/png")
+    WorkspaceAdapter.expects(:for).never
+
+    IncidentFileArchivalService.archive!(incident_event: incident_event, slack_file: { "id" => "F1" })
+  end
 end

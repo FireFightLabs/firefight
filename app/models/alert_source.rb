@@ -35,6 +35,14 @@ class AlertSource < ApplicationRecord
     [ alert_routing_policy, workspace.alert_routing_policy ].compact.detect(&:enabled?)
   end
 
+  # What a routing rule sees for an alert from this source: the alert's own
+  # fields plus the source's name and provider. Ingest, the route tester and
+  # the MCP evaluator all go through here so a rule on `provider` matches the
+  # same way everywhere.
+  def routing_fields(fields)
+    fields.merge("source" => name, "provider" => provider)
+  end
+
   def find_or_create_alert_routing_policy!
     alert_routing_policy ||
       workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: Policy::DEFAULT_ALERT_ROUTING_NAME, scoped_to: self)

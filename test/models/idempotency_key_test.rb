@@ -9,7 +9,7 @@ class IdempotencyKeyTest < ActiveSupport::TestCase
       IdempotencyKey.create!(
         workspace: workspaces(:slack_workspace_one),
         key: "existing-idempotency-key-123",
-        resource_type: "Incident",
+        resource_type: IdempotencyKey::RESOURCE_INCIDENT,
         resource_id: SecureRandom.uuid
       )
     end
@@ -29,7 +29,7 @@ class IdempotencyKeyTest < ActiveSupport::TestCase
     key = IdempotencyKey.create!(
       workspace: workspaces(:slack_workspace_two),
       key: "existing-idempotency-key-123",
-      resource_type: "Incident",
+      resource_type: IdempotencyKey::RESOURCE_INCIDENT,
       resource_id: SecureRandom.uuid
     )
     assert key.persisted?

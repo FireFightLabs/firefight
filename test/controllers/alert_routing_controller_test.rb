@@ -43,6 +43,24 @@ class AlertRoutingControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, body["trace"].size
   end
 
+  test "test sees the source's name and provider the way ingest does" do
+    source = @workspace.alert_sources.create!(name: "Prod Northflank", provider: AlertSource::PROVIDER_NORTHFLANK)
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: "provider", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ AlertSource::PROVIDER_NORTHFLANK ] } ],
+      outcome: { "action" => AlertIngestService::ACTION_AUTO_CREATE }
+    )
+
+    post alert_routing_test_url, params: { alert_source_id: source.id, fields: { service: "checkout" } }, as: :json
+    assert_response :success
+    assert JSON.parse(response.body)["matched"]
+
+    post alert_routing_test_url, params: { fields: { service: "checkout" } }, as: :json
+    assert_response :success
+    assert_not JSON.parse(response.body)["matched"]
+  end
+
   test "test resolves notify targets to readable labels" do
     membership = workspace_memberships(:alice_workspace_one)
     policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")

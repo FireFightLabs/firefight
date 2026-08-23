@@ -16,15 +16,15 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert_includes status.errors[:name], "can't be blank"
   end
 
-  test "requires slug" do
+  test "derives the slug from the name" do
     status = IncidentStatus.new(
       workspace: workspaces(:slack_workspace_one),
       incident_lifecycle_stage: incident_lifecycle_stages(:active),
       name: "Test Status",
       position: 1
     )
-    assert_not status.valid?
-    assert_includes status.errors[:slug], "can't be blank"
+    assert status.valid?
+    assert_equal "test_status", status.slug
   end
 
   test "requires incident_lifecycle_stage" do

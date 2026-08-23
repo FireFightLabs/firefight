@@ -93,6 +93,17 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
     assert_equal "runbook.png", event.metadata["file_name"]
   end
 
+  test "a redelivered file_share does not create a second event or archival job" do
+    stub_get_permalink
+
+    assert_difference "IncidentEvent.count", 1 do
+      Events::MessageHandler.execute(Platforms::SLACK, file_message_payload)
+      Events::MessageHandler.execute(Platforms::SLACK, file_message_payload)
+    end
+
+    assert_enqueued_jobs 1, only: ArchiveIncidentFileJob
+  end
+
   test "file_share also creates a transcript row" do
     stub_get_permalink
 

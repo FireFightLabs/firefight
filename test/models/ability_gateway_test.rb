@@ -228,6 +228,31 @@ class AbilityGatewayTest < ActiveSupport::TestCase
     end
   end
 
+  test "two calls racing for one approval yield one allow and one deny row" do
+    key = api_keys(:full_access_key)
+    create_approval_policy
+
+    approval = assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace)
+    end.approval
+    approval.approve!(by: @membership)
+
+    # The second caller holds a copy that still reads as usable, the way a
+    # concurrent request would, and only the claim statement decides.
+    stale_copy = Ability::Approval.find(approval.id)
+    Ability::Approval.stubs(:find_by).returns(stale_copy)
+    @workspace.ability_approvals.stubs(:find_by).returns(stale_copy)
+    stale_copy.stubs(:claim).returns(false)
+
+    assert_raises(AbilityGateway::Denied) do
+      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace,
+                                context: { approval_id: approval.id }) { :executed }
+    end
+
+    assert_equal 0, Ability::Invocation.where(approval_id: approval.id, decision: Ability::Invocation::DECISION_ALLOW).count
+    assert_equal 1, Ability::Invocation.where(approval_id: approval.id, decision: Ability::Invocation::DECISION_DENY).count
+  end
+
   test "approvals bind to the exact request digest" do
     key = api_keys(:full_access_key)
     create_approval_policy

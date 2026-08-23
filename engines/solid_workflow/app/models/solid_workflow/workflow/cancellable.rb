@@ -5,21 +5,15 @@ module SolidWorkflow
 
       def cancel!(reason:, by:)
         transaction do
-          current_time = Time.current
-          update!(
-            state: :cancelled,
-            cancelled_by: by,
-            cancellation_reason: reason,
-            completed_at: current_time,
-            state_timestamps: (state_timestamps || {}).merge("cancelled" => current_time.iso8601)
-          )
+          return false unless transition!(:cancelled, from: %i[pending running paused], cancelled_by: by, cancellation_reason: reason)
 
           steps.where(status: %i[pending running]).update_all(
             status: :cancelled,
-            completed_at: current_time
+            completed_at: completed_at
           )
 
           record_event(SolidWorkflow::Events::Workflow::CANCELLED, reason: reason, by: by)
+          true
         end
       end
     end

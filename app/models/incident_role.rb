@@ -7,7 +7,7 @@ class IncidentRole < ApplicationRecord
   # The lead role is referenced by slug throughout the codebase (lead
   # assignment, serializers, UI), so every workspace gets a real row for it.
   DEFAULTS = [
-    { name: "Incident Lead", slug: SLUG_INCIDENT_LEAD, position: 1, required: false, description: "Coordinates incident response and makes decisions." }
+    { name: "Incident Lead", slug: SLUG_INCIDENT_LEAD, position: 1, description: "Coordinates incident response and makes decisions." }
   ].freeze
 
   DEFAULTS_BY_SLUG = DEFAULTS.index_by { |d| d[:slug] }.freeze

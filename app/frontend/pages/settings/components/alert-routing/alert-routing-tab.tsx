@@ -16,7 +16,7 @@ import {
   runRoutingTest,
   sampleFieldsFor,
   type CatalogOptionMap,
-  type TestResult,
+  type RuleTest,
 } from "@/pages/settings/lib/alerts"
 import type { SlackChannel } from "@/types"
 import { Badge } from "@/components/ui/badge"
@@ -79,31 +79,29 @@ export function AlertRoutingTab({
   const [editingRule, setEditingRule] = useState<PolicyRule | null>(null)
   const [addingRule, setAddingRule] = useState(false)
   const [deletingRule, setDeletingRule] = useState<PolicyRule | null>(null)
-  const [testResult, setTestResult] = useState<TestResult | null>(null)
-  const [testError, setTestError] = useState<string | null>(null)
-  const [testedRuleId, setTestedRuleId] = useState<string | null>(null)
-  const [testedSample, setTestedSample] = useState<string | null>(null)
+  const [ruleTest, setRuleTest] = useState<RuleTest | null>(null)
   const rules = policy?.rules ?? []
   const canTest = Boolean(policy) || (Boolean(alertSource) && hasWorkspaceFallback)
 
+  const testResult = ruleTest?.status === "done" ? ruleTest.result : null
+
   function clearTest() {
-    setTestResult(null)
-    setTestError(null)
-    setTestedRuleId(null)
-    setTestedSample(null)
+    setRuleTest(null)
   }
 
   async function testRule(rule: PolicyRule) {
     const sample = sampleFieldsFor(rule.conditions)
-    setTestedRuleId(rule.id)
-    setTestedSample(describeSample(sample))
+    const pending: RuleTest = { status: "pending", ruleId: rule.id, sample: describeSample(sample) }
+    setRuleTest(pending)
     const { result, error } = await runRoutingTest(sample, alertSourceId)
-    setTestResult(result)
-    setTestError(error)
+    const outcome: RuleTest = result
+      ? { ...pending, status: "done", result }
+      : { ...pending, status: "failed", error: error ?? "The test could not be run." }
+    setRuleTest((current) => (current?.status === "pending" && current.ruleId === rule.id ? outcome : current))
   }
 
   function shadowNote(rule: PolicyRule): string | null {
-    if (!testResult || testedRuleId !== rule.id) {
+    if (!testResult || ruleTest?.ruleId !== rule.id) {
       return null
     }
     const winnerIndex = testResult.trace.findIndex((trace) => trace.matched)
@@ -161,12 +159,14 @@ export function AlertRoutingTab({
               <Button size="sm" onClick={() => setAddingRule(true)}>Add rule</Button>
             </div>
           </div>
-          {(testedSample || testError) && (
+          {ruleTest && (
             <div className="mt-2 text-xs">
-              {testError ? (
-                <span className="text-destructive">{testError}</span>
+              {ruleTest.status === "failed" ? (
+                <span className="text-destructive">{ruleTest.error}</span>
+              ) : ruleTest.status === "pending" ? (
+                <span className="text-muted-foreground">Testing with {ruleTest.sample}</span>
               ) : (
-                <span className="text-muted-foreground">Tested with {testedSample}</span>
+                <span className="text-muted-foreground">Tested with {ruleTest.sample}</span>
               )}
             </div>
           )}
@@ -214,7 +214,7 @@ export function AlertRoutingTab({
                             className="size-7 text-muted-foreground"
                             title={regexRule ? "Regex rules need a real sample value; use Test custom alert" : "Test this rule"}
                             aria-label="Test this rule"
-                            disabled={!canTest || regexRule}
+                            disabled={!canTest || regexRule || ruleTest?.status === "pending"}
                             onClick={() => void testRule(rule)}
                           >
                             <IconFlask className="size-4" />

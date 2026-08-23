@@ -17,15 +17,15 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_includes severity.errors[:name], "can't be blank"
   end
 
-  test "requires slug" do
+  test "derives the slug from the name" do
     severity = IncidentSeverity.new(
       workspace: workspaces(:slack_workspace_one),
       name: "Test Severity",
       rank: 1,
       position: 1
     )
-    assert_not severity.valid?
-    assert_includes severity.errors[:slug], "can't be blank"
+    assert severity.valid?
+    assert_equal "test_severity", severity.slug
   end
 
   test "rank is assigned on create so it never has to be supplied" do

@@ -79,8 +79,7 @@ class RunbooksController < InertiaController
   def step_params
     Array(params[:steps])
       .select { |s| s.is_a?(ActionController::Parameters) }
-      .reject { |s| ActiveModel::Type::Boolean.new.cast(s[:_destroy]) }
-      .map { |s| { title: s[:title], instruction: s[:instruction] } }
+      .map { |s| { id: s[:id], title: s[:title], instruction: s[:instruction] } }
   end
 
   def condition_params

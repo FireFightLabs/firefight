@@ -156,7 +156,7 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
     stub_post_message
     result = @service.post_welcome_message(@workspace, "C12345678")
 
-    assert result[:message_ts].present?
+    assert result[:message_id].present?
   end
 
   test "post_welcome_message logs event" do
@@ -234,7 +234,7 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
 
             # Post welcome
             welcome_result = @service.post_welcome_message(@workspace, channel_id)
-            assert welcome_result[:message_ts].present?
+            assert welcome_result[:message_id].present?
 
             # Invite user
             invite_result = @service.invite_user(@workspace, channel_id, "U12345678")

@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 export interface EditableStep {
   key: string
+  id?: string
   title: string
   instruction: string
 }

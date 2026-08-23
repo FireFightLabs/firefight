@@ -36,7 +36,7 @@ module Mcp
                                                     "Routing rules are documented at #{Docs::ROUTING_RULES}")
         end
 
-        fields = (args[:fields] || {}).transform_keys(&:to_s).transform_values(&:to_s)
+        fields = scope.routing_fields((args[:fields] || {}).transform_keys(&:to_s).transform_values(&:to_s))
         context = Policy::ContextBuilder.build(workspace: workspace, fields: fields)
         result = policy.evaluate(context)
 

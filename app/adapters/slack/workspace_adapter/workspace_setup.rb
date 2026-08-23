@@ -44,7 +44,7 @@ module Slack::WorkspaceAdapter::WorkspaceSetup
         blocks: message[:blocks]
       )
 
-      { message_ts: result[:ts] }
+      { message_id: result[:ts], channel_id: result[:channel] }
     end
   end
 
@@ -60,7 +60,7 @@ module Slack::WorkspaceAdapter::WorkspaceSetup
         blocks: preview[:blocks]
       )
 
-      { message_ts: result[:ts] }
+      { success: true }
     end
   end
 

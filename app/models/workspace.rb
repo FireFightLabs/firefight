@@ -61,6 +61,12 @@ class Workspace < ApplicationRecord
     [ alert_routing_policy ].compact.detect(&:enabled?)
   end
 
+  # Workspace-scoped evaluation has no source to name, so the fields stand as
+  # given. Mirrors AlertSource#routing_fields.
+  def routing_fields(fields)
+    fields
+  end
+
   def find_or_create_alert_routing_policy!
     alert_routing_policy ||
       policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: Policy::DEFAULT_ALERT_ROUTING_NAME)

@@ -14,7 +14,6 @@ module ManagesConfigurableOptions
     name = params[:name].to_s.strip
     option = option_scope.new(
       name: name,
-      slug: name.parameterize(separator: "_"),
       description: params[:description],
       **color_attribute,
       **create_attributes

@@ -102,6 +102,10 @@ class IncidentEvent < ApplicationRecord
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate PostmortemUpdate], optional: true
   has_one_attached :artifact
 
+  def escalation_acknowledged?
+    metadata&.dig("acknowledged_by_platform_user_id").present?
+  end
+
   after_create_commit :publish_to_event_bus
 
   validates :event_type, presence: true, inclusion: { in: EVENT_TYPES }

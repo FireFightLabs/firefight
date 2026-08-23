@@ -11,11 +11,7 @@ module Interactions
       escalated_to_platform_user_id = escalation_event.metadata["escalated_to_platform_user_id"]
 
       return nil unless escalated_to_platform_user_id == interaction.user_id
-
-      EscalationAcknowledgementTracker.mark_acknowledged!(
-        workspace_id: workspace.id,
-        escalation_event_id: escalation_event.id
-      )
+      return nil if escalation_event.escalation_acknowledged?
 
       escalation_event.update!(
         metadata: escalation_event.metadata.deep_stringify_keys.merge(

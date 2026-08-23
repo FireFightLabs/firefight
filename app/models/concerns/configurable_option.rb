@@ -14,12 +14,14 @@ module ConfigurableOption
     include Positioned
     include OptionGuards
     include NormalizedDescription
+    include Sluggable
 
     belongs_to :workspace
 
     validates :name, presence: true
     validates :slug, presence: true, uniqueness: { scope: :workspace_id }
     validates :position, presence: true, numericality: { only_integer: true }
+    validate :name_produces_a_free_slug
 
     scope :active, -> { where(deleted_at: nil) }
     scope :ordered, -> { order(:position) }
@@ -37,5 +39,16 @@ module ConfigurableOption
 
   def default_blocked_reason
     nil
+  end
+
+  private
+
+  # The slug is derived from the name and the dialog only shows errors on the
+  # field the user typed, so a slug collision has to be reported on name or
+  # the dialog stays open saying nothing.
+  def name_produces_a_free_slug
+    return unless errors.of_kind?(:slug, :taken)
+
+    errors.add(:name, "is already used by another #{self.class::NOUN}.")
   end
 end

@@ -15,14 +15,14 @@ class IncidentTypeTest < ActiveSupport::TestCase
     assert_includes type.errors[:name], "can't be blank"
   end
 
-  test "requires slug" do
+  test "derives the slug from the name" do
     type = IncidentType.new(
       workspace: workspaces(:slack_workspace_one),
       name: "Test",
       position: 1
     )
-    assert_not type.valid?
-    assert_includes type.errors[:slug], "can't be blank"
+    assert type.valid?
+    assert_equal "test", type.slug
   end
 
   test "requires position" do

@@ -54,14 +54,12 @@ module SolidWorkflow
         })
 
         workflow.transaction do
+          # Guarded so a workflow the orchestrator just finished is left alone.
+          next unless workflow.transition!(:failed, from: %i[pending running])
+
           workflow.steps.where(status: %i[pending running]).update_all(
             status: :cancelled,
-            completed_at: Time.current
-          )
-
-          workflow.update!(
-            state: :failed,
-            completed_at: Time.current
+            completed_at: workflow.completed_at
           )
 
           workflow.record_event(

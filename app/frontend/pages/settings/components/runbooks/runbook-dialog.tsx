@@ -87,7 +87,8 @@ function initModel(runbook: RunbookSettings | null | undefined): EditModel {
     content: runbook?.content ?? "",
     externalUrl: runbook?.externalUrl ?? "",
     steps: (runbook?.steps ?? []).map((step) => ({
-      key: crypto.randomUUID(),
+      key: step.id,
+      id: step.id,
       title: step.title,
       instruction: step.instruction ?? "",
     })),
@@ -162,7 +163,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       summary: model.summary,
       content: model.content,
       external_url: model.externalUrl,
-      steps: model.steps.map((step) => ({ title: step.title, instruction: step.instruction })),
+      steps: model.steps.map((step) => ({ id: step.id, title: step.title, instruction: step.instruction })),
       conditions,
       always_attach: model.alwaysAttach,
     }

@@ -219,6 +219,36 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal first_id, json_response["incident"]["id"]
   end
 
+  test "a unique violation unrelated to the idempotency key is not reported as a replay" do
+    stub_successful_slack_workflow
+    Incident.any_instance.stubs(:save!).raises(ActiveRecord::RecordNotUnique, "identifier taken")
+
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      post api_v1_incidents_url,
+        params: { idempotency_key: "race-#{SecureRandom.hex(8)}", name: "Raced", severity_id: @severity.id }.to_json,
+        headers: api_headers
+    end
+  end
+
+  test "losing the idempotency key race replays the committed incident" do
+    stub_successful_slack_workflow
+    key = "race-#{SecureRandom.hex(8)}"
+    winner = @workspace.incidents.create!(
+      declared_by: workspace_memberships(:alice_workspace_one), incident_status: @status,
+      incident_severity: @severity, name: "Winner", source: "api"
+    )
+    IdempotencyKey.create!(workspace: @workspace, key: key, resource_type: IdempotencyKey::RESOURCE_INCIDENT, resource_id: winner.id)
+    Api::V1::IncidentsController.any_instance.stubs(:replayed?).returns(false)
+
+    assert_no_difference -> { Incident.count } do
+      post api_v1_incidents_url,
+        params: { idempotency_key: key, name: "Loser", severity_id: @severity.id }.to_json,
+        headers: api_headers
+    end
+    assert_response :ok
+    assert_equal winner.id, json_response["incident"]["id"]
+  end
+
   test "triggers incident creation workflow" do
     stub_successful_slack_workflow
 

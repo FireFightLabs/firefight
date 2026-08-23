@@ -6,7 +6,8 @@ class Runbook < ApplicationRecord
 
   belongs_to :workspace
 
-  has_many :runbook_steps, -> { order(:position) }, dependent: :destroy
+  has_many :runbook_steps, -> { active.ordered }
+  has_many :all_runbook_steps, class_name: "RunbookStep", dependent: :destroy
   has_many :incident_conditions, as: :conditionable, dependent: :destroy
   has_many :incident_runbooks, dependent: :destroy
 
@@ -39,16 +40,31 @@ class Runbook < ApplicationRecord
     end
   end
 
+  # Steps keep their identity across edits. Incident actions reference a step
+  # by id, so recreating the rows on every save would unclaim every step in
+  # every live incident. A step missing from the payload is soft-deleted, which
+  # keeps the actions that already point at it readable.
   def sync_steps!(steps_params)
     transaction do
-      runbook_steps.destroy_all
-      steps_params.each_with_index do |sp, index|
-        runbook_steps.create!(
-          title: sp[:title],
-          instruction: sp[:instruction],
-          position: index + 1
-        )
+      live = runbook_steps.index_by(&:id)
+      kept_ids = []
+
+      steps_params.each_with_index do |step_params, index|
+        attrs = { title: step_params[:title], instruction: step_params[:instruction], position: index + 1 }
+        step = live[step_params[:id].to_s]
+
+        if step
+          step.update!(attrs)
+        else
+          step = all_runbook_steps.create!(attrs)
+        end
+
+        kept_ids << step.id
       end
+
+      now = Time.current
+      live.each_value { |step| step.update!(deleted_at: now) unless kept_ids.include?(step.id) }
+      runbook_steps.reset
     end
   end
 

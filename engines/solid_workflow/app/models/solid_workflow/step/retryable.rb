@@ -69,13 +69,7 @@ module SolidWorkflow
       # completed? and the step sits pending forever. Siblings cancelled by
       # the failure go back to pending so the revived run can complete.
       def revive_workflow!
-        return unless workflow.failed?
-
-        workflow.update!(
-          state: :running,
-          completed_at: nil,
-          state_timestamps: (workflow.state_timestamps || {}).merge("running" => Time.current.iso8601)
-        )
+        return unless workflow.transition!(:running, from: :failed)
 
         SolidWorkflow::Step.where(workflow_id: workflow.id, status: :cancelled).where.not(id: id).update_all(
           status: :pending,
