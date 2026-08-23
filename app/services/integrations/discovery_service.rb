@@ -1,8 +1,8 @@
 module Integrations
   # Reconciles integration_tools with what the executor's discovery returns.
-  # Same semantics for every kind: new tools arrive disabled (the admin
+  # Same semantics for every kind, new tools arrive disabled (the admin
   # allowlists), changed schemas update in place, vanished tools are disabled
-  # but never deleted (their action rows and grants stay; the config check
+  # but never deleted (their action rows and grants stay, the config check
   # stops calls).
   class DiscoveryService
     def self.sync!(integration)

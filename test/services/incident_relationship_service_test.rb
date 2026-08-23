@@ -14,9 +14,7 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
     @incident2 = incidents(:active_major_ws1)
   end
 
-  # ============================================================================
-  # LINK RELATED
-  # ============================================================================
+  # Link related
 
   test "link_related creates relationship" do
     assert_difference "IncidentRelationship.count", 1 do
@@ -62,9 +60,7 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
     end
   end
 
-  # ============================================================================
-  # MARK DUPLICATE
-  # ============================================================================
+  # Mark duplicate
 
   test "mark_duplicate creates relationship" do
     assert_difference "IncidentRelationship.count", 1 do

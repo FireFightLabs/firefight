@@ -1,4 +1,4 @@
-# One person, wherever the dashboard shows one: the lead, a role holder, whoever
+# One person, wherever the dashboard shows one, the lead, a role holder, whoever
 # declared the incident. They all render the same chip, so they all serialize the
 # same way.
 class ActorCompactSerializer < BaseSerializer

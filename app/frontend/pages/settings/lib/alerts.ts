@@ -125,7 +125,7 @@ export function sampleFieldsFor(conditions: RuleCondition[]): Record<string, str
 }
 
 // A regex pattern used verbatim as a field value generally won't match itself,
-// so a derived sample would mislead; those rules need the custom tester.
+// so a derived sample would mislead. Those rules need the custom tester.
 export function needsCustomSample(conditions: RuleCondition[]): boolean {
   return conditions.some((condition) => condition.operator === "matches_regex")
 }

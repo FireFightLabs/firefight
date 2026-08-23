@@ -1,6 +1,6 @@
 module Slack
   module Messages
-    # Status-update messages: posted both inline in the incident channel
+    # Status-update messages, posted both inline in the incident channel
     # and as a thread reply on the announcement. The two variants only
     # differ in their header line, so `build` takes a `scope:` of
     # `:inline` or `:announcement`.

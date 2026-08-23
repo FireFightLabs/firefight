@@ -47,7 +47,7 @@ module Workspace::IncidentDefaults
 
   # Kept as a no-op for backwards compatibility (older migrations call it).
   # Forms now come from `IncidentForm::DEFAULTS` and need no per-workspace
-  # rows; see `Workspace#ensure_incident_form!` for lazy materialization.
+  # rows. See `Workspace#ensure_incident_form!` for lazy materialization.
   def setup_incident_forms!
     # no-op
   end

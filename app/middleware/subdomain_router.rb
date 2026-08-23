@@ -5,14 +5,14 @@ class SubdomainRouter
   # Includes Rails engine mounts (Active Storage, Action Mailbox), Vite assets,
   # and the dashboard routes themselves.
   #
-  # MCP and the OAuth 2.1 provider live here too, not on api.firefight.app: the
+  # MCP and the OAuth 2.1 provider live here too, not on api.firefight.app. The
   # authorize step signs the user in through the dashboard, and the session
   # cookie is host-only. Discovery documents advertise whichever host served
   # them, so the endpoint and its authorization server have to share one.
   APP_EXACT    = %w[/ /login /logout].freeze
   APP_PREFIXES = %w[/app /auth /rails /vite /invite-code /onboarding /mcp /oauth /.well-known].freeze
 
-  # Slack webhook paths — must ONLY be callable from slack.firefight.app.
+  # Slack webhook paths. Callable ONLY from slack.firefight.app.
   SLACK_EXACT = %w[/api/v1/commands /api/v1/events /api/v1/interactions].freeze
 
   def initialize(app)

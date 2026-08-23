@@ -18,7 +18,7 @@ class Interaction
   end
 
   # Who the Ability Gateway authorizes this interaction as. Provisioned on
-  # demand so a first-time clicker is a principal like anyone else; nil when
+  # demand so a first-time clicker is a principal like anyone else. nil when
   # the platform lookup fails and the dispatcher then refuses the call.
   def principal
     return @principal if defined?(@principal)
@@ -31,7 +31,7 @@ class Interaction
     @principal = nil
   end
 
-  # What the approval digest is bound to. Deterministic and replayable: a
+  # What the approval digest is bound to. Deterministic and replayable. A
   # resumed interaction rebuilds the same hash, so the approval matches.
   def authorization_params
     {
@@ -53,7 +53,7 @@ class Interaction
   end
 
   # The attrs a resumed dispatch is rebuilt from, once an approval clears.
-  # trigger_id is deliberately absent: it has long expired by then, and
+  # trigger_id is deliberately absent. It has long expired by then, and
   # nothing that opens a modal is gated.
   def resume_attrs
     {

@@ -1,7 +1,7 @@
 class NormalizeIncidentSeverityRanks < ActiveRecord::Migration[8.1]
   # rank used to be typed in by hand and could disagree with the order the
   # settings screen showed, so a severity could sit last while ranking highest.
-  # Position is now the source of truth and rank is derived from it; this brings
+  # Position is now the source of truth and rank is derived from it. This brings
   # existing rows in line so ordering by rank and by position agree everywhere.
   def up
     execute <<~SQL
@@ -19,7 +19,7 @@ class NormalizeIncidentSeverityRanks < ActiveRecord::Migration[8.1]
     SQL
   end
 
-  # Deliberately a no-op rather than a raise: the hand-entered ranks are not
+  # Deliberately a no-op rather than a raise, the hand-entered ranks are not
   # recoverable, but normalized ranks are still valid for the old code, and
   # blocking the rollback chain over a harmless data shape is worse.
   def down

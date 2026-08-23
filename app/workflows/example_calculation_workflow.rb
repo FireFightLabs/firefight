@@ -1,6 +1,4 @@
-# ExampleCalculationWorkflow - Demo workflow showing input/output flow and parallel execution
-#
-# This workflow demonstrates:
+# A demo workflow, kept as a worked example of:
 # - Data passing between steps via input/output
 # - Parallel step execution (calculate_sum and calculate_product run in parallel)
 # - Dependencies (combine_results waits for both calculations)
@@ -14,20 +12,15 @@
 class ExampleCalculationWorkflow < SolidWorkflow::Base
   workflow_name "example.calculation.v1"
 
-  # Step 1: Fetch numbers (either from context or generate them)
   step :fetch_numbers
 
-  # Step 2 & 3: Run in parallel (both depend on fetch_numbers)
   step :calculate_sum, depends_on: [ :fetch_numbers ]
   step :calculate_product, depends_on: [ :fetch_numbers ]
 
-  # Step 4: Combine results (waits for both calculations to complete)
   step :combine_results, depends_on: [ :fetch_numbers, :calculate_sum, :calculate_product ]
 
-  # Step 5: Store final result
   step :store_result, depends_on: [ :combine_results ]
 
-  # Fetch or generate numbers to process
   def fetch_numbers(workflow:, step:, input:)
     numbers = workflow.context["numbers"] || (1..10).to_a
 
@@ -41,7 +34,6 @@ class ExampleCalculationWorkflow < SolidWorkflow::Base
     { numbers: numbers, count: numbers.size }
   end
 
-  # Calculate sum of numbers (runs in parallel with calculate_product)
   def calculate_sum(workflow:, step:, input:)
     numbers = input["fetch_numbers"]["numbers"]
     sum = numbers.sum
@@ -58,7 +50,6 @@ class ExampleCalculationWorkflow < SolidWorkflow::Base
     { sum: sum, operation: "sum" }
   end
 
-  # Calculate product of numbers (runs in parallel with calculate_sum)
   def calculate_product(workflow:, step:, input:)
     numbers = input["fetch_numbers"]["numbers"]
     product = numbers.reduce(1, :*)
@@ -75,7 +66,6 @@ class ExampleCalculationWorkflow < SolidWorkflow::Base
     { product: product, operation: "product" }
   end
 
-  # Combine results from both calculations
   def combine_results(workflow:, step:, input:)
     sum = input["calculate_sum"]["sum"]
     product = input["calculate_product"]["product"]
@@ -98,7 +88,7 @@ class ExampleCalculationWorkflow < SolidWorkflow::Base
     result
   end
 
-  # Store final result (just in step output, no database writes)
+  # Writes nothing to the database, the result lives in the step output.
   def store_result(workflow:, step:, input:)
     combined = input["combine_results"]
 

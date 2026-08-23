@@ -3,9 +3,7 @@ require "test_helper"
 class IncidentTypeTest < ActiveSupport::TestCase
   fixtures :workspaces, :incident_types
 
-  # ============================================================================
-  # VALIDATIONS
-  # ============================================================================
+  # Validations
 
   test "requires name" do
     type = IncidentType.new(
@@ -59,9 +57,7 @@ class IncidentTypeTest < ActiveSupport::TestCase
     assert type.valid?
   end
 
-  # ============================================================================
-  # ASSOCIATIONS
-  # ============================================================================
+  # Associations
 
   test "belongs to workspace" do
     type = incident_types(:service_outage_ws1)
@@ -74,9 +70,7 @@ class IncidentTypeTest < ActiveSupport::TestCase
     assert_respond_to type, :incidents
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "active scope excludes deleted types" do
     active_types = IncidentType.active
@@ -91,9 +85,7 @@ class IncidentTypeTest < ActiveSupport::TestCase
     assert_equal positions.sort, positions
   end
 
-  # ============================================================================
-  # SOFT DELETES
-  # ============================================================================
+  # Soft deletes
 
   test "soft delete sets deleted_at" do
     type = incident_types(:service_outage_ws1)
@@ -111,9 +103,7 @@ class IncidentTypeTest < ActiveSupport::TestCase
     assert_not_includes IncidentType.active.reload, type
   end
 
-  # ============================================================================
-  # FIXTURES
-  # ============================================================================
+  # Fixtures
 
   test "workspace one fixtures load correctly" do
     outage = incident_types(:service_outage_ws1)

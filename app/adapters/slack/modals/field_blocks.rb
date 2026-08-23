@@ -7,7 +7,7 @@ module Slack
     #
     # Every field handed here renders. Deciding that a field has nothing to ask
     # belongs to IncidentFormResolver, which is also what `validate_submission`
-    # reads: suppressing a field here alone leaves submission demanding one the
+    # reads. Suppressing a field here alone leaves submission demanding one the
     # responder was never shown.
     module FieldBlocks
       def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, visibility_dispatch: false, status_dispatch: false, selected_type_id: nil, selected_visibility: nil, selected_status_slug: nil, terminal_stage: nil)

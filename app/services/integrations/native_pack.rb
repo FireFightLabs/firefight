@@ -1,14 +1,14 @@
 module Integrations
-  # A first-party integration implemented in Ruby: the native analogue of an
+  # A first-party integration implemented in Ruby, the native analogue of an
   # external MCP server. A subclass declares its tools in code and implements
-  # one instance method per tool; discovery reads the declarations and the
+  # one instance method per tool. Discovery reads the declarations and the
   # executor dispatches to the methods, so the pack is the single source of
   # truth for what a native provider offers.
   class NativePack
     class Error < Integrations::Error; end
 
     # Provider key -> pack class. A provider listed here executes through its
-    # pack instead of an MCP server; its registry entry declares kind: native
+    # pack instead of an MCP server. Its registry entry declares kind: native
     # so the connect flow skips the server URL. Listing and execution stay
     # decoupled on purpose - the gallery is config, the pack is code.
     REGISTRY = {
@@ -21,7 +21,7 @@ module Integrations
       end
 
       # Packs whose provider gates access behind installing an app return the
-      # URL the connect flow sends the customer to; nil means the provider has
+      # URL the connect flow sends the customer to. nil means the provider has
       # no install-first flow.
       def install_url(state:)
         nil
@@ -67,7 +67,7 @@ module Integrations
       public_send(definition.name, environment_row: environment_row, arguments: arguments)
     end
 
-    # Packs raise through this instead of `raise Error, ...`: inside a pack
+    # Packs raise through this instead of `raise Error, ...`. Inside a pack
     # file a bare Error resolves lexically to Integrations::Error, not this
     # class. Defined here, where the constant resolves correctly, the trap
     # is gone.
@@ -76,7 +76,7 @@ module Integrations
     end
 
     # Probes the provider with the row's credentials. Packs override with a
-    # real call and raise Error with a readable reason on failure; the
+    # real call and raise Error with a readable reason on failure. The
     # default accepts so a pack without a probe still connects.
     def check_health!(environment_row)
     end

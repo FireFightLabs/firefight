@@ -22,7 +22,7 @@ class IncidentFormField < ApplicationRecord
   belongs_to :incident_form
 
   # Why a configured field still will not reach responders. Set by the resolver,
-  # which knows the workspace and the form; a default field carries no
+  # which knows the workspace and the form. A default field carries no
   # incident_form, so it cannot work this out for itself.
   attr_accessor :inactive_reason
 

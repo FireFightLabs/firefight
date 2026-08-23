@@ -67,7 +67,7 @@ module Interactions
     # configured form at all, leave `next_update_at` untouched (the workspace
     # has opted out of update reminders). If it's on the form but the user
     # picked nothing, clear it. It rides along with the status rather than
-    # being written afterwards, so a terminal status wins: Incident::Lifecycle
+    # being written afterwards, so a terminal status wins. Incident::Lifecycle
     # clears next_update_at in the same save, and a later write would undo it.
     def self.next_update_attrs(submission)
       return {} unless submission.includes_system_key?(IncidentSystemField::KEY_NEXT_UPDATE)
@@ -78,7 +78,7 @@ module Interactions
     private_class_method :next_update_attrs
 
     # Only called when the responder asked for a reminder, so a blank
-    # next_update_at here means the save cleared it: the incident is over and
+    # next_update_at here means the save cleared it. The incident is over and
     # nobody is waiting on a next update.
     def self.schedule_next_update_reminder(incident)
       next_update_at = incident.next_update_at

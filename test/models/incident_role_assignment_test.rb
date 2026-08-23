@@ -3,9 +3,7 @@ require "test_helper"
 class IncidentRoleAssignmentTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles, :incidents, :incident_role_assignments
 
-  # ============================================================================
-  # ASSOCIATIONS
-  # ============================================================================
+  # Associations
 
   test "belongs to incident" do
     assignment = incident_role_assignments(:bob_comms_ws1_inc1)
@@ -42,9 +40,7 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
     assert assignment.valid?
   end
 
-  # ============================================================================
-  # VALIDATIONS
-  # ============================================================================
+  # Validations
 
   test "incident_role_id must be unique per incident" do
     existing = incident_role_assignments(:bob_lead_ws1_inc2)
@@ -69,9 +65,7 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
     assert assignment.valid?
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "recent scope orders by assigned_at descending" do
     assignments = IncidentRoleAssignment.recent.to_a
@@ -79,9 +73,7 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
     assert_equal assigned_times.sort.reverse, assigned_times
   end
 
-  # ============================================================================
-  # CALLBACKS
-  # ============================================================================
+  # Callbacks
 
   test "auto-sets assigned_at on create" do
     # Use a role that isn't already assigned to this incident
@@ -109,9 +101,7 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
     assert_equal custom_time.to_i, assignment.assigned_at.to_i
   end
 
-  # ============================================================================
-  # FIXTURES LOADING
-  # ============================================================================
+  # Fixtures loading
 
   test "workspace one fixtures load correctly" do
     assignment = incident_role_assignments(:bob_comms_ws1_inc1)

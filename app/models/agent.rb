@@ -1,6 +1,6 @@
-# An AI agent as a first-class principal: it acts with its own grants,
+# An AI agent as a first-class principal. It acts with its own grants,
 # never the inherited permissions of whoever triggered it. Rows arrive with
-# the investigator; the table exists so grants and the ledger never need a
+# the investigator. The table exists so grants and the ledger never need a
 # schema change when it does.
 class Agent < ApplicationRecord
   include Principal
@@ -18,7 +18,7 @@ class Agent < ApplicationRecord
   def actor_kind = "agent"
   def platform_user_id = nil
 
-  # Agents hold explicit grants — no implicit member-level reads.
+  # Agents hold explicit grants, no implicit member-level reads.
   def mcp_readable?(resource)
     Ability::Resolver.resolve(self).covers?(Ability::Action.system_key(resource, ApiKey::ACTION_READ))
   end

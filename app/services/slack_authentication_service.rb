@@ -1,18 +1,18 @@
 # Orchestrates Slack auth callbacks. Returns AuthOutcome describing what the
-# controller should do next. Decision logic lives here; HTTP concerns stay in
-# the controller; state changes happen on the models.
+# controller should do next. Decision logic lives here. HTTP concerns stay in
+# the controller. State changes happen on the models.
 class SlackAuthenticationService
   INVITE_REQUIRED_MESSAGE   = "Public beta access currently requires an invite code.".freeze
   WORKSPACE_MISMATCH_MESSAGE = "Workspace mismatch. Please sign in again with the workspace you want to connect.".freeze
 
   # OIDC sign-in (identity only). Two outcomes (plus the install-gated third):
-  #   - signed_in:      workspace exists; return or create the membership.
+  #   - signed_in:      workspace exists. Return or create the membership.
   #   - install_needed: no workspace for this team yet, hand off to the
   #                     onboarding invite-code step before the install callback.
   #
-  # Invite gating is scoped to new workspace installs — once a workspace is on
+  # Invite gating is scoped to new workspace installs, once a workspace is on
   # Firefight, any Slack member of that team can auto-provision. Slack is the
-  # source of truth for who belongs; the platform-level invite exists only to
+  # source of truth for who belongs. The platform-level invite exists only to
   # gate workspaces, not individuals.
   def handle_openid_signin(auth_hash)
     team_id   = auth_hash.info.team_id
@@ -40,11 +40,11 @@ class SlackAuthenticationService
   # an AuthOutcome so the controller has a uniform interface.
   #
   # @param user [User, nil] The installer, already identified by the prior OIDC
-  #   sign-in. Required for first-install: we never derive identity from the
+  #   sign-in. Required for first-install. We never derive identity from the
   #   install auth_hash's user_info (brittle and not the user who signed in).
   # @param pending_team_id [String, nil] The Slack team_id captured during the
   #   prior OIDC step. If provided and does not match the auth_hash's team_id,
-  #   the install is rejected — prevents bypassing invite gating by signing in
+  #   the install is rejected, prevents bypassing invite gating by signing in
   #   for team A and redirecting the bot install to team B.
   def handle_install(auth_hash, user: nil, invite_code: nil, pending_team_id: nil)
     team_id = auth_hash.extra.team_info["id"]
@@ -89,7 +89,7 @@ class SlackAuthenticationService
     AuthOutcome.invite_required(message: INVITE_REQUIRED_MESSAGE)
   end
 
-  # Kept for backward compatibility — older callers still expect a Hash.
+  # Kept for backward compatibility, older callers still expect a Hash.
   def process_oauth_callback(auth_hash)
     result = Workspace.process_slack_installation(auth_hash)
     trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]

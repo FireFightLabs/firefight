@@ -38,7 +38,7 @@ class NormalizeOptionDescriptions < ActiveRecord::Migration[8.1]
     end
   end
 
-  # A no-op rather than a raise: the pre-normalization text is not recoverable,
+  # A no-op rather than a raise, the pre-normalization text is not recoverable,
   # and normalized descriptions are valid input for the old code too.
   def down
   end

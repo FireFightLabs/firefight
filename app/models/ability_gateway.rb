@@ -1,12 +1,12 @@
 # The chokepoint every privileged operation routes through: resolve the
 # principal's grants, decide, ledger, execute. Convergence here IS the
-# safety property — API controllers, MCP dispatch, and (later) agent tool
+# safety property. API controllers, MCP dispatch, and (later) agent tool
 # calls all pass through this one method.
 #
 # Ledger policy: denials are always recorded, and so is every allowed call
 # that either changes something or reaches another system, as a write-ahead
-# row finalized after the call. Reads of Firefight's own data are left out;
-# they run at request volume and the request log already covers them.
+# row finalized after the call. Reads of Firefight's own data are left out.
+# They run at request volume and the request log already covers them.
 class AbilityGateway
   SOURCE_API = "api"
   SOURCE_MCP = "mcp"
@@ -139,7 +139,7 @@ class AbilityGateway
   end
 
   def self.approval_requirement(workspace, action, action_key, scope, context)
-    # Resolving an approval is itself the approval mechanism — matching it
+    # Resolving an approval is itself the approval mechanism, matching it
     # against approval policies would gate approvals behind approvals. The
     # Approval model's role/self-approval rules govern resolution instead.
     return nil if action_key.start_with?("#{ApiKey::RESOURCE_APPROVALS}.")
@@ -165,7 +165,7 @@ class AbilityGateway
   #
   # Slack participation is the other exemption. A responder clicking buttons in
   # their own incident channel writes an IncidentEvent through record_change!
-  # already, and that timeline is the better record; ledgering it twice buries
+  # already, and that timeline is the better record. Ledgering it twice buries
   # the agent and API rows the ledger exists for. Tool calls from Slack are
   # still recorded, because they leave Firefight.
   def self.ledger_execution?(action, principal, context)

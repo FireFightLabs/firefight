@@ -2,11 +2,11 @@ module Slack
   module Messages
     # The block of incident facts that both the announcement in #incidents and
     # the pinned message in the incident channel are built around. They used to
-    # build it separately and had already drifted: the same person was the
+    # build it separately and had already drifted. The same person was the
     # Reporter in one and Declared by in the other.
     #
     # The channel line is the one real difference. The announcement points at
-    # the incident channel; the pinned message is already in it.
+    # the incident channel. The pinned message is already in it.
     module IncidentDetail
       def self.blocks(title:, summary:, severity_name:, status_name:, reporter_id:,
                       lead_id: nil, channel_id: nil, relationship_text: nil, custom_fields_text: nil)

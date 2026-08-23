@@ -24,7 +24,7 @@ module ConnectionWarmup
 
   # Instantiates the Slack persistent pool eagerly so the first request
   # doesn't race the lazy init under concurrent Puma threads. Per-thread TCP
-  # sockets are still opened lazily — only the pool object is materialized.
+  # sockets are still opened lazily, only the pool object is materialized.
   def self.warm_slack_pool
     Slack::Client.http_pool
   rescue StandardError => e
@@ -32,7 +32,7 @@ module ConnectionWarmup
   end
 end
 
-# Runs once per process after all initializers — covers Puma workers (forked
+# Runs once per process after all initializers, covers Puma workers (forked
 # via Phased Restart or boot), SolidQueue workers, console, rake tasks.
 # Single entry point so we don't double-warm.
 Rails.application.config.after_initialize do

@@ -27,7 +27,7 @@ class DashboardController < InertiaController
     @severity_slugs ||= Array(params[:severities]).compact_blank
   end
 
-  # UI exposes only Active/Closed chips, so "active" must include triage —
+  # UI exposes only Active/Closed chips, so "active" must include triage,
   # triaged incidents are operationally "open now" from a user's perspective.
   def lifecycle_keys
     @lifecycle_keys ||= Array(params[:statuses]).compact_blank.flat_map { |k|

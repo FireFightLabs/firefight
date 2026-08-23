@@ -1,6 +1,6 @@
 module Integrations
   # Streamable-HTTP MCP client for consuming external MCP servers. Servers
-  # like GitHub's are session-based: initialize returns an Mcp-Session-Id
+  # like GitHub's are session-based. Initialize returns an Mcp-Session-Id
   # that every later request must echo, and the spec requires a
   # notifications/initialized before other calls. Handles plain JSON and
   # single-event SSE bodies.

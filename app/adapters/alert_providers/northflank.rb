@@ -3,7 +3,7 @@ module AlertProviders
   #   { "event" => "container:crash", "data" => { "service" => {...}, "project" => {...}, ... } }
   # The integration secret arrives in X-Northflank-Notification-Integration-Token.
   # Northflank events are one-shot (no resolved counterpart), so alerts are
-  # always firing; fingerprinting on event+project+service collapses a
+  # always firing. Fingerprinting on event+project+service collapses a
   # crash-looping container into one alert.
   class Northflank < Base
     TOKEN_HEADER = "X-Northflank-Notification-Integration-Token".freeze

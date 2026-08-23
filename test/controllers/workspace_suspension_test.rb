@@ -1,6 +1,6 @@
 require "test_helper"
 
-# One suite for the whole rule: a suspended workspace is refused at every entry
+# One suite for the whole rule, a suspended workspace is refused at every entry
 # point. Slack commands answer with the suspension message, surfaces that
 # cannot answer drop the request, and authenticated surfaces return 403.
 class WorkspaceSuspensionTest < ActionDispatch::IntegrationTest

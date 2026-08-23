@@ -35,7 +35,7 @@ module Slack
         }
       end
 
-      # What the incident will hold once this is submitted: the status in front
+      # What the incident will hold once this is submitted, the status in front
       # of the responder over the one it still has. Mirrors what
       # Slack::FormSubmission builds on submit, so the fields the modal shows
       # are the fields the submission then asks for.

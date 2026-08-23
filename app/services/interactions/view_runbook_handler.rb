@@ -1,5 +1,5 @@
 module Interactions
-  # Stays sync: trigger_id expires in 3s.
+  # Stays sync, trigger_id expires in 3s.
   class ViewRunbookHandler
     extend HandlerAuthorization
     authorize_as ApiKey::RESOURCE_RUNBOOKS

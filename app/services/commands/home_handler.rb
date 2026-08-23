@@ -1,6 +1,6 @@
 module Commands
-  # Sub-dispatcher for /ff. Routes a subcommand to the command that owns it;
-  # the table is also what CommandDispatcher reads to find the leaf whose
+  # Sub-dispatcher for /ff. Routes a subcommand to the command that owns it.
+  # The table is also what CommandDispatcher reads to find the leaf whose
   # authorization the Ability Gateway checks, so routing has one source.
   class HomeHandler
     extend HandlerAuthorization

@@ -2,9 +2,9 @@ module Auth
   class OmniauthCallbacksController < ApplicationController
     skip_before_action :verify_authenticity_token, only: [ :slack, :slack_openid ]
 
-    # Step 1 — OIDC sign-in (identity only). Decides where to send the user
+    # Step 1, OIDC sign-in (identity only). Decides where to send the user
     # next via AuthOutcome: signed_in (existing or newly-provisioned member) or
-    # install_needed (no workspace for this team yet — sends them to the invite
+    # install_needed (no workspace for this team yet, sends them to the invite
     # code step before the install callback).
     def slack_openid
       outcome = SlackAuthenticationService.new.handle_openid_signin(auth_hash)
@@ -14,9 +14,9 @@ module Auth
       redirect_to login_path, alert: "Sign-in failed. Please try again."
     end
 
-    # Step 2 — bot install. Creates the workspace + owner membership.
+    # Step 2, bot install. Creates the workspace + owner membership.
     # The installer's identity was established in step 1 (OIDC) and stashed in
-    # session as `pending_user_id`; we pass that user through so the install
+    # session as `pending_user_id`. We pass that user through so the install
     # callback doesn't re-derive identity from the bot install's auth_hash
     # (whose user_info / email fetch is brittle and not required here).
     def slack

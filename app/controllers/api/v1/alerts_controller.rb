@@ -1,6 +1,6 @@
 # Alert ingest endpoint. Authenticated per-source (endpoint_path + secret via
-# the provider adapter), not via Slack signatures or public-API Bearer keys;
-# so it inherits neither BaseController nor ApiController.
+# the provider adapter), not via Slack signatures or public-API Bearer keys.
+# So it inherits neither BaseController nor ApiController.
 class Api::V1::AlertsController < ActionController::API
   MAX_PAYLOAD_BYTES = 512.kilobytes
   MAX_BATCH_ITEMS = 100

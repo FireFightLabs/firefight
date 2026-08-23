@@ -6,9 +6,7 @@ class WebhookDeliveryTest < ActiveSupport::TestCase
            :incident_statuses, :incident_severities, :incidents, :incident_events,
            :webhooks, :webhook_delinquency_trackers, :webhook_deliveries
 
-  # ============================================================================
-  # ASSOCIATIONS
-  # ============================================================================
+  # Associations
 
   test "belongs to webhook" do
     delivery = webhook_deliveries(:completed_delivery)
@@ -21,9 +19,7 @@ class WebhookDeliveryTest < ActiveSupport::TestCase
     assert_instance_of IncidentEvent, delivery.incident_event
   end
 
-  # ============================================================================
-  # STATE
-  # ============================================================================
+  # State
 
   test "default state is pending" do
     delivery = WebhookDelivery.new
@@ -50,9 +46,7 @@ class WebhookDeliveryTest < ActiveSupport::TestCase
     assert_not delivery.failed?
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "stale scope finds deliveries older than threshold" do
     old_delivery = webhook_deliveries(:completed_delivery)
@@ -66,9 +60,7 @@ class WebhookDeliveryTest < ActiveSupport::TestCase
     assert_not_includes WebhookDelivery.stale, delivery
   end
 
-  # ============================================================================
-  # DELIVERY ENQUEUE
-  # ============================================================================
+  # Delivery enqueue
 
   test "enqueues delivery job after create" do
     assert_enqueued_with(job: Webhooks::DeliveryJob) do

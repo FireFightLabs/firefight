@@ -2,7 +2,7 @@
 # code-defined system field defaults with per-workspace DB overlay rows.
 #
 # Source of truth:
-#   - Defaults come from `IncidentSystemField.defaults_for(form_slug)` —
+#   - Defaults come from `IncidentSystemField.defaults_for(form_slug)`,
 #     they always exist, the code depends on them, no migration is needed
 #     when a new system field is added.
 #   - DB rows in `incident_form_fields` are overlays:
@@ -40,7 +40,7 @@ class IncidentFormResolver
   def resolve(lifecycle_event, context: {}, include_hidden: false, form: nil)
     raise ArgumentError, "Unknown form slug: #{lifecycle_event}" unless IncidentForm::DEFAULTS_BY_SLUG.key?(lifecycle_event)
 
-    # IncidentForm rows are optional — they exist only when an admin has
+    # IncidentForm rows are optional, they exist only when an admin has
     # customized the form. Fall back to code defaults when no row exists.
     form ||= @workspace.incident_forms.find_by(lifecycle_event: lifecycle_event)
     db_rows = form ? form.incident_form_fields.includes(:incident_conditions, incident_field_definition: [ :incident_field_options, :catalog_type ]).to_a : []
@@ -150,7 +150,7 @@ class IncidentFormResolver
 
   # A field the answers so far have made pointless. Distinct from
   # `unanswerable_reason`, which is about how the workspace is configured and
-  # so belongs in the editor: this reads what the responder has just picked and
+  # so belongs in the editor. This reads what the responder has just picked and
   # changes from one submission to the next, which is why it sits with the
   # condition match and never reaches the editor.
   def moot_for_context?(field, context)
@@ -179,7 +179,7 @@ class IncidentFormResolver
   # Why a configured field cannot be put to a responder, or nil if it can.
   #
   # This has to live here rather than in the Slack block builders, because
-  # `validate_submission` reads the same resolved set: a field suppressed only
+  # `validate_submission` reads the same resolved set, a field suppressed only
   # at render is still demanded on submit, which produces a modal that can
   # never be submitted and names a field it never showed.
   def unanswerable_reason(field, lifecycle_event)

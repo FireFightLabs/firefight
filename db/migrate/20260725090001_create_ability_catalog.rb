@@ -1,7 +1,7 @@
 class CreateAbilityCatalog < ActiveRecord::Migration[8.1]
   def change
     create_table :ability_actions, id: :uuid, default: -> { "gen_random_uuid()" } do |t|
-      # workspace_id null = global system action; tool actions are workspace-scoped
+      # workspace_id null = global system action. Tool actions are workspace-scoped
       t.uuid :workspace_id
       t.string :kind, null: false
       t.string :key, null: false

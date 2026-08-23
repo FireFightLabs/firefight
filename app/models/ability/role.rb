@@ -1,6 +1,6 @@
 module Ability
   # A workspace-defined bundle of actions, granted to principals as one
-  # unit. Distinct from IncidentRole (incident staffing) — this is the
+  # unit. Distinct from IncidentRole (incident staffing), this is the
   # permission-bundle side of the Ability Gateway.
   class Role < ApplicationRecord
     include Sluggable

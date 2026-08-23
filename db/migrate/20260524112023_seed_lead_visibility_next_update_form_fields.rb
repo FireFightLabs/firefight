@@ -3,7 +3,7 @@ class SeedLeadVisibilityNextUpdateFormFields < ActiveRecord::Migration[8.1]
 
   # Add the newly-registered system fields (lead / visibility / next_update)
   # to existing workspaces' default forms. Idempotent via `find_or_create_by!`
-  # in `setup_incident_forms!` — only inserts rows that don't already exist.
+  # in `setup_incident_forms!`, only inserts rows that don't already exist.
   def up
     Workspace.find_each do |workspace|
       workspace.setup_incident_forms!

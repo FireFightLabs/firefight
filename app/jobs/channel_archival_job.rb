@@ -24,7 +24,7 @@ class ChannelArchivalJob < ApplicationJob
   rescue AdapterError::AlreadyArchived
     incident.update!(channel_archived_at: Time.current, channel_archived_by: "system")
   rescue AdapterError::AuthRevoked
-    # Notifier was already fired inside the adapter; re-raise so SolidQueue
+    # Notifier was already fired inside the adapter. Re-raise so SolidQueue
     # surfaces the failure instead of silently swallowing a broken integration.
     raise
   rescue AdapterError => e

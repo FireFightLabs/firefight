@@ -15,7 +15,7 @@ module OmniAuth
     # workspace picker and consent screen, returns user identity only,
     # and does NOT install a bot.
     #
-    # Pairs with the regular `slack` strategy: this one establishes user
+    # Pairs with the regular `slack` strategy. This one establishes user
     # identity, the other handles bot installation.
     class SlackOpenid < OmniAuth::Strategies::OAuth2
       option :name, "slack_openid"

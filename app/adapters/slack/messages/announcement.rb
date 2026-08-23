@@ -1,7 +1,7 @@
 module Slack
   module Messages
     # Announcement posted to the #incidents channel when an incident is
-    # declared. `build` derives the message from an Incident; `build_from`
+    # declared. `build` derives the message from an Incident. `build_from`
     # accepts a plain hash and is used for the install-time preview when
     # there's no real incident yet.
     module Announcement

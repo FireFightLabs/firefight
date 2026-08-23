@@ -1,9 +1,7 @@
 module Slack::WorkspaceAdapter::WorkspaceSetup
   extend ActiveSupport::Concern
 
-  # Create incidents channel
-  #
-  # @return [Hash] Normalized response with :channel_id, :channel_name, :already_existed
+  # Returns :channel_id, :channel_name and :already_existed.
   def create_incidents_channel
     translate_errors do
       result = Slack::Client.create_channel(
@@ -66,12 +64,6 @@ module Slack::WorkspaceAdapter::WorkspaceSetup
     end
   end
 
-  # Open share channel modal
-  #
-  # @param trigger_id [String] Slack trigger ID from interaction
-  # @param user_id [String] Slack user ID who clicked the button
-  # @param channel_id [String] Incidents channel ID to share
-  # @return [Hash] Response with :success
   def open_share_modal(trigger_id:, user_id:, channel_id:)
     open_modal(
       trigger_id: trigger_id,
@@ -79,12 +71,7 @@ module Slack::WorkspaceAdapter::WorkspaceSetup
     )
   end
 
-  # Post share message to selected channels
-  #
-  # @param user_id [String] User ID who is sharing
-  # @param channel_id [String] Incidents channel ID
-  # @param target_conversations [Array<String>] Channel/DM IDs to post to
-  # @return [Hash] Response with :shared_count, :failed_count
+  # Returns :shared_count and :failed_count, since a share can partly fail.
   def post_share_messages(user_id:, channel_id:, target_conversations:)
     share_message = Slack::InstallationMessageBuilder.share_message(
       user_id,

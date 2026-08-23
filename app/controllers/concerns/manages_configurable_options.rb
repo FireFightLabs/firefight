@@ -27,7 +27,7 @@ module ManagesConfigurableOptions
     redirect_back fallback_location: options_path, inertia: { errors: e.record.errors.to_hash }
   end
 
-  # Renaming leaves the slug alone: it is the stable handle other code and
+  # Renaming leaves the slug alone. It is the stable handle other code and
   # stored records refer to.
   def update
     attrs = { name: params[:name], description: params[:description], color: params[:color] }.compact

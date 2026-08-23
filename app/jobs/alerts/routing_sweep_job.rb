@@ -1,4 +1,4 @@
-# Retries alerts whose inline routing failed (persist-first design: the row is
+# Retries alerts whose inline routing failed (persist-first design, the row is
 # safe with routing_state: pending, this sweep closes the loop).
 class Alerts::RoutingSweepJob < ApplicationJob
   queue_as :events

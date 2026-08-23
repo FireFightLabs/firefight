@@ -1,8 +1,8 @@
 module Ability
-  # Grant scope semantics, pinned by the gateway design: a scope is a hash
+  # Grant scope semantics, pinned by the gateway design. A scope is a hash
   # of dimension => allowed catalog-entry ids. A missing dimension means
-  # unrestricted; an empty array is invalid (never a way to say "all");
-  # a request matches when its value for every scoped dimension is in the
+  # unrestricted. An empty array is invalid (never a way to say "all").
+  # A request matches when its value for every scoped dimension is in the
   # grant's list.
   module Scope
     DIMENSION_ENVIRONMENT = "environment"

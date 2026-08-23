@@ -1,7 +1,7 @@
 module Ability
   # The atomic permissioned unit of the Ability Gateway. System actions are
   # global rows (workspace_id nil) derived from ApiKey resource/action
-  # constants; tool actions are workspace-scoped and minted by integrations.
+  # constants. Tool actions are workspace-scoped and minted by integrations.
   class Action < ApplicationRecord
     KIND_SYSTEM = "system"
     KIND_TOOL = "tool"
@@ -40,7 +40,7 @@ module Ability
 
     # A key resolves to the global system action or the workspace's own
     # tool action. Keys inside the system space self-heal (same rule as
-    # system!, so an unseeded environment can't deny valid actions); any
+    # system!, so an unseeded environment can't deny valid actions). Any
     # other unknown key resolves to nil and the gateway denies it.
     def self.lookup(key, workspace)
       found = where(workspace_id: [ nil, workspace&.id ]).find_by(key: key)
@@ -50,7 +50,7 @@ module Ability
     end
 
     # Lazily materializes a system action so grant writes never race the
-    # seed; safe under parallel creation via the partial unique index.
+    # seed. Safe under parallel creation via the partial unique index.
     def self.system!(key)
       crud_action = key.split(".").last
       find_or_create_by!(workspace_id: nil, key: key) do |action|

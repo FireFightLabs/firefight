@@ -1,6 +1,6 @@
 module Integrations
   # Builds outbound auth headers for a wired environment. Static tokens pass
-  # through; OAuth credentials rotate themselves when close to expiry and the
+  # through. OAuth credentials rotate themselves when close to expiry and the
   # rotation is persisted before it is used.
   class Credentials
     def self.headers_for(environment_row)

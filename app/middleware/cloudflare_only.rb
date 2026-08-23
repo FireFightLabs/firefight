@@ -1,16 +1,16 @@
 require "ipaddr"
 require "net/http"
 
-# Optional middleware: rejects requests not coming from Cloudflare's edge.
+# Optional middleware that rejects requests not coming from Cloudflare's edge.
 #
 # Enabled when CLOUDFLARE_ONLY is set to:
-#   - "behind_lb" (default) — app is behind a load balancer with no source
+#   - "behind_lb" (default). The app is behind a load balancer with no source
 #     IP filtering of its own. Checks the last X-Forwarded-For entry, which
 #     is the IP that connected to the LB (should be a Cloudflare edge).
-#   - "direct"     — app is exposed to the internet, Cloudflare proxies
+#   - "direct". The app is exposed to the internet and Cloudflare proxies
 #     directly to it. Checks REMOTE_ADDR.
 #
-# /up is exempt — health checks come from non-Cloudflare sources (LB or
+# /up is exempt, health checks come from non-Cloudflare sources (LB or
 # uptime monitors).
 class CloudflareOnly
   HEALTH_CHECK_PATH = "/up".freeze

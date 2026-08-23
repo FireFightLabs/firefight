@@ -9,17 +9,13 @@ class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
     @form_field = incident_form_fields(:declare_name_field_ws1)
   end
 
-  # ============================================================================
-  # MATCH? WITH EMPTY CONDITIONS
-  # ============================================================================
+  # match? with empty conditions
 
   test "match? returns true when conditions are empty" do
     assert IncidentConditionEvaluator.match?([], { incident_type: "any" })
   end
 
-  # ============================================================================
-  # ONE_OF OPERATOR
-  # ============================================================================
+  # one_of operator
 
   test "one_of matches when value is in target list" do
     condition = build_condition(
@@ -51,9 +47,7 @@ class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
     assert_not IncidentConditionEvaluator.match?([ condition ], { incident_type: nil })
   end
 
-  # ============================================================================
-  # NOT_ONE_OF OPERATOR
-  # ============================================================================
+  # not_one_of operator
 
   test "not_one_of matches when value is not in target list" do
     condition = build_condition(
@@ -75,9 +69,7 @@ class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
     assert_not IncidentConditionEvaluator.match?([ condition ], { incident_type: "type-a" })
   end
 
-  # ============================================================================
-  # MULTIPLE CONDITIONS (AND LOGIC)
-  # ============================================================================
+  # Multiple conditions (and logic)
 
   test "multiple conditions use AND logic — all must match" do
     type_condition = build_condition(
@@ -115,9 +107,7 @@ class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
     )
   end
 
-  # ============================================================================
-  # SEVERITY CONDITION
-  # ============================================================================
+  # Severity condition
 
   test "severity condition matches correctly" do
     condition = build_condition(
@@ -131,9 +121,7 @@ class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
     assert_not IncidentConditionEvaluator.match?([ condition ], { severity: "minor" })
   end
 
-  # ============================================================================
-  # CUSTOM FIELD CONDITIONS
-  # ============================================================================
+  # Custom field conditions
 
   test "custom_field one_of matches scalar value present in target list" do
     defn = incident_field_definitions(:customer_tier_ws1)

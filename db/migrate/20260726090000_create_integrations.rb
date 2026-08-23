@@ -5,7 +5,7 @@ class CreateIntegrations < ActiveRecord::Migration[8.1]
       t.string :kind, null: false
       t.string :provider, null: false
       t.string :name, null: false
-      # Namespaces this instance's action keys (github.pr_list); immutable.
+      # Namespaces this instance's action keys (github.pr_list). Immutable.
       t.string :slug, null: false
       t.jsonb :settings, default: {}, null: false
       t.datetime :disabled_at
@@ -18,7 +18,7 @@ class CreateIntegrations < ActiveRecord::Migration[8.1]
 
     create_table :integration_environments, id: :uuid, default: -> { "gen_random_uuid()" } do |t|
       t.uuid :integration_id, null: false
-      # nil = not environment-scoped (e.g. GitHub) — the "global" row.
+      # nil = not environment-scoped (e.g. GitHub), the "global" row.
       t.uuid :catalog_entry_id
       t.text :credentials
       t.jsonb :base_config, default: {}, null: false

@@ -1,7 +1,6 @@
 require "net/http/persistent"
 
 module Slack
-  # Wrapper for Slack Web API calls
   class Client
     SLACK_API_BASE = "https://slack.com/api"
 
@@ -53,14 +52,8 @@ module Slack
       "not_authed"         => AuthRevokedError
     }.freeze
 
-    # Open a modal in Slack
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param trigger_id [String] Slack trigger_id from slash command (expires in 3s)
-    # @param view [Hash] Block Kit modal view JSON
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [TriggerExpiredError] if trigger_id has expired
-    # @raise [ApiError] if Slack API returns an error
+    # trigger_id expires three seconds after the slash command, and Slack rejects
+    # the open once it does.
     def self.open_modal(workspace:, trigger_id:, view:)
       api_post(
         workspace: workspace,
@@ -83,14 +76,6 @@ module Slack
       )
     end
 
-    # Post a message to a Slack channel
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param channel [String] Channel ID
-    # @param text [String] Message text
-    # @param blocks [Array<Hash>] Optional Block Kit blocks
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [ApiError] if Slack API returns an error
     def self.post_message(workspace:, channel:, text:, blocks: nil, thread_ts: nil)
       api_post(
         workspace: workspace,
@@ -104,15 +89,6 @@ module Slack
       )
     end
 
-    # Post an ephemeral message (only visible to specific user)
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param channel [String] Channel ID
-    # @param user [String] User ID who will see the message
-    # @param text [String] Message text
-    # @param blocks [Array<Hash>] Optional Block Kit blocks
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [ApiError] if Slack API returns an error
     def self.post_ephemeral(workspace:, channel:, user:, text:, blocks: nil)
       api_post(
         workspace: workspace,
@@ -126,15 +102,8 @@ module Slack
       )
     end
 
-    # Create a Slack channel
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param name [String] Channel name
-    # @param is_private [Boolean] Whether the channel should be private
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [ChannelExistsError] if channel name already exists
-    # @raise [ApiError] if Slack API returns an error
-    # @see https://api.slack.com/methods/conversations.create
+    # Slack rejects a name already in use, which surfaces as ChannelExistsError.
+    # https://api.slack.com/methods/conversations.create
     def self.create_channel(workspace:, name:, is_private: false)
       api_post(
         workspace: workspace,
@@ -146,13 +115,6 @@ module Slack
       )
     end
 
-    # Set channel topic
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param channel [String] Channel ID
-    # @param topic [String] New topic text
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [ApiError] if Slack API returns an error
     def self.set_channel_topic(workspace:, channel:, topic:)
       api_post(
         workspace: workspace,
@@ -164,13 +126,6 @@ module Slack
       )
     end
 
-    # Set channel purpose (description)
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param channel [String] Channel ID
-    # @param purpose [String] New purpose text
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [ApiError] if Slack API returns an error
     def self.set_channel_purpose(workspace:, channel:, purpose:)
       api_post(
         workspace: workspace,
@@ -182,13 +137,7 @@ module Slack
       )
     end
 
-    # Invite users to a channel
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param channel [String] Channel ID
-    # @param users [Array<String>, String] User IDs to invite (array or comma-separated string)
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [ApiError] if Slack API returns an error
+    # users takes an array or a comma-separated string.
     def self.invite_to_channel(workspace:, channel:, users:)
       users_str = if users.is_a?(Array)
         users.join(",")
@@ -206,13 +155,6 @@ module Slack
       )
     end
 
-    # Pin a message in a channel
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param channel [String] Channel ID
-    # @param timestamp [String] Message timestamp to pin
-    # @return [Hash] Slack API response
-    # @raise [ApiError] if Slack API returns an error
     def self.add_reaction(workspace:, channel:, timestamp:, name:)
       api_post(
         workspace: workspace,
@@ -236,15 +178,6 @@ module Slack
       )
     end
 
-    # Update an existing message in a Slack channel
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param channel [String] Channel ID
-    # @param ts [String] Timestamp of the message to update
-    # @param text [String] New message text
-    # @param blocks [Array<Hash>] Optional Block Kit blocks
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [ApiError] if Slack API returns an error
     def self.update_message(workspace:, channel:, ts:, text:, blocks: nil)
       api_post(
         workspace: workspace,
@@ -258,13 +191,6 @@ module Slack
       )
     end
 
-    # Delete a message from a Slack channel
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param channel [String] Channel ID
-    # @param ts [String] Timestamp of the message to delete
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [ApiError] if Slack API returns an error
     def self.delete_message(workspace:, channel:, ts:)
       api_post(
         workspace: workspace,
@@ -276,13 +202,6 @@ module Slack
       )
     end
 
-    # Update an existing modal in Slack
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param view_id [String] The ID of the view to update
-    # @param view [Hash] Updated Block Kit modal view JSON
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [ApiError] if Slack API returns an error
     def self.update_modal(workspace:, view_id:, view:)
       api_post(
         workspace: workspace,
@@ -294,13 +213,7 @@ module Slack
       )
     end
 
-    # Archive a Slack channel
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param channel [String] Channel ID
-    # @return [Hash] Slack API response with indifferent access
-    # @raise [AlreadyArchivedError] if channel is already archived
-    # @raise [ApiError] if Slack API returns an error
+    # Archiving an archived channel raises AlreadyArchivedError.
     def self.archive_channel(workspace:, channel:)
       api_post(
         workspace: workspace,
@@ -323,17 +236,11 @@ module Slack
       { ok: true }
     end
 
-    # List all channels in the workspace
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param types [String] Comma-separated list of channel types (default: "public_channel")
-    # @return [Array<Hash>] Array of channel objects
-    # @raise [ApiError] if Slack API returns an error
     def self.list_conversations(workspace:, types: "public_channel")
       channels = []
       cursor = nil
 
-      # Paginate with a hard cap; conversations.list is Tier 2 rate limited.
+      # Paginate with a hard cap. conversations.list is Tier 2 rate limited.
       10.times do
         payload = { types: types, exclude_archived: true, limit: 200 }
         payload[:cursor] = cursor if cursor.present?
@@ -419,7 +326,7 @@ module Slack
       response = pool_request(uri, request, endpoint: "files.download")
 
       # Slack private file URLs redirect to a presigned CDN URL. Follow the
-      # redirect without the Bearer token — the presigned URL carries its own auth.
+      # redirect without the Bearer token, the presigned URL carries its own auth.
       # Auth failures redirect back to the Slack login page (same host, ?redir= param).
       if response.code.to_i.between?(301, 302) && response["location"].present?
         redirect_location = response["location"]
@@ -446,14 +353,13 @@ module Slack
       }
     end
 
-    # Persistent HTTP connection pool for Slack API. Per-thread socket caches
-    # are managed inside Net::HTTP::Persistent; the pool object is shared
-    # across Puma threads.
+    # Net::HTTP::Persistent keeps a socket cache per thread, and Puma threads
+    # share this one pool object.
     #
-    # idle_timeout (30s): safely under typical AWS ALB / Slack edge idle
-    # window (~60s); pool_request retries once if we ever reuse a half-closed
-    # socket. open/read timeout: a wedged Slack endpoint can't pin a Puma
-    # thread forever.
+    # The 30s idle_timeout sits under the ~60s idle window of a typical AWS ALB
+    # or the Slack edge. If we do reuse a half-closed socket, pool_request
+    # retries once. The open and read timeouts stop a wedged Slack endpoint
+    # from pinning a Puma thread forever.
     OPEN_TIMEOUT_SECONDS    = 5
     READ_TIMEOUT_SECONDS    = 10
     IDLE_TIMEOUT_SECONDS    = 30
@@ -559,13 +465,6 @@ module Slack
 
     private
 
-    # Make a POST request to Slack API
-    #
-    # @param workspace [Workspace] The workspace to use for authentication
-    # @param endpoint [String] Slack API endpoint (e.g., "chat.postMessage")
-    # @param payload [Hash] Request payload
-    # @return [Hash] Parsed JSON response with indifferent access
-    # @raise [ApiError] if request fails or Slack returns an error
     def self.api_get(workspace:, endpoint:, params: {})
       uri = URI("#{SLACK_API_BASE}/#{endpoint}")
       uri.query = URI.encode_www_form(params) if params.any?

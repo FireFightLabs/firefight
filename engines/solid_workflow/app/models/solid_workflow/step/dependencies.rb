@@ -17,7 +17,7 @@ module SolidWorkflow
 
       # Cascades transitive parent inputs forward so a late step has the
       # full chain of upstream parameters available without re-querying the
-      # DB — supports replay/idempotency even if the source records mutate
+      # DB, supports replay/idempotency even if the source records mutate
       # later. Capped so a runaway chain becomes observable instead of
       # silently bloating the input column.
       MAX_INPUT_BYTES = 64_000

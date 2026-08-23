@@ -1,6 +1,6 @@
 module Ability
   # Attaches an action (direct) or a role (bundle) to a principal. Scope
-  # narrows where the grant applies (see Ability::Scope); ids in scopes,
+  # narrows where the grant applies (see Ability::Scope). ids in scopes,
   # labels only ever in the ledger.
   class Grant < ApplicationRecord
     belongs_to :workspace
@@ -20,7 +20,7 @@ module Ability
 
     after_commit :bust_principal_cache
 
-    # What an admin can hand out here: every global system action plus the
+    # What an admin can hand out here, every global system action plus the
     # tool actions this workspace has minted by enabling a capability.
     def self.grantable_actions(workspace)
       Ability::Action.where(workspace_id: [ nil, workspace.id ])

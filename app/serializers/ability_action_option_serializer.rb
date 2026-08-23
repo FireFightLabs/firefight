@@ -13,7 +13,7 @@ class AbilityActionOptionSerializer < BaseSerializer
     reversible: { type: :boolean }
   )
 
-  # Tool actions group under the connection that minted them; system actions
+  # Tool actions group under the connection that minted them. System actions
   # under Firefight itself.
   type :string
   def group

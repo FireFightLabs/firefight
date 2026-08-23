@@ -3,9 +3,7 @@ require "test_helper"
 class WebhookTest < ActiveSupport::TestCase
   fixtures :workspaces, :webhooks, :webhook_delinquency_trackers
 
-  # ============================================================================
-  # SUBSCRIBABLE EVENTS
-  # ============================================================================
+  # Subscribable events
 
   # The dashboard's list is a hand-maintained copy of this constant, and it
   # drifted by five events before anyone noticed. An event the server delivers
@@ -26,9 +24,7 @@ class WebhookTest < ActiveSupport::TestCase
     end
   end
 
-  # ============================================================================
-  # ASSOCIATIONS
-  # ============================================================================
+  # Associations
 
   test "belongs to workspace" do
     webhook = webhooks(:active_webhook)
@@ -41,9 +37,7 @@ class WebhookTest < ActiveSupport::TestCase
     assert_instance_of WebhookDelinquencyTracker, webhook.webhook_delinquency_tracker
   end
 
-  # ============================================================================
-  # VALIDATIONS
-  # ============================================================================
+  # Validations
 
   test "requires name" do
     webhook = Webhook.new(workspace: workspaces(:slack_workspace_one), url: "https://example.com")
@@ -89,9 +83,7 @@ class WebhookTest < ActiveSupport::TestCase
     assert webhook.valid?
   end
 
-  # ============================================================================
-  # TOKEN GENERATION
-  # ============================================================================
+  # Token generation
 
   test "auto-generates signing_secret on create" do
     webhook = Webhook.create!(
@@ -103,9 +95,7 @@ class WebhookTest < ActiveSupport::TestCase
     assert_equal 32, webhook.signing_secret.length
   end
 
-  # ============================================================================
-  # NORMALIZATION
-  # ============================================================================
+  # Normalization
 
   test "normalizes subscribed_events to only permitted values" do
     webhook = Webhook.new(
@@ -136,9 +126,7 @@ class WebhookTest < ActiveSupport::TestCase
     assert_equal "https://example.com", webhook.url
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "active scope returns only active webhooks" do
     active = Webhook.active.where(workspace: workspaces(:slack_workspace_one))
@@ -159,9 +147,7 @@ class WebhookTest < ActiveSupport::TestCase
     assert_not_includes matches, webhooks(:active_webhook)
   end
 
-  # ============================================================================
-  # ACTIVATE / DEACTIVATE
-  # ============================================================================
+  # Activate / deactivate
 
   test "deactivate! sets active to false" do
     webhook = webhooks(:active_webhook)
@@ -175,9 +161,7 @@ class WebhookTest < ActiveSupport::TestCase
     assert webhook.reload.active?
   end
 
-  # ============================================================================
-  # DELINQUENCY TRACKER AUTO-CREATION
-  # ============================================================================
+  # Delinquency tracker auto-creation
 
   test "creates delinquency tracker on create" do
     webhook = Webhook.create!(

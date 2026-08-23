@@ -261,7 +261,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
 
   test "workflow requires installer_user_id in context" do
     stub_successful_slack_workflow
-    # This tests that workflow uses the context
     workflow = SlackWorkspaceSetupWorkflow.start_inline!(
       @workspace,
       context: { installer_user_id: "U12345678" }
@@ -289,8 +288,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
 
   test "workflow can be started asynchronously" do
     stub_successful_slack_workflow
-    # This just verifies the method exists and doesn't error
-    # Actual async execution would require background job processing
+    # Enqueues only. Running the job itself needs a background worker.
     workflow = SlackWorkspaceSetupWorkflow.start!(
       @workspace,
       context: { installer_user_id: "U12345678" }

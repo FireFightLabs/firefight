@@ -4,7 +4,7 @@ module AlertProviders
   # Alertmanager batch multiple alerts per POST). Each item is
   # { fields: {...}, payload: <that item's slice of the body> } so a batch of
   # N alerts stores N slices, not N copies of the whole body. Adapters are
-  # thin boundary normalizers: no business logic, no persistence.
+  # thin boundary normalizers, no business logic, no persistence.
   class Base
     NORMALIZED_FIELDS = %w[external_id fingerprint status title description service severity_raw team environment].freeze
 

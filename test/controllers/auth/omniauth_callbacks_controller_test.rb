@@ -13,7 +13,7 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     OmniAuth.config.test_mode = false
   end
 
-  # slack_openid — OIDC sign-in
+  # slack_openid, OIDC sign-in
 
   test "slack_openid signs in an existing member and redirects to dashboard" do
     workspace = workspaces(:slack_workspace_one)
@@ -69,7 +69,7 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "member",               new_membership.role
   end
 
-  # slack — bot install
+  # slack, bot install
 
   test "slack install uses pending_user from session to create workspace + owner membership after invite is claimed" do
     stub_successful_slack_workflow
@@ -151,7 +151,7 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
 
     # Direct contract: reset_session must be called on sign-in to mitigate
     # session fixation. (A cookie-rotation probe doesn't work reliably across
-    # inertia_rails versions — 3.21+ skips Set-Cookie when no session writes
+    # inertia_rails versions, 3.21+ skips Set-Cookie when no session writes
     # occur during an unauth render, so there's no pre-state to compare.)
     Auth::OmniauthCallbacksController.any_instance.expects(:reset_session).at_least_once
 

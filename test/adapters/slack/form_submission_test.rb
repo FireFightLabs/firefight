@@ -32,7 +32,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
   test "reads severity regardless of which action_id the modal builder used" do
     # The declare modal builder uses the dispatch action_id
     # (`incident_creation_severity_select`). The submission parser must not
-    # require knowing that name — it should accept whatever action key sits
+    # require knowing that name, it should accept whatever action key sits
     # under the severity block.
     values = {
       "field_severity_block" => {
@@ -84,7 +84,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
   end
 
   test "parses an update submission with incident context falling back to current values" do
-    # No severity slug in the submission — context should fall back to the
+    # No severity slug in the submission, context should fall back to the
     # existing incident's severity so condition evaluation still works.
     values = {
       "field_status_block" => {
@@ -128,7 +128,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
   end
 
   test "code-default system fields apply when no DB overlay rows exist" do
-    # Strip every overlay row from the declare form — defaults still apply.
+    # Strip every overlay row from the declare form, defaults still apply.
     form = @workspace.incident_forms.find_by!(lifecycle_event: IncidentForm::SLUG_DECLARE)
     form.incident_form_fields.destroy_all
 

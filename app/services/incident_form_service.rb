@@ -19,7 +19,7 @@ class IncidentFormService
 
   # A system field has no DB row until an admin changes something about it, so
   # the editor addresses it by `default:<key>` until one exists. Creating it on
-  # first edit keeps the code defaults as the single source of truth: a row
+  # first edit keeps the code defaults as the single source of truth, a row
   # only ever means "this workspace overrode something".
   def ensure_system_field!(form, system_field_key)
     existing = form.incident_form_fields.find_by(
@@ -33,8 +33,8 @@ class IncidentFormService
     raise ArgumentError, "#{system_field_key} does not appear on the #{form.lifecycle_event} form" if default_position.nil?
 
     mode = definition.required_mode_for(form.lifecycle_event)
-    # "available" describes how a field ships, not a stored mode: on the row it
-    # is simply hidden and optional until someone turns it on.
+    # "available" describes how a field ships, not a stored mode. On the row it
+    # is hidden and optional until someone turns it on.
     available = mode == IncidentFormField::REQUIRED_MODE_AVAILABLE
 
     form.incident_form_fields.create!(
@@ -95,7 +95,7 @@ class IncidentFormService
 
   private
 
-  # Raises rather than skipping: an id the form does not recognize means the
+  # Raises rather than skipping, an id the form does not recognize means the
   # page is stale or the payload is wrong, and silently dropping it is what
   # produced a "Field order updated" toast over an order that never changed.
   def field_for_reorder(form, id)

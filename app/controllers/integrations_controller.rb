@@ -69,7 +69,7 @@ class IntegrationsController < InertiaController
   end
 
   # Narrowing an existing connection to one environment, or widening it back.
-  # The credentials stay put; only which environment they answer for moves.
+  # The credentials stay put. Only which environment they answer for moves.
   def retarget_environment
     requested = params[:environment_id].presence
     verified = environment_id_param

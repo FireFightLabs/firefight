@@ -28,7 +28,7 @@ module FirefightAi
     # Wrap the two paths that touch the LLM so a failure (rate limit, timeout,
     # transient provider error) degrades to "no summary this time" rather than
     # killing the consumer (catchup, postmortem). Cache hits (paths 1 + 2) are
-    # NOT wrapped — they don't touch the LLM and must not be swallowed.
+    # NOT wrapped, they don't touch the LLM and must not be swallowed.
     def safe_full_generate(incident)
       full_generate(incident)
     rescue StandardError => e
@@ -127,7 +127,7 @@ module FirefightAi
       summary.save!
       summary
     rescue ActiveRecord::RecordNotUnique
-      # Concurrent fetch_or_refresh won the race; return the persisted winner.
+      # Concurrent fetch_or_refresh won the race. Return the persisted winner.
       incident.reload.incident_summary
     end
 

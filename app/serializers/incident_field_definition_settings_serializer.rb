@@ -15,7 +15,7 @@ class IncidentFieldDefinitionSettingsSerializer < BaseSerializer
     field_definition.description
   end
 
-  # Named for the association rather than `options`: Oj::Serializer defines its
+  # Named for the association rather than `options`. Oj::Serializer defines its
   # own `options`, and a matching name reads that instead of the model.
   has_many :incident_field_options, as: :options, serializer: IncidentFieldOptionSerializer
 

@@ -1,6 +1,6 @@
 module Mcp
   # Tool name constants + the registry handed to MCP::Server. Names are the
-  # wire-level identifiers agents call; never use raw strings elsewhere.
+  # wire-level identifiers agents call. Never use raw strings elsewhere.
   module Tools
     SEARCH_INCIDENTS = "search_incidents".freeze
     GET_INCIDENT = "get_incident".freeze

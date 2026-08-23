@@ -3,9 +3,7 @@ require "test_helper"
 class IncidentTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_types, :incident_roles, :incidents
 
-  # ============================================================================
-  # BASIC VALIDATIONS
-  # ============================================================================
+  # Basic validations
 
   test "requires sequence_number" do
     incident = Incident.new(
@@ -51,9 +49,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_includes incident.errors[:declared_at], "can't be blank"
   end
 
-  # ============================================================================
-  # UNIQUENESS VALIDATIONS
-  # ============================================================================
+  # Uniqueness validations
 
   test "sequence_number must be unique within workspace" do
     existing = incidents(:active_critical_ws1)
@@ -120,9 +116,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert ws2_incident.valid?
   end
 
-  # ============================================================================
-  # ASSOCIATIONS
-  # ============================================================================
+  # Associations
 
   test "belongs to workspace" do
     incident = incidents(:active_critical_ws1)
@@ -179,9 +173,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_respond_to incident, :assigned_members
   end
 
-  # ============================================================================
-  # RELATIONSHIPS
-  # ============================================================================
+  # Relationships
 
   test "related_incidents returns bidirectional related incidents" do
     incident1 = incidents(:active_critical_ws1)
@@ -225,9 +217,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_empty source.duplicates
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "active scope returns only incidents with live status" do
     active_incidents = Incident.active
@@ -371,9 +361,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal 2, result[:pagination][:perPage]
   end
 
-  # ============================================================================
-  # METHODS
-  # ============================================================================
+  # Methods
 
   test "active? returns true for incidents with live status" do
     incident = incidents(:active_critical_ws1)
@@ -423,9 +411,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal incident.resolved_at.utc.iso8601, item[:resolvedAt]
   end
 
-  # ============================================================================
-  # CONCERN: SEQUENCING
-  # ============================================================================
+  # Sequencing
 
   test "auto-assigns sequence_number on create" do
     incident = Incident.create!(
@@ -515,9 +501,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_match(/^INC-\d{3}$/, incident.identifier)
   end
 
-  # ============================================================================
-  # CONCERN: LIFECYCLE
-  # ============================================================================
+  # Lifecycle
 
   test "auto-sets declared_at on create" do
     incident = Incident.new(
@@ -637,9 +621,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_nil incident.resolved_at
   end
 
-  # ============================================================================
-  # CONCERN: ROLE MANAGEMENT
-  # ============================================================================
+  # Role management
 
   test "lead returns nil when no incident lead assigned" do
     incident = incidents(:active_critical_ws1)
@@ -676,9 +658,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal member, incident.lead
   end
 
-  # ============================================================================
-  # FIXTURES LOADING
-  # ============================================================================
+  # Fixtures loading
 
   test "workspace one fixtures load correctly" do
     incident = incidents(:active_critical_ws1)
@@ -714,9 +694,7 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal "Triaging", incident.incident_status.name
   end
 
-  # ============================================================================
-  # LEAD ASSIGNMENT GUARD
-  # ============================================================================
+  # Lead assignment guard
 
   test "assigns a lead while the incident is live" do
     incident = incidents(:active_critical_ws1)

@@ -1,4 +1,4 @@
-# Grouping knobs for the alert_routing domain live in domain_config; this is
+# Grouping knobs for the alert_routing domain live in domain_config. This is
 # the single place that knows the keys and defaults, so ingest, serialization,
 # and the settings writer can never disagree.
 module Policy::AlertRoutingConfig

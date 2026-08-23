@@ -1,5 +1,5 @@
 # The curated catalog behind Configure -> Integrations. Pure registry data
-# (config/integration_providers.yml); connecting any entry goes through the
+# (config/integration_providers.yml). Connecting any entry goes through the
 # generic MCP connector.
 class IntegrationProvider
   REGISTRY_PATH = Rails.root.join("config/integration_providers.yml")
@@ -39,7 +39,7 @@ class IntegrationProvider
   # secret from the environment (Infisical injects these as env vars), named
   #   INTEGRATION_<KEY>_CLIENT_ID / INTEGRATION_<KEY>_CLIENT_SECRET
   # e.g. INTEGRATION_GITHUB_CLIENT_ID. One app per provider serves every
-  # workspace; the resulting tokens are per-workspace. Absent = fall back to
+  # workspace. The resulting tokens are per-workspace. Absent = fall back to
   # dynamic registration, else the token path.
   def self.oauth_client(key)
     prefix = "INTEGRATION_#{key.to_s.upcase}"

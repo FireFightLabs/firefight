@@ -47,7 +47,7 @@ class IncidentCondition < ApplicationRecord
   end
 
   # A condition can only read a custom field the incident could already hold an
-  # answer for: one attached to this form, or to a form that runs before it.
+  # answer for. One attached to this form, or to a form that runs before it.
   # Pointing at a field nobody is ever asked produces a rule that silently never
   # matches, which reads as the field being broken.
   def custom_field_is_answerable_here

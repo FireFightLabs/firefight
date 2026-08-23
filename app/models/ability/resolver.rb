@@ -1,8 +1,8 @@
 module Ability
-  # Resolves a principal to its effective grant set: the union of direct
+  # Resolves a principal to its effective grant set, the union of direct
   # action grants and role-bundle actions, each carrying its scope. Cached
-  # per principal; busted immediately on any grant/role write so a revoke
-  # takes effect on the next call — the TTL is only a safety net.
+  # per principal. Busted immediately on any grant/role write so a revoke
+  # takes effect on the next call, the TTL is only a safety net.
   class Resolver
     CACHE_PREFIX = "ability/resolved/v1/"
     CACHE_TTL = 1.hour

@@ -68,7 +68,7 @@ class AlertSourcesController < InertiaController
     config.compact
   end
 
-  # Only known normalized fields are mappable; paths are free-form dot-paths.
+  # Only known normalized fields are mappable. Paths are free-form dot-paths.
   def field_map
     raw = params.dig(:alert_source, :field_map).to_unsafe_h
 
@@ -79,7 +79,7 @@ class AlertSourcesController < InertiaController
     end
   end
 
-  # {"critical" => severity_id}; keys are free-form provider strings, values
+  # {"critical" => severity_id}. Keys are free-form provider strings, values
   # must be severities of this workspace.
   def severity_map
     raw = params.dig(:alert_source, :severity_map).to_unsafe_h

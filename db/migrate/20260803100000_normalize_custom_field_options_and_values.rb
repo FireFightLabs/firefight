@@ -32,7 +32,7 @@ class NormalizeCustomFieldOptionsAndValues < ActiveRecord::Migration[8.1]
     add_foreign_key :incident_field_values, :incidents, on_delete: :cascade
     add_foreign_key :incident_field_values, :incident_field_definitions
 
-    # The whole point of the table: an option or catalog entry that an incident
+    # The whole point of the table, an option or catalog entry that an incident
     # points at cannot be deleted out from under it by the database, not by a
     # check someone remembered to write.
     add_foreign_key :incident_field_values, :incident_field_options, on_delete: :restrict

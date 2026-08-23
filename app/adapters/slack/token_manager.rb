@@ -1,11 +1,7 @@
 module Slack
   class TokenManager
-    # Default buffer time before token expiration to trigger refresh
     DEFAULT_BUFFER = 3.hours
 
-    # Refresh a specific workspace's token
-    # @param workspace [Workspace] The workspace to refresh
-    # @return [Boolean] true if refresh succeeded, false otherwise
     def refresh_workspace(workspace)
       return false unless workspace.slack_platform?
       return false unless workspace.refresh_token.present?
@@ -29,9 +25,6 @@ module Slack
       false
     end
 
-    # Refresh a specific membership's token
-    # @param membership [WorkspaceMembership] The membership to refresh
-    # @return [Boolean] true if refresh succeeded, false otherwise
     def refresh_membership(membership)
       return false unless membership.workspace.slack_platform?
       return false unless membership.refresh_token.present?
@@ -55,16 +48,12 @@ module Slack
       false
     end
 
-    # Refresh all expiring tokens (workspaces and memberships)
-    # @param buffer [ActiveSupport::Duration] Time before expiration to trigger refresh
-    # @return [Hash] Results with counts of succeeded/failed refreshes
     def refresh_all_expiring(buffer: DEFAULT_BUFFER)
       results = {
         workspaces: { succeeded: 0, failed: 0 },
         memberships: { succeeded: 0, failed: 0 }
       }
 
-      # Refresh workspace tokens
       expiring_workspaces(buffer).find_each do |workspace|
         if refresh_workspace(workspace)
           results[:workspaces][:succeeded] += 1
@@ -73,7 +62,6 @@ module Slack
         end
       end
 
-      # Refresh membership tokens
       expiring_memberships(buffer).find_each do |membership|
         if refresh_membership(membership)
           results[:memberships][:succeeded] += 1
@@ -86,10 +74,6 @@ module Slack
       results
     end
 
-    # Check if a record needs token refresh
-    # @param record [Workspace, WorkspaceMembership] The record to check
-    # @param buffer [ActiveSupport::Duration] Time before expiration to consider
-    # @return [Boolean] true if refresh is needed
     def refresh_needed?(record, buffer: DEFAULT_BUFFER)
       return false unless record.token_expires_at.present?
       record.token_expires_at <= buffer.from_now

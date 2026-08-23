@@ -1,7 +1,7 @@
 module Integrations
   # The one Net::HTTP transport for integration adapters: TLS, timeouts, and
   # network failures mapped onto the caller's own error class. Response
-  # handling stays with the caller; only reaching the host is shared.
+  # handling stays with the caller. Only reaching the host is shared.
   module Http
     OPEN_TIMEOUT = 5
 

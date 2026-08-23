@@ -7,7 +7,7 @@
 #   - has its visibility/required-mode/position OVERRIDDEN by per-workspace
 #     `IncidentFormField` rows (DB overlay). Absence of a DB row = default.
 #
-# Adding a new system field needs no migration: register it here with the
+# Adding a new system field needs no migration. Register it here with the
 # `forms:` map, and every workspace's form editor + Slack modal picks it up
 # automatically.
 class IncidentSystemField

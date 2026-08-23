@@ -24,7 +24,7 @@ module Catalogue
     end
 
     # External-sync entry point: when source + external_id identify an existing
-    # entry, update it; otherwise create. Lets integrations push the same
+    # entry, update it. otherwise create. Lets integrations push the same
     # entry repeatedly without duplicating (keyed on [workspace, source,
     # external_id], enforced by a unique index).
     def upsert(type:, name:, raw_attributes:, source: nil, external_id: nil)
@@ -99,7 +99,7 @@ module Catalogue
       resolved.map { |_reference, membership| membership.id }
     end
 
-    # Provisioning is the dashboard's alone: there a human picked a name out of
+    # Provisioning is the dashboard's alone. There a human picked a name out of
     # the live platform list, so creating the membership is the point. A write
     # arriving over the API or MCP names someone who must already be here,
     # because a catalog push is no place to mint a billable member.

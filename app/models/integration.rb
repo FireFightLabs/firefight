@@ -1,6 +1,6 @@
 # A connected provider instance: credentials per environment, tools that
-# mint gateway actions. kind selects the executor: mcp consumes any external
-# MCP server, native runs a first-party Integrations::NativePack; http packs
+# mint gateway actions. kind selects the executor. mcp consumes any external
+# MCP server, native runs a first-party Integrations::NativePack. http packs
 # follow.
 class Integration < ApplicationRecord
   include Sluggable
@@ -35,7 +35,7 @@ class Integration < ApplicationRecord
   end
 
   # The per-kind facade for talking to the provider (call, tool_definitions,
-  # check_health!). The one place the kinds diverge; everything downstream
+  # check_health!). The one place the kinds diverge. Everything downstream
   # stays executor-agnostic.
   def executor
     case kind
@@ -54,8 +54,8 @@ class Integration < ApplicationRecord
     settings["server_url"]
   end
 
-  # The environment is derived, never asserted: an explicit entry id must
-  # match a wired row; no entry resolves to the global row, or to the single
+  # The environment is derived, never asserted. An explicit entry id must
+  # match a wired row. No entry resolves to the global row, or to the single
   # wired environment when that is unambiguous.
   # Bulk allowlisting. Each row is saved on its own because enabling one
   # mints its Ability::Action in an after_save, and update_all would skip
@@ -82,7 +82,7 @@ class Integration < ApplicationRecord
 
   private
 
-  # Action keys derive from the slug; renaming would orphan grants,
+  # Action keys derive from the slug. Renaming would orphan grants,
   # policies, and ledger rows referencing the old keys.
   def slug_immutable
     errors.add(:slug, "cannot be changed after creation") if slug_changed?

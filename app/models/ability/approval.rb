@@ -1,6 +1,6 @@
 module Ability
   # The mutable in-flight gate for a call that matched an approval policy.
-  # Bound to the exact request via a digest — "approved" provably means this
+  # Bound to the exact request via a digest, "approved" provably means this
   # call with these params in this scope, never the action in general. An
   # approval is consumed by exactly one execution.
   class Approval < ApplicationRecord
@@ -99,10 +99,10 @@ module Ability
       AbilityApprovalResumptionJob.perform_later(approval_id: id)
     end
 
-    # Approver re-validated at click time: still pending and holds the
-    # required role now. Self-approval is allowed by default — the human
-    # confirming their own agent's exact proposal IS the safety mechanism;
-    # policies opt into four-eyes with require.self_approval: false.
+    # Approver re-validated at click time, still pending and holds the
+    # required role now. Self-approval is allowed by default, the human
+    # confirming their own agent's exact proposal IS the safety mechanism.
+    # Policies opt into four-eyes with require.self_approval: false.
     def resolve!(new_status, membership)
       raise NotAllowed, "approval is no longer pending" unless pending?
       raise NotAllowed, "requires the #{required_role} role" unless role_sufficient?(membership)

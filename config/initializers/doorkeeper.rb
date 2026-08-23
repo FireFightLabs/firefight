@@ -1,6 +1,6 @@
 # OAuth 2.1 provider for MCP clients (Claude Code, claude.ai connectors, …).
-# The resource owner is a WorkspaceMembership — the same principal personal
-# API tokens resolve to — so OAuth is an issuance flow, not a second
+# The resource owner is a WorkspaceMembership, the same principal personal
+# API tokens resolve to, so OAuth is an issuance flow, not a second
 # authorization system. Clients register via our RFC 7591 endpoint as public
 # clients and must use PKCE.
 Doorkeeper.configure do
@@ -37,7 +37,7 @@ Doorkeeper.configure do
   default_scopes :"mcp:read"
   enforce_configured_scopes
 
-  # HTTPS everywhere except loopback: native MCP clients (Claude Code) receive
+  # HTTPS everywhere except loopback. Native MCP clients (Claude Code) receive
   # the code on a localhost listener, which RFC 8252 §7.3 exempts from TLS.
   force_ssl_in_redirect_uri do |uri|
     !Rails.env.local? && !%w[ localhost 127.0.0.1 ::1 ].include?(uri.hostname)

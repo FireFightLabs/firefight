@@ -36,7 +36,7 @@ class IncidentFieldDefinition < ApplicationRecord
     TYPE_CATALOG_MULTI_REFERENCE
   ].freeze
 
-  # Seven field types, but only three things a stored value can be: a pointer
+  # Seven field types, but only three things a stored value can be, a pointer
   # at one of this field's own options, a pointer at a catalog entry, or a
   # scalar the responder typed. Everything that reads or writes a value
   # dispatches on this rather than re-deriving it from the type and source.

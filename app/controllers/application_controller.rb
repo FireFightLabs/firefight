@@ -50,7 +50,7 @@ class ApplicationController < ActionController::Base
     Current.principal = current_membership
   end
 
-  # Settings mutations and credential reads are admin territory; responders
+  # Settings mutations and credential reads are admin territory. Responders
   # keep full incident access through Slack and the app regardless.
   def require_admin!
     return if current_membership&.admin_access?

@@ -1,6 +1,5 @@
 module Slack
   class InstallationMessageBuilder
-    # Welcome message posted to #incidents channel
     def self.welcome_message_blocks
       {
         blocks: [
@@ -47,7 +46,7 @@ module Slack
       }
     end
 
-    # Ephemeral preview message (only visible to clicking user)
+    # Only the responder who clicked sees this.
     def self.preview_announcement_blocks(user_id)
       preview_blocks = [
         {
@@ -67,7 +66,6 @@ module Slack
       { blocks: preview_blocks }
     end
 
-    # Share channel modal
     def self.share_channel_modal(user_id, channel_id)
       {
         type: "modal",
@@ -112,7 +110,6 @@ module Slack
       }
     end
 
-    # Message sent when sharing the channel
     def self.share_message(sharing_user_id, channel_id, team_id)
       {
         blocks: [

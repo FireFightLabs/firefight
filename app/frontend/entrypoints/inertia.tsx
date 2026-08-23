@@ -3,23 +3,13 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 void createInertiaApp({
-  // Set default page title
-  // see https://inertia-rails.dev/guide/title-and-meta
-  //
-  // title: title => title ? `${title} - App` : 'App',
-
-  // Disable progress bar
-  //
-  // see https://inertia-rails.dev/guide/progress-indicators
-  // progress: false,
-
   resolve: (name) => {
     const pages = import.meta.glob<ResolvedComponent>('../pages/**/*.tsx', {
       eager: true,
     })
     // Pages contributed by the proprietary cloud engine. The directory is
     // populated by the cloud build and absent on self-hosted builds, where
-    // the glob simply matches nothing.
+    // the glob matches nothing there.
     const cloudPages = import.meta.glob<ResolvedComponent>('../cloud_pages/**/*.tsx', {
       eager: true,
     })
@@ -27,12 +17,6 @@ void createInertiaApp({
     if (!page) {
       console.error(`Missing Inertia page component: '${name}.tsx'`)
     }
-
-    // To use a default layout, import the Layout component
-    // and use the following line.
-    // see https://inertia-rails.dev/guide/pages#default-layouts
-    //
-    // page.default.layout ||= (page) => (<Layout>{page}</Layout>)
 
     return page
   },
@@ -51,9 +35,8 @@ void createInertiaApp({
     },
   },
 }).catch((error) => {
-  // This ensures this entrypoint is only loaded on Inertia pages
-  // by checking for the presence of the root element (#app by default).
-  // Feel free to remove this `catch` if you don't need it.
+  // Only Inertia pages carry the #app root, so a missing one means this
+  // entrypoint was loaded on a page that does not use Inertia.
   if (document.getElementById("app")) {
     throw error
   } else {

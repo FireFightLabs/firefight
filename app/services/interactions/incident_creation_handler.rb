@@ -36,7 +36,7 @@ module Interactions
       severity = workspace.incident_severities.active.find_by!(slug: attrs["severity"])
       status = workspace.incident_statuses.default_status
       incident_type = attrs["incident_type"].present? ? workspace.incident_types.active.find_by(slug: attrs["incident_type"]) : nil
-      # `visibility` is now a system field; absent when the field isn't on the form, in which case default to public.
+      # `visibility` is now a system field. Absent when the field isn't on the form, in which case default to public.
       visibility = attrs["visibility"]
 
       incident = IncidentLifecycleService.new(workspace).create(

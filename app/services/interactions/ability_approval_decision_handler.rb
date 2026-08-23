@@ -1,7 +1,7 @@
 module Interactions
   # Shared body for the approve/deny buttons on an approval request message.
   # The model enforces the real rules (role at click time, no self-approval,
-  # still pending); this just routes the click and reflects the outcome.
+  # still pending). This just routes the click and reflects the outcome.
   class AbilityApprovalDecisionHandler
     def self.decide(interaction, decision)
       workspace = interaction.workspace

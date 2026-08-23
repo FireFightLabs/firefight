@@ -14,7 +14,7 @@ module Slack
       end
 
       # DM sent to the person being escalated to. `variant: :initial` is the
-      # first ping; `variant: :nudge` is the reminder sent if they haven't
+      # first ping. `variant: :nudge` is the reminder sent if they haven't
       # acknowledged.
       def self.direct_message(incident, escalated_by_platform_user_id:, escalation_event_id:, reason: nil, variant: :initial)
         config = case variant
@@ -43,7 +43,7 @@ module Slack
         blocks
       end
 
-      # Rewrites the original escalation DM after acknowledgment: drops the
+      # Rewrites the original escalation DM after acknowledgment. Drops the
       # action buttons and appends a confirmation section.
       def self.dm_after_acknowledgment(original_blocks)
         stripped = (original_blocks || []).reject { |b| b["type"] == "actions" || b[:type] == "actions" }

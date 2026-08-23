@@ -3,9 +3,7 @@ require "test_helper"
 class IncidentEventTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incidents, :incident_events, :incident_actions
 
-  # ============================================================================
-  # ASSOCIATIONS
-  # ============================================================================
+  # Associations
 
   test "belongs to incident" do
     event = incident_events(:inc1_created)
@@ -28,9 +26,7 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert event.valid?
   end
 
-  # ============================================================================
-  # VALIDATIONS
-  # ============================================================================
+  # Validations
 
   test "requires event_type" do
     event = IncidentEvent.new(
@@ -116,9 +112,7 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_includes event.errors[:eventable], "must be nil for event_type=#{IncidentEvent::MESSAGE_PINNED}"
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "chronological scope orders by created_at ascending" do
     events = IncidentEvent.chronological.to_a
@@ -132,9 +126,7 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_equal created_times.sort.reverse, created_times
   end
 
-  # ============================================================================
-  # UPDATE_TYPE_MAP
-  # ============================================================================
+  # update_type_map
 
   test "update_type_for maps lifecycle event types to IncidentUpdate update_types" do
     assert_equal IncidentUpdate::CREATED, IncidentEvent.update_type_for(IncidentEvent::INCIDENT_CREATED)
@@ -149,9 +141,7 @@ class IncidentEventTest < ActiveSupport::TestCase
     end
   end
 
-  # ============================================================================
-  # CONSTANTS
-  # ============================================================================
+  # Constants
 
   test "EVENT_TYPES constant contains all event types" do
     expected_types = [
@@ -175,9 +165,7 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_equal "incident.resolved", IncidentEvent::INCIDENT_RESOLVED
   end
 
-  # ============================================================================
-  # EVENT DESCRIPTIONS
-  # ============================================================================
+  # Event descriptions
 
   test "description returns human-readable text for each event type" do
     IncidentEvent::EVENT_TYPES.each do |event_type|
@@ -194,9 +182,7 @@ class IncidentEventTest < ActiveSupport::TestCase
     end
   end
 
-  # ============================================================================
-  # DELEGATED TYPES + changed_fields
-  # ============================================================================
+  # Delegated types + changed_fields
 
   test "eventable is optional (action events carry only metadata)" do
     event = IncidentEvent.new(
@@ -302,9 +288,7 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_equal [], event.changed_fields
   end
 
-  # ============================================================================
-  # FIXTURES LOADING
-  # ============================================================================
+  # Fixtures loading
 
   test "workspace one fixtures load correctly" do
     event = incident_events(:inc1_created)

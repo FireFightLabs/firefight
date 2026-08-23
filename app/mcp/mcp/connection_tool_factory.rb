@@ -1,6 +1,6 @@
 module Mcp
   # Exposes a workspace's allowlisted connection tools through Firefight's
-  # own MCP server: the same registry, outward. Every call flows through
+  # own MCP server. The same registry, outward. Every call flows through
   # AbilityGateway (grant + config + approvals + ledger) and then the
   # integration's executor with the resolved environment's credentials.
   class ConnectionToolFactory
@@ -88,7 +88,7 @@ module Mcp
       "#{base} (via the #{tool.integration.name} connection; governed by the Ability Gateway)"
     end
 
-    # The remote schema plus Firefight's routing args: which environment's
+    # The remote schema plus Firefight's routing args, which environment's
     # credentials to use, and the approval retry handle.
     def self.augmented_schema(tool)
       schema = (tool.params_schema.presence || { "type" => "object" }).deep_dup

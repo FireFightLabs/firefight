@@ -15,7 +15,7 @@ class PolicyRule < ApplicationRecord
 
   belongs_to :policy
 
-  # Outcome contracts per policy domain; domains without a contract accept any object.
+  # Outcome contracts per policy domain. Domains without a contract accept any object.
   OUTCOME_VALIDATORS = {
     Policy::DOMAIN_ALERT_ROUTING => PolicyRule::AlertRoutingOutcome,
     Policy::DOMAIN_APPROVALS => PolicyRule::ApprovalOutcome

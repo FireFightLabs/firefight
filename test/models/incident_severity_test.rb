@@ -4,9 +4,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
            :incident_statuses, :incident_severities, :incidents
 
-  # ============================================================================
-  # BASIC VALIDATIONS
-  # ============================================================================
+  # Basic validations
 
   test "requires name" do
     severity = IncidentSeverity.new(
@@ -87,9 +85,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert severity.valid?
   end
 
-  # ============================================================================
-  # UNIQUENESS VALIDATIONS
-  # ============================================================================
+  # Uniqueness validations
 
   test "slug must be unique within workspace" do
     existing = incident_severities(:critical_ws1)
@@ -162,9 +158,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_not_equal ws1_default.workspace_id, ws2_default.workspace_id
   end
 
-  # ============================================================================
-  # ASSOCIATIONS
-  # ============================================================================
+  # Associations
 
   test "belongs to workspace" do
     severity = incident_severities(:critical_ws1)
@@ -177,9 +171,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_respond_to severity, :incidents
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "active scope excludes deleted severities" do
     active_severities = IncidentSeverity.active
@@ -213,9 +205,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_equal incident_severities(:p1_ws2), ws2_default
   end
 
-  # ============================================================================
-  # DEFAULT SEVERITY
-  # ============================================================================
+  # Default severity
 
   test "make_default! demotes the incumbent in the same transaction" do
     incumbent = incident_severities(:minor_ws1)
@@ -243,9 +233,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     end
   end
 
-  # ============================================================================
-  # DELETABILITY
-  # ============================================================================
+  # Deletability
 
   test "with_usage_counts attaches the count without an extra query per row" do
     workspace = workspaces(:slack_workspace_one)
@@ -293,9 +281,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_includes severity.errors[:base], "Cannot delete record because dependent incidents exist"
   end
 
-  # ============================================================================
-  # COMPARISON METHODS
-  # ============================================================================
+  # Comparison methods
 
   test "more_severe_than? returns true when rank is higher" do
     critical = incident_severities(:critical_ws1)
@@ -363,9 +349,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_not critical.less_severe_than?(same_rank)
   end
 
-  # ============================================================================
-  # RANK COMPARISONS ACROSS DIFFERENT NAMING CONVENTIONS
-  # ============================================================================
+  # Rank comparisons across different naming conventions
 
   test "ranks work correctly with different naming conventions" do
     # Workspace one uses: Critical (5), Major (3), Minor (1)
@@ -382,9 +366,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert p1_ws2.more_severe_than?(critical_ws1)
   end
 
-  # ============================================================================
-  # SOFT DELETES
-  # ============================================================================
+  # Soft deletes
 
   test "soft delete sets deleted_at" do
     severity = incident_severities(:critical_ws1)
@@ -402,9 +384,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_not_includes IncidentSeverity.active.reload, severity
   end
 
-  # ============================================================================
-  # FIXTURES LOADING
-  # ============================================================================
+  # Fixtures loading
 
   test "workspace one fixtures load correctly" do
     critical = incident_severities(:critical_ws1)

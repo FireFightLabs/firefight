@@ -1,6 +1,6 @@
 module AlertProviders
   # Generic webhook adapter. Verification is a shared-secret token compare
-  # (Authorization: Bearer <token> or X-Firefight-Token header; every tool
+  # (Authorization: Bearer <token> or X-Firefight-Token header, every tool
   # can set one of those). Field extraction uses dot-path lookups into the
   # payload (numeric segments index into arrays), overridable per source via
   # config["field_map"] (e.g. { "title" => "alert.name" }). When
@@ -57,7 +57,7 @@ module AlertProviders
       fields
     end
 
-    # A payload where no mapped field resolved is noise, not an alert; the
+    # A payload where no mapped field resolved is noise, not an alert. The
     # controller turns an empty item list into a diagnosable 422.
     def self.recognized?(fields)
       fields.except("status").any?

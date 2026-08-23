@@ -128,7 +128,7 @@ class IncidentLifecycleService
 
   # Escalation writes an event, pages someone through a workflow, and schedules
   # a chase. Slack is its only entry point today, so the guard lives here
-  # rather than on the event: the next entry point inherits it instead of
+  # rather than on the event, the next entry point inherits it instead of
   # having to remember it.
   def escalate(incident, escalated_to_platform_user_id:, reason:, changed_by:)
     blocked_reason = incident.escalation_blocked_reason

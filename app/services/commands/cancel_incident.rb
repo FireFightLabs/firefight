@@ -1,5 +1,5 @@
 module Commands
-  # Cancelling is for an incident that turned out not to be one: a false
+  # Cancelling is for an incident that turned out not to be one, a false
   # positive, a duplicate, a test. That should cost one command, so the modal
   # only appears when a workspace has attached something worth asking.
   class CancelIncident

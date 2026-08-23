@@ -13,12 +13,12 @@ class AlertRoutingController < InertiaController
   end
 
   # Route tester: pure evaluation with a full trace, zero side effects.
-  # Mirrors ingest resolution: the source's policy with workspace fallback.
+  # Mirrors ingest resolution, the source's policy with workspace fallback.
   def test
     policy = routing_policy
     return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless policy
 
-    # Free-form field hash; only ever fed to pure evaluation, never assigned to a model.
+    # Free-form field hash. Only ever fed to pure evaluation, never assigned to a model.
     fields = params.fetch(:fields, {}).to_unsafe_h
     context = Policy::ContextBuilder.build(workspace: current_workspace, fields: fields)
     result = policy.evaluate(context)
@@ -33,8 +33,8 @@ class AlertRoutingController < InertiaController
   end
 
   # Delivers one labeled test message to the resolved notify target so the
-  # user can verify the bot can actually reach it. Re-evaluates server-side;
-  # the client never picks the destination.
+  # user can verify the bot can actually reach it. Re-evaluates server-side.
+  # The client never picks the destination.
   def send_test
     policy = routing_policy
     return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless policy
@@ -49,14 +49,14 @@ class AlertRoutingController < InertiaController
 
   private
 
-  # The tester mirrors ingest: the scope's effective policy, enabled only.
+  # The tester mirrors ingest, the scope's effective policy, enabled only.
   def routing_policy
     routing_scope.effective_alert_routing_policy
   end
 
   # Dry-run target resolution so the tester shows who would actually be
   # invited/notified. Pure lookups plus one best-effort Slack channel-name
-  # lookup for display; nothing is posted.
+  # lookup for display. Nothing is posted.
   def resolution_preview(outcome, fields)
     resolver = Alert::TargetResolver.new(current_workspace, fields)
     invitees = resolver.memberships_for(outcome["invite"]).map { |m| m.user.name }

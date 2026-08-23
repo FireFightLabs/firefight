@@ -1,6 +1,5 @@
-# Platform-agnostic command object
-# Represents a command from any platform (Slack, Teams, etc.)
-# This is a Plain Old Ruby Object (PORO), not an ActiveRecord model
+# A command from any platform, built before a handler sees it.
+# Despite living in app/models, this is a plain object with no table behind it.
 class Command
   include ActiveModel::Model
   include ActiveModel::Validations
@@ -29,7 +28,6 @@ class Command
     super
   end
 
-  # Check if command has no text (empty command)
   def blank?
     text.blank?
   end
@@ -39,7 +37,7 @@ class Command
   end
 
   # Who the Ability Gateway authorizes this command as. Provisioned on demand
-  # so a first-time caller is a principal like anyone else; nil when the
+  # so a first-time caller is a principal like anyone else. nil when the
   # platform lookup fails and the dispatcher then refuses the call.
   def principal
     return @principal if defined?(@principal)
@@ -52,7 +50,7 @@ class Command
     @principal = nil
   end
 
-  # What the approval digest is bound to. Deterministic and replayable: a
+  # What the approval digest is bound to. Deterministic and replayable. A
   # resumed command rebuilds the same hash, so the approval matches.
   def authorization_params
     { command: command_name, subcommand: subcommand, text: text }.compact
@@ -78,18 +76,15 @@ class Command
     platform == Platforms::TEAMS
   end
 
-  # Get command arguments as array
   def args
     text.to_s.split(/\s+/)
   end
 
-  # Get first word (subcommand)
   def subcommand
     args.first
   end
 
-  # Get slash command name without leading "/"
-  # e.g., "/firefight" → "firefight", "/ff" → "ff"
+  # "/firefight" → "firefight", "/ff" → "ff"
   def command_name
     metadata[:command]&.to_s&.delete_prefix("/")
   end

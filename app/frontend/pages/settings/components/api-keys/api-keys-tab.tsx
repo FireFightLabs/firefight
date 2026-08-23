@@ -60,7 +60,7 @@ interface ApiKeysTabProps {
 }
 
 export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: ApiKeysTabProps) {
-  // `flash` (not `props.flash`) — Inertia Rails 3.17+ exposes flash natively on the page.
+  // `flash` (not `props.flash`), Inertia Rails 3.17+ exposes flash natively on the page.
   // Custom keys flow through `flash.inertia[:key]` on the server (see ApiKeysController#create).
   const { flash } = usePage()
   const [editingKey, setEditingKey] = useState<ApiKeyType | null>(null)

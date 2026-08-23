@@ -1,18 +1,14 @@
-# Platform constants for multi-platform support
-# Used to avoid magic strings and provide a single source of truth
+# Every reference to a platform goes through these constants, never a raw string.
 module Platforms
   SLACK = "slack"
   TEAMS = "teams"
 
-  # All supported platforms
   ALL = [ SLACK, TEAMS ].freeze
 
-  # Check if a platform is supported
   def self.supported?(platform)
     ALL.include?(platform)
   end
 
-  # Get platform display name
   def self.display_name(platform)
     case platform
     when SLACK

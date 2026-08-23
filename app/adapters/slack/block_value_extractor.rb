@@ -13,7 +13,7 @@ module Slack
       return nil unless block_values
 
       # users_select fields (e.g. the lead picker) put the selection under
-      # "selected_user" regardless of the registered field_type — they're
+      # "selected_user" regardless of the registered field_type, they're
       # rendered as Block Kit `users_select` elements.
       return block_values["selected_user"] if block_values.key?("selected_user")
 

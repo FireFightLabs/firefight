@@ -1,6 +1,6 @@
 # Usage counting and the *_blocked_reason rules, for any workspace-configurable
 # list a settings screen manages. ConfigurableOption bundles this with
-# positioning and the shared validations; models with their own shape
+# positioning and the shared validations. Models with their own shape
 # (custom fields keyed by `key`, runbooks with nested steps) include it alone.
 module OptionGuards
   extend ActiveSupport::Concern

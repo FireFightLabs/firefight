@@ -30,7 +30,7 @@ export function TokenRevealedDialog({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Modal cannot be closed by clicking outside or pressing Escape — the user
+  // Modal cannot be closed by clicking outside or pressing Escape, the user
   // has to acknowledge they've copied the token before it disappears for good.
   return (
     <Dialog

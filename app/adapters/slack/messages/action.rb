@@ -2,7 +2,7 @@ module Slack
   module Messages
     # Messages for incident action items (and their close cousins,
     # follow-ups). `created`, `picked_up`, and `completed` are the lifecycle
-    # posts in the channel; `from_reaction` is the "would you like to create
+    # posts in the channel. `from_reaction` is the "would you like to create
     # an action from this message" prompt triggered by the :boom: /
     # :arrow_forward: reaction.
     module Action

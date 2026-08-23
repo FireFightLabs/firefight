@@ -16,7 +16,7 @@ module FirefightAi
     end
 
     # Terminal: retrying produces the same outcome (auth, payment, context
-    # length, schema). Don't burn tokens on retry; notify and stop.
+    # length, schema). Don't burn tokens on retry. Notify and stop.
     discard_on RubyLLM::ContextLengthExceededError,
                RubyLLM::BadRequestError,
                RubyLLM::UnauthorizedError,

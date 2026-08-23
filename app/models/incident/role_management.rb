@@ -27,7 +27,7 @@ module Incident::RoleManagement
     role_assignment_for(role)&.destroy
   end
 
-  # Reads don't materialize the role row — they just return nil when no
+  # Reads don't materialize the role row, they just return nil when no
   # assignment exists.
   def lead
     lead_role = workspace.incident_roles.incident_lead.first

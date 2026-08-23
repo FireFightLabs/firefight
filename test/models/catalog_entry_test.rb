@@ -3,9 +3,7 @@ require "test_helper"
 class CatalogEntryTest < ActiveSupport::TestCase
   fixtures :workspaces, :catalog_types, :catalog_attribute_definitions, :catalog_entries, :catalog_entry_relationships
 
-  # ============================================================================
-  # BASIC VALIDATIONS
-  # ============================================================================
+  # Basic validations
 
   test "requires name" do
     entry = CatalogEntry.new(
@@ -50,9 +48,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_includes entry.errors[:workspace], "must match the catalog type's workspace"
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "active scope excludes deleted entries" do
     deleted = catalog_entries(:deleted_entry)
@@ -69,9 +65,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_equal names.sort, names
   end
 
-  # ============================================================================
-  # ENTRY ATTRIBUTES
-  # ============================================================================
+  # Entry attributes
 
   test "entry_attributes returns the jsonb attributes hash" do
     auth = catalog_entries(:auth_service)
@@ -86,9 +80,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_equal({}, entry.entry_attributes)
   end
 
-  # ============================================================================
-  # ASSIGN VALIDATED ATTRIBUTES - SPLITTING
-  # ============================================================================
+  # Assign validated attributes, splitting
 
   test "assign_validated_attributes! splits scalar vs reference attrs" do
     auth = catalog_entries(:auth_service)
@@ -113,9 +105,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_match(/Unknown attribute key/, error.message)
   end
 
-  # ============================================================================
-  # ASSIGN VALIDATED ATTRIBUTES - TYPE VALIDATIONS
-  # ============================================================================
+  # Assign validated attributes, type validations
 
   test "assign_validated_attributes! validates select values in options" do
     auth = catalog_entries(:auth_service)
@@ -232,9 +222,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_equal "3000", scalar["port"]
   end
 
-  # ============================================================================
-  # ASSIGN VALIDATED ATTRIBUTES - REQUIRED FIELDS
-  # ============================================================================
+  # Assign validated attributes, required fields
 
   test "assign_validated_attributes! enforces required fields" do
     acme = catalog_entries(:vendor_acme)
@@ -255,9 +243,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_equal "new@example.com", scalar["contact_email"]
   end
 
-  # ============================================================================
-  # SYNC REFERENCES
-  # ============================================================================
+  # Sync references
 
   test "sync_references! creates new relationships" do
     auth = catalog_entries(:auth_service)
@@ -297,9 +283,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_not auth.outgoing_relationships.where(relationship_key: "owner_team").exists?
   end
 
-  # ============================================================================
-  # SOFT DELETE
-  # ============================================================================
+  # Soft delete
 
   test "soft_delete! sets deleted_at" do
     entry = catalog_entries(:platform_team)
@@ -325,9 +309,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_not platform_team.incoming_relationships.exists?
   end
 
-  # ============================================================================
-  # SLUG IMMUTABILITY
-  # ============================================================================
+  # Slug immutability
 
   test "slug cannot be changed after creation" do
     entry = catalog_entries(:platform_team)
@@ -336,9 +318,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_includes entry.errors[:slug], "cannot be changed after creation"
   end
 
-  # ============================================================================
-  # SEARCH SCOPE
-  # ============================================================================
+  # Search scope
 
   test "search scope filters by name" do
     results = CatalogEntry.search("auth")
@@ -346,9 +326,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_not_includes results, catalog_entries(:platform_team)
   end
 
-  # ============================================================================
-  # EXTERNAL IDENTITY VALIDATIONS
-  # ============================================================================
+  # External identity validations
 
   test "external identity valid when both external_id and source present" do
     entry = CatalogEntry.new(

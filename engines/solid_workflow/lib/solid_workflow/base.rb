@@ -118,7 +118,7 @@ module SolidWorkflow
 
       # A duplicate name corrupts the dependency map (index_by(&:name)), an
       # unknown or cyclic dependency hangs the workflow forever instead of
-      # erroring — catch all three at start! time.
+      # erroring, catch all three at start! time.
       def validate_steps!
         names = steps.map { |s| s[:name] }
 
