@@ -108,6 +108,7 @@ Single-context: one `CONTEXT.md` and one `docs/adr/` at the root, alongside the 
 - No emojis unless requested
 - User-facing copy (UI strings, labels, descriptions, tooltips, flash messages, seeded descriptions, product docs on the marketing and docs sites) uses **no em dashes and no semicolons at all**. Not "no unnecessary semicolons" — none. Write two sentences, or use a comma or parenthesis. This covers seeds, migrations that insert copy, and fixtures, not just `.tsx`. Empty table cells use a plain hyphen, not a dash glyph.
 - Exempt from the dash rule: **titles using a dash as a separator** (`<Head title>`, Slack message headers: `INC-052 — Checkout failing`), engineering docs under `docs/`, exception and log messages, and machine-facing schema text such as MCP tool parameter descriptions.
+- Code comments carry the same punctuation rule as user-facing copy: no em dashes, no semicolons. A semicolon almost always joins two independent clauses, so it becomes a period rather than a comma, which would splice them. Keep a colon only where it introduces a list, an example, or a short definition label (`# Dedup:`), never as a mid-sentence connector. Code that happens to sit inside a comment is untouched, including hash literals, `kind: native`, `Authorization: Bearer`, magic comments and YARD tags.
 - No direct `Rails.logger` helper wrappers — call `Rails.logger.info(...)` inline where needed
 - Keep it simple, avoid over-engineering
 - Rubocop enforced: `[ {...} ]` not `[{...}]` (SpaceInsideArrayLiteralBrackets)
