@@ -3,7 +3,7 @@ require "test_helper"
 class Slack::Modals::FieldBlocksTest < ActiveSupport::TestCase
   fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
            :incident_statuses, :incident_severities, :incident_types, :incidents,
-           :incident_forms, :incident_form_fields
+           :incident_forms, :incident_form_fields, :incident_field_definitions, :catalog_types
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

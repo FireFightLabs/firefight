@@ -84,7 +84,7 @@ class SlackArchiveIncidentChannelsRakeTest < ActiveSupport::TestCase
   end
 
   test "handles API errors without stopping" do
-    stub_archive_channel(raises: Slack::Client::ApiError.new("some_error"))
+    stub_archive_channel(raises: AdapterError.new("some_error"))
 
     output, = capture_io do
       Rake::Task["slack:archive_incident_channels"].invoke(@workspace.id)

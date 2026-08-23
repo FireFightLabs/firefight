@@ -21,7 +21,7 @@ class Interactions::ShareChannelHandlerTest < ActiveSupport::TestCase
   end
 
   test "handles expired trigger" do
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("Trigger expired"))
+    stub_open_modal(raises: AdapterError::TriggerExpired.new("Trigger expired"))
 
     result = Interactions::ShareChannelHandler.execute(build_interaction)
 

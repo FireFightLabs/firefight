@@ -318,7 +318,7 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
       incident: @incident, created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION,
       description: "Restart the worker", assignee: @member
     )
-    Slack::Client.stubs(:get_permalink).raises(Slack::Client::ApiError.new("boom"))
+    Slack::Client.stubs(:get_permalink).raises(AdapterError.new("boom"))
 
     posted = []
     Slack::Client.stubs(:post_message).with { |args| posted << args }.returns({ ok: true, ts: "9.9" })

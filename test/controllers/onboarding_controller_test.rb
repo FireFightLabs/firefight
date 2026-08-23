@@ -58,6 +58,28 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to onboarding_invite_code_path
   end
 
+  test "an admin of a disconnected workspace reaches the install page with no invite code" do
+    workspace = workspaces(:slack_workspace_one)
+    workspace.mark_disconnected!(Workspace::Connection::DISCONNECTED_TOKEN_REVOKED)
+    sign_in(users(:alice), workspace)
+
+    get onboarding_reinstall_path
+    assert_redirected_to onboarding_install_path
+
+    get onboarding_install_path, headers: inertia_headers
+    assert_response :success
+    assert_match workspace.name, response.body
+  end
+
+  test "a member cannot start a reconnect" do
+    workspace = workspaces(:slack_workspace_one)
+    sign_in(users(:bob), workspace)
+
+    get onboarding_reinstall_path
+
+    assert_redirected_to dashboard_path
+  end
+
   test "install renders when pending_team_id is present and invite is claimed" do
     seed_pending_install("T_INSTALL_CO", "Install Co")
     post claim_invite_code_path, params: { code: "BETA-ACCESS" }

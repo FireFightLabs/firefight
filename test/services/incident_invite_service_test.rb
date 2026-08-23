@@ -21,7 +21,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
   end
 
   test "treats already_in_channel as non-fatal" do
-    Slack::Client.expects(:invite_to_channel).raises(Slack::Client::AlreadyInChannelError.new("already_in_channel"))
+    Slack::Client.expects(:invite_to_channel).raises(AdapterError::AlreadyInChannel.new("already_in_channel"))
 
     result = @service.invite!(incident: @incident, user_ids: [ "U11111111" ])
 
@@ -31,7 +31,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
   end
 
   test "treats cant_invite_self as non-fatal" do
-    Slack::Client.expects(:invite_to_channel).raises(Slack::Client::AlreadyInChannelError.new("cant_invite_self"))
+    Slack::Client.expects(:invite_to_channel).raises(AdapterError::AlreadyInChannel.new("cant_invite_self"))
 
     result = @service.invite!(incident: @incident, user_ids: [ "U11111111" ])
 
@@ -41,7 +41,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
   end
 
   test "collects other invite failures" do
-    Slack::Client.expects(:invite_to_channel).raises(Slack::Client::ApiError.new("cant_invite"))
+    Slack::Client.expects(:invite_to_channel).raises(AdapterError.new("cant_invite"))
 
     result = @service.invite!(incident: @incident, user_ids: [ "U11111111" ])
 

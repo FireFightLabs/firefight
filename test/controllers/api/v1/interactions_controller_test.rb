@@ -306,7 +306,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
 
     request_data = slack_interaction_request(payload)
 
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
+    stub_open_modal(raises: AdapterError::TriggerExpired.new("expired"))
     post api_v1_interactions_url,
          params: request_data[:body],
          headers: request_data[:headers]

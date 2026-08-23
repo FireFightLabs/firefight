@@ -67,7 +67,7 @@ class ChannelArchivalJobTest < ActiveSupport::TestCase
   end
 
   test "handles already archived error gracefully" do
-    Slack::Client.expects(:archive_channel).raises(Slack::Client::AlreadyArchivedError.new("already archived"))
+    Slack::Client.expects(:archive_channel).raises(AdapterError::AlreadyArchived.new("already archived"))
 
     ChannelArchivalJob.perform_now(@incident.id, @incident.resolved_at.iso8601)
 
@@ -76,7 +76,7 @@ class ChannelArchivalJobTest < ActiveSupport::TestCase
   end
 
   test "re-raises AuthRevoked so the failure surfaces in SolidQueue" do
-    Slack::Client.expects(:archive_channel).raises(Slack::Client::AuthRevokedError.new("token_revoked"))
+    Slack::Client.expects(:archive_channel).raises(AdapterError::AuthRevoked.new("token_revoked"))
     Slack::AuthRevokedNotifier.expects(:notify).at_least_once
 
     assert_raises(AdapterError::AuthRevoked) do

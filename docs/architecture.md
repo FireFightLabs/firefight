@@ -226,9 +226,9 @@ Adapters have two levels of methods:
 
 Handlers and services call high-level adapter methods — never reference platform-specific builders (`Slack::Messages::*`, `Slack::Modals::*`) directly. UI building stays inside the adapter layer.
 
-Adapters catch platform-specific errors and re-raise as `AdapterError` subclasses:
-- `Slack::Client::TriggerExpiredError` → `AdapterError::TriggerExpired`
-- `Slack::Client::ChannelExistsError` → `AdapterError::ChannelExists`
+Platform clients raise `AdapterError` subclasses directly, so there is one error family in the whole app. `Slack::Client::SLACK_ERROR_CODES` maps each Slack error code to its `AdapterError` (`expired_trigger_id` → `TriggerExpired`, `name_taken` → `ChannelExists`, `token_revoked` → `AuthRevoked`, …), 429s become `RateLimited`, 5xx become `ServerError`, and a transport failure that outlives the retries becomes `AdapterError::Unavailable`. Nothing platform-specific, not even a `Net::ReadTimeout`, leaves `app/adapters/`. `Slack::WorkspaceAdapter#translate_errors` only adds the side effect a revoked install needs.
+
+A revoked install (`token_revoked`, `account_inactive`, or a refresh token Slack no longer accepts) marks the workspace disconnected (`Workspace::Connection`). The dashboard keeps working and shows a banner asking an admin to reconnect through `/onboarding/reinstall`, which skips the invite gate for a workspace that already exists. The hourly token refresh skips disconnected workspaces. A reinstall clears the flag.
 
 Services and handlers rescue `AdapterError` subclasses — never platform-specific errors.
 

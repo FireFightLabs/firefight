@@ -80,7 +80,7 @@ class Events::MemberJoinedChannelHandlerTest < ActiveSupport::TestCase
   end
 
   test "handles API errors gracefully" do
-    stub_get_user_info(raises: Slack::Client::ApiError.new("user_not_found"))
+    stub_get_user_info(raises: AdapterError.new("user_not_found"))
 
     assert_no_difference "WorkspaceMembership.count" do
       assert_nothing_raised do

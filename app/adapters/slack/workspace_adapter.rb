@@ -313,33 +313,13 @@ module Slack
 
     private
 
+    # Slack::Client already raises AdapterError. The adapter's only job here
+    # is the side effect a revoked install needs.
     def translate_errors
       yield
-    rescue Slack::Client::AuthRevokedError => e
+    rescue AdapterError::AuthRevoked => e
       Slack::AuthRevokedNotifier.notify(@workspace, error_code: e.error_code)
-      raise AdapterError::AuthRevoked.new(e.error_code)
-    rescue Slack::Client::RateLimitedError => e
-      raise AdapterError::RateLimited.new(e.retry_after)
-    rescue Slack::Client::TriggerExpiredError
-      raise AdapterError::TriggerExpired, "Modal trigger expired"
-    rescue Slack::Client::ChannelExistsError
-      raise AdapterError::ChannelExists, "Channel name already taken"
-    rescue Slack::Client::AlreadyArchivedError
-      raise AdapterError::AlreadyArchived, "Channel is already archived"
-    rescue Slack::Client::IsArchivedError
-      raise AdapterError::IsArchived, "Channel is archived"
-    rescue Slack::Client::NotInChannelError
-      raise AdapterError::NotInChannel, "Bot not in channel"
-    rescue Slack::Client::ChannelNotFoundError
-      raise AdapterError::NotFound, "Channel not found"
-    rescue Slack::Client::AlreadyInChannelError
-      raise AdapterError::AlreadyInChannel, "User already in channel"
-    rescue Slack::Client::RestrictedActionError
-      raise AdapterError::RestrictedAction, "Action restricted by workspace policy"
-    rescue Slack::Client::UnsafeDownloadHost => e
-      raise AdapterError::UnsafeDownloadHost, e.message
-    rescue Slack::Client::ApiError => e
-      raise AdapterError, e.message
+      raise
     end
   end
 end

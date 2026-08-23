@@ -162,7 +162,7 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
   test "handles channel name collision with fallback" do
     # First call raises ChannelExistsError, second succeeds
     Slack::Client.stubs(:create_channel)
-      .raises(Slack::Client::ChannelExistsError.new("name_taken"))
+      .raises(AdapterError::ChannelExists.new("name_taken"))
       .then.returns({ channel: { id: "C_FALLBACK", name: "inc-001-database-outage-12345", is_channel: true } })
     stub_set_channel_topic
     stub_set_channel_purpose
