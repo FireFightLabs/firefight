@@ -7,17 +7,20 @@ module SolidWorkflow
       BACKOFF_LINEAR = "linear"
       BACKOFF_FIXED = "fixed"
 
-      def should_retry?
-        return false if terminal_error?
+      # Decided from the exception itself, at the one place it exists, so
+      # the retry policy never depends on how last_error was formatted.
+      def should_retry?(error)
+        return false if terminal_error?(error)
         attempts < max_attempts
       end
 
       # Terminal errors are never retried, the next attempt produces the
       # same outcome. The class list is engine config so host apps register
-      # their own (see SolidWorkflow.terminal_error_classes).
-      def terminal_error?
-        return false if last_error.blank?
-        SolidWorkflow.terminal_error_classes.any? { |klass| last_error.start_with?("#{klass}:") }
+      # their own (see SolidWorkflow.terminal_error_classes). A subclass of a
+      # listed class counts, since it means the same thing.
+      def terminal_error?(error)
+        ancestors = error.class.ancestors.map(&:name)
+        SolidWorkflow.terminal_error_classes.any? { |klass| ancestors.include?(klass) }
       end
 
       def schedule_retry!

@@ -27,7 +27,7 @@ module Mcp
         scope = CatalogEntry.active.joins(:catalog_type)
           .where(workspace: workspace)
           .includes({ catalog_type: :catalog_attribute_definitions },
-                    outgoing_relationships: { target_entry: :catalog_type })
+                    outgoing_relationships: [ :catalog_attribute_definition, { target_entry: :catalog_type } ])
           .order(:name)
         if args[:type].present?
           scope = scope.where(catalog_types: { slug: args[:type] })
@@ -51,7 +51,7 @@ module Mcp
             next if relationship.target_entry.deleted_at.present?
 
             {
-              key: relationship.relationship_key,
+              key: relationship.attribute_slug,
               target_slug: relationship.target_entry.slug,
               target_name: relationship.target_entry.name,
               target_type: relationship.target_entry.catalog_type.system_key || relationship.target_entry.catalog_type.slug

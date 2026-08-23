@@ -1,26 +1,26 @@
-import { useCallback, useEffect, useState } from "react"
-import { router } from "@inertiajs/react"
-import { IconCircleCheck, IconCircleX } from "@tabler/icons-react"
+import { useCallback, useEffect, useState } from "react";
+import { router } from "@inertiajs/react";
+import { IconCircleCheck, IconCircleX } from "@tabler/icons-react";
 
-import type { Webhook } from "@/types/serializers"
+import type { Webhook, WebhookDelivery } from "@/types/serializers";
 import {
   activateWebhookPath,
   deactivateWebhookPath,
   replayWebhookDeliveryPath,
   signingSecretWebhookPath,
   testWebhookPath,
-} from "@/lib/routes"
-import { requestJson } from "@/lib/http"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
+} from "@/lib/routes";
+import { requestJson } from "@/lib/http";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet"
+} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -28,84 +28,121 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { eventLabel } from "@/pages/settings/lib/webhook-events"
+} from "@/components/ui/table";
+import { eventLabel } from "@/pages/settings/lib/webhook-events";
+
+// One place decides what each delivery state looks like. The server decides
+// the state, so the sheet never recomputes it from the response code.
+const DELIVERY_OUTCOME: Record<
+  WebhookDelivery["state"],
+  { label: (code: number | undefined) => string; className: string }
+> = {
+  pending: {
+    label: () => "Queued",
+    className: "bg-muted text-muted-foreground",
+  },
+  in_progress: {
+    label: () => "Sending",
+    className: "bg-muted text-muted-foreground",
+  },
+  succeeded: {
+    label: (code) => String(code ?? "OK"),
+    className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  },
+  failed: {
+    label: (code) => String(code ?? "ERR"),
+    className: "bg-red-500/15 text-red-600 dark:text-red-400",
+  },
+};
 
 export function WebhookDetailSheet({
   webhook,
   open,
   onOpenChange,
 }: {
-  webhook: Webhook | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  webhook: Webhook | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const [secret, setSecret] = useState<string | null>(null)
-  const [secretPending, setSecretPending] = useState(false)
-  const [secretError, setSecretError] = useState<string | null>(null)
-  const webhookId = webhook?.id
+  const [secret, setSecret] = useState<string | null>(null);
+  const [secretPending, setSecretPending] = useState(false);
+  const [secretError, setSecretError] = useState<string | null>(null);
+  const webhookId = webhook?.id;
 
   // A secret held in component state must not outlive the sheet it was asked
   // for, or the next webhook opens showing the previous one's.
   useEffect(() => {
-    setSecret(null)
-    setSecretError(null)
-  }, [ webhookId, open ])
+    setSecret(null);
+    setSecretError(null);
+  }, [webhookId, open]);
 
   const hideSecret = useCallback(() => {
-    setSecret(null)
-    setSecretError(null)
-  }, [])
+    setSecret(null);
+    setSecretError(null);
+  }, []);
 
   const revealSecret = useCallback(async () => {
     if (!webhookId) {
-      return
+      return;
     }
 
-    setSecretPending(true)
-    setSecretError(null)
+    setSecretPending(true);
+    setSecretError(null);
     try {
       const { ok, data } = await requestJson<{ signingSecret: string }>(
         signingSecretWebhookPath(webhookId),
-        { method: "GET" }
-      )
+        { method: "GET" },
+      );
       if (ok && data) {
-        setSecret(data.signingSecret)
+        setSecret(data.signingSecret);
       } else {
-        setSecretError("Couldn't load the signing secret. You may not have admin access.")
+        setSecretError(
+          "Couldn't load the signing secret. You may not have admin access.",
+        );
       }
     } catch {
-      setSecretError("Couldn't load the signing secret. Please try again.")
+      setSecretError("Couldn't load the signing secret. Please try again.");
     } finally {
-      setSecretPending(false)
+      setSecretPending(false);
     }
-  }, [ webhookId ])
+  }, [webhookId]);
 
   // preserveState keeps the sheet open, so the new attempt appears in the list
   // the person is already looking at instead of dropping them back to the page.
-  const replayDelivery = useCallback((deliveryId: string) => {
-    if (!webhookId) {
-      return
-    }
+  const replayDelivery = useCallback(
+    (deliveryId: string) => {
+      if (!webhookId) {
+        return;
+      }
 
-    router.post(replayWebhookDeliveryPath(webhookId, deliveryId), {}, {
-      preserveState: true,
-      preserveScroll: true,
-    })
-  }, [ webhookId ])
+      router.post(
+        replayWebhookDeliveryPath(webhookId, deliveryId),
+        {},
+        {
+          preserveState: true,
+          preserveScroll: true,
+        },
+      );
+    },
+    [webhookId],
+  );
 
-  const toggleSecret = secret === null ? revealSecret : hideSecret
-  const secretButtonLabel = secretPending ? "Loading" : secret === null ? "Reveal" : "Hide"
+  const toggleSecret = secret === null ? revealSecret : hideSecret;
+  const secretButtonLabel = secretPending
+    ? "Loading"
+    : secret === null
+      ? "Reveal"
+      : "Hide";
 
   function handleOpenChange(next: boolean) {
     if (!next) {
-      hideSecret()
+      hideSecret();
     }
-    onOpenChange(next)
+    onOpenChange(next);
   }
 
   if (!webhook) {
-    return null
+    return null;
   }
 
   return (
@@ -115,7 +152,10 @@ export function WebhookDetailSheet({
           <div className="flex items-center gap-2">
             <SheetTitle>{webhook.name}</SheetTitle>
             {webhook.active ? (
-              <Badge variant="secondary" className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <Badge
+                variant="secondary"
+                className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+              >
                 <IconCircleCheck className="size-3" />
                 Active
               </Badge>
@@ -175,7 +215,9 @@ export function WebhookDetailSheet({
                 {secretButtonLabel}
               </Button>
             </div>
-            {secretError ? <p className="text-destructive text-xs">{secretError}</p> : null}
+            {secretError ? (
+              <p className="text-destructive text-xs">{secretError}</p>
+            ) : null}
           </div>
 
           <Separator />
@@ -210,7 +252,9 @@ export function WebhookDetailSheet({
                     <TableRow className="hover:bg-transparent">
                       <TableHead>Event</TableHead>
                       <TableHead className="w-20 text-center">Status</TableHead>
-                      <TableHead className="w-28 text-right">Delivered</TableHead>
+                      <TableHead className="w-28 text-right">
+                        Delivered
+                      </TableHead>
                       <TableHead className="w-20 text-right">
                         <span className="sr-only">Actions</span>
                       </TableHead>
@@ -218,37 +262,34 @@ export function WebhookDetailSheet({
                   </TableHeader>
                   <TableBody>
                     {webhook.deliveries.map((delivery) => {
-                      const succeeded =
-                        delivery.state === "completed" &&
-                        delivery.responseCode !== null &&
-                        delivery.responseCode !== undefined &&
-                        delivery.responseCode >= 200 &&
-                        delivery.responseCode < 300
+                      const outcome = DELIVERY_OUTCOME[delivery.state];
                       return (
                         <TableRow key={delivery.id}>
                           <TableCell>
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-sm">{eventLabel(delivery.eventType)}</span>
-                              {!succeeded && delivery.errorMessage && (
-                                <span className="text-xs text-red-500 dark:text-red-400">
-                                  {delivery.errorMessage}
-                                </span>
-                              )}
+                              <span className="text-sm">
+                                {eventLabel(delivery.eventType)}
+                              </span>
+                              {delivery.state === "failed" &&
+                                delivery.errorMessage && (
+                                  <span className="text-xs text-red-500 dark:text-red-400">
+                                    {delivery.errorMessage}
+                                  </span>
+                                )}
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            {succeeded ? (
-                              <Badge variant="secondary" className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs">
-                                {delivery.responseCode}
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="gap-1 bg-red-500/15 text-red-600 dark:text-red-400 text-xs">
-                                {delivery.responseCode ?? "ERR"}
-                              </Badge>
-                            )}
+                            <Badge
+                              variant="secondary"
+                              className={`gap-1 text-xs ${outcome.className}`}
+                            >
+                              {outcome.label(delivery.responseCode)}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground">
-                            {new Date(delivery.deliveredAt).toLocaleDateString("en-US", {
+                            {new Date(
+                              delivery.deliveredAt ?? delivery.attemptedAt,
+                            ).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                               hour: "2-digit",
@@ -265,7 +306,7 @@ export function WebhookDetailSheet({
                             </Button>
                           </TableCell>
                         </TableRow>
-                      )
+                      );
                     })}
                   </TableBody>
                 </Table>
@@ -275,5 +316,5 @@ export function WebhookDetailSheet({
         </div>
       </SheetContent>
     </Sheet>
-  )
+  );
 }

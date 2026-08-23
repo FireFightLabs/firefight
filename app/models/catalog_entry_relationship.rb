@@ -1,23 +1,17 @@
+# One reference attribute's value on one entry. The attribute definition is
+# the relationship's identity: which attribute it fills, and therefore what
+# key it renders under. The unique index on (source, definition) is what
+# keeps a single-valued reference single.
 class CatalogEntryRelationship < ApplicationRecord
-  KEY_DEPENDS_ON = "depends_on"
-  KEY_DEPLOYED_TO = "deployed_to"
-  KEY_RUNS_IN = "runs_in"
-  KEY_SUPPORTS = "supports"
-  RESERVED_KEYS = [ KEY_DEPENDS_ON, KEY_DEPLOYED_TO, KEY_RUNS_IN, KEY_SUPPORTS ].freeze
-
   belongs_to :workspace
   belongs_to :source_entry, class_name: "CatalogEntry"
   belongs_to :target_entry, class_name: "CatalogEntry"
-  belongs_to :catalog_attribute_definition, optional: true
-
-  validates :relationship_key, presence: true
-  validates :source_entry_id, uniqueness: {
-    scope: [ :target_entry_id, :relationship_key ],
-    message: "already has this relationship"
-  }
+  belongs_to :catalog_attribute_definition
 
   validate :same_workspace
   validate :no_self_reference
+
+  delegate :slug, to: :catalog_attribute_definition, prefix: :attribute
 
   private
 

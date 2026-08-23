@@ -50,10 +50,7 @@ module CatalogEntry::ReferenceManagement
   end
 
   def upsert_reference!(attr_def, target_entry)
-    rel = outgoing_relationships.find_or_initialize_by(
-      catalog_attribute_definition: attr_def,
-      relationship_key: attr_def.slug
-    )
+    rel = outgoing_relationships.find_or_initialize_by(catalog_attribute_definition: attr_def)
     rel.assign_attributes(
       target_entry: target_entry,
       workspace: workspace

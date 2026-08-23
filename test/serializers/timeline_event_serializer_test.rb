@@ -17,13 +17,35 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
       incident.update!(incident_status: new_status, resolved_at: Time.current)
     end
 
-    event = incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_RESOLVED)
+    event = incident.timeline_events.find { |e| e.event_type == IncidentEvent::INCIDENT_RESOLVED }
     rendered = TimelineEventSerializer.one(event)
 
     status_change = rendered[:changes].find { |c| c[:field] == "status" }
     assert_not_nil status_change, "expected status to appear in changes"
     assert_equal initial_status.name, status_change[:before]
     assert_equal new_status.name, status_change[:after]
+  end
+
+  test "the timeline links each update to the one before it from one load, not a query per row" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    severities = incident.workspace.incident_severities.active.ordered.to_a
+    5.times do |i|
+      incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) do
+        incident.update!(incident_severity: severities[i % severities.size], summary: "update #{i}")
+      end
+    end
+
+    events = incident.timeline_events
+    queries = 0
+    counter = ->(*) { queries += 1 }
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      TimelineEventSerializer.many(events).to_json
+    end
+
+    updates = events.map(&:eventable).grep(IncidentUpdate)
+    assert_equal updates[-2], updates[-1].previous_update
+    assert_operator queries, :<=, 2, "serializing a loaded timeline ran #{queries} queries"
   end
 
   test "details surfaces the update message stored on the eventable" do

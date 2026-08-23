@@ -212,7 +212,23 @@ class CatalogTypeTest < ActiveSupport::TestCase
   test "soft_delete! rejects system types" do
     team = catalog_types(:team_ws1)
     error = assert_raises(ActiveRecord::RecordNotDestroyed) { team.soft_delete! }
-    assert_equal "System types cannot be deleted", error.message
+    assert_equal team.deletion_blocked_reason, error.message
+    assert_match(/built-in type/, error.message)
+  end
+
+  test "a type another type's attribute points at cannot be deleted, and the reason names the attribute" do
+    vendor = catalog_types(:custom_vendor_ws1)
+    service = catalog_types(:service_ws1)
+    service.catalog_attribute_definitions.create!(
+      name: "Vendor", slug: "vendor", attribute_type: CatalogAttributeDefinition::TYPE_REFERENCE,
+      position: 99, config: { "reference_type_id" => vendor.id }
+    )
+
+    reason = vendor.deletion_blocked_reason
+    assert_equal "Vendor is referenced by the Vendor attribute on Service. Remove that attribute before deleting the type.", reason
+    error = assert_raises(ActiveRecord::RecordNotDestroyed) { vendor.soft_delete! }
+    assert_equal reason, error.message
+    assert_nil vendor.reload.deleted_at
   end
 
   test "soft_delete! sets deleted_at on custom types" do
@@ -249,7 +265,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
       workspace: workspace,
       source_entry: entry,
       target_entry: catalog_entries(:platform_team),
-      relationship_key: "owner"
+      catalog_attribute_definition: catalog_attribute_definitions(:service_owner_team)
     )
 
     custom_type.soft_delete!

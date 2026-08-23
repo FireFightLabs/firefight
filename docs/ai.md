@@ -14,7 +14,7 @@ engines/firefight_ai/
     incident_responder.rb                            # @mention responses in incident channels
     schemas/postmortem.rb                            # Structured-output schema for postmortem generation
   app/jobs/firefight_ai/
-    postmortem_generation_job.rb                     # Async wrapper for the generator
+    postmortem_generation_job.rb                     # Async wrapper for the generator. Runs only while Postmortem#generation_state is "generating"
     incident_response_job.rb                         # Async wrapper for the responder
 ```
 
@@ -52,3 +52,7 @@ AI features read incident channel history from `IncidentTranscriptMessage`, not 
 ## Entitlements gate
 
 AI features are gated per workspace via `Entitlements.allows?(workspace, Entitlements::AI)`. In the open-source build this always allows (see the Entitlements section in [architecture.md](architecture.md)); the proprietary cloud build swaps in a backend enforcing trial/credit state. Gate new AI features the same way — never with a hardcoded flag.
+
+## Postmortem generation state
+
+`Postmortem#status` is the document's editorial status and nothing else. Whether an AI generation is writing the document lives in `generation_state` (`generating`, `failed`, or nil for nobody). Every entry point (the dashboard button, `/ff postmortem`) calls `Postmortem.start_generation!(incident, by:)`, which creates the placeholder or re-arms a failed one and returns nil when a generation is already running, so two requests yield one job. The job runs only while the state is `generating`; a terminal failure marks it `failed` with the error class instead of deleting the row, and the page offers Try again or Start blank. The generator clears the state when it saves.

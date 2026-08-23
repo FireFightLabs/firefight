@@ -18,12 +18,19 @@ module Commands
 
         return Command.ephemeral("This command must be run from a resolved incident channel.")
       end
-      return Command.ephemeral("A postmortem has already been generated for #{incident.identifier}.") if incident.postmortem.present?
+      postmortem = incident.postmortem
+      if postmortem && !postmortem.generating? && !postmortem.generation_failed?
+        return Command.ephemeral("A postmortem has already been generated for #{incident.identifier}.")
+      end
 
       member = command.workspace.workspace_memberships.find_by(platform_user_id: command.user_id)
       return Command.ephemeral("Could not identify your workspace membership.") unless member
 
-      FirefightAi::PostmortemGenerationJob.perform_later(incident.id, member.id)
+      # The same placeholder the dashboard creates, so a second request from
+      # either surface while one runs is a no-op rather than a second job.
+      if Postmortem.start_generation!(incident, by: member)
+        FirefightAi::PostmortemGenerationJob.perform_later(incident.id, member.id)
+      end
       Command.ephemeral("Generating postmortem for #{incident.identifier}... This may take a minute.")
     end
   end

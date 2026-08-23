@@ -64,6 +64,25 @@ class Commands::GeneratePostmortemTest < ActiveSupport::TestCase
     assert_includes result[:text], "resolved incident channel"
   end
 
+  test "the command creates the same placeholder the dashboard does, so a second request runs no second job" do
+    assert_enqueued_jobs 1, only: FirefightAi::PostmortemGenerationJob do
+      Commands::GeneratePostmortem.execute(build_command(channel_id: @incident.channel_id))
+      Commands::GeneratePostmortem.execute(build_command(channel_id: @incident.channel_id))
+    end
+
+    assert @incident.reload.postmortem.generating?
+  end
+
+  test "a failed generation can be run again from Slack" do
+    Postmortem.start_generation!(@incident, by: @member)
+    @incident.postmortem.mark_generation_failed!(RuntimeError.new("boom"))
+
+    assert_enqueued_with(job: FirefightAi::PostmortemGenerationJob) do
+      Commands::GeneratePostmortem.execute(build_command(channel_id: @incident.channel_id))
+    end
+    assert @incident.reload.postmortem.generating?
+  end
+
   test "returns error when postmortem already exists" do
     Postmortem.create!(
       incident: @incident,

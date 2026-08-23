@@ -12,8 +12,7 @@ class IncidentListItemSerializer < BaseSerializer
 
   type :string, optional: true
   def lead
-    assignment = incident.incident_role_assignments.detect { |a| a.incident_role.slug == IncidentRole::SLUG_INCIDENT_LEAD }
-    assignment&.workspace_membership&.user&.name
+    incident.lead&.user&.name
   end
 
   # A name, like `lead`. The table shows text, not chips.

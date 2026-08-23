@@ -44,7 +44,7 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
 
     assert entry.persisted?
     assert_equal "Handles billing", entry.entry_attributes["description"]
-    rel = entry.outgoing_relationships.find_by!(relationship_key: "owner_team")
+    rel = entry.outgoing_relationships.find_by!(catalog_attribute_definition: catalog_attribute_definitions(:service_owner_team))
     assert_equal platform_team, rel.target_entry
   end
 
@@ -58,7 +58,7 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
       raw_attributes: { "owner_team" => platform_team.slug }
     )
 
-    rel = entry.outgoing_relationships.find_by!(relationship_key: "owner_team")
+    rel = entry.outgoing_relationships.find_by!(catalog_attribute_definition: catalog_attribute_definitions(:service_owner_team))
     assert_equal platform_team, rel.target_entry
   end
 

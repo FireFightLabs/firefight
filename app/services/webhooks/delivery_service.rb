@@ -29,12 +29,11 @@ class Webhooks::DeliveryService
     @delivery.update!(request_headers: request_headers, request_body: JSON.parse(payload))
 
     response = perform_request(payload, request_headers, resolved_ip)
-    @delivery.update!(
-      state: :completed,
-      response_code: response[:code],
-      error_message: response[:error],
-      delivered_at: Time.current
-    )
+    if response[:code].between?(200, 299)
+      @delivery.update!(state: :succeeded, response_code: response[:code], delivered_at: Time.current)
+    else
+      @delivery.update!(state: :failed, response_code: response[:code], error_message: "http_#{response[:code]}")
+    end
 
     record_outcome
   rescue ResponseTooLarge
@@ -112,7 +111,7 @@ class Webhooks::DeliveryService
   end
 
   def record_error(message)
-    @delivery.update!(state: :errored, error_message: message)
+    @delivery.update!(state: :failed, error_message: message)
     record_outcome
   end
 

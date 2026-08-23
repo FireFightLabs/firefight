@@ -6,10 +6,27 @@ class PostmortemSerializer < BaseSerializer
     postmortem.id
   end
 
+  STATUS_UNION = Postmortem::STATUSES.map(&:inspect).join(" | ")
+  GENERATION_UNION = Postmortem::GENERATION_STATES.map(&:inspect).join(" | ")
+
   attributes(
-    title: { type: :string },
-    status: { type: '"draft" | "in_progress" | "in_review" | "completed"' }
+    title: { type: :string }
   )
+
+  type STATUS_UNION
+  def status
+    postmortem.status
+  end
+
+  type GENERATION_UNION, optional: true
+  def generation_state
+    postmortem.generation_state
+  end
+
+  type :string, optional: true
+  def generation_error
+    postmortem.generation_error
+  end
 
   type :string
   def generated_by

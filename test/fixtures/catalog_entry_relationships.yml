@@ -4,4 +4,3 @@ auth_service_owner:
   source_entry_id: cc000001-0000-0000-0000-000000000002
   target_entry_id: cc000001-0000-0000-0000-000000000001
   catalog_attribute_definition_id: bb000001-0000-0000-0000-000000000004
-  relationship_key: owner_team

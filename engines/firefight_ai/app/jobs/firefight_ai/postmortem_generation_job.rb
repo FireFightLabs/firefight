@@ -23,7 +23,7 @@ module FirefightAi
                RubyLLM::ForbiddenError,
                RubyLLM::PaymentRequiredError,
                RubyLLM::ModelNotFoundError do |job, error|
-      job.cleanup_in_progress!
+      job.record_failure(error)
       job.notify_failure(error, terminal: true)
     end
 
@@ -32,10 +32,10 @@ module FirefightAi
     def perform(incident_id, generated_by_id)
       incident = Incident.find(incident_id)
       member = WorkspaceMembership.find(generated_by_id)
-      return if incident.postmortem && incident.postmortem.status != ::Postmortem::STATUS_IN_PROGRESS
+      return unless incident.postmortem&.generating?
 
       unless Entitlements.allows?(incident.workspace, Entitlements::AI)
-        cleanup_in_progress!
+        incident.postmortem.mark_generation_failed!(Entitlements::Result)
         Rails.logger.info({ event: "postmortem_generation.entitlement_blocked", incident_id: incident_id, workspace_id: incident.workspace_id })
         return
       end
@@ -45,11 +45,12 @@ module FirefightAi
       generator.post_message(incident)
     end
 
-    # Drop the in_progress placeholder so the user can retry from the dashboard.
-    def cleanup_in_progress!
+    # The placeholder stays, marked failed, so the page can say what happened
+    # and offer a retry instead of showing an empty incident.
+    def record_failure(error)
       incident_id, = arguments
       postmortem = Incident.find_by(id: incident_id)&.postmortem
-      postmortem.destroy if postmortem&.status == ::Postmortem::STATUS_IN_PROGRESS
+      postmortem.mark_generation_failed!(error) if postmortem&.generating?
     end
 
     def notify_failure(error, terminal:)
@@ -60,9 +61,9 @@ module FirefightAi
 
       reason = error.class.name.demodulize
       text = if terminal
-        ":warning: Postmortem generation for #{incident.identifier} failed (reason: #{reason}) and won't retry automatically. Try `/firefight postmortem` again."
+        ":warning: Postmortem generation for #{incident.identifier} failed (reason: #{reason}) and won't retry automatically. Try again from the incident page or with `/firefight postmortem`."
       else
-        ":warning: Postmortem generation for #{incident.identifier} failed after retries. Try `/firefight postmortem` again."
+        ":warning: Postmortem generation for #{incident.identifier} failed after retries. Try again from the incident page or with `/firefight postmortem`."
       end
 
       incident.workspace.adapter.post_ephemeral(
