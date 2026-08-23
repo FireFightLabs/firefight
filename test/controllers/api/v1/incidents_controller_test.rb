@@ -13,9 +13,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     @status = @workspace.incident_statuses.default_status
   end
 
-  # ============================================================================
-  # AUTHENTICATION
-  # ============================================================================
+  # Authentication
 
   test "a member's personal token participates in incidents but cannot configure the workspace" do
     membership = workspace_memberships(:bob_workspace_one)
@@ -52,9 +50,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
-  # ============================================================================
-  # PERMISSIONS
-  # ============================================================================
+  # Permissions
 
   test "returns 403 when key lacks create permission" do
     post api_v1_incidents_url,
@@ -63,9 +59,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
-  # ============================================================================
-  # INDEX
-  # ============================================================================
+  # Index
 
   test "lists incidents for the workspace" do
     get api_v1_incidents_url, headers: api_headers
@@ -108,9 +102,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # ============================================================================
-  # SHOW
-  # ============================================================================
+  # Show
 
   test "shows incident details" do
     incident = incidents(:active_critical_ws1)
@@ -144,9 +136,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  # ============================================================================
-  # CREATE
-  # ============================================================================
+  # Create
 
   test "creates incident with required fields" do
     stub_successful_slack_workflow
@@ -243,9 +233,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # ============================================================================
-  # UPDATE
-  # ============================================================================
+  # Update
 
   test "updates incident name and summary" do
     incident = incidents(:active_critical_ws1)
@@ -375,9 +363,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  # ============================================================================
-  # ERROR FORMAT
-  # ============================================================================
+  # Error format
 
   test "error responses include request_id" do
     get api_v1_incident_url("nonexistent-id"), headers: api_headers

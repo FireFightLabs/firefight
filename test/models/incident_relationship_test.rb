@@ -12,9 +12,7 @@ class IncidentRelationshipTest < ActiveSupport::TestCase
     @member = workspace_memberships(:alice_workspace_one)
   end
 
-  # ============================================================================
-  # VALIDATIONS
-  # ============================================================================
+  # Validations
 
   test "requires relationship_type" do
     rel = IncidentRelationship.new(
@@ -103,9 +101,7 @@ class IncidentRelationshipTest < ActiveSupport::TestCase
     assert rel.valid?
   end
 
-  # ============================================================================
-  # ASSOCIATIONS
-  # ============================================================================
+  # Associations
 
   test "belongs to incident" do
     rel = IncidentRelationship.create!(
@@ -136,9 +132,7 @@ class IncidentRelationshipTest < ActiveSupport::TestCase
     assert rel.valid?
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "related scope filters by type" do
     related = IncidentRelationship.create!(
@@ -166,9 +160,7 @@ class IncidentRelationshipTest < ActiveSupport::TestCase
     assert_includes IncidentRelationship.duplicates, duplicate
   end
 
-  # ============================================================================
-  # CONSTANTS
-  # ============================================================================
+  # Constants
 
   test "RELATIONSHIP_TYPES contains all types" do
     assert_equal %w[duplicate related], IncidentRelationship::RELATIONSHIP_TYPES.sort

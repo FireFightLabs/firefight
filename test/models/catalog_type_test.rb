@@ -3,9 +3,7 @@ require "test_helper"
 class CatalogTypeTest < ActiveSupport::TestCase
   fixtures :workspaces, :catalog_types, :catalog_attribute_definitions, :catalog_entries, :catalog_entry_relationships
 
-  # ============================================================================
-  # BASIC VALIDATIONS
-  # ============================================================================
+  # Basic validations
 
   test "requires name" do
     ct = CatalogType.new(
@@ -63,9 +61,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_includes ct.errors[:kind], "is not included in the list"
   end
 
-  # ============================================================================
-  # SLUG UNIQUENESS
-  # ============================================================================
+  # Slug uniqueness
 
   test "slug must be unique within workspace" do
     existing = catalog_types(:custom_vendor_ws1)
@@ -91,9 +87,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert ct.valid?
   end
 
-  # ============================================================================
-  # SYSTEM KEY VALIDATIONS
-  # ============================================================================
+  # System key validations
 
   test "system key required for system types" do
     ct = CatalogType.new(
@@ -133,9 +127,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_includes duplicate.errors[:system_key], "has already been taken"
   end
 
-  # ============================================================================
-  # RESERVED SLUGS
-  # ============================================================================
+  # Reserved slugs
 
   test "custom types cannot use reserved slugs" do
     CatalogType::RESERVED_SLUGS.each do |reserved_slug|
@@ -151,9 +143,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     end
   end
 
-  # ============================================================================
-  # SYSTEM FIELDS IMMUTABLE ON UPDATE
-  # ============================================================================
+  # System fields immutable on update
 
   test "system type slug is immutable on update" do
     team = catalog_types(:team_ws1)
@@ -175,9 +165,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert vendor.valid?
   end
 
-  # ============================================================================
-  # KIND HELPERS
-  # ============================================================================
+  # Kind helpers
 
   test "system? returns true for system types" do
     assert catalog_types(:team_ws1).system?
@@ -195,9 +183,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_not catalog_types(:team_ws1).custom?
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "active scope excludes deleted types" do
     vendor = catalog_types(:custom_vendor_ws1)
@@ -221,9 +207,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_equal 0, functionality_type.entry_count
   end
 
-  # ============================================================================
-  # SOFT DELETE
-  # ============================================================================
+  # Soft delete
 
   test "soft_delete! rejects system types" do
     team = catalog_types(:team_ws1)
@@ -272,9 +256,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_not CatalogEntryRelationship.exists?(rel.id)
   end
 
-  # ============================================================================
-  # SYNC ATTRIBUTE DEFINITIONS
-  # ============================================================================
+  # Sync attribute definitions
 
   test "sync_attribute_definitions! creates new definitions" do
     vendor = catalog_types(:custom_vendor_ws1)
@@ -318,9 +300,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_match(/Contact Email/, error.message)
   end
 
-  # ============================================================================
-  # REFERENCE ENTRY OPTIONS
-  # ============================================================================
+  # Reference entry options
 
   test "reference_entry_options returns entries from referenced types" do
     service_type = catalog_types(:service_ws1)
@@ -347,9 +327,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_not_includes deleted_entry_ids, catalog_entries(:deleted_entry).id
   end
 
-  # ============================================================================
-  # SCHEMA EVOLUTION GUARDS
-  # ============================================================================
+  # Schema evolution guards
 
   test "reference_type_id cannot be changed on existing reference attribute" do
     service_type = catalog_types(:service_ws1)

@@ -1,25 +1,21 @@
 class WorkspaceMembership < ApplicationRecord
   include Principal
 
-  # Enums - Use strings for better readability
+  # Strings, not integers, so a raw row reads without a lookup table.
   enum :role, { member: "member", admin: "admin", owner: "owner" }, suffix: true
 
-  # Associations
   belongs_to :user
   belongs_to :workspace
   # A departed member's personal tokens die with the membership.
   has_many :personal_api_keys, class_name: "ApiKey", foreign_key: :workspace_membership_id,
            dependent: :destroy, inverse_of: :on_behalf_of
 
-  # Encryptions
   encrypts :access_token, :refresh_token, deterministic: false
 
-  # Validations
   validates :platform_user_id, presence: true
   validates :platform_user_id, uniqueness: { scope: :workspace_id }
   validates :role, presence: true
 
-  # Delegations
   delegate :email, to: :user
 
   def display_name
@@ -73,13 +69,11 @@ class WorkspaceMembership < ApplicationRecord
     admin_access? ? :admin : :member
   end
 
-  # Scopes
   scope :by_role, ->(role) { where(role: role) }
   scope :owners, -> { where(role: :owner) }
   scope :admins, -> { where(role: :admin) }
   scope :members, -> { where(role: :member) }
 
-  # Class Methods
   # Finds a member from whatever identifier a caller holds. Email is the one
   # people can type and the one that survives a platform move, so it is what
   # machine-facing surfaces ask for; ids are accepted because our own pickers

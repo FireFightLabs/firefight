@@ -29,7 +29,7 @@ class PlatformAdapter
     @workspace = workspace
   end
 
-  # --- Channel lifecycle --------------------------------------------------
+  # Channel lifecycle
 
   # @return [Hash] { channel_id:, channel_name: }
   def create_channel(name:, is_private: false)
@@ -66,7 +66,7 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # --- Messaging ----------------------------------------------------------
+  # Messaging
 
   # @return [Hash] { message_id: ... }
   def post_message(channel_id:, text:, blocks:)
@@ -148,7 +148,7 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # --- Modals / forms -----------------------------------------------------
+  # Modals / forms
 
   # @param view [Hash] Opaque platform-specific view descriptor.
   # @return [Hash] { success: true }
@@ -168,7 +168,7 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # --- Users / directory --------------------------------------------------
+  # Users / directory
 
   # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, timezone: }
   def get_user_info(user_id:)

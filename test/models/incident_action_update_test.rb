@@ -9,9 +9,7 @@ class IncidentActionUpdateTest < ActiveSupport::TestCase
     @action = incident_actions(:inc1_action_open)
   end
 
-  # ============================================================================
-  # ASSOCIATIONS
-  # ============================================================================
+  # Associations
 
   test "has one incident_event as eventable" do
     action_update = create_action_update
@@ -54,9 +52,7 @@ class IncidentActionUpdateTest < ActiveSupport::TestCase
     assert_nil update_no_assignee.assignee
   end
 
-  # ============================================================================
-  # VALIDATIONS
-  # ============================================================================
+  # Validations
 
   test "requires update_type" do
     update = IncidentActionUpdate.new(
@@ -148,9 +144,7 @@ class IncidentActionUpdateTest < ActiveSupport::TestCase
     end
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "ordered scope orders by created_at ascending" do
     first = create_action_update(created_at: 2.hours.ago)
@@ -169,9 +163,7 @@ class IncidentActionUpdateTest < ActiveSupport::TestCase
     assert_equal 1, @action.incident_action_updates.by_type(IncidentActionUpdate::PICKED_UP).count
   end
 
-  # ============================================================================
-  # CONSTANTS
-  # ============================================================================
+  # Constants
 
   test "UPDATE_TYPES contains all types" do
     expected = %w[created picked_up completed reassigned]

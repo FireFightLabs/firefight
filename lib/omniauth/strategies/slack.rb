@@ -11,10 +11,8 @@ module OmniAuth
         token_url: "https://slack.com/api/oauth.v2.access"
       }
 
-      # Unique identifier for the user
       uid { raw_info.dig("authed_user", "id") }
 
-      # Basic info about the user and team
       info do
         {
           name: user_info.dig("user", "real_name") || user_info.dig("user", "name"),
@@ -25,7 +23,6 @@ module OmniAuth
         }
       end
 
-      # Extra data including raw response
       extra do
         {
           raw_info: raw_info,
@@ -34,17 +31,14 @@ module OmniAuth
         }
       end
 
-      # Raw OAuth response from Slack
       def raw_info
         @raw_info ||= access_token.params
       end
 
-      # Team/workspace information
       def team_info
         @team_info ||= raw_info["team"] || {}
       end
 
-      # Detailed user information
       def user_info
         @user_info ||= begin
           user_id = raw_info.dig("authed_user", "id")
@@ -62,7 +56,6 @@ module OmniAuth
         end
       end
 
-      # Override callback_url to ensure it's correct
       def callback_url
         full_host + callback_path
       end
@@ -70,5 +63,4 @@ module OmniAuth
   end
 end
 
-# Register the strategy with OmniAuth
 OmniAuth.config.add_camelization "slack", "Slack"

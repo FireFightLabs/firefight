@@ -10,9 +10,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     @resolver = IncidentFormResolver.new(@workspace)
   end
 
-  # ============================================================================
-  # RESOLVE
-  # ============================================================================
+  # Resolve
 
   test "resolve returns visible fields for a lifecycle event" do
     fields = @resolver.resolve(IncidentForm::SLUG_DECLARE)
@@ -48,9 +46,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     end
   end
 
-  # ============================================================================
-  # VALIDATE_SUBMISSION — SYSTEM FIELDS
-  # ============================================================================
+  # validate_submission — system fields
 
   test "valid submission with system fields returns no errors" do
     result = @resolver.validate_submission(IncidentForm::SLUG_DECLARE, {
@@ -88,9 +84,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert result[:errors].any? { |e| e.include?("Severity") && e.include?("required") }
   end
 
-  # ============================================================================
-  # VALIDATE_SUBMISSION — CUSTOM FIELDS
-  # ============================================================================
+  # validate_submission — custom fields
 
   test "valid catalog_multi_reference value accepted" do
     entry = catalog_entries(:auth_service)
@@ -122,9 +116,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert result[:errors].any? { |e| e.include?("Affected Services") && e.include?("array") }
   end
 
-  # ============================================================================
-  # VALIDATE_SUBMISSION — UNKNOWN FIELDS
-  # ============================================================================
+  # validate_submission — unknown fields
 
   test "unknown fields are rejected" do
     result = @resolver.validate_submission(IncidentForm::SLUG_DECLARE, {
@@ -135,9 +127,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert result[:errors].any? { |e| e.include?("Unknown fields") && e.include?("unknown_field") }
   end
 
-  # ============================================================================
-  # VALIDATE_SUBMISSION — SYMBOL KEYS
-  # ============================================================================
+  # validate_submission — symbol keys
 
   test "symbol keys are normalized to strings" do
     result = @resolver.validate_submission(IncidentForm::SLUG_DECLARE, {
@@ -150,9 +140,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_equal "Test", result[:system_attrs]["name"]
   end
 
-  # ============================================================================
-  # VALIDATE_SUBMISSION!
-  # ============================================================================
+  # validate_submission!
 
   test "validate_submission! raises on errors" do
     assert_raises(IncidentFormResolver::ValidationError) do
@@ -168,9 +156,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_equal "critical", result[:system_attrs]["severity"]
   end
 
-  # ============================================================================
-  # RESOLVE FORM
-  # ============================================================================
+  # Resolve form
 
   test "resolve form returns different fields for different lifecycle events" do
     declare_fields = @resolver.resolve(IncidentForm::SLUG_DECLARE)
@@ -253,9 +239,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_match(/at least one option/, field.inactive_reason)
   end
 
-  # ============================================================================
-  # CONDITIONS
-  # ============================================================================
+  # Conditions
 
   # The Declare modal opens before anything has been chosen, so the context is
   # empty. Treating that as "no filtering" showed every conditional field on

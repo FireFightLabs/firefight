@@ -2,16 +2,11 @@ class WorkspaceAdapter
   class UnsupportedPlatformError < StandardError; end
 
 
-  # Factory method to create appropriate adapter based on workspace platform
+  # The one way to reach a platform. Every caller asks for the workspace's
+  # adapter here rather than naming Slack or Teams itself.
   #
-  # @param workspace [Workspace] The workspace record
-  # @return [Slack::WorkspaceAdapter, Teams::WorkspaceAdapter] Platform-specific adapter
-  # @raise [UnsupportedPlatformError] if platform is not supported
-  #
-  # @example
   #   adapter = WorkspaceAdapter.for(workspace)
   #   result = adapter.create_incidents_channel
-  #
   def self.for(workspace)
     case workspace.platform
     when Platforms::SLACK

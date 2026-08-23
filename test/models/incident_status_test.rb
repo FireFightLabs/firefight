@@ -3,9 +3,7 @@ require "test_helper"
 class IncidentStatusTest < ActiveSupport::TestCase
   fixtures :workspaces, :incident_statuses, :incident_lifecycle_stages
 
-  # ============================================================================
-  # BASIC VALIDATIONS
-  # ============================================================================
+  # Basic validations
 
   test "requires name" do
     status = IncidentStatus.new(
@@ -51,9 +49,7 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert status.valid?
   end
 
-  # ============================================================================
-  # UNIQUENESS VALIDATIONS
-  # ============================================================================
+  # Uniqueness validations
 
   test "slug must be unique within workspace" do
     existing = incident_statuses(:investigating_ws1)
@@ -126,9 +122,7 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert_not_equal ws1_default.workspace_id, ws2_default.workspace_id
   end
 
-  # ============================================================================
-  # ASSOCIATIONS
-  # ============================================================================
+  # Associations
 
   test "belongs to workspace" do
     status = incident_statuses(:investigating_ws1)
@@ -147,9 +141,7 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert_respond_to status, :incidents
   end
 
-  # ============================================================================
-  # SCOPES
-  # ============================================================================
+  # Scopes
 
   test "active scope excludes deleted statuses" do
     active_statuses = IncidentStatus.active
@@ -202,9 +194,7 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert_equal incident_statuses(:triaging_ws2), ws2_default
   end
 
-  # ============================================================================
-  # METHODS
-  # ============================================================================
+  # Methods
 
   test "live? returns true for active stage" do
     status = incident_statuses(:investigating_ws1)
@@ -239,9 +229,7 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert incident_statuses(:canceled_ws1).canceled?
   end
 
-  # ============================================================================
-  # SOFT DELETES
-  # ============================================================================
+  # Soft deletes
 
   test "soft delete sets deleted_at" do
     status = incident_statuses(:investigating_ws1)
@@ -259,9 +247,7 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert_not_includes IncidentStatus.active.reload, status
   end
 
-  # ============================================================================
-  # FIXTURES LOADING
-  # ============================================================================
+  # Fixtures loading
 
   test "workspace one fixtures load correctly" do
     investigating = incident_statuses(:investigating_ws1)

@@ -7,11 +7,6 @@ module Slack
 
     CHANNEL_DESCRIPTION = "FireFight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
 
-    # Create a Slack channel with given name
-    #
-    # @param name [String] Channel name
-    # @param is_private [Boolean] Whether channel is private
-    # @return [Hash] { channel_id:, channel_name: }
     def create_channel(name:, is_private: false)
       translate_errors do
         result = Slack::Client.create_channel(

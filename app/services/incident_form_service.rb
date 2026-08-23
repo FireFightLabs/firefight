@@ -33,8 +33,8 @@ class IncidentFormService
     raise ArgumentError, "#{system_field_key} does not appear on the #{form.lifecycle_event} form" if default_position.nil?
 
     mode = definition.required_mode_for(form.lifecycle_event)
-    # "available" describes how a field ships, not a stored mode: on the row it
-    # is simply hidden and optional until someone turns it on.
+    # "available" describes how a field ships, not a stored mode. On the row it
+    # is hidden and optional until someone turns it on.
     available = mode == IncidentFormField::REQUIRED_MODE_AVAILABLE
 
     form.incident_form_fields.create!(

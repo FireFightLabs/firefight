@@ -11,7 +11,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
     @service   = FirefightAi::IncidentSummaryService.new(@workspace)
   end
 
-  # ---- Path 4: cold start (no prior summary) ----
+  # Path 4: cold start (no prior summary)
 
   test "returns nil when transcript is empty" do
     assert_nil @service.fetch_or_refresh(@incident)
@@ -31,7 +31,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
     assert_equal FirefightAi::IncidentSummaryService::FEATURE_FULL, summary.inference.feature
   end
 
-  # ---- Path 1: no new messages ----
+  # Path 1: no new messages
 
   test "no new messages returns existing summary without calling LLM" do
     add_message(slack_ts: "1.001", content: "first")
@@ -43,7 +43,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
     assert_equal "cached body", result.content
   end
 
-  # ---- Path 2: within freshness window (slight staleness OK) ----
+  # Path 2: within freshness window (slight staleness OK)
 
   test "fresh window returns cached summary even with new messages" do
     add_message(slack_ts: "1.001", content: "first")
@@ -56,7 +56,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
     assert_equal "cached body", result.content
   end
 
-  # ---- Path 3: incremental refresh ----
+  # Path 3: incremental refresh
 
   test "stale summary with new top-level message triggers incremental refresh" do
     add_message(slack_ts: "1.001", content: "first")
@@ -97,7 +97,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
     assert_equal "prior body", result.content
   end
 
-  # ---- Error handling ----
+  # Error handling
 
   test "LLM error during cold-start records error inference and returns nil" do
     add_message(slack_ts: "1.001", content: "first")
