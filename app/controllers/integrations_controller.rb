@@ -12,11 +12,7 @@ class IntegrationsController < InertiaController
         current_workspace.integrations.where(deleted_at: nil).order(:name)
                          .includes(:tools, integration_environments: :environment)
       ),
-      providers: IntegrationProvider.all.map do |provider|
-        { key: provider.key, name: provider.name, category: provider.category,
-          mark: provider.mark, color: provider.color,
-          description: provider.description, serverUrl: provider.server_url, kind: provider.kind }
-      end,
+      providers: IntegrationProviderSerializer.many(IntegrationProvider.all),
       categories: IntegrationProvider.categories,
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       canManage: current_membership.admin_access?

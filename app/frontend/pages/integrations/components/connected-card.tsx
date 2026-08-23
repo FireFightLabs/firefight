@@ -1,7 +1,8 @@
 import { router } from "@inertiajs/react"
 
 import type { EnvironmentOption, Integration } from "@/types/serializers"
-import type { ProviderEntry } from "@/pages/integrations/types"
+import type { IntegrationProvider } from "@/types/serializers"
+import { INTEGRATION_KINDS } from "@/lib/constants"
 import {
   integrationPath,
   retargetEnvironmentIntegrationPath,
@@ -19,10 +20,20 @@ import {
 } from "@/pages/integrations/components/environment-select"
 import { ProviderMark } from "@/pages/integrations/components/provider-mark"
 
-const HEALTH_LABEL: Record<string, { label: string; variant: "default" | "destructive" | "secondary" }> = {
+type HealthStatus = Integration["environments"][number]["healthStatus"]
+
+const HEALTH_LABEL: Record<HealthStatus, { label: string; variant: "default" | "destructive" | "secondary" }> = {
   healthy: { label: "Healthy", variant: "default" },
   failing: { label: "Failing", variant: "destructive" },
   unknown: { label: "Not checked", variant: "secondary" },
+}
+
+// Only an MCP connection discovers its tools from a server, so only it names
+// the transport. A native pack's capabilities are fixed and need no suffix.
+const KIND_SUFFIX: Record<Integration["kind"], string> = {
+  [INTEGRATION_KINDS.MCP]: " · via MCP",
+  [INTEGRATION_KINDS.HTTP]: "",
+  [INTEGRATION_KINDS.NATIVE]: "",
 }
 
 export function ConnectedCard({
@@ -33,7 +44,7 @@ export function ConnectedCard({
   onAddConnection,
 }: {
   integration: Integration
-  provider: ProviderEntry | undefined
+  provider: IntegrationProvider | undefined
   environments: EnvironmentOption[]
   canManage: boolean
   onAddConnection?: () => void
@@ -77,7 +88,7 @@ export function ConnectedCard({
           <div>
             <CardTitle className="text-base">{integration.name}</CardTitle>
             <p className="text-muted-foreground text-xs">
-              {provider?.name ?? integration.provider} · via MCP
+              {provider?.name ?? integration.provider}{KIND_SUFFIX[integration.kind]}
             </p>
           </div>
         </div>
@@ -87,7 +98,7 @@ export function ConnectedCard({
           <p className="text-sm font-medium">Credentials</p>
           <div className="border-border divide-border divide-y rounded-lg border">
             {integration.environments.map((environment) => {
-              const rowHealth = HEALTH_LABEL[environment.healthStatus] ?? HEALTH_LABEL.unknown
+              const rowHealth = HEALTH_LABEL[environment.healthStatus]
               return (
                 <div key={environment.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
                   <Badge variant={rowHealth.variant} className="shrink-0">

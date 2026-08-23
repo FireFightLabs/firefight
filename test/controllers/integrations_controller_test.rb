@@ -24,6 +24,11 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "sentry.issues.search", props["integrations"].first["tools"].first["actionKey"]
     assert_includes props["providers"].map { |p| p["key"] }, "github"
     assert props["canManage"]
+
+    assert_equal Integration::KIND_MCP, props["integrations"].first["kind"]
+    github = props["providers"].find { |p| p["key"] == "github" }
+    assert_equal Integration::KIND_NATIVE, github["kind"]
+    assert_equal IntegrationProvider.find("github").server_url, github["serverUrl"]
   end
 
   test "create connects, discovers tools, and records health" do

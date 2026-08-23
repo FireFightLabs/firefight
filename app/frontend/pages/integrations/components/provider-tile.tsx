@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch"
 import { ProviderMark } from "@/pages/integrations/components/provider-mark"
 import { toggleIntegrationPath } from "@/lib/routes"
 import type { Integration } from "@/types/serializers"
-import type { ProviderEntry } from "@/pages/integrations/types"
+import type { IntegrationProvider } from "@/types/serializers"
 
 export function ProviderTile({
   provider,
@@ -14,10 +14,10 @@ export function ProviderTile({
   onConnect,
   onDetails,
 }: {
-  provider: ProviderEntry
+  provider: IntegrationProvider
   integrations: Integration[]
   canManage: boolean
-  onConnect: (provider: ProviderEntry) => void
+  onConnect: (provider: IntegrationProvider) => void
   onDetails: (integration: Integration) => void
 }) {
   // One connection stays the plain Details-plus-switch tile. Several become a
