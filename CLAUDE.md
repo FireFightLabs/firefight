@@ -8,7 +8,7 @@ Run `bin/ci` to validate changes. It runs rubocop, bundler-audit, brakeman, rail
 
 ## Git & PRs
 
-- **Never merge a PR without an explicit instruction to merge in the current message.** Opening PRs when asked to build something is fine; merging is always the user's call, every time. Prior merge approvals and inferred intent (e.g. a bug report that a feature "isn't working") do not count.
+- **Never merge a PR without an explicit instruction to merge in the current message.** Opening PRs when asked to build something is fine. Merging is always the user's call, every time. Prior merge approvals and inferred intent (e.g. a bug report that a feature "isn't working") do not count.
 
 ## Product decisions are the user's (always applies)
 
@@ -129,7 +129,7 @@ Controller → Dispatcher → Handler → Service → Adapter → Slack::Client
 - **`app/services/` is ONLY for cross-platform orchestration**, meaning code that coordinates model writes with adapter calls, workflow starts, cache expiry, or job scheduling. **Pure domain logic that only touches a model's own data is a model method or a concern in `app/models/<model>/`, never a service.** Litmus test before creating anything in `app/services/`: does it call an adapter, start a workflow, or touch another system? If no, it belongs on the model (e.g. `Policy::Evaluation` concern, not a `PolicyRouter` service; `Postmortem#update_content!`, not a `PostmortemUpdateService`).
 - Slack and the Public API are thin **entry points** into the same system. Business logic and side effects live in shared services, never in entry points. All incident writes go through `IncidentLifecycleService`.
 - Handlers are thin (guards, routing, delegation) and stateless. No DB queries beyond `command.workspace`/`command.incident`, no Block Kit, no business logic.
-- Commands dispatch synchronously; a handler enqueues its own job only for heavy work (AI calls, paginated Slack lookups, >~1.5s). Anything opening a modal must stay sync, since `trigger_id` expires in 3s.
+- Commands dispatch synchronously. A handler enqueues its own job only for heavy work (AI calls, paginated Slack lookups, >~1.5s). Anything opening a modal must stay sync, since `trigger_id` expires in 3s.
 - All platform calls go through `WorkspaceAdapter.for(workspace)`; `Slack::Client` is only called from `Slack::WorkspaceAdapter`. No Slack-specific code outside `app/adapters/slack/`. Rescue `AdapterError` subclasses, never platform errors.
 - Meaningful state changes to `Incident`/`IncidentAction`/`Postmortem` go through `record_change!` (Trackable/Recordable) so the snapshot + event are written together.
 - All callback_ids, action_ids, and subcommand strings come from the `Identifiers` module, never magic strings.
