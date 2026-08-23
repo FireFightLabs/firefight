@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentLifecycleStageTest < ActiveSupport::TestCase
-  fixtures :incident_lifecycle_stages, :incident_statuses, :workspaces
-
   # Validations
 
   test "requires key" do

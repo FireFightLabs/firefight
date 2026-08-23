@@ -1,10 +1,6 @@
 require "test_helper"
 
 class IncidentFormResolverTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_forms, :incident_form_fields, :incident_field_definitions,
-           :catalog_types, :catalog_entries, :incident_lifecycle_stages, :incident_statuses,
-           :incident_types
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @resolver = IncidentFormResolver.new(@workspace)
@@ -399,5 +395,23 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
   def fixtures_workspace_has_one_canceled_status
     stage = IncidentLifecycleStage.find_by!(key: IncidentLifecycleStage::CANCELED)
     assert_equal 1, @workspace.incident_statuses.active.where(incident_lifecycle_stage: stage).count
+  end
+
+  test "the default a form shows and the row the editor materializes are the same field, for every definition and form" do
+    service = IncidentFormService.new(@workspace)
+
+    IncidentForm::SLUGS.each do |slug|
+      form = @workspace.ensure_incident_form!(slug)
+      shown = IncidentFormResolver.new(@workspace).resolve(slug, include_hidden: true).select(&:system?).index_by(&:system_field_key)
+
+      IncidentSystemField.defaults_for(slug).each do |definition|
+        row = service.ensure_system_field!(form, definition.key)
+        default = shown.fetch(definition.key)
+
+        assert_equal default.visibility_mode, row.visibility_mode, "#{definition.key} on #{slug}"
+        assert_equal default.required_mode, row.required_mode, "#{definition.key} on #{slug}"
+        assert_equal default.position, row.position, "#{definition.key} on #{slug}"
+      end
+    end
   end
 end

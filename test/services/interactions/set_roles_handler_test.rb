@@ -1,10 +1,6 @@
 require "test_helper"
 
 class Interactions::SetRolesHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles,
-           :incident_role_assignments
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)

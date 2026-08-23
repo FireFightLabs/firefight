@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentActionTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incidents, :incident_actions
-
   # Associations
 
   test "belongs to incident" do
@@ -173,5 +171,28 @@ class IncidentActionTest < ActiveSupport::TestCase
     deleted = incident_actions(:inc1_deleted_action)
     assert_not_nil deleted.deleted_at
     assert deleted.deleted_at < Time.current
+  end
+
+  test "status and assignee cannot contradict each other" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+
+    orphaned_progress = incident.incident_actions.new(
+      created_by: member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "x", status: IncidentAction::STATUS_IN_PROGRESS
+    )
+    assert_not orphaned_progress.valid?
+
+    assigned_but_open = incident.incident_actions.new(
+      created_by: member, assignee: member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "x", status: IncidentAction::STATUS_OPEN
+    )
+    assert_not assigned_but_open.valid?
+
+    done_unassigned = incident.incident_actions.new(
+      created_by: member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "x", status: IncidentAction::STATUS_DONE
+    )
+    assert done_unassigned.valid?, "done with nobody assigned is legitimate"
   end
 end

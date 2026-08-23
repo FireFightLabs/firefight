@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentTypeTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_types
-
   # Validations
 
   test "requires name" do

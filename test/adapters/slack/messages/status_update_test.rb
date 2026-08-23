@@ -1,9 +1,6 @@
 require "test_helper"
 
 class Slack::Messages::StatusUpdateTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_statuses,
-           :incident_severities, :incident_lifecycle_stages, :incidents
-
   setup do
     @incident = incidents(:active_critical_ws1)
   end

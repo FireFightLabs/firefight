@@ -1,8 +1,6 @@
 require "test_helper"
 
 class AgentTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :ability_actions
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @agent = Agent.create!(workspace: @workspace, name: "Firefight Investigator", slug: "investigator")

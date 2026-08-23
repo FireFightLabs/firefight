@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
-  fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships, :invite_codes
-
   setup do
     OmniAuth.config.test_mode = true
   end

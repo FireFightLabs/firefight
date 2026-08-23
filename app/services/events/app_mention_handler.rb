@@ -1,10 +1,7 @@
 module Events
   class AppMentionHandler
-    def self.execute(platform, payload)
+    def self.execute(workspace, payload)
       event = payload["event"] || {}
-
-      workspace = Workspace.find_by(platform: platform, platform_id: payload["team_id"])
-      return unless workspace
 
       channel_id = event["channel"]
       return unless channel_id
@@ -31,8 +28,6 @@ module Events
         user_text,
         parent_thread_ts
       )
-    rescue StandardError => e
-      Rails.logger.warn({ event: "events.app_mention.failed", error: e.message, team_id: payload["team_id"] }.to_json)
     end
 
     def self.strip_mention(text)

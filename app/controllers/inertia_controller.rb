@@ -1,5 +1,9 @@
+# Every Inertia page is an authenticated app surface unless it says
+# otherwise. The public ones (sign-in, onboarding, error pages) opt out
+# explicitly, so a new controller cannot forget the guard.
 class InertiaController < ApplicationController
   before_action :block_suspended_workspace
+  before_action :require_authentication
 
   inertia_share do
     {

@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Interactions::AbilityApprovalDecisionHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :api_keys
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)

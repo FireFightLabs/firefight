@@ -1,8 +1,6 @@
 require "test_helper"
 
 class WorkspaceConnectionTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships
-
   setup do
     @workspace = Workspace.create!(
       platform: "slack", platform_id: "T#{SecureRandom.hex(8)}", name: "Connection Co",

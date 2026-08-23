@@ -21,8 +21,10 @@ module ActiveSupport
     # Run tests in parallel with specified workers
     parallelize(workers: :number_of_processors)
 
-    # Don't load all fixtures by default - let each test specify what it needs
-    # fixtures :all
+    # Every fixture, always. A per-class list meant a forgotten parent table
+    # was a random FK violation under parallel execution; one constant set
+    # loads once per worker and the failure mode is gone.
+    fixtures :all
 
     # Include test helpers
     include SlackSignatureHelper

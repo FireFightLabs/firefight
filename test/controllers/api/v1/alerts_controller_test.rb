@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :incident_lifecycle_stages, :incident_statuses, :incident_severities
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @source = AlertSource.create!(workspace: @workspace, name: "Grafana prod", provider: AlertSource::PROVIDER_GENERIC)

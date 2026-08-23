@@ -1,9 +1,6 @@
 require "test_helper"
 
 class Interactions::ShoutoutHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities,
-           :incident_lifecycle_stages, :incident_statuses
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @from_member = workspace_memberships(:alice_workspace_one)

@@ -18,6 +18,9 @@ class IncidentAction < ApplicationRecord
 
   validates :action_type, inclusion: { in: ACTION_TYPES }
   validates :status, inclusion: { in: STATUSES }
+  # The service derives in_progress from having an assignee. The pair is a
+  # model invariant so no future writer can store the contradiction.
+  validate :status_matches_assignee
   validates :description, presence: true
 
   scope :active, -> { where(deleted_at: nil) }
@@ -64,5 +67,15 @@ class IncidentAction < ApplicationRecord
 
   def to_context_hash
     { type: action_type, description:, status:, assignee: assignee&.user&.name }
+  end
+
+  private
+
+  def status_matches_assignee
+    if status == STATUS_IN_PROGRESS && assignee_id.blank?
+      errors.add(:status, "cannot be in progress without an assignee")
+    elsif status == STATUS_OPEN && assignee_id.present?
+      errors.add(:status, "cannot stay open once someone is assigned")
+    end
   end
 end

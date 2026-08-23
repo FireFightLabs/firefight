@@ -1,5 +1,4 @@
 class WebhookDeliveriesController < InertiaController
-  before_action :require_authentication
   # Replaying sends the customer's endpoint another live request, so it is
   # admin work for the same reason configuring the webhook is.
   before_action :require_admin!

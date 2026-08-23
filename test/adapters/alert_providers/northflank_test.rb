@@ -1,8 +1,6 @@
 require "test_helper"
 
 class AlertProviders::NorthflankTest < ActiveSupport::TestCase
-  fixtures :workspaces
-
   setup do
     @source = AlertSource.create!(
       workspace: workspaces(:slack_workspace_one),

@@ -1,11 +1,6 @@
 require "test_helper"
 
 class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities,
-           :incident_lifecycle_stages, :incident_statuses,
-           :incident_forms, :incident_form_fields, :incident_field_definitions,
-           :catalog_types, :catalog_entries
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)

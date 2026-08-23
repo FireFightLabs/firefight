@@ -5,6 +5,7 @@
 class ErrorsController < InertiaController
   # Error pages render for everyone, suspended or not.
   skip_before_action :block_suspended_workspace
+  skip_before_action :require_authentication
   def not_found
     respond_with_error("errors/not-found", :not_found)
   end

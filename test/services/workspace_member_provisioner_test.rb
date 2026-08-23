@@ -1,8 +1,6 @@
 require "test_helper"
 
 class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
-  fixtures :incident_lifecycle_stages, :workspaces, :users, :workspace_memberships
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @adapter   = mock("adapter")

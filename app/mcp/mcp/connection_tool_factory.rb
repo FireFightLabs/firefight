@@ -40,14 +40,19 @@ module Mcp
       scope = environment_entry ? { "environment" => environment_entry.id } : {}
       arguments = args.except(ENVIRONMENT_ARG, APPROVAL_ID_ARG).transform_keys(&:to_s)
 
+      # Same telemetry as a static tool, so connection calls show up in the
+      # mcp.tool_call log and the span like everything else the server does.
+      OpenTelemetry::Trace.current_span.add_attributes({ "firefight.mcp.tool" => tool.action_key })
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       result = AbilityGateway.authorize!(
         principal: server_context[:principal], action_key: tool.action_key,
         workspace: workspace, scope: scope, params: arguments,
-        context: { source: "mcp", approval_id: args[APPROVAL_ID_ARG] }
+        context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] }
       ) do
         environment_row = tool.integration.resolve_environment(environment_entry&.id)
         tool.integration.executor.call(tool: tool, environment_row: environment_row, arguments: arguments)
       end
+      ToolDispatcher.log_call(tool.action_key, server_context, started_at)
 
       ::MCP::Tool::Response.new(
         result["content"],

@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
   end

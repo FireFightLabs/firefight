@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentFormServiceTest < ActiveSupport::TestCase
-  fixtures :workspaces, :catalog_types, :incident_forms, :incident_form_fields, :incident_field_definitions
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @service = IncidentFormService.new(@workspace)

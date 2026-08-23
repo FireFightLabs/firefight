@@ -1,8 +1,6 @@
 require "test_helper"
 
 class AlertProviders::GenericTest < ActiveSupport::TestCase
-  fixtures :workspaces
-
   setup do
     @source = AlertSource.create!(workspace: workspaces(:slack_workspace_one),
                                   name: "Custom", provider: AlertSource::PROVIDER_GENERIC)

@@ -1,8 +1,6 @@
 require "test_helper"
 
 class ApprovalsControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :api_keys, :ability_actions, :ability_grants
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     sign_in(users(:alice), @workspace)

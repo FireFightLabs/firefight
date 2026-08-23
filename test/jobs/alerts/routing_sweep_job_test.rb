@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Alerts::RoutingSweepJobTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_lifecycle_stages, :incident_statuses, :incident_severities
-
   test "routes stale pending alerts" do
     workspace = workspaces(:slack_workspace_one)
     source = AlertSource.create!(workspace: workspace, name: "Sweep source", provider: AlertSource::PROVIDER_GENERIC)

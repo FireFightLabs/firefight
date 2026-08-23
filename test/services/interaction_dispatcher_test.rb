@@ -1,9 +1,6 @@
 require "test_helper"
 
 class InteractionDispatcherTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents
-
   test "a refused lead modal explains itself in the incident channel, not the workspace channel" do
     workspace = workspaces(:slack_workspace_one)
     incident = incidents(:active_critical_ws1)

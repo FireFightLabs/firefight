@@ -3,8 +3,6 @@ require "test_helper"
 class ApprovalResumptionTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents, :ability_actions
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

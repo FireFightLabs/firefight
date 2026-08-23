@@ -1,8 +1,6 @@
 require "test_helper"
 
 class DashboardStatsTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incidents
-
   test "to_a returns four stat hashes" do
     stats = DashboardStats.new(workspaces(:slack_workspace_one)).to_a
 

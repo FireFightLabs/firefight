@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentFieldDefinitionTest < ActiveSupport::TestCase
-  fixtures :workspaces, :catalog_types, :incident_field_definitions, :incident_field_options
-
   test "fixed select fields require at least one enabled option" do
     field = IncidentFieldDefinition.new(
       workspace: workspaces(:slack_workspace_one),

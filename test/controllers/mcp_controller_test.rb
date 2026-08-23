@@ -1,11 +1,6 @@
 require "test_helper"
 
 class McpControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents, :incident_events,
-           :incident_roles, :incident_role_assignments, :catalog_types,
-           :catalog_attribute_definitions, :catalog_entries, :catalog_entry_relationships
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)
@@ -407,10 +402,18 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       .with(name: "logs.query", arguments: { "query" => "SELECT 1" })
       .returns({ "content" => [ { "type" => "text", "text" => "42 rows" } ], "isError" => false })
 
+    logged = []
+    Rails.logger.stubs(:info).with { |line| logged << line; true }
+    # A connection call goes through the gateway and the log the same way a
+    # static tool does.
+    AbilityGateway.expects(:authorize!).with { |args| args[:context][:source] == AbilityGateway::SOURCE_MCP }.yields
+      .returns({ "content" => [ { "type" => "text", "text" => "42 rows" } ], "isError" => false })
     body = rpc("tools/call", { name: "new_relic_logs_query", arguments: { query: "SELECT 1" } })
     result = body.fetch("result")
     assert_not result["isError"]
     assert_equal "42 rows", result["content"].first["text"]
+    assert logged.any? { |line| line.to_s.include?("mcp.tool_call") && line.to_s.include?(tool.action_key) },
+           "expected an mcp.tool_call log line for the connection tool"
 
     integration.update!(disabled_at: Time.current)
     body = rpc("tools/call", { name: "new_relic_logs_query", arguments: { query: "SELECT 1" } })

@@ -1,8 +1,6 @@
 require "test_helper"
 
 class EntitlementsTest < ActiveSupport::TestCase
-  fixtures :workspaces
-
   teardown { Entitlements.reset_backend! }
 
   test "open-source default allows every feature" do

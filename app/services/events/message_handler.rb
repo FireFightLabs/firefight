@@ -7,13 +7,10 @@ module Events
       Identifiers::MESSAGE_SUBTYPE_MESSAGE_DELETED
     ].freeze
 
-    def self.execute(platform, payload)
+    def self.execute(workspace, payload)
       event = payload["event"] || {}
       subtype = event["subtype"]
       return unless SUPPORTED_SUBTYPES.include?(subtype)
-
-      workspace = Workspace.find_by(platform: platform, platform_id: payload["team_id"])
-      return unless workspace
 
       channel_id = event["channel"]
       return unless channel_id
@@ -23,8 +20,6 @@ module Events
       when Identifiers::MESSAGE_SUBTYPE_MESSAGE_DELETED then handle_delete(workspace, channel_id, event)
       else handle_new_message(workspace, channel_id, event)
       end
-    rescue StandardError => e
-      Rails.logger.warn({ event: "events.message.failed", error: e.message, team_id: payload["team_id"] }.to_json)
     end
 
     def self.handle_new_message(workspace, channel_id, event)
@@ -133,15 +128,8 @@ module Events
     end
     private_class_method :file_already_recorded?
 
-    def self.fetch_permalink(workspace, channel_id, message_ts)
-      workspace.adapter.get_message_permalink(channel_id: channel_id, message_id: message_ts)[:permalink]
-    rescue AdapterError
-      nil
-    end
-    private_class_method :fetch_permalink
-
     def self.message_permalink_for(workspace, channel_id, message_ts, file)
-      fetch_permalink(workspace, channel_id, message_ts) || file["permalink"]
+      Events::Permalinks.fetch(workspace, channel_id, message_ts) || file["permalink"]
     end
     private_class_method :message_permalink_for
   end

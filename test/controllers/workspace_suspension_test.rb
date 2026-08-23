@@ -4,9 +4,6 @@ require "test_helper"
 # point. Slack commands answer with the suspension message, surfaces that
 # cannot answer drop the request, and authenticated surfaces return 403.
 class WorkspaceSuspensionTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incident_types, :incidents, :api_keys
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @workspace.update!(

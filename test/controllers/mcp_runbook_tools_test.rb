@@ -1,10 +1,6 @@
 require "test_helper"
 
 class McpRunbookToolsTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities,
-           :incident_lifecycle_stages, :incident_statuses,
-           :catalog_types, :catalog_entries, :incident_field_definitions, :incident_field_options
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)
@@ -88,6 +84,15 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
     content, _ = call_tool(Mcp::Tools::SEARCH_RUNBOOKS)
 
     assert_not_includes content["runbooks"].map { |r| r["slug"] }, @rollback.slug
+  end
+
+  test "a slug that resolves to nothing is an error, never a silent duplicate" do
+    result = rpc("tools/call", { name: Mcp::Tools::UPSERT_RUNBOOK,
+                                 arguments: { slug: "deleted-since-you-read-it", name: "Ghost" } }).fetch("result")
+
+    assert result["isError"]
+    assert_includes result["content"].first["text"], "Not found in this workspace."
+    assert_not @workspace.runbooks.exists?(name: "Ghost")
   end
 
   test "upsert_runbook resolves a severity slug to the id conditions match on" do

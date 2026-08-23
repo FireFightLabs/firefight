@@ -5,7 +5,6 @@ module ManagesConfigurableOptions
   extend ActiveSupport::Concern
 
   included do
-    before_action :require_authentication
     before_action :require_admin!
     before_action :set_option, only: [ :update, :disable, :enable, :destroy, :make_default ]
   end

@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Events::MemberJoinedChannelHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_lifecycle_stages, :incident_statuses
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @workspace.update!(incidents_channel_id: "C_INCIDENTS")
@@ -16,7 +14,7 @@ class Events::MemberJoinedChannelHandlerTest < ActiveSupport::TestCase
 
     assert_difference "WorkspaceMembership.count", 1 do
       Events::MemberJoinedChannelHandler.execute(
-        Platforms::SLACK,
+      @workspace,
         build_payload(channel: "C_INCIDENTS", user: "U_NEW_USER")
       )
     end
@@ -41,7 +39,7 @@ class Events::MemberJoinedChannelHandlerTest < ActiveSupport::TestCase
 
     assert_difference "WorkspaceMembership.count", 1 do
       Events::MemberJoinedChannelHandler.execute(
-        Platforms::SLACK,
+      @workspace,
         build_payload(channel: "C_INCIDENT_CHANNEL", user: "U_NEW_USER")
       )
     end
@@ -55,7 +53,7 @@ class Events::MemberJoinedChannelHandlerTest < ActiveSupport::TestCase
 
     assert_no_difference "WorkspaceMembership.count" do
       Events::MemberJoinedChannelHandler.execute(
-        Platforms::SLACK,
+      @workspace,
         build_payload(channel: "C_RANDOM_CHANNEL", user: "U_NEW_USER")
       )
     end
@@ -64,17 +62,8 @@ class Events::MemberJoinedChannelHandlerTest < ActiveSupport::TestCase
   test "is idempotent for existing members" do
     assert_no_difference "WorkspaceMembership.count" do
       Events::MemberJoinedChannelHandler.execute(
-        Platforms::SLACK,
+      @workspace,
         build_payload(channel: "C_INCIDENTS", user: @member.platform_user_id)
-      )
-    end
-  end
-
-  test "skips when workspace not found" do
-    assert_no_difference "WorkspaceMembership.count" do
-      Events::MemberJoinedChannelHandler.execute(
-        Platforms::SLACK,
-        build_payload(team_id: "T_NONEXISTENT", channel: "C12345678", user: "U_NEW_USER")
       )
     end
   end
@@ -85,7 +74,7 @@ class Events::MemberJoinedChannelHandlerTest < ActiveSupport::TestCase
     assert_no_difference "WorkspaceMembership.count" do
       assert_nothing_raised do
         Events::MemberJoinedChannelHandler.execute(
-          Platforms::SLACK,
+      @workspace,
           build_payload(channel: "C_INCIDENTS", user: "U_NEW_USER")
         )
       end

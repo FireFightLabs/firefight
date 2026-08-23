@@ -2,9 +2,6 @@ require "test_helper"
 
 class WebhookDeliveryTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages,
-           :incident_statuses, :incident_severities, :incidents, :incident_events,
-           :webhooks, :webhook_delinquency_trackers, :webhook_deliveries
 
   # Associations
 

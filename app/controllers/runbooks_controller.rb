@@ -1,5 +1,4 @@
 class RunbooksController < InertiaController
-  before_action :require_authentication
   before_action :require_admin!
   before_action :set_runbook, only: [ :update, :destroy, :disable, :enable ]
 

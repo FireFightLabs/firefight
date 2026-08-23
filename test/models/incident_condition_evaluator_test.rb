@@ -1,9 +1,6 @@
 require "test_helper"
 
 class IncidentConditionEvaluatorTest < ActiveSupport::TestCase
-  fixtures :workspaces, :incident_forms, :incident_form_fields, :catalog_types, :incident_field_definitions, :incident_field_options,
-           :incident_types, :incident_severities, :incident_lifecycle_stages, :incident_statuses
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @form_field = incident_form_fields(:declare_name_field_ws1)

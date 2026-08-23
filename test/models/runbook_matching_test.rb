@@ -1,8 +1,6 @@
 require "test_helper"
 
 class RunbookMatchingTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @critical = @workspace.incident_severities.active.find_by!(slug: "critical")

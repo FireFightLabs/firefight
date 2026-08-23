@@ -1,8 +1,6 @@
 require "test_helper"
 
 class ApiKeysControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @user = users(:alice)

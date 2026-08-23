@@ -3,14 +3,14 @@ module Mcp
     class UpsertRunbook < Base
       tool_name UPSERT_RUNBOOK
       description "Create or update an incident response runbook. Pass slug to update an " \
-                  "existing runbook (steps/conditions replace the current set when given); " \
+                  "existing runbook (steps/conditions replace the current set when given); an unknown slug is an error, not a create; " \
                   "omit it to create one (name required). Attach conditions auto-attach the " \
                   "runbook to matching incidents. If the call requires approval, retry the " \
                   "identical call with approval_id once approved. Docs: #{Docs::RUNBOOKS}"
       annotations(**WRITE)
       input_schema(
         properties: {
-          slug: { type: "string", description: "Existing runbook slug to update; omit to create" },
+          slug: { type: "string", description: "Existing runbook slug to update; omit to create. An unknown slug is an error, not a create" },
           name: { type: "string", description: "Runbook name (required on create)" },
           summary: { type: "string", description: "One-line summary shown in search results" },
           content: { type: "string", description: "Full runbook content (markdown)" },
@@ -34,12 +34,10 @@ module Mcp
         required: []
       )
 
-      def self.authorization(workspace, args)
-        [ ApiKey::RESOURCE_RUNBOOKS, existing_runbook(workspace, args) ? ApiKey::ACTION_UPDATE : ApiKey::ACTION_CREATE ]
-      end
+      upserts ApiKey::RESOURCE_RUNBOOKS, scope: ->(workspace) { workspace.runbooks.active }
 
       def self.perform(workspace:, args:)
-        runbook = existing_runbook(workspace, args)
+        runbook = upsert_target(workspace, args)
 
         Runbook.transaction do
           if runbook
@@ -56,12 +54,6 @@ module Mcp
           slug: runbook.slug, name: runbook.name, summary: runbook.summary,
           steps_count: runbook.runbook_steps.count, conditions_count: runbook.incident_conditions.count
         )
-      end
-
-      def self.existing_runbook(workspace, args)
-        return nil if args[:slug].blank?
-
-        workspace.runbooks.active.find_by(slug: args[:slug].to_s)
       end
 
       def self.runbook_attributes(args)

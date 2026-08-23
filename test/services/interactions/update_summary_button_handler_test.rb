@@ -1,9 +1,6 @@
 require "test_helper"
 
 class Interactions::UpdateSummaryButtonHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)

@@ -1,8 +1,6 @@
 require "test_helper"
 
 class WebhookTest < ActiveSupport::TestCase
-  fixtures :workspaces, :webhooks, :webhook_delinquency_trackers
-
   # Subscribable events
 
   # The dashboard's list is a hand-maintained copy of this constant, and it
@@ -19,7 +17,8 @@ class WebhookTest < ActiveSupport::TestCase
 
   test "every subscribable event renders a payload" do
     Webhook::SUBSCRIBABLE_EVENTS.each do |event_type|
-      assert Webhooks::PayloadRenderer::TEMPLATE_MAP.key?(event_type),
+      template = Webhook::SUBSCRIBABLE_EVENT_TEMPLATES.fetch(event_type)
+      assert File.exist?(Rails.root.join("app/views/#{template}.json.jbuilder")),
              "#{event_type} is subscribable but has no payload template"
     end
   end

@@ -47,9 +47,11 @@ The registry's `forms:` map says both *whether* a field belongs on a form and
 | absent from the map | not shown | never |
 
 `available` is not a stored value. On the row it becomes
-`visibility_mode: hidden` + `required_mode: optional`. Both
-`IncidentFormResolver#default_form_field` and
-`IncidentFormService#ensure_system_field!` do that mapping, and they must agree.
+`visibility_mode: hidden` + `required_mode: optional`. The mapping lives in
+one place, `IncidentSystemField::SHIPS_AS`, read through
+`Definition#default_overlay_for(form_slug)`. `IncidentFormResolver#default_form_field`
+(the unpersisted default) and `IncidentFormService#ensure_system_field!` (the
+materialized row) both call it, so they cannot disagree.
 
 ## Synthetic ids
 

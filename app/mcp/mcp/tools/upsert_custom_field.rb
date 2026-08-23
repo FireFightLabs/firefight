@@ -11,7 +11,7 @@ module Mcp
       annotations(**WRITE)
       input_schema(
         properties: {
-          slug: { type: "string", description: "Existing field slug to update; omit to create" },
+          slug: { type: "string", description: "Existing field slug to update; omit to create. An unknown slug is an error, not a create" },
           name: { type: "string", description: "Field display name (required on create)" },
           description: { type: "string", description: "Help text responders see under the field" },
           field_type: {
@@ -36,12 +36,10 @@ module Mcp
         required: []
       )
 
-      def self.authorization(workspace, args)
-        [ ApiKey::RESOURCE_CUSTOM_FIELDS, existing_field(workspace, args) ? ApiKey::ACTION_UPDATE : ApiKey::ACTION_CREATE ]
-      end
+      upserts ApiKey::RESOURCE_CUSTOM_FIELDS, scope: ->(workspace) { workspace.incident_field_definitions.active }
 
       def self.perform(workspace:, args:)
-        existing = existing_field(workspace, args)
+        existing = upsert_target(workspace, args)
         service = IncidentFieldDefinitionService.new(workspace)
         attrs = definition_attributes(workspace, args, existing)
 
@@ -94,12 +92,6 @@ module Mcp
         existing.incident_field_options.map do |option|
           { id: option.id, label: option.label, disabled: !option.enabled? }
         end
-      end
-
-      def self.existing_field(workspace, args)
-        return nil if args[:slug].blank?
-
-        workspace.incident_field_definitions.active.find_by(slug: args[:slug].to_s)
       end
     end
   end

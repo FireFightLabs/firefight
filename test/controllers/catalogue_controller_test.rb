@@ -1,9 +1,6 @@
 require "test_helper"
 
 class CatalogueControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships,
-           :catalog_types, :catalog_attribute_definitions, :catalog_entries, :catalog_entry_relationships
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @user = users(:alice)

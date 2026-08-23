@@ -1,10 +1,6 @@
 require "test_helper"
 
 class ModalOpenerTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_roles,
-           :incident_forms, :incident_form_fields, :catalog_types, :incident_field_definitions, :incident_field_options
-
   NOTICES = {
     cancel: ":wastebasket: is canceling the incident...",
     close: ":lock: is closing the incident...",

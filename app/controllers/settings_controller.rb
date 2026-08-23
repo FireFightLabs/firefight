@@ -3,7 +3,6 @@ class SettingsController < InertiaController
   ACTIVITY_LIMIT = 200
   RESOLVED_APPROVALS_LIMIT = 50
 
-  before_action :require_authentication
 
   def index
     redirect_to settings_roles_path

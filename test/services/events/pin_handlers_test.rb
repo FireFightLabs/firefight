@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Events::PinHandlersTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities, :incident_lifecycle_stages, :incident_statuses
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
@@ -25,7 +23,7 @@ class Events::PinHandlersTest < ActiveSupport::TestCase
     stub_get_permalink
 
     assert_difference "IncidentEvent.count", 1 do
-      Events::PinAddedHandler.execute(Platforms::SLACK, pin_payload("pin_added"))
+      Events::PinAddedHandler.execute(@workspace, pin_payload("pin_added"))
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::MESSAGE_PINNED)
@@ -37,7 +35,7 @@ class Events::PinHandlersTest < ActiveSupport::TestCase
     stub_get_permalink
 
     assert_difference "IncidentEvent.count", 1 do
-      Events::PinRemovedHandler.execute(Platforms::SLACK, pin_payload("pin_removed"))
+      Events::PinRemovedHandler.execute(@workspace, pin_payload("pin_removed"))
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::MESSAGE_UNPINNED)

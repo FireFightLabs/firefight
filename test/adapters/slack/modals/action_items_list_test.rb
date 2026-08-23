@@ -1,9 +1,6 @@
 require "test_helper"
 
 class Slack::Modals::ActionItemsListTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_statuses,
-           :incident_severities, :incident_lifecycle_stages
-
   # Counting rows means owning every row, and fixture incidents carry action
   # items declared by other tests.
   setup do

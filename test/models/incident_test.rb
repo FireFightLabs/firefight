@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incident_types, :incident_roles, :incidents
-
   # Basic validations
 
   test "requires sequence_number" do

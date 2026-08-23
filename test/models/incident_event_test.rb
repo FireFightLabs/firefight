@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentEventTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incident_lifecycle_stages, :incident_statuses, :incident_severities, :incidents, :incident_events, :incident_actions
-
   # Associations
 
   test "belongs to incident" do

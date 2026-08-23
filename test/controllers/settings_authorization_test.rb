@@ -1,10 +1,6 @@
 require "test_helper"
 
 class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_severities,
-           :incident_statuses, :incident_lifecycle_stages, :webhooks,
-           :webhook_delinquency_trackers
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
   end

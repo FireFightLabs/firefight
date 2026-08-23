@@ -1,9 +1,6 @@
 require "test_helper"
 
 class McpFormToolsTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships, :incident_types, :incident_severities,
-           :catalog_types, :catalog_entries, :incident_field_definitions, :incident_field_options
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)

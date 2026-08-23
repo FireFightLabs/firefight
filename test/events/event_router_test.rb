@@ -34,25 +34,19 @@ class EventRouterTest < ActiveSupport::TestCase
     EventRouter.route(event)
   end
 
-  test "all event types are registered" do
-    IncidentEvent::EVENT_TYPES.each do |event_type|
-      assert EventRouter::SUBSCRIBERS.key?(event_type),
-        "EventRouter should have subscribers entry for #{event_type}"
-    end
+  test "every event type is either subscribable or named internal, exactly" do
+    covered = Webhook::SUBSCRIBABLE_EVENTS + EventRouter::INTERNAL_ONLY
+
+    assert_equal IncidentEvent::EVENT_TYPES.sort, covered.sort,
+      "a new event type has to be a deliberate decision: subscribable or internal"
+    assert_empty Webhook::SUBSCRIBABLE_EVENTS & EventRouter::INTERNAL_ONLY
   end
 
-  test "subscribable events have webhook subscriber" do
-    Webhook::SUBSCRIBABLE_EVENTS.each do |event_type|
-      assert_includes EventRouter::SUBSCRIBERS[event_type], Webhooks::EventSubscriber,
-        "#{event_type} should have Webhooks::EventSubscriber"
-    end
-  end
+  test "an internal event routes nowhere and a subscribable one reaches the webhook subscriber" do
+    Webhooks::EventSubscriber.expects(:handle).never
+    EventRouter.route(DomainEvent.new(event_type: IncidentEvent::MESSAGE_PINNED, incident_id: "fake-id", actor_id: nil, data: {}, occurred_at: Time.current))
 
-  test "non-subscribable events have no subscribers" do
-    non_subscribable = IncidentEvent::EVENT_TYPES - Webhook::SUBSCRIBABLE_EVENTS
-    non_subscribable.each do |event_type|
-      assert_equal [], EventRouter::SUBSCRIBERS[event_type],
-        "#{event_type} should have no subscribers"
-    end
+    Webhooks::EventSubscriber.expects(:handle).once
+    EventRouter.route(@event)
   end
 end

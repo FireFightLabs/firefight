@@ -1,5 +1,4 @@
 class CatalogueController < InertiaController
-  before_action :require_authentication
   before_action :require_admin!, only: [ :create_type, :update_type, :destroy_type, :create_entry, :update_entry, :destroy_entry ]
 
   def index

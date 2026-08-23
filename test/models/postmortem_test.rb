@@ -1,10 +1,6 @@
 require "test_helper"
 
 class PostmortemTest < ActiveSupport::TestCase
-  fixtures :workspaces, :users, :workspace_memberships, :incidents,
-           :incident_lifecycle_stages, :incident_statuses, :incident_severities,
-           :postmortems
-
   test "belongs to incident" do
     postmortem = postmortems(:postmortem_resolved_ws1)
     assert_equal incidents(:resolved_minor_ws1), postmortem.incident

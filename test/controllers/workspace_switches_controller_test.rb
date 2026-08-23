@@ -1,8 +1,6 @@
 require "test_helper"
 
 class WorkspaceSwitchesControllerTest < ActionDispatch::IntegrationTest
-  fixtures :workspaces, :users, :workspace_memberships
-
   setup do
     @user = users(:alice)
     ApplicationController.any_instance.stubs(:current_user).returns(@user)

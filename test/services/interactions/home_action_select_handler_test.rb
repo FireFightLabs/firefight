@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Interactions::HomeActionSelectHandlerTest < ActiveSupport::TestCase
-  fixtures :workspaces
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
   end
