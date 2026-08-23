@@ -41,13 +41,8 @@ class IntegrationEnvironment < ApplicationRecord
     credentials_hash[OAUTH_KEY]
   end
 
-  def store_oauth!(oauth_credentials, installation_id: nil)
-    self.credentials = credentials_hash.merge(OAUTH_KEY => oauth_credentials).to_json
-    # GitHub App installs return an installation id alongside the code. It is
-    # not a secret, so it lives in base_config. Server-to-server tokens (the
-    # bot identity for autonomous agent writes) are minted from it later.
-    self.base_config = base_config.merge("installation_id" => installation_id.to_s) if installation_id.present?
-    save!
+  def store_oauth!(oauth_credentials)
+    update!(credentials: credentials_hash.merge(OAUTH_KEY => oauth_credentials).to_json)
     oauth_credentials
   end
 

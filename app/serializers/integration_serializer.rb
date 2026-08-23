@@ -33,11 +33,12 @@ class IntegrationSerializer < BaseSerializer
     end
   end
 
-  type "{ id: string; name: string; description: string | null; actionKey: string; readOnly: boolean; enabled: boolean }[]"
+  type "{ id: string; name: string; description: string | null; actionKey: string; readOnly: boolean; enabled: boolean; available: boolean; toggleBlockedReason: string | null }[]"
   def tools
     integration.tools.order(:name).map do |tool|
       { id: tool.id, name: tool.name, description: tool.description,
-        actionKey: tool.action_key, readOnly: tool.read_only, enabled: tool.enabled }
+        actionKey: tool.action_key, readOnly: tool.read_only, enabled: tool.enabled,
+        available: tool.available?, toggleBlockedReason: tool.toggle_blocked_reason }
     end
   end
 end

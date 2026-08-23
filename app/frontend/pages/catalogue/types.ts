@@ -1,54 +1,26 @@
-export type AttributeType = "text" | "number" | "boolean" | "select" | "reference" | "list" | "slack_channel" | "workspace_member" | "workspace_members"
+// The three catalogue shapes come from the serializers. Hand-writing them
+// once let the page drift from what the server sends without a type error.
+export type {
+  CatalogType,
+  CatalogEntry,
+  CatalogAttributeDefinition as AttributeDefinition,
+} from "@/types/serializers";
+import type { CatalogAttributeDefinition } from "@/types/serializers";
 
-export interface AttributeDefinition {
-  id: string
-  slug: string
-  name: string
-  attributeType: AttributeType
-  required: boolean
-  position: number
-  referenceTypeId?: string
-  options?: string[]
-}
-
-export interface CatalogType {
-  id: string
-  name: string
-  slug: string
-  kind: string
-  icon?: string
-  description?: string
-  color?: string
-  attributeDefinitions: AttributeDefinition[]
-  entryCount: number
-  position: number
-  systemKey?: string
-}
-
-export interface CatalogEntry {
-  id: string
-  typeId: string
-  name: string
-  slug: string
-  attributes: Record<string, unknown>
-  createdAt: string
-  updatedAt: string
-  externalId?: string
-  source?: string
-}
+export type AttributeType = CatalogAttributeDefinition["attributeType"];
 
 export interface ReferenceEntry {
-  id: string
-  name: string
-  typeId: string
+  id: string;
+  name: string;
+  typeId: string;
 }
 
-export type { SlackMember } from "@/hooks/use-member-search"
+export type { SlackMember } from "@/hooks/use-member-search";
 
-export type { SlackChannel } from "@/types"
+export type { SlackChannel } from "@/types";
 
 export interface WorkspaceMember {
-  id: string
-  name: string
-  avatarUrl?: string
+  id: string;
+  name: string;
+  avatarUrl?: string;
 }

@@ -47,6 +47,8 @@ class IntegrationsController < InertiaController
 
   def toggle_tool
     tool = @integration.tools.find(params[:tool_id])
+    return redirect_to integrations_path, alert: tool.toggle_blocked_reason if tool.toggle_blocked_reason
+
     tool.update!(enabled: !tool.enabled?)
     redirect_to integrations_path
   end
@@ -94,7 +96,7 @@ class IntegrationsController < InertiaController
     oauth = IntegrationProvider.oauth_client(provider.key)
     flow = Integrations::OauthClient.begin_flow(
       server_url: provider.server_url, redirect_uri: oauth_callback_integrations_url,
-      client_id: oauth[:client_id], app_slug: oauth[:app_slug]
+      client_id: oauth[:client_id]
     )
     session[:integration_oauth] = {
       "provider" => provider.key, "name" => params[:name].presence || provider.name,
@@ -114,7 +116,7 @@ class IntegrationsController < InertiaController
            ActiveSupport::SecurityUtils.secure_compare(pending["state"].to_s, params[:state].to_s)
       return redirect_to integrations_path, alert: "The connection attempt expired. Try again."
     end
-    return native_install_callback(provider, pending) if pending["native"]
+    return native_install_callback(provider, pending) if provider.kind == Integration::KIND_NATIVE
 
     credentials = Integrations::OauthClient.exchange(
       token_endpoint: pending["token_endpoint"], code: params[:code].to_s,
@@ -124,7 +126,7 @@ class IntegrationsController < InertiaController
     )
 
     environment_row = connect!(provider, pending["name"], pending["environment_id"])
-    environment_row.store_oauth!(credentials, installation_id: params[:installation_id])
+    environment_row.store_oauth!(credentials)
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     redirect_to integrations_path
@@ -153,7 +155,7 @@ class IntegrationsController < InertiaController
 
     session[:integration_oauth] = {
       "provider" => provider.key, "name" => params[:name].presence || provider.name,
-      "environment_id" => environment_id_param, "state" => state, "native" => true
+      "environment_id" => environment_id_param, "state" => state
     }
     redirect_to install_url, allow_other_host: true
   end

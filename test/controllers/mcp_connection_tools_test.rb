@@ -12,6 +12,12 @@ class McpConnectionToolsTest < ActiveSupport::TestCase
     @tool = @integration.tools.create!(name: "logs_query", read_only: true, enabled: true)
   end
 
+  test "a tool the provider no longer offers is not published over MCP" do
+    @tool.update!(removed_at: Time.current)
+
+    assert_empty Mcp::ConnectionToolFactory.tools_for(@workspace)
+  end
+
   test "a denied call on a per-environment connection names the environments to pick from" do
     @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:production_env).id)
     @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:development_env).id)

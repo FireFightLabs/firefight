@@ -15,35 +15,26 @@ class IncidentDetailSerializer < BaseSerializer
   has_one :incident_severity, as: :severity, serializer: SeverityDetailSerializer
   has_one :incident_status, as: :status, serializer: StatusDetailSerializer
 
-  type :IncidentTypeCompact, optional: true
-  def type
-    return nil unless incident.incident_type
-
-    IncidentTypeCompactSerializer.one(incident.incident_type)
+  # Nested serializer output goes through the association DSL so the
+  # generator emits a sibling import. A bare `type :Name` is treated as a
+  # hand-written custom type and the import dangles.
+  has_one :type, serializer: IncidentTypeCompactSerializer, optional: true do
+    incident.incident_type
   end
 
-  type :ActorCompact, optional: true
-  def lead
-    member = incident.incident_role_assignments.detect { |a| a.incident_role.slug == IncidentRole::SLUG_INCIDENT_LEAD }&.workspace_membership
-    return nil unless member
-
-    ActorCompactSerializer.one(member)
+  has_one :lead, serializer: ActorCompactSerializer, optional: true do
+    incident.incident_role_assignments.detect { |a| a.incident_role.slug == IncidentRole::SLUG_INCIDENT_LEAD }&.workspace_membership
   end
 
   # The lead has its own field, so this covers the rest of the roster.
-  type "IncidentRoleAssignment[]"
-  def roles
+  has_many :roles, serializer: IncidentRoleAssignmentSerializer do
     incident.incident_role_assignments
       .reject { |assignment| assignment.incident_role.slug == IncidentRole::SLUG_INCIDENT_LEAD }
       .sort_by { |assignment| assignment.incident_role.position }
-      .map { |assignment| IncidentRoleAssignmentSerializer.one(assignment) }
   end
 
-  type :ActorCompact, optional: true
-  def declared_by
-    return nil unless incident.declared_by
-
-    ActorCompactSerializer.one(incident.declared_by)
+  has_one :declared_by, serializer: ActorCompactSerializer, optional: true do
+    incident.declared_by
   end
 
   type :string

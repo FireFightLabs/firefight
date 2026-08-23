@@ -9,7 +9,9 @@ class CatalogAttributeDefinitionSerializer < BaseSerializer
     position: { type: :number }
   )
 
-  type :string
+  ATTRIBUTE_TYPE_UNION = CatalogAttributeDefinition::ATTRIBUTE_TYPES.map(&:inspect).join(" | ")
+
+  type ATTRIBUTE_TYPE_UNION
   def attribute_type
     attr_def.attribute_type
   end

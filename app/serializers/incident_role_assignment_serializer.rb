@@ -16,8 +16,5 @@ class IncidentRoleAssignmentSerializer < BaseSerializer
     assignment.incident_role.slug
   end
 
-  type :ActorCompact
-  def member
-    ActorCompactSerializer.one(assignment.workspace_membership)
-  end
+  has_one :workspace_membership, as: :member, serializer: ActorCompactSerializer
 end
