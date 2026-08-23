@@ -2,6 +2,7 @@ class Workspace < ApplicationRecord
   include Workspace::IncidentDefaults
   include Workspace::CatalogueDefaults
   include Workspace::Suspension
+  include Workspace::Connection
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
@@ -123,7 +124,9 @@ class Workspace < ApplicationRecord
       access_token: auth_hash.credentials.token,
       refresh_token: auth_hash.credentials.refresh_token,
       token_expires_at: auth_hash.credentials.expires_at ? Time.at(auth_hash.credentials.expires_at) : nil,
-      installed_at: workspace.new_record? ? Time.current : workspace.installed_at
+      installed_at: workspace.new_record? ? Time.current : workspace.installed_at,
+      disconnected_at: nil,
+      disconnected_reason: nil
     )
 
     workspace.save!
@@ -156,9 +159,5 @@ class Workspace < ApplicationRecord
         first_install: workspace.previously_new_record? || workspace.incidents_channel_id.blank?
       }
     end
-  end
-
-  def token_expired?
-    token_expires_at.present? && token_expires_at < Time.current
   end
 end

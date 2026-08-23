@@ -11,6 +11,11 @@ class CurrentWorkspaceSerializer < BaseSerializer
     platform: { type: :string }
   )
 
+  type :boolean
+  def disconnected
+    workspace.disconnected?
+  end
+
   type :string, optional: true
   def avatar_url
     workspace.avatar_url

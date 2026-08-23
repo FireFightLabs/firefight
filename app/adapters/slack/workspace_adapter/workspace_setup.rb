@@ -115,7 +115,7 @@ module Slack::WorkspaceAdapter::WorkspaceSetup
       channels = Slack::Client.list_conversations(workspace: @workspace)
       channel = channels.find { |ch| ch[:name] == name }
 
-      raise Slack::Client::ChannelNotFoundError, "Channel '#{name}' not found" unless channel
+      raise AdapterError::NotFound, "Channel '#{name}' not found" unless channel
 
       channel
     end

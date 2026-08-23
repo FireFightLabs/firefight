@@ -28,36 +28,7 @@ namespace :slack do
     end
   end
 
-  desc "Refresh token for a specific workspace membership by ID"
-  task :refresh_membership, [ :membership_id ] => :environment do |t, args|
-    if args[:membership_id].blank?
-      puts "❌ Error: membership_id is required"
-      puts "Usage: bin/rails slack:refresh_membership[membership-uuid]"
-      exit 1
-    end
-
-    membership = WorkspaceMembership.find_by(id: args[:membership_id])
-
-    unless membership
-      puts "❌ Error: Membership not found with ID: #{args[:membership_id]}"
-      exit 1
-    end
-
-    puts "🔄 Refreshing token for user: #{membership.user.email} in #{membership.workspace.name}"
-
-    manager = Slack::TokenManager.new
-
-    if manager.refresh_membership(membership)
-      puts "✅ Successfully refreshed token for #{membership.user.email}"
-      puts "   Expires at: #{membership.reload.token_expires_at}"
-    else
-      puts "❌ Failed to refresh token for #{membership.user.email}"
-      puts "   Check logs for details"
-      exit 1
-    end
-  end
-
-  desc "Refresh all expiring tokens (workspaces and memberships)"
+  desc "Refresh all expiring workspace tokens"
   task refresh_all_expiring: :environment do
     puts "🔄 Refreshing all expiring tokens..."
 
@@ -66,9 +37,8 @@ namespace :slack do
 
     puts "\n📊 Results:"
     puts "   Workspaces: #{results[:workspaces][:succeeded]} succeeded, #{results[:workspaces][:failed]} failed"
-    puts "   Memberships: #{results[:memberships][:succeeded]} succeeded, #{results[:memberships][:failed]} failed"
 
-    total_failed = results[:workspaces][:failed] + results[:memberships][:failed]
+    total_failed = results[:workspaces][:failed]
     if total_failed > 0
       puts "\n⚠️  Some tokens failed to refresh. Check logs for details."
       exit 1

@@ -4,52 +4,23 @@ module Slack
   class Client
     SLACK_API_BASE = "https://slack.com/api"
 
-    class ApiError < StandardError; end
-    class TriggerExpiredError < ApiError; end
-    class ChannelExistsError < ApiError; end
-    class ChannelNotFoundError < ApiError; end
-    class AlreadyArchivedError < ApiError; end
-    class NotArchivedError < ApiError; end
-    class IsArchivedError < ApiError; end
-    class NotInChannelError < ApiError; end
-    class AlreadyInChannelError < ApiError; end
-    class RestrictedActionError < ApiError; end
-    class ServerError < ApiError; end
-    class UnsafeDownloadHost < ApiError; end
-
-    class AuthRevokedError < ApiError
-      attr_reader :error_code
-
-      def initialize(error_code)
-        @error_code = error_code
-        super("Slack auth revoked: #{error_code}")
-      end
-    end
-
-    class RateLimitedError < ApiError
-      attr_reader :retry_after
-
-      def initialize(retry_after)
-        @retry_after = retry_after
-        super("Slack rate-limited; retry_after=#{retry_after}s")
-      end
-    end
-
+    # Slack error codes to the adapter error each one means. Codes not listed
+    # raise a plain AdapterError carrying Slack's detail.
     SLACK_ERROR_CODES = {
-      "expired_trigger_id" => TriggerExpiredError,
-      "name_taken"         => ChannelExistsError,
-      "channel_not_found"  => ChannelNotFoundError,
-      "already_archived"   => AlreadyArchivedError,
-      "not_archived"       => NotArchivedError,
-      "is_archived"        => IsArchivedError,
-      "not_in_channel"     => NotInChannelError,
-      "already_in_channel" => AlreadyInChannelError,
-      "cant_invite_self"   => AlreadyInChannelError,
-      "restricted_action"  => RestrictedActionError,
-      "token_revoked"      => AuthRevokedError,
-      "account_inactive"   => AuthRevokedError,
-      "invalid_auth"       => AuthRevokedError,
-      "not_authed"         => AuthRevokedError
+      "expired_trigger_id" => AdapterError::TriggerExpired,
+      "name_taken"         => AdapterError::ChannelExists,
+      "channel_not_found"  => AdapterError::NotFound,
+      "already_archived"   => AdapterError::AlreadyArchived,
+      "not_archived"       => AdapterError::NotArchived,
+      "is_archived"        => AdapterError::IsArchived,
+      "not_in_channel"     => AdapterError::NotInChannel,
+      "already_in_channel" => AdapterError::AlreadyInChannel,
+      "cant_invite_self"   => AdapterError::AlreadyInChannel,
+      "restricted_action"  => AdapterError::RestrictedAction,
+      "token_revoked"      => AdapterError::AuthRevoked,
+      "account_inactive"   => AdapterError::AuthRevoked,
+      "invalid_auth"       => AdapterError::AuthRevoked,
+      "not_authed"         => AdapterError::AuthRevoked
     }.freeze
 
     # trigger_id expires three seconds after the slash command, and Slack rejects
@@ -232,7 +203,7 @@ module Slack
           channel: channel
         }
       )
-    rescue NotArchivedError
+    rescue AdapterError::NotArchived
       { ok: true }
     end
 
@@ -317,7 +288,7 @@ module Slack
       uri = URI(url)
       host = uri.host.to_s.downcase
       unless host == "slack.com" || host.end_with?(ALLOWED_DOWNLOAD_HOST_SUFFIX)
-        raise UnsafeDownloadHost, "refusing to send Slack token to host=#{host}"
+        raise AdapterError::UnsafeDownloadHost, "refusing to send Slack token to host=#{host}"
       end
 
       request = Net::HTTP::Get.new(uri)
@@ -333,7 +304,7 @@ module Slack
         redirect_uri = URI(redirect_location)
 
         if redirect_uri.query.to_s.include?("redir=")
-          raise ApiError, "Slack file download redirected to auth page — bot may be missing files:read scope"
+          raise AdapterError, "Slack file download redirected to auth page — bot may be missing files:read scope"
         end
 
         redirect_request = Net::HTTP::Get.new(redirect_uri)
@@ -341,11 +312,11 @@ module Slack
       end
 
       unless response.code.to_i.between?(200, 299)
-        raise ApiError, "Slack file download failed with status #{response.code}"
+        raise AdapterError, "Slack file download failed with status #{response.code}"
       end
 
       content_type = response["content-type"].to_s.split(";").first.strip
-      raise ApiError, "Slack file download returned HTML — bot may be missing files:read scope" if content_type == "text/html"
+      raise AdapterError, "Slack file download returned HTML — bot may be missing files:read scope" if content_type == "text/html"
 
       {
         body: response.body,
@@ -391,9 +362,9 @@ module Slack
 
         if status == 429
           retry_after = parse_retry_after(response["retry-after"])
-          raise RateLimitedError.new(retry_after)
+          raise AdapterError::RateLimited.new(retry_after)
         elsif status.between?(500, 599)
-          raise ServerError, "Slack API returned #{status}"
+          raise AdapterError::ServerError, "Slack API returned #{status}"
         end
 
         log_call(endpoint: endpoint, status: status, started_at: started_at, attempts: attempts)
@@ -404,8 +375,16 @@ module Slack
           retry
         end
         log_error(endpoint: endpoint, error: e, started_at: started_at, attempts: attempts)
-        raise
-      rescue *TRANSIENT_NETWORK_ERRORS, ServerError => e
+        raise AdapterError::Unavailable, "Slack unreachable after #{attempts} attempts: #{e.class.name}"
+      rescue *TRANSIENT_NETWORK_ERRORS => e
+        if attempts < MAX_RETRY_ATTEMPTS
+          sleep(backoff_seconds(attempts))
+          Rails.logger.info({ event: "slack.client.retry", endpoint: endpoint, error_class: e.class.name, attempt: attempts })
+          retry
+        end
+        log_error(endpoint: endpoint, error: e, started_at: started_at, attempts: attempts)
+        raise AdapterError::Unavailable, "Slack unreachable after #{attempts} attempts: #{e.class.name}"
+      rescue AdapterError::ServerError => e
         if attempts < MAX_RETRY_ATTEMPTS
           sleep(backoff_seconds(attempts))
           Rails.logger.info({ event: "slack.client.retry", endpoint: endpoint, error_class: e.class.name, attempt: attempts })
@@ -413,7 +392,7 @@ module Slack
         end
         log_error(endpoint: endpoint, error: e, started_at: started_at, attempts: attempts)
         raise
-      rescue RateLimitedError => e
+      rescue AdapterError::RateLimited => e
         unless retried_429
           retried_429 = true
           wait = [ e.retry_after, MAX_RATE_LIMIT_WAIT ].min
@@ -471,17 +450,12 @@ module Slack
       request = Net::HTTP::Get.new(uri)
       request["Authorization"] = "Bearer #{workspace.access_token}"
 
-      response = pool_request(uri, request)
-      body = JSON.parse(response.body).with_indifferent_access
+      response = pool_request(uri, request, endpoint: endpoint)
 
-      unless body[:ok]
-        error_details = body.slice(:error, :response_metadata, :needed, :provided)
-        raise ApiError, "Slack API error: #{body[:error]} (details: #{error_details.to_json})"
-      end
+      body = parse_json_body(response.body)
+      return body if body[:ok]
 
-      body
-    rescue JSON::ParserError => e
-      raise ApiError, "Failed to parse Slack API response: #{e.message}"
+      raise typed_error_for(body[:error], body)
     end
 
     def self.api_post(workspace:, endpoint:, payload:)
@@ -502,16 +476,16 @@ module Slack
     def self.parse_json_body(raw)
       JSON.parse(raw).with_indifferent_access
     rescue JSON::ParserError => e
-      raise ApiError, "Failed to parse Slack API response: #{e.message}"
+      raise AdapterError, "Failed to parse Slack API response: #{e.message}"
     end
 
     def self.typed_error_for(error_code, body)
       klass = SLACK_ERROR_CODES[error_code]
-      return AuthRevokedError.new(error_code) if klass == AuthRevokedError
+      return AdapterError::AuthRevoked.new(error_code) if klass == AdapterError::AuthRevoked
 
       details = body.slice(:error, :response_metadata, :needed, :provided)
       message = "Slack API error: #{error_code} (details: #{details.to_json})"
-      (klass || ApiError).new(message)
+      (klass || AdapterError).new(message)
     end
   end
 end

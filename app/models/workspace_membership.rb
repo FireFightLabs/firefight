@@ -10,7 +10,6 @@ class WorkspaceMembership < ApplicationRecord
   has_many :personal_api_keys, class_name: "ApiKey", foreign_key: :workspace_membership_id,
            dependent: :destroy, inverse_of: :on_behalf_of
 
-  encrypts :access_token, :refresh_token, deterministic: false
 
   validates :platform_user_id, presence: true
   validates :platform_user_id, uniqueness: { scope: :workspace_id }
@@ -113,9 +112,6 @@ class WorkspaceMembership < ApplicationRecord
       membership.platform_user_id = auth_hash.uid
       membership.role = is_first_member ? :owner : :member
       membership.platform_data = auth_hash.extra.user_info
-      membership.access_token = auth_hash.credentials.token
-      membership.refresh_token = auth_hash.credentials.refresh_token if auth_hash.credentials.refresh_token
-      membership.token_expires_at = Time.at(auth_hash.credentials.expires_at) if auth_hash.credentials.expires_at
       membership.joined_at = Time.current
     end
   end

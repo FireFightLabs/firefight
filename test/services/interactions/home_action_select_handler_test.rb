@@ -16,7 +16,7 @@ class Interactions::HomeActionSelectHandlerTest < ActiveSupport::TestCase
   end
 
   test "returns nil on API error" do
-    stub_update_modal(raises: Slack::Client::ApiError.new("update failed"))
+    stub_update_modal(raises: AdapterError.new("update failed"))
 
     result = Interactions::HomeActionSelectHandler.execute(build_interaction("new"))
 

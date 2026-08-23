@@ -13,49 +13,49 @@ class Slack::ClientTest < ActiveSupport::TestCase
 
   test "translates name_taken to ChannelExistsError" do
     stub_ok_false_response("name_taken")
-    assert_raises(Slack::Client::ChannelExistsError) do
+    assert_raises(AdapterError::ChannelExists) do
       Slack::Client.create_channel(workspace: @workspace, name: "exists")
     end
   end
 
   test "translates channel_not_found to ChannelNotFoundError" do
     stub_ok_false_response("channel_not_found")
-    assert_raises(Slack::Client::ChannelNotFoundError) do
+    assert_raises(AdapterError::NotFound) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
   end
 
   test "translates not_in_channel to NotInChannelError" do
     stub_ok_false_response("not_in_channel")
-    assert_raises(Slack::Client::NotInChannelError) do
+    assert_raises(AdapterError::NotInChannel) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
   end
 
   test "translates is_archived to IsArchivedError" do
     stub_ok_false_response("is_archived")
-    assert_raises(Slack::Client::IsArchivedError) do
+    assert_raises(AdapterError::IsArchived) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
   end
 
   test "translates restricted_action to RestrictedActionError" do
     stub_ok_false_response("restricted_action")
-    assert_raises(Slack::Client::RestrictedActionError) do
+    assert_raises(AdapterError::RestrictedAction) do
       Slack::Client.invite_to_channel(workspace: @workspace, channel: "Cx", users: "U1")
     end
   end
 
   test "expired_trigger_id raises TriggerExpiredError without string-sniffing" do
     stub_ok_false_response("expired_trigger_id")
-    assert_raises(Slack::Client::TriggerExpiredError) do
+    assert_raises(AdapterError::TriggerExpired) do
       Slack::Client.open_modal(workspace: @workspace, trigger_id: "x", view: {})
     end
   end
 
-  test "unknown error code falls through to generic ApiError" do
+  test "unknown error code falls through to a plain AdapterError" do
     stub_ok_false_response("something_weird")
-    err = assert_raises(Slack::Client::ApiError) do
+    err = assert_raises(AdapterError) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
     assert_includes err.message, "something_weird"
@@ -68,7 +68,7 @@ class Slack::ClientTest < ActiveSupport::TestCase
 
   test "token_revoked raises AuthRevokedError with error_code" do
     stub_ok_false_response("token_revoked")
-    err = assert_raises(Slack::Client::AuthRevokedError) do
+    err = assert_raises(AdapterError::AuthRevoked) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
     assert_equal "token_revoked", err.error_code
@@ -76,14 +76,14 @@ class Slack::ClientTest < ActiveSupport::TestCase
 
   test "account_inactive raises AuthRevokedError" do
     stub_ok_false_response("account_inactive")
-    assert_raises(Slack::Client::AuthRevokedError) do
+    assert_raises(AdapterError::AuthRevoked) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
   end
 
   test "invalid_auth raises AuthRevokedError" do
     stub_ok_false_response("invalid_auth")
-    assert_raises(Slack::Client::AuthRevokedError) do
+    assert_raises(AdapterError::AuthRevoked) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
   end
@@ -104,7 +104,7 @@ class Slack::ClientTest < ActiveSupport::TestCase
     pool = mock_pool
     pool.expects(:request).twice.returns(http_response(429, "", retry_after: "2"))
 
-    err = assert_raises(Slack::Client::RateLimitedError) do
+    err = assert_raises(AdapterError::RateLimited) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
     assert_equal 2, err.retry_after
@@ -115,7 +115,7 @@ class Slack::ClientTest < ActiveSupport::TestCase
     pool = mock_pool
     pool.expects(:request).twice.returns(http_response(429, ""))
 
-    err = assert_raises(Slack::Client::RateLimitedError) do
+    err = assert_raises(AdapterError::RateLimited) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
     assert_equal 1, err.retry_after
@@ -137,23 +137,33 @@ class Slack::ClientTest < ActiveSupport::TestCase
     pool = mock_pool
     pool.expects(:request).times(Slack::Client::MAX_RETRY_ATTEMPTS).returns(http_response(500, ""))
 
-    assert_raises(Slack::Client::ServerError) do
+    assert_raises(AdapterError::ServerError) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
   end
 
-  test "Net::ReadTimeout retried and eventually propagated" do
+  test "a transport failure that outlives the retries surfaces as an AdapterError, never a Net error" do
     Slack::Client.stubs(:sleep)
     pool = mock_pool
     pool.expects(:request).times(Slack::Client::MAX_RETRY_ATTEMPTS).raises(Net::ReadTimeout)
 
-    assert_raises(Net::ReadTimeout) do
+    error = assert_raises(AdapterError::Unavailable) do
       Slack::Client.post_message(workspace: @workspace, channel: "Cx", text: "hi")
     end
+    assert_includes error.message, "Net::ReadTimeout"
+  end
+
+  test "a revoked token surfaces through a GET the same way it does through a POST" do
+    stub_ok_false_response("token_revoked")
+
+    error = assert_raises(AdapterError::AuthRevoked) do
+      Slack::Client.get_user_info(workspace: @workspace, user_id: "U123")
+    end
+    assert_equal "token_revoked", error.error_code
   end
 
   test "download_file refuses non-slack.com hosts" do
-    assert_raises(Slack::Client::UnsafeDownloadHost) do
+    assert_raises(AdapterError::UnsafeDownloadHost) do
       Slack::Client.download_file(workspace: @workspace, url: "https://evil.example.com/leak")
     end
   end
@@ -195,9 +205,9 @@ class Slack::ClientTest < ActiveSupport::TestCase
     assert_includes captured_request.path, "user=U123"
   end
 
-  test "get_user_info raises ApiError on Slack error response" do
+  test "get_user_info raises AdapterError on a Slack error response" do
     stub_ok_false_response("user_not_found")
-    assert_raises(Slack::Client::ApiError) do
+    assert_raises(AdapterError) do
       Slack::Client.get_user_info(workspace: @workspace, user_id: "U_MISSING")
     end
   end

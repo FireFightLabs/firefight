@@ -5,7 +5,8 @@ class InertiaController < ApplicationController
     {
       currentUser: current_user && CurrentUserSerializer.one(current_user),
       currentWorkspace: current_workspace && CurrentWorkspaceSerializer.one(current_workspace),
-      availableWorkspaces: current_user ? CurrentWorkspaceSerializer.many(current_user.workspaces.order(:name)) : []
+      availableWorkspaces: current_user ? CurrentWorkspaceSerializer.many(current_user.workspaces.order(:name)) : [],
+      currentUserIsAdmin: current_membership&.admin_access? || false
     }
   end
 

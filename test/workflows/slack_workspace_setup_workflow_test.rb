@@ -126,7 +126,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
 
     stub_create_channel(
       result: { channel: { id: "C12345678", name: "incidents" } },
-      raises: Slack::Client::ChannelExistsError.new("exists")
+      raises: AdapterError::ChannelExists.new("exists")
     )
     stub_list_conversations(channels: [ { id: "C12345678", name: "incidents" } ])
     stub_set_channel_topic
@@ -151,7 +151,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
   # Error handling
 
   test "workflow fails if channel creation fails" do
-    stub_create_channel(raises: Slack::Client::ApiError.new("permission_denied"))
+    stub_create_channel(raises: AdapterError.new("permission_denied"))
     workflow = SlackWorkspaceSetupWorkflow.start_inline!(
       @workspace,
       context: { installer_user_id: "U12345678" }
@@ -168,7 +168,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     stub_create_channel
     stub_set_channel_topic
     # Stub purpose to fail
-    Slack::Client.stubs(:set_channel_purpose).raises(Slack::Client::ApiError.new("permission_denied"))
+    Slack::Client.stubs(:set_channel_purpose).raises(AdapterError.new("permission_denied"))
 
     workflow = SlackWorkspaceSetupWorkflow.start_inline!(
       @workspace,
@@ -185,7 +185,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     stub_create_channel
     stub_set_channel_topic
     stub_set_channel_purpose
-    stub_post_message(raises: Slack::Client::ApiError.new("channel_not_found"))
+    stub_post_message(raises: AdapterError.new("channel_not_found"))
 
     workflow = SlackWorkspaceSetupWorkflow.start_inline!(
       @workspace,
@@ -204,7 +204,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     stub_set_channel_purpose
     stub_post_message
     # Invitation fails but workflow should handle gracefully
-    stub_invite_to_channel(raises: Slack::Client::ApiError.new("user_not_found"))
+    stub_invite_to_channel(raises: AdapterError.new("user_not_found"))
 
     workflow = SlackWorkspaceSetupWorkflow.start_inline!(
       @workspace,

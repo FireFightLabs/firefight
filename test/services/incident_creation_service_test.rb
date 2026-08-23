@@ -39,7 +39,7 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
 
   test "create_channel falls back on name collision" do
     Slack::Client.stubs(:create_channel)
-      .raises(Slack::Client::ChannelExistsError.new("name_taken"))
+      .raises(AdapterError::ChannelExists.new("name_taken"))
       .then.returns({ channel: { id: "C_FALLBACK", name: "inc-test-fallback", is_channel: true } })
 
     result = @service.create_channel(@incident)

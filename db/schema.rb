@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_23_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_23_141000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1076,14 +1076,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_120000) do
   end
 
   create_table "workspace_memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.text "access_token"
     t.datetime "created_at", null: false
     t.datetime "joined_at", null: false
     t.jsonb "platform_data", default: {}, null: false
     t.string "platform_user_id", null: false
-    t.text "refresh_token"
     t.string "role", default: "member", null: false
-    t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.uuid "workspace_id", null: false
@@ -1110,6 +1107,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_120000) do
     t.integer "archive_channel_delay_minutes", default: 60, null: false
     t.datetime "suspended_at"
     t.string "suspended_reason"
+    t.datetime "disconnected_at"
+    t.string "disconnected_reason"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["platform", "platform_id"], name: "index_workspaces_on_platform_and_platform_id", unique: true
     t.index ["platform"], name: "index_workspaces_on_platform"

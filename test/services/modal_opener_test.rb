@@ -39,7 +39,7 @@ class ModalOpenerTest < ActiveSupport::TestCase
   # this cleanup a silent no-op that left an orphaned message in the channel.
   test "deletes the placeholder when the trigger expires" do
     stub_post_message
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
+    stub_open_modal(raises: AdapterError::TriggerExpired.new("expired"))
     Slack::Client.expects(:delete_message).with(
       workspace: @workspace, channel: @incident.channel_id, ts: "1234567890.123456"
     ).returns({ ok: true })
@@ -49,8 +49,8 @@ class ModalOpenerTest < ActiveSupport::TestCase
 
   test "suppresses delete errors during cleanup" do
     stub_post_message
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
-    Slack::Client.stubs(:delete_message).raises(Slack::Client::ApiError.new("delete failed"))
+    stub_open_modal(raises: AdapterError::TriggerExpired.new("expired"))
+    Slack::Client.stubs(:delete_message).raises(AdapterError.new("delete failed"))
 
     assert_raises(AdapterError::TriggerExpired) { open(:close) }
   end

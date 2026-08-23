@@ -1,5 +1,12 @@
+# The one error family every caller rescues. Platform clients raise these
+# directly so nothing platform-specific, including a transport failure,
+# ever escapes an adapter.
 class AdapterError < StandardError
   class TriggerExpired < AdapterError; end
+  class NotArchived < AdapterError; end
+  class ServerError < AdapterError; end
+  # The platform could not be reached after every retry.
+  class Unavailable < AdapterError; end
   class ChannelExists < AdapterError; end
   class AlreadyArchived < AdapterError; end
   class NotFound < AdapterError; end

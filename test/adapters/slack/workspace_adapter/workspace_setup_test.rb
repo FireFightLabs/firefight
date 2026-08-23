@@ -27,7 +27,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
   test "create_incidents_channel handles existing channel" do
     existing_channel = { id: "C87654321", name: "incidents" }
 
-    stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
+    stub_create_channel(raises: AdapterError::ChannelExists.new("exists"))
       stub_list_conversations(channels: [ existing_channel ])
       result = @adapter.create_incidents_channel
 
@@ -46,7 +46,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     logged_events << message if message.is_a?(Hash)
     end
 
-    stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
+    stub_create_channel(raises: AdapterError::ChannelExists.new("exists"))
       stub_list_conversations(channels: [ existing_channel ])
       @adapter.create_incidents_channel
 
@@ -58,7 +58,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
   end
 
   test "create_incidents_channel raises error if existing channel not found" do
-    stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
+    stub_create_channel(raises: AdapterError::ChannelExists.new("exists"))
     stub_list_conversations(channels: [])
     assert_raises(AdapterError::NotFound) do
       @adapter.create_incidents_channel
@@ -141,7 +141,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     # Stub to succeed on 1st call, fail on 2nd, succeed on 3rd
     Slack::Client.stubs(:post_message)
       .returns({ ok: true, ts: "123.1" })
-      .then.raises(Slack::Client::ApiError.new("not_in_channel"))
+      .then.raises(AdapterError.new("not_in_channel"))
       .then.returns({ ok: true, ts: "123.3" })
 
     result = @adapter.post_share_messages(
@@ -163,7 +163,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
       logged_events << message if message.is_a?(Hash)
     end
 
-    Slack::Client.stubs(:post_message).raises(Slack::Client::ApiError.new("not_in_channel"))
+    Slack::Client.stubs(:post_message).raises(AdapterError.new("not_in_channel"))
 
     @adapter.post_share_messages(
       user_id: "U12345678",
@@ -203,7 +203,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
 
     stub_list_conversations(channels: channels)
       # Use create_incidents_channel with error to trigger find_existing_channel
-      stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
+      stub_create_channel(raises: AdapterError::ChannelExists.new("exists"))
       result = @adapter.create_incidents_channel
 
       assert_equal "C22222222", result[:channel_id]
@@ -216,7 +216,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     ]
 
     stub_list_conversations(channels: channels)
-    stub_create_channel(raises: Slack::Client::ChannelExistsError.new("exists"))
+    stub_create_channel(raises: AdapterError::ChannelExists.new("exists"))
     assert_raises(AdapterError::NotFound) do
       @adapter.create_incidents_channel
     end

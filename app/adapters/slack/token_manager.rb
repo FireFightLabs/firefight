@@ -18,6 +18,9 @@ module Slack
         true
       else
         log_error("workspace", workspace.platform_id, response["error"])
+        # The refresh token is dead, so every hourly retry would fail the
+        # same way. The workspace needs a reinstall, not another attempt.
+        workspace.mark_disconnected!(Workspace::Connection::DISCONNECTED_REFRESH_FAILED) if response["error"] == "invalid_refresh_token"
         false
       end
     rescue => e
@@ -25,48 +28,14 @@ module Slack
       false
     end
 
-    def refresh_membership(membership)
-      return false unless membership.workspace.slack_platform?
-      return false unless membership.refresh_token.present?
-
-      response = call_slack_refresh_api(membership.refresh_token)
-
-      if response["ok"]
-        membership.update!(
-          access_token: response["access_token"],
-          refresh_token: response["refresh_token"],
-          token_expires_at: calculate_expiration(response["expires_in"])
-        )
-        log_success("membership", membership.workspace.platform_id, membership.id)
-        true
-      else
-        log_error("membership", "#{membership.workspace.platform_id}/#{membership.id}", response["error"])
-        false
-      end
-    rescue => e
-      log_exception("membership", membership.id, e)
-      false
-    end
-
     def refresh_all_expiring(buffer: DEFAULT_BUFFER)
-      results = {
-        workspaces: { succeeded: 0, failed: 0 },
-        memberships: { succeeded: 0, failed: 0 }
-      }
+      results = { workspaces: { succeeded: 0, failed: 0 } }
 
       expiring_workspaces(buffer).find_each do |workspace|
         if refresh_workspace(workspace)
           results[:workspaces][:succeeded] += 1
         else
           results[:workspaces][:failed] += 1
-        end
-      end
-
-      expiring_memberships(buffer).find_each do |membership|
-        if refresh_membership(membership)
-          results[:memberships][:succeeded] += 1
-        else
-          results[:memberships][:failed] += 1
         end
       end
 
@@ -84,16 +53,9 @@ module Slack
     def expiring_workspaces(buffer)
       Workspace
         .slack_platform
+        .connected
         .where("token_expires_at IS NOT NULL")
         .where("token_expires_at <= ?", buffer.from_now)
-    end
-
-    def expiring_memberships(buffer)
-      WorkspaceMembership
-        .joins(:workspace)
-        .where(workspaces: { platform: "slack" })
-        .where("workspace_memberships.token_expires_at IS NOT NULL")
-        .where("workspace_memberships.token_expires_at <= ?", buffer.from_now)
     end
 
     def call_slack_refresh_api(refresh_token)
@@ -138,8 +100,7 @@ module Slack
 
     def log_summary(results)
       Rails.logger.info "[Slack Token Refresh] Summary: " \
-        "Workspaces (#{results[:workspaces][:succeeded]} succeeded, #{results[:workspaces][:failed]} failed), " \
-        "Memberships (#{results[:memberships][:succeeded]} succeeded, #{results[:memberships][:failed]} failed)"
+        "Workspaces (#{results[:workspaces][:succeeded]} succeeded, #{results[:workspaces][:failed]} failed)"
     end
   end
 end
