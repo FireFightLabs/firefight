@@ -1,5 +1,3 @@
-import { Card } from "@/components/card";
-import { FlashAlerts } from "@/components/flash-alerts";
 import { signInWithSlackPath } from "@/lib/routes";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { CardHeader } from "@/components/auth/card-header";
@@ -9,7 +7,7 @@ import { TermsNotice } from "@/pages/login/components/terms-notice";
 export default function Login() {
   return (
     <AuthLayout title="Sign in to Firefight">
-      <Card variant="glow" className="text-center">
+      <div className="text-center">
         <CardHeader
           title="Sign in"
           subtitle={
@@ -21,8 +19,6 @@ export default function Login() {
           }
         />
 
-        <FlashAlerts className="mb-4 text-left" />
-
         <SlackButton
           href={signInWithSlackPath()}
           label="Continue with Slack"
@@ -30,7 +26,7 @@ export default function Login() {
         />
 
         <TermsNotice />
-      </Card>
+      </div>
     </AuthLayout>
   );
 }
