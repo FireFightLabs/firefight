@@ -56,6 +56,9 @@ module Commands
       return handler.execute(command) if handler
 
       Command.ephemeral(unknown_message(subcommand))
+    rescue Incident::NotActive, AdapterError::TriggerExpired
+      # Refusals and expiry have their own replies in CommandDispatcher.
+      raise
     rescue => e
       Rails.logger.error({
         event: "firefight.command_error",

@@ -4,7 +4,6 @@ module Commands
     authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
 
     def self.execute(command)
-      return Command.ephemeral("Workspace not found. Please reinstall Firefight.") unless command.workspace
       return Command.ephemeral("This command must be run from an active incident channel.") unless command.incident
 
       # No invitees in the text → open the picker modal. Must stay sync. trigger_id expires in 3s.
@@ -21,8 +20,6 @@ module Commands
         user_id: command.user_id
       )
       Command.ephemeral(":hourglass_flowing_sand: Inviting…")
-    rescue AdapterError::TriggerExpired
-      Command.ephemeral("This command has expired. Please try `/ff invite` again.")
     end
   end
 end

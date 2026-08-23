@@ -14,11 +14,11 @@ module Interactions
       reason = interaction.values.dig("reason_block", "reason_input", "value")
       default_status = workspace.incident_statuses.live.find_by(is_default: true) || workspace.incident_statuses.live.first
 
-      IncidentLifecycleService.new(workspace).reopen(
+      IncidentLifecycleService.new(workspace).change_status(
         incident,
         { incident_status: default_status },
         changed_by: member,
-        reason: reason
+        message: reason
       )
 
       delete_temp_message(workspace, metadata)

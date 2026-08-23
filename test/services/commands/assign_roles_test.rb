@@ -52,15 +52,6 @@ class Commands::AssignRolesTest < ActiveSupport::TestCase
     assert_includes result[:text], "No incident roles"
   end
 
-  test "handles trigger expiration" do
-    stub_open_modal(raises: Slack::Client::TriggerExpiredError.new("expired"))
-
-    result = Commands::AssignRoles.execute(build_command(channel_id: @incident.channel_id))
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "expired"
-  end
-
   private
 
   def build_command(channel_id: "C12345678")

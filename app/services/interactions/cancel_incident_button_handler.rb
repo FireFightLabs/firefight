@@ -17,15 +17,7 @@ module Interactions
         return nil
       end
 
-      status = workspace.incident_statuses.canceled.active.ordered.first
-      if status.nil?
-        Rails.logger.warn({ event: "incident.cancel_skipped", incident_id: incident.id, reason: "no_canceled_status" })
-        return nil
-      end
-
-      IncidentLifecycleService.new(workspace).cancel(
-        incident, { incident_status: status }, changed_by: member
-      )
+      IncidentLifecycleService.new(workspace).cancel_with_default_status(incident, changed_by: member)
 
       Rails.logger.info({
         event: "incident.canceled",

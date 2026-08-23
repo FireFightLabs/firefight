@@ -80,23 +80,6 @@ class Commands::GeneratePostmortemTest < ActiveSupport::TestCase
     assert_includes result[:text], "already been generated"
   end
 
-  test "returns error when workspace not found" do
-    command = Command.new(
-      platform: Platforms::SLACK,
-      workspace_id: SecureRandom.uuid,
-      user_id: @member.platform_user_id,
-      text: Identifiers::SUBCOMMAND_POSTMORTEM,
-      trigger_id: "12345.trigger",
-      channel_id: @incident.channel_id,
-      metadata: { command: "/ff" }
-    )
-
-    result = Commands::GeneratePostmortem.execute(command)
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "Workspace not found"
-  end
-
   private
 
   def build_command(channel_id: "C12345678")

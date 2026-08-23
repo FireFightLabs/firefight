@@ -89,7 +89,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
 
   test "update records change with INCIDENT_UPDATED event" do
     assert_difference -> { @incident.incident_events.count }, 1 do
-      @service.update(@incident, { summary: "Updated via service" }, changed_by: @member)
+      @service.change_status(@incident, { summary: "Updated via service" }, changed_by: @member)
     end
 
     assert_equal "Updated via service", @incident.reload.summary
@@ -98,7 +98,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
 
   test "update starts IncidentUpdateWorkflow with previous state context" do
     assert_enqueued_with(job: SolidWorkflow::RunStepJob) do
-      @service.update(
+      @service.change_status(
         @incident,
         { incident_severity: @workspace.incident_severities.active.last },
         changed_by: @member
@@ -107,7 +107,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
   end
 
   test "update passes message to record_change" do
-    @service.update(@incident, { summary: "Changed" }, changed_by: @member, message: "Status update")
+    @service.change_status(@incident, { summary: "Changed" }, changed_by: @member, message: "Status update")
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_UPDATED)
     update = IncidentUpdate.find_by!(incident: @incident, update_type: IncidentUpdate::UPDATED)
@@ -120,7 +120,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     resolved_status = @workspace.incident_statuses.closed.first
 
     assert_difference -> { @incident.incident_events.count }, 1 do
-      @service.close(@incident, { incident_status: resolved_status }, changed_by: @member)
+      @service.change_status(@incident, { incident_status: resolved_status }, changed_by: @member)
     end
 
     assert @incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_RESOLVED)
@@ -131,7 +131,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     resolved_status = @workspace.incident_statuses.closed.first
 
     assert_enqueued_with(job: SolidWorkflow::RunStepJob) do
-      @service.close(@incident, { incident_status: resolved_status }, changed_by: @member)
+      @service.change_status(@incident, { incident_status: resolved_status }, changed_by: @member)
     end
   end
 
@@ -140,7 +140,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 30)
 
     assert_enqueued_with(job: ChannelArchivalJob) do
-      @service.close(@incident, { incident_status: resolved_status }, changed_by: @member)
+      @service.change_status(@incident, { incident_status: resolved_status }, changed_by: @member)
     end
   end
 
@@ -148,7 +148,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     resolved_status = @workspace.incident_statuses.closed.first
     lead = workspace_memberships(:bob_workspace_one)
 
-    @service.close(@incident, { incident_status: resolved_status, lead: lead }, changed_by: @member)
+    @service.change_status(@incident, { incident_status: resolved_status, lead: lead }, changed_by: @member)
 
     assert_equal lead, @incident.reload.lead
   end
@@ -161,7 +161,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     default_status = @workspace.incident_statuses.live.find_by(is_default: true)
 
     assert_difference -> { @incident.incident_events.count }, 1 do
-      @service.reopen(@incident, { incident_status: default_status }, changed_by: @member)
+      @service.change_status(@incident, { incident_status: default_status }, changed_by: @member)
     end
 
     assert @incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_REOPENED)
@@ -171,7 +171,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     close_incident!
 
     default_status = @workspace.incident_statuses.live.find_by(is_default: true)
-    @service.reopen(@incident, { incident_status: default_status }, changed_by: @member, reason: "False alarm resolved")
+    @service.change_status(@incident, { incident_status: default_status }, changed_by: @member, message: "False alarm resolved")
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_REOPENED)
     assert_equal "False alarm resolved", event.eventable.message
@@ -183,8 +183,57 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     default_status = @workspace.incident_statuses.live.find_by(is_default: true)
 
     assert_enqueued_with(job: SolidWorkflow::RunStepJob) do
-      @service.reopen(@incident, { incident_status: default_status }, changed_by: @member)
+      @service.change_status(@incident, { incident_status: default_status }, changed_by: @member)
     end
+  end
+
+  # Transitions
+
+  test "change_status decides the verb from the stage the incident is in and the one it is going to" do
+    closed = @workspace.incident_statuses.closed.first
+    canceled = @workspace.incident_statuses.canceled.first
+    live = @workspace.incident_statuses.live.find_by(is_default: true)
+
+    @service.change_status(@incident, { incident_status: canceled }, changed_by: @member)
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_CANCELED)
+    assert_nil @incident.reload.resolved_at
+
+    @service.change_status(@incident, { incident_status: live }, changed_by: @member)
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_REOPENED)
+
+    @service.change_status(@incident, { incident_status: closed }, changed_by: @member)
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_RESOLVED)
+    assert @incident.reload.resolved_at.present?
+  end
+
+  test "a closed incident refuses to become canceled until it is reopened, and vice versa" do
+    closed = @workspace.incident_statuses.closed.first
+    canceled = @workspace.incident_statuses.canceled.first
+    @service.change_status(@incident, { incident_status: closed }, changed_by: @member)
+
+    error = assert_raises(Incident::NotActive) do
+      @service.change_status(@incident, { incident_status: canceled }, changed_by: @member)
+    end
+    assert_match(/reopened first/, error.message)
+    assert_equal closed, @incident.reload.incident_status
+  end
+
+  test "cancel runs its own workflow and archives without a resolved_at" do
+    canceled = @workspace.incident_statuses.canceled.first
+    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 30)
+    SolidWorkflow::Base.any_instance.stubs(:enqueue_ready_steps)
+
+    assert_enqueued_with(job: ChannelArchivalJob) do
+      @service.change_status(@incident, { incident_status: canceled }, changed_by: @member)
+    end
+
+    assert_equal "incident.cancel.v1", SolidWorkflow::Workflow.where(subject: @incident).order(:created_at).last.name
+  end
+
+  test "a lead rides along with any status change" do
+    lead = workspace_memberships(:bob_workspace_one)
+    @service.change_status(@incident, { summary: "Handing over", lead: lead }, changed_by: @member)
+    assert_equal lead, @incident.reload.lead
   end
 
   # Assign lead
@@ -313,7 +362,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
 
   test "update passes changed_by platform_user_id in workflow context" do
     SolidWorkflow::Base.any_instance.stubs(:enqueue_ready_steps)
-    @service.update(@incident, { summary: "Test" }, changed_by: @member)
+    @service.change_status(@incident, { summary: "Test" }, changed_by: @member)
 
     workflow = SolidWorkflow::Workflow.last
     assert_equal @member.platform_user_id, workflow.context["updated_by_platform_user_id"]
@@ -323,7 +372,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     resolved_status = @workspace.incident_statuses.closed.first
     SolidWorkflow::Base.any_instance.stubs(:enqueue_ready_steps)
 
-    @service.close(@incident, { incident_status: resolved_status }, changed_by: @member)
+    @service.change_status(@incident, { incident_status: resolved_status }, changed_by: @member)
 
     workflow = SolidWorkflow::Workflow.last
     assert_equal @member.platform_user_id, workflow.context["resolved_by_platform_user_id"]

@@ -86,32 +86,33 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     @lifecycle_service ||= IncidentLifecycleService.new(current_workspace)
   end
 
+  # Every field in the body lands in one request. The lifecycle service
+  # decides from the status what kind of change this is (update, close,
+  # cancel, reopen, accept) and the other fields ride along with it.
   def resolve_and_apply_update
-    new_status = current_workspace.incident_statuses.active.find(params[:status_id]) if params[:status_id].present?
-    new_severity = current_workspace.incident_severities.active.find(params[:severity_id]) if params[:severity_id].present?
-    new_type = current_workspace.incident_types.active.find(params[:incident_type_id]) if params[:incident_type_id].present?
-    new_lead = current_workspace.workspace_memberships.find(params[:lead_id]) if params[:lead_id].present?
+    attrs = {}
+    attrs[:name] = params[:name] if params.key?(:name)
+    attrs[:summary] = params[:summary] if params.key?(:summary)
+    attrs[:incident_status] = current_workspace.incident_statuses.active.find(params[:status_id]) if params[:status_id].present?
+    attrs[:incident_severity] = current_workspace.incident_severities.active.find(params[:severity_id]) if params[:severity_id].present?
+    attrs[:incident_type] = current_workspace.incident_types.active.find(params[:incident_type_id]) if params[:incident_type_id].present?
     changed_by = Current.api_key
 
-    if new_status && (new_status.incident_lifecycle_stage.closed? || new_status.incident_lifecycle_stage.canceled?)
-      attrs = { incident_status: new_status }
-      attrs[:incident_severity] = new_severity if new_severity
-      attrs[:name] = params[:name] if params.key?(:name)
-      attrs[:summary] = params[:summary] if params.key?(:summary)
-      lifecycle_service.close(@incident, attrs, changed_by: changed_by)
-    elsif new_status && @incident.terminal? && new_status.incident_lifecycle_stage.open?
-      lifecycle_service.reopen(@incident, { incident_status: new_status }, changed_by: changed_by)
-    elsif params.key?(:lead_id)
-      lifecycle_service.assign_lead(@incident, new_lead, changed_by: changed_by)
-    else
-      attrs = {}
-      attrs[:name] = params[:name] if params.key?(:name)
-      attrs[:summary] = params[:summary] if params.key?(:summary)
-      attrs[:incident_status] = new_status if new_status
-      attrs[:incident_severity] = new_severity if new_severity
-      attrs[:incident_type] = new_type if new_type
-      lifecycle_service.update(@incident, attrs, changed_by: changed_by)
+    if params.key?(:lead_id)
+      lead = params[:lead_id].present? ? current_workspace.workspace_memberships.find(params[:lead_id]) : nil
+      # A lead on its own keeps the dedicated lead event and announcement. Next
+      # to other fields it rides inside that change. Clearing the lead goes
+      # through the role rules, which refuse it with the reason.
+      return lifecycle_service.assign_role(@incident, lead_role, lead, changed_by: changed_by) if attrs.empty? || lead.nil?
+
+      attrs[:lead] = lead
     end
+
+    lifecycle_service.change_status(@incident, attrs, changed_by: changed_by)
+  end
+
+  def lead_role
+    current_workspace.ensure_incident_role!(IncidentRole::SLUG_INCIDENT_LEAD)
   end
 
   def replayed?(idempotency_key)

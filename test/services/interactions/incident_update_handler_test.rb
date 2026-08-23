@@ -41,6 +41,21 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     assert_equal "major", @incident.incident_severity.slug
   end
 
+  test "picking a closed status in the update modal closes the incident for real" do
+    stub_all_side_effects
+    closed = @workspace.incident_statuses.closed.active.first
+    IncidentCloseWorkflow.expects(:start!).once
+    IncidentUpdateWorkflow.expects(:start!).never
+
+    Interactions::IncidentUpdateHandler.execute(build_interaction(status_slug: closed.slug))
+
+    @incident.reload
+    assert_equal closed, @incident.incident_status
+    assert @incident.resolved_at.present?
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_RESOLVED)
+    assert_not @incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_UPDATED)
+  end
+
   test "creates incident event with change tracking" do
     stub_all_side_effects
 

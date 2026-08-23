@@ -25,10 +25,9 @@ module Interactions
         }
       end
 
-      scope = workspace.incident_statuses.canceled.active.ordered
       chosen = submission.system_attrs[IncidentSystemField::KEY_STATUS]
-      status = (chosen.present? && scope.find_by(slug: chosen)) || scope.first
-      return no_status_error if status.nil?
+      status = (chosen.present? && workspace.incident_statuses.canceled.active.find_by(slug: chosen)) ||
+               workspace.default_canceled_status
 
       system_attrs = submission.system_attrs
       attrs = { incident_status: status }
@@ -36,7 +35,7 @@ module Interactions
       attrs[:summary] = system_attrs[IncidentSystemField::KEY_SUMMARY] if system_attrs[IncidentSystemField::KEY_SUMMARY].present?
       attrs[:custom_fields] = submission.custom_fields if submission.custom_fields.present?
 
-      IncidentLifecycleService.new(workspace).cancel(
+      IncidentLifecycleService.new(workspace).change_status(
         incident,
         attrs,
         changed_by: member,
@@ -57,11 +56,5 @@ module Interactions
       { response_action: "errors", errors: { "field_message_block" => "This incident is already canceled." } }
     end
     private_class_method :already_canceled_error
-
-    def self.no_status_error
-      { response_action: "errors",
-        errors: { "field_message_block" => "No canceled status is configured for this workspace." } }
-    end
-    private_class_method :no_status_error
   end
 end

@@ -51,23 +51,6 @@ class Commands::GenerateCatchupTest < ActiveSupport::TestCase
     end
   end
 
-  test "returns error when workspace not found" do
-    command = Command.new(
-      platform: Platforms::SLACK,
-      workspace_id: SecureRandom.uuid,
-      user_id: @member.platform_user_id,
-      text: Identifiers::SUBCOMMAND_CATCHUP,
-      trigger_id: "12345.trigger",
-      channel_id: @incident.channel_id,
-      metadata: { command: "/ff" }
-    )
-
-    result = Commands::GenerateCatchup.execute(command)
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "Workspace not found"
-  end
-
   private
 
   def build_command(channel_id: "C12345678")

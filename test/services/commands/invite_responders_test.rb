@@ -54,35 +54,6 @@ class Commands::InviteRespondersTest < ActiveSupport::TestCase
     assert_includes result[:text], "incident channel"
   end
 
-  test "returns error when workspace not found" do
-    command = Command.new(
-      platform: Platforms::SLACK,
-      workspace_id: SecureRandom.uuid,
-      user_id: "U12345678",
-      text: "invite <@U11111111>",
-      trigger_id: "12345.trigger",
-      channel_id: @incident.channel_id,
-      metadata: { command: "/ff" }
-    )
-
-    result = Commands::InviteResponders.execute(command)
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "Workspace not found"
-  end
-
-  test "handles trigger expiration when opening modal" do
-    Slack::Modals::Invite.expects(:build).with(@incident).returns({ type: "modal" })
-    adapter = mock("workspace_adapter")
-    WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
-    adapter.expects(:open_modal).raises(AdapterError::TriggerExpired.new("expired"))
-
-    result = Commands::InviteResponders.execute(build_command("invite"))
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "expired"
-  end
-
   private
 
   def build_command(text, channel_id: @incident.channel_id)
