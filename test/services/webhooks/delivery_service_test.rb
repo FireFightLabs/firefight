@@ -25,7 +25,7 @@ class Webhooks::DeliveryServiceTest < ActiveSupport::TestCase
     Webhooks::DeliveryService.deliver(@delivery)
 
     @delivery.reload
-    assert_equal "completed", @delivery.state
+    assert_equal "succeeded", @delivery.state
     assert_equal 200, @delivery.response_code
     assert_not_nil @delivery.delivered_at
     assert_not_nil @delivery.request_headers
@@ -76,46 +76,59 @@ class Webhooks::DeliveryServiceTest < ActiveSupport::TestCase
     assert_equal first_payload, @delivery.reload.signed_payload
   end
 
-  test "marks delivery errored for private IP" do
+  test "a non-2xx response is a failed delivery with the code, never a delivered one" do
+    stub_ssrf_resolution("93.184.216.34")
+    stub_http_response(503)
+
+    Webhooks::DeliveryService.deliver(@delivery)
+
+    @delivery.reload
+    assert_equal "failed", @delivery.state
+    assert_equal 503, @delivery.response_code
+    assert_equal "http_503", @delivery.error_message
+    assert_nil @delivery.delivered_at
+  end
+
+  test "marks delivery failed for private IP" do
     Webhooks::SsrfProtector.stubs(:resolve_public_ip).returns(nil)
 
     Webhooks::DeliveryService.deliver(@delivery)
 
     @delivery.reload
-    assert_equal "errored", @delivery.state
+    assert_equal "failed", @delivery.state
     assert_equal "private_uri", @delivery.error_message
   end
 
-  test "marks delivery errored on connection timeout" do
+  test "marks delivery failed on connection timeout" do
     stub_ssrf_resolution("93.184.216.34")
     Net::HTTP.any_instance.stubs(:request).raises(Net::OpenTimeout)
 
     Webhooks::DeliveryService.deliver(@delivery)
 
     @delivery.reload
-    assert_equal "errored", @delivery.state
+    assert_equal "failed", @delivery.state
     assert_equal "connection_timeout", @delivery.error_message
   end
 
-  test "marks delivery errored on connection refused" do
+  test "marks delivery failed on connection refused" do
     stub_ssrf_resolution("93.184.216.34")
     Net::HTTP.any_instance.stubs(:request).raises(Errno::ECONNREFUSED)
 
     Webhooks::DeliveryService.deliver(@delivery)
 
     @delivery.reload
-    assert_equal "errored", @delivery.state
+    assert_equal "failed", @delivery.state
     assert_equal "destination_unreachable", @delivery.error_message
   end
 
-  test "marks delivery errored on TLS failure" do
+  test "marks delivery failed on TLS failure" do
     stub_ssrf_resolution("93.184.216.34")
     Net::HTTP.any_instance.stubs(:request).raises(OpenSSL::SSL::SSLError)
 
     Webhooks::DeliveryService.deliver(@delivery)
 
     @delivery.reload
-    assert_equal "errored", @delivery.state
+    assert_equal "failed", @delivery.state
     assert_equal "failed_tls", @delivery.error_message
   end
 

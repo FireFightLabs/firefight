@@ -71,7 +71,7 @@ module SolidWorkflow
         error_message: e.message,
         attempt: @step.attempts + 1,
         max_attempts: @step.max_attempts,
-        will_retry: @step.should_retry?
+        will_retry: @step.should_retry?(e)
       })
 
       @step.mark_failed!(e)

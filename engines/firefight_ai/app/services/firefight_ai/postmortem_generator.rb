@@ -61,6 +61,8 @@ module FirefightAi
         title: ai_result["title"] || ai_result[:title],
         summary: ai_result["summary"] || ai_result[:summary],
         status: Postmortem::STATUS_DRAFT,
+        generation_state: nil,
+        generation_error: nil,
         model_id: ai_model,
         content: { "html" => html }
       }

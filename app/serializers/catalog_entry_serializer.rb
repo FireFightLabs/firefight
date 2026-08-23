@@ -18,7 +18,7 @@ class CatalogEntrySerializer < BaseSerializer
 
     if entry.outgoing_relationships.loaded?
       entry.outgoing_relationships.each do |rel|
-        scalar_attrs[rel.relationship_key] = rel.target_entry_id
+        scalar_attrs[rel.attribute_slug] = rel.target_entry_id
       end
     end
 

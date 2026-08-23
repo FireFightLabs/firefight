@@ -368,7 +368,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     assert_equal Alert::ROUTING_PENDING, alert.reload.routing_state
     assert_equal 1, alert.routing_attempts
 
-    (AlertIngestService::MAX_ROUTING_ATTEMPTS - 1).times { @service.route(alert.reload) }
+    (Alert::MAX_ROUTING_ATTEMPTS - 1).times { @service.route(alert.reload) }
 
     assert_equal Alert::ROUTING_FAILED, alert.reload.routing_state
   end
@@ -392,6 +392,30 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     alert = @service.ingest(firing_fields, {})
 
     assert_equal Alert::ROUTING_PENDING, alert.routing_state
+  end
+
+  test "a failure after the outcome committed leaves the alert routed, so the sweep cannot apply it twice" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE })
+    AlertIngestService.any_instance.stubs(:apply_outcome).returns(-> { raise StandardError, "channel post blew up" })
+
+    alert = @service.ingest(firing_fields, {})
+
+    assert_equal Alert::ROUTING_ROUTED, alert.reload.routing_state
+    assert_equal 0, alert.routing_attempts
+    assert alert.routed_at.present?
+  end
+
+  test "a flap reopen clears every trace of the previous routing episode" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE })
+    alert = @service.ingest(firing_fields, {})
+    alert.incident.update_column(:incident_status_id, incident_statuses(:resolved_ws1).id)
+    first_routed_at = alert.routed_at
+    @service.ingest(firing_fields("status" => Alert::STATUS_RESOLVED), {})
+    travel 1.minute
+
+    reopened = @service.ingest(firing_fields, {})
+
+    assert_not_equal first_routed_at, reopened.routed_at
   end
 
   test "unmatched conditions mark the alert unmatched" do

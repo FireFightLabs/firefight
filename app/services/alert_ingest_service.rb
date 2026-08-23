@@ -13,7 +13,6 @@
 # - Slack calls happen after the routing transaction commits.
 class AlertIngestService
   NOTIFY_MIN_INTERVAL = 60.seconds
-  MAX_ROUTING_ATTEMPTS = 10
 
   ACTION_AUTO_CREATE = PolicyRule::AlertRoutingOutcome::ACTION_AUTO_CREATE
   ACTION_ATTACH = PolicyRule::AlertRoutingOutcome::ACTION_ATTACH
@@ -61,24 +60,32 @@ class AlertIngestService
   def route(alert)
     deferred_notification = nil
 
-    alert.with_lock do
-      # CAS: a duplicate delivery or an overlapping sweep already routed it.
-      next unless alert.routing_state == Alert::ROUTING_PENDING
+    begin
+      alert.with_lock do
+        # CAS: a duplicate delivery or an overlapping sweep already routed it.
+        next unless alert.routing_state == Alert::ROUTING_PENDING
 
-      result = routing_policy&.evaluate(routing_context(alert))
+        result = routing_policy&.evaluate(routing_context(alert))
 
-      if result&.matched?
-        deferred_notification = apply_outcome(alert, result.outcome)
-        alert.update!(routing_state: Alert::ROUTING_ROUTED, routed_at: Time.current,
-                      matched_policy_rule: result.matched_rule)
-      else
-        alert.update!(routing_state: Alert::ROUTING_UNMATCHED, routed_at: Time.current)
+        if result&.matched?
+          deferred_notification = apply_outcome(alert, result.outcome)
+          alert.mark_routed!(result.matched_rule)
+        else
+          alert.mark_unmatched!
+        end
       end
+    rescue StandardError => e
+      Rails.logger.error({ event: "alert_routing.failed", alert_id: alert.id, error: e.message }.to_json)
+      alert.record_routing_failure!
+      return
     end
 
+    # The outcome is committed. A failure from here is a notification problem,
+    # not a routing one, so the alert stays routed rather than going back to
+    # pending and being applied twice by the sweep.
     deferred_notification&.call
   rescue StandardError => e
-    record_routing_failure(alert, e)
+    Rails.logger.error({ event: "alert_notification.failed", alert_id: alert.id, error: e.message }.to_json)
   end
 
   private
@@ -108,9 +115,7 @@ class AlertIngestService
     alert.record_firing!(now)
 
     if alert.incident&.terminal?
-      alert.update!(incident: nil, alert_group: nil, matched_policy_rule: nil,
-                    channel_id: nil, channel_message_id: nil, last_notified_at: nil,
-                    routing_state: Alert::ROUTING_PENDING, routing_attempts: 0)
+      alert.reset_routing!
       route(alert)
     else
       notify_digest(alert)
@@ -261,13 +266,6 @@ class AlertIngestService
     )
   rescue AdapterError => e
     Rails.logger.warn({ event: "alert_notify.failed", alert_id: alert.id, error: e.message }.to_json)
-  end
-
-  def record_routing_failure(alert, error)
-    Rails.logger.error({ event: "alert_routing.failed", alert_id: alert.id, error: error.message }.to_json)
-    attempts = alert.routing_attempts + 1
-    state = attempts >= MAX_ROUTING_ATTEMPTS ? Alert::ROUTING_FAILED : Alert::ROUTING_PENDING
-    alert.update_columns(routing_attempts: attempts, routing_state: state, updated_at: Time.current)
   end
 
   def target_resolver(alert)

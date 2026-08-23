@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_23_141000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_23_152000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -280,14 +280,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_141000) do
     t.uuid "workspace_id", null: false
     t.uuid "source_entry_id", null: false
     t.uuid "target_entry_id", null: false
-    t.uuid "catalog_attribute_definition_id"
-    t.string "relationship_key", null: false
-    t.integer "position"
+    t.uuid "catalog_attribute_definition_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["catalog_attribute_definition_id"], name: "idx_on_catalog_attribute_definition_id_77676cd157"
-    t.index ["source_entry_id", "catalog_attribute_definition_id"], name: "index_catalog_relationships_single_ref", unique: true, where: "(catalog_attribute_definition_id IS NOT NULL)"
-    t.index ["source_entry_id", "target_entry_id", "relationship_key"], name: "index_catalog_relationships_uniqueness", unique: true
+    t.index ["source_entry_id", "catalog_attribute_definition_id"], name: "index_catalog_relationships_single_ref", unique: true
     t.index ["source_entry_id"], name: "index_catalog_entry_relationships_on_source_entry_id"
     t.index ["target_entry_id"], name: "index_catalog_entry_relationships_on_target_entry_id"
     t.index ["workspace_id"], name: "index_catalog_entry_relationships_on_workspace_id"
@@ -912,6 +909,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_141000) do
     t.string "message_ts"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "generation_state"
+    t.string "generation_error"
     t.index ["incident_id"], name: "index_postmortems_on_incident_id", unique: true
   end
 

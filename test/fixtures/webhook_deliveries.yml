@@ -2,7 +2,7 @@ completed_delivery:
   webhook: active_webhook
   incident_event: inc1_created
   event_type: incident.created
-  state: completed
+  state: succeeded
   request_headers: '{"Content-Type": "application/json", "X-Webhook-Signature": "abc123"}'
   request_body: '{"event_type": "incident.created"}'
   response_code: 200
@@ -12,7 +12,7 @@ errored_delivery:
   webhook: active_webhook
   incident_event: inc1_updated
   event_type: incident.updated
-  state: errored
+  state: failed
   request_headers: '{"Content-Type": "application/json"}'
   request_body: '{"event_type": "incident.updated"}'
   error_message: "connection_timeout"

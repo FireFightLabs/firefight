@@ -18,6 +18,7 @@ module Incident::RoleManagement
     assignment.workspace_membership = workspace_membership
     assignment.assigned_by = assigned_by
     assignment.save!
+    incident_role_assignments.reset
     assignment
   end
 
@@ -25,15 +26,23 @@ module Incident::RoleManagement
     refuse_role_change!(role)
 
     role_assignment_for(role)&.destroy
+    incident_role_assignments.reset
   end
 
   # Reads don't materialize the role row, they just return nil when no
-  # assignment exists.
+  # assignment exists. One definition of "the lead", read off the loaded
+  # assignments when the caller preloaded them and by one joined query
+  # otherwise, so serializers and tools never re-derive it by hand.
   def lead
-    lead_role = workspace.incident_roles.incident_lead.first
-    return nil unless lead_role
+    lead_assignment&.workspace_membership
+  end
 
-    role_holder(lead_role)
+  def lead_assignment
+    if incident_role_assignments.loaded?
+      incident_role_assignments.detect { |assignment| assignment.incident_role.slug == IncidentRole::SLUG_INCIDENT_LEAD }
+    else
+      incident_role_assignments.joins(:incident_role).find_by(incident_roles: { slug: IncidentRole::SLUG_INCIDENT_LEAD })
+    end
   end
 
   def lead=(workspace_membership)
@@ -53,6 +62,10 @@ module Incident::RoleManagement
   end
 
   def role_assignment_for(role)
-    incident_role_assignments.find_by(incident_role: role)
+    if incident_role_assignments.loaded?
+      incident_role_assignments.detect { |assignment| assignment.incident_role_id == role.id }
+    else
+      incident_role_assignments.find_by(incident_role: role)
+    end
   end
 end

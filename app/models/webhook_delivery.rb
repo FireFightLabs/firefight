@@ -4,7 +4,10 @@ class WebhookDelivery < ApplicationRecord
   belongs_to :webhook
   belongs_to :incident_event
 
-  enum :state, { pending: "pending", in_progress: "in_progress", completed: "completed", errored: "errored" }, default: :pending
+  # Decided once, where the response is known. succeeded is a 2xx, failed is
+  # any other response or a failure to send at all, and the two in between are
+  # the queue. No reader has to recompute the outcome from other columns.
+  enum :state, { pending: "pending", in_progress: "in_progress", succeeded: "succeeded", failed: "failed" }, default: :pending
 
   scope :ordered, -> { order(created_at: :desc, id: :desc) }
   scope :stale, -> { where(created_at: ...STALE_THRESHOLD.ago) }
@@ -19,14 +22,6 @@ class WebhookDelivery < ApplicationRecord
       pause: pause,
       metadata: { stale_days: STALE_THRESHOLD.to_i / 86_400 }
     )
-  end
-
-  def succeeded?
-    completed? && error_message.blank? && response_code&.between?(200, 299)
-  end
-
-  def failed?
-    (errored? || completed?) && !succeeded?
   end
 
   # Creates a fresh delivery against the same webhook + event so the replay has

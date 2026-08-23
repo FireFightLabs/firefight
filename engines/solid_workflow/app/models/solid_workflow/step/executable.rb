@@ -53,7 +53,7 @@ module SolidWorkflow
       def mark_failed!(error)
         update!(last_error: format_error(error))
 
-        if should_retry?
+        if should_retry?(error)
           workflow.record_event(SolidWorkflow::Events::Step::ATTEMPT_FAILED, step: self, error: truncate_error(error.message))
           schedule_retry!
         else

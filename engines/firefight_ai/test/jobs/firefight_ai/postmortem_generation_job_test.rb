@@ -20,11 +20,18 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
     )
   end
 
-  test "calls generator generate and post_message" do
+  test "generates when the placeholder says a generation is running" do
+    Postmortem.start_generation!(@incident, by: @member)
     generator = mock("generator")
     generator.expects(:generate).once
     generator.expects(:post_message).once
     FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
+
+    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+  end
+
+  test "does nothing without a placeholder, so a stray job cannot overwrite a document" do
+    FirefightAi::PostmortemGenerator.expects(:new).never
 
     FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
   end
@@ -53,32 +60,20 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
     FirefightAi::PostmortemGenerationJob.perform_now(incident.id, @member.id)
   end
 
-  test "fills an in_progress placeholder when one exists" do
+  test "a human setting status to in_progress is not mistaken for a running generation" do
     Postmortem.create!(
-      incident: @incident,
-      generated_by: @member,
-      title: "Generating placeholder",
-      status: Postmortem::STATUS_IN_PROGRESS,
-      content: { "html" => "" }
+      incident: @incident, generated_by: @member, title: "Being written by hand",
+      status: Postmortem::STATUS_IN_PROGRESS, content: { "html" => "<p>draft</p>" }
     )
-
-    generator = mock("generator")
-    generator.expects(:generate).once
-    generator.expects(:post_message).once
-    FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
+    FirefightAi::PostmortemGenerator.expects(:new).never
 
     FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+
+    assert_equal "<p>draft</p>", @incident.reload.postmortem.content["html"]
   end
 
-  test "destroys the in_progress placeholder on terminal AI failure" do
-    Postmortem.create!(
-      incident: @incident,
-      generated_by: @member,
-      title: "Generating placeholder",
-      status: Postmortem::STATUS_IN_PROGRESS,
-      content: { "html" => "" }
-    )
-
+  test "a terminal AI failure keeps the placeholder, marked failed with the reason, and it can be retried" do
+    Postmortem.start_generation!(@incident, by: @member)
     generator = mock("generator")
     generator.stubs(:generate).raises(RubyLLM::ContextLengthExceededError.new("too long"))
     FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
@@ -86,24 +81,28 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
 
     FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
 
-    assert_nil @incident.reload.postmortem
+    postmortem = @incident.reload.postmortem
+    assert postmortem.generation_failed?
+    assert_equal "ContextLengthExceededError", postmortem.generation_error
+    assert_equal Postmortem::STATUS_DRAFT, postmortem.status
+
+    assert Postmortem.start_generation!(@incident, by: @member), "a failed generation can be started again"
+    assert postmortem.reload.generating?
   end
 
-  test "blocked entitlement runs no generation and clears the in_progress placeholder" do
-    deny_entitlements!
-    Postmortem.create!(
-      incident: @incident,
-      generated_by: @member,
-      title: "Generating placeholder",
-      status: Postmortem::STATUS_IN_PROGRESS,
-      content: { "html" => "" }
-    )
+  test "two starts while one is running yield one job" do
+    assert Postmortem.start_generation!(@incident, by: @member)
+    assert_nil Postmortem.start_generation!(@incident, by: @member)
+  end
 
+  test "blocked entitlement runs no generation and marks the placeholder failed" do
+    deny_entitlements!
+    Postmortem.start_generation!(@incident, by: @member)
     FirefightAi::PostmortemGenerator.expects(:new).never
 
     FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
 
-    assert_nil @incident.reload.postmortem
+    assert @incident.reload.postmortem.generation_failed?
   end
 
   test "discards on record not found" do
@@ -114,6 +113,7 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
   end
 
   test "discards terminal AI errors without retry and notifies the requester" do
+    Postmortem.start_generation!(@incident, by: @member)
     generator = mock("generator")
     generator.stubs(:generate).raises(RubyLLM::ContextLengthExceededError.new("too long"))
     FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)

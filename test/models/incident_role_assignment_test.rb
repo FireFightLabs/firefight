@@ -151,4 +151,21 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
     bob_assignment = incident_role_assignments(:bob_comms_ws1_inc1)
     assert_equal incident_roles(:communications_lead_ws1), bob_assignment.incident_role
   end
+
+  test "lead reads off loaded assignments without a query and stays right after an assignment" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    incident.lead = member
+
+    loaded = Incident.includes(incident_role_assignments: [ :incident_role, :workspace_membership ]).find(incident.id)
+    queries = 0
+    ActiveSupport::Notifications.subscribed(->(*) { queries += 1 }, "sql.active_record") do
+      assert_equal member, loaded.lead
+    end
+    assert_equal 0, queries
+
+    other = workspace_memberships(:bob_workspace_one)
+    loaded.lead = other
+    assert_equal other, loaded.lead
+  end
 end

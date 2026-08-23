@@ -13,20 +13,17 @@ class SolidWorkflow::EngineHardeningTest < ActiveSupport::TestCase
     delays.each { |d| assert d.between?(1.0, 300.0) }
   end
 
-  test "should_retry? returns false for terminal error classes" do
-    step = build_step(attempts: 1, max_attempts: 5,
-      last_error: "ActiveRecord::RecordNotFound: Couldn't find Foo")
-    assert_not step.should_retry?
-
-    step = build_step(attempts: 1, max_attempts: 5,
-      last_error: "AdapterError::AuthRevoked: Platform auth revoked: token_revoked")
-    assert_not step.should_retry?
+  test "should_retry? returns false for terminal error classes, subclasses included" do
+    step = build_step(attempts: 1, max_attempts: 5)
+    assert_not step.should_retry?(ActiveRecord::RecordNotFound.new("Couldn't find Foo"))
+    assert_not step.should_retry?(AdapterError::AuthRevoked.new("token_revoked"))
+    assert_not step.should_retry?(Class.new(ArgumentError).new("a subclass means the same thing"))
   end
 
-  test "should_retry? returns true for transient error with budget left" do
+  test "should_retry? returns true for transient error with budget left, whatever last_error says" do
     step = build_step(attempts: 1, max_attempts: 3,
-      last_error: "Net::ReadTimeout: execution expired")
-    assert step.should_retry?
+      last_error: "ActiveRecord::RecordNotFound: a note the sweeper wrote earlier")
+    assert step.should_retry?(Net::ReadTimeout.new("execution expired"))
   end
 
   test "mark_failed! emits attempt_failed for transient and failed only on terminal" do

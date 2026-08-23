@@ -50,4 +50,31 @@ class Alert < ApplicationRecord
   def resolve!(now = Time.current)
     update!(status: STATUS_RESOLVED, resolved_at: now, last_seen_at: now)
   end
+
+  # The routing episode. These columns move together, so the alert owns the
+  # moves and `pending` keeps one meaning: nothing has been applied yet.
+
+  MAX_ROUTING_ATTEMPTS = 10
+
+  def reset_routing!
+    update!(incident: nil, alert_group: nil, matched_policy_rule: nil,
+            channel_id: nil, channel_message_id: nil, last_notified_at: nil,
+            routing_state: ROUTING_PENDING, routing_attempts: 0, routed_at: nil)
+  end
+
+  def mark_routed!(rule)
+    update!(routing_state: ROUTING_ROUTED, routed_at: Time.current, matched_policy_rule: rule)
+  end
+
+  def mark_unmatched!
+    update!(routing_state: ROUTING_UNMATCHED, routed_at: Time.current)
+  end
+
+  # Written outside the routing transaction, which has rolled back, so the
+  # attempt count survives for the sweep to read.
+  def record_routing_failure!
+    attempts = routing_attempts + 1
+    state = attempts >= MAX_ROUTING_ATTEMPTS ? ROUTING_FAILED : ROUTING_PENDING
+    update_columns(routing_attempts: attempts, routing_state: state, updated_at: Time.current)
+  end
 end

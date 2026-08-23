@@ -15,6 +15,11 @@ class CatalogTypeSerializer < BaseSerializer
   end
 
   type :string, optional: true
+  def deletion_blocked_reason
+    catalog_type.deletion_blocked_reason
+  end
+
+  type :string, optional: true
   def icon
     catalog_type.icon
   end

@@ -149,6 +149,19 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("its #{role.name} can no longer be changed")
   end
 
+  # The timeline, with each update snapshot linked to the one before it from
+  # a single ordered load. "Before" is defined by the same order the
+  # timeline renders, never by a per-row timestamp query.
+  def timeline_events
+    events = incident_events.chronological.with_attached_artifact.includes(:actor, eventable: nil).to_a
+    updates = events.map(&:eventable).grep(IncidentUpdate)
+    ActiveRecord::Associations::Preloader.new(
+      records: updates, associations: [ :incident_status, :incident_severity, :incident_type, { lead: :user }, { declared_by: :user } ]
+    ).call
+    updates.each_cons(2) { |earlier, later| later.previous_update = earlier }
+    events
+  end
+
   # Every attached runbook renders the state of its own steps, so they share
   # one load rather than querying per attachment.
   def runbook_step_actions

@@ -10,6 +10,10 @@ class IncidentUpdate < ApplicationRecord
   UPDATE_TYPES = [ CREATED, UPDATED, CLOSED, REOPENED, LEAD_ASSIGNED, ACCEPTED, CANCELED ].freeze
 
   include Recordable
+
+  # Set by Incident#timeline_events from one ordered load, so a timeline
+  # never runs a query per update to find what came before it.
+  attr_accessor :previous_update
   records Incident, recorder: :created_by
 
   belongs_to :incident

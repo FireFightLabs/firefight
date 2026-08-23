@@ -8,11 +8,7 @@ class IncidentsController < InertiaController
 
     render inertia: "incidents/index", props: {
       incident: IncidentDetailSerializer.one(incident),
-      timelineEvents: InertiaRails.defer {
-        TimelineEventSerializer.many(
-          incident.incident_events.chronological.with_attached_artifact.includes(:actor, eventable: nil)
-        )
-      },
+      timelineEvents: InertiaRails.defer { TimelineEventSerializer.many(incident.timeline_events) },
       actions: InertiaRails.defer {
         IncidentActionSerializer.many(
           incident.incident_actions.active.includes(assignee: :user, created_by: :user)
@@ -20,7 +16,8 @@ class IncidentsController < InertiaController
       },
       attachableRunbooks: attachable_runbooks(incident),
       hasPostmortem: incident.postmortem.present?,
-      postmortemStatus: incident.postmortem&.status
+      postmortemStatus: incident.postmortem&.status,
+      postmortemGenerationState: incident.postmortem&.generation_state
     }
   end
 
@@ -83,15 +80,7 @@ class IncidentsController < InertiaController
 
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
 
-    Postmortem.create!(
-      incident: incident,
-      generated_by: member,
-      title: "Generating postmortem for #{incident.identifier}…",
-      status: Postmortem::STATUS_IN_PROGRESS,
-      content: { "html" => "" }
-    )
-
-    FirefightAi::PostmortemGenerationJob.perform_later(incident.id, member.id)
+    FirefightAi::PostmortemGenerationJob.perform_later(incident.id, member.id) if Postmortem.start_generation!(incident, by: member)
 
     redirect_to incident_postmortem_path(incident)
   end

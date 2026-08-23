@@ -125,7 +125,7 @@ class WorkflowStepTest < ActiveSupport::TestCase
     step = workflow.steps.first
     step.update!(attempts: 2, max_attempts: 5)
 
-    assert step.should_retry?
+    assert step.should_retry?(StandardError.new("transient"))
   end
 
   test "should_retry? returns false when attempts >= max_attempts" do
@@ -134,7 +134,7 @@ class WorkflowStepTest < ActiveSupport::TestCase
     step = workflow.steps.first
     step.update!(attempts: 5, max_attempts: 5)
 
-    assert_not step.should_retry?
+    assert_not step.should_retry?(StandardError.new("transient"))
   end
 
   test "schedule_retry! sets status to pending with run_at" do

@@ -6,7 +6,9 @@ class TimelineEventSerializer < BaseSerializer
     event.id
   end
 
-  type :string
+  EVENT_TYPE_UNION = IncidentEvent::EVENT_TYPES.map(&:inspect).join(" | ")
+
+  type EVENT_TYPE_UNION
   def event_type
     event.event_type
   end
@@ -39,7 +41,7 @@ class TimelineEventSerializer < BaseSerializer
     return nil unless event.eventable.is_a?(IncidentUpdate) && event.changed_fields.any?
 
     current = event.eventable
-    previous = previous_incident_update(current)
+    previous = current.previous_update
 
     event.changed_fields.map do |field|
       {
@@ -84,14 +86,6 @@ class TimelineEventSerializer < BaseSerializer
   end
 
   private
-
-  def previous_incident_update(current)
-    IncidentUpdate
-      .where(incident_id: current.incident_id)
-      .where("created_at < ?", current.created_at)
-      .order(created_at: :desc)
-      .first
-  end
 
   def artifact_path(event)
     return nil unless event.artifact.attached?

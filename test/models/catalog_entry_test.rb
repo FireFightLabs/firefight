@@ -253,7 +253,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
 
     auth.sync_references!({ "owner_team" => platform_team.id })
 
-    rel = auth.outgoing_relationships.find_by!(relationship_key: "owner_team")
+    rel = auth.outgoing_relationships.find_by!(catalog_attribute_definition: catalog_attribute_definitions(:service_owner_team))
     assert_equal platform_team, rel.target_entry
   end
 
@@ -270,17 +270,17 @@ class CatalogEntryTest < ActiveSupport::TestCase
 
     auth.sync_references!({ "owner_team" => new_team.id })
 
-    rel = auth.outgoing_relationships.find_by!(relationship_key: "owner_team")
+    rel = auth.outgoing_relationships.find_by!(catalog_attribute_definition: catalog_attribute_definitions(:service_owner_team))
     assert_equal new_team, rel.target_entry
   end
 
   test "sync_references! removes relationships when value is blank" do
     auth = catalog_entries(:auth_service)
-    assert auth.outgoing_relationships.where(relationship_key: "owner_team").exists?
+    assert auth.outgoing_relationships.where(catalog_attribute_definition: catalog_attribute_definitions(:service_owner_team)).exists?
 
     auth.sync_references!({ "owner_team" => nil })
 
-    assert_not auth.outgoing_relationships.where(relationship_key: "owner_team").exists?
+    assert_not auth.outgoing_relationships.where(catalog_attribute_definition: catalog_attribute_definitions(:service_owner_team)).exists?
   end
 
   # Soft delete
