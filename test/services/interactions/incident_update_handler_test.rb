@@ -152,13 +152,17 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     end
   end
 
+  # The modal drops the timer as soon as a closing status is picked, but a
+  # submission from a view that never got that refresh still carries one. It
+  # has to submit cleanly rather than fail on a field the form no longer asks.
   test "clears next_update_at when the status closes the incident" do
     stub_all_side_effects
 
-    Interactions::IncidentUpdateHandler.execute(
+    result = Interactions::IncidentUpdateHandler.execute(
       build_interaction(status_slug: "resolved", next_update_minutes: "30")
     )
 
+    assert_nil result
     assert_nil @incident.reload.next_update_at
   end
 

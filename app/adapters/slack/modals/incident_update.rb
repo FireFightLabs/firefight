@@ -9,12 +9,16 @@ module Slack
         workspace = incident.workspace
         metadata = private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id)
 
-        context = context_for(incident, state)
+        picked_slug = picked_status_slug(state)
+        context = context_for(incident, workspace, picked_slug)
         visible_fields = IncidentFormResolver.new(workspace).resolve(IncidentForm::SLUG_UPDATE, context: context)
 
         blocks = visible_fields.filter_map do |form_field|
           if form_field.system?
-            FieldBlocks.build_system(workspace, form_field, incident: incident, status_dispatch: true)
+            FieldBlocks.build_system(
+              workspace, form_field,
+              incident: incident, status_dispatch: true, selected_status_slug: picked_slug
+            )
           else
             FieldBlocks.build_custom(workspace, form_field, incident: incident)
           end
@@ -35,23 +39,21 @@ module Slack
       # of the responder over the one it still has. Mirrors what
       # Slack::FormSubmission builds on submit, so the fields the modal shows
       # are the fields the submission then asks for.
-      def self.context_for(incident, state)
-        picked = picked_status_id(incident.workspace, state)
-        return IncidentConditionEvaluator.context_for(incident) if picked.nil?
+      def self.context_for(incident, workspace, picked_slug)
+        base = IncidentConditionEvaluator.context_for(incident)
+        return base if picked_slug.blank?
 
-        IncidentConditionEvaluator.context_for(incident).merge(status: picked)
+        picked_id = workspace.incident_statuses.active.where(slug: picked_slug).pick(:id)
+        picked_id ? base.merge(status: picked_id) : base
       end
       private_class_method :context_for
 
-      def self.picked_status_id(workspace, state)
-        slug = (state.presence || {}).dig(
+      def self.picked_status_slug(state)
+        (state.presence || {}).dig(
           "field_status_block", Identifiers::INCIDENT_UPDATE_STATUS_SELECT, "selected_option", "value"
         )
-        return nil if slug.blank?
-
-        workspace.incident_statuses.active.where(slug: slug).pick(:id)
       end
-      private_class_method :picked_status_id
+      private_class_method :picked_status_slug
     end
   end
 end

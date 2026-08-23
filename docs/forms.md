@@ -86,6 +86,33 @@ that has no row yet.
   The proof that the resolver is authoritative: the modals `map` over the
   resolved set. Nothing downstream filters, so nothing downstream can disagree.
 
+- **A field the answers so far have made pointless is dropped**, by
+  `IncidentFormResolver#moot_for_context?`. One case today: Next Update on the
+  update form once the picked status is terminal, since a closed or canceled
+  incident is not waiting on anything and `Incident::Lifecycle` clears
+  `next_update_at` for a terminal stage regardless.
+
+  Distinct from `unanswerable_reason`, and deliberately not merged with it.
+  That one is about how the workspace is configured, holds across a whole
+  session, and carries a sentence the editor shows. This one reads what the
+  responder just picked, changes between one submission and the next, and must
+  never reach the editor: the field is configured and does apply, just not to
+  this answer. So it sits with the condition match, after the
+  `return merged if include_hidden` that the editor stops at.
+
+  It is subject to the same rule as `unanswerable_reason`: it lives in the
+  resolver because `validate_submission` reads the same `resolve(slug)`.
+  `Slack::FormSubmission` already builds its context from the *submitted*
+  status, so a modal that never got the refresh still submits cleanly rather
+  than failing on a field the form no longer asks for.
+
+- **The update modal's Status select dispatches**
+  (`Identifiers::INCIDENT_UPDATE_STATUS_SELECT`), so picking a terminal status
+  re-renders the modal through `Interactions::IncidentUpdateSelectHandler`
+  without the Next Update timer. A dispatching select must be handed its own
+  pick back as `initial_option` (`selected_status_slug:`), or the re-render
+  snaps it to the value the incident still holds. Severity, Incident Type and
+  Visibility on the declare modal all do the same.
 - **Status on a terminal form** is scoped to the statuses in the stage that
   transition targets, so nobody can resolve an incident into Investigating.
 - **Message** writes to `incident_updates.message`, not an incident attribute.
@@ -106,7 +133,9 @@ messages, "Severity is required", the settings row.
    `hint`, `placeholder`, and its `forms:` map.
 2. Add a block builder branch in `FieldBlocks.build_system`. It renders
    unconditionally. If the field can have nothing to ask, that belongs in
-   `unanswerable_reason`, with the sentence a reader will see in the editor.
+   `unanswerable_reason`, with the sentence a reader will see in the editor. If
+   it is another answer on the same form that makes it pointless, that belongs
+   in `moot_for_context?` instead, and the editor keeps showing it.
 3. Confirm both surfaces: `resolve(slug)` and
    `resolve(slug, include_hidden: true)`.
 

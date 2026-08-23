@@ -37,6 +37,18 @@ class Slack::Modals::IncidentUpdateTest < ActiveSupport::TestCase
     assert_includes block_ids(build(state: picked("monitoring"))), "field_next_update_block"
   end
 
+  test "the re-render keeps the status the responder picked, not the one the incident holds" do
+    block = status_block(build(state: picked("resolved")))
+
+    assert_equal "resolved", block.dig(:element, :initial_option, :value)
+  end
+
+  test "the first open shows the status the incident holds" do
+    block = status_block(build)
+
+    assert_equal @incident.incident_status.slug, block.dig(:element, :initial_option, :value)
+  end
+
   private
 
   def build(state: {})

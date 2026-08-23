@@ -10,7 +10,7 @@ module Slack
     # reads: suppressing a field here alone leaves submission demanding one the
     # responder was never shown.
     module FieldBlocks
-      def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, visibility_dispatch: false, status_dispatch: false, selected_type_id: nil, selected_visibility: nil, terminal_stage: nil)
+      def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, visibility_dispatch: false, status_dispatch: false, selected_type_id: nil, selected_visibility: nil, selected_status_slug: nil, terminal_stage: nil)
         case form_field.system_field_key
         when IncidentSystemField::KEY_NAME
           name_block(form_field, incident: incident)
@@ -22,7 +22,7 @@ module Slack
         when IncidentSystemField::KEY_INCIDENT_TYPE
           incident_type_block(workspace, form_field, incident: incident, dispatch: type_dispatch, selected_type_id: selected_type_id)
         when IncidentSystemField::KEY_STATUS
-          status_block(workspace, form_field, incident: incident, stage: terminal_stage, dispatch: status_dispatch)
+          status_block(workspace, form_field, incident: incident, stage: terminal_stage, dispatch: status_dispatch, selected_status_slug: selected_status_slug)
         when IncidentSystemField::KEY_LEAD
           lead_block(form_field, incident: incident)
         when IncidentSystemField::KEY_VISIBILITY
@@ -261,7 +261,7 @@ module Slack
       # On a terminal form the only sensible answers are the statuses in the
       # stage that transition moves to. Offering the full list would let a
       # responder resolve an incident into Investigating.
-      def self.status_block(workspace, form_field, incident: nil, stage: nil, dispatch: false)
+      def self.status_block(workspace, form_field, incident: nil, stage: nil, dispatch: false, selected_status_slug: nil)
         statuses = workspace.incident_statuses.active.ordered
         if stage
           statuses = statuses.joins(:incident_lifecycle_stage)
@@ -273,7 +273,10 @@ module Slack
           option
         end
 
-        initial_status = incident && status_options.find { |o| o[:value] == incident.incident_status.slug }
+        # The pick wins over what the incident still holds, so the re-render a
+        # dispatch triggers does not snap the select back to the old status.
+        current_slug = selected_status_slug.presence || incident&.incident_status&.slug
+        initial_status = current_slug && status_options.find { |o| o[:value] == current_slug }
 
         element = {
           type: "static_select",
