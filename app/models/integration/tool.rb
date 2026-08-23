@@ -1,8 +1,12 @@
 # One callable operation on an integration. Enabling it mints exactly one
 # tool-kind Ability::Action (key: "<integration_slug>.<name>"), from that
 # moment it is grantable, approvable, and ledgered like any other action.
-# Vanished/disabled tools keep their action row. The gateway's config check
-# stops the calls.
+#
+# Two facts live on a tool and they are different columns: `enabled` is the
+# admin's allowlist, `removed_at` is whether the provider still offers it.
+# Discovery only ever writes removed_at, so a tool that vanishes and comes
+# back keeps the admin's earlier choice. Either way the row and its action
+# stay. The gateway's config check stops the calls.
 class Integration::Tool < ApplicationRecord
   self.table_name = "integration_tools"
 
@@ -13,6 +17,7 @@ class Integration::Tool < ApplicationRecord
                    format: { with: /\A[a-z0-9_.]+\z/ }
 
   scope :enabled, -> { where(enabled: true) }
+  scope :available, -> { where(removed_at: nil) }
 
   after_save :sync_ability_action!, if: :saved_change_to_enabled?
 
@@ -20,10 +25,21 @@ class Integration::Tool < ApplicationRecord
     "#{integration.slug}.#{name}"
   end
 
-  # Reachable only while the capability is enabled, its connection is not
-  # disabled or deleted, and credentials exist for the environment asked for.
+  def available?
+    removed_at.nil?
+  end
+
+  def toggle_blocked_reason
+    return if available?
+
+    "The provider no longer offers this capability. Refresh the tools to check again."
+  end
+
+  # Reachable only while the capability is enabled, the provider still offers
+  # it, its connection is not disabled or deleted, and credentials exist for
+  # the environment asked for.
   def configured_for?(scope)
-    return false unless enabled? && integration.operational?
+    return false unless enabled? && available? && integration.operational?
 
     integration.resolve_environment(scope["environment"] || scope[:environment]).present?
   end

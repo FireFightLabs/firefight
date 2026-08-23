@@ -66,7 +66,7 @@ class Integration < ApplicationRecord
   # that quietly leaves earlier write grants in place.
   def set_all_tools!(enabled, reads_only: false)
     transaction do
-      tools.each do |tool|
+      tools.available.each do |tool|
         desired = enabled && (!reads_only || tool.read_only?)
         tool.update!(enabled: desired) if tool.enabled? != desired
       end

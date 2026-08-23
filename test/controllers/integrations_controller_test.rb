@@ -76,6 +76,29 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert tool.reload.enabled?, "member toggle is rejected by require_admin!"
   end
 
+  test "a tool the provider no longer offers cannot be switched on, by hand or in bulk" do
+    integration = @workspace.integrations.create!(
+      kind: Integration::KIND_MCP, provider: "github", name: "GitHub",
+      settings: { "server_url" => "https://gh.example/mcp" }
+    )
+    gone = integration.tools.create!(name: "pr.list", read_only: true, removed_at: Time.current)
+    live = integration.tools.create!(name: "issues.list", read_only: true)
+
+    patch toggle_tool_integration_url(integration), params: { tool_id: gone.id }
+    assert_redirected_to integrations_path
+    assert_equal gone.toggle_blocked_reason, flash[:alert]
+    assert_not gone.reload.enabled?
+
+    patch set_all_tools_integration_url(integration), params: { enabled: true }
+    assert live.reload.enabled?
+    assert_not gone.reload.enabled?
+
+    get integrations_url, headers: inertia_headers
+    tools = inertia_props["integrations"].first["tools"]
+    assert_equal false, tools.find { |t| t["name"] == "pr.list" }["available"]
+    assert_nil tools.find { |t| t["name"] == "issues.list" }["toggleBlockedReason"]
+  end
+
   test "enabling every tool at once mints an action for each" do
     integration = @workspace.integrations.create!(
       kind: Integration::KIND_MCP, provider: "linear", name: "Linear",
@@ -344,7 +367,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
                  "Linear registers dynamically, so it must need no pre-registered app"
 
     Integrations::OauthClient.expects(:begin_flow)
-      .with(has_entries(server_url: entry.server_url, client_id: nil, app_slug: nil))
+      .with(has_entries(server_url: entry.server_url, client_id: nil))
       .returns(authorize_url: "https://mcp.linear.app/authorize", state: "abc", verifier: "ver",
                client_id: "dyn", token_endpoint: "https://mcp.linear.app/token")
 
@@ -382,12 +405,11 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
   test "a configured provider app skips dynamic registration" do
     ENV["INTEGRATION_DATADOG_CLIENT_ID"] = "dd-client"
-    ENV["INTEGRATION_DATADOG_APP_SLUG"] = "firefight-dev"
 
     Integrations::OauthClient.expects(:begin_flow)
-      .with(has_entries(client_id: "dd-client", app_slug: "firefight-dev"))
+      .with(has_entries(client_id: "dd-client"))
       .returns(authorize_url: "https://auth.example/authorize", state: "abc",
-               verifier: nil, client_id: "dd-client",
+               verifier: "ver", client_id: "dd-client",
                token_endpoint: "https://auth.example/token")
 
     get oauth_start_integrations_url(provider: "datadog")
@@ -395,7 +417,6 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   ensure
     ENV.delete("INTEGRATION_DATADOG_CLIENT_ID")
-    ENV.delete("INTEGRATION_DATADOG_APP_SLUG")
   end
 
   test "the client secret never reaches the browser session" do

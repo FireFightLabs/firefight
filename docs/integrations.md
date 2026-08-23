@@ -78,7 +78,7 @@ Before adding one, confirm the endpoint rather than guessing it: `/.well-known/o
 A provider marked `kind: native` in the registry executes through a first-party Ruby pack instead of an MCP server. Everything downstream of execution is identical — same `Integration::Tool` allowlist, same minted actions, same gateway, same ledger — and the connect flow simply skips the server URL.
 
 - **`Integration#executor` is the one place kinds diverge.** It returns the per-kind facade (`McpExecutor` or `NativeExecutor`), and each facade owns the whole provider conversation: `call` (execute an authorized invocation), `tool_definitions` (what the provider offers, as `Integrations::ToolDefinition` rows), and `check_health!` (probe with a row's credentials). Discovery, health checks, and `ConnectionToolFactory` go through the facade and never branch on kind — adding a kind is one facade class, touching no existing flow.
-- A pack subclasses `Integrations::NativePack`, declares its tools with the `tool` DSL (name, description, params schema, read-only flag), and implements one instance method per tool. The declarations are the native analogue of an MCP server's `tools/list`; `DiscoveryService` reconciles both with the same semantics (arrive disabled, vanished tools disabled never deleted).
+- A pack subclasses `Integrations::NativePack`, declares its tools with the `tool` DSL (name, description, params schema, read-only flag), and implements one instance method per tool. The declarations are the native analogue of an MCP server's `tools/list`; `DiscoveryService` reconciles both with the same semantics (arrive disabled, vanished tools marked removed never deleted).
 - `Integrations::NativePack::REGISTRY` maps provider key to pack class. A registry sanity test fails if a `kind: native` provider has no pack.
 - **Errors share one hierarchy.** `Integrations::Error` is the base; `McpClient::Error` and `NativePack::Error` subclass it, and rescue sites catch the base so they never grow with new kinds. A pack's `check_health!` raises `NativePack::Error` with a readable reason and the row records as failing.
 - **Results share one shape.** Executors normalize through `Integrations::ToolResult` on the way out (MCP content shape), so callers read `result["content"]` without defending.
@@ -107,7 +107,7 @@ Integration (kind: mcp | http | native, immutable slug, kill switch)
 ```
 
 - **Discovery never auto-enables anything.** Tools arrive disabled and an admin allowlists them.
-- **Vanished tools are disabled, never deleted.** Their action rows and grants survive, and the config check stops the calls.
+- **Vanished tools are marked removed, never deleted or switched off.** `enabled` is the admin's allowlist and `removed_at` is whether the provider still offers the tool. Discovery writes only `removed_at`, so a tool that comes back keeps the admin's earlier choice. A removed tool cannot be toggled (the row's `toggle_blocked_reason` says why), is skipped by bulk enable, is not published over MCP, and fails the config check. Its action row and grants survive.
 - Disabling an integration is a kill switch: its tools leave the outward MCP registry entirely.
 - Every connect and refresh path goes through `Integrations::ConnectionRefresh`, so an unreachable server always lands as a readable error on the row instead of an exception a caller has to remember to catch.
 
@@ -121,8 +121,8 @@ Integration (kind: mcp | http | native, immutable slug, kill switch)
 ## OAuth
 
 - **Nothing is persisted until the customer returns authorized.** Abandoning the provider's screen must leave no half-connected row.
-- State is verified with a constant-time compare; PKCE is used except on the install-first path, where a registered app's client secret authenticates the exchange instead.
-- **Install-first** (`_APP_SLUG` set) starts at the provider's install screen so customers pick their account and repositories from our UI and never visit the provider's site to install by hand.
+- State is verified with a constant-time compare and every MCP flow runs PKCE. A pre-registered app (`_CLIENT_ID` / `_CLIENT_SECRET`) adds the client secret to the exchange but does not replace PKCE.
+- Install-first connect (the provider's app install screen, `_APP_SLUG`) belongs to native packs only; see the Native packs section. The MCP client never builds an install URL.
 - Discovery follows RFC 9728 then RFC 8414, trying the path-inserted, issuer-suffix, and OIDC metadata locations. Dynamic client registration is used when the server offers it.
 - Requested scopes come from the resource metadata's `scopes_supported`. **Do not add a per-provider scope list to work around a provider that omits it.** Providers fronting their own hosted MCP server (PlanetScale) hold a fixed app scope set and ignore the `scope` parameter outright; the customer narrows access by picking organizations and databases on the consent screen, and an unticked organization is what a `forbidden` on an org-scoped call usually means. A scope list we cannot enforce reads as a least-privilege guarantee we do not have.
 

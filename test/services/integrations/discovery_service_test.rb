@@ -13,7 +13,7 @@ module Integrations
       @integration.integration_environments.create!(credentials: { authorization: "Bearer x" }.to_json)
     end
 
-    test "sync! upserts discovered tools disabled by default and disables vanished ones" do
+    test "sync! upserts discovered tools disabled by default and marks vanished ones removed" do
       McpClient.any_instance.stubs(:tools_list).returns([
         { "name" => "logs.query", "description" => "Query logs",
           "inputSchema" => { "type" => "object" }, "annotations" => { "readOnlyHint" => true } },
@@ -34,8 +34,16 @@ module Integrations
       logs.update!(enabled: true)
       McpClient.any_instance.stubs(:tools_list).returns([])
       DiscoveryService.sync!(@integration)
-      assert_not logs.reload.enabled?, "vanished tools are disabled, never deleted"
+      logs.reload
+      assert_not logs.available?, "vanished tools are marked removed, never deleted"
+      assert logs.enabled?, "the admin's allowlist is not the provider's listing"
+      assert_not logs.configured_for?({}), "a removed tool cannot be called"
       assert Ability::Action.exists?(key: "new_relic.logs.query"), "action row survives"
+
+      McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "logs.query", "description" => "Query logs" } ])
+      DiscoveryService.sync!(@integration)
+      assert logs.reload.available?, "a tool that comes back is offered again with its earlier choice"
+      assert logs.enabled?
     end
 
     class FailingHealthPack < FakeNativePack
@@ -58,7 +66,7 @@ module Integrations
       assert tool.read_only?
       assert_not tool.enabled?, "pack tools arrive disabled like discovered ones"
       assert_equal "Echoes text back", tool.description
-      assert_not leftover.reload.enabled?, "tools the pack no longer declares are disabled"
+      assert_not leftover.reload.available?, "tools the pack no longer declares are marked removed"
     end
 
     test "native health check runs the pack probe and records failures readably" do

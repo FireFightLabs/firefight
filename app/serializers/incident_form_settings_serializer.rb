@@ -50,8 +50,7 @@ class IncidentFormSettingsSerializer < BaseSerializer
 
   # Hidden fields included, greyed out in the editor. Leaving them out is what
   # made hiding a field a one-way door.
-  type "IncidentFormFieldSettings[]"
-  def fields
-    IncidentFormFieldSettingsSerializer.many(incident_form.resolved_fields(include_hidden: true))
+  has_many :fields, serializer: IncidentFormFieldSettingsSerializer do
+    incident_form.resolved_fields(include_hidden: true)
   end
 end

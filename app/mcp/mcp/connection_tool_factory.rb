@@ -8,7 +8,7 @@ module Mcp
     APPROVAL_ID_ARG = :approval_id
 
     def self.tools_for(workspace)
-      Integration::Tool.enabled
+      Integration::Tool.enabled.available
                        .joins(:integration)
                        .where(integrations: { workspace_id: workspace.id, disabled_at: nil, deleted_at: nil })
                        .includes(:integration)
