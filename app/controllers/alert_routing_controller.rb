@@ -19,7 +19,7 @@ class AlertRoutingController < InertiaController
     return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless policy
 
     # Free-form field hash. Only ever fed to pure evaluation, never assigned to a model.
-    fields = params.fetch(:fields, {}).to_unsafe_h
+    fields = routing_scope.routing_fields(params.fetch(:fields, {}).to_unsafe_h)
     context = Policy::ContextBuilder.build(workspace: current_workspace, fields: fields)
     result = policy.evaluate(context)
 
@@ -39,7 +39,7 @@ class AlertRoutingController < InertiaController
     policy = routing_policy
     return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless policy
 
-    fields = params.fetch(:fields, {}).to_unsafe_h
+    fields = routing_scope.routing_fields(params.fetch(:fields, {}).to_unsafe_h)
     result = AlertRoutingTestService.new(current_workspace).deliver(policy, fields)
     return render json: { error: result.error }, status: :unprocessable_entity unless result.sent
 

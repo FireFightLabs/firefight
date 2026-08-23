@@ -33,7 +33,7 @@ module Interactions
         recipient_user_id: recipient_user_id,
         message: message
       )
-      shoutout.update_column(:slack_message_ts, result[:message_ts])
+      shoutout.update_column(:slack_message_ts, result[:message_id])
 
       nil
     rescue ActiveRecord::RecordNotFound, JSON::ParserError

@@ -4,19 +4,10 @@ module SolidWorkflow
       extend ActiveSupport::Concern
 
       def pause!(reason: nil, by: nil)
-        return if completed?
-
         transaction do
-          current_time = Time.current
-          update!(
-            state: :paused,
-            paused_at: current_time,
-            paused_by: by,
-            pause_reason: reason,
-            resumed_at: nil,
-            resumed_by: nil,
-            state_timestamps: (state_timestamps || {}).merge("paused" => current_time.iso8601)
-          )
+          return unless transition!(:paused, from: %i[pending running],
+                                    paused_at: Time.current, paused_by: by, pause_reason: reason,
+                                    resumed_at: nil, resumed_by: nil)
 
           record_event(SolidWorkflow::Events::Workflow::PAUSED, reason: reason, by: by)
         end
@@ -31,16 +22,8 @@ module SolidWorkflow
       end
 
       def resume!(by: nil)
-        return unless paused?
-
         transaction do
-          current_time = Time.current
-          update!(
-            state: :running,
-            resumed_at: current_time,
-            resumed_by: by,
-            state_timestamps: (state_timestamps || {}).merge("running" => current_time.iso8601)
-          )
+          return unless transition!(:running, from: :paused, resumed_at: Time.current, resumed_by: by)
 
           record_event(SolidWorkflow::Events::Workflow::RESUMED, by: by)
         end

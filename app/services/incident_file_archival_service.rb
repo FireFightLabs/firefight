@@ -1,5 +1,7 @@
 class IncidentFileArchivalService
   def self.archive!(incident_event:, slack_file:)
+    return if incident_event.artifact.attached?
+
     workspace = incident_event.incident.workspace
     archive_metadata = workspace.adapter.archive_slack_file(incident_event: incident_event, slack_file: slack_file)
     return unless archive_metadata[:archived]

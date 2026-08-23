@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_21_093310) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_23_100200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -311,22 +311,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_093310) do
     t.index ["workspace_id"], name: "index_catalog_types_on_workspace_id"
   end
 
-  create_table "environments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "workspace_id", null: false
-    t.string "name", null: false
-    t.string "slug", null: false
-    t.text "description"
-    t.string "color"
-    t.integer "position", default: 0, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["deleted_at"], name: "index_environments_on_deleted_at"
-    t.index ["workspace_id", "position"], name: "index_environments_on_workspace_id_and_position"
-    t.index ["workspace_id", "slug"], name: "index_environments_on_workspace_id_and_slug", unique: true
-    t.index ["workspace_id"], name: "index_environments_on_workspace_id"
-  end
-
   create_table "idempotency_keys", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workspace_id", null: false
     t.string "key", null: false
@@ -541,7 +525,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_093310) do
     t.string "slug", null: false
     t.text "description"
     t.integer "position", default: 0, null: false
-    t.boolean "required", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.datetime "deleted_at"
@@ -931,24 +914,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_093310) do
     t.index ["incident_id"], name: "index_postmortems_on_incident_id", unique: true
   end
 
-  create_table "product_areas", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "workspace_id", null: false
-    t.string "name", null: false
-    t.string "slug", null: false
-    t.text "description"
-    t.string "lifecycle_state", default: "active", null: false
-    t.integer "tier"
-    t.string "color"
-    t.integer "position", default: 0, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["deleted_at"], name: "index_product_areas_on_deleted_at"
-    t.index ["workspace_id", "position"], name: "index_product_areas_on_workspace_id_and_position"
-    t.index ["workspace_id", "slug"], name: "index_product_areas_on_workspace_id_and_slug", unique: true
-    t.index ["workspace_id"], name: "index_product_areas_on_workspace_id"
-  end
-
   create_table "runbook_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "runbook_id", null: false
     t.string "title", null: false
@@ -956,6 +921,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_093310) do
     t.integer "position", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "deleted_at"
+    t.index ["runbook_id", "deleted_at"], name: "index_runbook_steps_on_runbook_id_and_deleted_at"
     t.index ["runbook_id"], name: "index_runbook_steps_on_runbook_id"
   end
 
@@ -973,62 +940,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_093310) do
     t.boolean "always_attach", default: false, null: false
     t.index ["workspace_id", "slug"], name: "index_runbooks_on_workspace_id_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id"], name: "index_runbooks_on_workspace_id"
-  end
-
-  create_table "service_dependencies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "service_id", null: false
-    t.uuid "dependency_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["dependency_id"], name: "index_service_dependencies_on_dependency_id"
-    t.index ["service_id", "dependency_id"], name: "index_service_dependencies_on_service_id_and_dependency_id", unique: true
-    t.index ["service_id"], name: "index_service_dependencies_on_service_id"
-  end
-
-  create_table "service_environments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "service_id", null: false
-    t.uuid "environment_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["environment_id"], name: "index_service_environments_on_environment_id"
-    t.index ["service_id", "environment_id"], name: "index_service_environments_on_service_id_and_environment_id", unique: true
-    t.index ["service_id"], name: "index_service_environments_on_service_id"
-  end
-
-  create_table "service_product_areas", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "service_id", null: false
-    t.uuid "product_area_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["product_area_id"], name: "index_service_product_areas_on_product_area_id"
-    t.index ["service_id", "product_area_id"], name: "index_service_product_areas_on_service_id_and_product_area_id", unique: true
-    t.index ["service_id"], name: "index_service_product_areas_on_service_id"
-  end
-
-  create_table "services", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "workspace_id", null: false
-    t.string "name", null: false
-    t.string "slug", null: false
-    t.text "description"
-    t.string "lifecycle_state", default: "active", null: false
-    t.integer "tier"
-    t.string "service_type"
-    t.string "language"
-    t.string "framework"
-    t.string "repo_url"
-    t.string "docs_url"
-    t.string "runbook_url"
-    t.string "alerts_url"
-    t.string "dashboard_url"
-    t.string "color"
-    t.integer "position", default: 0, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["deleted_at"], name: "index_services_on_deleted_at"
-    t.index ["workspace_id", "position"], name: "index_services_on_workspace_id_and_position"
-    t.index ["workspace_id", "slug"], name: "index_services_on_workspace_id_and_slug", unique: true
-    t.index ["workspace_id"], name: "index_services_on_workspace_id"
   end
 
   create_table "shoutouts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1109,46 +1020,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_093310) do
     t.index ["subject_type", "subject_id", "state"], name: "index_workflows_on_subject_and_state"
     t.index ["subject_type", "subject_id"], name: "index_workflows_on_subject"
     t.index ["workflow_class"], name: "index_solid_workflow_workflows_on_workflow_class"
-  end
-
-  create_table "team_product_areas", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "team_id", null: false
-    t.uuid "product_area_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["product_area_id"], name: "index_team_product_areas_on_product_area_id"
-    t.index ["team_id", "product_area_id"], name: "index_team_product_areas_on_team_id_and_product_area_id", unique: true
-    t.index ["team_id"], name: "index_team_product_areas_on_team_id"
-  end
-
-  create_table "team_services", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "team_id", null: false
-    t.uuid "service_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["service_id"], name: "index_team_services_on_service_id"
-    t.index ["team_id", "service_id"], name: "index_team_services_on_team_id_and_service_id", unique: true
-    t.index ["team_id"], name: "index_team_services_on_team_id"
-  end
-
-  create_table "teams", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "workspace_id", null: false
-    t.string "name", null: false
-    t.string "slug", null: false
-    t.text "description"
-    t.string "lifecycle_state", default: "active", null: false
-    t.integer "tier"
-    t.string "tech_owner"
-    t.string "product_owner"
-    t.string "color"
-    t.integer "position", default: 0, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["deleted_at"], name: "index_teams_on_deleted_at"
-    t.index ["workspace_id", "position"], name: "index_teams_on_workspace_id_and_position"
-    t.index ["workspace_id", "slug"], name: "index_teams_on_workspace_id_and_slug", unique: true
-    t.index ["workspace_id"], name: "index_teams_on_workspace_id"
   end
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1275,7 +1146,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_093310) do
   add_foreign_key "catalog_entry_relationships", "catalog_entries", column: "target_entry_id"
   add_foreign_key "catalog_entry_relationships", "workspaces"
   add_foreign_key "catalog_types", "workspaces"
-  add_foreign_key "environments", "workspaces"
   add_foreign_key "idempotency_keys", "workspaces"
   add_foreign_key "incident_action_updates", "incident_actions"
   add_foreign_key "incident_action_updates", "incidents"
@@ -1351,27 +1221,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_093310) do
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortems", "incidents"
   add_foreign_key "postmortems", "workspace_memberships", column: "generated_by_id"
-  add_foreign_key "product_areas", "workspaces"
   add_foreign_key "runbook_steps", "runbooks"
   add_foreign_key "runbooks", "workspaces"
-  add_foreign_key "service_dependencies", "services"
-  add_foreign_key "service_dependencies", "services", column: "dependency_id"
-  add_foreign_key "service_environments", "environments"
-  add_foreign_key "service_environments", "services"
-  add_foreign_key "service_product_areas", "product_areas"
-  add_foreign_key "service_product_areas", "services"
-  add_foreign_key "services", "workspaces"
   add_foreign_key "shoutouts", "incidents"
   add_foreign_key "shoutouts", "workspace_memberships", column: "from_member_id"
   add_foreign_key "shoutouts", "workspace_memberships", column: "to_member_id"
   add_foreign_key "solid_workflow_events", "solid_workflow_steps", column: "step_id", on_delete: :cascade
   add_foreign_key "solid_workflow_events", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade
   add_foreign_key "solid_workflow_steps", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade
-  add_foreign_key "team_product_areas", "product_areas"
-  add_foreign_key "team_product_areas", "teams"
-  add_foreign_key "team_services", "services"
-  add_foreign_key "team_services", "teams"
-  add_foreign_key "teams", "workspaces"
   add_foreign_key "webhook_delinquency_trackers", "webhooks"
   add_foreign_key "webhook_deliveries", "incident_events"
   add_foreign_key "webhook_deliveries", "webhooks"

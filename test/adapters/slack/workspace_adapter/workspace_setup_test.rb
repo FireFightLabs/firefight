@@ -71,7 +71,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     stub_post_message
     result = @adapter.post_welcome_message(channel_id: "C12345678")
 
-    assert result[:message_ts].present?
+    assert result[:message_id].present?
   end
 
   test "post_welcome_message uses welcome message blocks" do
@@ -92,7 +92,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
       user_id: "U12345678"
     )
 
-    assert result[:message_ts].present?
+    assert result[:success]
   end
 
   test "post_preview_announcement includes user_id in blocks" do

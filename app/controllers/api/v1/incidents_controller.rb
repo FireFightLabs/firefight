@@ -20,6 +20,8 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)
 
     idempotency_key = params.require(:idempotency_key)
+    return render_replay(idempotency_key) if replayed?(idempotency_key)
+
     severity = current_workspace.incident_severities.active.find(params.require(:severity_id))
     status = params[:status_id].present? ? current_workspace.incident_statuses.active.find(params[:status_id]) : current_workspace.incident_statuses.default_status
     incident_type = current_workspace.incident_types.active.find(params[:incident_type_id]) if params[:incident_type_id].present?
@@ -27,6 +29,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
 
     custom_fields = validate_custom_fields(params[:custom_fields])
 
+    lost_key_race = false
     ActiveRecord::Base.transaction do
       @incident = lifecycle_service.create(
         declared_by: declared_by,
@@ -41,19 +44,25 @@ class Api::V1::IncidentsController < Api::V1::ApiController
         source_api_key: Current.api_key
       )
 
-      IdempotencyKey.create!(
-        workspace: current_workspace,
-        key: idempotency_key,
-        resource_type: "Incident",
-        resource_id: @incident.id
-      )
+      begin
+        IdempotencyKey.create!(
+          workspace: current_workspace,
+          key: idempotency_key,
+          resource_type: IdempotencyKey::RESOURCE_INCIDENT,
+          resource_id: @incident.id
+        )
+      rescue ActiveRecord::RecordNotUnique
+        # A concurrent request with the same key committed first. Only this
+        # insert is rescued so any other unique violation still surfaces as
+        # the error it is instead of a replay.
+        lost_key_race = true
+        raise ActiveRecord::Rollback
+      end
     end
 
+    return render_replay(idempotency_key) if lost_key_race
+
     render :show, status: :created
-  rescue ActiveRecord::RecordNotUnique
-    existing = IdempotencyKey.find_by!(workspace: current_workspace, key: idempotency_key, resource_type: "Incident")
-    @incident = current_workspace.incidents.find(existing.resource_id)
-    render :show, status: :ok
   end
 
   def update
@@ -103,6 +112,16 @@ class Api::V1::IncidentsController < Api::V1::ApiController
       attrs[:incident_type] = new_type if new_type
       lifecycle_service.update(@incident, attrs, changed_by: changed_by)
     end
+  end
+
+  def replayed?(idempotency_key)
+    IdempotencyKey.exists?(workspace: current_workspace, key: idempotency_key, resource_type: IdempotencyKey::RESOURCE_INCIDENT)
+  end
+
+  def render_replay(idempotency_key)
+    existing = IdempotencyKey.find_by!(workspace: current_workspace, key: idempotency_key, resource_type: IdempotencyKey::RESOURCE_INCIDENT)
+    @incident = current_workspace.incidents.find(existing.resource_id)
+    render :show, status: :ok
   end
 
   def validate_custom_fields(raw_custom_fields)

@@ -76,13 +76,31 @@ class AbilityGateway
                               workspace: workspace, scope: scope, params: params, context: context)
 
     invocation = nil
-    if ledger_execution?(action, principal, context)
-      invocation = record!(decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil,
-                           principal: principal, action: action, action_key: action_key,
-                           workspace: workspace, scope: scope, params: params, context: context,
-                           approval: approval)
+    claimed = true
+    # One transaction, so the allow row only survives when this call holds the
+    # approval. A retry that loses the race rolls its allow row back and is
+    # ledgered as a denial instead of looking like a crash mid-execution.
+    Ability::Invocation.transaction do
+      if ledger_execution?(action, principal, context)
+        invocation = record!(decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil,
+                             principal: principal, action: action, action_key: action_key,
+                             workspace: workspace, scope: scope, params: params, context: context,
+                             approval: approval)
+      end
+
+      if approval && !approval.claim
+        claimed = false
+        raise ActiveRecord::Rollback
+      end
     end
-    approval&.consume!
+
+    unless claimed
+      record!(decision: Ability::Invocation::DECISION_DENY, completed_at: Time.current,
+              principal: principal, action: action, action_key: action_key,
+              workspace: workspace, scope: scope, params: params, context: context,
+              approval: approval)
+      raise Denied.new(action_key)
+    end
 
     authorization = Authorization.new(invocation)
     return authorization unless block_given?
@@ -106,7 +124,8 @@ class AbilityGateway
 
   # Returns the usable approval when one is required and supplied, nil when
   # no policy matches. Raises PendingApproval (creating or re-surfacing the
-  # pending record) or Denied (the supplied approval was denied).
+  # pending record) or Denied (the supplied approval was denied). The caller
+  # claims the approval together with the allow ledger row.
   def self.approval_gate!(principal:, action:, action_key:, workspace:, scope:, params:, context:)
     requirement = approval_requirement(workspace, action, action_key, scope, context)
     return nil unless requirement

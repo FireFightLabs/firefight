@@ -160,7 +160,7 @@ class AlertIngestService
   def routing_context(alert)
     Policy::ContextBuilder.build(
       workspace: @workspace,
-      fields: alert.fields.merge("source" => @source.name, "provider" => @source.provider)
+      fields: @source.routing_fields(alert.fields)
     )
   end
 

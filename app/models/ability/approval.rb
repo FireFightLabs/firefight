@@ -54,12 +54,18 @@ module Ability
     # One statement, so two callers racing for the same approval cannot both
     # win. Checking consumed_at and then writing it leaves a window where both
     # read nil, and an approval admits exactly one execution.
-    def consume!
+    def claim
       now = Time.current
-      claimed = self.class.where(id: id, consumed_at: nil).update_all(consumed_at: now, updated_at: now)
-      raise NotAllowed, "approval already used" if claimed.zero?
+      claimed = self.class.where(id: id, status: STATUS_APPROVED, consumed_at: nil).update_all(consumed_at: now, updated_at: now)
+      return false if claimed.zero?
 
       self.consumed_at = now
+      true
+    end
+
+    def consume!
+      raise NotAllowed, "approval already used" unless claim
+
       self
     end
 

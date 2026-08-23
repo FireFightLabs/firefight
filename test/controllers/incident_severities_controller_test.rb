@@ -37,6 +37,16 @@ class IncidentSeveritiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
+  test "create with a name whose slug is taken reports the collision on the name" do
+    existing = @workspace.incident_severities.first
+
+    assert_no_difference -> { @workspace.incident_severities.count } do
+      post incident_severities_url, params: { name: existing.name.upcase }
+    end
+    assert_response :redirect
+    assert_equal [ "is already used by another severity." ], session["inertia_errors"][:name]
+  end
+
   test "reorder rewrites positions and derives rank from the new order" do
     ordered = @workspace.incident_severities.ordered.to_a
     reversed = ordered.reverse

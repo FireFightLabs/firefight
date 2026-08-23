@@ -74,71 +74,22 @@ module SolidWorkflow
         reload
 
         if all_steps.all? { |s| s.succeeded? || s.skipped? }
-          current_time = Time.current
-          current_updated_at = updated_at
-          rows_updated = SolidWorkflow::Workflow.where(
-            id: id,
-            state: [ :pending, :running ],
-            updated_at: current_updated_at
-          ).update_all(
-            state: :succeeded,
-            completed_at: current_time,
-            updated_at: current_time,
-            state_timestamps: state_timestamps_merge_sql("succeeded", current_time)
-          )
-
-          if rows_updated > 0
-            reload
-            record_event(SolidWorkflow::Events::Workflow::SUCCEEDED)
-          end
+          record_event(SolidWorkflow::Events::Workflow::SUCCEEDED) if transition!(:succeeded, from: %i[pending running])
 
         elsif all_steps.any?(&:failed?)
-          current_time = Time.current
-          current_updated_at = updated_at
-          rows_updated = SolidWorkflow::Workflow.where(
-            id: id,
-            state: [ :pending, :running ],
-            updated_at: current_updated_at
-          ).update_all(
-            state: :failed,
-            completed_at: current_time,
-            updated_at: current_time,
-            state_timestamps: state_timestamps_merge_sql("failed", current_time)
-          )
-
-          if rows_updated > 0
+          if transition!(:failed, from: %i[pending running])
             SolidWorkflow::Step.where(workflow_id: id, status: :pending).update_all(
               status: :cancelled,
-              completed_at: current_time,
-              updated_at: current_time
+              completed_at: completed_at,
+              updated_at: completed_at
             )
 
-            reload
             record_event(SolidWorkflow::Events::Workflow::FAILED)
           end
 
         elsif pending?
-          current_time = Time.current
-          current_updated_at = updated_at
-          rows_updated = SolidWorkflow::Workflow.where(
-            id: id,
-            state: :pending,
-            updated_at: current_updated_at
-          ).update_all(
-            state: :running,
-            started_at: current_time,
-            updated_at: current_time,
-            state_timestamps: state_timestamps_merge_sql("running", current_time)
-          )
-
-          reload if rows_updated > 0
+          transition!(:running, from: :pending)
         end
-      end
-
-      def state_timestamps_merge_sql(state, timestamp)
-        state_value = SolidWorkflow::Workflow.connection.quote(state.to_s)
-        timestamp_value = SolidWorkflow::Workflow.connection.quote(timestamp.iso8601)
-        Arel.sql("coalesce(state_timestamps, '{}'::jsonb) || jsonb_build_object(#{state_value}, #{timestamp_value})")
       end
     end
   end

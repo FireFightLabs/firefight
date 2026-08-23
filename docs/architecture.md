@@ -223,7 +223,7 @@ Adapters catch platform-specific errors and re-raise as `AdapterError` subclasse
 
 Services and handlers rescue `AdapterError` subclasses — never platform-specific errors.
 
-Adapters return normalized hashes: `{ channel_id:, channel_name: }`, `{ message_ts: }`, `{ success: true }`.
+Adapters return normalized hashes: `{ channel_id:, channel_name: }`, `{ message_id:, channel_id: }` for anything that posts a message, `{ success: true }` for everything else.
 
 **Platform boundary rule**: `Slack::Client` is only called from `Slack::WorkspaceAdapter`. No Slack-specific code outside `app/adapters/slack/`.
 

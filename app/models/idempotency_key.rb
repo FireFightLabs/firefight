@@ -1,5 +1,6 @@
 class IdempotencyKey < ApplicationRecord
   EXPIRY = 24.hours
+  RESOURCE_INCIDENT = "Incident"
 
   belongs_to :workspace
 

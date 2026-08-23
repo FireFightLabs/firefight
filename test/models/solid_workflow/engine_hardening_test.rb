@@ -187,6 +187,34 @@ class SolidWorkflow::EngineHardeningTest < ActiveSupport::TestCase
     assert_not workflow.reload.failed?
   end
 
+  test "sweeper timeout leaves a workflow alone that finished after it was selected" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(state: :running, workflow_config: workflow.workflow_config.merge("timeout" => 1), started_at: 10.seconds.ago)
+    stale = SolidWorkflow::Workflow.find(workflow.id)
+
+    workflow.transition!(:succeeded, from: :running)
+    selected = Class.new do
+      def initialize(workflow) = @workflow = workflow
+      def find_each = yield(@workflow)
+    end.new(stale)
+    SolidWorkflow::Workflow.stubs(:timed_out).returns(selected)
+
+    SolidWorkflow::SweeperJob.new.send(:sweep_timed_out_workflows)
+
+    assert workflow.reload.succeeded?
+    assert_nil workflow.events.find_by(event_type: SolidWorkflow::Events::Workflow::FAILED)
+  end
+
+  test "transition! only moves a workflow out of the states it was told to expect" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.transition!(:succeeded, from: %i[pending running])
+
+    assert_not workflow.transition!(:failed, from: %i[pending running])
+    assert workflow.reload.succeeded?
+    assert workflow.completed_at.present?
+    assert_equal %w[running succeeded], workflow.state_timestamps.keys
+  end
+
   test "sweeper fails an orphaned step that exhausted attempts instead of resetting it" do
     workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
     workflow.update!(state: :running)

@@ -7,7 +7,6 @@ incident_lead_ws1:
   slug: incident_lead
   description: Person responsible for coordinating the incident response
   position: 1
-  required: false
 
 communications_lead_ws1:
   id: eeeeeeee-1111-eeee-2222-eeeeeeeeeeee
@@ -16,7 +15,6 @@ communications_lead_ws1:
   slug: communications_lead
   description: Handles communications during incident
   position: 2
-  required: false
 
 # Workspace Two - More complex role structure
 incident_commander_ws2:
@@ -26,7 +24,6 @@ incident_commander_ws2:
   slug: incident_commander
   description: Overall incident coordinator
   position: 1
-  required: true
 
 comms_lead_ws2:
   id: eeeeeeee-2222-eeee-2222-eeeeeeeeeeee
@@ -35,7 +32,6 @@ comms_lead_ws2:
   slug: communications_lead
   description: Handles internal and external communications
   position: 2
-  required: false
 
 tech_lead_ws2:
   id: eeeeeeee-2222-eeee-3333-eeeeeeeeeeee
@@ -44,7 +40,6 @@ tech_lead_ws2:
   slug: technical_lead
   description: Leads technical investigation and resolution
   position: 3
-  required: false
 
 scribe_ws2:
   id: eeeeeeee-2222-eeee-4444-eeeeeeeeeeee
@@ -53,7 +48,6 @@ scribe_ws2:
   slug: scribe
   description: Documents timeline and key decisions
   position: 4
-  required: false
 
 # Deleted role for testing soft deletes
 deleted_role:
@@ -63,5 +57,4 @@ deleted_role:
   slug: archived_role
   description: This role was deleted
   position: 99
-  required: false
   deleted_at: <%= 1.day.ago %>

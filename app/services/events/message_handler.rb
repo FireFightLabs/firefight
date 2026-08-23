@@ -96,6 +96,10 @@ module Events
       thread_ts = event["thread_ts"] || message_ts
 
       files.each do |file|
+        # Slack redelivers an event it did not get an answer to in time, so
+        # the file id is the identity of the share, not the delivery.
+        next if file_already_recorded?(incident, file["id"])
+
         permalink = message_permalink_for(workspace, channel_id, message_ts, file)
 
         incident_event = incident.incident_events.create!(
@@ -118,6 +122,16 @@ module Events
       end
     end
     private_class_method :handle_files
+
+    def self.file_already_recorded?(incident, slack_file_id)
+      return false if slack_file_id.blank?
+
+      incident.incident_events
+        .where(event_type: IncidentEvent::MESSAGE_FILE_SHARED)
+        .where("metadata @> ?", { slack_file_id: slack_file_id }.to_json)
+        .exists?
+    end
+    private_class_method :file_already_recorded?
 
     def self.fetch_permalink(workspace, channel_id, message_ts)
       workspace.adapter.get_message_permalink(channel_id: channel_id, message_id: message_ts)[:permalink]

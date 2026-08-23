@@ -15,14 +15,14 @@ class IncidentRoleTest < ActiveSupport::TestCase
     assert_includes role.errors[:name], "can't be blank"
   end
 
-  test "requires slug" do
+  test "derives the slug from the name" do
     role = IncidentRole.new(
       workspace: workspaces(:slack_workspace_one),
       name: "Test Role",
       position: 1
     )
-    assert_not role.valid?
-    assert_includes role.errors[:slug], "can't be blank"
+    assert role.valid?
+    assert_equal "test_role", role.slug
   end
 
   test "requires position" do
@@ -40,20 +40,9 @@ class IncidentRoleTest < ActiveSupport::TestCase
       workspace: workspaces(:slack_workspace_one),
       name: "Test Role",
       slug: "test_unique",
-      position: 1,
-      required: false
-    )
-    assert role.valid?
-  end
-
-  test "required defaults to false" do
-    role = IncidentRole.new(
-      workspace: workspaces(:slack_workspace_one),
-      name: "Test Role",
-      slug: "test_unique",
       position: 1
     )
-    assert_not role.required
+    assert role.valid?
   end
 
   # Uniqueness validations
@@ -161,7 +150,6 @@ class IncidentRoleTest < ActiveSupport::TestCase
     comms = incident_roles(:comms_lead_ws2)
     assert_equal "Communications Lead", comms.name
     assert_equal "communications_lead", comms.slug
-    assert_not comms.required
 
     tech = incident_roles(:tech_lead_ws2)
     assert_equal "Technical Lead", tech.name

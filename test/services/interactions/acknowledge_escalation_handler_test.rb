@@ -33,6 +33,16 @@ class Interactions::AcknowledgeEscalationHandlerTest < ActiveSupport::TestCase
     assert_equal @escalated_to.platform_user_id, @escalation_event.reload.metadata["acknowledged_by_platform_user_id"]
   end
 
+  test "a second acknowledgement of the same escalation does nothing" do
+    stub_post_message
+    stub_update_message
+    Interactions::AcknowledgeEscalationHandler.execute(build_interaction(@escalated_to.platform_user_id))
+
+    assert_no_difference "IncidentEvent.count" do
+      Interactions::AcknowledgeEscalationHandler.execute(build_interaction(@escalated_to.platform_user_id))
+    end
+  end
+
   test "ignores acknowledgement from different user" do
     result = Interactions::AcknowledgeEscalationHandler.execute(build_interaction("U_NOT_TARGET"))
 

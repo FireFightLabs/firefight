@@ -66,7 +66,7 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     stub_pin_message
     result = @adapter.pin_message(channel_id: "C12345678", message_id: "1234567890.123456")
 
-    assert result[:ok]
+    assert result[:success]
   end
 
   # invite_user tests

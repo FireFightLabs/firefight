@@ -67,12 +67,12 @@ class PlatformAdapter
 
   # Messaging
 
-  # @return [Hash] { message_id: ... }
+  # @return [Hash] { message_id: ..., channel_id: ... }
   def post_message(channel_id:, text:, blocks:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # @return [Hash] { message_id: ... }
+  # @return [Hash] { message_id: ..., channel_id: ... }
   def post_threaded_message(channel_id:, parent_message_id:, text:, blocks: nil)
     raise NotImplemented.new(__method__, self.class)
   end
@@ -97,7 +97,7 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # @return [Hash] { ok: true }
+  # @return [Hash] { success: true }
   def pin_message(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end

@@ -117,7 +117,7 @@ module Slack
           timestamp: message_id
         )
 
-        { ok: true }
+        { success: true }
       end
     end
 
@@ -255,7 +255,7 @@ module Slack
           thread_ts: parent_message_id
         )
 
-        { message_id: result[:ts] }
+        { message_id: result[:ts], channel_id: result[:channel] }
       end
     end
 

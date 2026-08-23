@@ -53,6 +53,11 @@ module Positioned
       save!
     rescue ActiveRecord::RecordNotUnique
       raise if attempts >= MAX_POSITION_RETRIES
+      # The index that fired may be the slug's, not the position's. Revalidate
+      # so a name collision lost in a race reports on the name instead of
+      # retrying into a 500.
+      raise ActiveRecord::RecordInvalid.new(self) unless valid?
+
       retry
     end
   end

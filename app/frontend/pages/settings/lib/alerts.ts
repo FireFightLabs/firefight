@@ -74,6 +74,14 @@ export interface TestResult {
   resolution?: { invite: string[]; notify: string | null; notes: string[] } | null
 }
 
+// One value for "which rule was tested and how did it go", so a slow
+// response for a rule the user has since moved on from cannot be shown
+// against the wrong row.
+export type RuleTest =
+  | { status: "pending"; ruleId: string; sample: string }
+  | { status: "done"; ruleId: string; sample: string; result: TestResult }
+  | { status: "failed"; ruleId: string; sample: string; error: string }
+
 export interface SendTestResult {
   sent?: boolean
   notify?: string | null
