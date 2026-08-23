@@ -8,17 +8,22 @@ class Api::V1::InteractionsController < Api::V1::BaseController
     return unless payload
 
     interaction = Slack::InteractionParser.parse(payload)
-    workspace = Workspace.find_by(platform: Platforms::SLACK, platform_id: interaction.team_id)
+    workspace = interaction.workspace
 
-    # Commands and modals are already refused with a message, so what lands
-    # here is a click on an old message. Dropping it is the only option this
-    # payload shape leaves.
-    if workspace&.suspended?
+    # A click from a workspace Firefight no longer knows, or one that is
+    # suspended. Commands and modals are refused with a message elsewhere,
+    # and this payload shape leaves no way to answer, so it is dropped.
+    if workspace.nil?
+      Rails.logger.info({ event: "interaction.unknown_workspace", team_id: interaction.team_id })
+      return head :ok
+    end
+    if workspace.suspended?
       Rails.logger.info({ event: "interaction.suspended_workspace", workspace_id: workspace.id })
       return head :ok
     end
 
-    ensure_membership!(workspace: workspace, platform_user_id: interaction.user_id)
+    # Who is acting is resolved once, by the interaction's own principal, on
+    # the way through the dispatcher.
     result = InteractionDispatcher.dispatch(interaction)
 
     if result

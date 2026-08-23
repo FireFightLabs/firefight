@@ -5,8 +5,7 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
-      metadata = JSON.parse(interaction.private_metadata)
-      incident = workspace.incidents.find(metadata["incident_id"])
+      incident = workspace.incidents.find(interaction.metadata.incident_id)
 
       from_member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
       recipient_user_id = interaction.values.dig("recipient_block", "recipient_select", "selected_user")

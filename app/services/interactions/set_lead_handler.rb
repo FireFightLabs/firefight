@@ -5,7 +5,7 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
-      incident = workspace.incidents.find(interaction.private_metadata)
+      incident = workspace.incidents.find(interaction.metadata.incident_id)
       acting_member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
       blocked_reason = incident.lead_assignment_blocked_reason

@@ -17,7 +17,9 @@ module Slack
           if form_field.system?
             FieldBlocks.build_system(
               workspace, form_field,
-              incident: incident, status_dispatch: true, selected_status_slug: picked_slug
+              incident: incident,
+              dispatching: [ IncidentSystemField::KEY_STATUS ],
+              selected: { IncidentSystemField::KEY_STATUS => picked_slug }
             )
           else
             FieldBlocks.build_custom(workspace, form_field, incident: incident)
@@ -49,9 +51,7 @@ module Slack
       private_class_method :context_for
 
       def self.picked_status_slug(state)
-        (state.presence || {}).dig(
-          "field_status_block", Identifiers::INCIDENT_UPDATE_STATUS_SELECT, "selected_option", "value"
-        )
+        FieldBlocks.picked(state, IncidentSystemField::KEY_STATUS)
       end
       private_class_method :picked_status_slug
     end

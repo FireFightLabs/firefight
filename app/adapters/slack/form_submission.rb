@@ -73,7 +73,7 @@ module Slack
     # set, which is not known yet.
     def submitted_custom_fields
       @workspace.incident_field_definitions.active.each_with_object({}) do |definition, values|
-        block_id = "field_#{definition.slug}_block"
+        block_id = Slack::Modals::FieldBlocks.block_id(definition.slug)
         block = @values[block_id]
         next unless block
 
@@ -104,7 +104,7 @@ module Slack
     end
 
     def read_slug(system_key)
-      block = @values["field_#{system_key}_block"]
+      block = @values[Slack::Modals::FieldBlocks.block_id(system_key)]
       return nil unless block
 
       block.values.first&.dig("selected_option", "value")
@@ -120,7 +120,7 @@ module Slack
     end
 
     def extract_value(form_field, key)
-      block_id = "field_#{key}_block"
+      block_id = Slack::Modals::FieldBlocks.block_id(key)
       block = @values[block_id]
       return nil unless block
 
@@ -146,7 +146,7 @@ module Slack
 
     def first_block_id(visible_fields)
       first_key = visible_fields.map { |f| field_key(f) }.compact.first
-      "field_#{first_key}_block" if first_key
+      Slack::Modals::FieldBlocks.block_id(first_key) if first_key
     end
   end
 end

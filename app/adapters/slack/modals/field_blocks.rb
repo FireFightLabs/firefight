@@ -10,23 +10,61 @@ module Slack
     # reads. Suppressing a field here alone leaves submission demanding one the
     # responder was never shown.
     module FieldBlocks
-      def self.build_system(workspace, form_field, selected_severity_slug: nil, incident: nil, severity_dispatch: false, type_dispatch: false, visibility_dispatch: false, status_dispatch: false, selected_type_id: nil, selected_visibility: nil, selected_status_slug: nil, terminal_stage: nil)
-        case form_field.system_field_key
+      # The selects that re-render their modal when they change. A dispatching
+      # select carries a named action id so the handler can tell the dispatch
+      # apart from a submission. Every other input is `field_<key>_input`.
+      DISPATCH_ACTION_IDS = {
+        IncidentSystemField::KEY_SEVERITY => Identifiers::INCIDENT_CREATION_SEVERITY_SELECT,
+        IncidentSystemField::KEY_INCIDENT_TYPE => Identifiers::INCIDENT_CREATION_TYPE_SELECT,
+        IncidentSystemField::KEY_VISIBILITY => Identifiers::INCIDENT_CREATION_VISIBILITY_SELECT,
+        IncidentSystemField::KEY_STATUS => Identifiers::INCIDENT_UPDATE_STATUS_SELECT
+      }.freeze
+
+      # One owner for the block and action ids every builder, submission
+      # parser and error anchor agrees on.
+      def self.block_id(key)
+        "field_#{key}_block"
+      end
+
+      def self.input_id(key)
+        "field_#{key}_input"
+      end
+
+      def self.action_id(key, dispatching: [])
+        dispatching.include?(key) ? DISPATCH_ACTION_IDS.fetch(key) : input_id(key)
+      end
+
+      # The option a responder has picked in a dispatching select, read off
+      # the view state Slack sends back with the dispatch.
+      def self.picked(state, key)
+        (state.presence || {}).dig(block_id(key), DISPATCH_ACTION_IDS.fetch(key), "selected_option", "value")
+      end
+
+      # `dispatching` names the system keys whose select re-renders the modal.
+      # `selected` holds what the responder has picked so far, by system key,
+      # as the option value (severity, type and status by slug, visibility by
+      # its value). `terminal_stage` narrows the status select on the resolve
+      # and cancel forms.
+      def self.build_system(workspace, form_field, incident: nil, dispatching: [], selected: {}, terminal_stage: nil)
+        key = form_field.system_field_key
+        dispatch = dispatching.include?(key)
+
+        case key
         when IncidentSystemField::KEY_NAME
           name_block(form_field, incident: incident)
         when IncidentSystemField::KEY_SUMMARY
           summary_block(form_field, incident: incident)
         when IncidentSystemField::KEY_SEVERITY
-          slug = selected_severity_slug || incident&.incident_severity&.slug
-          severity_block(workspace, form_field, selected_severity_slug: slug, dispatch: severity_dispatch)
+          slug = selected[key] || incident&.incident_severity&.slug
+          severity_block(workspace, form_field, selected_severity_slug: slug, dispatch: dispatch)
         when IncidentSystemField::KEY_INCIDENT_TYPE
-          incident_type_block(workspace, form_field, incident: incident, dispatch: type_dispatch, selected_type_id: selected_type_id)
+          incident_type_block(workspace, form_field, incident: incident, dispatch: dispatch, selected_type_slug: selected[key])
         when IncidentSystemField::KEY_STATUS
-          status_block(workspace, form_field, incident: incident, stage: terminal_stage, dispatch: status_dispatch, selected_status_slug: selected_status_slug)
+          status_block(workspace, form_field, incident: incident, stage: terminal_stage, dispatch: dispatch, selected_status_slug: selected[key])
         when IncidentSystemField::KEY_LEAD
           lead_block(form_field, incident: incident)
         when IncidentSystemField::KEY_VISIBILITY
-          visibility_block(form_field, incident: incident, dispatch: visibility_dispatch, selected: selected_visibility)
+          visibility_block(form_field, incident: incident, dispatch: dispatch, selected: selected[key])
         when IncidentSystemField::KEY_NEXT_UPDATE
           next_update_block(form_field)
         when IncidentSystemField::KEY_MESSAGE
@@ -69,11 +107,11 @@ module Slack
         stored = incident&.is_private ? Incident::VISIBILITY_PRIVATE : Incident::VISIBILITY_PUBLIC
         current = selected.presence || stored
         initial = VISIBILITY_OPTIONS.find { |o| o[:value] == current } || VISIBILITY_OPTIONS.first
-        action_id = dispatch ? Identifiers::INCIDENT_CREATION_VISIBILITY_SELECT : "field_visibility_input"
+        action_id = action_id(IncidentSystemField::KEY_VISIBILITY, dispatching: dispatch ? [ IncidentSystemField::KEY_VISIBILITY ] : [])
 
         block = {
           type: "input",
-          block_id: "field_visibility_block",
+          block_id: block_id(IncidentSystemField::KEY_VISIBILITY),
           element: {
             type: "static_select",
             action_id: action_id,
@@ -91,14 +129,14 @@ module Slack
       def self.lead_block(form_field, incident: nil)
         element = {
           type: "users_select",
-          action_id: "field_lead_input",
+          action_id: input_id(IncidentSystemField::KEY_LEAD),
           placeholder: copy_placeholder(IncidentSystemField::KEY_LEAD)
         }
         element[:initial_user] = incident.lead.platform_user_id if incident&.lead
 
         {
           type: "input",
-          block_id: "field_lead_block",
+          block_id: block_id(IncidentSystemField::KEY_LEAD),
           element: element,
           label: copy_label(IncidentSystemField::KEY_LEAD),
           optional: form_field.required_mode == IncidentFormField::REQUIRED_MODE_OPTIONAL
@@ -111,10 +149,10 @@ module Slack
       def self.message_block(form_field)
         {
           type: "input",
-          block_id: "field_message_block",
+          block_id: block_id(IncidentSystemField::KEY_MESSAGE),
           element: {
             type: "plain_text_input",
-            action_id: "field_message_input",
+            action_id: input_id(IncidentSystemField::KEY_MESSAGE),
             multiline: true,
             placeholder: copy_placeholder(IncidentSystemField::KEY_MESSAGE),
             max_length: 3000
@@ -130,10 +168,10 @@ module Slack
 
         {
           type: "input",
-          block_id: "field_next_update_block",
+          block_id: block_id(IncidentSystemField::KEY_NEXT_UPDATE),
           element: {
             type: "static_select",
-            action_id: "field_next_update_input",
+            action_id: input_id(IncidentSystemField::KEY_NEXT_UPDATE),
             placeholder: copy_placeholder(IncidentSystemField::KEY_NEXT_UPDATE),
             options: options,
             initial_option: options.find { |o| o[:value] == DEFAULT_NEXT_UPDATE_MINUTES }
@@ -146,7 +184,7 @@ module Slack
       def self.name_block(form_field, incident: nil)
         element = {
           type: "plain_text_input",
-          action_id: "field_name_input",
+          action_id: input_id(IncidentSystemField::KEY_NAME),
           placeholder: copy_placeholder(IncidentSystemField::KEY_NAME),
           max_length: 200
         }
@@ -154,7 +192,7 @@ module Slack
 
         {
           type: "input",
-          block_id: "field_name_block",
+          block_id: block_id(IncidentSystemField::KEY_NAME),
           element: element,
           label: copy_label(IncidentSystemField::KEY_NAME),
           hint: copy_hint(IncidentSystemField::KEY_NAME),
@@ -165,7 +203,7 @@ module Slack
       def self.summary_block(form_field, incident: nil)
         element = {
           type: "plain_text_input",
-          action_id: "field_summary_input",
+          action_id: input_id(IncidentSystemField::KEY_SUMMARY),
           multiline: true,
           placeholder: copy_placeholder(IncidentSystemField::KEY_SUMMARY),
           max_length: 3000
@@ -174,7 +212,7 @@ module Slack
 
         {
           type: "input",
-          block_id: "field_summary_block",
+          block_id: block_id(IncidentSystemField::KEY_SUMMARY),
           element: element,
           label: copy_label(IncidentSystemField::KEY_SUMMARY),
           hint: copy_hint(IncidentSystemField::KEY_SUMMARY),
@@ -197,11 +235,11 @@ module Slack
 
         initial_option = { text: { type: "plain_text", text: selected_severity.name }, value: selected_severity.slug }
 
-        action_id = dispatch ? Identifiers::INCIDENT_CREATION_SEVERITY_SELECT : "field_severity_input"
+        action_id = action_id(IncidentSystemField::KEY_SEVERITY, dispatching: dispatch ? [ IncidentSystemField::KEY_SEVERITY ] : [])
 
         block = {
           type: "input",
-          block_id: "field_severity_block",
+          block_id: block_id(IncidentSystemField::KEY_SEVERITY),
           element: {
             type: "static_select",
             action_id: action_id,
@@ -219,7 +257,7 @@ module Slack
         block
       end
 
-      def self.incident_type_block(workspace, form_field, incident: nil, dispatch: false, selected_type_id: nil)
+      def self.incident_type_block(workspace, form_field, incident: nil, dispatch: false, selected_type_slug: nil)
         types = workspace.incident_types.active.ordered
 
         type_options = types.map do |type|
@@ -228,15 +266,13 @@ module Slack
           option
         end
 
-        selected_type = selected_type_id ? types.find { |t| t.id == selected_type_id } : nil
-
-        initial_type = if selected_type
-          type_options.find { |o| o[:value] == selected_type.slug }
+        initial_type = if selected_type_slug && type_options.any? { |o| o[:value] == selected_type_slug }
+          type_options.find { |o| o[:value] == selected_type_slug }
         elsif incident&.incident_type
           type_options.find { |o| o[:value] == incident.incident_type.slug }
         end
 
-        action_id = dispatch ? Identifiers::INCIDENT_CREATION_TYPE_SELECT : "field_incident_type_input"
+        action_id = action_id(IncidentSystemField::KEY_INCIDENT_TYPE, dispatching: dispatch ? [ IncidentSystemField::KEY_INCIDENT_TYPE ] : [])
 
         element = {
           type: "static_select",
@@ -248,7 +284,7 @@ module Slack
 
         block = {
           type: "input",
-          block_id: "field_incident_type_block",
+          block_id: block_id(IncidentSystemField::KEY_INCIDENT_TYPE),
           element: element,
           label: copy_label(IncidentSystemField::KEY_INCIDENT_TYPE),
           hint: copy_hint(IncidentSystemField::KEY_INCIDENT_TYPE),
@@ -280,7 +316,7 @@ module Slack
 
         element = {
           type: "static_select",
-          action_id: dispatch ? Identifiers::INCIDENT_UPDATE_STATUS_SELECT : "field_status_input",
+          action_id: action_id(IncidentSystemField::KEY_STATUS, dispatching: dispatch ? [ IncidentSystemField::KEY_STATUS ] : []),
           placeholder: copy_placeholder(IncidentSystemField::KEY_STATUS),
           options: status_options
         }
@@ -288,7 +324,7 @@ module Slack
 
         block = {
           type: "input",
-          block_id: "field_status_block",
+          block_id: block_id(IncidentSystemField::KEY_STATUS),
           element: element,
           label: copy_label(IncidentSystemField::KEY_STATUS),
           hint: copy_hint(IncidentSystemField::KEY_STATUS)
@@ -300,7 +336,7 @@ module Slack
       def self.text_custom_block(defn, optional:, initial_value: nil)
         element = {
           type: "plain_text_input",
-          action_id: "field_#{defn.slug}_input",
+          action_id: input_id(defn.slug),
           placeholder: { type: "plain_text", text: "Enter #{defn.name.downcase}" },
           max_length: 3000
         }
@@ -312,7 +348,7 @@ module Slack
       def self.number_custom_block(defn, optional:, initial_value: nil)
         element = {
           type: "plain_text_input",
-          action_id: "field_#{defn.slug}_input",
+          action_id: input_id(defn.slug),
           placeholder: { type: "plain_text", text: "Enter a number" }
         }
         element[:initial_value] = initial_value.to_s if initial_value.present?
@@ -328,7 +364,7 @@ module Slack
 
         element = {
           type: defn.multi_valued? ? "multi_static_select" : "static_select",
-          action_id: "field_#{defn.slug}_input",
+          action_id: input_id(defn.slug),
           placeholder: { type: "plain_text", text: "Select #{defn.name.downcase}" },
           options: options
         }
@@ -375,7 +411,7 @@ module Slack
       def self.wrap_input(defn, element, optional:)
         block = {
           type: "input",
-          block_id: "field_#{defn.slug}_block",
+          block_id: block_id(defn.slug),
           element: element,
           label: { type: "plain_text", text: defn.name },
           optional: optional

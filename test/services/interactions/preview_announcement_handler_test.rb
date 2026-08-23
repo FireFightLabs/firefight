@@ -22,14 +22,6 @@ class Interactions::PreviewAnnouncementHandlerTest < ActiveSupport::TestCase
     assert_equal "clear", result[:response_action]
   end
 
-  test "raises error if workspace not found" do
-    interaction = build_interaction(team_id: "T_NONEXISTENT")
-
-    assert_raises(ActiveRecord::RecordNotFound) do
-      Interactions::PreviewAnnouncementHandler.execute(interaction)
-    end
-  end
-
   private
 
   def build_interaction(team_id: @workspace.platform_id)

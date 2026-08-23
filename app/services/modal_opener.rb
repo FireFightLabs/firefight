@@ -26,11 +26,11 @@ class ModalOpener
       blocks: nil
     )
 
-    metadata = {
+    metadata = Slack::PrivateMetadata.encode(
       incident_id: incident.id,
       temp_message_ts: result[:message_id],
       channel_id: incident.channel_id
-    }.to_json
+    )
 
     view = config[:modal].constantize.build(incident, private_metadata: metadata)
     adapter.open_modal(trigger_id: trigger_id, view: view)

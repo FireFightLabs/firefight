@@ -93,6 +93,21 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "a click from a workspace Firefight does not know is dropped with 200 and never dispatched" do
+    InteractionDispatcher.expects(:dispatch).never
+    payload = {
+      type: "block_actions",
+      team: { id: "T_NOBODY" },
+      user: { id: "U12345678" },
+      actions: [ { type: "button", action_id: Identifiers::ACCEPT_INCIDENT, value: "x" } ]
+    }
+
+    request_data = slack_interaction_request(payload)
+    post api_v1_interactions_url, params: request_data[:body], headers: request_data[:headers]
+
+    assert_response :success
+  end
+
   test "should handle view_closed interaction" do
     payload = {
     type: "view_closed",

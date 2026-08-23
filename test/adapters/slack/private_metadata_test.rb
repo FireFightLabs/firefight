@@ -75,9 +75,19 @@ class Slack::PrivateMetadataTest < ActiveSupport::TestCase
     assert_raises(Slack::PrivateMetadata::InvalidError) { Slack::PrivateMetadata.parse("[1,2]") }
   end
 
-  test "parse raises InvalidError when incident_id is missing" do
-    error = assert_raises(Slack::PrivateMetadata::InvalidError) { Slack::PrivateMetadata.parse(%({"channel_id":"C1"})) }
+  test "a modal that carries no incident parses with a nil incident_id" do
+    result = Slack::PrivateMetadata.parse(%({"channel_id":"C1"}))
 
-    assert_match(/missing key/, error.message)
+    assert_nil result.incident_id
+    assert_equal "C1", result.channel_id
+  end
+
+  test "the source message a reaction carries survives the round trip" do
+    encoded = Slack::PrivateMetadata.encode(incident_id: "inc-1", source_message_text: "db is down", source_message_link: "https://slack/p1")
+    result = Slack::PrivateMetadata.parse(encoded)
+
+    assert_equal "db is down", result.source_message_text
+    assert_equal "https://slack/p1", result.source_message_link
+    assert_nil result.temp_message_ts
   end
 end

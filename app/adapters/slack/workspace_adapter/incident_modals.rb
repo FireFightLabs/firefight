@@ -63,13 +63,8 @@ module Slack::WorkspaceAdapter::IncidentModals
   # Push-vs-open dispatch: open as a top-level modal when invoked directly,
   # or push onto an existing stack when invoked from another modal (e.g.
   # the actions list).
-  def open_create_action_modal(trigger_id:, incident:, private_metadata: nil, push: false)
-    view = Slack::Modals::ActionItemsForm.build(incident, kind: :action, private_metadata: private_metadata)
-    push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
-  end
-
-  def open_create_followup_modal(trigger_id:, incident:, private_metadata: nil, push: false)
-    view = Slack::Modals::ActionItemsForm.build(incident, kind: :followup, private_metadata: private_metadata)
+  def open_action_item_modal(kind:, trigger_id:, incident:, private_metadata: nil, push: false)
+    view = Slack::Modals::ActionItemsForm.build(incident, kind: kind, private_metadata: private_metadata)
     push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
   end
 

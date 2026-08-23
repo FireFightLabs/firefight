@@ -5,7 +5,7 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
-      metadata = Slack::PrivateMetadata.parse(interaction.private_metadata)
+      metadata = interaction.metadata
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
       slug = interaction.values.dig("runbook_block", "runbook_select", "selected_option", "value")

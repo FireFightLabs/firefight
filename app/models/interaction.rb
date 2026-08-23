@@ -13,8 +13,12 @@ class Interaction
     attrs.each { |k, v| instance_variable_set(:"@#{k}", v) }
   end
 
+  # nil when the team is not one Firefight knows, the same shape Command
+  # gives so the controller and the dispatcher read one answer.
   def workspace
-    @workspace ||= Workspace.find_by!(platform: platform, platform_id: team_id)
+    return @workspace if defined?(@workspace)
+
+    @workspace = Workspace.find_by(platform: platform, platform_id: team_id)
   end
 
   # Who the Ability Gateway authorizes this interaction as. Provisioned on
@@ -46,10 +50,30 @@ class Interaction
     }.compact
   end
 
+  UUID = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
+
+  # The modal's private_metadata, parsed once. Blank means a modal that
+  # carries nothing. Malformed is logged and treated the same, so a bad
+  # string never reaches a handler as a surprise.
+  def metadata
+    return @metadata if defined?(@metadata)
+
+    @metadata = if private_metadata.blank?
+      Slack::PrivateMetadata::EMPTY
+    elsif private_metadata.to_s.match?(UUID)
+      # A modal opened before every builder encoded its metadata. Safe to
+      # drop once no such modal can still be open.
+      Slack::PrivateMetadata::Result.new(incident_id: private_metadata.to_s)
+    else
+      Slack::PrivateMetadata.parse(private_metadata)
+    end
+  rescue Slack::PrivateMetadata::InvalidError => e
+    Rails.logger.warn({ event: "interaction.private_metadata_invalid", callback_id: callback_id, error: e.message }.to_json)
+    @metadata = Slack::PrivateMetadata::EMPTY
+  end
+
   def incident_id
-    Slack::PrivateMetadata.parse(private_metadata).incident_id
-  rescue Slack::PrivateMetadata::InvalidError
-    nil
+    metadata.incident_id
   end
 
   # The attrs a resumed dispatch is rebuilt from, once an approval clears.
