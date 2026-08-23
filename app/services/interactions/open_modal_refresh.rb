@@ -13,13 +13,13 @@ module Interactions
       return if rebuilt.nil?
 
       workspace.adapter.update_modal(view_id: interaction.view_id, view: rebuilt)
-    rescue ActiveRecord::RecordNotFound, Slack::PrivateMetadata::InvalidError, AdapterError => e
+    rescue ActiveRecord::RecordNotFound, AdapterError => e
       Rails.logger.warn({ event: "interactions.modal_refresh_failed", error: e.message })
       nil
     end
 
     def self.rebuild(interaction, workspace)
-      metadata = Slack::PrivateMetadata.parse(interaction.private_metadata)
+      metadata = interaction.metadata
 
       if interaction.callback_id == Identifiers::RUNBOOK_DETAIL_MODAL
         return Slack::Modals::RunbookDetail.build(workspace.incident_runbooks.find(metadata.incident_runbook_id))

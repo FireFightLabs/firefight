@@ -83,8 +83,8 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     )
 
     assert_equal "errors", result[:response_action]
-    assert_not result[:errors].key?(:field_severity_block)
-    assert_includes result[:errors][:field_name_block], "verify your account"
+    assert_not result[:errors].key?(Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_SEVERITY))
+    assert_includes result[:errors][Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_NAME)], "verify your account"
   end
 
   test "returns a severity error when the member is known and the severity is not" do
@@ -93,8 +93,8 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     )
 
     assert_equal "errors", result[:response_action]
-    assert_not result[:errors].key?(:field_name_block)
-    assert_includes result[:errors][:field_severity_block], "Invalid severity selection"
+    assert_not result[:errors].key?(Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_NAME))
+    assert_includes result[:errors][Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_SEVERITY)], "Invalid severity selection"
   end
 
   test "creates incident with custom fields from form" do

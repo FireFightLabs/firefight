@@ -5,7 +5,7 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
-      metadata = Slack::PrivateMetadata.parse(interaction.private_metadata)
+      metadata = interaction.metadata
       incident_runbook = workspace.incident_runbooks.find(metadata.incident_runbook_id)
       step_id = interaction.block_id.to_s.delete_prefix(Identifiers::RUNBOOK_STEP_BLOCK_PREFIX)
       step = incident_runbook.runbook.runbook_steps.find(step_id)
@@ -25,7 +25,7 @@ module Interactions
 
       OpenModalRefresh.call(interaction, workspace)
       nil
-    rescue ActiveRecord::RecordNotFound, Slack::PrivateMetadata::InvalidError
+    rescue ActiveRecord::RecordNotFound
       nil
     end
   end

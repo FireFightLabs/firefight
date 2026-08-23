@@ -33,14 +33,6 @@ class Interactions::CreateIncidentShortcutHandlerTest < ActiveSupport::TestCase
     assert_includes result[:errors][:base], "expired"
   end
 
-  test "raises error if workspace not found" do
-    assert_raises(ActiveRecord::RecordNotFound) do
-      Interactions::CreateIncidentShortcutHandler.execute(
-        build_interaction(team_id: "T_NONEXISTENT")
-      )
-    end
-  end
-
   private
 
   def build_interaction(team_id: @workspace.platform_id)

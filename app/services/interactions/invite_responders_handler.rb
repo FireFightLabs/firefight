@@ -5,7 +5,7 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
-      metadata = Slack::PrivateMetadata.parse(interaction.private_metadata)
+      metadata = interaction.metadata
       incident = workspace.incidents.find(metadata.incident_id)
 
       user_ids = interaction.values.dig("invite_users_block", "invite_users_select", "selected_users") || []
@@ -25,7 +25,7 @@ module Interactions
       )
 
       { response_action: "clear" }
-    rescue ActiveRecord::RecordNotFound, Slack::PrivateMetadata::InvalidError
+    rescue ActiveRecord::RecordNotFound
       {
         response_action: "errors",
         errors: { invite_users_block: "Incident not found. Please try again." }

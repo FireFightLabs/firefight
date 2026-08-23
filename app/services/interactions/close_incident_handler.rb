@@ -5,7 +5,7 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
-      metadata = Slack::PrivateMetadata.parse(interaction.private_metadata)
+      metadata = interaction.metadata
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
@@ -37,7 +37,7 @@ module Interactions
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.warn({ event: "interactions.close_incident.record_not_found", error: e.message })
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata) if workspace && metadata
-      { response_action: "errors", errors: { "field_summary_block" => "Something went wrong. Please close this modal and try again." } }
+      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_SUMMARY) => "Something went wrong. Please close this modal and try again." } }
     end
 
     def self.resolve_lead(workspace, submission)
@@ -85,12 +85,12 @@ module Interactions
     private_class_method :build_close_attrs
 
     def self.already_closed_error
-      { response_action: "errors", errors: { "field_summary_block" => "This incident is already closed." } }
+      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_SUMMARY) => "This incident is already closed." } }
     end
     private_class_method :already_closed_error
 
     def self.lead_provision_error
-      { response_action: "errors", errors: { "field_lead_block" => "Couldn't load that user's profile from Slack. Please try again in a moment." } }
+      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_LEAD) => "Couldn't load that user's profile from Slack. Please try again in a moment." } }
     end
     private_class_method :lead_provision_error
   end

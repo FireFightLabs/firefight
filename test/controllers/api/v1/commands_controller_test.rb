@@ -104,32 +104,29 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "should provision new member before dispatching" do
+  test "a first-time user is provisioned exactly once, on the way through the dispatcher" do
     stub_get_user_info
-    CommandDispatcher.stubs(:dispatch).returns(nil)
+    stub_open_modal
+    WorkspaceMemberProvisioner.expects(:find_or_provision!).once.returns(nil)
 
     request_data = slack_command_request(
       team_id: @workspace.platform_id,
       user_id: "U_NEW_USER",
-      text: "help"
+      text: Identifiers::SUBCOMMAND_NEW
     )
-
-    assert_difference "WorkspaceMembership.count", 1 do
-      post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
-    end
-
-    membership = @workspace.workspace_memberships.find_by!(platform_user_id: "U_NEW_USER")
-    assert_equal "member", membership.role
-  end
-
-  test "should continue dispatching when provisioning fails" do
-    WorkspaceMemberProvisioner.stubs(:find_or_provision!).raises(StandardError.new("API down"))
-    CommandDispatcher.expects(:dispatch).once.returns(nil)
-
-    request_data = slack_command_request(team_id: @workspace.platform_id, text: "help")
     post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
 
     assert_response :success
+  end
+
+  test "a user whose profile cannot be read is refused with a message rather than dropped" do
+    WorkspaceMemberProvisioner.stubs(:find_or_provision!).raises(StandardError.new("API down"))
+
+    request_data = slack_command_request(team_id: @workspace.platform_id, text: Identifiers::SUBCOMMAND_NEW)
+    post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
+
+    assert_response :success
+    assert_equal AuthorizedDispatch::UNRESOLVED_MESSAGE, JSON.parse(response.body)["text"]
   end
 
   test "should reject request without signature" do

@@ -12,8 +12,7 @@ module Interactions
       )
       return nil if selected.blank?
 
-      metadata   = JSON.parse(interaction.private_metadata)
-      channel_id = metadata["channel_id"]
+      channel_id = interaction.metadata.channel_id
       workspace  = interaction.workspace
       adapter    = workspace.adapter
 

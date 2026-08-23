@@ -15,7 +15,7 @@ module Interactions
         })
         return {
           response_action: "errors",
-          errors: { field_name_block: "We could not verify your account. Please try again or contact support." }
+          errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_NAME) => "We could not verify your account. Please try again or contact support." }
         }
       end
 
@@ -63,10 +63,10 @@ module Interactions
       { response_action: "update", view: Slack::Modals::IncidentCreated.build(incident, team_id: workspace.platform_id) }
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.error({ event: "incident.creation_severity_not_found", error: e.message })
-      { response_action: "errors", errors: { field_severity_block: "Invalid severity selection. Please try again." } }
+      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_SEVERITY) => "Invalid severity selection. Please try again." } }
     rescue => e
       Rails.logger.error({ event: "incident.creation_error", error: e.message })
-      { response_action: "errors", errors: { field_name_block: "Failed to create incident. Please try again." } }
+      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_NAME) => "Failed to create incident. Please try again." } }
     end
   end
 end

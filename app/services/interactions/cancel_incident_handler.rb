@@ -5,7 +5,7 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
-      metadata = Slack::PrivateMetadata.parse(interaction.private_metadata)
+      metadata = interaction.metadata
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
@@ -53,7 +53,7 @@ module Interactions
     end
 
     def self.already_canceled_error
-      { response_action: "errors", errors: { "field_message_block" => "This incident is already canceled." } }
+      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_MESSAGE) => "This incident is already canceled." } }
     end
     private_class_method :already_canceled_error
   end

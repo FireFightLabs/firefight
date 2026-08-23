@@ -5,8 +5,7 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
-      incident_id = interaction.private_metadata
-      incident = workspace.incidents.find(incident_id)
+      incident = workspace.incidents.find(interaction.metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
       relationship_type = interaction.values.dig("relationship_type_block", "relationship_type_select", "selected_option", "value")

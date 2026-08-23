@@ -84,11 +84,13 @@ The service:
 Controllers validate requests, normalize payloads, dispatch synchronously, and render the response. No business logic. Slack requires response within 3 seconds (trigger_id expiration) — the controller stays in-process and meets that budget by relying on handlers to enqueue jobs when their work is heavy.
 
 ```
-Api::V1::CommandsController     → Slack::CommandParser.parse     → ensure_membership! → CommandDispatcher.dispatch     → render JSON / head :ok
-Api::V1::InteractionsController → Slack::InteractionParser.parse → ensure_membership! → InteractionDispatcher.dispatch → render JSON / head :ok
+Api::V1::CommandsController     → Slack::CommandParser.parse     → CommandDispatcher.dispatch     → render JSON / head :ok
+Api::V1::InteractionsController → Slack::InteractionParser.parse → InteractionDispatcher.dispatch → render JSON / head :ok
 ```
 
-`ensure_membership!` (in `Api::V1::BaseController`) lazily provisions a `WorkspaceMembership` for the acting Slack user via `WorkspaceMemberProvisioner` so downstream handlers can trust `find_by!(platform_user_id:)`. Best-effort — provisioning failure logs and dispatch continues.
+Who is acting is resolved once: `Command#principal` / `Interaction#principal` provision a `WorkspaceMembership` for the Slack user on the way through `AuthorizedDispatch`, before any gated handler runs, so handlers can trust `find_by!(platform_user_id:)`. A user whose profile cannot be read is refused with `AuthorizedDispatch::UNRESOLVED_MESSAGE`. An interaction from a `team_id` Firefight does not know is dropped with `head :ok` (there is no way to answer a click on an old message) and logged as `interaction.unknown_workspace`.
+
+A modal's `private_metadata` is parsed once by `Slack::InteractionParser` into the typed `Interaction#metadata` (`Slack::PrivateMetadata::Result`). Handlers read `interaction.metadata.incident_id` and friends and never parse the string themselves. Every modal builder encodes with `Slack::PrivateMetadata.encode`.
 
 Controllers are the platform-specific boundary — they normalize payloads into platform-agnostic objects before passing to dispatchers.
 

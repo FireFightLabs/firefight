@@ -9,7 +9,7 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
-      metadata = Slack::PrivateMetadata.parse(interaction.private_metadata)
+      metadata = interaction.metadata
       incident = workspace.incidents.find(metadata.incident_id)
 
       workspace.adapter.update_incident_update_modal(

@@ -16,14 +16,23 @@ module Slack
         }
       }.freeze
 
+      ACTION_TYPES = {
+        action: IncidentAction::ACTION_TYPE_ACTION,
+        followup: IncidentAction::ACTION_TYPE_FOLLOWUP
+      }.freeze
+
+      # The callback_id names the kind, so the submission handler does not
+      # have to be a separate class per kind.
+      def self.kind_for(callback_id)
+        KINDS.find { |_kind, cfg| cfg[:callback_id].call == callback_id }&.first
+      end
+
       def self.build(incident, kind:, private_metadata: nil)
         cfg = KINDS.fetch(kind)
         metadata = private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id)
-        # When this modal is launched from a reaction shortcut the caller
-        # encodes the source message text in the private_metadata so we can
-        # prefill the description.
-        parsed_metadata = JSON.parse(metadata) rescue {}
-        initial_description = parsed_metadata["source_message_text"]
+        # Launched from a reaction, the caller carries the source message text
+        # so the description can start from it.
+        initial_description = Slack::PrivateMetadata.parse(metadata).source_message_text
 
         description_element = {
           type: "plain_text_input",
