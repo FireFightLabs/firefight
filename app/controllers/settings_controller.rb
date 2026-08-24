@@ -74,7 +74,8 @@ class SettingsController < InertiaController
       ),
       catalogTypes: CatalogTypeOptionSerializer.many(
         current_workspace.catalog_types.active.ordered
-      )
+      ),
+      fieldTypeOptionSources: IncidentFieldDefinition::OPTION_SOURCES_BY_FIELD_TYPE
     }
   end
 

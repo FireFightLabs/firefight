@@ -36,6 +36,20 @@ class IncidentFieldDefinition < ApplicationRecord
     TYPE_CATALOG_MULTI_REFERENCE
   ].freeze
 
+  # Which option sources each field type accepts. The validation reads this
+  # map and the settings page ships it to the field dialog, so the rule and
+  # the picker cannot drift. A new field type offers nothing until it has a
+  # row here.
+  OPTION_SOURCES_BY_FIELD_TYPE = {
+    TYPE_TEXT => [ OPTION_SOURCE_NONE ],
+    TYPE_NUMBER => [ OPTION_SOURCE_NONE ],
+    TYPE_LINK => [ OPTION_SOURCE_NONE ],
+    TYPE_SINGLE_SELECT => [ OPTION_SOURCE_FIXED, OPTION_SOURCE_CATALOG ],
+    TYPE_MULTI_SELECT => [ OPTION_SOURCE_FIXED, OPTION_SOURCE_CATALOG ],
+    TYPE_CATALOG_REFERENCE => [ OPTION_SOURCE_CATALOG ],
+    TYPE_CATALOG_MULTI_REFERENCE => [ OPTION_SOURCE_CATALOG ]
+  }.freeze
+
   # Seven field types, but only three things a stored value can be, a pointer
   # at one of this field's own options, a pointer at a catalog entry, or a
   # scalar the responder typed. Everything that reads or writes a value
@@ -270,41 +284,20 @@ class IncidentFieldDefinition < ApplicationRecord
   end
 
   def options_match_field_type
-    case field_type
-    when TYPE_TEXT, TYPE_NUMBER, TYPE_LINK
-      validate_none_option_source!
-    when TYPE_SINGLE_SELECT, TYPE_MULTI_SELECT
-      validate_select_field_options!
-    when TYPE_CATALOG_REFERENCE, TYPE_CATALOG_MULTI_REFERENCE
-      validate_catalog_reference_options!
-    end
-  end
-
-  def validate_none_option_source!
-    if option_source != OPTION_SOURCE_NONE
-      errors.add(:option_source, "must be none for #{field_type} fields")
-    end
-  end
-
-  def validate_select_field_options!
-    if option_source == OPTION_SOURCE_FIXED
-      if incident_field_options.reject(&:marked_for_destruction?).none?(&:enabled?)
-        errors.add(:base, "must include at least one enabled option for fixed select fields")
-      end
-    elsif option_source == OPTION_SOURCE_CATALOG
-      validate_catalog_type_scope!
-    else
-      errors.add(:option_source, "must be fixed or catalog for #{field_type} fields")
-    end
-  end
-
-  def validate_catalog_reference_options!
-    if option_source != OPTION_SOURCE_CATALOG
-      errors.add(:option_source, "must be catalog for #{field_type} fields")
+    allowed = OPTION_SOURCES_BY_FIELD_TYPE.fetch(field_type) { return }
+    unless allowed.include?(option_source)
+      errors.add(:option_source, "must be #{allowed.join(' or ')} for #{field_type} fields")
       return
     end
 
-    validate_catalog_type_scope!
+    case option_source
+    when OPTION_SOURCE_FIXED
+      if incident_field_options.reject(&:marked_for_destruction?).none?(&:enabled?)
+        errors.add(:base, "must include at least one enabled option for fixed select fields")
+      end
+    when OPTION_SOURCE_CATALOG
+      validate_catalog_type_scope!
+    end
   end
 
   def validate_catalog_type_scope!

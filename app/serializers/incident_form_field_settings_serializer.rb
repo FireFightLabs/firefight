@@ -71,6 +71,13 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     source_definition.field_type
   end
 
+  # Whether the row renders as a select. The model classifies field types, so
+  # the form editor never keeps its own list of which ones are selects.
+  type :boolean
+  def selectable
+    IncidentFieldDefinition.selectable?(source_definition.field_type)
+  end
+
   # A system field is a code Definition, not an IncidentFieldDefinition, so the
   # option-related attributes below have no meaning for one.
   type :string, optional: true
