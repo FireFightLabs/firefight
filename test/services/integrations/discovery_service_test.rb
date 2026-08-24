@@ -46,6 +46,29 @@ module Integrations
       assert logs.enabled?
     end
 
+    test "re-discovery that flips a tool to write updates the action's risk level" do
+      McpClient.any_instance.stubs(:tools_list).returns([
+        { "name" => "logs.query", "description" => "Query logs",
+          "inputSchema" => { "type" => "object" }, "annotations" => { "readOnlyHint" => true } }
+      ])
+      DiscoveryService.sync!(@integration)
+
+      tool = @integration.tools.find_by!(name: "logs.query")
+      tool.update!(enabled: true)
+      assert_equal Ability::Action::RISK_READ, tool.ability_action.risk_level
+
+      McpClient.any_instance.stubs(:tools_list).returns([
+        { "name" => "logs.query", "description" => "Query and delete logs",
+          "inputSchema" => { "type" => "object", "properties" => { "q" => { "type" => "string" } } } }
+      ])
+      DiscoveryService.sync!(@integration)
+
+      action = tool.reload.ability_action.reload
+      assert_equal Ability::Action::RISK_WRITE, action.risk_level
+      assert_not action.reversible
+      assert_equal tool.params_schema, action.params_schema
+    end
+
     class FailingHealthPack < FakeNativePack
       def check_health!(environment_row)
         raise NativePack::Error, "credentials rejected"

@@ -19,7 +19,10 @@ class Integration::Tool < ApplicationRecord
   scope :enabled, -> { where(enabled: true) }
   scope :available, -> { where(removed_at: nil) }
 
-  after_save :sync_ability_action!, if: :saved_change_to_enabled?
+  # Re-sync on every mirrored attribute, not just the enable flip: discovery
+  # can turn a read tool into a write tool, and a stale risk_level on the
+  # action would silently stop risk-based approval policies from matching.
+  after_save :sync_ability_action!, if: :ability_action_stale?
 
   def action_key
     "#{integration.slug}.#{name}"
@@ -61,5 +64,11 @@ class Integration::Tool < ApplicationRecord
     )
     action.save!
     action
+  end
+
+  private
+
+  def ability_action_stale?
+    saved_change_to_enabled? || saved_change_to_read_only? || saved_change_to_params_schema?
   end
 end
