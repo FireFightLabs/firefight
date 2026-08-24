@@ -3,7 +3,7 @@ module IncidentAction::Snapshots
 
   included do
     include Trackable
-    tracked_by IncidentActionUpdate
+    tracked_by IncidentActionUpdate, diff_ignores: %i[ message_ts ]
   end
 
   def snapshot_attributes
