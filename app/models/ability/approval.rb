@@ -22,9 +22,6 @@ module Ability
 
     scope :pending, -> { where(status: STATUS_PENDING) }
 
-    after_create_commit :notify_approvers, if: :pending?
-    after_update_commit :resume_parked_request, if: :saved_change_to_status?
-
     def self.digest(action_key, params, scope)
       Digest::SHA256.hexdigest(JSON.generate([ action_key, canonical(params), canonical(scope) ]))
     end
@@ -92,17 +89,17 @@ module Ability
 
     private
 
-    def notify_approvers
-      AbilityApprovalNotificationJob.perform_later(approval_id: id)
-    end
-
-    # Slack requests carry the payload that produced them, because a person
-    # cannot retry a click the way the API and MCP callers retry a call.
+    # A parked chat request carries the payload that produced it, because a
+    # person cannot retry a click the way the API and MCP callers retry a
+    # call. Replay is enqueued here, after the decision commits, rather than
+    # from a model callback, so creating or editing a row elsewhere never
+    # triggers platform traffic on its own.
     def resume_parked_request
       return if resume_payload.blank?
-      return unless approved? || denied?
 
-      AbilityApprovalResumptionJob.perform_later(approval_id: id)
+      ActiveRecord.after_all_transactions_commit do
+        AbilityApprovalResumptionJob.perform_later(approval_id: id)
+      end
     end
 
     # Approver re-validated at click time, still pending and holds the
@@ -117,6 +114,7 @@ module Ability
       end
 
       update!(status: new_status, approver: membership, resolved_at: Time.current)
+      resume_parked_request
     end
   end
 end

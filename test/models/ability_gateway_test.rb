@@ -1,6 +1,7 @@
 require "test_helper"
 
 class AbilityGatewayTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @key = api_keys(:read_only_key)
@@ -182,8 +183,11 @@ class AbilityGatewayTest < ActiveSupport::TestCase
     key = api_keys(:full_access_key)
     create_approval_policy
 
-    error = assert_raises(AbilityGateway::PendingApproval) do
-      AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace) { :never }
+    error = nil
+    assert_enqueued_with(job: AbilityApprovalNotificationJob) do
+      error = assert_raises(AbilityGateway::PendingApproval) do
+        AbilityGateway.authorize!(principal: key, action_key: "catalog.delete", workspace: @workspace) { :never }
+      end
     end
 
     approval = error.approval

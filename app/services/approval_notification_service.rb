@@ -9,16 +9,16 @@ class ApprovalNotificationService
     return if channel_id.blank?
 
     result = WorkspaceAdapter.for(workspace).post_approval_request(approval: approval, channel_id: channel_id)
-    approval.update!(slack_channel_id: result[:channel_id], slack_message_ts: result[:message_id])
+    approval.update!(notification_channel_id: result[:channel_id], notification_message_id: result[:message_id])
   rescue AdapterError => e
     Rails.logger.warn({ event: "approval.notification_failed", approval_id: approval.id, error: e.class.name }.to_json)
   end
 
   def self.mark_resolved!(approval)
-    return if approval.slack_channel_id.blank? || approval.slack_message_ts.blank?
+    return if approval.notification_channel_id.blank? || approval.notification_message_id.blank?
 
     WorkspaceAdapter.for(approval.workspace).mark_approval_resolved(
-      approval: approval, channel_id: approval.slack_channel_id, message_id: approval.slack_message_ts
+      approval: approval, channel_id: approval.notification_channel_id, message_id: approval.notification_message_id
     )
   rescue AdapterError => e
     Rails.logger.warn({ event: "approval.resolution_update_failed", approval_id: approval.id, error: e.class.name }.to_json)
