@@ -4,8 +4,7 @@ module FirefightAi
       @workspace = workspace
     end
 
-    # What the model wrote, as markdown per section. The app turns it into a
-    # document and delivers it. Section keys follow Schemas::Postmortem.
+    # Markdown per section, keyed as in Schemas::Postmortem.
     Draft = Struct.new(:title, :summary, :sections, :model, keyword_init: true)
 
     def generate(incident)

@@ -72,9 +72,6 @@ class Postmortem < ApplicationRecord
     update!(generation_state: GENERATION_FAILED, generation_error: reason)
   end
 
-  # Turns what the AI engine wrote into the document: each section rendered
-  # from markdown under its heading, the placeholder (or a fresh row) filled,
-  # and the generation recorded on the timeline.
   def self.complete_generation!(incident, draft, generated_by:)
     html = SECTION_KEYS.filter_map do |key|
       body = draft.sections[key]

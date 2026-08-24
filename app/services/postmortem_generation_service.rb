@@ -1,6 +1,4 @@
-# Turns the AI engine's draft into the incident's postmortem and announces
-# it. A service because it coordinates a model write, an event, and the
-# platform adapter. The engine only writes the text.
+# Saves the engine's draft as the incident's postmortem and announces it.
 class PostmortemGenerationService
   def initialize(workspace)
     @workspace = workspace
