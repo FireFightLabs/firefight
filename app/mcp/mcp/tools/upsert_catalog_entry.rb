@@ -38,7 +38,7 @@ module Mcp
             service.create(type: type, name: args[:name].to_s, raw_attributes: raw_attributes)
           end
 
-        respond(slug: entry.slug, name: entry.name, type: type.slug, attributes: entry.attributes)
+        respond(slug: entry.slug, name: entry.name, type: type.slug, attributes: entry.entry_attributes)
       end
     end
   end

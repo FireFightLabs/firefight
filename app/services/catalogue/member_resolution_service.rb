@@ -5,16 +5,12 @@ module Catalogue
     end
 
     def resolve_for_entries(entries, type)
-      member_defs = type.catalog_attribute_definitions.select do |d|
-        d.attribute_type.in?([ CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER,
-                               CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS ])
-      end
-      return [] if member_defs.empty?
+      member_keys = type.member_attribute_slugs
+      return [] if member_keys.empty?
 
-      member_keys = member_defs.map(&:slug)
       member_ids = entries.flat_map do |entry|
         attrs = entry.entry_attributes
-        member_keys.flat_map { |k| Array(attrs[k]) }
+        member_keys.flat_map { |key| Array(attrs[key]) }
       end.compact.uniq
 
       return [] if member_ids.empty?

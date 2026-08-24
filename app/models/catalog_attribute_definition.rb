@@ -13,6 +13,10 @@ class CatalogAttributeDefinition < ApplicationRecord
     TYPE_SLACK_CHANNEL, TYPE_WORKSPACE_MEMBER, TYPE_WORKSPACE_MEMBERS
   ].freeze
 
+  # The types whose values are workspace membership ids. Member pickers and
+  # name resolution both key off this list.
+  MEMBER_TYPES = [ TYPE_WORKSPACE_MEMBER, TYPE_WORKSPACE_MEMBERS ].freeze
+
   belongs_to :catalog_type
   has_many :catalog_entry_relationships
 

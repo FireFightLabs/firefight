@@ -26,17 +26,12 @@ class Policy::ContextBuilder
   end
 
   def self.resolve_entry(workspace, system_key, slug)
-    CatalogEntry.active
-      .joins(:catalog_type)
-      .where(workspace: workspace, slug: slug)
-      .find_by(catalog_types: { system_key: system_key })
+    workspace.catalog_entries.in_system_type(system_key).find_by(slug: slug)
   end
 
   def self.merge_related_entries(context, entry)
-    entry.outgoing_relationships.includes(target_entry: :catalog_type).each do |relationship|
+    entry.active_outgoing_relationships.each do |relationship|
       target = relationship.target_entry
-      next if target.deleted_at?
-
       target_key = target.catalog_type.system_key
       next if target_key.blank? || context[target_key].present?
 
@@ -45,7 +40,7 @@ class Policy::ContextBuilder
   end
 
   def self.merge_entry_attributes(context, system_key, entry)
-    entry[:attributes].each do |name, value|
+    entry.entry_attributes.each do |name, value|
       next unless value.is_a?(String) || value.is_a?(Numeric) || value == true || value == false
 
       key = "#{system_key}.#{name}"
