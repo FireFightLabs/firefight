@@ -77,6 +77,13 @@ class CatalogType < ApplicationRecord
     read_attribute("entry_count") || catalog_entries.active.count
   end
 
+  # The attribute definition tagged with the given routing role, nil when the
+  # workspace has not tagged one. Reads the association in memory, so a
+  # preloaded type answers without a query.
+  def role_attribute(role)
+    catalog_attribute_definitions.detect { |definition| definition.role == role }
+  end
+
   # The attribute slugs holding workspace members, the one rule the member
   # pickers and MCP name resolution share.
   def member_attribute_slugs

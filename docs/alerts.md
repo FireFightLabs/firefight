@@ -149,8 +149,9 @@ Severity resolves as `outcome["severity_id"]` → `AlertSource#resolve_severity`
 
 ### Targets
 
-`Alert::TargetResolver` turns outcome targets (`channel`, `member`, `team`, `owning_team`) into destinations. `owning_team` reads the alert's service field, finds the catalog entry, walks its relationships to a team, and takes the **service's own `slack_channel` first, then the team's** (specific beats general).
+`Alert::TargetResolver` turns outcome targets (`channel`, `member`, `team`, `owning_team`) into destinations. `owning_team` reads the alert's service field, finds the catalog entry, walks its relationships to a team, and takes the **service's own notification channel first, then the team's** (specific beats general).
 
+- **People and channels resolve through attribute roles, never slugs.** Each catalog attribute definition can carry a `role` (`members`, `manager`, `notification_channel`, constants on `CatalogAttributeDefinition`), set in the type editor and seeded on the defaults. The resolver asks `entry.role_value(role)`, so a workspace can rename its attributes freely. `Alert::RoutingRoleGaps` names the roles the workspace's rules need but nothing is tagged for; the alert routing page shows them as a banner and MCP's `evaluate_routing` returns them as `role_warnings`.
 - **Resolved at fire time, never stored**, so routing follows catalog reorgs automatically.
 - **Every miss is a note, never an exception. The incident must always win.** Notes surface as `unresolved_targets` on the attach event and as warnings in the tester. A resolver that raises would let a catalog typo block an incident.
 

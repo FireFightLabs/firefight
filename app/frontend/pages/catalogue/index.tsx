@@ -5,16 +5,17 @@ import { useState } from "react"
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Button } from "@/components/ui/button"
 import { TypeGrid } from "@/pages/catalogue/components/index/type-grid"
-import { TypeFormDialog } from "@/pages/catalogue/components/type-form-dialog"
+import { TypeFormDialog, type AttributeRoleOption } from "@/pages/catalogue/components/type-form-dialog"
 import type { CatalogType } from "@/pages/catalogue/types"
 import type { SharedProps } from "@/types"
 
 interface CataloguePageProps extends SharedProps {
   types: CatalogType[]
+  attributeRoles: AttributeRoleOption[]
 }
 
 export default function CataloguePage() {
-  const { types } = usePage<CataloguePageProps>().props
+  const { types, attributeRoles } = usePage<CataloguePageProps>().props
   const [createOpen, setCreateOpen] = useState(false)
 
   return (
@@ -36,7 +37,7 @@ export default function CataloguePage() {
         <TypeGrid types={types} />
       </div>
 
-      <TypeFormDialog availableTypes={types} open={createOpen} onOpenChange={setCreateOpen} />
+      <TypeFormDialog availableTypes={types} attributeRoles={attributeRoles} open={createOpen} onOpenChange={setCreateOpen} />
     </AuthenticatedLayout>
   )
 }

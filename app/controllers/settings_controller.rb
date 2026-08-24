@@ -197,7 +197,8 @@ class SettingsController < InertiaController
       members: WorkspaceMembershipSerializer.many(
         current_workspace.workspace_memberships.includes(:user)
       ),
-      catalogOptions: catalog_condition_options
+      catalogOptions: catalog_condition_options,
+      roleWarnings: Alert::RoutingRoleGaps.for(current_workspace)
     }
   end
 

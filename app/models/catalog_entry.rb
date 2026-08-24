@@ -37,6 +37,13 @@ class CatalogEntry < ApplicationRecord
     self[:attributes] || {}
   end
 
+  # The value held by the attribute tagged with the given routing role, nil
+  # when the type has no attribute tagged or the entry left it empty.
+  def role_value(role)
+    slug = catalog_type.role_attribute(role)&.slug
+    slug && entry_attributes[slug]
+  end
+
   # The outgoing relationships whose target still exists. Preloads targets
   # and their types when the association is cold, and filters in memory when
   # it is already loaded. Every resolver hopping to a related entry reads

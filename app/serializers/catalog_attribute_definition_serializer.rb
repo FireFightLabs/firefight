@@ -10,10 +10,16 @@ class CatalogAttributeDefinitionSerializer < BaseSerializer
   )
 
   ATTRIBUTE_TYPE_UNION = CatalogAttributeDefinition::ATTRIBUTE_TYPES.map(&:inspect).join(" | ")
+  ROLE_UNION = CatalogAttributeDefinition::ROLES.map(&:inspect).join(" | ")
 
   type ATTRIBUTE_TYPE_UNION
   def attribute_type
     attr_def.attribute_type
+  end
+
+  type ROLE_UNION, optional: true
+  def role
+    attr_def.role
   end
 
   type :string, optional: true

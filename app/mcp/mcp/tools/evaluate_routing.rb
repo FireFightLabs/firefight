@@ -48,6 +48,8 @@ module Mcp
           trace: result.trace
         }
         payload[:docs_url] = Docs::ROUTING_RULES unless result.matched?
+        role_warnings = Alert::RoutingRoleGaps.for(workspace)
+        payload[:role_warnings] = role_warnings if role_warnings.any?
         respond(payload)
       end
 

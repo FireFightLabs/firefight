@@ -13,9 +13,32 @@ team_slack_channel:
   catalog_type_id: aa000001-0000-0000-0000-000000000001
   slug: slack_channel
   name: Slack Channel
-  attribute_type: text
+  attribute_type: slack_channel
   required: false
   position: 2
+  role: notification_channel
+  config: {}
+
+team_manager:
+  id: bb000001-0000-0000-0000-000000000009
+  catalog_type_id: aa000001-0000-0000-0000-000000000001
+  slug: manager
+  name: Manager
+  attribute_type: workspace_member
+  required: false
+  position: 3
+  role: manager
+  config: {}
+
+team_members:
+  id: bb000001-0000-0000-0000-000000000010
+  catalog_type_id: aa000001-0000-0000-0000-000000000001
+  slug: members
+  name: Members
+  attribute_type: workspace_members
+  required: false
+  position: 4
+  role: members
   config: {}
 
 service_description:
@@ -47,6 +70,17 @@ service_tier:
   required: false
   position: 3
   config: { "options": ["Critical", "Standard", "Internal"] }
+
+service_slack_channel:
+  id: bb000001-0000-0000-0000-000000000011
+  catalog_type_id: aa000001-0000-0000-0000-000000000002
+  slug: slack_channel
+  name: Slack Channel
+  attribute_type: slack_channel
+  required: false
+  position: 4
+  role: notification_channel
+  config: {}
 
 env_is_production:
   id: bb000001-0000-0000-0000-000000000006

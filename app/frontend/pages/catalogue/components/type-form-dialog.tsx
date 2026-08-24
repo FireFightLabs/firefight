@@ -51,14 +51,21 @@ function nameErrors(errors: Errors): Errors {
   return pickErrors(errors, ...NAME_FIELDS)
 }
 
+export interface AttributeRoleOption {
+  value: string
+  label: string
+  attributeTypes: string[]
+}
+
 interface TypeFormDialogProps {
   type?: CatalogType | null
   availableTypes: CatalogType[]
+  attributeRoles: AttributeRoleOption[]
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: TypeFormDialogProps) {
+export function TypeFormDialog({ type, availableTypes, attributeRoles, open, onOpenChange }: TypeFormDialogProps) {
   const isEdit = !!type
   const [name, setName] = useState(type?.name ?? "")
   const [description, setDescription] = useState(type?.description ?? "")
@@ -127,6 +134,24 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
     setAttributes((prev) => prev.filter((attribute) => attribute.id !== id))
   }
 
+  const rolesFor = (attributeType: string) =>
+    attributeRoles.filter((role) => role.attributeTypes.includes(attributeType))
+
+  const changeAttributeType = (id: string, value: string) => {
+    const attribute = attributes.find((candidate) => candidate.id === id)
+    const keepsRole = attribute?.role && rolesFor(value).some((role) => role.value === attribute.role)
+    updateAttribute(id, {
+      attributeType: value as AttributeType,
+      referenceTypeId: value === "reference" ? "" : undefined,
+      options: value === "select" ? ["Option 1"] : undefined,
+      role: keepsRole ? attribute.role : undefined,
+    })
+  }
+
+  const setAttributeRole = (id: string, value: string) => {
+    updateAttribute(id, { role: value === "none" ? undefined : (value as AttributeDefinition["role"]) })
+  }
+
   const nameError = errors.name ?? errors.slug
 
   const handleSubmit = () => {
@@ -141,6 +166,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
       position: index,
       referenceTypeId: attr.attributeType === "reference" ? attr.referenceTypeId : undefined,
       options: attr.attributeType === "select" ? attr.options : undefined,
+      role: attr.role ?? null,
     }))
 
     const data = { name, description, color, icon: isEdit ? type?.icon ?? "box" : "box", attribute_definitions: attributeDefinitions }
@@ -239,13 +265,7 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                       />
                       <Select
                         value={attr.attributeType}
-                        onValueChange={(value) =>
-                          updateAttribute(attr.id, {
-                            attributeType: value as AttributeType,
-                            referenceTypeId: value === "reference" ? "" : undefined,
-                            options: value === "select" ? ["Option 1"] : undefined,
-                          })
-                        }
+                        onValueChange={(value) => changeAttributeType(attr.id, value)}
                       >
                         <SelectTrigger className="h-8 w-28 text-xs shrink-0">
                           <SelectValue />
@@ -276,6 +296,26 @@ export function TypeFormDialog({ type, availableTypes, open, onOpenChange }: Typ
                         <IconTrash className="size-3.5" />
                       </Button>
                     </div>
+
+                    {rolesFor(attr.attributeType).length > 0 && (
+                      <div className="mt-2 ml-6 flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground shrink-0">Role</span>
+                        <Select value={attr.role ?? "none"} onValueChange={(value) => setAttributeRole(attr.id, value)}>
+                          <SelectTrigger className="h-7 w-44 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No role</SelectItem>
+                            {rolesFor(attr.attributeType).map((role) => (
+                              <SelectItem key={role.value} value={role.value}>
+                                {role.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-[11px] text-muted-foreground">Used by alert routing</span>
+                      </div>
+                    )}
 
                     {attr.attributeType === "reference" && (
                       <div className="mt-2 ml-6 flex items-center gap-2">

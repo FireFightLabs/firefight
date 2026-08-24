@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { EntryTable } from "@/pages/catalogue/components/type/entry-table"
 import { EntryFormDialog } from "@/pages/catalogue/components/type/entry-form-dialog"
-import { TypeFormDialog } from "@/pages/catalogue/components/type-form-dialog"
+import { TypeFormDialog, type AttributeRoleOption } from "@/pages/catalogue/components/type-form-dialog"
 import { CatalogIcon } from "@/pages/catalogue/lib/icon-map"
 import type { CatalogType, CatalogEntry, ReferenceEntry, WorkspaceMember } from "@/pages/catalogue/types"
 import type { SharedProps } from "@/types"
@@ -19,10 +19,11 @@ interface CatalogueTypePageProps extends SharedProps {
   allTypes: CatalogType[]
   referenceEntries: ReferenceEntry[]
   workspaceMembers: WorkspaceMember[]
+  attributeRoles: AttributeRoleOption[]
 }
 
 export default function CatalogueTypePage() {
-  const { type, entries, allTypes, referenceEntries, workspaceMembers } = usePage<CatalogueTypePageProps>().props
+  const { type, entries, allTypes, referenceEntries, workspaceMembers, attributeRoles } = usePage<CatalogueTypePageProps>().props
   const [addEntryOpen, setAddEntryOpen] = useState(false)
   const [editTypeOpen, setEditTypeOpen] = useState(false)
 
@@ -90,6 +91,7 @@ export default function CatalogueTypePage() {
       <TypeFormDialog
         type={type}
         availableTypes={allTypes}
+        attributeRoles={attributeRoles}
         open={editTypeOpen}
         onOpenChange={setEditTypeOpen}
       />
