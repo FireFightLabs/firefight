@@ -136,10 +136,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     scope = scope.where(incident_severity_id: params[:severity_id]) if params[:severity_id].present?
     scope = scope.where(incident_status_id: params[:status_id]) if params[:status_id].present?
 
-    if params[:lifecycle_stage].present?
-      scope = scope.joins(incident_status: :incident_lifecycle_stage)
-        .where(incident_lifecycle_stages: { key: params[:lifecycle_stage] })
-    end
+    scope = scope.by_lifecycle_stage_keys(params[:lifecycle_stage]) if params[:lifecycle_stage].present?
 
     scope
   end

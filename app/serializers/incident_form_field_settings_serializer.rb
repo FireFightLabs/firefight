@@ -78,16 +78,15 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     form_field.system? ? IncidentFieldDefinition::OPTION_SOURCE_NONE : source_definition.option_source
   end
 
-  # Sorted in Ruby so the preload survives. Reaching for `.active.ordered` here
-  # builds a fresh relation and puts the settings page back to a query per row.
+  # selectable_values filters in Ruby, so the settings page preload survives.
+  # Catalog-backed fields stay empty here, the form editor names the catalog
+  # type instead of listing its entries.
   type "{ id: string; name: string }[]", optional: true
   def options
     return [] if form_field.system?
+    return [] unless source_definition.fixed_options?
 
-    source_definition.incident_field_options
-      .select(&:enabled?)
-      .sort_by { |option| [ option.position, option.created_at ] }
-      .map { |option| { id: option.id, name: option.label } }
+    source_definition.selectable_values.map { |id, label| { id: id, name: label } }
   end
 
   type :string, optional: true

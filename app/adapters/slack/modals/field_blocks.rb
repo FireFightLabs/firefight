@@ -222,9 +222,9 @@ module Slack
 
       def self.severity_block(workspace, form_field, selected_severity_slug: nil, dispatch: false)
         severities = workspace.incident_severities.active.ordered
-        default_severity = severities.find(&:is_default?) || severities.last
+        default_severity = IncidentSeverity.preselected(severities)
         selected_severity = if selected_severity_slug
-          severities.find { |s| s.slug == selected_severity_slug } || default_severity
+          severities.find { |severity| severity.slug == selected_severity_slug } || default_severity
         else
           default_severity
         end
@@ -299,10 +299,7 @@ module Slack
       # responder resolve an incident into Investigating.
       def self.status_block(workspace, form_field, incident: nil, stage: nil, dispatch: false, selected_status_slug: nil)
         statuses = workspace.incident_statuses.active.ordered
-        if stage
-          statuses = statuses.joins(:incident_lifecycle_stage)
-            .where(incident_lifecycle_stages: { key: stage })
-        end
+        statuses = statuses.in_stage(stage) if stage
         status_options = statuses.map do |status|
           option = { text: { type: "plain_text", text: status.name }, value: status.slug }
           option[:description] = { type: "plain_text", text: status.description } if status.description.present?
@@ -382,7 +379,7 @@ module Slack
 
       def self.custom_field_options(defn)
         defn.selectable_values.map do |id, label|
-          { text: { type: "plain_text", text: label.truncate(75) }, value: id }
+          { text: { type: "plain_text", text: label.truncate(IncidentFieldOption::MAX_LABEL_LENGTH) }, value: id }
         end
       end
 

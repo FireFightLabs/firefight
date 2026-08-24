@@ -1,6 +1,26 @@
 require "test_helper"
 
 class IncidentFieldDefinitionTest < ActiveSupport::TestCase
+  test "selectable_values keeps position order and skips disabled options" do
+    definition = incident_field_definitions(:customer_tier_ws1)
+    incident_field_options(:customer_tier_pro).update!(disabled_at: Time.current)
+
+    assert_equal [ "Enterprise", "Free" ], definition.selectable_values.values
+  end
+
+  test "selectable_values reads a preloaded options association without a query" do
+    definition = IncidentFieldDefinition.includes(:incident_field_options)
+      .find(incident_field_definitions(:customer_tier_ws1).id)
+
+    queries = 0
+    counter = ->(*, payload) { queries += 1 unless payload[:name] == "SCHEMA" }
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      definition.selectable_values
+    end
+
+    assert_equal 0, queries
+  end
+
   test "fixed select fields require at least one enabled option" do
     field = IncidentFieldDefinition.new(
       workspace: workspaces(:slack_workspace_one),

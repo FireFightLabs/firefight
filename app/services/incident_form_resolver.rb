@@ -261,8 +261,7 @@ class IncidentFormResolver
 
   def statuses_in_stage(stage)
     @statuses_in_stage ||= {}
-    @statuses_in_stage[stage] ||= @workspace.incident_statuses.active.joins(:incident_lifecycle_stage)
-      .where(incident_lifecycle_stages: { key: stage }).count
+    @statuses_in_stage[stage] ||= @workspace.incident_statuses.active.in_stage(stage).count
   end
 
   def incident_types?

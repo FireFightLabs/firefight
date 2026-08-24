@@ -8,11 +8,15 @@ class IncidentStatus < ApplicationRecord
 
   belongs_to :incident_lifecycle_stage
 
-  scope :triage, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::TRIAGE }) }
-  scope :live, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: [ IncidentLifecycleStage::TRIAGE, IncidentLifecycleStage::ACTIVE ] }) }
-  scope :closed, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::CLOSED }) }
-  scope :canceled, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: IncidentLifecycleStage::CANCELED }) }
-  scope :terminal, -> { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: [ IncidentLifecycleStage::CLOSED, IncidentLifecycleStage::CANCELED ] }) }
+  # The one place that knows how a status maps to its lifecycle stage. Every
+  # stage filter goes through here, so the join is never retyped elsewhere.
+  scope :in_stage, ->(keys) { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: keys }) }
+
+  scope :triage, -> { in_stage(IncidentLifecycleStage::TRIAGE) }
+  scope :live, -> { in_stage([ IncidentLifecycleStage::TRIAGE, IncidentLifecycleStage::ACTIVE ]) }
+  scope :closed, -> { in_stage(IncidentLifecycleStage::CLOSED) }
+  scope :canceled, -> { in_stage(IncidentLifecycleStage::CANCELED) }
+  scope :terminal, -> { in_stage([ IncidentLifecycleStage::CLOSED, IncidentLifecycleStage::CANCELED ]) }
   scope :default_status, -> { active.find_by(is_default: true) }
 
   delegate :triage?, :active?, :closed?, :canceled?, to: :incident_lifecycle_stage

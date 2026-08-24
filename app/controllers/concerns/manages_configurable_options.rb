@@ -41,12 +41,12 @@ module ManagesConfigurableOptions
   def disable
     return redirect_blocked(@option.disable_blocked_reason) if @option.disable_blocked_reason
 
-    @option.update!(deleted_at: Time.current)
+    @option.disable!
     redirect_to options_path, notice: "#{@option.name} was disabled."
   end
 
   def enable
-    @option.update!(deleted_at: nil)
+    @option.enable!
     redirect_to options_path, notice: "#{@option.name} was enabled."
   end
 

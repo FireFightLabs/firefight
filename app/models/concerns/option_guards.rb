@@ -26,6 +26,16 @@ module OptionGuards
     deleted_at.nil?
   end
 
+  # Soft delete is a method, not a column callers write. Disabled rows stay
+  # listed on the settings screen so an admin can enable them again.
+  def disable!
+    update!(deleted_at: Time.current)
+  end
+
+  def enable!
+    update!(deleted_at: nil)
+  end
+
   # Reads the count attached by with_usage_counts, falling back to a query so a
   # caller that forgot the scope gets a correct answer, not a permissive one.
   def usage_count

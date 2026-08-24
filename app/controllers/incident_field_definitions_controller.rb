@@ -19,12 +19,12 @@ class IncidentFieldDefinitionsController < InertiaController
   end
 
   def disable
-    @field_definition.update!(deleted_at: Time.current)
+    @field_definition.disable!
     redirect_to settings_custom_fields_path, notice: "#{@field_definition.name} was disabled."
   end
 
   def enable
-    @field_definition.update!(deleted_at: nil)
+    @field_definition.enable!
     redirect_to settings_custom_fields_path, notice: "#{@field_definition.name} was enabled."
   end
 

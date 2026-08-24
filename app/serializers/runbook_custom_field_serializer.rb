@@ -10,7 +10,9 @@ class RunbookCustomFieldSerializer < BaseSerializer
 
   type "{ id: string; name: string }[]"
   def options
-    field_definition.incident_field_options.active.ordered.map { |option| { id: option.id, name: option.label } }
+    return [] unless field_definition.fixed_options?
+
+    field_definition.selectable_values.map { |id, label| { id: id, name: label } }
   end
 
   type :string, optional: true
@@ -22,9 +24,6 @@ class RunbookCustomFieldSerializer < BaseSerializer
   def entries
     return [] unless field_definition.catalog_options?
 
-    field_definition.workspace.catalog_entries.active
-      .where(catalog_type_id: field_definition.catalog_type_id)
-      .order(:name)
-      .map { |entry| { id: entry.id, name: entry.name } }
+    field_definition.selectable_values.map { |id, label| { id: id, name: label } }
   end
 end

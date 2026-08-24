@@ -66,8 +66,7 @@ class Incident < ApplicationRecord
     where(incident_severity_id: IncidentSeverity.where(slug: slugs).select(:id))
   }
   scope :by_lifecycle_stage_keys, ->(keys) {
-    where(incident_status_id: IncidentStatus.joins(:incident_lifecycle_stage)
-      .where(incident_lifecycle_stages: { key: keys }).select(:id))
+    where(incident_status_id: IncidentStatus.in_stage(keys).select(:id))
   }
   scope :with_list_associations, -> {
     includes(

@@ -98,7 +98,7 @@ class IncidentFieldDefinition < ApplicationRecord
   end
 
   def self.generate_slug(name)
-    name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
+    Sluggable.word_slug(name)
   end
 
   def multi_valued?
@@ -136,13 +136,16 @@ class IncidentFieldDefinition < ApplicationRecord
     end
   end
 
-  # Id => label for whatever this field currently offers, disabled and archived
-  # rows excluded so they stop being submittable without disturbing the
-  # incidents already holding them.
+  # Id => label for whatever this field currently offers, in display order.
+  # Disabled and archived rows drop out, so they stop being submittable
+  # without disturbing the incidents already holding them. Serializers,
+  # jbuilders, and the resolver all read from here rather than rebuilding the
+  # list. The method filters options in Ruby, so a preloaded association
+  # survives without a query per row.
   def selectable_values
     case storage_kind
     when STORAGE_OPTION
-      incident_field_options.active.to_h { |option| [ option.id, option.label ] }
+      incident_field_options.select(&:enabled?).to_h { |option| [ option.id, option.label ] }
     when STORAGE_CATALOG_ENTRY
       return {} if catalog_type_id.blank?
 

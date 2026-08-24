@@ -17,9 +17,8 @@ module Interactions
         return nil
       end
 
-      active_stage = IncidentLifecycleStage.find_by!(key: IncidentLifecycleStage::ACTIVE)
       active_status = workspace.incident_statuses.active
-        .where(incident_lifecycle_stage: active_stage)
+        .in_stage(IncidentLifecycleStage::ACTIVE)
         .ordered
         .first!
 
