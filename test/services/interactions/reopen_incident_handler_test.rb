@@ -90,6 +90,20 @@ class Interactions::ReopenIncidentHandlerTest < ActiveSupport::TestCase
     assert_equal "Not actually fixed", workflow.context["reason"]
   end
 
+  test "never reopens into a disabled default status" do
+    stub_all_side_effects
+    @investigating_status.update!(deleted_at: Time.current)
+
+    result = Interactions::ReopenIncidentHandler.execute(build_interaction)
+
+    assert_nil result
+    @incident.reload
+    assert @incident.active?
+    assert_not_equal @investigating_status, @incident.incident_status
+    assert_nil @incident.incident_status.deleted_at
+    assert @incident.incident_status.live?
+  end
+
   test "returns error when incident is already active" do
     @incident.update!(incident_status: @investigating_status, resolved_at: nil)
     stub_all_side_effects
