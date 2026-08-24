@@ -128,7 +128,7 @@ Slack is an entry point like the API and MCP, so it has one gate, in its dispatc
 - Modal openers declare a read and the submission handler declares the write, so a refusal for a gated user lands on submit rather than on the button.
 - The acting principal is the clicker's `WorkspaceMembership`, provisioned on demand by `Interaction#principal` / `Command#principal`. No principal means no dispatch: the call is refused rather than run unattributed.
 - `Denied` and `PendingApproval` both come back as an ephemeral. Slack has no retry, so a parked call stores its payload on the approval (`ApprovalResumption.park!`) and is replayed by `AbilityApprovalResumptionJob` once someone approves.
-- Slack participation by a human is exempt from the invocation ledger, since `record_change!` already writes the `IncidentEvent` timeline. Tool calls are still ledgered.
+- Chat participation by a human (`AbilityGateway::CHAT_SOURCES`, Slack today) is exempt from the invocation ledger, since `record_change!` already writes the `IncidentEvent` timeline. Tool calls are still ledgered. The gateway enqueues approver notification when it parks a call, and `Ability::Approval#resolve!` enqueues the parked-request replay. No model callback does either, so writing an approval row elsewhere triggers no platform traffic.
 - **`EventDispatcher` is not gated.** Reaction-to-action, reaction-to-followup, and shoutout-from-reaction write through the same services a gated button does, so an approval policy on `incidents.update` parks the button and not the emoji. The actor on an event is always a human in a channel, so nothing an agent can reach is currently ungated, but that stops being true the moment an event handler can be triggered by anything else.
 
 ## Handlers

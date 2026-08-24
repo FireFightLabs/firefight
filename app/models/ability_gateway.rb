@@ -11,6 +11,9 @@ class AbilityGateway
   SOURCE_API = "api"
   SOURCE_MCP = "mcp"
   SOURCE_SLACK = "slack"
+  # Entry points where a human acts inside a conversation. A second chat
+  # platform joins this list, nothing else in the gateway changes.
+  CHAT_SOURCES = [ SOURCE_SLACK ].freeze
 
   class Denied < StandardError
     attr_reader :action_key
@@ -154,6 +157,11 @@ class AbilityGateway
     record!(decision: Ability::Invocation::DECISION_PENDING, completed_at: Time.current,
             principal: principal, action: action, action_key: action_key,
             workspace: workspace, scope: scope, params: params, context: context, approval: approval)
+    # Approvers are told from here, the one place approvals are parked, not
+    # from a model callback that would fire on any row write.
+    ActiveRecord.after_all_transactions_commit do
+      AbilityApprovalNotificationJob.perform_later(approval_id: approval.id)
+    end
     raise PendingApproval.new(approval)
   end
 
@@ -182,20 +190,21 @@ class AbilityGateway
   # Reads of our own data are not, since they run at request volume and the
   # request log already covers them.
   #
-  # Slack participation is the other exemption. A responder clicking buttons in
-  # their own incident channel writes an IncidentEvent through record_change!
-  # already, and that timeline is the better record. Ledgering it twice buries
-  # the agent and API rows the ledger exists for. Tool calls from Slack are
-  # still recorded, because they leave Firefight.
+  # Chat participation is the other exemption. A responder clicking buttons
+  # in their own incident channel writes an IncidentEvent through
+  # record_change! already, and that timeline is the better record.
+  # Ledgering it twice buries the agent and API rows the ledger exists for.
+  # Tool calls from a chat platform are still recorded, because they leave
+  # Firefight.
   def self.ledger_execution?(action, principal, context)
     return true if action.kind == Ability::Action::KIND_TOOL
-    return false if slack_participation?(principal, context)
+    return false if chat_participation?(principal, context)
 
     action.risk_level != Ability::Action::RISK_READ
   end
 
-  def self.slack_participation?(principal, context)
-    context[:source] == SOURCE_SLACK && principal.is_a?(WorkspaceMembership)
+  def self.chat_participation?(principal, context)
+    CHAT_SOURCES.include?(context[:source]) && principal.is_a?(WorkspaceMembership)
   end
 
   def self.record!(decision:, completed_at:, principal:, action:, action_key:, workspace:, scope:, params:, context:, approval: nil)

@@ -2,6 +2,7 @@ require "test_helper"
 
 module Ability
   class ApprovalTest < ActiveSupport::TestCase
+    include ActiveJob::TestHelper
     fixtures :workspaces, :users, :workspace_memberships, :api_keys
 
     setup do
@@ -91,6 +92,32 @@ module Ability
       @approval.update!(status: Ability::Approval::STATUS_APPROVED)
       @approval.expire!
       assert @approval.approved?
+    end
+
+    test "creating a row directly enqueues no platform traffic" do
+      assert_no_enqueued_jobs(only: [ AbilityApprovalNotificationJob, AbilityApprovalResumptionJob ]) do
+        Ability::Approval.create!(
+          workspace: @workspace, principal: @requester, principal_label: @requester.principal_label,
+          action_key: "catalog.create", request_digest: Ability::Approval.digest("catalog.create", {}, {}),
+          required_role: WorkspaceMembership.roles[:admin]
+        )
+      end
+    end
+
+    test "resolving a parked chat request enqueues its replay, an unparked one does not" do
+      assert_no_enqueued_jobs(only: AbilityApprovalResumptionJob) do
+        @approval.approve!(by: @admin)
+      end
+
+      parked = Ability::Approval.create!(
+        workspace: @workspace, principal: @admin, principal_label: @admin.principal_label,
+        action_key: "catalog.create", request_digest: Ability::Approval.digest("catalog.create", {}, {}),
+        required_role: WorkspaceMembership.roles[:admin],
+        resume_payload: { "kind" => ApprovalResumption::KIND_COMMAND, "attrs" => {}, "channel_id" => "C1", "user_id" => "U1" }
+      )
+      assert_enqueued_with(job: AbilityApprovalResumptionJob, args: [ { approval_id: parked.id } ]) do
+        parked.deny!(by: @admin)
+      end
     end
   end
 end

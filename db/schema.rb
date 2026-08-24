@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_162835) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_221247) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -46,8 +46,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_162835) do
     t.datetime "resolved_at"
     t.datetime "consumed_at"
     t.uuid "incident_id"
-    t.string "slack_channel_id"
-    t.string "slack_message_ts"
+    t.string "notification_channel_id"
+    t.string "notification_message_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "self_approvable", default: true, null: false
