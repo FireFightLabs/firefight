@@ -14,4 +14,10 @@ module FirefightAi
   def configure
     yield configuration
   end
+
+  # Every service resolves its model here: the feature's own override wins,
+  # then the configured workspace-wide default, then the feature's fallback.
+  def model_for(feature_env_var, fallback)
+    ENV[feature_env_var].presence || configuration.default_model.presence || fallback
+  end
 end

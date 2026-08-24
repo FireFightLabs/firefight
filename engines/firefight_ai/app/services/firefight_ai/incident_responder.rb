@@ -132,7 +132,7 @@ module FirefightAi
     end
 
     def ai_model
-      @ai_model ||= ENV.fetch("INCIDENT_AI_MODEL", "gpt-4o-mini")
+      @ai_model ||= FirefightAi.model_for("INCIDENT_AI_MODEL", "gpt-4o-mini")
     end
   end
 end
