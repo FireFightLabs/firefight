@@ -74,7 +74,7 @@ class CatalogueController < InertiaController
   end
 
   def update_entry
-    entry = current_workspace.catalog_entries.where(deleted_at: nil).find(params[:id])
+    entry = current_workspace.catalog_entries.active.find(params[:id])
     entry_service.update(entry, name: params[:name], raw_attributes: params[:attributes]&.to_unsafe_h || {})
     redirect_to catalogue_type_path(entry.catalog_type.slug)
   rescue ActiveRecord::RecordInvalid => e
@@ -82,7 +82,7 @@ class CatalogueController < InertiaController
   end
 
   def destroy_entry
-    entry = current_workspace.catalog_entries.where(deleted_at: nil).find(params[:id])
+    entry = current_workspace.catalog_entries.active.find(params[:id])
     entry_service.delete(entry)
     redirect_to catalogue_type_path(entry.catalog_type.slug)
   rescue ActiveRecord::RecordInvalid => e

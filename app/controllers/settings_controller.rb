@@ -260,8 +260,7 @@ class SettingsController < InertiaController
   # Catalog entries grouped by system key so condition values on catalog-backed
   # fields are picked, not typed.
   def catalog_condition_options
-    CatalogEntry.active.joins(:catalog_type)
-      .where(workspace: current_workspace, catalog_types: { system_key: CatalogType::SYSTEM_KEYS })
+    current_workspace.catalog_entries.in_system_type(CatalogType::SYSTEM_KEYS)
       .order(:name)
       .pluck("catalog_types.system_key", :slug, :name)
       .group_by(&:first)

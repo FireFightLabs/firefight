@@ -33,7 +33,7 @@ class Alert::TargetResolver
       team_channel(team_entry_by_id(target[:entry_id]))
     when PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM
       service_entry = service_entry_for(target[:of])
-      channel = service_entry && service_entry[:attributes]["slack_channel"].presence
+      channel = service_entry && service_entry.entry_attributes["slack_channel"].presence
       channel || team_channel(owning_team(target[:of]))
     end
   end
@@ -62,7 +62,7 @@ class Alert::TargetResolver
   def team_members(team)
     return [] unless team
 
-    attrs = team[:attributes]
+    attrs = team.entry_attributes
     ids = (Array(attrs["members"]) + [ attrs["manager"] ]).compact.uniq
     if ids.empty?
       note("team #{team.slug} has no members or manager set")
@@ -77,7 +77,7 @@ class Alert::TargetResolver
   def team_channel(team)
     return nil unless team
 
-    channel = team[:attributes]["slack_channel"].presence
+    channel = team.entry_attributes["slack_channel"].presence
     note("team #{team.slug} has no slack_channel set") unless channel
     channel
   end
@@ -86,8 +86,8 @@ class Alert::TargetResolver
     service = service_entry_for(field)
     return nil unless service
 
-    relationship = service.outgoing_relationships.includes(target_entry: :catalog_type).detect do |rel|
-      rel.target_entry.deleted_at.nil? && rel.target_entry.catalog_type.system_key == CatalogType::SYSTEM_KEY_TEAM
+    relationship = service.active_outgoing_relationships.detect do |candidate|
+      candidate.target_entry.catalog_type.system_key == CatalogType::SYSTEM_KEY_TEAM
     end
     unless relationship
       note("service #{service.slug} has no owning team in the catalog")
@@ -107,15 +107,13 @@ class Alert::TargetResolver
     @service_entries ||= {}
     return @service_entries[slug] if @service_entries.key?(slug)
 
-    entry = CatalogEntry.active.joins(:catalog_type)
-      .where(workspace: @workspace, slug: slug)
-      .find_by(catalog_types: { system_key: field.to_s })
+    entry = @workspace.catalog_entries.in_system_type(field.to_s).find_by(slug: slug)
     note("#{field} #{slug.inspect} is not in the catalog") unless entry
     @service_entries[slug] = entry
   end
 
   def team_entry_by_id(id)
-    entry = CatalogEntry.active.where(workspace: @workspace).find_by(id: id)
+    entry = @workspace.catalog_entries.active.find_by(id: id)
     note("catalog team #{id} not found") unless entry
     entry
   end

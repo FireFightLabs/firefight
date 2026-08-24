@@ -74,7 +74,15 @@ class CatalogType < ApplicationRecord
   end
 
   def entry_count
-    read_attribute("entry_count") || catalog_entries.where(deleted_at: nil).count
+    read_attribute("entry_count") || catalog_entries.active.count
+  end
+
+  # The attribute slugs holding workspace members, the one rule the member
+  # pickers and MCP name resolution share.
+  def member_attribute_slugs
+    catalog_attribute_definitions
+      .select { |definition| definition.attribute_type.in?(CatalogAttributeDefinition::MEMBER_TYPES) }
+      .map(&:slug)
   end
 
   def reference_entry_options

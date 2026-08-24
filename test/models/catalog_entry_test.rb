@@ -1,6 +1,38 @@
 require "test_helper"
 
 class CatalogEntryTest < ActiveSupport::TestCase
+  test "in_system_type resolves active entries through their type's system key" do
+    workspace = workspaces(:slack_workspace_one)
+
+    entry = workspace.catalog_entries.in_system_type(CatalogType::SYSTEM_KEY_SERVICE).find_by(slug: "auth_service")
+    assert_equal catalog_entries(:auth_service), entry
+
+    catalog_entries(:auth_service).update!(deleted_at: Time.current)
+    assert_nil workspace.catalog_entries.in_system_type(CatalogType::SYSTEM_KEY_SERVICE).find_by(slug: "auth_service")
+  end
+
+  test "active_outgoing_relationships drops hops to deleted targets" do
+    service = catalog_entries(:auth_service)
+    assert_equal [ catalog_entries(:platform_team) ],
+                 service.active_outgoing_relationships.map(&:target_entry)
+
+    catalog_entries(:platform_team).update!(deleted_at: Time.current)
+    assert_empty service.reload.active_outgoing_relationships
+  end
+
+  test "active_outgoing_relationships reads a preloaded association without a query" do
+    service = CatalogEntry.includes(outgoing_relationships: { target_entry: :catalog_type })
+      .find(catalog_entries(:auth_service).id)
+
+    queries = 0
+    counter = ->(*, payload) { queries += 1 unless payload[:name] == "SCHEMA" }
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      service.active_outgoing_relationships
+    end
+
+    assert_equal 0, queries
+  end
+
   # Basic validations
 
   test "requires name" do
