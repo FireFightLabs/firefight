@@ -58,19 +58,23 @@ export function conditionSummary(
     .join(" AND ")
 }
 
-// What the Conditions column says. A runbook with neither conditions nor the
-// always flag never attaches on its own, and saying so beats an empty cell.
+// What the Conditions column says. The server decides how a runbook reaches
+// incidents, and attachMode comes from the same rule automatic attachment
+// uses. This only renders it. A runbook that never attaches on its own says
+// so, which beats an empty cell.
 export function attachSummary(
-  runbook: { conditions?: IncidentConditionSettings[] | null; alwaysAttach: boolean },
+  runbook: { conditions?: IncidentConditionSettings[] | null; attachMode: "always" | "conditional" | "manual" },
   incidentTypes: IncidentTypeSettings[],
   severities: IncidentSeveritySettings[],
   customFields: RunbookCustomField[],
 ): string {
-  const summary = conditionSummary(runbook.conditions ?? [], incidentTypes, severities, customFields)
-  if (summary) {
-    return summary
+  if (runbook.attachMode === "conditional") {
+    const summary = conditionSummary(runbook.conditions ?? [], incidentTypes, severities, customFields)
+    if (summary) {
+      return summary
+    }
   }
-  return runbook.alwaysAttach ? "Every incident" : "Attach by hand"
+  return runbook.attachMode === "always" ? "Every incident" : "Attach by hand"
 }
 
 export function valueOptions(field: RunbookCustomField): { id: string; name: string }[] {

@@ -23,7 +23,7 @@ import {
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
-import { FieldDialog } from "@/pages/settings/components/custom-fields/field-dialog"
+import { FieldDialog, type OptionSourcesByFieldType } from "@/pages/settings/components/custom-fields/field-dialog"
 import { FieldTypeIcon } from "@/pages/settings/components/custom-fields/field-type-icon"
 
 function titleCase(value: string) {
@@ -33,9 +33,10 @@ function titleCase(value: string) {
 interface CustomFieldsTabProps {
   fields: IncidentFieldDefinitionSettings[]
   catalogTypes: CatalogTypeOption[]
+  optionSourcesByFieldType: OptionSourcesByFieldType
 }
 
-export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) {
+export function CustomFieldsTab({ fields, catalogTypes, optionSourcesByFieldType }: CustomFieldsTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingField, setEditingField] = useState<IncidentFieldDefinitionSettings | null>(null)
   const [deleting, setDeleting] = useState<IncidentFieldDefinitionSettings | null>(null)
@@ -133,6 +134,7 @@ export function CustomFieldsTab({ fields, catalogTypes }: CustomFieldsTabProps) 
         onOpenChange={setDialogOpen}
         field={editingField}
         catalogTypes={catalogTypes}
+        optionSourcesByFieldType={optionSourcesByFieldType}
       />
 
       <ConfirmDeleteDialog

@@ -29,14 +29,28 @@ class Runbook < ApplicationRecord
     Sluggable.word_slug(name)
   end
 
-  # No conditions means no automatic attachment, because a runbook that lands
-  # on every incident should be a decision rather than the consequence of
-  # leaving a form empty. Reaching every incident is what always_attach is for.
+  ATTACH_ALWAYS = "always"
+  ATTACH_CONDITIONAL = "conditional"
+  ATTACH_MANUAL = "manual"
+
+  # How this runbook reaches incidents. No conditions means no automatic
+  # attachment, because a runbook that lands on every incident should be a
+  # decision rather than the consequence of leaving a form empty. Reaching
+  # every incident is what always_attach is for. matching and the settings
+  # screen both read this, so the rule cannot drift between them.
+  def attach_mode
+    return ATTACH_CONDITIONAL if incident_conditions.any?
+
+    always_attach? ? ATTACH_ALWAYS : ATTACH_MANUAL
+  end
+
   def self.matching(workspace, context)
     workspace.runbooks.active.ordered.includes(incident_conditions: :incident_field_definition).select do |runbook|
-      next runbook.always_attach? if runbook.incident_conditions.empty?
-
-      IncidentConditionEvaluator.match?(runbook.incident_conditions, context)
+      case runbook.attach_mode
+      when ATTACH_CONDITIONAL then IncidentConditionEvaluator.match?(runbook.incident_conditions, context)
+      when ATTACH_ALWAYS then true
+      else false
+      end
     end
   end
 

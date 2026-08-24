@@ -21,6 +21,25 @@ class IncidentFieldDefinitionTest < ActiveSupport::TestCase
     assert_equal 0, queries
   end
 
+  test "option sources outside the field type's allowed set are refused" do
+    field = IncidentFieldDefinition.new(
+      workspace: workspaces(:slack_workspace_one),
+      slug: "notes",
+      name: "Notes",
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_FIXED,
+      position: 3
+    )
+
+    assert_not field.valid?
+    assert_includes field.errors[:option_source], "must be none for text fields"
+  end
+
+  test "every field type has an allowed option sources row" do
+    assert_equal IncidentFieldDefinition::FIELD_TYPES.sort,
+                 IncidentFieldDefinition::OPTION_SOURCES_BY_FIELD_TYPE.keys.sort
+  end
+
   test "fixed select fields require at least one enabled option" do
     field = IncidentFieldDefinition.new(
       workspace: workspaces(:slack_workspace_one),

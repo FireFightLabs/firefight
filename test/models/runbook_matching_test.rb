@@ -13,6 +13,21 @@ class RunbookMatchingTest < ActiveSupport::TestCase
     assert_not_includes Runbook.matching(@workspace, @context), runbook
   end
 
+  test "attach_mode names the same decision matching makes" do
+    manual = @workspace.runbooks.create!(name: "Manual")
+    always = @workspace.runbooks.create!(name: "Always", always_attach: true)
+    conditional = @workspace.runbooks.create!(name: "Conditional", always_attach: true)
+    conditional.sync_conditions!([
+      { condition_field: IncidentCondition::FIELD_SEVERITY,
+        operator: IncidentCondition::OPERATOR_ONE_OF,
+        values: [ @critical.id ] }
+    ])
+
+    assert_equal Runbook::ATTACH_MANUAL, manual.attach_mode
+    assert_equal Runbook::ATTACH_ALWAYS, always.attach_mode
+    assert_equal Runbook::ATTACH_CONDITIONAL, conditional.reload.attach_mode
+  end
+
   test "a runbook marked always attach reaches every incident" do
     runbook = @workspace.runbooks.create!(name: "Every incident", always_attach: true)
 

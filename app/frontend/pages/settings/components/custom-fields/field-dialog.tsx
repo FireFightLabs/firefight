@@ -51,18 +51,17 @@ const OPTION_SOURCE_OPTIONS = [
   { value: "catalog", label: "From catalogue" },
 ] as const
 
-function allowedOptionSources(fieldType: string) {
-  if (["text", "number", "link"].includes(fieldType)) {
-    return ["none"]
-  }
-  if (["catalog_reference", "catalog_multi_reference"].includes(fieldType)) {
-    return ["catalog"]
-  }
-  return ["fixed", "catalog"]
+// The server owns which option sources each field type accepts. The map
+// arrives as a page prop from the same constant the model validates with,
+// so the dialog cannot drift from the rule.
+export type OptionSourcesByFieldType = Record<string, string[]>
+
+function allowedOptionSources(optionSourcesByFieldType: OptionSourcesByFieldType, fieldType: string) {
+  return optionSourcesByFieldType[fieldType] ?? ["none"]
 }
 
-function normalizeOptionSource(fieldType: string, optionSource: string) {
-  const allowed = allowedOptionSources(fieldType)
+function normalizeOptionSource(optionSourcesByFieldType: OptionSourcesByFieldType, fieldType: string, optionSource: string) {
+  const allowed = allowedOptionSources(optionSourcesByFieldType, fieldType)
   return allowed.includes(optionSource) ? optionSource : allowed[0]
 }
 
@@ -71,6 +70,7 @@ interface FieldDialogProps {
   onOpenChange: (open: boolean) => void
   field?: IncidentFieldDefinitionSettings | null
   catalogTypes: CatalogTypeOption[]
+  optionSourcesByFieldType: OptionSourcesByFieldType
 }
 
 function fieldToFormData(field?: IncidentFieldDefinitionSettings | null) {
@@ -90,7 +90,7 @@ function fieldToFormData(field?: IncidentFieldDefinitionSettings | null) {
   }
 }
 
-export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDialogProps) {
+export function FieldDialog({ open, onOpenChange, field, catalogTypes, optionSourcesByFieldType }: FieldDialogProps) {
   const isEdit = Boolean(field)
   const form = useForm(fieldToFormData(field))
 
@@ -101,7 +101,7 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
   useSyncFormData(syncKey, form, () => fieldToFormData(field))
 
   const fieldType = form.data.field_type
-  const optionSource = normalizeOptionSource(fieldType, form.data.option_source)
+  const optionSource = normalizeOptionSource(optionSourcesByFieldType, fieldType, form.data.option_source)
   const showFixedOptions = optionSource === "fixed"
   const shapeLockReason = field?.shapeChangeBlockedReason
   const duplicateLabels = hasDuplicateLabels(form.data.options)
@@ -121,7 +121,7 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
     shape.current = {
       key: syncKey,
       fieldType: next.field_type,
-      optionSource: normalizeOptionSource(next.field_type, next.option_source),
+      optionSource: normalizeOptionSource(optionSourcesByFieldType, next.field_type, next.option_source),
     }
   }
   else if (shape.current.fieldType !== fieldType || shape.current.optionSource !== optionSource) {
@@ -230,7 +230,7 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
                 </Blocked>
               </div>
 
-              {allowedOptionSources(fieldType).length > 1 && (
+              {allowedOptionSources(optionSourcesByFieldType, fieldType).length > 1 && (
                 <div className="space-y-2">
                   <Label>Option source</Label>
                   <Blocked reason={shapeLockReason} side="top">
@@ -243,7 +243,7 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes }: FieldDi
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {OPTION_SOURCE_OPTIONS.filter((option) => allowedOptionSources(fieldType).includes(option.value)).map((option) => (
+                        {OPTION_SOURCE_OPTIONS.filter((option) => allowedOptionSources(optionSourcesByFieldType, fieldType).includes(option.value)).map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>

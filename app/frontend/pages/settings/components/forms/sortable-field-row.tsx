@@ -43,7 +43,7 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, statu
 
   const isVisible = field.visibilityMode === "visible"
   const isRequired = field.requiredMode === "required" || field.lockedRequired
-  const isSelect = [ "single_select", "multi_select", "catalog_reference", "catalog_multi_reference" ].includes(field.fieldType)
+  const isSelect = field.selectable
   const isMultiline = field.slug === "summary"
   // Falls back only for custom fields, which carry no placeholder of their own.
   const placeholder = field.placeholder ??
