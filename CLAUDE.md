@@ -4,7 +4,9 @@ Incident management platform built with Rails 8.1. Currently integrates with Sla
 
 ## CI
 
-Run `bin/ci` to validate changes. It runs rubocop, bundler-audit, brakeman, rails test (parallel), system tests, and seeds.
+Run `bin/ci` to validate changes. It runs rubocop, archspec (architecture boundaries, rules in `Archspec.rb`), bundler-audit, brakeman, rails test (parallel), system tests, and seeds.
+
+Never add a new entry to `archspec_todo.yml` to get a build green. The todo file is grandfathered debt that only shrinks. A new boundary violation means the code is in the wrong place. Refresh the file with `bundle exec archspec check --update-todo` only after removing violations.
 
 ## Git & PRs
 
