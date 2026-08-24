@@ -29,6 +29,24 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
     assert_equal 0, @workspace.policies.count
   end
 
+  test "members are blocked from the governance surfaces" do
+    sign_in(users(:bob), @workspace)
+
+    [ settings_permissions_url, settings_activity_url, settings_approvals_url ].each do |url|
+      get url, headers: inertia_headers
+      assert_redirected_to dashboard_path, "expected member to be blocked from #{url}"
+    end
+  end
+
+  test "admins keep access to the governance surfaces" do
+    sign_in(users(:alice), @workspace)
+
+    [ settings_permissions_url, settings_activity_url, settings_approvals_url ].each do |url|
+      get url, headers: inertia_headers
+      assert_response :success, "expected admin to reach #{url}"
+    end
+  end
+
   test "members keep read access to settings pages and the route tester" do
     @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
       .policy_rules.create!(priority: 1, conditions: [],

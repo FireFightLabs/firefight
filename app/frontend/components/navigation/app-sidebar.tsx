@@ -18,6 +18,7 @@ import {
   IconUsers,
   IconUserShield,
   IconWebhook,
+  type Icon,
 } from "@tabler/icons-react"
 import type { ComponentProps } from "react"
 import { Link, usePage } from "@inertiajs/react"
@@ -57,7 +58,19 @@ import {
   settingsWebhooksPath,
 } from "@/lib/routes"
 
-const navSections = [
+interface SidebarNavItem {
+  title: string
+  url: string
+  icon: Icon
+  adminOnly?: boolean
+}
+
+interface SidebarNavSection {
+  label: string
+  items: SidebarNavItem[]
+}
+
+const navSections: SidebarNavSection[] = [
   {
     label: "Respond",
     items: [
@@ -91,26 +104,33 @@ const navSections = [
     items: [
       { title: "Webhooks", url: settingsWebhooksPath(), icon: IconWebhook },
       { title: "API Keys", url: settingsApiKeysPath(), icon: IconKey },
-      { title: "Permissions", url: settingsPermissionsPath(), icon: IconLock },
-      { title: "Approvals", url: settingsApprovalsPath(), icon: IconShieldCheck },
-      { title: "Activity", url: settingsActivityPath(), icon: IconHistory },
+      { title: "Permissions", url: settingsPermissionsPath(), icon: IconLock, adminOnly: true },
+      { title: "Approvals", url: settingsApprovalsPath(), icon: IconShieldCheck, adminOnly: true },
+      { title: "Activity", url: settingsActivityPath(), icon: IconHistory, adminOnly: true },
     ],
   },
 ]
 
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
-  const { currentUser, currentWorkspace, availableWorkspaces, cloudBillingPath } =
+  const { currentUser, currentWorkspace, availableWorkspaces, cloudBillingPath, currentUserIsAdmin } =
     usePage<SharedProps>().props
 
   // The cloud engine shares this path when it is loaded, so self-hosted
   // builds never grow a Billing item.
-  const sections = cloudBillingPath
+  const billingItem: SidebarNavItem = { title: "Billing", url: cloudBillingPath ?? "", icon: IconCreditCard }
+  const sectionsWithBilling = cloudBillingPath
     ? navSections.map((section) =>
         section.label === "Team"
-          ? { ...section, items: [ ...section.items, { title: "Billing", url: cloudBillingPath, icon: IconCreditCard } ] }
+          ? { ...section, items: [ ...section.items, billingItem ] }
           : section,
       )
     : navSections
+
+  const sections = currentUserIsAdmin
+    ? sectionsWithBilling
+    : sectionsWithBilling
+        .map((section) => ({ ...section, items: section.items.filter((item) => !item.adminOnly) }))
+        .filter((section) => section.items.length > 0)
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>

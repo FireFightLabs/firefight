@@ -1,4 +1,9 @@
 class SettingsController < InertiaController
+  # The governance surfaces expose the invocation ledger, the grant matrix,
+  # and approval request params, so they are admin territory like the
+  # mutations behind them.
+  before_action :require_admin!, only: %i[ permissions activity approvals ]
+
   RECENT_ALERTS_LIMIT = 50
   ACTIVITY_LIMIT = 200
   RESOLVED_APPROVALS_LIMIT = 50
