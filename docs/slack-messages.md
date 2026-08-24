@@ -99,8 +99,7 @@ argument rather than two methods (see `StatusUpdate.build`).
   does this.
 - `plain_text` option labels truncate at **75 characters**, a select holds at
   most **100 options**, a `header` at **150 characters**, and a section's text
-  at **3000**. Use `Formatting.truncate_block_text` rather than trusting input
-  to be short.
+  at **3000**.
 - A `context` block holds at most **10 elements**.
 - A message holds at most **50 blocks** and a modal **100**. Anything rendering
   one block per record needs a ceiling and a line saying what it held back.

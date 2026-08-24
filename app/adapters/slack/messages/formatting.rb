@@ -1,17 +1,10 @@
 module Slack
   module Messages
-    # Shared formatting helpers for incident messages: text truncation,
-    # duration formatting, before/after diff strings, severity emojis, and
-    # custom-field value rendering. Pure functions, no I/O beyond the
-    # definition lookup in `custom_fields_summary`.
+    # Shared formatting helpers for incident messages: duration formatting,
+    # before/after diff strings, severity emojis, and custom-field value
+    # rendering. Pure functions, no I/O beyond the definition lookup in
+    # `custom_fields_summary`.
     module Formatting
-      def self.truncate_block_text(text, limit: 2800)
-        return "" if text.nil?
-        return text if text.length <= limit
-
-        "#{text[0, limit]}..."
-      end
-
       def self.format_duration(minutes)
         return "N/A" if minutes.nil?
 
@@ -91,10 +84,6 @@ module Slack
       end
 
       def self.severity_emoji(_severity)
-        ":fire:"
-      end
-
-      def self.severity_emoji_for(_slug)
         ":fire:"
       end
 
