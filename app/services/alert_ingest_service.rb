@@ -65,7 +65,7 @@ class AlertIngestService
         # CAS: a duplicate delivery or an overlapping sweep already routed it.
         next unless alert.routing_state == Alert::ROUTING_PENDING
 
-        result = routing_policy&.evaluate(routing_context(alert))
+        result = router.route(alert.fields)
 
         if result&.matched?
           deferred_notification = apply_outcome(alert, result.outcome)
@@ -156,17 +156,12 @@ class AlertIngestService
     Digest::SHA256.hexdigest("#{payload.to_json}\n#{fields.to_json}")
   end
 
-  def routing_policy
-    return @routing_policy if defined?(@routing_policy)
-
-    @routing_policy = @source.effective_alert_routing_policy
+  def router
+    @router ||= Alert::Router.new(@workspace, @source)
   end
 
-  def routing_context(alert)
-    Policy::ContextBuilder.build(
-      workspace: @workspace,
-      fields: @source.routing_fields(alert.fields)
-    )
+  def routing_policy
+    router.policy
   end
 
   # DB writes happen here, inside the routing transaction. Anything that
@@ -283,11 +278,11 @@ class AlertIngestService
   end
 
   def content_match_fields
-    routing_policy&.content_match_fields || AlertGroup::DEFAULT_CONTENT_MATCH_FIELDS
+    routing_policy&.content_match_fields || Policy::AlertRoutingConfig::DEFAULT_CONTENT_MATCH_FIELDS
   end
 
   def grouping_window
-    (routing_policy&.grouping_window_minutes || AlertGroup::DEFAULT_WINDOW_MINUTES).minutes
+    (routing_policy&.grouping_window_minutes || Policy::AlertRoutingConfig::DEFAULT_WINDOW_MINUTES).minutes
   end
 
   def record_incident_event(alert, event_type, unresolved_targets: nil)

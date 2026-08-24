@@ -12,7 +12,7 @@ module Mcp
       input_schema(
         properties: {
           source: { type: "string", description: "Alert source name; omit for the workspace policy" },
-          grouping_window_minutes: { type: "integer", description: "Minutes within which matching alerts group (#{AlertGroup::WINDOW_MINUTES_RANGE.min}-#{AlertGroup::WINDOW_MINUTES_RANGE.max})" },
+          grouping_window_minutes: { type: "integer", description: "Minutes within which matching alerts group (#{Policy::AlertRoutingConfig::WINDOW_MINUTES_RANGE.min}-#{Policy::AlertRoutingConfig::WINDOW_MINUTES_RANGE.max})" },
           content_match_fields: {
             type: "array", items: { type: "string" },
             description: "Alert fields that must match for grouping, e.g. [\"service\"]"

@@ -14,20 +14,15 @@ class AlertRoutingController < InertiaController
   # Route tester: pure evaluation with a full trace, zero side effects.
   # Mirrors ingest resolution, the source's policy with workspace fallback.
   def test
-    policy = routing_policy
-    return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless policy
-
-    # Free-form field hash. Only ever fed to pure evaluation, never assigned to a model.
-    fields = routing_scope.routing_fields(params.fetch(:fields, {}).to_unsafe_h)
-    context = Policy::ContextBuilder.build(workspace: current_workspace, fields: fields)
-    result = policy.evaluate(context)
+    routed = tester.evaluate(params.fetch(:fields, {}).to_unsafe_h)
+    return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless routed
 
     render json: {
-      matched: result.matched?,
-      outcome: result.outcome,
-      context: context,
-      trace: result.trace,
-      resolution: result.matched? ? resolution_preview(result.outcome, fields) : nil
+      matched: routed.matched?,
+      outcome: routed.outcome,
+      context: routed.context,
+      trace: routed.trace,
+      resolution: routed.matched? ? tester.preview(routed) : nil
     }
   end
 
@@ -35,52 +30,19 @@ class AlertRoutingController < InertiaController
   # user can verify the bot can actually reach it. Re-evaluates server-side.
   # The client never picks the destination.
   def send_test
-    policy = routing_policy
-    return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless policy
+    routed = tester.evaluate(params.fetch(:fields, {}).to_unsafe_h)
+    return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless routed
 
-    fields = routing_scope.routing_fields(params.fetch(:fields, {}).to_unsafe_h)
-    result = AlertRoutingTestService.new(current_workspace).deliver(policy, fields)
+    result = tester.deliver(routed)
     return render json: { error: result.error }, status: :unprocessable_entity unless result.sent
 
-    resolver = Alert::TargetResolver.new(current_workspace, fields)
-    render json: { sent: true, notify: notify_label(result.target, resolver) }
+    render json: { sent: true, notify: result.notify }
   end
 
   private
 
-  # The tester mirrors ingest, the scope's effective policy, enabled only.
-  def routing_policy
-    routing_scope.effective_alert_routing_policy
-  end
-
-  # Dry-run target resolution so the tester shows who would actually be
-  # invited/notified. Pure lookups plus one best-effort Slack channel-name
-  # lookup for display. Nothing is posted.
-  def resolution_preview(outcome, fields)
-    resolver = Alert::TargetResolver.new(current_workspace, fields)
-    invitees = resolver.memberships_for(outcome["invite"]).map { |m| m.user.name }
-    notify = notify_label(outcome["notify"], resolver)
-
-    { invite: invitees, notify: notify, notes: resolver.notes }
-  end
-
-  def notify_label(target, resolver)
-    resolved = resolver.channel_for(target)
-    return nil if resolved.blank?
-
-    if target&.dig("type") == PolicyRule::AlertRoutingOutcome::TARGET_MEMBER
-      member = current_workspace.workspace_memberships.find_by(id: target["member_id"])
-      return member ? "#{member.user.name} (DM)" : resolved
-    end
-
-    channel = channel_name(resolved)
-    channel ? "##{channel}" : resolved
-  end
-
-  def channel_name(channel_id)
-    WorkspaceAdapter.for(current_workspace).list_channels.find { |c| c[:id] == channel_id }&.dig(:name)
-  rescue AdapterError
-    nil
+  def tester
+    @tester ||= AlertRoutingTestService.new(current_workspace, routing_scope)
   end
 
   def scoped_source

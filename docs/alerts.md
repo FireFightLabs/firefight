@@ -130,6 +130,8 @@ The settings screen edits the scope's *own* policy, never the inherited fallback
 - Regexes carry `REGEX_TIMEOUT_SECONDS` against ReDoS and are compile-checked at write time in `PolicyRule#conditions_are_well_formed`. Both, not either.
 - The engine never reads outcome vocabulary. `PolicyRule::AlertRoutingOutcome` is a **write-time validation contract for the consumer**, wired through `OUTCOME_VALIDATORS`. A new domain adds its own outcome module and nothing in the engine changes.
 
+`Alert::Router` is the one place that turns a scope (an alert source or the workspace) and raw fields into an evaluation: the scope's effective policy, the scope's `routing_fields`, the catalog-enriched context, and `policy.evaluate`. Ingest, the route tester, the test-message sender, and MCP's `evaluate_routing` all call it, so what a rule can see is decided once. It is a model with pure lookups and no writes.
+
 `Policy::ContextBuilder` enriches the flat alert fields from the catalog before evaluation: for each field naming a catalog system type it resolves the entry by slug, merges one relationship hop keyed by the related type's `system_key`, and merges scalar attributes as `<field>.<attribute>`. An alert saying only `service: auth_service` therefore evaluates against `team` and `service.tier` too. **Explicit input fields are never overwritten.**
 
 ### Outcomes
