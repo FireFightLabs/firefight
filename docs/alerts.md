@@ -112,7 +112,7 @@ deferred_notification&.call                                    # Slack after com
 
 - **Row-lock compare-and-swap on `routing_state`**, so a duplicate delivery, an overlapping sweep, and the inline path can all call `route` and exactly one applies.
 - **Every Slack side effect is returned from `apply_outcome` as a lambda** and invoked after the transaction commits. A slow platform call must never hold a DB transaction open.
-- **Failures never raise to the caller.** `record_routing_failure` bumps `routing_attempts`, leaves the alert `pending`, and marks it `failed` at `MAX_ROUTING_ATTEMPTS`. The row is already safe, so a routing bug must not become a 500 that makes the provider retry ingestion.
+- **Failures never raise to the caller.** A failure *inside* the routing transaction calls `alert.record_routing_failure!`, which bumps `routing_attempts`, leaves the alert `pending`, and marks it `failed` at `MAX_ROUTING_ATTEMPTS`. A failure *after* the outcome commits is a notification problem, so it just logs and leaves the alert routed rather than sending it back to `pending` for the sweep to apply twice. The row is already safe, so a routing bug must not become a 500 that makes the provider retry ingestion.
 
 ### Which policy fires
 
