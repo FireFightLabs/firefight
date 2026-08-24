@@ -246,6 +246,56 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal winner.id, json_response["incident"]["id"]
   end
 
+  test "creates with valid custom fields" do
+    stub_successful_slack_workflow
+
+    post api_v1_incidents_url,
+      params: {
+        idempotency_key: "cf-valid-#{SecureRandom.hex(8)}",
+        name: "Custom fields test",
+        severity_id: @severity.id,
+        custom_fields: { affected_services: [ catalog_entries(:auth_service).id ] }
+      }.to_json,
+      headers: api_headers
+
+    assert_response :created
+    incident = @workspace.incidents.find(json_response["incident"]["id"])
+    assert_equal [ "Auth Service" ], incident.custom_fields_for_display["affected_services"]
+  end
+
+  test "rejects unknown custom fields instead of dropping them" do
+    assert_no_difference -> { Incident.count } do
+      post api_v1_incidents_url,
+        params: {
+          idempotency_key: "cf-unknown-#{SecureRandom.hex(8)}",
+          name: "Unknown field test",
+          severity_id: @severity.id,
+          custom_fields: { not_a_field: "value" }
+        }.to_json,
+        headers: api_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "validation_error", json_response.dig("error", "type")
+    assert_match(/not_a_field/, json_response.dig("error", "message"))
+  end
+
+  test "rejects an invalid selection for a catalog-backed custom field" do
+    assert_no_difference -> { Incident.count } do
+      post api_v1_incidents_url,
+        params: {
+          idempotency_key: "cf-invalid-#{SecureRandom.hex(8)}",
+          name: "Invalid selection test",
+          severity_id: @severity.id,
+          custom_fields: { affected_services: [ "not-a-real-entry-id" ] }
+        }.to_json,
+        headers: api_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "validation_error", json_response.dig("error", "type")
+  end
+
   test "triggers incident creation workflow" do
     stub_successful_slack_workflow
 
