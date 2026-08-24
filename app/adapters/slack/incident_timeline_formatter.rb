@@ -23,19 +23,6 @@ module Slack
       IncidentEvent::ESCALATION_NUDGED => { emoji: ":bell:", title: "Escalation reminder sent" }
     }.freeze
 
-    def self.to_text(event)
-      payload = to_h(event)
-      "- #{payload[:timestamp]} #{payload[:label]}#{payload[:details].present? ? " - #{payload[:details]}" : ""}"
-    end
-
-    def self.to_h(event)
-      {
-        timestamp: event.created_at.in_time_zone.strftime("%Y-%m-%d %H:%M"),
-        label: label_for(event),
-        details: details_for(event)
-      }
-    end
-
     def self.label_for(event)
       EVENT_STYLE.dig(event.event_type, :title) || event.description || event.event_type
     end
