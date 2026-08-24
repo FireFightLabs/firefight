@@ -7,7 +7,7 @@ class PostmortemUpdateSerializer < BaseSerializer
   end
 
   attributes(
-    update_type: { type: '"generated" | "edited" | "ai_edited"' }
+    update_type: { type: '"generated" | "edited"' }
   )
 
   type :string
