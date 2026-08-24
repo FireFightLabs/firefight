@@ -1,6 +1,5 @@
 import { Link } from "@inertiajs/react";
 
-import { Card } from "@/components/card";
 import { Button } from "@/components/ui/button";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { CardHeader } from "@/components/auth/card-header";
@@ -19,8 +18,8 @@ export function ErrorPage({
   signedIn: boolean;
 }) {
   return (
-    <AuthLayout title={title}>
-      <Card variant="glow" className="text-center">
+    <AuthLayout title={title} variant="centered">
+      <div className="text-center">
         <CardHeader overline={code} title={title} subtitle={description} />
 
         <Button asChild className="mx-auto w-full max-w-[320px]">
@@ -28,7 +27,7 @@ export function ErrorPage({
             {signedIn ? "Back to dashboard" : "Go to sign in"}
           </Link>
         </Button>
-      </Card>
+      </div>
     </AuthLayout>
   );
 }

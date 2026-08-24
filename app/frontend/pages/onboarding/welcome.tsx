@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { dashboardPath } from "@/lib/routes";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { FounderAvatar } from "@/pages/onboarding/components/welcome/founder-avatar";
-import { SignatureMark } from "@/pages/onboarding/components/welcome/signature-mark";
+import signatureUrl from "@/assets/uros-signature.png";
 import type { SharedProps } from "@/types";
 
 interface WelcomePageProps extends SharedProps {
@@ -15,18 +15,11 @@ interface WelcomePageProps extends SharedProps {
 
 export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
   const firstName = (userName?.trim().split(/\s+/)[0] ?? userName) || "there";
-  const now = new Date();
-  const dateStamp = `${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getFullYear()).slice(2)}`;
 
   return (
     <AuthLayout title="Welcome to Firefight">
       <Card variant="glow">
-        <div className="flex items-center justify-between">
-          <FireFightLogo className="size-8" />
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
-            From the founder · {dateStamp}
-          </span>
-        </div>
+        <FireFightLogo className="mx-auto size-8" />
 
         <div className="mt-5 border-t border-primary/25" />
 
@@ -35,26 +28,27 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
         </h1>
 
         <div className="mt-5 space-y-4 text-sm leading-relaxed text-foreground/85">
-          <p>
-            I built Firefight because every incident tool I&apos;d worked
-            with felt the same way: bloated, complicated, priced for
-            enterprise. Not built for the teams actually wading into alerts
-            at 3am.
-          </p>
+          <p>Thanks for giving Firefight a try.</p>
 
           <p>
-            Firefight is simple to start and built to grow with you. Start
-            small, add the workflows you need as your team learns what good
-            incident response looks like. We build in the open. The source
-            is on GitHub, you can see what we&apos;re working on, and you
-            can push back when something feels off. That&apos;s how dev
-            tools should be built.
+            I built Firefight because incident tools became too complex and
+            too expensive for most teams. Firefight stays inside Slack,
+            where your team already works.
           </p>
 
+          <p>Start small. Expand only when you need to.</p>
+
+          <p>Firefight is open source and built in public.</p>
+
           <p>
-            If something feels rough or you need a hand, message me
-            directly. We&apos;re a small team, we read everything, and we
-            mean that.
+            If you need anything, email me at{" "}
+            <a
+              href="mailto:uros@firefight.app"
+              className="font-medium text-foreground underline decoration-border underline-offset-[3px] transition-colors hover:decoration-foreground"
+            >
+              uros@firefight.app
+            </a>
+            . I read every message.
           </p>
         </div>
 
@@ -70,7 +64,12 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
               </p>
             </div>
           </div>
-          <SignatureMark className="h-9 w-[110px] text-foreground/50" />
+          <img
+            src={signatureUrl}
+            alt=""
+            aria-hidden="true"
+            className="h-12 w-auto opacity-70"
+          />
         </div>
 
         <Button asChild className="mt-4 w-full cursor-pointer transition-shadow hover:shadow-[0_0_12px_rgba(115,211,238,0.2)]">

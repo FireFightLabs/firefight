@@ -1,8 +1,6 @@
 import { useForm, usePage } from "@inertiajs/react";
 import type { FormEvent } from "react";
 
-import { Card } from "@/components/card";
-import { FlashAlerts } from "@/components/flash-alerts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +25,7 @@ export default function InviteCode() {
 
   return (
     <AuthLayout title="Enter invite code" containerClassName="max-w-[420px]">
-      <Card variant="glow">
+      <div>
         <CardHeader
           overline="Public beta"
           title="Enter invite code"
@@ -41,7 +39,6 @@ export default function InviteCode() {
             </>
           }
         />
-        <FlashAlerts className="mb-4" />
         <form className="space-y-3 text-left" onSubmit={submit}>
           <div className="space-y-2">
             <Label htmlFor="invite-code">Invite code</Label>
@@ -78,7 +75,7 @@ export default function InviteCode() {
             .
           </p>
         </div>
-      </Card>
+      </div>
     </AuthLayout>
   );
 }

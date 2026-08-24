@@ -1,7 +1,6 @@
 import { usePage } from "@inertiajs/react";
 import { IconCheck } from "@tabler/icons-react";
 
-import { Card } from "@/components/card";
 import { installSlackAppPath } from "@/lib/routes";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { CardHeader } from "@/components/auth/card-header";
@@ -27,7 +26,7 @@ export default function Install() {
 
   return (
     <AuthLayout title="Install Firefight" containerClassName="max-w-[460px]">
-      <Card variant="glow">
+      <div>
         <CardHeader
           title="Install Firefight"
           subtitle={
@@ -62,7 +61,7 @@ export default function Install() {
         <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
           You'll need to be a Slack workspace admin to complete the install.
         </p>
-      </Card>
+      </div>
     </AuthLayout>
   );
 }

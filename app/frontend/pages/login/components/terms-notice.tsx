@@ -1,6 +1,6 @@
 export function TermsNotice() {
   return (
-    <div className="mt-6 border-t border-primary/25 pt-4">
+    <div className="mt-10 border-t border-primary/25 pt-6">
       <p className="text-xs leading-relaxed text-muted-foreground">
         By continuing, you agree to our
       </p>
