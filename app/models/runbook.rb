@@ -26,7 +26,7 @@ class Runbook < ApplicationRecord
   end
 
   def self.generate_slug(name)
-    name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
+    Sluggable.word_slug(name)
   end
 
   # No conditions means no automatic attachment, because a runbook that lands

@@ -43,12 +43,12 @@ class RunbooksController < InertiaController
   end
 
   def disable
-    @runbook.update!(deleted_at: Time.current)
+    @runbook.disable!
     redirect_to settings_runbooks_path, notice: "#{@runbook.name} was disabled."
   end
 
   def enable
-    @runbook.update!(deleted_at: nil)
+    @runbook.enable!
     redirect_to settings_runbooks_path, notice: "#{@runbook.name} was enabled."
   end
 

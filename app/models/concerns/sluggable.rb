@@ -17,6 +17,15 @@ module Sluggable
     end
   end
 
+  # The manual variant used by custom fields and runbooks: whitespace to
+  # underscores, everything else dropped. Distinct from slug_for, which
+  # transliterates through parameterize. Existing rows were minted with this
+  # rule, so those models must keep deriving with it or lookups by a derived
+  # slug stop finding the stored row.
+  def self.word_slug(name)
+    name.to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
+  end
+
   private
 
   def derive_slug

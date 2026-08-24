@@ -25,6 +25,16 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert_equal "test_status", status.slug
   end
 
+  test "in_stage filters by lifecycle stage key" do
+    workspace = workspaces(:slack_workspace_one)
+    active = workspace.incident_statuses.in_stage(IncidentLifecycleStage::ACTIVE)
+
+    assert active.any?
+    assert active.all? { |status| status.incident_lifecycle_stage.key == IncidentLifecycleStage::ACTIVE }
+    assert_equal workspace.incident_statuses.live.to_set,
+                 workspace.incident_statuses.in_stage([ IncidentLifecycleStage::TRIAGE, IncidentLifecycleStage::ACTIVE ]).to_set
+  end
+
   test "requires incident_lifecycle_stage" do
     status = IncidentStatus.new(
       workspace: workspaces(:slack_workspace_one),
