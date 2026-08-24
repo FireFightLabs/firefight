@@ -282,7 +282,7 @@ IncidentEvent commit → ProcessDomainEventJob → EventRouter → Webhooks::Dis
                      → WebhookDelivery (row per attempt) → Webhooks::DeliveryService
 ```
 
-- `EventRouter` maps each `IncidentEvent::*` type to subscribers (`SUBSCRIBERS` table); webhook-worthy events route to `Webhooks::EventSubscriber`, internal-only events map to `[]`. New event types must be added to this table explicitly.
+- `EventRouter` skips internal-only events listed in `EventRouter::INTERNAL_ONLY` (and warns on unknown types); everything else routes to `Webhooks::EventSubscriber`. The subscribable set and its jbuilder templates live in one registry — `Webhook::SUBSCRIBABLE_EVENT_TEMPLATES` — so a new event is added there (plus its template and the `webhook-events.ts` mirror).
 - `Webhooks::DispatchJob` finds the workspace's webhooks subscribed to the event type (`triggered_by` scope) and creates a `WebhookDelivery` per webhook. The payload is **snapshotted at dispatch time** (`Webhooks::PayloadRenderer`, shared jbuilder partials in `app/views/shared/`) so retries resend identical bytes.
 - `Webhooks::DeliveryService` sends it: timestamped HMAC signing (scheme `v1`), 7s endpoint timeout, 100KB response cap, and `Webhooks::SsrfProtector` blocks private/internal targets.
 - `WebhookDelinquencyTracker` counts consecutive failures per webhook; sustained failure (threshold 10 over 1h) deactivates the webhook and `Webhooks::DeactivationNotifier` informs the workspace. `Webhooks::CleanupJob` prunes old deliveries.
