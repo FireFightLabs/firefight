@@ -18,6 +18,26 @@ class Webhooks::DeactivationNotifier
       reason:         @reason,
       deactivated_at: Time.current.iso8601
     })
-    # TODO: send admin email / in-app notification once we have a workspace-admin notifier
+    post_channel_notice
+  end
+
+  private
+
+  def post_channel_notice
+    workspace = @webhook.workspace
+    return if workspace.incidents_channel_id.blank?
+
+    WorkspaceAdapter.for(workspace).post_message(
+      channel_id: workspace.incidents_channel_id,
+      text: ":warning: Firefight turned off the webhook #{@webhook.name} after repeated delivery failures to #{@webhook.url}. " \
+            "Re-enable it from the Webhooks settings page once the endpoint is healthy.",
+      blocks: nil
+    )
+  rescue AdapterError => e
+    Rails.logger.warn({
+      event:      "webhooks.deactivation_notice_failed",
+      webhook_id: @webhook.id,
+      error:      e.message
+    })
   end
 end
