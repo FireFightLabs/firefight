@@ -13,7 +13,7 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
   test "enqueues AI response job for valid mention" do
     stub_add_reaction
 
-    assert_enqueued_with(job: FirefightAi::IncidentResponseJob) do
+    assert_enqueued_with(job: IncidentAiResponseJob) do
       Events::AppMentionHandler.execute(@workspace, payload)
     end
   end
@@ -23,7 +23,7 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
 
     Events::AppMentionHandler.execute(@workspace, payload)
 
-    job = enqueued_jobs.find { |j| j["job_class"] == "FirefightAi::IncidentResponseJob" }
+    job = enqueued_jobs.find { |j| j["job_class"] == "IncidentAiResponseJob" }
     assert_equal "1234567890.123456", job["arguments"][2]
   end
 
@@ -32,7 +32,7 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
 
     Events::AppMentionHandler.execute(@workspace, payload(text: "<@U99999999> what's going on?"))
 
-    job = enqueued_jobs.find { |j| j["job_class"] == "FirefightAi::IncidentResponseJob" }
+    job = enqueued_jobs.find { |j| j["job_class"] == "IncidentAiResponseJob" }
     assert_equal "what's going on?", job["arguments"][3]
   end
 

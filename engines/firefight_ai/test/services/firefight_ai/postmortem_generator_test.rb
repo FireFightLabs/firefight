@@ -18,73 +18,38 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     @generator = FirefightAi::PostmortemGenerator.new(@workspace)
   end
 
-  test "generate creates postmortem record" do
+  test "generate returns a draft with every section and the model, and persists nothing" do
     stub_ruby_llm_response
 
-    assert_difference "Postmortem.count", 1 do
-      @generator.generate(@incident, generated_by: @member)
+    draft = nil
+    assert_no_difference [ "Postmortem.count", "IncidentEvent.count" ] do
+      draft = @generator.generate(@incident)
     end
 
-    postmortem = @incident.reload.postmortem
-    assert_equal Postmortem::STATUS_DRAFT, postmortem.status
-    assert_equal @member, postmortem.generated_by
-    assert_equal "INC-003 Postmortem: Image upload broken", postmortem.title
-    assert postmortem.content["html"].present?
+    assert_equal "INC-003 Postmortem: Image upload broken", draft.title
+    assert draft.sections.key?("summary")
+    assert draft.sections.key?("action_items")
+    assert_equal FirefightAi::Schemas::Postmortem::SECTION_KEYS.sort, draft.sections.keys.sort
+    assert draft.model.present?
   end
 
-  test "generate creates postmortem update snapshot" do
-    stub_ruby_llm_response
-
-    assert_difference "PostmortemUpdate.count", 1 do
-      @generator.generate(@incident, generated_by: @member)
-    end
-
-    update = @incident.postmortem.postmortem_updates.first
-    assert_equal PostmortemUpdate::GENERATED, update.update_type
-    assert_equal @member, update.edited_by
-    assert_equal @incident.postmortem.title, update.title
-    assert_equal @incident.postmortem.content, update.content
-  end
-
-  test "generate creates POSTMORTEM_GENERATED incident event" do
-    stub_ruby_llm_response
-
-    assert_difference "IncidentEvent.count", 1 do
-      @generator.generate(@incident, generated_by: @member)
-    end
-
-    event = @incident.incident_events.find_by!(event_type: IncidentEvent::POSTMORTEM_GENERATED)
-    assert_equal @member, event.actor
-    assert_instance_of PostmortemUpdate, event.eventable
-  end
-
-  test "generate records Inference row with postmortem_generate feature" do
+  test "generate records an Inference row with the postmortem_generate feature" do
     stub_ruby_llm_response
 
     assert_difference "Inference.count", 1 do
-      @generator.generate(@incident, generated_by: @member)
+      @generator.generate(@incident)
     end
 
-    inference = Inference.order(:created_at).last
-    assert_equal "postmortem_generate", inference.feature
+    inference = Inference.find_by!(feature: "postmortem_generate", inferable: @incident)
     assert_equal @incident, inference.inferable
   end
 
-  test "post_message posts and pins message" do
-    stub_ruby_llm_response
-    @generator.generate(@incident, generated_by: @member)
+  test "client errors leave the engine as its own error family" do
+    FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
+    RubyLLM.stubs(:chat).raises(RubyLLM::ContextLengthExceededError.new("too long"))
 
-    stub_post_message
-    stub_pin_message
-
-    result = @generator.post_message(@incident)
-
-    assert_equal "1234567890.123456", result[:message_ts]
-    assert_equal "1234567890.123456", @incident.postmortem.reload.message_ts
-  end
-
-  test "post_message returns nil when no postmortem exists" do
-    assert_nil @generator.post_message(@incident)
+    error = assert_raises(FirefightAi::TerminalError) { @generator.generate(@incident) }
+    assert_equal "ContextLengthExceededError", error.reason
   end
 
   private

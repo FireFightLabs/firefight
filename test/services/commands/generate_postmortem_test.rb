@@ -24,7 +24,7 @@ class Commands::GeneratePostmortemTest < ActiveSupport::TestCase
   end
 
   test "enqueues postmortem generation for closed incident" do
-    assert_enqueued_with(job: FirefightAi::PostmortemGenerationJob) do
+    assert_enqueued_with(job: PostmortemGenerationJob) do
       result = Commands::GeneratePostmortem.execute(
         build_command(channel_id: @incident.channel_id)
       )
@@ -63,7 +63,7 @@ class Commands::GeneratePostmortemTest < ActiveSupport::TestCase
   end
 
   test "the command creates the same placeholder the dashboard does, so a second request runs no second job" do
-    assert_enqueued_jobs 1, only: FirefightAi::PostmortemGenerationJob do
+    assert_enqueued_jobs 1, only: PostmortemGenerationJob do
       Commands::GeneratePostmortem.execute(build_command(channel_id: @incident.channel_id))
       Commands::GeneratePostmortem.execute(build_command(channel_id: @incident.channel_id))
     end
@@ -75,7 +75,7 @@ class Commands::GeneratePostmortemTest < ActiveSupport::TestCase
     Postmortem.start_generation!(@incident, by: @member)
     @incident.postmortem.mark_generation_failed!(RuntimeError.new("boom"))
 
-    assert_enqueued_with(job: FirefightAi::PostmortemGenerationJob) do
+    assert_enqueued_with(job: PostmortemGenerationJob) do
       Commands::GeneratePostmortem.execute(build_command(channel_id: @incident.channel_id))
     end
     assert @incident.reload.postmortem.generating?

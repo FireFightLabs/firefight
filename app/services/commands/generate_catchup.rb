@@ -19,7 +19,7 @@ module Commands
 
       return Command.ephemeral("This command must be run from an active incident channel.") unless command.incident
 
-      FirefightAi::IncidentResponseJob.perform_later(
+      IncidentAiResponseJob.perform_later(
         command.incident.id,
         command.channel_id,
         nil,

@@ -1,6 +1,6 @@
 require "test_helper"
 
-class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
+class PostmortemGenerationJobTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
@@ -19,18 +19,15 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
 
   test "generates when the placeholder says a generation is running" do
     Postmortem.start_generation!(@incident, by: @member)
-    generator = mock("generator")
-    generator.expects(:generate).once
-    generator.expects(:post_message).once
-    FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
+    PostmortemGenerationService.any_instance.expects(:generate!).with(@incident, generated_by: @member).once
 
-    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+    PostmortemGenerationJob.perform_now(@incident.id, @member.id)
   end
 
   test "does nothing without a placeholder, so a stray job cannot overwrite a document" do
     FirefightAi::PostmortemGenerator.expects(:new).never
 
-    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+    PostmortemGenerationJob.perform_now(@incident.id, @member.id)
   end
 
   test "skips when an already-filled postmortem exists" do
@@ -54,7 +51,7 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
     )
 
     FirefightAi::PostmortemGenerator.expects(:new).never
-    FirefightAi::PostmortemGenerationJob.perform_now(incident.id, @member.id)
+    PostmortemGenerationJob.perform_now(incident.id, @member.id)
   end
 
   test "a human setting status to in_progress is not mistaken for a running generation" do
@@ -64,7 +61,7 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
     )
     FirefightAi::PostmortemGenerator.expects(:new).never
 
-    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+    PostmortemGenerationJob.perform_now(@incident.id, @member.id)
 
     assert_equal "<p>draft</p>", @incident.reload.postmortem.content["html"]
   end
@@ -74,7 +71,7 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
     Entitlements.stubs(:allows?).with(@workspace, Entitlements::AI).returns(false)
     FirefightAi::PostmortemGenerator.expects(:new).never
 
-    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+    PostmortemGenerationJob.perform_now(@incident.id, @member.id)
 
     postmortem = @incident.reload.postmortem
     assert postmortem.generation_failed?
@@ -84,11 +81,11 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
   test "a terminal AI failure keeps the placeholder, marked failed with the reason, and it can be retried" do
     Postmortem.start_generation!(@incident, by: @member)
     generator = mock("generator")
-    generator.stubs(:generate).raises(RubyLLM::ContextLengthExceededError.new("too long"))
+    generator.stubs(:generate).raises(FirefightAi::TerminalError.new("too long", reason: "ContextLengthExceededError"))
     FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
-    WorkspaceAdapter.stubs(:for).returns(stub(post_ephemeral: nil))
+    WorkspaceAdapter.stubs(:for).returns(stub(post_postmortem_generation_failed: nil))
 
-    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+    PostmortemGenerationJob.perform_now(@incident.id, @member.id)
 
     postmortem = @incident.reload.postmortem
     assert postmortem.generation_failed?
@@ -109,7 +106,7 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
     Postmortem.start_generation!(@incident, by: @member)
     FirefightAi::PostmortemGenerator.expects(:new).never
 
-    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+    PostmortemGenerationJob.perform_now(@incident.id, @member.id)
 
     assert @incident.reload.postmortem.generation_failed?
   end
@@ -117,24 +114,23 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
   test "discards on record not found" do
     FirefightAi::PostmortemGenerator.expects(:new).never
     assert_nothing_raised do
-      FirefightAi::PostmortemGenerationJob.perform_now(SecureRandom.uuid, @member.id)
+      PostmortemGenerationJob.perform_now(SecureRandom.uuid, @member.id)
     end
   end
 
   test "discards terminal AI errors without retry and notifies the requester" do
     Postmortem.start_generation!(@incident, by: @member)
     generator = mock("generator")
-    generator.stubs(:generate).raises(RubyLLM::ContextLengthExceededError.new("too long"))
+    generator.stubs(:generate).raises(FirefightAi::TerminalError.new("too long", reason: "ContextLengthExceededError"))
     FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
 
     adapter = mock("adapter")
     WorkspaceAdapter.stubs(:for).returns(adapter)
-    adapter.expects(:post_ephemeral).with do |args|
-      args[:text].include?("ContextLengthExceeded") && args[:text].include?(@incident.identifier)
-    end.once
+    adapter.expects(:post_postmortem_generation_failed)
+      .with(has_entries(incident: @incident, reason: "ContextLengthExceededError", retrying: false)).once
 
     assert_nothing_raised do
-      FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+      PostmortemGenerationJob.perform_now(@incident.id, @member.id)
     end
   end
 end

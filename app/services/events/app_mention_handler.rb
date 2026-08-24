@@ -21,7 +21,7 @@ module Events
       parent_thread_ts = event["thread_ts"]
       reply_thread_ts = parent_thread_ts || event["ts"]
 
-      FirefightAi::IncidentResponseJob.perform_later(
+      IncidentAiResponseJob.perform_later(
         incident.id,
         channel_id,
         reply_thread_ts,

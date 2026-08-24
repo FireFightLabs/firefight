@@ -1,6 +1,13 @@
 module FirefightAi
   module Schemas
     class Postmortem < ::RubyLLM::Schema
+      # The document sections, in reading order. The app renders them under
+      # its own headings.
+      SECTION_KEYS = %w[
+        summary introduction deeper_dive impact resolution
+        contributing_factors what_went_well action_items
+      ].freeze
+
       description "A structured incident postmortem document"
 
       string :title, description: "A concise postmortem title, e.g. 'INC-031 Postmortem: API Gateway Outage'"

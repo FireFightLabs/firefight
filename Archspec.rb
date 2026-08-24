@@ -154,10 +154,10 @@ solid_workflow_engine.cannot_use :models, :services, :controllers, :api_controll
 # The app touches the engine only where workflows are defined.
 solid_workflow_namespace.can_only_be_used_by :workflows, :solid_workflow_engine
 
-# The AI engine reads models and enqueues jobs. Everything else it does today
-# goes through runtime adapter calls that static analysis cannot see, but the
-# constants it references stay frozen at models plus jobs.
-firefight_ai_engine.can_only_use :models, :jobs, :firefight_ai_engine
+# The AI engine reads models and returns results. Delivery, jobs, and
+# platform calls live in the app, so the constants it references stay frozen
+# at models alone.
+firefight_ai_engine.can_only_use :models, :firefight_ai_engine
 
 # --- Integrations isolation -------------------------------------------------
 

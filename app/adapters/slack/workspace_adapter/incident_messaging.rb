@@ -364,6 +364,18 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
+  # Slack renders mrkdwn, and AiResponse converts standard markdown on the
+  # way out, so the model only needs to avoid headers and single-asterisk
+  # italics, which collide with mrkdwn bold.
+  AI_OUTPUT_STYLE = <<~STYLE
+    Use Slack mrkdwn formatting: *bold*, _italic_, bullet points, and `code` where appropriate.
+    Do not use markdown headers (#). Use *bold text* instead.
+  STYLE
+
+  def ai_output_style
+    AI_OUTPUT_STYLE
+  end
+
   def post_ai_response(channel_id:, incident:, answer:)
     blocks = Slack::Messages::AiResponse.build(incident: incident, answer: answer)
     post_message(channel_id: channel_id, text: answer, blocks: blocks)
@@ -372,6 +384,15 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   def post_ai_response_threaded(channel_id:, parent_message_id:, incident:, answer:)
     blocks = Slack::Messages::AiResponse.build(incident: incident, answer: answer)
     post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: answer, blocks: blocks)
+  end
+
+  def post_postmortem_generation_failed(channel_id:, user_id:, incident:, reason:, retrying:)
+    text = if retrying
+      ":warning: Postmortem generation for #{incident.identifier} failed after retries (reason: #{reason}). Try again from the incident page or with `/firefight postmortem`."
+    else
+      ":warning: Postmortem generation for #{incident.identifier} failed (reason: #{reason}) and won't retry automatically. Try again from the incident page or with `/firefight postmortem`."
+    end
+    post_ephemeral(channel_id: channel_id, user_id: user_id, text: text)
   end
 
   def post_postmortem_message(channel_id:, incident:, postmortem:)

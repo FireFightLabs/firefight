@@ -72,6 +72,38 @@ class Postmortem < ApplicationRecord
     update!(generation_state: GENERATION_FAILED, generation_error: reason)
   end
 
+  # Turns what the AI engine wrote into the document: each section rendered
+  # from markdown under its heading, the placeholder (or a fresh row) filled,
+  # and the generation recorded on the timeline.
+  def self.complete_generation!(incident, draft, generated_by:)
+    html = SECTION_KEYS.filter_map do |key|
+      body = draft.sections[key]
+      next if body.blank?
+
+      rendered = Commonmarker.to_html(body, options: { parse: { smart: true }, render: { unsafe: true } })
+      "<h2>#{SECTION_HEADINGS[key]}</h2>\n#{rendered}"
+    end.join("\n")
+
+    attrs = {
+      title: draft.title,
+      summary: draft.summary,
+      status: STATUS_DRAFT,
+      generation_state: nil,
+      generation_error: nil,
+      model_id: draft.model,
+      content: { "html" => html }
+    }
+
+    postmortem = incident.postmortem
+    if postmortem
+      postmortem.update!(attrs)
+    else
+      postmortem = create!(attrs.merge(incident: incident, generated_by: generated_by))
+    end
+    postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: generated_by)
+    postmortem
+  end
+
   validates :title, presence: true
   validates :content, presence: true
   validates :status, inclusion: { in: STATUSES }
