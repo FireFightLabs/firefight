@@ -63,6 +63,7 @@ class IncidentsController < InertiaController
 
   def generate_postmortem
     incident = current_workspace.incidents.find(params[:incident_id])
+    return redirect_to incident_path(incident), alert: "AI features are not available." unless defined?(FirefightAi)
     return redirect_to incident_postmortem_path(incident), alert: "Postmortem already exists." if incident.postmortem.present?
     unless incident.incident_status.closed?
       alert = if incident.canceled?
@@ -105,6 +106,8 @@ class IncidentsController < InertiaController
   def ai_rewrite_postmortem
     incident = current_workspace.incidents.find(params[:incident_id])
     incident.postmortem or raise ActiveRecord::RecordNotFound
+
+    return render json: { error: "AI features are not available." }, status: :unprocessable_entity unless defined?(FirefightAi)
 
     gate = Entitlements.check(current_workspace, Entitlements::AI)
     return render json: { error: gate.message }, status: :payment_required if gate.blocked?
