@@ -1,7 +1,7 @@
 module Commands
   class OpenHome
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS
+    authorize_as Ability::Action::RESOURCE_INCIDENTS
 
     def self.execute(command)
       if command.incident

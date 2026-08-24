@@ -4,7 +4,7 @@ module Commands
   # only appears when a workspace has attached something worth asking.
   class CancelIncident
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+    authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
 
     def self.execute(command)
       return Command.ephemeral("This command must be run from an incident channel.") unless command.incident

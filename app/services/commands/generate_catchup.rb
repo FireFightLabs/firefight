@@ -1,7 +1,7 @@
 module Commands
   class GenerateCatchup
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS
+    authorize_as Ability::Action::RESOURCE_INCIDENTS
     CATCHUP_QUESTION = <<~Q.strip
       Give me a concise catchup on this incident. Focus on the chat narrative:
       - What has been investigated and what theories the team has tested

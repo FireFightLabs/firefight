@@ -146,7 +146,7 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
   # able to issue.
 
   test "a service key scoped to forms can read and configure them" do
-    @token = service_token(ApiKey::RESOURCE_FORMS => [ ApiKey::ACTION_READ, ApiKey::ACTION_UPDATE ])
+    @token = service_token(Ability::Action::RESOURCE_FORMS => [ Ability::Action::ACTION_READ, Ability::Action::ACTION_UPDATE ])
 
     _, read_error = call_tool(Mcp::Tools::GET_FORM, { form: IncidentForm::SLUG_DECLARE })
     assert_not read_error
@@ -162,7 +162,7 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
   # Defining a custom field and deciding what every responder is asked are
   # separate powers, so one grant must not buy the other.
   test "a service key scoped to custom fields cannot configure a form" do
-    @token = service_token(ApiKey::RESOURCE_CUSTOM_FIELDS => [ ApiKey::ACTION_READ, ApiKey::ACTION_UPDATE ])
+    @token = service_token(Ability::Action::RESOURCE_CUSTOM_FIELDS => [ Ability::Action::ACTION_READ, Ability::Action::ACTION_UPDATE ])
 
     _, is_error = call_tool(Mcp::Tools::UPSERT_FORM_FIELD, {
       form: IncidentForm::SLUG_DECLARE,

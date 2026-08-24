@@ -204,7 +204,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   test "permission and missing-policy errors link to the relevant docs" do
     _, alerts_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Alerts only",
-      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
+      permissions: { Ability::Action::RESOURCE_ALERTS => [ Ability::Action::ACTION_READ ] }
     )
     body = rpc("tools/call", { name: Mcp::Tools::SEARCH_INCIDENTS, arguments: {} }, token: alerts_token)
     assert_includes body.dig("result", "content").first["text"], Mcp::Docs::MCP_SERVER
@@ -253,7 +253,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   test "service keys are scoped per tool resource" do
     _, alerts_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Alerts only",
-      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
+      permissions: { Ability::Action::RESOURCE_ALERTS => [ Ability::Action::ACTION_READ ] }
     )
 
     _, is_error = call_tool(Mcp::Tools::SEARCH_ALERTS, {}, token: alerts_token)
@@ -372,7 +372,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
     _, service_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Approver bot",
-      permissions: { ApiKey::RESOURCE_APPROVALS => [ ApiKey::ACTION_READ, ApiKey::ACTION_UPDATE ] }
+      permissions: { Ability::Action::RESOURCE_APPROVALS => [ Ability::Action::ACTION_READ, Ability::Action::ACTION_UPDATE ] }
     )
     result, is_error = call_tool(Mcp::Tools::APPROVE_APPROVAL, { id: approval.id }, token: service_token)
     assert is_error
@@ -405,7 +405,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     # is neither listed for it nor callable by it.
     _, service_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Scoped bot",
-      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
+      permissions: { Ability::Action::RESOURCE_ALERTS => [ Ability::Action::ACTION_READ ] }
     )
     body = rpc("tools/list", {}, token: service_token)
     assert_not_includes body.dig("result", "tools").map { |t| t["name"] }, "new_relic_logs_query"
@@ -439,7 +439,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   test "denied tool calls are recorded in the ability ledger" do
     key, alerts_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Alerts only",
-      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
+      permissions: { Ability::Action::RESOURCE_ALERTS => [ Ability::Action::ACTION_READ ] }
     )
 
     assert_difference "Ability::Invocation.count", 1 do

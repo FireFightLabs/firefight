@@ -20,6 +20,6 @@ class Agent < ApplicationRecord
 
   # Agents hold explicit grants, no implicit member-level reads.
   def mcp_readable?(resource)
-    Ability::Resolver.resolve(self).covers?(Ability::Action.system_key(resource, ApiKey::ACTION_READ))
+    Ability::Resolver.resolve(self).covers?(Ability::Action.system_key(resource, Ability::Action::ACTION_READ))
   end
 end

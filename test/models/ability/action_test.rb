@@ -6,7 +6,7 @@ module Ability
 
     test "sync_system_actions! seeds every resource/action pair idempotently" do
       Ability::Action.sync_system_actions!
-      expected = ApiKey::RESOURCES.size * ApiKey::ACTIONS.size
+      expected = Ability::Action::RESOURCES.size * Ability::Action::ACTIONS.size
       assert_equal expected, Ability::Action.system_actions.count
 
       assert_no_difference "Ability::Action.count" do
@@ -15,9 +15,9 @@ module Ability
     end
 
     test "system! maps CRUD verbs to risk levels and reversibility" do
-      read = Ability::Action.system!(Ability::Action.system_key(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ))
-      update = Ability::Action.system!(Ability::Action.system_key(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE))
-      delete = Ability::Action.system!(Ability::Action.system_key(ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_DELETE))
+      read = Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ))
+      update = Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE))
+      delete = Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_DELETE))
 
       assert_equal Ability::Action::RISK_READ, read.risk_level
       assert_equal Ability::Action::RISK_WRITE, update.risk_level

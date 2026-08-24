@@ -47,17 +47,17 @@ class ApiKeyTest < ActiveSupport::TestCase
       on_behalf_of: membership, name: "Personal"
     )
 
-    ApiKey::RESOURCES.each do |resource|
-      assert key.has_permission?(resource, ApiKey::ACTION_READ)
-      assert_not key.has_permission?(resource, ApiKey::ACTION_DELETE)
+    Ability::Action::RESOURCES.each do |resource|
+      assert key.has_permission?(resource, Ability::Action::ACTION_READ)
+      assert_not key.has_permission?(resource, Ability::Action::ACTION_DELETE)
     end
 
-    assert key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)
-    assert key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE)
+    assert key.has_permission?(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)
+    assert key.has_permission?(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE)
 
-    (ApiKey::RESOURCES - [ ApiKey::RESOURCE_INCIDENTS ]).each do |resource|
-      assert_not key.has_permission?(resource, ApiKey::ACTION_CREATE)
-      assert_not key.has_permission?(resource, ApiKey::ACTION_UPDATE)
+    (Ability::Action::RESOURCES - [ Ability::Action::RESOURCE_INCIDENTS ]).each do |resource|
+      assert_not key.has_permission?(resource, Ability::Action::ACTION_CREATE)
+      assert_not key.has_permission?(resource, Ability::Action::ACTION_UPDATE)
     end
   end
 
@@ -68,8 +68,8 @@ class ApiKeyTest < ActiveSupport::TestCase
       on_behalf_of: membership, name: "Admin personal"
     )
 
-    assert key.has_permission?(ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_CREATE)
-    assert key.has_permission?(ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_DELETE)
+    assert key.has_permission?(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_CREATE)
+    assert key.has_permission?(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_DELETE)
   end
 
   test "on_behalf_of must belong to the same workspace" do
@@ -159,18 +159,18 @@ class ApiKeyTest < ActiveSupport::TestCase
       workspace: workspaces(:slack_workspace_one),
       created_by: workspace_memberships(:alice_workspace_one),
       name: "Synced Key",
-      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ, ApiKey::ACTION_CREATE ] }
+      permissions: { Ability::Action::RESOURCE_ALERTS => [ Ability::Action::ACTION_READ, Ability::Action::ACTION_CREATE ] }
     )
 
     granted = Ability::Grant.where(principal: key).joins(:action).pluck("ability_actions.key")
     assert_equal [ "alerts.create", "alerts.read" ], granted.sort
-    assert key.has_permission?(ApiKey::RESOURCE_ALERTS, ApiKey::ACTION_CREATE)
-    assert_not key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ)
+    assert key.has_permission?(Ability::Action::RESOURCE_ALERTS, Ability::Action::ACTION_CREATE)
+    assert_not key.has_permission?(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
 
-    key.replace_permissions!({ ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] })
+    key.replace_permissions!({ Ability::Action::RESOURCE_ALERTS => [ Ability::Action::ACTION_READ ] })
     granted = Ability::Grant.where(principal: key).joins(:action).pluck("ability_actions.key")
     assert_equal [ "alerts.read" ], granted
-    assert_not key.has_permission?(ApiKey::RESOURCE_ALERTS, ApiKey::ACTION_CREATE)
+    assert_not key.has_permission?(Ability::Action::RESOURCE_ALERTS, Ability::Action::ACTION_CREATE)
   end
 
   test "granted_permissions reads the matrix back out of the grants" do
@@ -209,8 +209,8 @@ class ApiKeyTest < ActiveSupport::TestCase
     )
 
     assert_empty Ability::Grant.where(principal: key)
-    assert key.has_permission?(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ)
-    assert_not key.has_permission?(ApiKey::RESOURCE_SEVERITIES, ApiKey::ACTION_CREATE)
+    assert key.has_permission?(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    assert_not key.has_permission?(Ability::Action::RESOURCE_SEVERITIES, Ability::Action::ACTION_CREATE)
   end
 
 

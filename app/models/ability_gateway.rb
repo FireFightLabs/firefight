@@ -161,7 +161,7 @@ class AbilityGateway
     # Resolving an approval is itself the approval mechanism, matching it
     # against approval policies would gate approvals behind approvals. The
     # Approval model's role/self-approval rules govern resolution instead.
-    return nil if action_key.start_with?("#{ApiKey::RESOURCE_APPROVALS}.")
+    return nil if action_key.start_with?("#{Ability::Action::RESOURCE_APPROVALS}.")
 
     policy = workspace.policies.enabled.for_domain(Policy::DOMAIN_APPROVALS)
                       .workspace_wide.order(:created_at).first

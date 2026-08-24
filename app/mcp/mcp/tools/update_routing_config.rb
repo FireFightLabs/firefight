@@ -8,7 +8,7 @@ module Mcp
                   "to the default. If the call requires approval, retry the identical call with " \
                   "approval_id once approved. Docs: #{Docs::ROUTING_RULES}"
       annotations(**WRITE)
-      authorize_as ApiKey::RESOURCE_POLICIES, ApiKey::ACTION_UPDATE
+      authorize_as Ability::Action::RESOURCE_POLICIES, Ability::Action::ACTION_UPDATE
       input_schema(
         properties: {
           source: { type: "string", description: "Alert source name; omit for the workspace policy" },

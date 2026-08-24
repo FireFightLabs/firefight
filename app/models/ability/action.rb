@@ -1,11 +1,43 @@
 module Ability
   # The atomic permissioned unit of the Ability Gateway. System actions are
-  # global rows (workspace_id nil) derived from ApiKey resource/action
-  # constants. Tool actions are workspace-scoped and minted by integrations.
+  # global rows (workspace_id nil), one per resource and CRUD action below.
+  # Tool actions are workspace-scoped and minted by integrations.
+  #
+  # The resource and action vocabulary lives here because this is the
+  # permission system. API keys, Slack handlers, MCP tools, and the web
+  # dashboard all declare what they authorize in these terms.
   class Action < ApplicationRecord
     KIND_SYSTEM = "system"
     KIND_TOOL = "tool"
     KINDS = [ KIND_SYSTEM, KIND_TOOL ].freeze
+
+    RESOURCE_INCIDENTS = "incidents"
+    RESOURCE_SEVERITIES = "severities"
+    RESOURCE_STATUSES = "statuses"
+    RESOURCE_INCIDENT_TYPES = "incident_types"
+    RESOURCE_CUSTOM_FIELDS = "custom_fields"
+    # Which fields a responder is asked at each lifecycle moment. Separate
+    # from custom_fields because defining a field and deciding that Name is
+    # required on every declaration are different powers.
+    RESOURCE_FORMS = "forms"
+    RESOURCE_CATALOG = "catalog"
+    RESOURCE_ALERTS = "alerts"
+    RESOURCE_POLICIES = "policies"
+    RESOURCE_RUNBOOKS = "runbooks"
+    RESOURCE_APPROVALS = "approvals"
+
+    RESOURCES = [
+      RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
+      RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
+      RESOURCE_RUNBOOKS, RESOURCE_APPROVALS
+    ].freeze
+
+    ACTION_READ = "read"
+    ACTION_CREATE = "create"
+    ACTION_UPDATE = "update"
+    ACTION_DELETE = "delete"
+
+    ACTIONS = [ ACTION_READ, ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE ].freeze
 
     RISK_READ = "read"
     RISK_WRITE = "write"
@@ -13,10 +45,10 @@ module Ability
     RISK_LEVELS = [ RISK_READ, RISK_WRITE, RISK_DESTRUCTIVE ].freeze
 
     RISK_BY_CRUD_ACTION = {
-      ApiKey::ACTION_READ => RISK_READ,
-      ApiKey::ACTION_CREATE => RISK_WRITE,
-      ApiKey::ACTION_UPDATE => RISK_WRITE,
-      ApiKey::ACTION_DELETE => RISK_DESTRUCTIVE
+      ACTION_READ => RISK_READ,
+      ACTION_CREATE => RISK_WRITE,
+      ACTION_UPDATE => RISK_WRITE,
+      ACTION_DELETE => RISK_DESTRUCTIVE
     }.freeze
 
     KEY_FORMAT = /\A[a-z0-9_]+(\.[a-z0-9_]+)+\z/
@@ -40,6 +72,12 @@ module Ability
       "#{resource}.#{action}"
     end
 
+    # Every system action key. The permissions matrix manages exactly these,
+    # and lookup self-heals any of them.
+    def self.managed_keys
+      @managed_keys ||= RESOURCES.product(ACTIONS).map { |resource, action| system_key(resource, action) }.freeze
+    end
+
     # A key resolves to the global system action or the workspace's own
     # tool action. Keys inside the system space self-heal (same rule as
     # system!, so an unseeded environment can't deny valid actions). Any
@@ -48,7 +86,7 @@ module Ability
       found = where(workspace_id: [ nil, workspace&.id ]).find_by(key: key)
       return found if found
 
-      system!(key) if ApiKey.managed_ability_keys.include?(key)
+      system!(key) if managed_keys.include?(key)
     end
 
     # Lazily materializes a system action so grant writes never race the
@@ -65,8 +103,8 @@ module Ability
     end
 
     def self.sync_system_actions!
-      ApiKey::RESOURCES.each do |resource|
-        ApiKey::ACTIONS.each do |action|
+      RESOURCES.each do |resource|
+        ACTIONS.each do |action|
           system!(system_key(resource, action))
         end
       end

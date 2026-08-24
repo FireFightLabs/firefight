@@ -6,7 +6,7 @@ module HandlerAuthorization
   # Handlers that touch nothing: dialog dismissal, no-ops, unknown routes.
   NONE = :none
 
-  def authorize_as(resource, action = ApiKey::ACTION_READ)
+  def authorize_as(resource, action = Ability::Action::ACTION_READ)
     @authorization = [ resource, action ]
   end
 

@@ -29,8 +29,8 @@ module Mcp
       )
 
       def self.authorization(workspace, args)
-        action = existing_rule(workspace, args) ? ApiKey::ACTION_UPDATE : ApiKey::ACTION_CREATE
-        [ ApiKey::RESOURCE_POLICIES, action ]
+        action = existing_rule(workspace, args) ? Ability::Action::ACTION_UPDATE : Ability::Action::ACTION_CREATE
+        [ Ability::Action::RESOURCE_POLICIES, action ]
       end
 
       def self.perform(workspace:, args:)

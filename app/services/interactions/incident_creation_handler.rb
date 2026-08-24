@@ -1,7 +1,7 @@
 module Interactions
   class IncidentCreationHandler
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE
+    authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE
 
     def self.execute(interaction)
       workspace = interaction.workspace

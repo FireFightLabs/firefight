@@ -8,7 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-// Every resource in ApiKey::RESOURCES, every action in ApiKey::ACTIONS. This
+// Every resource in Ability::Action::RESOURCES, every action in Ability::Action::ACTIONS. This
 // once mirrored the /api/v1 routes alone, which left most MCP tools
 // ungrantable: a service key could not be given runbooks or approvals at all,
 // so an agent had to run as an admin human and inherit everything.

@@ -36,7 +36,7 @@ module Mcp
         required: []
       )
 
-      upserts ApiKey::RESOURCE_CUSTOM_FIELDS, scope: ->(workspace) { workspace.incident_field_definitions.active }
+      upserts Ability::Action::RESOURCE_CUSTOM_FIELDS, scope: ->(workspace) { workspace.incident_field_definitions.active }
 
       def self.perform(workspace:, args:)
         existing = upsert_target(workspace, args)

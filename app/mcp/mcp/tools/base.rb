@@ -33,7 +33,7 @@ module Mcp
         # The [resource, crud_action] pair the gateway authorizes this call
         # as. Static for most tools. Upserts override the instance method to
         # split create vs update by whether the target exists.
-        def authorize_as(resource, action = ApiKey::ACTION_READ)
+        def authorize_as(resource, action = Ability::Action::ACTION_READ)
           @authorization = [ resource, action ]
         end
 
@@ -55,7 +55,7 @@ module Mcp
           end
 
           define_singleton_method(:authorization) do |workspace, args|
-            [ resource, upsert_target(workspace, args) ? ApiKey::ACTION_UPDATE : ApiKey::ACTION_CREATE ]
+            [ resource, upsert_target(workspace, args) ? Ability::Action::ACTION_UPDATE : Ability::Action::ACTION_CREATE ]
           end
         end
 

@@ -34,7 +34,7 @@ module Mcp
         required: []
       )
 
-      upserts ApiKey::RESOURCE_RUNBOOKS, scope: ->(workspace) { workspace.runbooks.active }
+      upserts Ability::Action::RESOURCE_RUNBOOKS, scope: ->(workspace) { workspace.runbooks.active }
 
       def self.perform(workspace:, args:)
         runbook = upsert_target(workspace, args)

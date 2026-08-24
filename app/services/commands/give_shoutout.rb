@@ -1,7 +1,7 @@
 module Commands
   class GiveShoutout
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS
+    authorize_as Ability::Action::RESOURCE_INCIDENTS
 
     def self.execute(command)
       return Command.ephemeral("No active incident in this channel.") unless command.incident

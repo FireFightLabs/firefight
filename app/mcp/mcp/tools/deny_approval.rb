@@ -5,7 +5,7 @@ module Mcp
       description "Deny a pending ability approval by id, as the connected human. Only " \
                   "personal tokens and OAuth connections can resolve approvals. Docs: #{Docs::MCP_SERVER}"
       annotations(**WRITE)
-      authorize_as ApiKey::RESOURCE_APPROVALS, ApiKey::ACTION_UPDATE
+      authorize_as Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE
       input_schema(
         properties: {
           id: { type: "string", description: "Approval id" }

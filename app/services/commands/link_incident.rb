@@ -1,7 +1,7 @@
 module Commands
   class LinkIncident
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS
+    authorize_as Ability::Action::RESOURCE_INCIDENTS
 
     def self.execute(command)
       return Command.ephemeral("This command can only be used in an active incident channel.") unless command.incident

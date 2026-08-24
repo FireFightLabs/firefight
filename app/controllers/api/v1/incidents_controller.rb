@@ -2,7 +2,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
   before_action :set_incident, only: [ :show, :update ]
 
   def index
-    authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ)
+    authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
 
     scope = current_workspace.incidents
       .includes(:incident_status, :incident_severity, :incident_type, :declared_by)
@@ -13,11 +13,11 @@ class Api::V1::IncidentsController < Api::V1::ApiController
   end
 
   def show
-    authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_READ)
+    authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
   end
 
   def create
-    authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)
+    authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)
 
     idempotency_key = params.require(:idempotency_key)
     return render_replay(idempotency_key) if replayed?(idempotency_key)
@@ -66,7 +66,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
   end
 
   def update
-    authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE)
+    authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE)
 
     resolve_and_apply_update
 

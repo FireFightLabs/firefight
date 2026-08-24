@@ -1,7 +1,7 @@
 module Commands
   class ShowTimeline
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS
+    authorize_as Ability::Action::RESOURCE_INCIDENTS
 
     def self.execute(command)
       incident = command.workspace.incidents.in_channel(command.channel_id).recent.first

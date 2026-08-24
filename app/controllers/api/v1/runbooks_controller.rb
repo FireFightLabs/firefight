@@ -4,12 +4,12 @@ class Api::V1::RunbooksController < Api::V1::ApiController
   before_action :set_runbook, only: [ :show ]
 
   def index
-    authorize!(ApiKey::RESOURCE_RUNBOOKS, ApiKey::ACTION_READ)
+    authorize!(Ability::Action::RESOURCE_RUNBOOKS, Ability::Action::ACTION_READ)
     @runbooks = current_workspace.runbooks.active.ordered.includes(:runbook_steps)
   end
 
   def show
-    authorize!(ApiKey::RESOURCE_RUNBOOKS, ApiKey::ACTION_READ)
+    authorize!(Ability::Action::RESOURCE_RUNBOOKS, Ability::Action::ACTION_READ)
   end
 
   private

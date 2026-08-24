@@ -1,7 +1,7 @@
 module Interactions
   class EscalateIncidentButtonHandler
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS
+    authorize_as Ability::Action::RESOURCE_INCIDENTS
 
     def self.execute(interaction)
       workspace = interaction.workspace
