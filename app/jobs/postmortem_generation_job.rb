@@ -65,8 +65,6 @@ class PostmortemGenerationJob < ApplicationJob
     })
   end
 
-  # The engine's errors carry the client error's name, which is the part a
-  # person can act on.
   def failure_reason(error)
     error.respond_to?(:reason) ? error.reason : error.class.name.demodulize
   end

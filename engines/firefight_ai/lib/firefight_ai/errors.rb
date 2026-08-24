@@ -1,9 +1,6 @@
 module FirefightAi
-  # The engine's own error family. Callers retry on Transient and stop on
-  # Terminal without ever naming the client library underneath.
   class Error < StandardError
-    # The client error's own name, so a failure can be reported by cause
-    # ("ContextLengthExceededError") without exposing the client library.
+    # The client error's own name, e.g. "ContextLengthExceededError".
     attr_reader :reason
 
     def initialize(message = nil, reason: nil)
@@ -37,8 +34,6 @@ module FirefightAi
     RubyLLM::ModelNotFoundError
   ].freeze
 
-  # Every model call runs inside this block, so the client library's error
-  # taxonomy stops at the engine boundary.
   def self.translating_errors
     yield
   rescue *TRANSIENT_CLIENT_ERRORS => e

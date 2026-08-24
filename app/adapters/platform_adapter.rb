@@ -175,9 +175,7 @@ class PlatformAdapter
 
   # Generated text
 
-  # How generated text should be marked up for this platform, as an
-  # instruction the AI engine appends to its prompt. The engine itself
-  # never learns a platform's syntax.
+  # Prompt instruction describing the markup this platform renders.
   # @return [String]
   def ai_output_style
     raise NotImplemented.new(__method__, self.class)

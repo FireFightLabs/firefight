@@ -1,7 +1,5 @@
 module FirefightAi
   class IncidentResponder
-    # output_style is the caller's description of the markup its surface
-    # renders. The engine knows nothing about any platform's syntax.
     def initialize(workspace, output_style: nil)
       @workspace = workspace
       @output_style = output_style
