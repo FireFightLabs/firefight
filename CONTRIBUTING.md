@@ -109,7 +109,7 @@ Set these environment variables to archive incident files to R2:
 
 ## Running the test suite
 
-`bin/ci` runs everything CI runs: rubocop, bundler-audit, brakeman, the test suite (parallel), system tests, and seeds.
+`bin/ci` runs everything CI runs: rubocop, archspec (architecture boundaries, rules in `Archspec.rb`), bundler-audit, brakeman, the test suite (parallel), system tests, and seeds.
 
 For day-to-day work:
 
