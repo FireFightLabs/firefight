@@ -359,3 +359,12 @@ app/workflows/                        # All inherit SolidWorkflow::Base (engine:
   incident_close_workflow.rb          # + update/reopen/escalation/link/lead/summary workflows
   slack_workspace_setup_workflow.rb   # Thin delegates to WorkspaceSetupService
 ```
+
+## Enforcement with ArchSpec
+
+[ArchSpec](https://archspecrb.dev) checks the boundary rules in this document statically. The rules live in `Archspec.rb` at the repo root and run as the `Architecture: boundaries` step of `bin/ci`.
+
+- Components are disjoint file sets (handlers, dispatchers, services, adapters, engines, entry points), plus namespace components for boundaries that are names rather than folders (`Slack::*`, `SolidWorkflow::*`, `AbilityGateway`, the integration clients).
+- The headline rules. Only `app/adapters/slack/`, the Slack webhook controllers, the OAuth install flow, and the `WorkspaceAdapter` factory may reference `Slack::*`. Only dispatchers reach handlers. Models never reference services, controllers, or adapters. The four entry points (Slack handlers, API, MCP, dashboard) never reference each other. Both engines keep their declared set of constants.
+- `archspec_todo.yml` holds the grandfathered violations that predate the rules. It only shrinks. Never add an entry to make a build pass. A new violation means the code is in the wrong place. After removing violations, refresh the file with `bundle exec archspec check --update-todo`.
+- ArchSpec sees constants and method calls, not strings or symbols. Duplicated query logic, raw table names in SQL, and magic strings are outside its reach and stay a review concern.
