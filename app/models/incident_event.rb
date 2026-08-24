@@ -101,6 +101,7 @@ class IncidentEvent < ApplicationRecord
   belongs_to :actor, polymorphic: true, optional: true
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate PostmortemUpdate], optional: true
   has_one_attached :artifact
+  has_many :webhook_deliveries, dependent: :delete_all
 
   def escalation_acknowledged?
     metadata&.dig("acknowledged_by_platform_user_id").present?

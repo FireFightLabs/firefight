@@ -6,33 +6,43 @@ class Workspace < ApplicationRecord
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
-  has_many :workspace_memberships, dependent: :destroy
-  has_many :users, through: :workspace_memberships
-
+  # Destroyed in declaration order, and the order is load-bearing: children
+  # go before the rows they hold foreign keys to. Grants before the actions
+  # they name, webhook deliveries before the incident events they point at,
+  # incidents before the options, runbooks, catalogs and keys they
+  # reference, inferences and api keys after the incidents that name them,
+  # memberships last because nearly every table names one.
+  has_many :ability_invocations, class_name: "Ability::Invocation", dependent: :delete_all
+  has_many :ability_approvals, class_name: "Ability::Approval", dependent: :destroy
+  has_many :ability_grants, class_name: "Ability::Grant", dependent: :destroy
+  has_many :ability_roles, class_name: "Ability::Role", dependent: :destroy
+  has_many :webhooks, dependent: :destroy
+  has_many :alerts, dependent: :destroy
+  has_many :alert_groups, dependent: :destroy
   has_many :incidents, dependent: :destroy
+  has_many :alert_sources, dependent: :destroy
+  has_many :policies, dependent: :destroy
+  has_many :agents, dependent: :destroy
+  has_many :integrations, dependent: :destroy
+  has_many :ability_actions, class_name: "Ability::Action", dependent: :destroy
+  has_many :incident_runbooks, dependent: :destroy
+  has_many :runbooks, dependent: :destroy
+  has_many :incident_conditions, dependent: :delete_all
+  has_many :incident_forms, dependent: :destroy
+  has_many :incident_field_definitions, dependent: :destroy
+  has_many :catalog_entry_relationships, dependent: :delete_all
+  has_many :catalog_entries, dependent: :destroy
+  has_many :catalog_types, dependent: :destroy
   has_many :incident_statuses, dependent: :destroy
   has_many :incident_severities, dependent: :destroy
   has_many :incident_roles, dependent: :destroy
   has_many :incident_types, dependent: :destroy
-  has_many :incident_field_definitions, dependent: :destroy
-  has_many :incident_forms, dependent: :destroy
-  has_many :webhooks, dependent: :destroy
-  has_many :api_keys, dependent: :destroy
-  has_many :agents, dependent: :destroy
-  has_many :catalog_types
-  has_many :catalog_entries
   has_many :incident_transcript_messages, dependent: :destroy
-  has_many :policies, dependent: :destroy
-  has_many :alert_sources, dependent: :destroy
-  has_many :alerts, dependent: :destroy
-  has_many :alert_groups, dependent: :destroy
-  has_many :runbooks, dependent: :destroy
-  has_many :incident_runbooks, dependent: :destroy
-  has_many :ability_approvals, class_name: "Ability::Approval", dependent: :destroy
-  has_many :ability_grants, class_name: "Ability::Grant", dependent: :destroy
-  has_many :ability_roles, class_name: "Ability::Role", dependent: :destroy
-  has_many :ability_invocations, class_name: "Ability::Invocation", dependent: :delete_all
-  has_many :integrations, dependent: :destroy
+  has_many :inferences, dependent: :delete_all
+  has_many :idempotency_keys, dependent: :delete_all
+  has_many :api_keys, dependent: :destroy
+  has_many :workspace_memberships, dependent: :destroy
+  has_many :users, through: :workspace_memberships
 
   # The environments a grant may be scoped to and a connection's credentials
   # wired for. The single source both questions are answered from, so an id
