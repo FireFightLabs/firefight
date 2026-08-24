@@ -7,12 +7,24 @@ module Mcp
     ENVIRONMENT_ARG = :environment
     APPROVAL_ID_ARG = :approval_id
 
-    def self.tools_for(workspace)
+    # Lists only what the principal could actually call, so a narrowly
+    # scoped service key never receives an inventory of the workspace's
+    # connections. Calls are still authorized individually in invoke.
+    def self.tools_for(workspace, principal)
+      resolved = Ability::Resolver.resolve(principal)
+
       Integration::Tool.enabled.available
                        .joins(:integration)
                        .where(integrations: { workspace_id: workspace.id, disabled_at: nil, deleted_at: nil })
-                       .includes(:integration)
+                       .includes(:integration, :ability_action)
+                       .select { |tool| callable?(tool, principal, resolved) }
                        .map { |tool| build(tool) }
+    end
+
+    def self.callable?(tool, principal, resolved)
+      return true if resolved.action_keys.include?(tool.action_key)
+
+      tool.ability_action.present? && principal.implicitly_allowed?(tool.ability_action)
     end
 
     def self.build(tool)

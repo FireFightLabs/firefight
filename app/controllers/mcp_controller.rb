@@ -97,7 +97,7 @@ class McpController < ActionController::API
       name: SERVER_NAME,
       version: SERVER_VERSION,
       instructions: instructions,
-      tools: Mcp::Tools.all + Mcp::ConnectionToolFactory.tools_for(Current.workspace),
+      tools: Mcp::Tools.all + Mcp::ConnectionToolFactory.tools_for(Current.workspace, Current.principal),
       server_context: {
         workspace: Current.workspace,
         principal: Current.principal,

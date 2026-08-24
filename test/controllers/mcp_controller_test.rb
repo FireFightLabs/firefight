@@ -387,15 +387,17 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     names = body.dig("result", "tools").map { |t| t["name"] }
     assert_includes names, "new_relic_logs_query"
 
-    # A service key holds only what it was granted, so it cannot reach a
-    # newly enabled tool without one.
+    # A service key holds only what it was granted, so a newly enabled tool
+    # is neither listed for it nor callable by it.
     _, service_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Scoped bot",
       permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
     )
-    result, is_error = call_tool("new_relic_logs_query", { query: "SELECT 1" }, token: service_token)
-    assert is_error
-    assert_empty result
+    body = rpc("tools/list", {}, token: service_token)
+    assert_not_includes body.dig("result", "tools").map { |t| t["name"] }, "new_relic_logs_query"
+
+    body = rpc("tools/call", { name: "new_relic_logs_query", arguments: { query: "SELECT 1" } }, token: service_token)
+    assert_nil body["result"], "an unlisted tool must not be callable"
 
     # The admin who enabled the capability can use it straight away.
     Integrations::McpClient.any_instance.expects(:call_tool)
