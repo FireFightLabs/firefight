@@ -1,8 +1,4 @@
 class AlertGroup < ApplicationRecord
-  DEFAULT_WINDOW_MINUTES = 10
-  WINDOW_MINUTES_RANGE = (5..10_080).freeze # 5 minutes to 7 days
-  DEFAULT_CONTENT_MATCH_FIELDS = [ "service" ].freeze
-
   belongs_to :workspace
   belongs_to :incident
   has_many :alerts, dependent: :nullify

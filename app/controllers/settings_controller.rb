@@ -166,11 +166,9 @@ class SettingsController < InertiaController
 
   def alerts
     source = current_workspace.alert_sources.find(params[:source_id]) if params[:source_id].present?
-    scope = current_workspace.alerts
-      .includes(:alert_source, :incident, matched_policy_rule: :policy)
-      .order(last_seen_at: :desc)
-    scope = scope.where(alert_source: source) if source
-    scope = scope.where(matched_policy_rule_id: params[:rule_id]) if params[:rule_id].present?
+    scope = current_workspace.alerts.listing
+    scope = scope.from_source(source) if source
+    scope = scope.matched_by(params[:rule_id]) if params[:rule_id].present?
 
     render inertia: "settings/alerts", props: {
       alerts: AlertSettingsSerializer.many(scope.limit(RECENT_ALERTS_LIMIT)),

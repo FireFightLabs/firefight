@@ -23,6 +23,13 @@ class Alert < ApplicationRecord
   validates :routing_state, inclusion: { in: ROUTING_STATES }
 
   scope :open_status, -> { where(status: STATUS_FIRING) }
+
+  # The alert listing the settings page and MCP search share: newest first,
+  # with everything the row needs preloaded. Filters chain on top.
+  scope :listing, -> { includes(:alert_source, :incident, matched_policy_rule: :policy).order(last_seen_at: :desc) }
+  scope :from_source, ->(source) { where(alert_source: source) }
+  scope :matched_by, ->(rule_id) { where(matched_policy_rule_id: rule_id) }
+  scope :seen_since, ->(time) { where(last_seen_at: time..) }
   scope :pending_routing, -> { where(routing_state: ROUTING_PENDING) }
 
   def self.fallback_fingerprint(source, fields)

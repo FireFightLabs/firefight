@@ -30,24 +30,21 @@ module Mcp
           else
             workspace
           end
-        policy = scope.effective_alert_routing_policy
-        unless policy
+        raw_fields = (args[:fields] || {}).transform_keys(&:to_s).transform_values(&:to_s)
+        routed = Alert::Router.new(workspace, scope).route(raw_fields)
+        unless routed
           return Mcp::ToolDispatcher.error_response("No enabled alert routing policy configured for this scope. " \
                                                     "Routing rules are documented at #{Docs::ROUTING_RULES}")
         end
 
-        fields = scope.routing_fields((args[:fields] || {}).transform_keys(&:to_s).transform_values(&:to_s))
-        context = Policy::ContextBuilder.build(workspace: workspace, fields: fields)
-        result = policy.evaluate(context)
-
         payload = {
-          matched: result.matched?,
-          matched_rule_priority: result.matched_rule&.priority,
-          outcome: enriched_outcome(workspace, result.outcome),
-          context: context,
-          trace: result.trace
+          matched: routed.matched?,
+          matched_rule_priority: routed.matched_rule&.priority,
+          outcome: enriched_outcome(workspace, routed.outcome),
+          context: routed.context,
+          trace: routed.trace
         }
-        payload[:docs_url] = Docs::ROUTING_RULES unless result.matched?
+        payload[:docs_url] = Docs::ROUTING_RULES unless routed.matched?
         role_warnings = Alert::RoutingRoleGaps.for(workspace)
         payload[:role_warnings] = role_warnings if role_warnings.any?
         respond(payload)

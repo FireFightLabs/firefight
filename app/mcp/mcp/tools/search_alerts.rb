@@ -19,18 +19,16 @@ module Mcp
       )
 
       def self.perform(workspace:, args:)
-        scope = workspace.alerts
-          .includes(:alert_source, :incident, matched_policy_rule: :policy)
-          .order(last_seen_at: :desc)
+        scope = workspace.alerts.listing
         if args[:source].present?
           source = workspace.alert_sources.find_by(name: args[:source])
           raise ActiveRecord::RecordNotFound unless source
 
-          scope = scope.where(alert_source: source)
+          scope = scope.from_source(source)
         end
         scope = scope.where(routing_state: args[:routing_state]) if args[:routing_state].present?
         scope = scope.where(status: args[:status]) if args[:status].present?
-        scope = scope.where(last_seen_at: time_arg(args[:since])..) if time_arg(args[:since])
+        scope = scope.seen_since(time_arg(args[:since])) if time_arg(args[:since])
 
         alerts, truncated = capped(scope, args)
         respond(alerts: alerts.map { |alert| summary(alert) }, truncated: truncated)

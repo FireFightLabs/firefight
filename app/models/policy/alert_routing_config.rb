@@ -4,17 +4,23 @@
 module Policy::AlertRoutingConfig
   extend ActiveSupport::Concern
 
+  # Grouping defaults belong to the routing contract, not to AlertGroup, so
+  # the policy engine never loads an alert model to validate a knob.
+  DEFAULT_WINDOW_MINUTES = 10
+  WINDOW_MINUTES_RANGE = (5..10_080).freeze # 5 minutes to 7 days
+  DEFAULT_CONTENT_MATCH_FIELDS = [ "service" ].freeze
+
   included do
     validate :alert_routing_domain_config
   end
 
   def grouping_window_minutes
-    minutes = domain_config["grouping_window_minutes"].presence || AlertGroup::DEFAULT_WINDOW_MINUTES
+    minutes = domain_config["grouping_window_minutes"].presence || DEFAULT_WINDOW_MINUTES
     minutes.to_i
   end
 
   def content_match_fields
-    Array(domain_config["content_match_fields"].presence || AlertGroup::DEFAULT_CONTENT_MATCH_FIELDS)
+    Array(domain_config["content_match_fields"].presence || DEFAULT_CONTENT_MATCH_FIELDS)
   end
 
   # Partial-update semantics for the settings form: nil leaves a knob
@@ -39,7 +45,7 @@ module Policy::AlertRoutingConfig
     return unless domain == Policy::DOMAIN_ALERT_ROUTING && domain_config.present?
 
     window = domain_config["grouping_window_minutes"]
-    if window.present? && !AlertGroup::WINDOW_MINUTES_RANGE.cover?(window.to_i)
+    if window.present? && !WINDOW_MINUTES_RANGE.cover?(window.to_i)
       errors.add(:domain_config, "grouping window must be between 5 minutes and 7 days")
     end
 
