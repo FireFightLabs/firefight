@@ -9,6 +9,11 @@ class WorkspaceMembership < ApplicationRecord
   # A departed member's personal tokens die with the membership.
   has_many :personal_api_keys, class_name: "ApiKey", foreign_key: :workspace_membership_id,
            dependent: :destroy, inverse_of: :on_behalf_of
+  # Same for OAuth connections resolving to the member.
+  has_many :oauth_access_grants, class_name: "Doorkeeper::AccessGrant",
+           foreign_key: :resource_owner_id, dependent: :delete_all
+  has_many :oauth_access_tokens, class_name: "Doorkeeper::AccessToken",
+           foreign_key: :resource_owner_id, dependent: :delete_all
 
 
   validates :platform_user_id, presence: true

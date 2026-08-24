@@ -14,7 +14,7 @@ class CatalogType < ApplicationRecord
   RESERVED_SLUGS = SYSTEM_KEYS
 
   belongs_to :workspace
-  has_many :catalog_attribute_definitions
+  has_many :catalog_attribute_definitions, dependent: :destroy
   has_many :catalog_entries
 
   validates :name, presence: true
