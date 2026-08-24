@@ -20,11 +20,11 @@ class AgentTest < ActiveSupport::TestCase
   end
 
   test "reads nothing without grants, unlike human principals" do
-    assert_not @agent.mcp_readable?(ApiKey::RESOURCE_INCIDENTS)
+    assert_not @agent.mcp_readable?(Ability::Action::RESOURCE_INCIDENTS)
 
     Ability::Grant.create!(workspace: @workspace, principal: @agent, action: ability_actions(:incidents_read))
-    assert @agent.mcp_readable?(ApiKey::RESOURCE_INCIDENTS)
-    assert_not @agent.mcp_readable?(ApiKey::RESOURCE_ALERTS)
+    assert @agent.mcp_readable?(Ability::Action::RESOURCE_INCIDENTS)
+    assert_not @agent.mcp_readable?(Ability::Action::RESOURCE_ALERTS)
   end
 
   test "active scope excludes disabled and deleted agents" do

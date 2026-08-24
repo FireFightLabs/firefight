@@ -2,7 +2,7 @@ module Mcp
   module Tools
     class SearchRunbooks < Base
       tool_name SEARCH_RUNBOOKS
-      authorize_as ApiKey::RESOURCE_RUNBOOKS
+      authorize_as Ability::Action::RESOURCE_RUNBOOKS
       description "Search this workspace's incident response runbooks: documented procedures " \
                   "for handling incidents (e.g. how to fail over a database, roll back a deploy). " \
                   "Matches name and summary. Use get_runbook for the full step-by-step content. " \

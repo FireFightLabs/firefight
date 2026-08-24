@@ -81,7 +81,7 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
   test "abilities preview shows resolved grants for service keys and implicit reads for personal" do
     service_key = create_service_key(
       workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one), name: "Scoped",
-      permissions: { ApiKey::RESOURCE_ALERTS => [ ApiKey::ACTION_READ ] }
+      permissions: { Ability::Action::RESOURCE_ALERTS => [ Ability::Action::ACTION_READ ] }
     ).first
 
     get abilities_api_key_url(service_key)

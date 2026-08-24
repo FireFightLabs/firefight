@@ -206,7 +206,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   test "a service key without runbooks:read is denied" do
     _, incidents_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Incidents only",
-      permissions: { ApiKey::RESOURCE_INCIDENTS => [ ApiKey::ACTION_READ ] }
+      permissions: { Ability::Action::RESOURCE_INCIDENTS => [ Ability::Action::ACTION_READ ] }
     )
 
     result, is_error = call_tool(Mcp::Tools::SEARCH_RUNBOOKS, {}, token: incidents_token)

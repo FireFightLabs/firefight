@@ -1,7 +1,7 @@
 module Commands
   class InviteResponders
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+    authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
 
     def self.execute(command)
       return Command.ephemeral("This command must be run from an active incident channel.") unless command.incident

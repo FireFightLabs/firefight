@@ -4,7 +4,7 @@ module Interactions
   # description starts from it.
   class CreateActionItemFromReactionHandler
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS
+    authorize_as Ability::Action::RESOURCE_INCIDENTS
 
     KINDS = {
       Identifiers::CREATE_ACTION_FROM_REACTION => :action,

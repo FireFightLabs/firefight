@@ -2,7 +2,7 @@ module Mcp
   module Tools
     class SearchCatalog < Base
       tool_name SEARCH_CATALOG
-      authorize_as ApiKey::RESOURCE_CATALOG
+      authorize_as Ability::Action::RESOURCE_CATALOG
       description "Search the service catalog: services, teams and other entries with their " \
                   "attributes and relationships (e.g. which team owns a service, its Slack " \
                   "channel). Use type=service or type=team plus a name query or exact slug. " \

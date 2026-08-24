@@ -2,7 +2,7 @@ module Interactions
   # Retired button on older messages, redraw rather than do nothing.
   class ApplyRunbookHandler
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+    authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
 
     def self.execute(interaction)
       workspace = interaction.workspace

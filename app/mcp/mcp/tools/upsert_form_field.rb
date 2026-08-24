@@ -39,7 +39,7 @@ module Mcp
       )
 
       def self.authorization(_workspace, _args)
-        [ ApiKey::RESOURCE_FORMS, ApiKey::ACTION_UPDATE ]
+        [ Ability::Action::RESOURCE_FORMS, Ability::Action::ACTION_UPDATE ]
       end
 
       def self.perform(workspace:, args:)

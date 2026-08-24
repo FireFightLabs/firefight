@@ -4,7 +4,7 @@ module Mcp
       TIMELINE_LIMIT = 50
 
       tool_name GET_INCIDENT
-      authorize_as ApiKey::RESOURCE_INCIDENTS
+      authorize_as Ability::Action::RESOURCE_INCIDENTS
       description "Fetch one incident in full by id or identifier (e.g. INC-42): details, " \
                   "timeline events, postmortem status, and the alerts attached to it. " \
                   "Docs: #{Docs::INCIDENTS}"

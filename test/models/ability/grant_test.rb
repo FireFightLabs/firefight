@@ -39,7 +39,7 @@ module Ability
       Ability::Grant.sync_direct!(
         principal: @key, workspace: @workspace,
         desired_keys: [ "incidents.read", "alerts.read" ],
-        managed_keys: ApiKey.managed_ability_keys
+        managed_keys: Ability::Action.managed_keys
       )
 
       keys = Ability::Grant.where(principal: @key).joins(:action).pluck(Ability::Action.arel_table[:key])

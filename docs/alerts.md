@@ -182,7 +182,7 @@ One digest message per alert, posted once and updated in place. `#notify_digest`
 
 `alerts.matched_policy_rule_id` is persisted at routing time (FK, nullify on rule delete) so **every routed alert can answer "which rule did this?"** permanently. That column is what makes the rule filter on the alerts screen and the MCP summary possible; do not drop it in favour of re-deriving.
 
-Other surfaces: `AlertsPanel` on the incident page, `IncidentEvent::ALERT_ATTACHED` / `ALERT_RESOLVED` on the timeline, and `Mcp::Tools::SearchAlerts` (read-only, gated on `ApiKey::RESOURCE_ALERTS`) exposing status, routing state, matched rule priority, and incident identifier to agents.
+Other surfaces: `AlertsPanel` on the incident page, `IncidentEvent::ALERT_ATTACHED` / `ALERT_RESOLVED` on the timeline, and `Mcp::Tools::SearchAlerts` (read-only, gated on `Ability::Action::RESOURCE_ALERTS`) exposing status, routing state, matched rule priority, and incident identifier to agents.
 
 ## Adding a provider
 

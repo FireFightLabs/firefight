@@ -1,18 +1,18 @@
 class Api::V1::Catalog::EntriesController < Api::V1::ApiController
   def index
-    authorize!(ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_READ)
+    authorize!(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_READ)
     type = find_type!
     scope = type.catalog_entries.active.ordered.with_relationships
     @entries, @pagination = paginate(scope)
   end
 
   def show
-    authorize!(ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_READ)
+    authorize!(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_READ)
     @entry = current_workspace.catalog_entries.active.with_relationships.find(params[:id])
   end
 
   def create
-    authorize!(ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_CREATE)
+    authorize!(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_CREATE)
     type = find_type!
 
     @entry = entry_service.upsert(
@@ -26,7 +26,7 @@ class Api::V1::Catalog::EntriesController < Api::V1::ApiController
   end
 
   def update
-    authorize!(ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_UPDATE)
+    authorize!(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_UPDATE)
     @entry = current_workspace.catalog_entries.active.find(params[:id])
     entry_service.update(@entry, name: params[:name], raw_attributes: attributes_param)
     @entry.reload
@@ -34,7 +34,7 @@ class Api::V1::Catalog::EntriesController < Api::V1::ApiController
   end
 
   def destroy
-    authorize!(ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_DELETE)
+    authorize!(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_DELETE)
     entry = current_workspace.catalog_entries.active.find(params[:id])
     entry_service.delete(entry)
     head :no_content

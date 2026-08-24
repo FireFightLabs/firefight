@@ -24,7 +24,7 @@ module Mcp
         required: [ "type" ]
       )
 
-      upserts ApiKey::RESOURCE_CATALOG, scope: ->(workspace) { workspace.catalog_entries.active }
+      upserts Ability::Action::RESOURCE_CATALOG, scope: ->(workspace) { workspace.catalog_entries.active }
 
       def self.perform(workspace:, args:)
         type = workspace.catalog_types.find_by!(slug: args[:type].to_s)

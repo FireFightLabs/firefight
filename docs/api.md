@@ -4,7 +4,7 @@ REST API at `/api/v1/` with Bearer token authentication via `ApiKey` model. API 
 
 **Authentication**: `ApiAuthentication` concern extracts Bearer token, looks up `ApiKey` by SHA256 digest (cached 24h, busted on key update), sets `Current.workspace` and `Current.api_key`.
 
-**Authorization**: `authorize!(ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_CREATE)` — raises `ApiAuthentication::ForbiddenError` if the key lacks permission. Permissions stored as jsonb on `ApiKey`: `{ "incidents" => ["read", "create", "update"] }`.
+**Authorization**: `authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)` raises `ApiAuthentication::ForbiddenError` if the key lacks permission. Permissions stored as jsonb on `ApiKey`: `{ "incidents" => ["read", "create", "update"] }`.
 
 **Idempotency**: `POST /api/v1/incidents` requires `idempotency_key`. Duplicate key returns existing incident (200) instead of creating new (201). Keys expire after 24h via `CleanupIdempotencyKeysJob`.
 

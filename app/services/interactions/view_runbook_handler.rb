@@ -2,7 +2,7 @@ module Interactions
   # Stays sync, trigger_id expires in 3s.
   class ViewRunbookHandler
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_RUNBOOKS
+    authorize_as Ability::Action::RESOURCE_RUNBOOKS
 
     def self.execute(interaction)
       workspace = interaction.workspace

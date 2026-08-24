@@ -1,7 +1,7 @@
 module Interactions
   class ApproveAbilityHandler
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_APPROVALS, ApiKey::ACTION_UPDATE
+    authorize_as Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE
 
     def self.execute(interaction)
       AbilityApprovalDecisionHandler.decide(interaction, :approve)

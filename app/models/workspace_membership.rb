@@ -39,7 +39,7 @@ class WorkspaceMembership < ApplicationRecord
   # staffing one needs no grant, and it must read the same whether the
   # member is clicking a button in Slack, calling the API with a personal
   # token, or driving MCP. Configuring the workspace stays admin territory.
-  PARTICIPATION = { ApiKey::RESOURCE_INCIDENTS => [ ApiKey::ACTION_CREATE, ApiKey::ACTION_UPDATE ].freeze }.freeze
+  PARTICIPATION = { Ability::Action::RESOURCE_INCIDENTS => [ Ability::Action::ACTION_CREATE, Ability::Action::ACTION_UPDATE ].freeze }.freeze
 
   # Member-level authority: humans read everything in their workspace and
   # participate in incidents. Admins additionally hold every system write,
@@ -64,7 +64,7 @@ class WorkspaceMembership < ApplicationRecord
   # it, so the two can never drift.
   def implicitly_permits?(resource, crud_action)
     return true if admin_access?
-    return true if crud_action.to_s == ApiKey::ACTION_READ
+    return true if crud_action.to_s == Ability::Action::ACTION_READ
 
     PARTICIPATION.fetch(resource, []).include?(crud_action.to_s)
   end

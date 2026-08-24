@@ -25,7 +25,7 @@ Block form wraps execution. Handle form returns an `Authorization` the caller fi
 
 | Kind | Scope | Origin |
 |---|---|---|
-| `system` | global rows (`workspace_id` nil) | seeded from `ApiKey::RESOURCES × ACTIONS` |
+| `system` | global rows (`workspace_id` nil) | seeded from `Ability::Action::RESOURCES × ACTIONS` |
 | `tool` | workspace-scoped | minted by enabling a capability on a connection |
 
 - Key format is `<integration_slug>.<tool_name>`, **per instance**. Two Datadog connections mint `datadog.logs_query` and `datadog_eu.logs_query`, so a grant is never ambiguous and the ledger always says which one ran.

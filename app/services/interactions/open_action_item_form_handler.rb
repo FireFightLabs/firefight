@@ -3,7 +3,7 @@ module Interactions
   # The action_id names the kind.
   class OpenActionItemFormHandler
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS
+    authorize_as Ability::Action::RESOURCE_INCIDENTS
 
     KINDS = {
       Identifiers::ADD_NEW_ACTION => :action,

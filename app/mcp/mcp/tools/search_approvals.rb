@@ -7,7 +7,7 @@ module Mcp
                   "id here after a call parks, then retry the identical call with approval_id " \
                   "once approved. Newest first. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
-      authorize_as ApiKey::RESOURCE_APPROVALS
+      authorize_as Ability::Action::RESOURCE_APPROVALS
       input_schema(
         properties: {
           status: { type: "string", description: "pending, approved, denied or expired; omit for all" },

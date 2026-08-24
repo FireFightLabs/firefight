@@ -5,7 +5,7 @@ module Mcp
       description "Soft-delete a service catalog entry by slug. If the call requires approval, " \
                   "retry the identical call with approval_id once approved. Docs: #{Docs::CATALOG}"
       annotations(**DESTRUCTIVE)
-      authorize_as ApiKey::RESOURCE_CATALOG, ApiKey::ACTION_DELETE
+      authorize_as Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_DELETE
       input_schema(
         properties: {
           slug: { type: "string", description: "Entry slug" },

@@ -5,7 +5,7 @@ module Interactions
   # Cancel form, which routes through CancelIncidentHandler instead.
   class CancelIncidentButtonHandler
     extend HandlerAuthorization
-    authorize_as ApiKey::RESOURCE_INCIDENTS, ApiKey::ACTION_UPDATE
+    authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
 
     def self.execute(interaction)
       workspace = interaction.workspace

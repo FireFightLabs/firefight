@@ -6,36 +6,6 @@ class ApiKey < ApplicationRecord
   CACHE_TTL = 24.hours
   CACHE_PREFIX = "api_key/auth/"
 
-  # Resources
-  RESOURCE_INCIDENTS = "incidents"
-  RESOURCE_SEVERITIES = "severities"
-  RESOURCE_STATUSES = "statuses"
-  RESOURCE_INCIDENT_TYPES = "incident_types"
-  RESOURCE_CUSTOM_FIELDS = "custom_fields"
-  # Which fields a responder is asked at each lifecycle moment. Separate from
-  # custom_fields because defining a field and deciding that Name is required
-  # on every declaration are different powers.
-  RESOURCE_FORMS = "forms"
-  RESOURCE_CATALOG = "catalog"
-  RESOURCE_ALERTS = "alerts"
-  RESOURCE_POLICIES = "policies"
-  RESOURCE_RUNBOOKS = "runbooks"
-  RESOURCE_APPROVALS = "approvals"
-
-  RESOURCES = [
-    RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
-    RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
-    RESOURCE_RUNBOOKS, RESOURCE_APPROVALS
-  ].freeze
-
-  # Actions
-  ACTION_READ = "read"
-  ACTION_CREATE = "create"
-  ACTION_UPDATE = "update"
-  ACTION_DELETE = "delete"
-
-  ACTIONS = [ ACTION_READ, ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE ].freeze
-
   belongs_to :workspace
   belongs_to :created_by, class_name: "WorkspaceMembership"
   # Personal token: acts with this human's authority. nil = service key.
@@ -103,7 +73,7 @@ class ApiKey < ApplicationRecord
   end
 
   def mcp_readable?(resource)
-    has_permission?(resource, ACTION_READ)
+    has_permission?(resource, Ability::Action::ACTION_READ)
   end
 
   # Personal tokens carry the member's authority exactly, so the rule lives on
@@ -125,7 +95,7 @@ class ApiKey < ApplicationRecord
   def granted_permissions
     ability_grants.includes(:action).each_with_object({}) do |grant, matrix|
       key = grant.action&.key
-      next unless key && self.class.managed_ability_keys.include?(key)
+      next unless key && Ability::Action.managed_keys.include?(key)
 
       resource, action = key.split(".")
       (matrix[resource] ||= []) << action
@@ -138,19 +108,13 @@ class ApiKey < ApplicationRecord
     desired = Array(matrix).flat_map do |resource, actions|
       Array(actions).map { |action| Ability::Action.system_key(resource, action) }
     end
-    unknown = desired - self.class.managed_ability_keys
+    unknown = desired - Ability::Action.managed_keys
     raise ArgumentError, "unknown permission #{unknown.first}" if unknown.any?
 
     Ability::Grant.sync_direct!(
       principal: self, workspace: workspace,
-      desired_keys: desired, managed_keys: self.class.managed_ability_keys
+      desired_keys: desired, managed_keys: Ability::Action.managed_keys
     )
-  end
-
-  def self.managed_ability_keys
-    @managed_ability_keys ||= RESOURCES.product(ACTIONS).map do |resource, action|
-      Ability::Action.system_key(resource, action)
-    end.freeze
   end
 
   def touch_last_used!

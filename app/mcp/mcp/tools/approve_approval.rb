@@ -7,7 +7,7 @@ module Mcp
                   "is re-validated (role now, requester rules) at this moment. The requester " \
                   "then retries their parked call with approval_id. Docs: #{Docs::MCP_SERVER}"
       annotations(**WRITE)
-      authorize_as ApiKey::RESOURCE_APPROVALS, ApiKey::ACTION_UPDATE
+      authorize_as Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE
       input_schema(
         properties: {
           id: { type: "string", description: "Approval id" }
