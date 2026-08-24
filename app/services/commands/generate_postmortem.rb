@@ -29,7 +29,7 @@ module Commands
       # The same placeholder the dashboard creates, so a second request from
       # either surface while one runs is a no-op rather than a second job.
       if Postmortem.start_generation!(incident, by: member)
-        FirefightAi::PostmortemGenerationJob.perform_later(incident.id, member.id)
+        PostmortemGenerationJob.perform_later(incident.id, member.id)
       end
       Command.ephemeral("Generating postmortem for #{incident.identifier}... This may take a minute.")
     end

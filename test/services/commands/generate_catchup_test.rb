@@ -11,7 +11,7 @@ class Commands::GenerateCatchupTest < ActiveSupport::TestCase
   end
 
   test "enqueues AI response job for active incident" do
-    assert_enqueued_with(job: FirefightAi::IncidentResponseJob) do
+    assert_enqueued_with(job: IncidentAiResponseJob) do
       result = Commands::GenerateCatchup.execute(
         build_command(channel_id: @incident.channel_id)
       )
@@ -26,7 +26,7 @@ class Commands::GenerateCatchupTest < ActiveSupport::TestCase
       build_command(channel_id: @incident.channel_id)
     )
 
-    job = enqueued_jobs.find { |j| j["job_class"] == "FirefightAi::IncidentResponseJob" }
+    job = enqueued_jobs.find { |j| j["job_class"] == "IncidentAiResponseJob" }
     assert_nil job["arguments"][2]
   end
 

@@ -2,6 +2,7 @@ require "ruby_llm"
 require "ruby_llm/schema"
 require "firefight_ai/version"
 require "firefight_ai/configuration"
+require "firefight_ai/errors"
 require "firefight_ai/engine"
 
 module FirefightAi

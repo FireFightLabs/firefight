@@ -79,7 +79,7 @@ class IncidentsController < InertiaController
 
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
 
-    FirefightAi::PostmortemGenerationJob.perform_later(incident.id, member.id) if Postmortem.start_generation!(incident, by: member)
+    PostmortemGenerationJob.perform_later(incident.id, member.id) if Postmortem.start_generation!(incident, by: member)
 
     redirect_to incident_postmortem_path(incident)
   end

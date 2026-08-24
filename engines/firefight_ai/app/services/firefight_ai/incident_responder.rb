@@ -1,7 +1,10 @@
 module FirefightAi
   class IncidentResponder
-    def initialize(workspace)
+    # output_style is the caller's description of the markup its surface
+    # renders. The engine knows nothing about any platform's syntax.
+    def initialize(workspace, output_style: nil)
       @workspace = workspace
+      @output_style = output_style
     end
 
     def answer_question(incident, question:, scope_thread_ts: nil)
@@ -20,16 +23,18 @@ module FirefightAi
     private
 
     def call_ai(incident, prompt_text, feature:)
-      response, _ = Inference.track(
-        workspace: @workspace,
-        feature:   feature,
-        provider:  Inference.provider_for(ai_model),
-        model:     ai_model,
-        inferable: incident
-      ) do
-        chat = RubyLLM.chat(model: ai_model)
-        chat.with_instructions(system_prompt)
-        chat.ask(prompt_text)
+      response, _ = FirefightAi.translating_errors do
+        Inference.track(
+          workspace: @workspace,
+          feature:   feature,
+          provider:  Inference.provider_for(ai_model),
+          model:     ai_model,
+          inferable: incident
+        ) do
+          chat = RubyLLM.chat(model: ai_model)
+          chat.with_instructions(system_prompt)
+          chat.ask(prompt_text)
+        end
       end
       response.content
     end
@@ -41,18 +46,22 @@ module FirefightAi
         .to_a
     end
 
+    DEFAULT_OUTPUT_STYLE = <<~STYLE
+      Use markdown for structure: **bold**, _italic_, bullet points, and `code` where appropriate.
+      Do not use headers.
+    STYLE
+
     def system_prompt
       <<~PROMPT
-        You are Firefight AI, an incident management assistant embedded in Slack.
+        You are Firefight AI, an incident management assistant embedded in the team's chat.
 
         Your role is to help incident responders by answering questions about the current incident based on the data provided. Be:
-        - *Concise* — this is Slack, keep responses brief and scannable
-        - *Factual* — only reference information from the provided data
-        - *Helpful* — highlight the most important details first
-        - *Honest* — if the data doesn't contain an answer, say so
+        - Concise, this is chat, keep responses brief and scannable
+        - Factual, only reference information from the provided data
+        - Helpful, highlight the most important details first
+        - Honest, if the data doesn't contain an answer, say so
 
-        Use Slack mrkdwn formatting: *bold*, _italic_, bullet points, and `code` where appropriate.
-        Do not use markdown headers (#) — use *bold text* instead.
+        #{@output_style.presence || DEFAULT_OUTPUT_STYLE}
 
         Do not invite follow-up questions or offer further help. End on the
         last fact, not on conversational closers like "let me know if you have

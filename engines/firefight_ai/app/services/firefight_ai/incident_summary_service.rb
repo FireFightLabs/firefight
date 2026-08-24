@@ -132,16 +132,18 @@ module FirefightAi
     end
 
     def call_llm(incident, prompt_text, feature:)
-      Inference.track(
-        workspace: @workspace,
-        feature:   feature,
-        provider:  Inference.provider_for(model_id),
-        model:     model_id,
-        inferable: incident
-      ) do
-        chat = RubyLLM.chat(model: model_id)
-        chat.with_instructions(system_prompt)
-        chat.ask(prompt_text)
+      FirefightAi.translating_errors do
+        Inference.track(
+          workspace: @workspace,
+          feature:   feature,
+          provider:  Inference.provider_for(model_id),
+          model:     model_id,
+          inferable: incident
+        ) do
+          chat = RubyLLM.chat(model: model_id)
+          chat.with_instructions(system_prompt)
+          chat.ask(prompt_text)
+        end
       end
     end
 

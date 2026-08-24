@@ -95,7 +95,7 @@ module Interactions
       end
 
       member = workspace.workspace_memberships.find_by(platform_user_id: user_id)
-      FirefightAi::PostmortemGenerationJob.perform_later(incident.id, member.id) if member
+      PostmortemGenerationJob.perform_later(incident.id, member.id) if member
       { response_action: "clear" }
     end
     private_class_method :handle_postmortem

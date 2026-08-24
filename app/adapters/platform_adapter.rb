@@ -167,6 +167,22 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Tells the requester, privately, that a postmortem generation failed.
+  # @return [Hash] { success: true }
+  def post_postmortem_generation_failed(channel_id:, user_id:, incident:, reason:, retrying:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Generated text
+
+  # How generated text should be marked up for this platform, as an
+  # instruction the AI engine appends to its prompt. The engine itself
+  # never learns a platform's syntax.
+  # @return [String]
+  def ai_output_style
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Users / directory
 
   # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, timezone: }

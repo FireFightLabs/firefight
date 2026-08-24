@@ -10,16 +10,18 @@ module FirefightAi
       context = incident.to_full_context(workspace: @workspace)
       summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
 
-      response, _ = Inference.track(
-        workspace: @workspace,
-        feature:   FEATURE,
-        provider:  Inference.provider_for(model_id),
-        model:     model_id,
-        inferable: incident
-      ) do
-        chat = RubyLLM.chat(model: model_id)
-        chat.with_instructions(system_prompt)
-        chat.ask(build_prompt(context, summary, selected_html, instruction))
+      response, _ = FirefightAi.translating_errors do
+        Inference.track(
+          workspace: @workspace,
+          feature:   FEATURE,
+          provider:  Inference.provider_for(model_id),
+          model:     model_id,
+          inferable: incident
+        ) do
+          chat = RubyLLM.chat(model: model_id)
+          chat.with_instructions(system_prompt)
+          chat.ask(build_prompt(context, summary, selected_html, instruction))
+        end
       end
 
       sanitize_html(response.content)

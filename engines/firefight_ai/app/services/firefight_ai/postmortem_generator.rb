@@ -4,74 +4,44 @@ module FirefightAi
       @workspace = workspace
     end
 
-    def generate(incident, generated_by:)
+    # What the model wrote, as markdown per section. The app turns it into a
+    # document and delivers it. Section keys follow Schemas::Postmortem.
+    Draft = Struct.new(:title, :summary, :sections, :model, keyword_init: true)
+
+    def generate(incident)
       prompt_data = incident.to_full_context(workspace: @workspace)
       summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
       ai_result = call_ai(incident, prompt_data, summary)
-      postmortem = save_postmortem(incident, ai_result, generated_by: generated_by)
-      postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: generated_by)
-      postmortem
-    end
 
-    def post_message(incident)
-      postmortem = incident.postmortem
-      return unless postmortem
-
-      adapter = @workspace.adapter
-      result = adapter.post_postmortem_message(
-        channel_id: incident.channel_id,
-        incident: incident,
-        postmortem: postmortem
+      sections = Schemas::Postmortem::SECTION_KEYS.to_h do |key|
+        [ key, ai_result[key] || ai_result[key.to_sym] ]
+      end
+      Draft.new(
+        title: ai_result["title"] || ai_result[:title],
+        summary: ai_result["summary"] || ai_result[:summary],
+        sections: sections.compact,
+        model: ai_model
       )
-      message_ts = result[:message_id]
-      postmortem.update!(message_ts: message_ts)
-      adapter.pin_message(channel_id: incident.channel_id, message_id: message_ts)
-      { message_ts: message_ts }
     end
 
     private
 
     def call_ai(incident, prompt_data, summary)
-      response, _ = Inference.track(
-        workspace: @workspace,
-        feature:   "postmortem_generate",
-        provider:  Inference.provider_for(ai_model),
-        model:     ai_model,
-        inferable: incident
-      ) do
-        chat = RubyLLM.chat(model: ai_model)
-        chat.with_instructions(system_prompt)
-        chat.with_schema(Schemas::Postmortem)
-        chat.ask(user_prompt(prompt_data, summary))
+      response, _ = FirefightAi.translating_errors do
+        Inference.track(
+          workspace: @workspace,
+          feature:   "postmortem_generate",
+          provider:  Inference.provider_for(ai_model),
+          model:     ai_model,
+          inferable: incident
+        ) do
+          chat = RubyLLM.chat(model: ai_model)
+          chat.with_instructions(system_prompt)
+          chat.with_schema(Schemas::Postmortem)
+          chat.ask(user_prompt(prompt_data, summary))
+        end
       end
       response.content
-    end
-
-    def save_postmortem(incident, ai_result, generated_by:)
-      html = Postmortem::SECTION_KEYS.filter_map do |key|
-        body = ai_result[key.to_s] || ai_result[key.to_sym]
-        next if body.blank?
-
-        heading = Postmortem::SECTION_HEADINGS[key]
-        rendered = Commonmarker.to_html(body, options: { parse: { smart: true }, render: { unsafe: true } })
-        "<h2>#{heading}</h2>\n#{rendered}"
-      end.join("\n")
-
-      attrs = {
-        title: ai_result["title"] || ai_result[:title],
-        summary: ai_result["summary"] || ai_result[:summary],
-        status: Postmortem::STATUS_DRAFT,
-        generation_state: nil,
-        generation_error: nil,
-        model_id: ai_model,
-        content: { "html" => html }
-      }
-
-      if incident.postmortem
-        incident.postmortem.tap { |p| p.update!(attrs) }
-      else
-        Postmortem.create!(attrs.merge(incident: incident, generated_by: generated_by))
-      end
     end
 
     def ai_model

@@ -13,10 +13,18 @@ engines/firefight_ai/
     incident_summary_service.rb                      # Layered incident summaries (catchup, live summary)
     incident_responder.rb                            # @mention responses in incident channels
     schemas/postmortem.rb                            # Structured-output schema for postmortem generation
-  app/jobs/firefight_ai/
-    postmortem_generation_job.rb                     # Async wrapper for the generator. Runs only while Postmortem#generation_state is "generating"
-    incident_response_job.rb                         # Async wrapper for the responder
+  lib/firefight_ai/errors.rb                         # TransientError / TerminalError, the only errors that leave the engine
+
+app/jobs/
+  postmortem_generation_job.rb                       # Runs the generator while Postmortem#generation_state is "generating", delivers the result
+  incident_ai_response_job.rb                        # Runs the responder for @mentions and catchups, posts the answer
+app/services/
+  postmortem_generation_service.rb                   # Draft → Postmortem row + event + channel announcement
 ```
+
+**The engine writes text, the app delivers it.** Engine services return plain results: `PostmortemGenerator#generate` returns a `Draft` (title, summary, markdown per section, model) and `IncidentResponder#answer_question` returns a string. Nothing under `engines/firefight_ai/` names a job queue, a channel, or a platform adapter. The app-side jobs own entitlement checks, persistence (`Postmortem.complete_generation!`), announcements through `WorkspaceAdapter`, and failure notices. Each platform describes its own markup through `PlatformAdapter#ai_output_style`, which the app passes into the responder, so the engine never learns Slack mrkdwn.
+
+**Errors stop at the engine boundary.** Every model call runs inside `FirefightAi.translating_errors`, which maps the client library's exceptions to `FirefightAi::TransientError` (worth retrying) and `FirefightAi::TerminalError` (retrying gives the same answer). Both carry `reason`, the client error's own name, for failure messages. App jobs `retry_on` the first and `discard_on` the second and never name the client library.
 
 ## Model-agnostic by configuration
 
@@ -61,4 +69,4 @@ AI features are gated per workspace via `Entitlements.allows?(workspace, Entitle
 
 ## Postmortem generation state
 
-`Postmortem#status` is the document's editorial status and nothing else. Whether an AI generation is writing the document lives in `generation_state` (`generating`, `failed`, or nil for nobody). Every entry point (the dashboard button, `/ff postmortem`) calls `Postmortem.start_generation!(incident, by:)`, which creates the placeholder or re-arms a failed one and returns nil when a generation is already running, so two requests yield one job. The job runs only while the state is `generating`; a terminal failure marks it `failed` with the error class instead of deleting the row, and the page offers Try again or Start blank. The generator clears the state when it saves.
+`Postmortem#status` is the document's editorial status and nothing else. Whether an AI generation is writing the document lives in `generation_state` (`generating`, `failed`, or nil for nobody). Every entry point (the dashboard button, `/ff postmortem`) calls `Postmortem.start_generation!(incident, by:)`, which creates the placeholder or re-arms a failed one and returns nil when a generation is already running, so two requests yield one job. The job runs only while the state is `generating`; a terminal failure marks it `failed` with the error's reason instead of deleting the row, and the page offers Try again or Start blank. `Postmortem.complete_generation!` clears the state when it saves the draft.
