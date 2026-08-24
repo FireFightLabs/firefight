@@ -146,7 +146,7 @@ module FirefightAi
     end
 
     def model_id
-      @model_id ||= ENV.fetch("SUMMARY_AI_MODEL", "gpt-4o-mini")
+      @model_id ||= FirefightAi.model_for("SUMMARY_AI_MODEL", "gpt-4o-mini")
     end
 
     def system_prompt

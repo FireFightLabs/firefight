@@ -28,7 +28,7 @@ module FirefightAi
     private
 
     def model_id
-      @model_id ||= ENV.fetch("POSTMORTEM_AI_MODEL", "gpt-4o")
+      @model_id ||= FirefightAi.model_for("POSTMORTEM_AI_MODEL", "gpt-4o")
     end
 
     def system_prompt

@@ -25,11 +25,17 @@ The engine calls models through `RubyLLM` — no provider-specific SDK code in s
 ```ruby
 FirefightAi.configure do |config|
   config.openai_api_key = ENV["OPENAI_API_KEY"] || Rails.application.credentials.dig(:openai, :api_key)
-  config.default_model  = ENV.fetch("FIREFIGHT_AI_MODEL", "gpt-4o-mini")
+  config.default_model = ENV["FIREFIGHT_AI_MODEL"]
 end
 ```
 
-Self-hosters point `FIREFIGHT_AI_MODEL` (and the relevant API key) at their own provider. Don't hardcode model names in services — use the configuration.
+Every service resolves its model through `FirefightAi.model_for(feature_env_var, fallback)`, in this order:
+
+1. The feature's own env var (`POSTMORTEM_AI_MODEL`, `INCIDENT_AI_MODEL`, `SUMMARY_AI_MODEL`)
+2. `FIREFIGHT_AI_MODEL`, when set
+3. The feature's built-in fallback (postmortems default to a stronger model than chat responses)
+
+Self-hosters point `FIREFIGHT_AI_MODEL` (and the relevant API key) at their own provider. Don't read model env vars directly in services — go through `FirefightAi.model_for`.
 
 ## Inference ledger — every call is tracked
 
