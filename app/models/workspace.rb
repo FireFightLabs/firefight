@@ -25,6 +25,7 @@ class Workspace < ApplicationRecord
   has_many :policies, dependent: :destroy
   has_many :alert_sources, dependent: :destroy
   has_many :alerts, dependent: :destroy
+  has_many :alert_groups, dependent: :destroy
   has_many :runbooks, dependent: :destroy
   has_many :incident_runbooks, dependent: :destroy
   has_many :ability_approvals, class_name: "Ability::Approval", dependent: :destroy

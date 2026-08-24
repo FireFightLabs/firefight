@@ -1,6 +1,26 @@
 require "test_helper"
 
 class IncidentTest < ActiveSupport::TestCase
+  test "destroy removes its alert groups" do
+    workspace = workspaces(:slack_workspace_one)
+    incident = workspace.incidents.create!(
+      incident_status: incident_statuses(:investigating_ws1),
+      incident_severity: incident_severities(:critical_ws1),
+      sequence_number: 9_001,
+      identifier: "INC-9001",
+      name: "Grouped alert incident",
+      declared_at: Time.current,
+      source: Incident::SOURCE_ALERT
+    )
+    group = AlertGroup.create!(workspace: workspace, incident: incident,
+                               content_signature: AlertGroup.signature_for({ "service" => "api" }, [ "service" ]),
+                               window_expires_at: 10.minutes.from_now)
+
+    incident.destroy!
+
+    assert_not AlertGroup.exists?(group.id)
+  end
+
   # Basic validations
 
   test "requires sequence_number" do

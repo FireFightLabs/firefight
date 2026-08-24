@@ -43,6 +43,7 @@ class Incident < ApplicationRecord
   has_many :incident_transcript_messages, dependent: :destroy
   has_one :incident_summary, dependent: :destroy
   has_many :alerts, dependent: :nullify
+  has_many :alert_groups, dependent: :destroy
   has_many :incident_runbooks, dependent: :destroy
 
   validates :sequence_number, presence: true, uniqueness: { scope: :workspace_id }
