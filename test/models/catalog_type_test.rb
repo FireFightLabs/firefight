@@ -361,13 +361,62 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_match(/Cannot change reference target type/, error.message)
   end
 
+  test "sync_attribute_definitions! writes the role on create" do
+    team_type = catalog_types(:team_ws1)
+    catalog_attribute_definitions(:team_manager).update_column(:role, nil)
+
+    team_type.sync_attribute_definitions!([
+      { id: catalog_attribute_definitions(:team_description).id, name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT },
+      { id: catalog_attribute_definitions(:team_slack_channel).id, name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_SLACK_CHANNEL },
+      { id: catalog_attribute_definitions(:team_manager).id, name: "Manager", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER },
+      { id: catalog_attribute_definitions(:team_members).id, name: "Members", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS },
+      { name: "On Call", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER, role: CatalogAttributeDefinition::ROLE_MANAGER }
+    ])
+
+    assert_equal CatalogAttributeDefinition::ROLE_MANAGER,
+                 team_type.catalog_attribute_definitions.find_by!(slug: "on_call").role
+    assert_nil catalog_attribute_definitions(:team_manager).reload.role,
+               "an update that omits the role key leaves the cleared role alone"
+  end
+
+  test "an update that omits the role key leaves the role alone" do
+    team_type = catalog_types(:team_ws1)
+
+    team_type.send(:update_attribute_definition!, catalog_attribute_definitions(:team_members), { name: "Members" }, 4)
+
+    assert_equal CatalogAttributeDefinition::ROLE_MEMBERS, catalog_attribute_definitions(:team_members).reload.role
+  end
+
+  test "a role only fits the attribute types whose values it reads" do
+    definition = catalog_types(:team_ws1).catalog_attribute_definitions.new(
+      slug: "notes", name: "Notes", attribute_type: CatalogAttributeDefinition::TYPE_TEXT,
+      position: 20, role: CatalogAttributeDefinition::ROLE_MEMBERS
+    )
+
+    assert_not definition.valid?
+    assert definition.errors[:role].any? { |message| message.include?("Members needs a") }
+  end
+
+  test "one attribute per role per type" do
+    definition = catalog_types(:team_ws1).catalog_attribute_definitions.new(
+      slug: "second_members", name: "Second Members",
+      attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS,
+      position: 21, role: CatalogAttributeDefinition::ROLE_MEMBERS
+    )
+
+    assert_not definition.valid?
+    assert definition.errors[:role].present?
+  end
+
   test "system types can gain new custom attributes" do
     team_type = catalog_types(:team_ws1)
     initial_count = team_type.catalog_attribute_definitions.count
 
     team_type.sync_attribute_definitions!([
       { id: catalog_attribute_definitions(:team_description).id, name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT },
-      { id: catalog_attribute_definitions(:team_slack_channel).id, name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_TEXT },
+      { id: catalog_attribute_definitions(:team_slack_channel).id, name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_SLACK_CHANNEL },
+      { id: catalog_attribute_definitions(:team_manager).id, name: "Manager", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER },
+      { id: catalog_attribute_definitions(:team_members).id, name: "Members", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS },
       { name: "On-Call Rotation", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, required: false }
     ])
 

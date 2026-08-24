@@ -114,6 +114,24 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert entry["relationships"].any? { |r| r["target_slug"] == catalog_entries(:platform_team).slug }
   end
 
+  test "evaluate_routing names unmapped routing roles so an agent sees the gap" do
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
+    policy.policy_rules.create!(
+      priority: 1, conditions: [],
+      outcome: {
+        "action" => AlertIngestService::ACTION_AUTO_CREATE,
+        "invite" => [ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" } ]
+      }
+    )
+    catalog_attribute_definitions(:team_members).update_column(:role, nil)
+    catalog_attribute_definitions(:team_manager).update_column(:role, nil)
+
+    content, is_error = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+
+    assert_not is_error
+    assert content["role_warnings"].any? { |sentence| sentence.include?("Members or Manager") }
+  end
+
   test "evaluate_routing dry-runs the workspace policy with a trace" do
     policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
     policy.policy_rules.create!(
@@ -221,10 +239,6 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "search_catalog resolves member attribute ids to names" do
-    catalog_types(:team_ws1).catalog_attribute_definitions.create!(
-      slug: "manager", name: "Manager",
-      attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER, position: 5
-    )
     entry = catalog_entries(:platform_team)
     entry.update!(attributes: entry.attributes.merge("manager" => @membership.id))
 

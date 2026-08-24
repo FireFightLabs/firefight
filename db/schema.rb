@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_23_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_162835) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -254,6 +254,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_160000) do
     t.jsonb "config", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "role"
+    t.index ["catalog_type_id", "role"], name: "index_catalog_attribute_definitions_on_type_and_role", unique: true, where: "(role IS NOT NULL)"
     t.index ["catalog_type_id", "slug"], name: "index_catalog_attr_defs_on_type_and_key", unique: true
     t.index ["catalog_type_id"], name: "index_catalog_attribute_definitions_on_catalog_type_id"
   end

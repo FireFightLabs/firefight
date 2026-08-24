@@ -3,8 +3,10 @@
 # every miss is a note, never an exception. The incident must always win.
 #
 # owning_team: alert.service -> service entry -> owner-team reference -> team.
-# A team's people are its `members` + `manager` attributes. Its channel is the
-# service's own `slack_channel` first (specific wins), then the team's.
+# A team's people come from the attributes tagged with the Members and
+# Manager roles. Its channel comes from the Notification channel role, the
+# service's own first (specific wins), then the team's. Roles, never slugs,
+# so a workspace can name its attributes anything.
 class Alert::TargetResolver
   def initialize(workspace, fields)
     @workspace = workspace
@@ -33,7 +35,7 @@ class Alert::TargetResolver
       team_channel(team_entry_by_id(target[:entry_id]))
     when PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM
       service_entry = service_entry_for(target[:of])
-      channel = service_entry && service_entry.entry_attributes["slack_channel"].presence
+      channel = service_entry && service_entry.role_value(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).presence
       channel || team_channel(owning_team(target[:of]))
     end
   end
@@ -62,8 +64,15 @@ class Alert::TargetResolver
   def team_members(team)
     return [] unless team
 
-    attrs = team.entry_attributes
-    ids = (Array(attrs["members"]) + [ attrs["manager"] ]).compact.uniq
+    members_attribute = team.catalog_type.role_attribute(CatalogAttributeDefinition::ROLE_MEMBERS)
+    manager_attribute = team.catalog_type.role_attribute(CatalogAttributeDefinition::ROLE_MANAGER)
+    if members_attribute.nil? && manager_attribute.nil?
+      note("the #{team.catalog_type.name} type has no attribute marked as Members or Manager")
+      return []
+    end
+
+    ids = (Array(members_attribute && team.entry_attributes[members_attribute.slug]) +
+           [ manager_attribute && team.entry_attributes[manager_attribute.slug] ]).compact.uniq
     if ids.empty?
       note("team #{team.slug} has no members or manager set")
       return []
@@ -77,8 +86,14 @@ class Alert::TargetResolver
   def team_channel(team)
     return nil unless team
 
-    channel = team.entry_attributes["slack_channel"].presence
-    note("team #{team.slug} has no slack_channel set") unless channel
+    channel_attribute = team.catalog_type.role_attribute(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL)
+    unless channel_attribute
+      note("the #{team.catalog_type.name} type has no attribute marked as Notification channel")
+      return nil
+    end
+
+    channel = team.entry_attributes[channel_attribute.slug].presence
+    note("team #{team.slug} has no notification channel set") unless channel
     channel
   end
 

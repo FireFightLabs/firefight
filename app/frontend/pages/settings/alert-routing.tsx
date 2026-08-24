@@ -1,4 +1,7 @@
 import { Head, Link, usePage } from "@inertiajs/react"
+import { IconAlertTriangle } from "@tabler/icons-react"
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { IconArrowLeft } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
@@ -18,10 +21,11 @@ interface AlertRoutingPageProps extends SharedProps {
   channels: SlackChannel[]
   members: WorkspaceMembership[]
   catalogOptions: CatalogOptionMap
+  roleWarnings: string[]
 }
 
 export default function AlertRouting() {
-  const { policy, alertSource, hasWorkspaceFallback, severities, channels, members, catalogOptions } = usePage<AlertRoutingPageProps>().props
+  const { policy, alertSource, hasWorkspaceFallback, severities, channels, members, catalogOptions, roleWarnings } = usePage<AlertRoutingPageProps>().props
 
   return (
     <AuthenticatedLayout title="Alert Routing">
@@ -34,6 +38,20 @@ export default function AlertRouting() {
           <IconArrowLeft className="size-3.5" />
           Alert Sources
         </Link>
+        {roleWarnings.length > 0 && (
+          <Alert variant="destructive" className="flex items-start gap-3">
+            <IconAlertTriangle className="mt-0.5 size-5 shrink-0" />
+            <div>
+              <AlertTitle>Routing cannot reach its targets</AlertTitle>
+              <AlertDescription>
+                {roleWarnings.map((warning) => (
+                  <p key={warning}>{warning}</p>
+                ))}
+                <p>Open the type in the Catalogue, edit it, and pick the role on one of its attributes.</p>
+              </AlertDescription>
+            </div>
+          </Alert>
+        )}
         <AlertRoutingTab
           policy={policy}
           severities={severities}

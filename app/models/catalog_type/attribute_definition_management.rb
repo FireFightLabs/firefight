@@ -26,12 +26,16 @@ module CatalogType::AttributeDefinitionManagement
       attribute_type: params[:attribute_type],
       required: params[:required] || false,
       position: position,
+      role: params[:role].presence,
       config: params[:config] || {}
     )
   end
 
   def update_attribute_definition!(attr_def, params, position)
     updates = { name: params[:name], required: params[:required] || false, position: position }
+    # Only callers that send the key touch the role, so an update path that
+    # does not know about roles cannot silently clear them.
+    updates[:role] = params[:role].presence if params.key?(:role)
 
     if params[:config]
       validate_config_update!(attr_def, params[:config])

@@ -13,9 +13,9 @@ module Workspace::CatalogueDefaults
       position: 1,
       attributes: [
         { slug: "description", name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 1 },
-        { slug: "slack_channel", name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_SLACK_CHANNEL, position: 2 },
-        { slug: "manager", name: "Manager", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER, position: 3 },
-        { slug: "members", name: "Members", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS, position: 4 }
+        { slug: "slack_channel", name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_SLACK_CHANNEL, position: 2, role: CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL },
+        { slug: "manager", name: "Manager", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER, position: 3, role: CatalogAttributeDefinition::ROLE_MANAGER },
+        { slug: "members", name: "Members", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS, position: 4, role: CatalogAttributeDefinition::ROLE_MEMBERS }
       ]
     },
     {
@@ -32,7 +32,7 @@ module Workspace::CatalogueDefaults
         { slug: "owner_team", name: "Owner Team", attribute_type: CatalogAttributeDefinition::TYPE_REFERENCE, position: 2, reference_system_key: CatalogType::SYSTEM_KEY_TEAM },
         { slug: "tier", name: "Tier", attribute_type: CatalogAttributeDefinition::TYPE_SELECT, position: 3, config: { "options" => [ "Critical", "Standard", "Internal" ] } },
         { slug: "repository", name: "Repository", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 4 },
-        { slug: "slack_channel", name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_SLACK_CHANNEL, position: 5 }
+        { slug: "slack_channel", name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_SLACK_CHANNEL, position: 5, role: CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL }
       ]
     },
     {
@@ -104,6 +104,7 @@ module Workspace::CatalogueDefaults
           name: attr_data[:name],
           attribute_type: attr_data[:attribute_type],
           position: attr_data[:position],
+          role: attr_data[:role],
           config: config
         )
       end

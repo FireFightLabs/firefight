@@ -295,6 +295,9 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
   end
 
   def define_member_attribute(type, slug, name, attribute_type = CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER)
+    existing = type.catalog_attribute_definitions.find_by(slug: slug)
+    return existing if existing
+
     type.catalog_attribute_definitions.create!(
       slug: slug,
       name: name,

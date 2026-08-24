@@ -91,4 +91,35 @@ class AlertTargetResolverTest < ActiveSupport::TestCase
     assert_empty r.memberships_for([ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" } ])
     assert r.notes.any? { |n| n.include?("no members or manager") }
   end
+
+  test "resolution follows the role, not the attribute slug" do
+    catalog_attribute_definitions(:team_members).update_column(:slug, "engineers")
+    catalog_attribute_definitions(:team_slack_channel).update_column(:slug, "war_room")
+    @team.update_column(:attributes, { "engineers" => [ @alice.id ], "war_room" => "C_WAR_ROOM" })
+    r = resolver
+
+    memberships = r.memberships_for([ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" } ])
+
+    assert_equal [ @alice ], memberships
+    assert_equal "C_WAR_ROOM", r.channel_for({ "type" => PolicyRule::AlertRoutingOutcome::TARGET_TEAM, "entry_id" => @team.id })
+  end
+
+  test "unmapped paging roles note the type gap, not the entry" do
+    catalog_attribute_definitions(:team_members).update_column(:role, nil)
+    catalog_attribute_definitions(:team_manager).update_column(:role, nil)
+    @team.update_column(:attributes, { "members" => [ @alice.id ] })
+    r = resolver
+
+    assert_empty r.memberships_for([ { "type" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM, "of" => "service" } ])
+    assert r.notes.any? { |n| n.include?("no attribute marked as Members or Manager") }
+  end
+
+  test "unmapped notification channel role notes the type gap" do
+    catalog_attribute_definitions(:team_slack_channel).update_column(:role, nil)
+    @team.update_column(:attributes, { "slack_channel" => "C_TEAM" })
+    r = resolver
+
+    assert_nil r.channel_for({ "type" => PolicyRule::AlertRoutingOutcome::TARGET_TEAM, "entry_id" => @team.id })
+    assert r.notes.any? { |n| n.include?("no attribute marked as Notification channel") }
+  end
 end

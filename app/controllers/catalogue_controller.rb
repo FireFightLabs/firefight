@@ -6,7 +6,8 @@ class CatalogueController < InertiaController
       .includes(:catalog_attribute_definitions)
 
     render inertia: "catalogue/index", props: {
-      types: CatalogTypeSerializer.many(types)
+      types: CatalogTypeSerializer.many(types),
+      attributeRoles: attribute_role_options
     }
   end
 
@@ -20,7 +21,8 @@ class CatalogueController < InertiaController
       entries: CatalogEntrySerializer.many(entries),
       allTypes: CatalogTypeSerializer.many(all_types),
       referenceEntries: type.reference_entry_options,
-      workspaceMembers: member_resolution_service.resolve_for_entries(entries, type)
+      workspaceMembers: member_resolution_service.resolve_for_entries(entries, type),
+      attributeRoles: attribute_role_options
     }
   end
 
@@ -93,6 +95,18 @@ class CatalogueController < InertiaController
 
   private
 
+  # The role dropdown's choices, with the attribute types each role fits, so
+  # the dialog offers a role only where the model would accept it.
+  def attribute_role_options
+    CatalogAttributeDefinition::ROLE_LABELS.map do |value, label|
+      {
+        value: value,
+        label: label,
+        attributeTypes: CatalogAttributeDefinition::ATTRIBUTE_TYPES_BY_ROLE.fetch(value)
+      }
+    end
+  end
+
   # An invalid attribute definition carries its errors on name, slug and
   # attribute_type, which are field names on the type itself, so left alone they
   # render against the type's own inputs. Move them to base, named.
@@ -130,13 +144,15 @@ class CatalogueController < InertiaController
       ref_id = d[:referenceTypeId] || d[:reference_type_id]
       config["reference_type_id"] = ref_id if ref_id.present?
 
-      {
+      definition = {
         id: d[:id],
         name: d[:name],
         attribute_type: d[:attribute_type] || d[:attributeType],
         required: ActiveModel::Type::Boolean.new.cast(d[:required]),
         config: config
       }
+      definition[:role] = d[:role].presence if d.key?(:role)
+      definition
     end
   end
 end
