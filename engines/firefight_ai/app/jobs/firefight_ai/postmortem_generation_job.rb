@@ -35,7 +35,7 @@ module FirefightAi
       return unless incident.postmortem&.generating?
 
       unless Entitlements.allows?(incident.workspace, Entitlements::AI)
-        incident.postmortem.mark_generation_failed!(Entitlements::Result)
+        incident.postmortem.mark_generation_failed!("EntitlementBlocked")
         Rails.logger.info({ event: "postmortem_generation.entitlement_blocked", incident_id: incident_id, workspace_id: incident.workspace_id })
         return
       end
