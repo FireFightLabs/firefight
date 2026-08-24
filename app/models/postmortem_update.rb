@@ -1,9 +1,8 @@
 class PostmortemUpdate < ApplicationRecord
   GENERATED = "generated"
   EDITED = "edited"
-  AI_EDITED = "ai_edited"
 
-  UPDATE_TYPES = [ GENERATED, EDITED, AI_EDITED ].freeze
+  UPDATE_TYPES = [ GENERATED, EDITED ].freeze
 
   include Recordable
   records Postmortem, recorder: :edited_by
