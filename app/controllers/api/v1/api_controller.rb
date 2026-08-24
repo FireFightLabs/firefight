@@ -10,6 +10,7 @@ class Api::V1::ApiController < ActionController::API
   rescue_from ActiveRecord::RecordInvalid, with: :validation_error
   rescue_from Incident::NotActive, with: :incident_not_active
   rescue_from IncidentLifecycleService::RoleNotUnassignable, with: :incident_not_active
+  rescue_from IncidentFormResolver::ValidationError, with: :form_validation_error
   rescue_from ActionController::ParameterMissing, with: :bad_request
   rescue_from ApiAuthentication::ForbiddenError, with: :forbidden
   rescue_from AbilityGateway::PendingApproval, with: :pending_approval
@@ -41,6 +42,11 @@ class Api::V1::ApiController < ActionController::API
 
   def validation_error(exception)
     errors = exception.record.errors.map { |e| { field: e.attribute.to_s, message: e.message } }
+    render json: error_response("validation_error", exception.message, errors: errors), status: :unprocessable_entity
+  end
+
+  def form_validation_error(exception)
+    errors = exception.field_errors.map { |message| { message: message } }
     render json: error_response("validation_error", exception.message, errors: errors), status: :unprocessable_entity
   end
 

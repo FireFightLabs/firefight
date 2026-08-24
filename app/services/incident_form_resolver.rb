@@ -124,6 +124,33 @@ class IncidentFormResolver
     result
   end
 
+  # Validates just the custom-field portion of a submission, for entry points
+  # that carry system attributes as dedicated params (the REST API). Raises
+  # ValidationError on unknown fields, missing required fields, and invalid
+  # values, and returns the validated fields keyed by slug.
+  def validate_custom_fields!(lifecycle_event, raw_fields, context: {})
+    fields = raw_fields.transform_keys(&:to_s)
+    errors = []
+    custom_fields = {}
+
+    definitions = resolve(lifecycle_event, context: context)
+      .reject(&:system?)
+      .index_by { |form_field| form_field.incident_field_definition.slug }
+
+    definitions.each do |slug, form_field|
+      value = fields[slug]
+      validate_required!(form_field, slug, value, errors)
+      validate_custom_value!(form_field.incident_field_definition, value, errors) if value.present?
+      custom_fields[slug] = value if value.present?
+    end
+
+    unknown = fields.keys - definitions.keys
+    errors << "Unknown fields: #{unknown.join(', ')}" if unknown.any?
+    raise ValidationError.new(errors) if errors.any?
+
+    custom_fields
+  end
+
   private
 
   # Builds an unpersisted IncidentFormField that represents a code-default

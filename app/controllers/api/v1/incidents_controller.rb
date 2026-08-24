@@ -129,14 +129,7 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     return {} if raw_custom_fields.blank?
 
     fields = raw_custom_fields.respond_to?(:to_unsafe_h) ? raw_custom_fields.to_unsafe_h : raw_custom_fields.to_h
-    resolver = IncidentFormResolver.new(current_workspace)
-
-    begin
-      result = resolver.validate_submission(IncidentForm::SLUG_DECLARE, fields)
-      result[:custom_fields]
-    rescue ActiveRecord::RecordNotFound
-      fields
-    end
+    IncidentFormResolver.new(current_workspace).validate_custom_fields!(IncidentForm::SLUG_DECLARE, fields)
   end
 
   def apply_filters(scope)
