@@ -2,10 +2,11 @@ module Trackable
   extend ActiveSupport::Concern
 
   class_methods do
-    def tracked_by(recordable_class, incident_via: nil, diff_aliases: {})
+    def tracked_by(recordable_class, incident_via: nil, diff_aliases: {}, diff_ignores: [])
       @trackable_recordable   = recordable_class
       @trackable_incident_via = incident_via || (name == "Incident" ? :itself : :incident)
       @trackable_diff_aliases = diff_aliases.transform_keys(&:to_sym)
+      @trackable_diff_ignores = diff_ignores.map(&:to_sym)
     end
 
     def trackable_recordable
@@ -18,6 +19,10 @@ module Trackable
 
     def trackable_diff_aliases
       @trackable_diff_aliases || {}
+    end
+
+    def trackable_diff_ignores
+      @trackable_diff_ignores || []
     end
   end
 
@@ -62,9 +67,15 @@ module Trackable
     snapshot_attributes.transform_values { |v| v.respond_to?(:id) ? v.id : v }
   end
 
+  # diff_ignores keeps platform plumbing (channel ids, message timestamps)
+  # out of changed_fields. Those columns are written by jobs and workflow
+  # steps outside record_change!, so on a stale instance they would surface
+  # as a change made by whoever records the next event.
   def diff_keys(before, after)
     aliases = self.class.trackable_diff_aliases
+    ignores = self.class.trackable_diff_ignores
     before.each_key
+      .reject { |k| ignores.include?(k) }
       .select { |k| before[k] != after[k] }
       .map { |k| (aliases[k] || k).to_s }
   end

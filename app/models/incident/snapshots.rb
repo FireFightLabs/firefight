@@ -3,12 +3,17 @@ module Incident::Snapshots
 
   included do
     include Trackable
-    tracked_by IncidentUpdate, diff_aliases: {
-      incident_status:   :status,
-      incident_severity: :severity,
-      incident_type:     :type,
-      lead:              :lead
-    }
+    tracked_by IncidentUpdate,
+      diff_aliases: {
+        incident_status:   :status,
+        incident_severity: :severity,
+        incident_type:     :type,
+        lead:              :lead
+      },
+      diff_ignores: %i[
+        channel_id channel_name initial_message_ts announcement_message_ts
+        channel_archived_at channel_archived_by
+      ]
   end
 
   def snapshot_attributes

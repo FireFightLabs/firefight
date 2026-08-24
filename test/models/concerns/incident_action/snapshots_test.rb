@@ -105,4 +105,16 @@ class IncidentAction::SnapshotsTest < ActiveSupport::TestCase
     assert_equal "Fix the issue", update.description
     assert_equal @member, update.created_by
   end
+
+  test "message_ts written outside record_change! stays out of changed_fields" do
+    IncidentAction.find(@action.id).update!(message_ts: "1234.5678")
+
+    @action.record_change!(IncidentEvent::ACTION_PICKED_UP, by: @bob) do
+      @action.update!(assignee: @bob, status: IncidentAction::STATUS_IN_PROGRESS)
+    end
+
+    update = @action.incident_action_updates.find_by!(update_type: IncidentActionUpdate::PICKED_UP)
+    assert_equal %w[assignee status].sort, update.changed_fields.sort
+    assert_equal "1234.5678", update.message_ts, "the snapshot still captures the current message_ts"
+  end
 end
