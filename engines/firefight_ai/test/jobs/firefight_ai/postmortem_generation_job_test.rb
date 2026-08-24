@@ -69,6 +69,18 @@ class FirefightAi::PostmortemGenerationJobTest < ActiveSupport::TestCase
     assert_equal "<p>draft</p>", @incident.reload.postmortem.content["html"]
   end
 
+  test "an entitlement block marks the placeholder failed with a readable reason" do
+    Postmortem.start_generation!(@incident, by: @member)
+    Entitlements.stubs(:allows?).with(@workspace, Entitlements::AI).returns(false)
+    FirefightAi::PostmortemGenerator.expects(:new).never
+
+    FirefightAi::PostmortemGenerationJob.perform_now(@incident.id, @member.id)
+
+    postmortem = @incident.reload.postmortem
+    assert postmortem.generation_failed?
+    assert_equal "EntitlementBlocked", postmortem.generation_error
+  end
+
   test "a terminal AI failure keeps the placeholder, marked failed with the reason, and it can be retried" do
     Postmortem.start_generation!(@incident, by: @member)
     generator = mock("generator")

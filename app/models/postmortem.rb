@@ -67,8 +67,9 @@ class Postmortem < ApplicationRecord
     nil
   end
 
-  def mark_generation_failed!(error)
-    update!(generation_state: GENERATION_FAILED, generation_error: error.class.name.demodulize)
+  def mark_generation_failed!(reason)
+    reason = reason.class.name.demodulize unless reason.is_a?(String)
+    update!(generation_state: GENERATION_FAILED, generation_error: reason)
   end
 
   validates :title, presence: true
