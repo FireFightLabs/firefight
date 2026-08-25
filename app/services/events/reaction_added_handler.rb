@@ -25,7 +25,7 @@ module Events
 
       if action_type
         message_text = fetch_message_text(adapter, channel_id, message_ts)
-        source_message_link = Events::Permalinks.fetch(workspace, channel_id, message_ts)
+        source_message_link = MessagePermalinks.fetch(workspace, channel_id, message_ts)
 
         adapter.post_action_from_reaction_prompt(
           channel_id: channel_id,

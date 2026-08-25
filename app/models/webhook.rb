@@ -24,7 +24,8 @@ class Webhook < ApplicationRecord
     IncidentEvent::POSTMORTEM_EDITED => "webhooks/events/postmortem_edited",
     IncidentEvent::RELATIONSHIP_CREATED => "webhooks/events/relationship_created",
     IncidentEvent::MARKED_DUPLICATE => "webhooks/events/marked_duplicate",
-    IncidentEvent::MERGED_INTO => "webhooks/events/merged_into"
+    IncidentEvent::MERGED_INTO => "webhooks/events/merged_into",
+    IncidentEvent::MILESTONE_NOTED => "webhooks/events/milestone_noted"
   }.freeze
 
   SUBSCRIBABLE_EVENTS = SUBSCRIBABLE_EVENT_TEMPLATES.keys.freeze

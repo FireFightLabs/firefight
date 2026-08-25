@@ -49,6 +49,28 @@ class Webhooks::PayloadRendererTest < ActiveSupport::TestCase
     assert payload["data"].key?("changes")
   end
 
+  test "renders a milestone note with its kind, author and source message" do
+    event = @event.incident.incident_events.create!(
+      event_type: IncidentEvent::MILESTONE_NOTED,
+      metadata: {
+        kind: "root_cause",
+        statement: "Alice identified the migration lock as the root cause",
+        member_name: "Alice",
+        said_at: "2026-08-25T09:00:00Z",
+        message_text: "it's the migration lock",
+        permalink: "https://slack.test/p1"
+      }
+    )
+
+    payload = JSON.parse(Webhooks::PayloadRenderer.render(event, delivery_id: @delivery_id))
+
+    assert_equal "milestone.noted", payload["event_type"]
+    assert_equal "root_cause", payload["data"]["note"]["kind"]
+    assert_equal "Alice", payload["data"]["note"]["said_by"]
+    assert_equal "it's the migration lock", payload["data"]["note"]["message_text"]
+    assert_equal "https://slack.test/p1", payload["data"]["note"]["permalink"]
+  end
+
   test "template_for returns correct template for known event types" do
     assert_equal "webhooks/events/incident_created",
       Webhooks::PayloadRenderer.template_for(IncidentEvent::INCIDENT_CREATED)

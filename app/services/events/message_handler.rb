@@ -129,7 +129,7 @@ module Events
     private_class_method :file_already_recorded?
 
     def self.message_permalink_for(workspace, channel_id, message_ts, file)
-      Events::Permalinks.fetch(workspace, channel_id, message_ts) || file["permalink"]
+      MessagePermalinks.fetch(workspace, channel_id, message_ts) || file["permalink"]
     end
     private_class_method :message_permalink_for
   end

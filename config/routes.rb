@@ -22,7 +22,13 @@ Rails.application.routes.draw do
       post "alerts/:endpoint_path", to: "alerts#create", as: :alert_ingest
 
       # Public API (Bearer token auth)
-      resources :incidents, only: [ :index, :show, :create, :update ]
+      resources :incidents, only: [ :index, :show, :create, :update ] do
+        resources :timeline, only: [ :index ], controller: "timeline" do
+          member do
+            patch :dismiss
+          end
+        end
+      end
       resources :severities, only: [ :index ]
       resources :statuses, only: [ :index ]
       resources :incident_types, only: [ :index ]
@@ -229,6 +235,7 @@ Rails.application.routes.draw do
     end
     post "/incidents/:incident_id/actions", to: "incident_actions#create", as: :incident_actions
     post "/incidents/:incident_id/runbooks", to: "incident_runbooks#create", as: :incident_runbooks
+    patch "/incidents/:incident_id/events/:id/dismiss", to: "incident_events#dismiss", as: :dismiss_incident_event
     get "/incidents/:id", to: "incidents#show", as: :incident
     get "/incidents/:incident_id/postmortem", to: "incidents#postmortem", as: :incident_postmortem
     patch "/incidents/:incident_id/postmortem", to: "incidents#update_postmortem"

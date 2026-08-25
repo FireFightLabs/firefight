@@ -17,6 +17,7 @@ import type {
   TimelineEvent,
 } from "@/pages/incidents/types";
 import type { SharedProps } from "@/types";
+import { useCan } from "@/lib/permissions";
 import { dashboardPath } from "@/lib/routes";
 
 interface IncidentPageProps extends SharedProps {
@@ -45,6 +46,7 @@ export default function IncidentPage() {
   const canAddFollowup = ["closed", "canceled"].includes(
     incident.status.lifecycleStage,
   );
+  const canDismissNotes = useCan("incidents");
 
   return (
     <AuthenticatedLayout title={incident.name}>
@@ -77,7 +79,11 @@ export default function IncidentPage() {
                   {(timelineEvents ?? []).length}
                 </span>
               </div>
-              <IncidentTimeline events={timelineEvents ?? []} />
+              <IncidentTimeline
+                events={timelineEvents ?? []}
+                incidentId={incident.id}
+                canDismiss={canDismissNotes}
+              />
             </Deferred>
           </div>
 

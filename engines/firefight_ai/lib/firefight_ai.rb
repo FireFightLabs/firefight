@@ -30,7 +30,8 @@ module FirefightAi
     {
       AiPurpose::POSTMORTEM => "POSTMORTEM_AI",
       AiPurpose::INCIDENT_RESPONSE => "INCIDENT_AI",
-      AiPurpose::SUMMARY => "SUMMARY_AI"
+      AiPurpose::SUMMARY => "SUMMARY_AI",
+      AiPurpose::MILESTONES => "MILESTONES_AI"
     }.fetch(purpose)
   end
 
@@ -38,7 +39,8 @@ module FirefightAi
     {
       AiPurpose::POSTMORTEM => "gpt-4o",
       AiPurpose::INCIDENT_RESPONSE => "gpt-4o-mini",
-      AiPurpose::SUMMARY => "gpt-4o-mini"
+      AiPurpose::SUMMARY => "gpt-4o-mini",
+      AiPurpose::MILESTONES => "gpt-4o-mini"
     }.fetch(purpose)
   end
 

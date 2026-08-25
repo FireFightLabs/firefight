@@ -151,7 +151,8 @@ class IncidentEventTest < ActiveSupport::TestCase
       "message.pinned", "message.unpinned", "message.file_shared",
       "incident.escalation_acknowledged", "incident.escalation_nudged",
       "alert.attached", "alert.resolved",
-      "runbook.attached", "runbook.applied"
+      "runbook.attached", "runbook.applied",
+      "milestone.noted"
     ]
     assert_equal expected_types.sort, IncidentEvent::EVENT_TYPES.sort
   end

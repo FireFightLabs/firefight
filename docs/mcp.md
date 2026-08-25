@@ -92,6 +92,9 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 |---|---|
 | `assign_incident_role` | Assign one person to an incident role, or clear it (omit `member`) |
 | `attach_runbook` | Attach a runbook to an incident by slug, idempotent |
+| `dismiss_timeline_note` | Dismiss one AI-noted milestone from an incident's timeline by id |
+
+`dismiss_timeline_note` also authorizes as `incidents:update`. It is error correction on the notes Firefight reads out of the channel transcript when an incident ends, described in [ai.md](ai.md). A joke read as a decision, or the wrong person credited. The note is kept and marked dismissed rather than deleted, and stops being returned in `get_incident`'s timeline. Note ids come from that timeline, where each `milestone.noted` entry also carries its `kind`.
 
 `assign_incident_role` authorizes as `incidents:update`. Roles hold one person each, so assigning replaces the current holder; the Incident Lead cannot be cleared, only handed over. `get_incident` returns every configured role with its holder, which is how an agent discovers the slugs it may pass. The rest of the incident lifecycle (declare, status, severity, close) stays out of MCP for now.
 

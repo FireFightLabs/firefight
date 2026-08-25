@@ -34,7 +34,7 @@ class IncidentCancelWorkflowTest < ActiveSupport::TestCase
     })
 
     assert_equal "succeeded", workflow.state
-    assert_equal %w[update_channel_topic update_quick_actions update_announcement post_update_message post_announcement_thread],
+    assert_equal %w[update_channel_topic update_quick_actions update_announcement post_update_message post_announcement_thread note_milestones],
                  workflow.steps.order(:position).map(&:name)
     assert workflow.steps.all?(&:succeeded?)
   end

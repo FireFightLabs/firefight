@@ -22,11 +22,21 @@ module FirefightAi
 
     attr_accessor :default_model, :default_provider, :provider_settings, :request_timeout
 
+    # The deploy-level kill switch for milestone noting, so a bad prompt or a
+    # cost surprise is turned off everywhere without a release. Entitlement
+    # and credits still gate it per workspace underneath.
+    attr_writer :milestones_enabled
+
     def initialize
       @default_model = nil
       @default_provider = nil
       @provider_settings = {}
       @request_timeout = 120
+      @milestones_enabled = true
+    end
+
+    def milestones_enabled?
+      @milestones_enabled
     end
 
     def openai_api_key

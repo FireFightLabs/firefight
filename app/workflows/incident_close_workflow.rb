@@ -6,6 +6,7 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
   step :update_announcement
   step :post_resolution_message
   step :post_resolution_announcement_thread
+  step :note_milestones
 
   def update_channel_topic(workflow:, step:, input:)
     service(workflow).update_channel_topic(workflow.subject)
@@ -35,6 +36,15 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
         resolved_by_platform_user_id: workflow.context["resolved_by_platform_user_id"]
       )
     end
+  end
+
+  # Last, so the channel has already been told the incident is over. The pass
+  # reads the transcript and writes what the team worked out onto the
+  # timeline. Nothing is posted, and a build without the AI engine skips it.
+  def note_milestones(workflow:, step:, input:)
+    return unless defined?(FirefightAi)
+
+    MilestoneNotingJob.perform_later(workflow.subject.id)
   end
 
   private

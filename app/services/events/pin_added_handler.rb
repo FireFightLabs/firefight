@@ -16,7 +16,7 @@ module Events
       return unless incident
 
       member = workspace.workspace_memberships.find_by(platform_user_id: event["user"])
-      permalink = Events::Permalinks.fetch(workspace, channel_id, message_ts)
+      permalink = MessagePermalinks.fetch(workspace, channel_id, message_ts)
 
       incident.incident_events.create!(
         event_type: event_type,

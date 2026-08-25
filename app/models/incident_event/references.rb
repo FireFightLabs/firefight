@@ -1,11 +1,14 @@
 # The records an incident's events point at through metadata: members the
-# incident was escalated to or who took a role, runbooks that were attached,
-# incidents that were linked or merged. Loaded once per timeline so the
-# serializer never queries per row.
+# incident was escalated to, who took a role, who said what an AI note quotes
+# or who dismissed one, runbooks that were attached, incidents that were
+# linked or merged. Loaded once per timeline so the serializer never queries
+# per row.
 class IncidentEvent::References
   def self.for(incident, events)
     metadata = events.map { |event| event.metadata.to_h }
-    member_ids = metadata.flat_map { |meta| [ meta["escalated_to_member_id"], meta["member_id"] ] }.compact.uniq
+    member_ids = metadata.flat_map do |meta|
+      [ meta["escalated_to_member_id"], meta["member_id"], meta["dismissed_by_member_id"] ]
+    end.compact.uniq
     runbook_ids = metadata.filter_map { |meta| meta["runbook_id"] }.uniq
     incident_ids = metadata.flat_map { |meta| [ meta["related_incident_id"], meta["canonical_incident_id"] ] }.compact.uniq
     workspace = incident.workspace
