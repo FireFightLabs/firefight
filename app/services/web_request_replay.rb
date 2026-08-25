@@ -1,7 +1,5 @@
-# A dashboard request parked behind an approval is replayed through the
-# router once someone approves, as the requester, carrying the approval so
-# the gateway admits it. The person cannot retry a click they made an hour
-# ago, so Firefight retries it for them.
+# Re-runs a dashboard request parked behind an approval through the router,
+# as the requester, carrying the approval so the gateway admits it.
 class WebRequestReplay
   ENV_KEY = "firefight.web_replay".freeze
 

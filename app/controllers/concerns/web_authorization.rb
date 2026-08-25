@@ -1,8 +1,5 @@
 # The dashboard's gate into the Ability Gateway, the role AuthorizedDispatch
-# plays for Slack and ApiAuthentication for REST. A controller declares which
-# resource and CRUD action each of its actions is, and the gateway decides:
-# grants, approval policies and the ledger apply exactly as they do on every
-# other surface.
+# plays for Slack and ApiAuthentication for REST.
 module WebAuthorization
   extend ActiveSupport::Concern
 
