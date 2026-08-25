@@ -1,52 +1,67 @@
 import type { PolicyRule } from "@/types/serializers"
 import { alertRoutingSendTestPath, alertRoutingTestPath } from "@/lib/routes"
 import { postJson } from "@/lib/http"
+import {
+  ALERT_CONDITION_OPERATORS,
+  ALERT_NORMALIZED_FIELDS,
+  ALERT_NOTIFY_TARGETS,
+  ALERT_OUTCOME_ACTIONS,
+  ALERT_PROVIDERS,
+  type AlertConditionOperator,
+  type AlertOutcomeAction,
+  type AlertProvider,
+} from "@/lib/generated/constants"
 
-export const CONDITION_OPERATORS = [
-  { value: "is_one_of", label: "is one of" },
-  { value: "contains", label: "contains" },
-  { value: "starts_with", label: "starts with" },
-  { value: "matches_regex", label: "matches regex" },
-  { value: "is_empty", label: "is empty" },
-] as const
+export type ConditionOperator = AlertConditionOperator
+export type OutcomeAction = AlertOutcomeAction
 
-export type ConditionOperator = (typeof CONDITION_OPERATORS)[number]["value"]
+const OPERATOR_LABELS: Record<ConditionOperator, string> = {
+  is_one_of: "is one of",
+  contains: "contains",
+  starts_with: "starts with",
+  matches_regex: "matches regex",
+  is_empty: "is empty",
+}
 
-export const OUTCOME_ACTIONS = [
-  { value: "auto_create_incident", label: "Create incident" },
-  { value: "attach_to_incident", label: "Attach to open incident" },
-  { value: "notify_only", label: "Notify only" },
-  { value: "drop", label: "Drop" },
-] as const
+export const CONDITION_OPERATORS = ALERT_CONDITION_OPERATORS.map((value) => ({ value, label: OPERATOR_LABELS[value] }))
 
-export type OutcomeAction = (typeof OUTCOME_ACTIONS)[number]["value"]
+export const ACTION_LABELS: Record<OutcomeAction, string> = {
+  auto_create_incident: "Create incident",
+  attach_to_incident: "Attach to open incident",
+  notify_only: "Notify only",
+  drop: "Drop",
+}
 
-export const ACTION_LABELS: Record<string, string> = Object.fromEntries(
-  OUTCOME_ACTIONS.map((action) => [action.value, action.label])
-)
+export const OUTCOME_ACTIONS = ALERT_OUTCOME_ACTIONS.map((value) => ({ value, label: ACTION_LABELS[value] }))
 
-export const TARGET_MEMBER = "member"
-export const TARGET_TEAM = "team"
-export const TARGET_OWNING_TEAM = "owning_team"
-export const TARGET_CHANNEL = "channel"
+function isOutcomeAction(value: string): value is OutcomeAction {
+  return (ALERT_OUTCOME_ACTIONS as readonly string[]).includes(value)
+}
 
-export const PROVIDER_LABELS: Record<string, string> = {
+// For values that arrive as plain strings from a serializer.
+export function actionLabel(value: string): string {
+  return isOutcomeAction(value) ? ACTION_LABELS[value] : value
+}
+
+export const TARGET_MEMBER = ALERT_NOTIFY_TARGETS.MEMBER
+export const TARGET_TEAM = ALERT_NOTIFY_TARGETS.TEAM
+export const TARGET_OWNING_TEAM = ALERT_NOTIFY_TARGETS.OWNING_TEAM
+export const TARGET_CHANNEL = ALERT_NOTIFY_TARGETS.CHANNEL
+
+export const PROVIDER_LABELS: Record<AlertProvider, string> = {
   generic: "Generic webhook",
   northflank: "Northflank",
 }
 
-// Mirrors AlertProviders::Base::NORMALIZED_FIELDS.
-export const NORMALIZED_FIELDS = [
-  "title",
-  "description",
-  "service",
-  "severity_raw",
-  "status",
-  "external_id",
-  "fingerprint",
-  "team",
-  "environment",
-] as const
+function isAlertProvider(value: string): value is AlertProvider {
+  return (ALERT_PROVIDERS as readonly string[]).includes(value)
+}
+
+export function providerLabel(value: string): string {
+  return isAlertProvider(value) ? PROVIDER_LABELS[value] : value
+}
+
+export const NORMALIZED_FIELDS = ALERT_NORMALIZED_FIELDS
 
 export type RuleCondition = PolicyRule["conditions"][number]
 

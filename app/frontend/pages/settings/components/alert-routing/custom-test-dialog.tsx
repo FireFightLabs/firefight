@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
-  ACTION_LABELS,
+  actionLabel,
   runRoutingTest,
   sendRoutingTest,
   type SendTestResult,
@@ -153,7 +153,7 @@ export function CustomTestDialog({
               </Badge>
               {result.matched && result.outcome?.action && (
                 <span className="text-muted-foreground">
-                  → {ACTION_LABELS[result.outcome.action] ?? result.outcome.action}
+                  → {actionLabel(result.outcome.action)}
                 </span>
               )}
             </div>

@@ -1,3 +1,4 @@
+import { ABILITY_ACTIONS, ABILITY_GRANTABLE_RESOURCES, ABILITY_RESOURCE_LABELS } from "@/lib/generated/constants"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -8,26 +9,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-// Every resource in Ability::Action::GRANTABLE_RESOURCES, every action in
-// Ability::Action::ACTIONS. The admin-only resources (integrations, API keys,
-// permissions, workspace) are not here because nothing can be granted them.
-const apiResources = [
-  { key: "incidents", label: "Incidents" },
-  { key: "severities", label: "Severities" },
-  { key: "statuses", label: "Statuses" },
-  { key: "incident_types", label: "Incident Types" },
-  { key: "custom_fields", label: "Custom Fields" },
-  { key: "forms", label: "Forms" },
-  { key: "catalog", label: "Catalogue" },
-  { key: "alerts", label: "Alerts" },
-  { key: "policies", label: "Alert Routing" },
-  { key: "runbooks", label: "Runbooks" },
-  { key: "approvals", label: "Approvals" },
-  { key: "incident_roles", label: "Incident Roles" },
-  { key: "webhooks", label: "Webhooks" },
-] as const
-
-const apiActions = ["read", "create", "update", "delete"] as const
+const apiResources = ABILITY_GRANTABLE_RESOURCES.map((key) => ({ key, label: ABILITY_RESOURCE_LABELS[key] }))
+const apiActions = ABILITY_ACTIONS
 
 export function PermissionsMatrix({
   perms,
