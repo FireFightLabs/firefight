@@ -10,17 +10,17 @@ class WebhooksController < InertiaController
     webhook = current_workspace.webhooks.new(webhook_params)
 
     if webhook.save
-      redirect_to settings_webhooks_path, notice: "#{webhook.name} was created."
+      redirect_to developer_webhooks_path, notice: "#{webhook.name} was created."
     else
-      redirect_back fallback_location: settings_webhooks_path, inertia: { errors: webhook.errors.to_hash }
+      redirect_back fallback_location: developer_webhooks_path, inertia: { errors: webhook.errors.to_hash }
     end
   end
 
   def update
     if @webhook.update(webhook_params)
-      redirect_to settings_webhooks_path, notice: "#{@webhook.name} was updated."
+      redirect_to developer_webhooks_path, notice: "#{@webhook.name} was updated."
     else
-      redirect_back fallback_location: settings_webhooks_path, inertia: { errors: @webhook.errors.to_hash }
+      redirect_back fallback_location: developer_webhooks_path, inertia: { errors: @webhook.errors.to_hash }
     end
   end
 
@@ -33,7 +33,7 @@ class WebhooksController < InertiaController
 
   def destroy
     @webhook.destroy!
-    redirect_to settings_webhooks_path, notice: "#{@webhook.name} was deleted."
+    redirect_to developer_webhooks_path, notice: "#{@webhook.name} was deleted."
   end
 
   def test
@@ -53,20 +53,20 @@ class WebhooksController < InertiaController
         incident_event: event,
         event_type: event.event_type
       )
-      redirect_to settings_webhooks_path, notice: "Test delivery queued"
+      redirect_to developer_webhooks_path, notice: "Test delivery queued"
     else
-      redirect_to settings_webhooks_path, alert: "No matching events found to test with"
+      redirect_to developer_webhooks_path, alert: "No matching events found to test with"
     end
   end
 
   def activate
     @webhook.activate!
-    redirect_to settings_webhooks_path, notice: "#{@webhook.name} was activated."
+    redirect_to developer_webhooks_path, notice: "#{@webhook.name} was activated."
   end
 
   def deactivate
     @webhook.deactivate!
-    redirect_to settings_webhooks_path, notice: "#{@webhook.name} was deactivated."
+    redirect_to developer_webhooks_path, notice: "#{@webhook.name} was deactivated."
   end
 
   def sample_payload

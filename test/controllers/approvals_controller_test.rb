@@ -21,7 +21,7 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
       status: Ability::Approval::STATUS_DENIED, resolved_at: Time.current
     )
 
-    get settings_approvals_url, headers: inertia_headers
+    get gateway_approvals_url, headers: inertia_headers
 
     assert_response :success
     assert_equal [ @approval.id ], inertia_props["pendingApprovals"].map { |a| a["id"] }
@@ -32,7 +32,7 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
     AbilityGateway.authorize!(principal: api_keys(:full_access_key), action_key: "catalog.create",
                               workspace: @workspace) { :ok }
 
-    get settings_activity_url, headers: inertia_headers
+    get gateway_activity_url, headers: inertia_headers
 
     assert_response :success
     assert_equal [ "catalog.create" ], inertia_props["invocations"].map { |i| i["actionKey"] }
@@ -41,7 +41,7 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
   test "approve resolves the approval and redirects" do
     post approve_approval_url(@approval)
 
-    assert_redirected_to settings_approvals_path
+    assert_redirected_to gateway_approvals_path
     assert @approval.reload.approved?
   end
 
@@ -64,7 +64,7 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
 
     post deny_approval_url(@approval)
 
-    assert_redirected_to settings_approvals_path
+    assert_redirected_to gateway_approvals_path
     assert_equal "requires the admin role", flash[:alert]
     assert @approval.reload.pending?
   end

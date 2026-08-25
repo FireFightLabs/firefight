@@ -79,7 +79,7 @@ Ids never leave the read tools, so every reference here resolves by slug too. `M
 
 `assign_incident_role` authorizes as `incidents:update`. Roles hold one person each, so assigning replaces the current holder; the Incident Lead cannot be cleared, only handed over. `get_incident` returns every configured role with its holder, which is how an agent discovers the slugs it may pass. The rest of the incident lifecycle (declare, status, severity, close) stays out of MCP for now.
 
-Authorization is the gateway's: admin personal tokens carry the admin's authority; service keys need the explicit `<resource>:<action>` scope. Every write is ledgered (`AbilityInvocation`), and workspace approval policies can park any call as `pending` — the tool result then carries an `approval id`; after a workspace admin approves (Slack buttons or `/settings/approvals`), retry the identical call with `approval_id`.
+Authorization is the gateway's: admin personal tokens carry the admin's authority; service keys need the explicit `<resource>:<action>` scope. Every write is ledgered (`AbilityInvocation`), and workspace approval policies can park any call as `pending` — the tool result then carries an `approval id`; after a workspace admin approves (Slack buttons or `/app/gateway/approvals`), retry the identical call with `approval_id`.
 
 The server is self-describing for agents: server instructions, tool descriptions, and guidance-worthy responses (permission errors, no routing policy, unmatched dry runs) link to the relevant public docs page via `Mcp::Docs` constants — each page is fetchable as raw markdown (`https://firefight.app/docs/**/*.md`, index at `/llms.txt`).
 

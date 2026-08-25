@@ -111,7 +111,7 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
     assert_not_equal access_token, rotated
 
     # It shows under connected agents, and revoking kills access on the next call
-    get settings_api_keys_url, headers: { "X-Inertia" => "true", "X-Inertia-Version" => InertiaRails.configuration.version }
+    get developer_api_keys_url, headers: { "X-Inertia" => "true", "X-Inertia-Version" => InertiaRails.configuration.version }
     agents = JSON.parse(response.body).dig("props", "connectedAgents")
     assert_equal [ "Claude Code" ], agents.map { |a| a["name"] }
 

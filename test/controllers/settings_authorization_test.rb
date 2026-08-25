@@ -59,7 +59,7 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
   test "members are blocked from the admin-only surfaces" do
     sign_in(users(:bob), @workspace)
 
-    [ settings_permissions_url, settings_activity_url ].each do |url|
+    [ gateway_permissions_url, gateway_activity_url ].each do |url|
       get url, headers: inertia_headers
       assert_redirected_to dashboard_path, "expected member to be blocked from #{url}"
     end
@@ -69,7 +69,7 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
     sign_in(users(:bob), @workspace)
     source = @workspace.alert_sources.create!(name: "Guarded", provider: AlertSource::PROVIDER_GENERIC)
 
-    get settings_approvals_url, headers: inertia_headers
+    get gateway_approvals_url, headers: inertia_headers
     assert_response :success
 
     get sample_payload_alert_source_url(source)
@@ -90,7 +90,7 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
   test "admins keep access to the governance surfaces" do
     sign_in(users(:alice), @workspace)
 
-    [ settings_permissions_url, settings_activity_url, settings_approvals_url ].each do |url|
+    [ gateway_permissions_url, gateway_activity_url, gateway_approvals_url ].each do |url|
       get url, headers: inertia_headers
       assert_response :success, "expected admin to reach #{url}"
     end
@@ -113,7 +113,7 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
     secret = webhooks(:active_webhook).signing_secret
     sign_in(users(:alice), @workspace)
 
-    get settings_webhooks_url, headers: inertia_headers
+    get developer_webhooks_url, headers: inertia_headers
     assert_response :success
     assert_not_includes response.body, secret,
                         "an admin's page props must not embed the secret either"

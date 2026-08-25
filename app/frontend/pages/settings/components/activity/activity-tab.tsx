@@ -1,7 +1,7 @@
 import { router } from "@inertiajs/react"
 
 import type { AbilityInvocation } from "@/types/serializers"
-import { settingsActivityPath } from "@/lib/routes"
+import { gatewayActivityPath } from "@/lib/routes"
 import { formatDateTime } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -51,7 +51,7 @@ export function ActivityTab({
   decision: string | null
 }) {
   function applyFilter(nextDecision: string | null) {
-    router.get(settingsActivityPath(), nextDecision ? { decision: nextDecision } : {})
+    router.get(gatewayActivityPath(), nextDecision ? { decision: nextDecision } : {})
   }
 
   return (
