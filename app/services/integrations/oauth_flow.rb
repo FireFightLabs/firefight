@@ -1,6 +1,5 @@
 module Integrations
-  # The one-click connect handshake, so the controller only holds what the
-  # session needs between the redirect out and the callback in.
+  # The one-click connect handshake.
   module OauthFlow
     Error = OauthClient::Error
 
