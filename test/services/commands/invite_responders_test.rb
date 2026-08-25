@@ -10,9 +10,10 @@ class Commands::InviteRespondersTest < ActiveSupport::TestCase
   end
 
   test "opens invite modal when text has no target tokens" do
-    Slack::Modals::Invite.expects(:build).with(@incident).returns({ type: "modal" })
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
+    adapter.expects(:people_targets?).returns(false)
+    adapter.expects(:build_modal).with(PlatformAdapter::Modal::INVITE, @incident).returns({ type: "modal" })
     adapter.expects(:open_modal).with(trigger_id: "12345.trigger", view: { type: "modal" }).once
 
     assert_no_enqueued_jobs only: IncidentInviteJob do

@@ -16,7 +16,7 @@ module Interactions
       metadata = JSON.parse(interaction.action_value)
       incident = workspace.incidents.find(metadata["incident_id"])
 
-      private_metadata = Slack::PrivateMetadata.encode(
+      private_metadata = ModalState.encode(
         incident_id: incident.id,
         source_message_text: metadata["source_message_text"],
         source_message_link: metadata["source_message_link"]

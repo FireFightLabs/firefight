@@ -13,24 +13,15 @@ module Interactions
           workspace_id: workspace.id,
           user_id: interaction.user_id
         })
-        return {
-          response_action: "errors",
-          errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_NAME) => "We could not verify your account. Please try again or contact support." }
-        }
+        return workspace.adapter.form_error_response(IncidentSystemField::KEY_NAME, "We could not verify your account. Please try again or contact support.")
       end
 
-      submission = Slack::FormSubmission.new(
-        workspace: workspace,
+      submission = workspace.adapter.parse_form_submission(
         form_slug: IncidentForm::SLUG_DECLARE,
         values: interaction.values
-      ).parse
+      )
 
-      if submission.errors.any?
-        return {
-          response_action: "errors",
-          errors: { submission.first_error_block_id => submission.errors.first }
-        }
-      end
+      return workspace.adapter.form_error_response(submission.first_error_field_key, submission.errors.first) if submission.errors.any?
 
       attrs = submission.system_attrs
       severity = workspace.incident_severities.active.find_by!(slug: attrs["severity"])
@@ -60,13 +51,13 @@ module Interactions
         severity: attrs["severity"]
       })
 
-      { response_action: "update", view: Slack::Modals::IncidentCreated.build(incident, team_id: workspace.platform_id) }
+      workspace.adapter.form_update_response(workspace.adapter.build_modal(PlatformAdapter::Modal::INCIDENT_CREATED, incident))
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.error({ event: "incident.creation_severity_not_found", error: e.message })
-      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_SEVERITY) => "Invalid severity selection. Please try again." } }
+      workspace.adapter.form_error_response(IncidentSystemField::KEY_SEVERITY, "Invalid severity selection. Please try again.")
     rescue => e
       Rails.logger.error({ event: "incident.creation_error", error: e.message })
-      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_NAME) => "Failed to create incident. Please try again." } }
+      workspace.adapter.form_error_response(IncidentSystemField::KEY_NAME, "Failed to create incident. Please try again.")
     end
   end
 end

@@ -17,7 +17,7 @@ class Interactions::CreateActionItemFromReactionHandlerTest < ActiveSupport::Tes
       Slack::Client.expects(:open_modal).with do |args|
         view = args[:view]
         view[:callback_id] == callback_id &&
-          Slack::PrivateMetadata.parse(view[:private_metadata]).source_message_link == "https://workspace.slack.com/archives/C123/p123" &&
+          ModalState.parse(view[:private_metadata]).source_message_link == "https://workspace.slack.com/archives/C123/p123" &&
           view[:blocks].first.dig(:element, :initial_value) == "The database is slow"
       end.returns({ ok: true, view: { id: "V12345678" } })
 

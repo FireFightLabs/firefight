@@ -9,9 +9,10 @@ module Commands
       roles = command.workspace.incident_roles.active.ordered
       return Command.ephemeral("No incident roles are set up yet. Add them in Settings, then run `/ff roles` again.") if roles.empty?
 
-      command.workspace.adapter.open_modal(
+      adapter = command.workspace.adapter
+      adapter.open_modal(
         trigger_id: command.trigger_id,
-        view: Slack::Modals::Roles.build(command.incident, roles)
+        view: adapter.build_modal(PlatformAdapter::Modal::ROLES, command.incident, roles)
       )
       nil
     end

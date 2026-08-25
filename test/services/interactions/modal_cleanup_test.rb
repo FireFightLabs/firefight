@@ -8,7 +8,7 @@ class Interactions::ModalCleanupTest < ActiveSupport::TestCase
   end
 
   test "deletes the temp message when both coordinates are present" do
-    metadata = Slack::PrivateMetadata::Result.new(
+    metadata = ModalState::Result.new(
       incident_id: 1,
       temp_message_ts: "1700000000.000100",
       channel_id: "C12345"
@@ -20,7 +20,7 @@ class Interactions::ModalCleanupTest < ActiveSupport::TestCase
   end
 
   test "is a no-op when temp_message_ts is nil" do
-    metadata = Slack::PrivateMetadata::Result.new(incident_id: 1, temp_message_ts: nil, channel_id: "C12345")
+    metadata = ModalState::Result.new(incident_id: 1, temp_message_ts: nil, channel_id: "C12345")
 
     @adapter.expects(:delete_message).never
 
@@ -28,7 +28,7 @@ class Interactions::ModalCleanupTest < ActiveSupport::TestCase
   end
 
   test "is a no-op when channel_id is nil" do
-    metadata = Slack::PrivateMetadata::Result.new(incident_id: 1, temp_message_ts: "1700000000.000100", channel_id: nil)
+    metadata = ModalState::Result.new(incident_id: 1, temp_message_ts: "1700000000.000100", channel_id: nil)
 
     @adapter.expects(:delete_message).never
 
@@ -36,7 +36,7 @@ class Interactions::ModalCleanupTest < ActiveSupport::TestCase
   end
 
   test "is a no-op when both coordinates are blank strings" do
-    metadata = Slack::PrivateMetadata::Result.new(incident_id: 1, temp_message_ts: "", channel_id: "")
+    metadata = ModalState::Result.new(incident_id: 1, temp_message_ts: "", channel_id: "")
 
     @adapter.expects(:delete_message).never
 
@@ -44,7 +44,7 @@ class Interactions::ModalCleanupTest < ActiveSupport::TestCase
   end
 
   test "swallows AdapterError and logs without re-raising" do
-    metadata = Slack::PrivateMetadata::Result.new(
+    metadata = ModalState::Result.new(
       incident_id: 1,
       temp_message_ts: "1700000000.000100",
       channel_id: "C12345"

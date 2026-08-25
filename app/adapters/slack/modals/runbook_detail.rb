@@ -15,7 +15,7 @@ module Slack
         {
           type: "modal",
           callback_id: Identifiers::RUNBOOK_DETAIL_MODAL,
-          private_metadata: Slack::PrivateMetadata.encode(incident_id: incident_runbook.incident_id, incident_runbook_id: incident_runbook.id),
+          private_metadata: ModalState.encode(incident_id: incident_runbook.incident_id, incident_runbook_id: incident_runbook.id),
           title: { type: "plain_text", text: "Runbook" },
           close: { type: "plain_text", text: "Done" },
           blocks: blocks(runbook, steps, actions)

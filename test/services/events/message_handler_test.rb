@@ -25,12 +25,12 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
   test "new message creates a transcript row with resolved fields" do
     Events::MessageHandler.execute(@workspace, text_message_payload)
 
-    message = @incident.incident_transcript_messages.find_by!(slack_ts: "1234567890.000100")
+    message = @incident.incident_transcript_messages.find_by!(message_id: "1234567890.000100")
     assert_equal @workspace, message.workspace
     assert_equal @member, message.workspace_membership
-    assert_equal @member.platform_user_id, message.slack_user_id
+    assert_equal @member.platform_user_id, message.platform_user_id
     assert_equal "investigating db replica lag", message.content
-    assert_nil message.slack_thread_ts
+    assert_nil message.thread_id
     assert_in_delta Time.at(1234567890.000100), message.posted_at, 0.001
   end
 
@@ -39,22 +39,22 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
     payload["event"]["thread_ts"] = "1234567890.000000"
     Events::MessageHandler.execute(@workspace, payload)
 
-    message = @incident.incident_transcript_messages.find_by!(slack_ts: "1234567890.000100")
-    assert_equal "1234567890.000000", message.slack_thread_ts
+    message = @incident.incident_transcript_messages.find_by!(message_id: "1234567890.000100")
+    assert_equal "1234567890.000000", message.thread_id
   end
 
   test "duplicate delivery does not raise and does not dup" do
     Events::MessageHandler.execute(@workspace, text_message_payload)
     Events::MessageHandler.execute(@workspace, text_message_payload)
 
-    assert_equal 1, @incident.incident_transcript_messages.where(slack_ts: "1234567890.000100").count
+    assert_equal 1, @incident.incident_transcript_messages.where(message_id: "1234567890.000100").count
   end
 
   test "edit updates content on existing row" do
     Events::MessageHandler.execute(@workspace, text_message_payload)
     Events::MessageHandler.execute(@workspace, edit_payload(ts: "1234567890.000100", text: "new context"))
 
-    message = @incident.incident_transcript_messages.find_by!(slack_ts: "1234567890.000100")
+    message = @incident.incident_transcript_messages.find_by!(message_id: "1234567890.000100")
     assert_equal "new context", message.content
   end
 
@@ -68,7 +68,7 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
     Events::MessageHandler.execute(@workspace, text_message_payload)
     Events::MessageHandler.execute(@workspace, delete_payload(ts: "1234567890.000100"))
 
-    message = @incident.incident_transcript_messages.find_by!(slack_ts: "1234567890.000100")
+    message = @incident.incident_transcript_messages.find_by!(message_id: "1234567890.000100")
     assert_not_nil message.deleted_at
     assert_not_includes IncidentTranscriptMessage.kept, message
   end
@@ -108,7 +108,7 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
 
     Events::MessageHandler.execute(@workspace, file_message_payload)
 
-    assert @incident.incident_transcript_messages.exists?(slack_ts: "1234567890.123456")
+    assert @incident.incident_transcript_messages.exists?(message_id: "1234567890.123456")
   end
 
   test "bot messages skip transcript ingest" do

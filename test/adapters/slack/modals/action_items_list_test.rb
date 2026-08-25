@@ -42,7 +42,7 @@ class Slack::Modals::ActionItemsListTest < ActiveSupport::TestCase
   test "the modal carries its incident the way every other modal does" do
     view = Slack::Modals::ActionItemsList.build(@incident, kind: :action)
 
-    assert_equal @incident.id, Slack::PrivateMetadata.parse(view[:private_metadata]).incident_id
+    assert_equal @incident.id, ModalState.parse(view[:private_metadata]).incident_id
   end
 
   test "a long list stays inside Slack's block ceiling and says what it held back" do

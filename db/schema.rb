@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -611,9 +611,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_090000) do
   create_table "incident_transcript_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workspace_id", null: false
     t.uuid "incident_id", null: false
-    t.string "slack_ts", null: false
-    t.string "slack_thread_ts"
-    t.string "slack_user_id", null: false
+    t.string "message_id", null: false
+    t.string "thread_id"
+    t.string "platform_user_id", null: false
     t.uuid "workspace_membership_id"
     t.text "content", null: false
     t.datetime "posted_at", null: false
@@ -624,8 +624,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_090000) do
     t.index ["incident_id", "posted_at"], name: "idx_on_incident_id_posted_at_8123ad8ebd"
     t.index ["incident_id"], name: "index_incident_transcript_messages_on_incident_id"
     t.index ["workspace_id", "created_at"], name: "idx_on_workspace_id_created_at_8c0e76892b"
-    t.index ["workspace_id", "incident_id", "slack_ts"], name: "index_transcript_messages_on_workspace_incident_slack_ts", unique: true
-    t.index ["workspace_id", "slack_user_id"], name: "idx_on_workspace_id_slack_user_id_5d5d20d31d"
+    t.index ["workspace_id", "incident_id", "message_id"], name: "index_transcript_messages_on_workspace_incident_message_id", unique: true
+    t.index ["workspace_id", "platform_user_id"], name: "idx_on_workspace_id_platform_user_id_c2c69a163b"
     t.index ["workspace_id"], name: "index_incident_transcript_messages_on_workspace_id"
     t.index ["workspace_membership_id"], name: "index_incident_transcript_messages_on_workspace_membership_id"
   end

@@ -12,7 +12,7 @@ module Slack
         {
           type: "modal",
           callback_id: Identifiers::INVITE_RESPONDERS_MODAL,
-          private_metadata: private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id),
+          private_metadata: private_metadata || ModalState.encode(incident_id: incident.id),
           title: { type: "plain_text", text: "Invite responders" },
           submit: { type: "plain_text", text: "Invite" },
           close: { type: "plain_text", text: "Cancel" },

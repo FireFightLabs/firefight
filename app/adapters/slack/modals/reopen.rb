@@ -6,7 +6,7 @@ module Slack
           type: "modal",
           callback_id: Identifiers::REOPEN_INCIDENT_MODAL,
           notify_on_close: true,
-          private_metadata: private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id),
+          private_metadata: private_metadata || ModalState.encode(incident_id: incident.id),
           title: { type: "plain_text", text: "Reopen incident" },
           submit: { type: "plain_text", text: "Reopen incident" },
           close: { type: "plain_text", text: "Cancel" },

@@ -14,7 +14,7 @@ module Commands
 
       # The resolved set is what the modal renders, so an empty one means there
       # is nothing to ask and the command should just cancel.
-      return open_modal(command) if Slack::Modals::TerminalForm.fields(incident, IncidentForm::SLUG_CANCEL).any?
+      return open_modal(command) if IncidentFormResolver.new(workspace).fields_for(incident, IncidentForm::SLUG_CANCEL).any?
 
       cancel!(workspace, incident, command.user_id)
       nil

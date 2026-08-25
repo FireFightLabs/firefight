@@ -77,6 +77,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
   test "resolve_and_notify! invites users and posts summary ephemeral" do
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.stubs(:for).with(@workspace).returns(adapter)
+    adapter.expects(:resolve_people).with("invite <@U11111111>").returns(user_ids: [ "U11111111" ], unresolved_handles: [], had_target_tokens: true)
     adapter.expects(:invite_user).with(channel_id: @incident.channel_id, user_id: "U11111111").returns({ invited_user: "U11111111" })
     adapter.expects(:post_ephemeral).with(channel_id: "C_FROM", user_id: "U_FROM", text: "Invited 1 responder.").once
 
@@ -92,10 +93,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
   test "resolve_and_notify! posts unresolved-handle warning when nothing resolves" do
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.stubs(:for).with(@workspace).returns(adapter)
-    adapter.expects(:resolve_user_ids_from_handles).with(handles: [ "nina" ]).returns({
-      resolved_user_ids: [],
-      unresolved_handles: [ "nina" ]
-    })
+    adapter.expects(:resolve_people).with("invite @nina").returns(user_ids: [], unresolved_handles: [ "nina" ], had_target_tokens: true)
     adapter.expects(:post_ephemeral).with do |args|
       args[:channel_id] == "C_FROM" && args[:user_id] == "U_FROM" && args[:text].include?("Couldn't resolve") && args[:text].include?("@nina")
     end

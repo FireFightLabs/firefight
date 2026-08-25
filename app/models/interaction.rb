@@ -59,17 +59,17 @@ class Interaction
     return @metadata if defined?(@metadata)
 
     @metadata = if private_metadata.blank?
-      Slack::PrivateMetadata::EMPTY
+      ModalState::EMPTY
     elsif private_metadata.to_s.match?(UUID)
       # A modal opened before every builder encoded its metadata. Safe to
       # drop once no such modal can still be open.
-      Slack::PrivateMetadata::Result.new(incident_id: private_metadata.to_s)
+      ModalState::Result.new(incident_id: private_metadata.to_s)
     else
-      Slack::PrivateMetadata.parse(private_metadata)
+      ModalState.parse(private_metadata)
     end
-  rescue Slack::PrivateMetadata::InvalidError => e
+  rescue ModalState::InvalidError => e
     Rails.logger.warn({ event: "interaction.private_metadata_invalid", callback_id: callback_id, error: e.message }.to_json)
-    @metadata = Slack::PrivateMetadata::EMPTY
+    @metadata = ModalState::EMPTY
   end
 
   def incident_id

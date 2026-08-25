@@ -17,7 +17,7 @@ module Interactions
       adapter    = workspace.adapter
 
       if selected == Identifiers::HOME_ACTION_NEW
-        return { response_action: "update", view: Slack::Modals::IncidentCreation.build(workspace: workspace) }
+        return adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::INCIDENT_CREATION))
       end
 
       if selected == Identifiers::HOME_ACTION_LIST
@@ -34,37 +34,37 @@ module Interactions
         return { response_action: "errors", errors: { "action_select_block" => "No active incident found in this channel." } }
       end
 
-      incident_metadata = { incident_id: incident.id, channel_id: channel_id }.to_json
+      incident_metadata = ModalState.encode(incident_id: incident.id, channel_id: channel_id)
 
       case selected
       when Identifiers::HOME_ACTION_STATUS, Identifiers::HOME_ACTION_SEVERITY
-        { response_action: "update", view: Slack::Modals::IncidentUpdate.build(incident, private_metadata: incident_metadata) }
+        adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::INCIDENT_UPDATE, incident, metadata: incident_metadata))
       when Identifiers::HOME_ACTION_SUMMARY
-        { response_action: "update", view: Slack::Modals::Summary.build(incident, private_metadata: incident_metadata) }
+        adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::SUMMARY, incident, metadata: incident_metadata))
       when Identifiers::HOME_ACTION_ESCALATE
-        { response_action: "update", view: Slack::Modals::Escalate.build(incident, private_metadata: incident_metadata) }
+        adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::ESCALATE, incident, metadata: incident_metadata))
       when Identifiers::HOME_ACTION_INVITE
-        { response_action: "update", view: Slack::Modals::Invite.build(incident, private_metadata: incident_metadata) }
+        adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::INVITE, incident, metadata: incident_metadata))
       when Identifiers::HOME_ACTION_LEAD
-        { response_action: "update", view: Slack::Modals::Lead.build(incident) }
+        adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::LEAD, incident))
       when Identifiers::HOME_ACTION_ROLES
         roles = workspace.incident_roles.active.ordered
         if roles.empty?
           return { response_action: "errors", errors: { "action_select_block" => "No incident roles are set up yet. Add them in Settings." } }
         end
 
-        { response_action: "update", view: Slack::Modals::Roles.build(incident, roles) }
+        adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::ROLES, incident, roles))
       when Identifiers::HOME_ACTION_ACTIONS
-        { response_action: "update", view: Slack::Modals::ActionItemsList.build(incident, kind: :action) }
+        adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::ACTION_ITEMS_LIST, incident, kind: :action))
       when Identifiers::HOME_ACTION_RUNBOOK
         available = incident.attachable_runbooks
         if available.empty?
           return { response_action: "errors", errors: { "action_select_block" => "No runbooks left to attach. Add them in Settings." } }
         end
 
-        { response_action: "update", view: Slack::Modals::AttachRunbook.build(incident, available) }
+        adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::ATTACH_RUNBOOK, incident, available))
       when Identifiers::HOME_ACTION_CLOSE
-        { response_action: "update", view: Slack::Modals::IncidentClose.build(incident, private_metadata: incident_metadata) }
+        adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::INCIDENT_CLOSE, incident, metadata: incident_metadata))
       when Identifiers::HOME_ACTION_TIMELINE
         view = adapter.build_timeline_view(incident)
         return { response_action: "clear" } unless view

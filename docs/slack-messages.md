@@ -126,7 +126,7 @@ argument rather than two methods (see `StatusUpdate.build`).
   exactly as it was, so a row keeps its old button and the click reads as
   broken. `Interactions::OpenModalRefresh` rebuilds the view from the same
   inputs it was opened with, keyed on its `callback_id`.
-- **A modal's context lives in `Slack::PrivateMetadata`**, never a bare id. Builders call `encode`, handlers read `interaction.metadata`.
+- **A modal's context lives in `ModalState`**, never a bare id. Builders call `encode`, handlers read `interaction.metadata`.
 - **Form field block and action ids come from `Slack::Modals::FieldBlocks`** (`block_id(key)`, `input_id(key)`, `action_id(key, dispatching:)`, `picked(state, key)`). Never build a `field_<key>_block` string by hand, in a builder, a submission parser or an error anchor.
   Invite read it as a bare incident id while the modal encoded JSON, so every
   invite failed, and its test asserted the handler's shape rather than the

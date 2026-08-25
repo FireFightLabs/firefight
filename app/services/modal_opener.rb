@@ -4,16 +4,14 @@
 # something is happening while the responder is in the dialog, and its id rides
 # in the modal's private metadata so the submission handler can delete it.
 #
-# Modal classes are named rather than referenced so the table does not hold
-# constants across a code reload.
 class ModalOpener
   MODALS = {
-    cancel:   { emoji: ":wastebasket:",     doing: "canceling the incident",             modal: "Slack::Modals::IncidentCancel" },
-    close:    { emoji: ":lock:",            doing: "closing the incident",               modal: "Slack::Modals::IncidentClose" },
-    escalate: { emoji: ":rotating_light:",  doing: "escalating the incident",            modal: "Slack::Modals::Escalate" },
-    reopen:   { emoji: ":rotating_light:",  doing: "reopening the incident",             modal: "Slack::Modals::Reopen" },
-    summary:  { emoji: ":writing_hand:",    doing: "updating the incident summary",      modal: "Slack::Modals::Summary" },
-    update:   { emoji: ":writing_hand:",    doing: "writing an internal status update",  modal: "Slack::Modals::IncidentUpdate" }
+    cancel:   { emoji: ":wastebasket:",     doing: "canceling the incident",             modal: PlatformAdapter::Modal::INCIDENT_CANCEL },
+    close:    { emoji: ":lock:",            doing: "closing the incident",               modal: PlatformAdapter::Modal::INCIDENT_CLOSE },
+    escalate: { emoji: ":rotating_light:",  doing: "escalating the incident",            modal: PlatformAdapter::Modal::ESCALATE },
+    reopen:   { emoji: ":rotating_light:",  doing: "reopening the incident",             modal: PlatformAdapter::Modal::REOPEN },
+    summary:  { emoji: ":writing_hand:",    doing: "updating the incident summary",      modal: PlatformAdapter::Modal::SUMMARY },
+    update:   { emoji: ":writing_hand:",    doing: "writing an internal status update",  modal: PlatformAdapter::Modal::INCIDENT_UPDATE }
   }.freeze
 
   def self.open(kind, workspace:, incident:, trigger_id:, user_id:)
@@ -26,13 +24,13 @@ class ModalOpener
       blocks: nil
     )
 
-    metadata = Slack::PrivateMetadata.encode(
+    metadata = ModalState.encode(
       incident_id: incident.id,
       temp_message_ts: result[:message_id],
       channel_id: incident.channel_id
     )
 
-    view = config[:modal].constantize.build(incident, private_metadata: metadata)
+    view = adapter.build_modal(config[:modal], incident, metadata: metadata)
     adapter.open_modal(trigger_id: trigger_id, view: view)
   rescue AdapterError::TriggerExpired
     cleanup_temp_message(adapter, incident.channel_id, result&.dig(:message_id))

@@ -39,7 +39,7 @@ class Slack::Modals::RunbookDetailTest < ActiveSupport::TestCase
   end
 
   test "the modal carries the attachment so a pick knows what it belongs to" do
-    metadata = Slack::PrivateMetadata.parse(view[:private_metadata])
+    metadata = ModalState.parse(view[:private_metadata])
     assert_equal @incident_runbook.id, metadata.incident_runbook_id
     assert_equal @incident.id, metadata.incident_id
     assert_equal Identifiers::RUNBOOK_DETAIL_MODAL, view[:callback_id]

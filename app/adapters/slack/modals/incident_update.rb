@@ -7,7 +7,7 @@ module Slack
     module IncidentUpdate
       def self.build(incident, private_metadata: nil, state: {})
         workspace = incident.workspace
-        metadata = private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id)
+        metadata = private_metadata || ModalState.encode(incident_id: incident.id)
 
         picked_slug = picked_status_slug(state)
         context = context_for(incident, workspace, picked_slug)

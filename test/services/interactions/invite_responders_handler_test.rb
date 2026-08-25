@@ -46,7 +46,7 @@ class Interactions::InviteRespondersHandlerTest < ActiveSupport::TestCase
       team_id: @workspace.platform_id,
       user_id: @member.platform_user_id,
       callback_id: Identifiers::INVITE_RESPONDERS_MODAL,
-      private_metadata: Slack::PrivateMetadata.encode(incident_id: SecureRandom.uuid),
+      private_metadata: ModalState.encode(incident_id: SecureRandom.uuid),
       values: {
         "invite_users_block" => {
           "invite_users_select" => {
@@ -70,7 +70,7 @@ class Interactions::InviteRespondersHandlerTest < ActiveSupport::TestCase
       team_id: @workspace.platform_id,
       user_id: @member.platform_user_id,
       callback_id: Identifiers::INVITE_RESPONDERS_MODAL,
-      private_metadata: Slack::PrivateMetadata.encode(incident_id: @incident.id),
+      private_metadata: ModalState.encode(incident_id: @incident.id),
       values: {
         "invite_users_block" => {
           "invite_users_select" => {
@@ -87,7 +87,7 @@ class Interactions::InviteRespondersHandlerTest < ActiveSupport::TestCase
   test "the handler accepts exactly what the modal sends" do
     view = Slack::Modals::Invite.build(@incident)
 
-    metadata = Slack::PrivateMetadata.parse(view[:private_metadata])
+    metadata = ModalState.parse(view[:private_metadata])
 
     assert_equal @incident.id, metadata.incident_id
   end

@@ -38,9 +38,9 @@ module Events
       unless event["bot_id"].present? || event["app_id"].present?
         incident.incident_transcript_messages.create!(
           workspace: workspace,
-          slack_ts: message_ts,
-          slack_thread_ts: event["thread_ts"],
-          slack_user_id: event["user"],
+          message_id: message_ts,
+          thread_id: event["thread_ts"],
+          platform_user_id: event["user"],
           workspace_membership: member,
           content: event["text"].to_s,
           posted_at: Time.at(message_ts.to_f)
@@ -61,7 +61,7 @@ module Events
       ts = inner["ts"]
       return unless ts
 
-      message = incident.incident_transcript_messages.find_by(slack_ts: ts)
+      message = incident.incident_transcript_messages.find_by(message_id: ts)
       message&.update!(content: inner["text"].to_s)
     end
     private_class_method :handle_edit
@@ -73,7 +73,7 @@ module Events
       ts = event["deleted_ts"]
       return unless ts
 
-      message = incident.incident_transcript_messages.find_by(slack_ts: ts)
+      message = incident.incident_transcript_messages.find_by(message_id: ts)
       message&.soft_delete!
     end
     private_class_method :handle_delete

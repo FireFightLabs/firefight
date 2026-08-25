@@ -9,20 +9,16 @@ module Interactions
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
-      return already_canceled_error if incident.incident_status.incident_lifecycle_stage.canceled?
+      return already_canceled_error(workspace) if incident.incident_status.incident_lifecycle_stage.canceled?
 
-      submission = Slack::FormSubmission.new(
-        workspace: workspace,
+      submission = workspace.adapter.parse_form_submission(
         form_slug: IncidentForm::SLUG_CANCEL,
         values: interaction.values,
         incident: incident
-      ).parse
+      )
 
       if submission.errors.any?
-        return {
-          response_action: "errors",
-          errors: { submission.first_error_block_id => submission.errors.first }
-        }
+        return workspace.adapter.form_error_response(submission.first_error_field_key, submission.errors.first)
       end
 
       chosen = submission.system_attrs[IncidentSystemField::KEY_STATUS]
@@ -52,8 +48,8 @@ module Interactions
       nil
     end
 
-    def self.already_canceled_error
-      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_MESSAGE) => "This incident is already canceled." } }
+    def self.already_canceled_error(workspace)
+      workspace.adapter.form_error_response(IncidentSystemField::KEY_MESSAGE, "This incident is already canceled.")
     end
     private_class_method :already_canceled_error
   end

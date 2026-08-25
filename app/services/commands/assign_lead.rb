@@ -6,7 +6,8 @@ module Commands
     def self.execute(command)
       return Command.ephemeral("This command must be run from an active incident channel.") unless command.incident
 
-      command.workspace.adapter.open_modal(trigger_id: command.trigger_id, view: Slack::Modals::Lead.build(command.incident))
+      adapter = command.workspace.adapter
+      adapter.open_modal(trigger_id: command.trigger_id, view: adapter.build_modal(PlatformAdapter::Modal::LEAD, command.incident))
       nil
     end
   end

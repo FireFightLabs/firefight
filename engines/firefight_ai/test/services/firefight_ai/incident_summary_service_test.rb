@@ -15,8 +15,8 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   end
 
   test "cache miss with messages performs full generate and creates summary row" do
-    add_message(slack_ts: "1.001", content: "investigating db replica lag")
-    add_message(slack_ts: "1.002", content: "rollback considered")
+    add_message(message_id: "1.001", content: "investigating db replica lag")
+    add_message(message_id: "1.002", content: "rollback considered")
     stub_llm_response("- Team investigating replica lag\n- Rollback considered")
 
     summary = @service.fetch_or_refresh(@incident)
@@ -31,7 +31,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   # Path 1: no new messages
 
   test "no new messages returns existing summary without calling LLM" do
-    add_message(slack_ts: "1.001", content: "first")
+    add_message(message_id: "1.001", content: "first")
     seed_summary(content: "cached body", up_to_ts: "1.001", generated_at: 1.hour.ago)
 
     RubyLLM.expects(:chat).never
@@ -43,8 +43,8 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   # Path 2: within freshness window (slight staleness OK)
 
   test "fresh window returns cached summary even with new messages" do
-    add_message(slack_ts: "1.001", content: "first")
-    add_message(slack_ts: "1.002", content: "second")
+    add_message(message_id: "1.001", content: "first")
+    add_message(message_id: "1.002", content: "second")
     seed_summary(content: "cached body", up_to_ts: "1.001", generated_at: 1.minute.ago)
 
     RubyLLM.expects(:chat).never
@@ -56,9 +56,9 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   # Path 3: incremental refresh
 
   test "stale summary with new top-level message triggers incremental refresh" do
-    add_message(slack_ts: "1.001", content: "first")
+    add_message(message_id: "1.001", content: "first")
     seed_summary(content: "prior body", up_to_ts: "1.001", generated_at: 30.minutes.ago)
-    add_message(slack_ts: "1.002", content: "fresh new context")
+    add_message(message_id: "1.002", content: "fresh new context")
 
     stub_llm_response("updated body with fresh context")
 
@@ -69,10 +69,10 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   end
 
   test "thread reply bundles full thread context into incremental prompt" do
-    add_message(slack_ts: "100.0", content: "parent point")
-    add_message(slack_ts: "100.1", slack_thread_ts: "100.0", content: "first reply")
+    add_message(message_id: "100.0", content: "parent point")
+    add_message(message_id: "100.1", thread_id: "100.0", content: "first reply")
     seed_summary(content: "prior body", up_to_ts: "100.1", generated_at: 30.minutes.ago)
-    add_message(slack_ts: "100.2", slack_thread_ts: "100.0", content: "second reply (new)")
+    add_message(message_id: "100.2", thread_id: "100.0", content: "second reply (new)")
 
     captured_prompt = nil
     stub_llm_capturing_prompt { |p| captured_prompt = p }
@@ -85,7 +85,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   end
 
   test "stale summary with no actual delta does not call LLM" do
-    add_message(slack_ts: "1.001", content: "first")
+    add_message(message_id: "1.001", content: "first")
     seed_summary(content: "prior body", up_to_ts: "1.001", generated_at: 30.minutes.ago)
 
     RubyLLM.expects(:chat).never
@@ -97,7 +97,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   # Error handling
 
   test "LLM error during cold-start records error inference and returns nil" do
-    add_message(slack_ts: "1.001", content: "first")
+    add_message(message_id: "1.001", content: "first")
 
     chat = mock("chat")
     chat.stubs(:with_instructions).returns(chat)
@@ -113,9 +113,9 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   end
 
   test "LLM error during incremental refresh falls back to existing summary" do
-    add_message(slack_ts: "1.001", content: "first")
+    add_message(message_id: "1.001", content: "first")
     seed_summary(content: "prior body", up_to_ts: "1.001", generated_at: 30.minutes.ago)
-    add_message(slack_ts: "1.002", content: "new context")
+    add_message(message_id: "1.002", content: "new context")
 
     chat = mock("chat")
     chat.stubs(:with_instructions).returns(chat)
@@ -128,15 +128,15 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
 
   private
 
-  def add_message(slack_ts:, content:, slack_thread_ts: nil)
+  def add_message(message_id:, content:, thread_id: nil)
     @incident.incident_transcript_messages.create!(
       workspace: @workspace,
       workspace_membership: @member,
-      slack_ts: slack_ts,
-      slack_thread_ts: slack_thread_ts,
-      slack_user_id: @member.platform_user_id,
+      message_id: message_id,
+      thread_id: thread_id,
+      platform_user_id: @member.platform_user_id,
       content: content,
-      posted_at: Time.at(slack_ts.to_f)
+      posted_at: Time.at(message_id.to_f)
     )
   end
 
