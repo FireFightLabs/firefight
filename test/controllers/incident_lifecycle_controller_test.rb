@@ -229,6 +229,31 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_equal @incident.reload.change_blocked_reason, inertia_props.dig("incident", "changeBlockedReason")
   end
 
+  # The channel control
+
+  test "an incident with no channel yet still names the one it will get" do
+    incident = @workspace.incidents.create!(
+      declared_by: @member, incident_status: @workspace.incident_statuses.default_status,
+      incident_severity: @workspace.incident_severities.active.first,
+      name: "Checkout is failing", declared_at: Time.current, source: Incident::SOURCE_DASHBOARD
+    )
+
+    get incident_path(incident), headers: inertia_headers
+    assert_response :success
+
+    assert_equal incident.generated_channel_name, inertia_props.dig("incident", "channelLabel")
+    assert_nil inertia_props["channelUrl"]
+  end
+
+  test "once the channel exists the label is the real one" do
+    @incident.update!(channel_name: "inc-2026-08-25-checkout", channel_id: "C123")
+
+    get incident_path(@incident), headers: inertia_headers
+
+    assert_equal "inc-2026-08-25-checkout", inertia_props.dig("incident", "channelLabel")
+    assert_includes inertia_props["channelUrl"], "C123"
+  end
+
   # Scoping
 
   test "another workspace's incident is not reachable" do

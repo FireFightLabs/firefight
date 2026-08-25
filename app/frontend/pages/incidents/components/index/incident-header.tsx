@@ -58,6 +58,45 @@ function EditableBadge({
   )
 }
 
+// Every incident gets a channel, so no URL means creation has not finished or
+// it failed. Hiding the control would hide the second one, which is why this
+// stays put and says so instead.
+function ChannelLink({ url, label }: { url?: string | null; label: string }) {
+  const shared =
+    "h-8 gap-2 border-primary/30 bg-primary/10 px-3 font-mono text-[12px] text-primary"
+
+  if (!url) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="outline" size="sm" className={`${shared} cursor-default opacity-50`} aria-disabled>
+            <IconBrandSlack className="size-3.5" />
+            <span className="hidden sm:inline">#{label}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64">
+          Firefight is still creating this channel. If it stays like this, creating it failed.
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className={`${shared} hover:bg-primary/20 hover:border-primary/50 hover:text-primary`}
+      asChild
+    >
+      <a href={url} target="_blank" rel="noopener noreferrer">
+        <IconBrandSlack className="size-3.5" />
+        <span className="hidden sm:inline">#{label}</span>
+        <IconExternalLink className="size-3 opacity-50" />
+      </a>
+    </Button>
+  )
+}
+
 export function IncidentHeader({
   incident,
   channelUrl,
@@ -125,20 +164,7 @@ export function IncidentHeader({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {channelUrl && incident.channelName && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-2 border-primary/30 bg-primary/10 px-3 font-mono text-[12px] text-primary hover:bg-primary/20 hover:border-primary/50 hover:text-primary"
-              asChild
-            >
-              <a href={channelUrl} target="_blank" rel="noopener noreferrer">
-                <IconBrandSlack className="size-3.5" />
-                <span className="hidden sm:inline">#{incident.channelName}</span>
-                <IconExternalLink className="size-3 opacity-50" />
-              </a>
-            </Button>
-          )}
+          <ChannelLink url={channelUrl} label={incident.channelLabel} />
           {canEdit && <IncidentMenu incident={incident} linkable={linkable} />}
         </div>
       </div>

@@ -26,6 +26,14 @@ class IncidentDetailSerializer < BaseSerializer
     incident.lead
   end
 
+  # What the channel will be called once it exists. Every incident gets one,
+  # so a blank channel_name means creation has not finished rather than that
+  # this incident has none.
+  type :string
+  def channel_label
+    incident.channel_name.presence || incident.generated_channel_name
+  end
+
   # The sentence a blocked control shows instead of vanishing. Nil while the
   # incident can still be changed.
   type :string, optional: true
