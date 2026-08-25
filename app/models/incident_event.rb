@@ -226,12 +226,11 @@ class IncidentEvent < ApplicationRecord
     end
   end
 
+  # Every consumer renders at, description and by, so a milestone says what it
+  # needs to inside its sentence. Handing over kind and said_by as their own
+  # keys would ship data nothing reads.
   def to_context_hash
-    base = { type: event_type, at: created_at.iso8601, by: actor_name, description: description }
-    return base unless milestone?
-
-    meta = metadata.to_h
-    base.merge(kind: meta["kind"], said_by: meta["member_name"]).compact
+    { type: event_type, at: created_at.iso8601, by: actor_name, description: description }
   end
 
   private
