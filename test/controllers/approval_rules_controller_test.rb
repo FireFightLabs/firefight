@@ -9,7 +9,7 @@ class ApprovalRulesControllerTest < ActionDispatch::IntegrationTest
 
   def rule_params(overrides = {})
     {
-      action_keys: [ "catalog.delete" ], risk_levels: [], environments: [],
+      abilities: [ "catalog.delete" ], risk_levels: [], environment_ids: [],
       approver_role: WorkspaceMembership.roles[:admin], self_approval: false,
       notify: PolicyRule::ApprovalOutcome::NOTIFY_BOTH, approvers: [ { kind: "user", id: @bob.id } ]
     }.merge(overrides)
@@ -60,8 +60,8 @@ class ApprovalRulesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "rules reorder and delete" do
-    post approval_rules_url, params: { rule: rule_params(action_keys: [ "first.one" ]) }
-    post approval_rules_url, params: { rule: rule_params(action_keys: [ "second.one" ]) }
+    post approval_rules_url, params: { rule: rule_params(abilities: [ "first.one" ]) }
+    post approval_rules_url, params: { rule: rule_params(abilities: [ "second.one" ]) }
     first, second = @workspace.approval_rules.to_a
 
     patch move_up_approval_rule_url(second)

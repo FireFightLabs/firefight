@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { whenClosed } from "@/lib/handlers"
-import { ABILITY_RISK_LEVELS, APPROVAL_NOTIFY_OPTIONS, APPROVER_ROLES } from "@/lib/generated/constants"
+import { ABILITY_RISK_LEVELS, APPROVAL_NOTIFY_OPTIONS, APPROVER_ROLES, PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import { approvalRulePath, approvalRulesPath } from "@/lib/routes"
 import { BadgeMultiSelect } from "@/pages/settings/components/alert-routing/badge-multi-select"
 import { FormErrors } from "@/pages/settings/components/form-errors"
@@ -35,7 +35,11 @@ import {
 } from "@/pages/settings/components/permissions/approval-rule-form"
 import type { AbilityActionOption, ApprovalRule, EnvironmentOption, Principal } from "@/types/serializers"
 
-const KIND_SUFFIX: Record<string, string> = { user: "", agent: " (agent)", api_key: " (service key)" }
+const KIND_SUFFIX: Record<string, string> = {
+  [PRINCIPAL_KINDS.USER]: "",
+  [PRINCIPAL_KINDS.AGENT]: " (agent)",
+  [PRINCIPAL_KINDS.API_KEY]: " (service key)",
+}
 
 export function ApprovalRuleDialog({
   open,

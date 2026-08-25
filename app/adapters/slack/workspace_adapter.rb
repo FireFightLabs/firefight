@@ -74,6 +74,11 @@ module Slack
       )
     end
 
+    # Posting to a user id opens (or reuses) the direct message with them.
+    def post_approval_request_to_user(approval:, user_id:)
+      post_approval_request(approval: approval, channel_id: user_id)
+    end
+
     def mark_approval_resolved(approval:, channel_id:, message_id:)
       update_message(
         channel_id: channel_id,

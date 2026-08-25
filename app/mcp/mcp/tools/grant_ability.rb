@@ -25,15 +25,10 @@ module Mcp
 
       def self.perform(workspace:, args:)
         principal = Ability::Principal.find!(workspace, args[:principal_kind], args[:principal_id].to_s)
-        target =
-          if args[:permission_set].present?
-            { role: workspace.ability_roles.find_by!(slug: args[:permission_set].to_s) }
-          else
-            { action: Ability::Action.grantable_for(workspace).find_by!(key: args[:ability].to_s) }
-          end
         grant = Ability::Grant.grant!(
-          workspace: workspace, principal: principal, target: target,
-          environment_ids: PolicyRule::ApprovalRuleChanges.environment_ids(workspace, args[:environments]),
+          workspace: workspace, principal: principal,
+          target: Ability::Grant.target_for!(workspace, ability: args[:ability], permission_set: args[:permission_set]),
+          environment_ids: workspace.environment_ids_for(args[:environments]),
           expires_at: args[:expires_at]
         )
 

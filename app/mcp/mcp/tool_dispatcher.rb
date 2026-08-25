@@ -42,7 +42,7 @@ module Mcp
       error_response("Not found in this workspace.")
     rescue ActiveRecord::RecordInvalid => e
       error_response(e.record.errors.full_messages.to_sentence)
-    rescue ArgumentError => e
+    rescue ArgumentError, ActionController::ParameterMissing => e
       error_response(e.message)
     end
 

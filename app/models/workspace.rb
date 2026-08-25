@@ -106,6 +106,12 @@ class Workspace < ApplicationRecord
     approval_policy&.ordered_rules || PolicyRule.none
   end
 
+  # Slugs from the API and MCP become the catalog-entry ids grants and
+  # rules scope by. Unknown slugs are dropped, matching the dashboard.
+  def environment_ids_for(slugs)
+    environment_entries.where(slug: Array(slugs).map(&:to_s)).pluck(:id)
+  end
+
   def adapter
     WorkspaceAdapter.for(self)
   end

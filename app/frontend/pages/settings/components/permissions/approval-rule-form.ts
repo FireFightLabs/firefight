@@ -1,5 +1,11 @@
 import type { AbilityActionOption, ApprovalRule, EnvironmentOption, Principal } from "@/types/serializers"
-import { APPROVAL_NOTIFY_OPTIONS, APPROVER_ROLES, type ApprovalNotifyOption, type ApproverRole } from "@/lib/generated/constants"
+import {
+  APPROVAL_NOTIFY_OPTIONS,
+  APPROVER_ROLES,
+  PRINCIPAL_KINDS,
+  type ApprovalNotifyOption,
+  type ApproverRole,
+} from "@/lib/generated/constants"
 
 // Pure mapping between the approval rule dialog's form state and the
 // ApprovalRule serializer/params shapes. No React in here.
@@ -73,16 +79,16 @@ export function approvalRuleFormData(rule: ApprovalRule | null): ApprovalRuleFor
 }
 
 export function hasMachineApprover(approvers: ApproverReference[]): boolean {
-  return approvers.some((approver) => approver.kind !== "user")
+  return approvers.some((approver) => approver.kind !== PRINCIPAL_KINDS.USER)
 }
 
 export function approvalRulePayload(data: ApprovalRuleFormData) {
   const named = data.approverChoice === "named"
   return {
     rule: {
-      action_keys: data.actionKeys,
+      abilities: data.actionKeys,
       risk_levels: data.riskLevels,
-      environments: data.environmentIds,
+      environment_ids: data.environmentIds,
       approver_role: named ? "admin" : data.approverChoice,
       approvers: named ? data.approvers : [],
       agents_may_approve: named && hasMachineApprover(data.approvers) ? data.agentsMayApprove : false,

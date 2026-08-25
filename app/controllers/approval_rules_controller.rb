@@ -40,28 +40,15 @@ class ApprovalRulesController < InertiaController
     @rule = current_workspace.approval_rules.find(params[:id])
   end
 
-  def rule_params
-    params.require(:rule).permit(
-      :enabled, :approver_role, :self_approval, :notify, :agents_may_approve,
-      action_keys: [], risk_levels: [], environments: [], approvers: [ :kind, :id ]
-    )
-  end
-
-  # An enable/disable toggle sends only `enabled`. Anything else is the whole
-  # rule from the dialog, rebuilt from its three questions.
+  # The dialog sends the whole rule, with environments by id. An
+  # enable/disable toggle sends only `enabled`.
   def rule_attributes
-    attrs = rule_params
-    result = {}
-    result[:enabled] = ActiveModel::Type::Boolean.new.cast(attrs[:enabled]) if attrs.key?(:enabled)
-    return result unless attrs.key?(:approver_role)
-
-    result[:conditions] = PolicyRule::ApprovalConditions.build(
-      action_keys: attrs[:action_keys], risk_levels: attrs[:risk_levels], environments: attrs[:environments]
+    PolicyRule::ApprovalRuleChanges.attributes(
+      workspace: current_workspace, existing: @rule,
+      changes: params.require(:rule).permit(
+        :enabled, :approver_role, :self_approval, :notify, :agents_may_approve,
+        abilities: [], risk_levels: [], environment_ids: [], approvers: [ :kind, :id ]
+      )
     )
-    result[:outcome] = PolicyRule::ApprovalOutcome.build(
-      role: attrs[:approver_role], self_approval: attrs.fetch(:self_approval, true),
-      notify: attrs[:notify], approvers: attrs[:approvers], agents_may_approve: attrs.fetch(:agents_may_approve, false)
-    )
-    result
   end
 end

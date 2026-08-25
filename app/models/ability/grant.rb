@@ -27,6 +27,15 @@ module Ability
       Ability::Action.grantable_for(workspace).includes(source: :integration).order(:kind, :key)
     end
 
+    # What the API and MCP hand out: a permission set by slug, or an ability
+    # by key. Naming neither is a missing parameter, not a lookup miss.
+    def self.target_for!(workspace, ability: nil, permission_set: nil)
+      return { role: workspace.ability_roles.find_by!(slug: permission_set.to_s) } if permission_set.present?
+      raise ActionController::ParameterMissing, :ability if ability.blank?
+
+      { action: Ability::Action.grantable_for(workspace).find_by!(key: ability.to_s) }
+    end
+
     # One grant per principal per target is a DB invariant, so granting
     # again retargets the existing row instead of duplicating it. `target`
     # is `{ action: }` or `{ role: }`.

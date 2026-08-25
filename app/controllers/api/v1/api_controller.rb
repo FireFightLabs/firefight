@@ -59,10 +59,6 @@ class Api::V1::ApiController < ActionController::API
     render json: error_response("approval_not_allowed", exception.message), status: :unprocessable_entity
   end
 
-  def environment_ids_for(slugs)
-    PolicyRule::ApprovalRuleChanges.environment_ids(current_workspace, slugs)
-  end
-
   def bad_request(exception)
     render json: error_response("bad_request", exception.message), status: :bad_request
   end
