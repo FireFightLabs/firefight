@@ -274,10 +274,28 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     assert_equal IncidentEvent::INCIDENT_ESCALATED, event.event_type
     assert_equal @member, event.actor
     assert_equal target.platform_user_id, event.metadata["escalated_to_platform_user_id"]
+    assert_equal target.id, event.metadata["escalated_to_member_id"]
+    assert_equal target.display_name, event.metadata["escalated_to_name"]
 
     workflow = SolidWorkflow::Workflow.find_by!(name: "incident.escalation.v1", subject: @incident)
     assert_equal @member.platform_user_id, workflow.context["escalated_by_platform_user_id"]
     assert_equal event.id, workflow.context["escalation_event_id"]
+  end
+
+  test "escalate names a target who is not yet a member from the platform profile" do
+    stub_get_user_info
+    stub_post_message
+
+    event = @service.escalate(
+      @incident,
+      escalated_to_platform_user_id: "U_NOT_A_MEMBER",
+      reason: "Need backend support",
+      changed_by: @member
+    )
+
+    assert_nil event.metadata["escalated_to_member_id"]
+    assert_equal "New User", event.metadata["escalated_to_name"]
+    assert_equal "escalated the incident to New User", event.description
   end
 
   test "escalate refuses an incident that is over" do

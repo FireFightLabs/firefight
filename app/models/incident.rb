@@ -159,6 +159,11 @@ class Incident < ApplicationRecord
       records: updates, associations: [ :incident_status, :incident_severity, :incident_type, { lead: :user }, { declared_by: :user } ]
     ).call
     updates.each_cons(2) { |earlier, later| later.previous_update = earlier }
+    ActiveRecord::Associations::Preloader.new(
+      records: events.map(&:eventable).grep(IncidentActionUpdate), associations: [ { assignee: :user } ]
+    ).call
+    references = IncidentEvent::References.for(self, events)
+    events.each { |event| event.references = references }
     events
   end
 

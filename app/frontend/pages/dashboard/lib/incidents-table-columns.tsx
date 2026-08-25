@@ -13,9 +13,13 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     accessorKey: "identifier",
     header: "ID",
     cell: ({ row }) => (
-      <span className="font-mono text-sm text-foreground/60">
+      <Link
+        href={incidentPath(row.original.id)}
+        prefetch="hover"
+        className="font-mono text-sm text-foreground/60 hover:text-foreground hover:underline"
+      >
         {row.original.identifier}
-      </span>
+      </Link>
     ),
     enableHiding: false,
   },
@@ -26,9 +30,9 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
       <Link
         href={incidentPath(row.original.id)}
         prefetch="hover"
-        className="font-medium text-foreground hover:underline"
+        className={row.original.name ? "font-medium text-foreground hover:underline" : "italic text-muted-foreground/60 hover:underline"}
       >
-        {row.original.name}
+        {row.original.name || "Untitled"}
       </Link>
     ),
     enableHiding: false,

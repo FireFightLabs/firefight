@@ -19,8 +19,9 @@ class Events::PinHandlersTest < ActiveSupport::TestCase
     )
   end
 
-  test "creates message pinned event" do
+  test "creates message pinned event with the message text" do
     stub_get_permalink
+    stub_get_message(text: "Rolled back the deploy, error rate dropping")
 
     assert_difference "IncidentEvent.count", 1 do
       Events::PinAddedHandler.execute(@workspace, pin_payload("pin_added"))
@@ -29,10 +30,24 @@ class Events::PinHandlersTest < ActiveSupport::TestCase
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::MESSAGE_PINNED)
     assert_equal @member, event.actor
     assert_equal "1234567890.111111", event.metadata["message_ts"]
+    assert_equal "Rolled back the deploy, error rate dropping", event.metadata["message_text"]
+  end
+
+  test "records the pin even when the message text cannot be fetched" do
+    stub_get_permalink
+    Slack::Client.stubs(:get_message).raises(AdapterError::NotFound, "message_not_found")
+
+    assert_difference "IncidentEvent.count", 1 do
+      Events::PinAddedHandler.execute(@workspace, pin_payload("pin_added"))
+    end
+
+    event = @incident.incident_events.find_by!(event_type: IncidentEvent::MESSAGE_PINNED)
+    assert_nil event.metadata["message_text"]
   end
 
   test "creates message unpinned event" do
     stub_get_permalink
+    stub_get_message
 
     assert_difference "IncidentEvent.count", 1 do
       Events::PinRemovedHandler.execute(@workspace, pin_payload("pin_removed"))

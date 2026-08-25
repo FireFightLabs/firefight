@@ -1,4 +1,7 @@
+import { router } from "@inertiajs/react"
+
 import type { IncidentListItem, SeverityOption } from "@/types/serializers"
+import { incidentPath } from "@/lib/routes"
 import type { Pagination } from "@/types"
 import type { DashboardFilters } from "@/pages/dashboard/types"
 import { useIncidentsTable } from "@/pages/dashboard/hooks/use-incidents-table"
@@ -27,6 +30,10 @@ export function IncidentsTable({ incidents, pagination, filters, severityOptions
     setPerPage,
   } = useIncidentsTable(incidents, incidentsTableColumns, filters, pagination)
 
+  function openIncident(incident: IncidentListItem) {
+    router.visit(incidentPath(incident.id))
+  }
+
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="flex items-center px-4 lg:px-6">
@@ -46,6 +53,7 @@ export function IncidentsTable({ incidents, pagination, filters, severityOptions
       <div className="mx-4 lg:mx-6">
         <DataTable
           table={table}
+          onRowClick={openIncident}
           emptyMessage={
             filters.search || filters.severities.length > 0 || filters.statuses.length > 0
               ? "No incidents match your filters."

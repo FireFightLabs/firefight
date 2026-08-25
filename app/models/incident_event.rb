@@ -43,7 +43,7 @@ class IncidentEvent < ApplicationRecord
   EVENT_DESCRIPTIONS = {
     INCIDENT_CREATED => "created the incident",
     INCIDENT_UPDATED => "updated the incident",
-    LEAD_ASSIGNED => "assigned a lead",
+    LEAD_ASSIGNED => "assigned the lead to",
     ROLE_ASSIGNED => "assigned an incident role",
     ROLE_UNASSIGNED => "cleared an incident role",
     ACTION_CREATED => "created an action item",
@@ -51,23 +51,23 @@ class IncidentEvent < ApplicationRecord
     ACTION_COMPLETED => "completed an action item",
     ACTION_REASSIGNED => "reassigned an action item",
     INCIDENT_ACCEPTED => "accepted the incident from triage",
-    INCIDENT_ESCALATED => "escalated the incident",
+    INCIDENT_ESCALATED => "escalated the incident to",
     INCIDENT_RESOLVED => "resolved the incident",
     INCIDENT_REOPENED => "reopened the incident",
     INCIDENT_CANCELED => "canceled the incident",
     POSTMORTEM_GENERATED => "generated the postmortem",
     POSTMORTEM_EDITED => "edited the postmortem",
-    RELATIONSHIP_CREATED => "linked a related incident",
-    MARKED_DUPLICATE => "marked the incident as duplicate",
-    MERGED_INTO => "merged the incident",
+    RELATIONSHIP_CREATED => "linked",
+    MARKED_DUPLICATE => "marked the incident as a duplicate of",
+    MERGED_INTO => "merged the incident into",
     MESSAGE_PINNED => "pinned a message",
     MESSAGE_UNPINNED => "unpinned a message",
     MESSAGE_FILE_SHARED => "shared a file",
     ESCALATION_ACKNOWLEDGED => "acknowledged the escalation",
-    ESCALATION_NUDGED => "sent an escalation reminder",
-    ALERT_ATTACHED => "attached an alert",
-    ALERT_RESOLVED => "marked an alert resolved",
-    RUNBOOK_ATTACHED => "attached a runbook",
+    ESCALATION_NUDGED => "sent an escalation reminder to",
+    ALERT_ATTACHED => "attached the alert",
+    ALERT_RESOLVED => "resolved the alert",
+    RUNBOOK_ATTACHED => "attached the runbook",
     RUNBOOK_APPLIED => "added runbook steps as actions"
   }.freeze
 
@@ -97,8 +97,13 @@ class IncidentEvent < ApplicationRecord
     end
   end
 
+  # What the timeline calls an event nobody performed: a rule, a workflow, or
+  # the bot acting on the workspace's configuration.
+  AUTOMATED_ACTOR_NAME = "Firefight"
+
   belongs_to :incident
   belongs_to :actor, polymorphic: true, optional: true
+  attr_accessor :references
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate PostmortemUpdate], optional: true
   has_one_attached :artifact
   has_many :webhook_deliveries, dependent: :delete_all
@@ -128,32 +133,55 @@ class IncidentEvent < ApplicationRecord
     changed_fields.include?(field.to_s)
   end
 
-  # Role events name the role and the person, since they carry no snapshot to
-  # render a before/after from, and "assigned an incident role" on its own
-  # leaves out the only two facts a reader wants.
+  def automated?
+    actor.nil?
+  end
+
+  def actor_name
+    actor&.actor_display_name || AUTOMATED_ACTOR_NAME
+  end
+
+  # The full sentence, for text surfaces (Slack, AI context, webhooks). The
+  # dashboard renders the stem and the subject separately so the subject can
+  # be a link or a person.
   def description
+    [ description_stem, subject_label ].compact.join(" ")
+  end
+
+  # Role events name the role, since they carry no snapshot to render a
+  # before/after from, and "assigned an incident role" on its own leaves out
+  # the fact a reader wants.
+  def description_stem
     role_name = metadata.to_h["role_name"]
     return EVENT_DESCRIPTIONS[event_type] if role_name.blank?
 
     case event_type
-    when ROLE_ASSIGNED then role_assigned_description(role_name)
+    when ROLE_ASSIGNED then "assigned the #{role_name} role to"
     when ROLE_UNASSIGNED then "cleared the #{role_name} role"
     else EVENT_DESCRIPTIONS[event_type]
     end
   end
 
+  # The thing the sentence is about, read from what the writer stored, so no
+  # surface has to resolve an id to say what happened.
+  def subject_label
+    meta = metadata.to_h
+    case event_type
+    when RUNBOOK_ATTACHED then meta["runbook_name"]
+    when ALERT_ATTACHED, ALERT_RESOLVED then meta["title"]
+    when RELATIONSHIP_CREATED, MARKED_DUPLICATE then meta["related_identifier"]
+    when MERGED_INTO then meta["canonical_identifier"]
+    when INCIDENT_ESCALATED, ESCALATION_NUDGED then meta["escalated_to_name"]
+    when ROLE_ASSIGNED then meta["member_name"]
+    when LEAD_ASSIGNED then eventable&.lead&.actor_display_name
+    end
+  end
+
   def to_context_hash
-    { type: event_type, at: created_at.iso8601, by: actor&.actor_display_name, description: description }
+    { type: event_type, at: created_at.iso8601, by: actor_name, description: description }
   end
 
   private
-
-  def role_assigned_description(role_name)
-    member_name = metadata.to_h["member_name"]
-    return "assigned the #{role_name} role" if member_name.blank?
-
-    "assigned the #{role_name} role to #{member_name}"
-  end
 
   def eventable_matches_event_type
     return if event_type.blank?

@@ -57,7 +57,30 @@ class RunbookAttachmentServiceTest < ActiveSupport::TestCase
 
     incident_runbook = @incident.incident_runbooks.find_by!(runbook: @runbook)
     assert_equal "1234567890.123456", incident_runbook.message_ts
-    assert @incident.incident_events.exists?(event_type: IncidentEvent::RUNBOOK_ATTACHED)
+    event = @incident.incident_events.find_by!(event_type: IncidentEvent::RUNBOOK_ATTACHED)
+    assert_nil event.actor
+    assert_equal "Matched Severity is one of #{@severity.name}.", event.metadata["reason"]
+    assert_equal "attached the runbook #{@runbook.name}", event.description
+  end
+
+  test "auto_attach explains an always-attached runbook" do
+    @runbook.update!(always_attach: true)
+    stub_post_message
+
+    @service.auto_attach(@incident)
+
+    event = @incident.incident_events.find_by!(event_type: IncidentEvent::RUNBOOK_ATTACHED)
+    assert_equal "Attached to every incident.", event.metadata["reason"]
+  end
+
+  test "attach by hand records no reason" do
+    stub_post_message
+
+    @service.attach_by_slug(incident: @incident, slug: @runbook.slug, attached_by: @member)
+
+    event = @incident.incident_events.find_by!(event_type: IncidentEvent::RUNBOOK_ATTACHED)
+    assert_equal @member, event.actor
+    assert_nil event.metadata["reason"]
   end
 
   test "auto_attach attaches runbook whose catalog_reference condition matches the incident custom field" do

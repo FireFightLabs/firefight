@@ -15,6 +15,8 @@ export const INTEGRATION_KINDS = {
 
 export const CUSTOM_MCP_PROVIDER_KEY = "custom_mcp" as const
 
+export const RUNBOOK_QUERY_PARAM = "runbook" as const
+
 export const ALERT_NORMALIZED_FIELDS = [
   "external_id",
   "fingerprint",

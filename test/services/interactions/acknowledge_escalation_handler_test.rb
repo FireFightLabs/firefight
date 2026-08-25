@@ -26,6 +26,7 @@ class Interactions::AcknowledgeEscalationHandlerTest < ActiveSupport::TestCase
     end
 
     event = @incident.incident_events.find_by!(event_type: IncidentEvent::ESCALATION_ACKNOWLEDGED)
+    assert_equal @escalated_to, event.actor
     assert_equal @escalated_to.platform_user_id, event.metadata["acknowledged_by_platform_user_id"]
     assert_equal @escalated_to.platform_user_id, @escalation_event.reload.metadata["acknowledged_by_platform_user_id"]
   end

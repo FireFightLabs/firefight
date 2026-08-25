@@ -12,6 +12,20 @@ class IncidentConditionTest < ActiveSupport::TestCase
     @form_field = incident_form_fields(:declare_name_field_ws1)
   end
 
+  test "to_sentence names the values instead of their ids" do
+    critical = incident_severities(:critical_ws1)
+    major = incident_severities(:major_ws1)
+    runbook = @workspace.runbooks.create!(name: "Sentence runbook")
+    condition = runbook.incident_conditions.create!(
+      workspace: @workspace,
+      condition_field: IncidentCondition::FIELD_SEVERITY,
+      operator: IncidentCondition::OPERATOR_NOT_ONE_OF,
+      values: [ critical.id, major.id ]
+    )
+
+    assert_equal "Severity is not one of #{critical.name}, #{major.name}", condition.to_sentence
+  end
+
   # Validations
 
   test "valid condition" do

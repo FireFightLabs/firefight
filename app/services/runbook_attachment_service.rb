@@ -7,7 +7,7 @@ class RunbookAttachmentService
     context = IncidentConditionEvaluator.context_for(incident)
 
     Runbook.matching(@workspace, context).each do |runbook|
-      attach(incident: incident, runbook: runbook)
+      attach(incident: incident, runbook: runbook, reason: runbook.attach_reason)
     end
   end
 
@@ -21,7 +21,7 @@ class RunbookAttachmentService
     attach(incident: incident, runbook: runbook, attached_by: attached_by)
   end
 
-  def attach(incident:, runbook:, attached_by: nil)
+  def attach(incident:, runbook:, attached_by: nil, reason: nil)
     existing = incident.incident_runbooks.find_by(runbook: runbook)
     return existing if existing
 
@@ -37,7 +37,7 @@ class RunbookAttachmentService
     incident.incident_events.create!(
       event_type: IncidentEvent::RUNBOOK_ATTACHED,
       actor: attached_by,
-      metadata: { runbook_id: runbook.id, runbook_slug: runbook.slug, runbook_name: runbook.name }
+      metadata: { runbook_id: runbook.id, runbook_slug: runbook.slug, runbook_name: runbook.name, reason: reason }.compact
     )
 
     result = @workspace.adapter.post_runbook_message(

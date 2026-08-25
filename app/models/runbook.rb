@@ -32,6 +32,9 @@ class Runbook < ApplicationRecord
   ATTACH_ALWAYS = "always"
   ATTACH_CONDITIONAL = "conditional"
   ATTACH_MANUAL = "manual"
+  # The settings page opens this runbook's sheet when the key names it, which
+  # is how the incident timeline links a runbook.
+  QUERY_PARAM = "runbook"
 
   # How this runbook reaches incidents. No conditions means no automatic
   # attachment, because a runbook that lands on every incident should be a
@@ -42,6 +45,15 @@ class Runbook < ApplicationRecord
     return ATTACH_CONDITIONAL if incident_conditions.any?
 
     always_attach? ? ATTACH_ALWAYS : ATTACH_MANUAL
+  end
+
+  # Why an automatic attachment happened, in the words the settings screen
+  # uses for the rule, so the timeline can say it.
+  def attach_reason
+    case attach_mode
+    when ATTACH_ALWAYS then "Attached to every incident."
+    when ATTACH_CONDITIONAL then "Matched #{incident_conditions.map(&:to_sentence).join(" and ")}."
+    end
   end
 
   def self.matching(workspace, context)
