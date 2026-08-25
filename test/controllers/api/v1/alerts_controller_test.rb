@@ -43,7 +43,7 @@ class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
 
   test "oversized payload is rejected with 413 and recorded on the source" do
     post api_v1_alert_ingest_path(endpoint_path: @source.endpoint_path),
-         params: { "title" => "x" * (Api::V1::AlertsController::MAX_PAYLOAD_BYTES + 1) }.to_json,
+         params: { "title" => "x" * (AlertSource::StormControl::MAX_PAYLOAD_BYTES + 1) }.to_json,
          headers: { "Content-Type" => "application/json", "Authorization" => "Bearer #{@source.secret_token}" }
 
     assert_response :content_too_large
@@ -52,7 +52,7 @@ class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "oversized batches are rejected" do
-    items = Array.new(Api::V1::AlertsController::MAX_BATCH_ITEMS + 1) { |i| AlertProviders::Base.item({ "title" => "a#{i}" }, {}) }
+    items = Array.new(AlertSource::StormControl::MAX_BATCH_ITEMS + 1) { |i| AlertProviders::Base.item({ "title" => "a#{i}" }, {}) }
     AlertProviders::Generic.stubs(:normalize).returns(items)
 
     post_alert({ "whatever" => true })

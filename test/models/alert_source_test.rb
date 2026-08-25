@@ -10,7 +10,7 @@ class AlertSourceTest < ActiveSupport::TestCase
 
     assert source.endpoint_path.present?
     assert source.secret_token.present?
-    assert_equal AlertProviders::Generic, source.adapter
+    assert_equal AlertProviders::Generic, AlertProviders.for(source.provider)
   end
 
   test "name is unique per workspace" do
