@@ -21,6 +21,8 @@ app/serializers/                  # one serializer per Inertia prop shape; repre
 
 **Generated TypeScript** lives in `app/frontend/types/serializers/` — auto-generated, never edit manually. Regenerate with `bundle exec rake types_from_serializers:generate`. In development, types regenerate automatically on serializer file changes.
 
+**Generated constants** live in `app/frontend/lib/generated/constants.ts`, emitted by `bin/rails typescript:constants` from the list in `lib/typescript_constants.rb` (ability resources, alert operators and outcomes, webhook events, lifecycle stages, integration kinds). Never hand-copy a Ruby constant into TypeScript: add it to that list, regenerate, and keep any labels in TypeScript typed against the generated union (`Record<WebhookEvent, string>`) so a new value is a type error until it has a label. `test/lib/typescript_constants_test.rb` fails when the file is stale.
+
 **Usage in controllers:**
 ```ruby
 IncidentListItemSerializer.many(incidents)   # Array of hashes

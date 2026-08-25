@@ -5,7 +5,7 @@ import { Link, router } from "@inertiajs/react"
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
 import { alertSourcePath, settingsAlertRoutingPath, settingsAlertsPath, tokenAlertSourcePath } from "@/lib/routes"
 import { postJson } from "@/lib/http"
-import { PROVIDER_LABELS } from "@/pages/settings/lib/alerts"
+import { providerLabel } from "@/pages/settings/lib/alerts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -120,7 +120,7 @@ export function AlertSourcesTab({
                         <IconBellRinging className="size-4 text-muted-foreground" />
                         <span className="font-medium">{source.name}</span>
                         <span className="text-xs text-muted-foreground/70">
-                          {PROVIDER_LABELS[source.provider] ?? source.provider}
+                          {providerLabel(source.provider)}
                         </span>
                       </div>
                     </TableCell>
