@@ -8,6 +8,7 @@ import type {
 } from "@/pages/settings/lib/types"
 import type { IncidentSeveritySettings, IncidentStatusSettings, IncidentTypeSettings } from "@/types/serializers"
 import { cn } from "@/lib/utils"
+import { CONDITION_FIELD_LABELS, CONDITION_OPERATOR_LABELS } from "@/lib/generated/constants"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -37,10 +38,7 @@ const VISIBILITY_OPTIONS = [
 const OPERATOR_ONE_OF = "one_of"
 const OPERATOR_NOT_ONE_OF = "not_one_of"
 
-const OPERATOR_LABELS: Record<string, string> = {
-  [OPERATOR_ONE_OF]: "is one of",
-  [OPERATOR_NOT_ONE_OF]: "is not one of",
-}
+const operatorLabels: Record<string, string> = CONDITION_OPERATOR_LABELS
 
 // One row per thing a condition can read. Custom fields come from the form,
 // which only offers those a responder could already have answered.
@@ -72,7 +70,7 @@ function buildSources(
       key: CONDITION_FIELD_INCIDENT_TYPE,
       conditionField: CONDITION_FIELD_INCIDENT_TYPE,
       definitionId: null,
-      label: "Incident Type",
+      label: CONDITION_FIELD_LABELS.incident_type,
       options: incidentTypes.map((type) => ({ id: type.id, name: type.name })),
     })
   }
@@ -82,7 +80,7 @@ function buildSources(
       key: CONDITION_FIELD_SEVERITY,
       conditionField: CONDITION_FIELD_SEVERITY,
       definitionId: null,
-      label: "Severity",
+      label: CONDITION_FIELD_LABELS.severity,
       options: severities.map((severity) => ({ id: severity.id, name: severity.name })),
     })
   }
@@ -92,7 +90,7 @@ function buildSources(
       key: CONDITION_FIELD_STATUS,
       conditionField: CONDITION_FIELD_STATUS,
       definitionId: null,
-      label: "Status",
+      label: CONDITION_FIELD_LABELS.status,
       options: statuses.map((status) => ({ id: status.id, name: status.name })),
     })
   }
@@ -153,7 +151,7 @@ function conditionSummary(
       const names = condition.values
         .map((value) => source?.options.find((option) => option.id === value)?.name ?? value)
         .join(", ")
-      const operatorLabel = OPERATOR_LABELS[condition.operator] ?? condition.operator
+      const operatorLabel = operatorLabels[condition.operator] ?? condition.operator
       return `${source?.label ?? condition.conditionField} ${operatorLabel} ${names}`
     })
     .join(" AND ")
@@ -327,8 +325,8 @@ function ConditionSection({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={OPERATOR_ONE_OF}>is one of</SelectItem>
-            <SelectItem value={OPERATOR_NOT_ONE_OF}>is not one of</SelectItem>
+            <SelectItem value={OPERATOR_ONE_OF}>{CONDITION_OPERATOR_LABELS.one_of}</SelectItem>
+            <SelectItem value={OPERATOR_NOT_ONE_OF}>{CONDITION_OPERATOR_LABELS.not_one_of}</SelectItem>
           </SelectContent>
         </Select>
       </div>

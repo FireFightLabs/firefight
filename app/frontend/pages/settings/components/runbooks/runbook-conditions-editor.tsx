@@ -10,6 +10,7 @@ import {
   OPERATOR_ONE_OF,
   valueOptions,
 } from "@/pages/settings/lib/runbook-conditions"
+import { CONDITION_FIELD_LABELS, CONDITION_OPERATOR_LABELS } from "@/lib/generated/constants"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -79,7 +80,7 @@ export function RunbookConditionsEditor({
       </p>
 
       <ConditionSection
-        label="Incident Type"
+        label={CONDITION_FIELD_LABELS.incident_type}
         optionsLabel="Types"
         emptyLabel="No incident types defined."
         state={typeState}
@@ -88,7 +89,7 @@ export function RunbookConditionsEditor({
       />
 
       <ConditionSection
-        label="Severity"
+        label={CONDITION_FIELD_LABELS.severity}
         optionsLabel="Severities"
         emptyLabel="No severities defined."
         state={severityState}
@@ -163,8 +164,8 @@ function ConditionSection({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={OPERATOR_ONE_OF}>is one of</SelectItem>
-            <SelectItem value={OPERATOR_NOT_ONE_OF}>is not one of</SelectItem>
+            <SelectItem value={OPERATOR_ONE_OF}>{CONDITION_OPERATOR_LABELS.one_of}</SelectItem>
+            <SelectItem value={OPERATOR_NOT_ONE_OF}>{CONDITION_OPERATOR_LABELS.not_one_of}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -209,8 +210,8 @@ function CustomFieldConditionRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={OPERATOR_ONE_OF}>is one of</SelectItem>
-            <SelectItem value={OPERATOR_NOT_ONE_OF}>is not one of</SelectItem>
+            <SelectItem value={OPERATOR_ONE_OF}>{CONDITION_OPERATOR_LABELS.one_of}</SelectItem>
+            <SelectItem value={OPERATOR_NOT_ONE_OF}>{CONDITION_OPERATOR_LABELS.not_one_of}</SelectItem>
           </SelectContent>
         </Select>
         <Button

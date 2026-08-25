@@ -33,8 +33,10 @@ class IncidentCondition < ApplicationRecord
   validate :conditionable_may_be_hidden
   validate :custom_field_is_answerable_here
 
+  # Shared with the dashboard through lib/typescript_constants.rb, so the
+  # editors and the timeline say the rule the same way.
   FIELD_LABELS = {
-    FIELD_INCIDENT_TYPE => "Incident type",
+    FIELD_INCIDENT_TYPE => "Incident Type",
     FIELD_SEVERITY => "Severity",
     FIELD_STATUS => "Status",
     FIELD_VISIBILITY => "Visibility"
