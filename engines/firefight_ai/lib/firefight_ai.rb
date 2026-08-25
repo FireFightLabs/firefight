@@ -42,10 +42,9 @@ module FirefightAi
     }.fetch(purpose)
   end
 
-  # Every service resolves its model here, most specific first: the
-  # workspace's override for the purpose, the workspace's override for every
-  # purpose, the purpose's env var, the deployment default, the built-in
-  # fallback.
+  # Most specific first: workspace override for the purpose, workspace
+  # override for any purpose, the purpose's env var, the deployment default,
+  # the built-in fallback.
   def model_for(purpose, workspace: nil)
     override = workspace && workspace.ai_model_overrides.for_purpose(purpose).min_by { |row| row.purpose == purpose ? 0 : 1 }
     return ModelChoice.new(model: override.model, provider: override.provider.presence) if override

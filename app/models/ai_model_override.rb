@@ -1,6 +1,5 @@
-# A workspace-level choice of model for one purpose, or for every purpose
-# when the purpose is AiPurpose::ANY. Set by operators, never from the
-# dashboard. Provider is only needed for a model the registry does not know.
+# A workspace's model for one purpose, or for every purpose with
+# AiPurpose::ANY. Operator data, never set from the dashboard.
 class AiModelOverride < ApplicationRecord
   belongs_to :workspace
 
