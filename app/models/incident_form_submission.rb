@@ -37,6 +37,22 @@ class IncidentFormSubmission
     attrs.merge(next_update_attributes)
   end
 
+  # The attributes hash for IncidentLifecycleService#create. A declare has no
+  # incident to fall back on, so every value comes from the form, and the
+  # status is the workspace's default rather than anything a responder picked.
+  def creation_attributes
+    {
+      incident_status: @workspace.incident_statuses.default_status,
+      incident_severity: severity,
+      incident_type: incident_type,
+      name: value(IncidentSystemField::KEY_NAME),
+      summary: value(IncidentSystemField::KEY_SUMMARY),
+      custom_fields: @custom_fields.presence || {},
+      # Absent when the field is not on the form, which means public.
+      is_private: value(IncidentSystemField::KEY_VISIBILITY) == Incident::VISIBILITY_PRIVATE
+    }
+  end
+
   # The sentence the channel sees with the change. The update form asks for it
   # outright. A cancel has no message field, so the summary a responder typed
   # while cancelling is the explanation of why, and stands in for one.

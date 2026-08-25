@@ -38,6 +38,25 @@ class IncidentRunbookSerializer < BaseSerializer
     incident_runbook.runbook.runbook_steps.size
   end
 
+  # Each step with whoever is on it. The panel cannot offer a step to claim
+  # without listing the steps, and the state comes from the action item the
+  # step created rather than from the step itself.
+  type "{ id: string; title: string; instruction: string | null; assignee: string | null; done: boolean }[]"
+  def steps
+    actions = incident_runbook.actions_by_step
+
+    incident_runbook.runbook.runbook_steps.sort_by(&:position).map do |step|
+      action = actions[step.id]
+      {
+        id: step.id,
+        title: step.title,
+        instruction: step.instruction.presence,
+        assignee: action&.assignee&.display_name,
+        done: action&.done? || false
+      }
+    end
+  end
+
   type :number
   def done_count
     incident_runbook.actions_by_step.count { |_step_id, action| action.done? }

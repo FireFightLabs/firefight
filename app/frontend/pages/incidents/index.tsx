@@ -119,6 +119,8 @@ export default function IncidentPage() {
                   canAddAction={canAddAction}
                   canAddFollowup={canAddFollowup}
                   incidentId={incident.id}
+                  candidates={memberChoices}
+                  canEdit={canEditIncident}
                 />
               </Deferred>
               <AlertsPanel alerts={incident.alerts} />
@@ -126,6 +128,7 @@ export default function IncidentPage() {
                 runbooks={incident.runbooks}
                 attachable={attachableRunbooks}
                 incidentId={incident.id}
+                canEdit={canEditIncident}
               />
               <IncidentPostmortemCard
                 incidentId={incident.id}

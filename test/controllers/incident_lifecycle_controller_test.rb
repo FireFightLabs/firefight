@@ -41,6 +41,43 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
+  # Declaring
+
+  test "the declare form is the workspace's Declare form" do
+    get declare_incident_form_path
+    assert_response :success
+
+    expected = IncidentFormResolver.new(@workspace)
+      .resolve(IncidentForm::SLUG_DECLARE, context: {})
+      .map { |field| field.system_field_key || field.incident_field_definition.slug }
+
+    assert_equal expected, json_response["fields"].map { |field| field["key"] }
+  end
+
+  test "declaring creates the incident and lands on its page" do
+    assert_difference "@workspace.incidents.count", 1 do
+      post declare_incident_path, params: { answers: declare_answers }
+    end
+
+    incident = @workspace.incidents.find_by!(name: "Checkout is failing")
+    assert_redirected_to incident_path(incident)
+    assert_equal "#{incident.identifier} was declared.", flash[:notice]
+    assert_equal Incident::SOURCE_DASHBOARD, incident.source
+    assert_equal @member, incident.declared_by
+    assert_equal @workspace.incident_statuses.default_status, incident.incident_status
+  end
+
+  # Severity is fixed_required on every workspace's Declare form. Name is not,
+  # this one has it configured optional, which is the point of asking the
+  # resolver rather than assuming.
+  test "declaring without a required answer creates nothing" do
+    assert_no_difference "@workspace.incidents.count" do
+      post declare_incident_path, params: { answers: declare_answers.except(:severity) }
+    end
+
+    assert_match(/required/i, flash[:alert])
+  end
+
   # Writing
 
   test "resolving closes the incident and records it once" do
@@ -206,6 +243,16 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
 
   # Exactly what each form asks for in the fixture workspace. Reading them off
   # the resolver rather than hardcoding would hide the thing being tested.
+  # What the fixture workspace's Declare form asks for. Anything it does not
+  # ask for is refused as an unknown field, so this stays exact.
+  def declare_answers
+    {
+      name: "Checkout is failing",
+      severity: @workspace.incident_severities.active.first.slug,
+      summary: "EU customers only"
+    }
+  end
+
   def resolve_answers
     { severity: @incident.incident_severity.slug, summary: "Fixed" }
   end

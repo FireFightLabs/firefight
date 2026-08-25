@@ -24,21 +24,18 @@ module Interactions
       return workspace.adapter.form_error_response(submission.first_error_field_key, submission.errors.first) if submission.errors.any?
 
       attrs = submission.system_attrs
-      severity = workspace.incident_severities.active.find_by!(slug: attrs["severity"])
-      status = workspace.incident_statuses.default_status
-      incident_type = attrs["incident_type"].present? ? workspace.incident_types.active.find_by(slug: attrs["incident_type"]) : nil
-      # `visibility` is now a system field. Absent when the field isn't on the form, in which case default to public.
-      visibility = attrs["visibility"]
+      form = IncidentFormSubmission.new(
+        workspace,
+        incident: nil,
+        form_slug: IncidentForm::SLUG_DECLARE,
+        system_attrs: attrs,
+        custom_fields: submission.custom_fields,
+        visible_system_keys: submission.visible_system_keys
+      )
 
       incident = IncidentLifecycleService.new(workspace).create(
+        **form.creation_attributes,
         declared_by: member,
-        incident_status: status,
-        incident_severity: severity,
-        incident_type: incident_type,
-        name: attrs["name"],
-        summary: attrs["summary"],
-        custom_fields: submission.custom_fields.presence || {},
-        is_private: visibility == Incident::VISIBILITY_PRIVATE,
         source: Incident::SOURCE_SLACK,
         create_channel_sync: true
       )

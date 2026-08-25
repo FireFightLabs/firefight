@@ -54,16 +54,11 @@ class IncidentFormPrompt
     end
   end
 
-  private
-
-  def resolver
-    @resolver ||= IncidentFormResolver.new(@workspace)
-  end
-
   # What the incident will hold once this is submitted: the answers in front of
   # the responder over whatever the incident already has. Same rule the Slack
   # submission uses, so a condition on a field from this same form can match
-  # before anything is saved.
+  # before anything is saved. Public because validating a submission has to
+  # read the same context the fields were resolved against.
   def context
     IncidentConditionEvaluator.context(
       incident_type: answered_id(:incident_types, IncidentSystemField::KEY_INCIDENT_TYPE, :incident_type_id),
@@ -72,6 +67,12 @@ class IncidentFormPrompt
       visibility: answered_visibility,
       custom_fields: (@incident&.custom_fields || {}).merge(answered_custom_fields)
     )
+  end
+
+  private
+
+  def resolver
+    @resolver ||= IncidentFormResolver.new(@workspace)
   end
 
   def answered_id(association, key, incident_attr)

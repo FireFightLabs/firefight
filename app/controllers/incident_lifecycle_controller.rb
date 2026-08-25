@@ -4,7 +4,8 @@
 # validated hashes, so neither surface can ask for something the other refuses.
 class IncidentLifecycleController < InertiaController
   authorizes Ability::Action::RESOURCE_INCIDENTS,
-    read: :form,
+    read: %i[form declare_form],
+    create: :declare,
     update: %i[update assign_role reopen link]
 
   # The form as it stands given what has been answered so far. Re-fetched when
@@ -20,6 +21,42 @@ class IncidentLifecycleController < InertiaController
     )
 
     render json: { fields: IncidentPromptFieldSerializer.many(prompt.fields) }
+  end
+
+  # Declaring has no incident yet, so it reads the same Declare form Slack
+  # opens with nothing to prefill from.
+  def declare_form
+    prompt = IncidentFormPrompt.new(
+      current_workspace,
+      incident: nil,
+      form_slug: IncidentForm::SLUG_DECLARE,
+      answers: answers
+    )
+
+    render json: { fields: IncidentPromptFieldSerializer.many(prompt.fields) }
+  end
+
+  def declare
+    validated = IncidentFormResolver.new(current_workspace).validate_submission!(
+      IncidentForm::SLUG_DECLARE, answers, context: declare_context
+    )
+    submission = IncidentFormSubmission.new(
+      current_workspace,
+      incident: nil,
+      form_slug: IncidentForm::SLUG_DECLARE,
+      system_attrs: validated[:system_attrs],
+      custom_fields: validated[:custom_fields]
+    )
+
+    incident = IncidentLifecycleService.new(current_workspace).create(
+      **submission.creation_attributes,
+      declared_by: current_member,
+      source: Incident::SOURCE_DASHBOARD
+    )
+
+    redirect_to incident_path(incident), notice: "#{incident.identifier} was declared."
+  rescue IncidentFormResolver::ValidationError => e
+    redirect_to dashboard_path, alert: e.field_errors.first
   end
 
   def update
@@ -108,6 +145,15 @@ class IncidentLifecycleController < InertiaController
 
   def current_member
     current_workspace.workspace_memberships.find_by!(user: current_user)
+  end
+
+  # A declare has no incident behind it, so the context is only what has been
+  # answered so far. The resolver reads it to decide which conditional fields
+  # apply as the responder fills the form in.
+  def declare_context
+    IncidentFormPrompt.new(
+      current_workspace, incident: nil, form_slug: IncidentForm::SLUG_DECLARE, answers: answers
+    ).context
   end
 
   def form_slug

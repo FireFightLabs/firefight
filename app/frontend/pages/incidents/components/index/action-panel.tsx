@@ -1,4 +1,5 @@
 import type { IncidentAction } from "@/pages/incidents/types"
+import type { InlineChoice } from "@/pages/incidents/components/index/inline-select"
 import { ActionItem } from "@/pages/incidents/components/index/action-item"
 import { AddActionDialog } from "@/pages/incidents/components/index/add-action-dialog"
 import { ProgressRail } from "@/pages/incidents/components/index/progress-rail"
@@ -10,6 +11,8 @@ export function ActionPanel({
   incidentId,
   actionType,
   disabledTooltip,
+  candidates,
+  canEdit,
 }: {
   title: string
   items: IncidentAction[]
@@ -17,6 +20,8 @@ export function ActionPanel({
   incidentId: string
   actionType: "action" | "followup"
   disabledTooltip: string
+  candidates: InlineChoice[]
+  canEdit: boolean
 }) {
   const doneCount = items.filter((item) => item.status === "done").length
   const isEmpty = items.length === 0
@@ -45,7 +50,13 @@ export function ActionPanel({
       </div>
       <div className="px-5 pt-0 pb-5">
         {items.map((action) => (
-          <ActionItem key={action.id} action={action} />
+          <ActionItem
+            key={action.id}
+            action={action}
+            incidentId={incidentId}
+            candidates={candidates}
+            canEdit={canEdit}
+          />
         ))}
       </div>
     </section>

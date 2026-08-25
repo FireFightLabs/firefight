@@ -1,5 +1,5 @@
 class IncidentRunbooksController < InertiaController
-  authorizes Ability::Action::RESOURCE_INCIDENTS, update: :create
+  authorizes Ability::Action::RESOURCE_INCIDENTS, update: %i[create claim_step]
 
   def create
     incident = current_workspace.incidents.find(params[:incident_id])
@@ -17,6 +17,26 @@ class IncidentRunbooksController < InertiaController
     end
 
     redirect_to incident_path(incident), notice: "#{runbook.runbook.name} was attached."
+  end
+
+  # Claiming a step creates the action item behind it, or hands over the one
+  # that already exists. The service decides which, so this never has to know
+  # whether anyone has touched the step before.
+  def claim_step
+    incident = current_workspace.incidents.find(params[:incident_id])
+    incident_runbook = incident.incident_runbooks.find(params[:incident_runbook_id])
+    step = incident_runbook.runbook.runbook_steps.find(params[:step_id])
+    member = current_workspace.workspace_memberships.find_by!(user: current_user)
+
+    begin
+      IncidentActionService.new(current_workspace).assign_step(
+        incident: incident, runbook_step: step, assignee: member, assigned_by: member
+      )
+    rescue AdapterError => e
+      Rails.logger.error("incident_runbooks#claim_step: Slack post failed — #{e.message}")
+    end
+
+    redirect_to incident_path(incident)
   end
 
   private

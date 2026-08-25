@@ -17,13 +17,28 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SearchableSelect } from "@/components/searchable-select"
 import { SearchableMultiSelect } from "@/components/searchable-multi-select"
 import { whenClosed } from "@/lib/handlers"
-import { incidentFormPath, incidentLifecyclePath } from "@/lib/routes"
+import {
+  declareIncidentFormPath,
+  declareIncidentPath,
+  incidentFormPath,
+  incidentLifecyclePath,
+} from "@/lib/routes"
 import type { IncidentPromptField } from "@/types/serializers"
 import type { IncidentFormSlug } from "@/lib/generated/constants"
 
 // Every lifecycle form except declaring, which creates the incident channel
 // and so only exists in Slack.
-export type LifecycleForm = Exclude<IncidentFormSlug, "declare">
+export type LifecycleForm = IncidentFormSlug
+
+// Declaring has no incident behind it, so it reads and writes its own pair of
+// paths. Everything else about the form is identical.
+function readPath(incidentId: string | null, form: LifecycleForm) {
+  return incidentId ? incidentFormPath(incidentId, form) : declareIncidentFormPath()
+}
+
+function writePath(incidentId: string | null, form: LifecycleForm) {
+  return incidentId ? incidentLifecyclePath(incidentId, form) : declareIncidentPath()
+}
 
 type Answers = Record<string, string | string[]>
 
@@ -40,13 +55,13 @@ function initialAnswers(fields: IncidentPromptField[]): Answers {
 // Which fields the form asks for is the server's answer, never the browser's.
 // A dispatching field changing means re-resolving, because a condition or a
 // terminal status can add or drop questions.
-function useResolvedForm(incidentId: string, form: LifecycleForm, open: boolean) {
+function useResolvedForm(incidentId: string | null, form: LifecycleForm, open: boolean) {
   const [fields, setFields] = useState<IncidentPromptField[] | null>(null)
   const [answers, setAnswers] = useState<Answers>({})
 
   const resolve = useCallback(
     async (currentAnswers: Answers) => {
-      const url = new URL(incidentFormPath(incidentId, form), window.location.origin)
+      const url = new URL(readPath(incidentId, form), window.location.origin)
       Object.entries(currentAnswers).forEach(([key, value]) => {
         if (Array.isArray(value)) {
           value.forEach((entry) => url.searchParams.append(`answers[${key}][]`, entry))
@@ -136,6 +151,11 @@ function FieldInput({
 }
 
 const TITLES: Record<LifecycleForm, { title: string; description: string; confirm: string }> = {
+  declare: {
+    title: "Declare an incident",
+    description: "Firefight opens a channel for it and tells the people who need to know.",
+    confirm: "Declare",
+  },
   update: {
     title: "Post an update",
     description: "What responders and stakeholders will read, and where the incident stands now.",
@@ -159,7 +179,8 @@ export function LifecycleFormDialog({
   open,
   onOpenChange,
 }: {
-  incidentId: string
+  // Null while declaring, since there is no incident yet.
+  incidentId: string | null
   form: LifecycleForm
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -183,15 +204,18 @@ export function LifecycleFormDialog({
   function submit(event: React.FormEvent) {
     event.preventDefault()
     setSaving(true)
-    router.patch(
-      incidentLifecyclePath(incidentId, form),
-      { answers },
-      {
-        preserveScroll: true,
-        onSuccess: close,
-        onFinish: () => setSaving(false),
-      },
-    )
+    const options = {
+      preserveScroll: true,
+      onSuccess: close,
+      onFinish: () => setSaving(false),
+    }
+    const path = writePath(incidentId, form)
+
+    if (incidentId) {
+      router.patch(path, { answers }, options)
+    } else {
+      router.post(path, { answers }, options)
+    }
   }
 
   const missing = (fields ?? []).some((field) => {

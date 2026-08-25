@@ -9,6 +9,7 @@ class Incident < ApplicationRecord
 
   SOURCE_SLACK = "slack"
   SOURCE_ALERT = "alert"
+  SOURCE_DASHBOARD = "dashboard"
 
   DEFAULT_PER_PAGE = 20
   MAX_PER_PAGE = 50
