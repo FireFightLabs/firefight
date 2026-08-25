@@ -91,6 +91,27 @@ class Workspace < ApplicationRecord
       policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: Policy::DEFAULT_ALERT_ROUTING_NAME)
   end
 
+  # Nothing needs approval until an admin writes the first rule, so the
+  # policy only exists once there is something to put in it.
+  def approval_policy
+    policies.for_domain(Policy::DOMAIN_APPROVALS).workspace_wide.first
+  end
+
+  def find_or_create_approval_policy!
+    approval_policy ||
+      policies.create!(domain: Policy::DOMAIN_APPROVALS, name: Policy::DEFAULT_APPROVALS_NAME)
+  end
+
+  def approval_rules
+    approval_policy&.ordered_rules || PolicyRule.none
+  end
+
+  # Slugs from the API and MCP become the catalog-entry ids grants and
+  # rules scope by. Unknown slugs are dropped, matching the dashboard.
+  def environment_ids_for(slugs)
+    environment_entries.where(slug: Array(slugs).map(&:to_s)).pluck(:id)
+  end
+
   def adapter
     WorkspaceAdapter.for(self)
   end

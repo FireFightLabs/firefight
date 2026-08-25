@@ -15,6 +15,7 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
       -> { patch alert_routing_url, params: { policy: { enabled: false } } },
       -> { post alert_routing_send_test_url, params: { fields: {} }, as: :json },
       -> { post policy_rules_url, params: { rule: { conditions: [], outcome: {} } } },
+      -> { post approval_rules_url, params: { rule: { approver_role: "admin" } } },
       -> { post webhooks_url, params: { webhook: { url: "https://x.test" } } },
       -> { get signing_secret_webhook_url(webhooks(:active_webhook)) },
       -> { post incident_severities_url, params: { name: "Sev X" } },
@@ -35,7 +36,7 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
     post incident_severities_url, params: { name: "Sev X" }, headers: { "HTTP_REFERER" => settings_severities_url }
 
     assert_redirected_to settings_severities_url
-    assert_equal "You don't have permission to change severities. Ask a workspace admin to grant you severities access in Settings, Permissions.", flash[:alert]
+    assert_equal "You don't have permission to change severities. Ask a workspace admin to grant you severities access under Gateway, Permissions.", flash[:alert]
   end
 
   test "a grant opens a settings mutation to a member" do

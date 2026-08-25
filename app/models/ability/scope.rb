@@ -9,6 +9,14 @@ module Ability
     DIMENSION_SERVICE = "service"
     DIMENSIONS = [ DIMENSION_ENVIRONMENT, DIMENSION_SERVICE ].freeze
 
+    # An empty environment list means unrestricted, which is spelled as the
+    # dimension being absent. Ids that are not the workspace's own
+    # environments are dropped rather than trusted.
+    def self.for_environments(workspace, environment_ids)
+      ids = workspace.environment_entries.where(id: Array(environment_ids).map(&:to_s).reject(&:blank?)).pluck(:id)
+      ids.any? ? { DIMENSION_ENVIRONMENT => ids } : {}
+    end
+
     def self.covers?(grant_scope, requested)
       grant_scope.all? do |dimension, allowed|
         value = requested[dimension] || requested[dimension.to_sym]

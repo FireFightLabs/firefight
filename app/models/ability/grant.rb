@@ -24,9 +24,37 @@ module Ability
     # What an admin can hand out here, every global system action plus the
     # tool actions this workspace has minted by enabling a capability.
     def self.grantable_actions(workspace)
-      Ability::Action.where(workspace_id: [ nil, workspace.id ]).grantable
-                     .includes(source: :integration)
-                     .order(:kind, :key)
+      Ability::Action.grantable_for(workspace).includes(source: :integration).order(:kind, :key)
+    end
+
+    # What the API and MCP hand out: a permission set by slug, or an ability
+    # by key. Naming neither is a missing parameter, not a lookup miss.
+    def self.target_for!(workspace, ability: nil, permission_set: nil)
+      return { role: workspace.ability_roles.find_by!(slug: permission_set.to_s) } if permission_set.present?
+      raise ActionController::ParameterMissing, :ability if ability.blank?
+
+      { action: Ability::Action.grantable_for(workspace).find_by!(key: ability.to_s) }
+    end
+
+    # One grant per principal per target is a DB invariant, so granting
+    # again retargets the existing row instead of duplicating it. `target`
+    # is `{ action: }` or `{ role: }`.
+    def self.grant!(workspace:, principal:, target:, environment_ids: [], expires_at: nil)
+      grant = workspace.ability_grants.find_or_initialize_by({ principal: principal }.merge(target))
+      grant.scope = Ability::Scope.for_environments(workspace, environment_ids)
+      grant.expires_at = parse_expiry(grant, expires_at)
+      grant.save!
+      grant
+    end
+
+    # A blank value clears the expiry. An unreadable one is a validation
+    # error rather than a silent nil.
+    def self.parse_expiry(grant, value)
+      return nil if value.blank?
+      return value if value.respond_to?(:to_time) && !value.is_a?(String)
+
+      Time.zone.parse(value.to_s) or
+        raise ActiveRecord::RecordInvalid.new(grant.tap { |record| record.errors.add(:expires_at, "is not a valid date") })
     end
 
     # Reconciles a principal's direct grants over a bounded set of action
@@ -50,6 +78,22 @@ module Ability
 
     def expired?
       expires_at.present? && expires_at <= Time.current
+    end
+
+    def label
+      action&.key || role&.name
+    end
+
+    def environment_ids
+      Array(scope[Ability::Scope::DIMENSION_ENVIRONMENT])
+    end
+
+    # Changing the environments and changing the expiry are separate
+    # controls, so an absent expiry means "leave it alone".
+    def rescope!(environment_ids:, expires_at: :unchanged)
+      attrs = { scope: Ability::Scope.for_environments(workspace, environment_ids) }
+      attrs[:expires_at] = self.class.parse_expiry(self, expires_at) unless expires_at == :unchanged
+      update!(attrs)
     end
 
     private

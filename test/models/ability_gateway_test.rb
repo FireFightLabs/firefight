@@ -300,4 +300,38 @@ class AbilityGatewayTest < ActiveSupport::TestCase
                                 scope: { "environment" => "env-dev" })
     end
   end
+
+  test "a parked call carries the rule's approvers and where to ask" do
+    bob = workspace_memberships(:bob_workspace_one)
+    policy = @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals")
+    policy.policy_rules.create!(
+      priority: 1,
+      conditions: PolicyRule::ApprovalConditions.build(risk_levels: [ Ability::Action::RISK_DESTRUCTIVE ]),
+      outcome: { "require" => {
+        "role" => WorkspaceMembership.roles[:admin], "count" => 1,
+        "approvers" => [ bob.id ], "notify" => PolicyRule::ApprovalOutcome::NOTIFY_BOTH
+      } }
+    )
+
+    error = assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.authorize!(principal: @membership, action_key: "catalog.delete", workspace: @workspace)
+    end
+
+    assert_equal [ { "kind" => "user", "id" => bob.id } ], error.approval.approver_ids
+    assert_equal PolicyRule::ApprovalOutcome::NOTIFY_BOTH, error.approval.notify
+  end
+
+  test "a disabled approval policy parks nothing" do
+    policy = create_approval_policy
+    policy.update!(enabled: false)
+
+    assert_equal :ran, AbilityGateway.authorize!(principal: @membership, action_key: "catalog.delete", workspace: @workspace) { :ran }
+  end
+
+  test "the permissions screen never waits on its own rules" do
+    create_approval_policy
+
+    assert_equal :ran, AbilityGateway.authorize!(principal: @membership, action_key: "permissions.delete", workspace: @workspace) { :ran }
+    assert_equal :ran, AbilityGateway.authorize!(principal: @membership, action_key: "approvals.update", workspace: @workspace) { :ran }
+  end
 end

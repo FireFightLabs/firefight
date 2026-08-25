@@ -52,15 +52,7 @@ class PolicyRulesController < InertiaController
   end
 
   def swap_with(other)
-    if other
-      PolicyRule.transaction do
-        a, b = @rule.priority, other.priority
-        # Two-step through a temporary priority to satisfy the unique index.
-        @rule.update_columns(priority: -1)
-        other.update_columns(priority: a)
-        @rule.update_columns(priority: b)
-      end
-    end
+    @rule.swap_priority_with!(other)
     redirect_to routing_path_for(@rule.policy)
   end
 

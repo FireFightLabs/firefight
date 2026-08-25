@@ -14,6 +14,7 @@ class Api::V1::ApiController < ActionController::API
   rescue_from ActionController::ParameterMissing, with: :bad_request
   rescue_from ApiAuthentication::ForbiddenError, with: :forbidden
   rescue_from AbilityGateway::PendingApproval, with: :pending_approval
+  rescue_from Ability::Approval::NotAllowed, with: :approval_not_allowed
 
   private
 
@@ -52,6 +53,10 @@ class Api::V1::ApiController < ActionController::API
 
   def incident_not_active(exception)
     render json: error_response("incident_not_active", exception.message), status: :unprocessable_entity
+  end
+
+  def approval_not_allowed(exception)
+    render json: error_response("approval_not_allowed", exception.message), status: :unprocessable_entity
   end
 
   def bad_request(exception)

@@ -19,7 +19,7 @@ module Slack
         [
           { type: "header", text: { type: "plain_text", text: ":lock: Approval request", emoji: true } },
           { type: "section", text: { type: "mrkdwn", text: summary_text(approval) } },
-          { type: "section", text: { type: "mrkdwn", text: "#{verdict} by *#{approval.approver&.display_name}*" } }
+          { type: "section", text: { type: "mrkdwn", text: "#{verdict} by *#{approval.approver&.actor_display_name}*" } }
         ]
       end
 
@@ -27,8 +27,17 @@ module Slack
         lines = [ "*#{approval.principal_label}* wants to run `#{approval.action_key}`" ]
         lines << "*Scope:* `#{approval.scope.to_json}`" if approval.scope.present?
         lines << "*Params:* `#{approval.params.to_json.truncate(500)}`" if approval.params.present?
-        lines << "*Requires:* workspace #{approval.required_role}"
+        lines << approvers_line(approval)
         lines.join("\n")
+      end
+
+      def self.approvers_line(approval)
+        return "*Requires:* workspace #{approval.required_role}" unless approval.named_approvers?
+
+        mentions = approval.approvers.map do |approver|
+          approver.platform_user_id ? "<@#{approver.platform_user_id}>" : "*#{approver.actor_display_name}* (agent)"
+        end
+        "*Approvers:* #{mentions.join(', ')}"
       end
     end
   end

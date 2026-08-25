@@ -147,3 +147,29 @@ export const WEBHOOK_EVENTS = [
   "incident.merged_into"
 ] as const
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number]
+
+export const ABILITY_RISK_LEVELS = [
+  "read",
+  "write",
+  "destructive"
+] as const
+export type AbilityRiskLevel = (typeof ABILITY_RISK_LEVELS)[number]
+
+export const PRINCIPAL_KINDS = {
+  "USER": "user",
+  "AGENT": "agent",
+  "API_KEY": "api_key"
+} as const
+
+export const APPROVAL_NOTIFY_OPTIONS = [
+  "channel",
+  "dm",
+  "both"
+] as const
+export type ApprovalNotifyOption = (typeof APPROVAL_NOTIFY_OPTIONS)[number]
+
+export const APPROVER_ROLES = [
+  "owner",
+  "admin"
+] as const
+export type ApproverRole = (typeof APPROVER_ROLES)[number]

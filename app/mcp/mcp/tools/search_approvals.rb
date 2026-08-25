@@ -36,8 +36,10 @@ module Mcp
           params: approval.params,
           required_role: approval.required_role,
           self_approvable: approval.self_approvable,
+          approvers: Ability::Principal.references(approval.approver_ids),
+          agents_may_approve: approval.agents_may_approve,
           status: approval.status,
-          approver: approval.approver&.display_name,
+          approver: approval.approver&.actor_display_name,
           requested_at: approval.created_at.iso8601,
           resolved_at: approval.resolved_at&.iso8601
         }.compact

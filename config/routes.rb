@@ -29,6 +29,24 @@ Rails.application.routes.draw do
       resources :custom_fields, only: [ :index ]
       resources :runbooks, only: [ :index, :show ]
 
+      resources :abilities, only: [ :index ]
+      resources :principals, only: [ :index ]
+      resources :permission_sets, only: [ :index, :create, :update, :destroy ]
+      resources :grants, only: [ :index, :create, :update, :destroy ]
+      resources :approval_rules, only: [ :index, :create, :update, :destroy ] do
+        member do
+          post :move_up
+          post :move_down
+        end
+      end
+      resources :approvals, only: [ :index, :show ] do
+        member do
+          post :approve
+          post :deny
+        end
+      end
+      get "activity", to: "activity#index", as: :activity
+
       namespace :catalog do
         get "types", to: "types#index", as: :types
         get "types/:slug", to: "types#show", as: :type
@@ -151,6 +169,12 @@ Rails.application.routes.draw do
     get "/gateway/permissions", to: "settings#permissions", as: :gateway_permissions
     resources :ability_grants, only: [ :create, :update, :destroy ], path: "gateway/permissions/grants"
     resources :ability_roles, only: [ :create, :update, :destroy ], path: "gateway/permissions/sets"
+    resources :approval_rules, only: [ :create, :update, :destroy ], path: "gateway/permissions/approval-rules" do
+      member do
+        patch :move_up
+        patch :move_down
+      end
+    end
     get "/gateway/activity", to: "settings#activity", as: :gateway_activity
     get "/gateway/approvals", to: "settings#approvals", as: :gateway_approvals
     resources :approvals, only: [], path: "gateway/approvals" do

@@ -6,13 +6,6 @@ class PrincipalSerializer < BaseSerializer
     principal.id
   end
 
-  # Grants are polymorphic, so the type travels with the id and the two
-  # together address a principal on the way back in.
-  type :string
-  def principal_type
-    principal.class.polymorphic_name
-  end
-
   type :string
   def name
     principal.actor_display_name

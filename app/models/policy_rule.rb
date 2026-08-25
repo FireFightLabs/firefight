@@ -25,13 +25,26 @@ class PolicyRule < ApplicationRecord
   validate :conditions_are_well_formed
   validate :outcome_matches_domain_contract
 
+  # Two-step through a temporary priority to satisfy the unique index. A nil
+  # neighbour means the rule is already at that end, which is not an error.
+  def swap_priority_with!(other)
+    return unless other
+
+    transaction do
+      mine, theirs = priority, other.priority
+      update_columns(priority: -1)
+      other.update_columns(priority: mine)
+      update_columns(priority: theirs)
+    end
+  end
+
   private
 
   def outcome_matches_domain_contract
     validator = OUTCOME_VALIDATORS[policy&.domain]
     return unless validator
 
-    validator.errors_for(outcome).each { |message| errors.add(:outcome, message) }
+    validator.errors_for(outcome, workspace: policy.workspace).each { |message| errors.add(:outcome, message) }
   end
 
   def conditions_are_well_formed

@@ -13,6 +13,11 @@ class AbilityActionOptionSerializer < BaseSerializer
     reversible: { type: :boolean }
   )
 
+  type :boolean
+  def approval_exempt
+    Ability::Action.approval_exempt?(action.key)
+  end
+
   # Tool actions group under the connection that minted them. System actions
   # under Firefight itself.
   type :string

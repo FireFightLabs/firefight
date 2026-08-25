@@ -106,7 +106,8 @@ class SettingsController < InertiaController
       sets: AbilityRoleSerializer.many(
         current_workspace.ability_roles.order(:name).includes(:grants, :role_actions)
       ),
-      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries)
+      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
+      approvalRules: ApprovalRuleSerializer.many(current_workspace.approval_rules)
     }
   end
 
@@ -204,12 +205,7 @@ class SettingsController < InertiaController
   # service keys. Personal keys are omitted because they resolve to their
   # owner's authority rather than carrying grants of their own.
   def principal_rows
-    associations = { ability_grants: [ :action, { role: :role_actions } ] }
-    memberships = current_workspace.workspace_memberships.includes(:user, associations)
-    agents = current_workspace.agents.active.includes(associations)
-    keys = current_workspace.api_keys.where(deleted_at: nil).service.includes(associations)
-
-    (memberships.to_a + agents.to_a + keys.to_a).map { |principal| PrincipalSerializer.one(principal) }
+    Ability::Principal.all(current_workspace).map { |principal| PrincipalSerializer.one(principal) }
   end
 
   # MCP clients this member authorized via OAuth consent. One row per

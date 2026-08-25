@@ -86,8 +86,9 @@ class McpController < ActionController::API
   def instructions
     "Access to the #{Current.workspace.name} workspace, acting as " \
       "#{Current.principal.actor_display_name}: read incidents, alerts, the service catalog and " \
-      "runbooks, dry-run alert routing, and change workspace configuration where this connection " \
-      "has permission. Writes are recorded and some need an admin's approval before they take " \
+      "runbooks, dry-run alert routing, change workspace configuration, and administer the gateway " \
+      "(permissions, approval rules, the activity log) where this connection has permission. " \
+      "Writes are recorded and some need an admin's approval before they take " \
       "effect. All data is scoped to this workspace. Product docs: #{Mcp::Docs::BASE} — every " \
       "page is fetchable as raw markdown; index at #{Mcp::Docs::INDEX}."
   end

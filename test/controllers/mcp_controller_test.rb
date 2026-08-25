@@ -53,11 +53,16 @@ class McpControllerTest < ActionDispatch::IntegrationTest
                    Mcp::Tools::ATTACH_RUNBOOK,
                    Mcp::Tools::SEARCH_APPROVALS,
                    Mcp::Tools::APPROVE_APPROVAL, Mcp::Tools::DENY_APPROVAL,
+                   Mcp::Tools::LIST_ABILITIES, Mcp::Tools::LIST_PRINCIPALS,
+                   Mcp::Tools::UPSERT_PERMISSION_SET, Mcp::Tools::DELETE_PERMISSION_SET,
+                   Mcp::Tools::GRANT_ABILITY, Mcp::Tools::REVOKE_GRANT,
+                   Mcp::Tools::UPSERT_APPROVAL_RULE, Mcp::Tools::DELETE_APPROVAL_RULE,
+                   Mcp::Tools::SEARCH_ACTIVITY,
                    Mcp::Tools::GET_FORM, Mcp::Tools::UPSERT_CUSTOM_FIELD,
                    Mcp::Tools::UPSERT_FORM_FIELD ].sort,
                  tools.map { |t| t["name"] }.sort
 
-    read_tools, write_tools = tools.partition { |t| t["name"].start_with?("search", "get", "evaluate") }
+    read_tools, write_tools = tools.partition { |t| t["name"].start_with?("search", "get", "evaluate", "list") }
     assert read_tools.all? { |t| t.dig("annotations", "readOnlyHint") }
     assert write_tools.all? { |t| t.dig("annotations", "readOnlyHint") == false }
   end

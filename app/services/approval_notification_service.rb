@@ -1,26 +1,39 @@
-# Surfaces a pending approval to the workspace's incidents channel with
-# approve/deny buttons and remembers the message so the decision can be
-# reflected in place. Workspaces without a configured channel still resolve
-# approvals from the dashboard endpoints.
+# Surfaces a pending approval wherever the rule said to ask, the incidents
+# channel, a direct message to each approver, or both. Every message posted is
+# remembered on the approval so the decision can be reflected in place.
+# Workspaces without a channel still resolve approvals from the dashboard.
 class ApprovalNotificationService
   def self.post!(approval)
     workspace = approval.workspace
-    channel_id = workspace.incidents_channel_id
-    return if channel_id.blank?
+    adapter = WorkspaceAdapter.for(workspace)
 
-    result = WorkspaceAdapter.for(workspace).post_approval_request(approval: approval, channel_id: channel_id)
-    approval.update!(notification_channel_id: result[:channel_id], notification_message_id: result[:message_id])
-  rescue AdapterError => e
-    Rails.logger.warn({ event: "approval.notification_failed", approval_id: approval.id, error: e.class.name }.to_json)
+    if approval.notify_channel? && workspace.incidents_channel_id.present?
+      deliver(approval) { adapter.post_approval_request(approval: approval, channel_id: workspace.incidents_channel_id) }
+    end
+
+    if approval.notify_dm?
+      approval.human_approvers.each do |approver|
+        deliver(approval) { adapter.post_approval_request_to_user(approval: approval, user_id: approver.platform_user_id) }
+      end
+    end
   end
 
   def self.mark_resolved!(approval)
-    return if approval.notification_channel_id.blank? || approval.notification_message_id.blank?
-
-    WorkspaceAdapter.for(approval.workspace).mark_approval_resolved(
-      approval: approval, channel_id: approval.notification_channel_id, message_id: approval.notification_message_id
-    )
-  rescue AdapterError => e
-    Rails.logger.warn({ event: "approval.resolution_update_failed", approval_id: approval.id, error: e.class.name }.to_json)
+    adapter = WorkspaceAdapter.for(approval.workspace)
+    approval.notifications.each do |notification|
+      adapter.mark_approval_resolved(
+        approval: approval, channel_id: notification["channel_id"], message_id: notification["message_id"]
+      )
+    rescue AdapterError => e
+      Rails.logger.warn({ event: "approval.resolution_update_failed", approval_id: approval.id, error: e.class.name }.to_json)
+    end
   end
+
+  def self.deliver(approval)
+    result = yield
+    approval.add_notification!(channel_id: result[:channel_id], message_id: result[:message_id])
+  rescue AdapterError => e
+    Rails.logger.warn({ event: "approval.notification_failed", approval_id: approval.id, error: e.class.name }.to_json)
+  end
+  private_class_method :deliver
 end

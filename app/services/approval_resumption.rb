@@ -81,7 +81,7 @@ class ApprovalResumption
   private_class_method :dispatch
 
   def self.approver_name(approval)
-    approval.approver&.display_name || "A workspace admin"
+    approval.approver&.actor_display_name || "A workspace admin"
   end
   private_class_method :approver_name
 

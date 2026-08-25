@@ -102,7 +102,17 @@ module Ability
     validate :system_actions_are_global
 
     scope :system_actions, -> { where(kind: KIND_SYSTEM) }
+
+    # The controls that decide access never wait on a rule. Resolving an
+    # approval is the approval mechanism, and a rule that could hold the
+    # Permissions screen could lock the admins out of removing it.
+    APPROVAL_EXEMPT_RESOURCES = [ RESOURCE_APPROVALS, RESOURCE_PERMISSIONS ].freeze
+
+    def self.approval_exempt?(key)
+      APPROVAL_EXEMPT_RESOURCES.include?(resource_of(key))
+    end
     scope :grantable, -> { where.not(key: admin_only_keys) }
+    scope :grantable_for, ->(workspace) { where(workspace_id: [ nil, workspace.id ]).grantable }
 
     def self.system_key(resource, action)
       "#{resource}.#{action}"

@@ -10,7 +10,7 @@ class Interactions::AbilityApprovalDecisionHandlerTest < ActiveSupport::TestCase
       principal_label: api_keys(:full_access_key).principal_label,
       action_key: "catalog.delete", request_digest: Ability::Approval.digest("catalog.delete", {}, {}),
       required_role: WorkspaceMembership.roles[:admin],
-      notification_channel_id: "C12345678", notification_message_id: "1234.5678"
+      notifications: [ { "channel_id" => "C12345678", "message_id" => "1234.5678" } ]
     )
   end
 

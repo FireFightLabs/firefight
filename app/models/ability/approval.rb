@@ -14,12 +14,13 @@ module Ability
 
     belongs_to :workspace
     belongs_to :principal, polymorphic: true, optional: true
-    belongs_to :approver, class_name: "WorkspaceMembership", optional: true
+    belongs_to :approver, polymorphic: true, optional: true
 
     validates :principal_label, :action_key, :request_digest, presence: true
     validates :status, inclusion: { in: STATUSES }
     validates :required_role, inclusion: { in: WorkspaceMembership.roles.keys }
     validates :source, inclusion: { in: AbilityGateway::SOURCES }, allow_nil: true
+    validates :notify, inclusion: { in: PolicyRule::ApprovalOutcome::NOTIFY_OPTIONS }, allow_nil: true
 
     scope :pending, -> { where(status: STATUS_PENDING) }
 
@@ -76,8 +77,27 @@ module Ability
       request_digest == self.class.digest(action_key, params, scope)
     end
 
-    def requester?(membership)
-      principal_type == "WorkspaceMembership" && principal_id == membership.id
+    def requester?(candidate)
+      principal_type == candidate.class.polymorphic_name && principal_id == candidate.id
+    end
+
+    # Named approvers replace the role. The rule picked people, so the role
+    # is only how the request is described. Without names, the role decides,
+    # and a role is something only a person holds. A machine decides only
+    # when it was named and the rule said agents may.
+    def named_approvers?
+      approver_ids.present?
+    end
+
+    def approver?(principal)
+      reference = Ability::Principal.reference_for(principal)
+      if named_approvers?
+        return false unless approver_ids.map { |ref| Ability::Principal.reference(ref) }.include?(reference)
+
+        return principal.is_a?(WorkspaceMembership) || agents_may_approve?
+      end
+
+      principal.is_a?(WorkspaceMembership) && role_sufficient?(membership_or_nil(principal))
     end
 
     def role_sufficient?(membership)
@@ -88,7 +108,48 @@ module Ability
       end
     end
 
+    # Everyone who should be asked, the named principals or every member
+    # who holds the required role. Machines are asked nothing, they poll.
+    def approvers
+      return named_approver_records if named_approvers?
+
+      case required_role
+      when WorkspaceMembership.roles[:owner] then workspace.workspace_memberships.where(role: WorkspaceMembership.roles[:owner])
+      else workspace.workspace_memberships.where(role: [ WorkspaceMembership.roles[:admin], WorkspaceMembership.roles[:owner] ])
+      end
+    end
+
+    def human_approvers
+      approvers.select { |approver| approver.is_a?(WorkspaceMembership) }
+    end
+
+    def named_approver_records
+      approver_ids.filter_map { |ref| Ability::Principal.find_reference(workspace, Ability::Principal.reference(ref)) }
+    end
+
+    def notify_channel?
+      [ nil, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
+    end
+
+    def notify_dm?
+      [ PolicyRule::ApprovalOutcome::NOTIFY_DM, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
+    end
+
+    def add_notification!(channel_id:, message_id:)
+      update!(notifications: notifications + [ { "channel_id" => channel_id, "message_id" => message_id } ])
+    end
+
     private
+
+    def approver_requirement_message
+      return "requires the #{required_role} role" unless named_approvers?
+
+      "only #{approvers.map(&:actor_display_name).to_sentence} can decide this request"
+    end
+
+    def membership_or_nil(principal)
+      principal if principal.is_a?(WorkspaceMembership)
+    end
 
     # A parked chat request carries the payload that produced it, because a
     # person cannot retry a click the way the API and MCP callers retry a
@@ -107,14 +168,14 @@ module Ability
     # required role now. Self-approval is allowed by default, the human
     # confirming their own agent's exact proposal IS the safety mechanism.
     # Policies opt into four-eyes with require.self_approval: false.
-    def resolve!(new_status, membership)
+    def resolve!(new_status, principal)
       raise NotAllowed, "approval is no longer pending" unless pending?
-      raise NotAllowed, "requires the #{required_role} role" unless role_sufficient?(membership)
-      if requester?(membership) && !self_approvable?
+      raise NotAllowed, approver_requirement_message unless approver?(principal)
+      if requester?(principal) && !self_approvable?
         raise NotAllowed, "this policy requires approval by someone other than the requester"
       end
 
-      update!(status: new_status, approver: membership, resolved_at: Time.current)
+      update!(status: new_status, approver: principal, resolved_at: Time.current)
       resume_parked_request
     end
   end

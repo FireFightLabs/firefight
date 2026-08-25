@@ -32,7 +32,13 @@ module TypescriptConstants
       Export.new("ABILITY_GRANTABLE_RESOURCES", Ability::Action::GRANTABLE_RESOURCES, "AbilityGrantableResource"),
       Export.new("ABILITY_RESOURCE_LABELS", Ability::Action::RESOURCE_LABELS, nil),
       Export.new("ABILITY_ACTIONS", Ability::Action::ACTIONS, "AbilityAction"),
-      Export.new("WEBHOOK_EVENTS", Webhook::SUBSCRIBABLE_EVENTS, "WebhookEvent")
+      Export.new("WEBHOOK_EVENTS", Webhook::SUBSCRIBABLE_EVENTS, "WebhookEvent"),
+      Export.new("ABILITY_RISK_LEVELS", Ability::Action::RISK_LEVELS, "AbilityRiskLevel"),
+      Export.new("PRINCIPAL_KINDS", {
+        "USER" => Ability::Principal::KIND_USER, "AGENT" => Ability::Principal::KIND_AGENT, "API_KEY" => Ability::Principal::KIND_API_KEY
+      }, nil),
+      Export.new("APPROVAL_NOTIFY_OPTIONS", PolicyRule::ApprovalOutcome::NOTIFY_OPTIONS, "ApprovalNotifyOption"),
+      Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:owner], WorkspaceMembership.roles[:admin] ], "ApproverRole")
     ]
   end
 

@@ -52,7 +52,7 @@ Enabling a capability **is** the admin's deliberate decision, so it takes effect
 
 ## Granting
 
-Settings → Permissions (`AbilityGrantsController`) is the only UI that writes grants. A grant carries an `Ability::Scope`: a hash of dimension to allowed catalog-entry ids, where a **missing dimension means unrestricted and an empty array is invalid**, never a way to say "all". The controller drops ids that are not the workspace's own environments rather than trusting the form, and a second grant of the same action retargets the existing row instead of duplicating it (one grant per principal per action is a DB invariant).
+Gateway → Permissions (`AbilityGrantsController`) is the only UI that writes grants. A grant carries an `Ability::Scope`: a hash of dimension to allowed catalog-entry ids, where a **missing dimension means unrestricted and an empty array is invalid**, never a way to say "all". The controller drops ids that are not the workspace's own environments rather than trusting the form, and a second grant of the same action retargets the existing row instead of duplicating it (one grant per principal per action is a DB invariant).
 
 **Permission sets** (`Ability::Role`) bundle actions so a set is granted once instead of fifteen actions individually. Keep the set about *what* and the grant about *where*: one "Database read-only" set granted twice, scoped to Development for a contractor and unscoped for staff, beats two sets that drift the moment a provider adds a tool. `Ability::RoleAction#default_scope` pins a scope to one action inside a set and applies only when the grant carries none, so treat it as an override rather than the main mechanism. Editing a set changes what every holder can do immediately, and deleting one revokes it everywhere.
 
@@ -142,11 +142,15 @@ Integration (kind: mcp | http | native, immutable slug, kill switch)
 
 ## Approvals
 
-- `Policy::DOMAIN_APPROVALS` on the existing rule engine, matched over `{action_key, risk_level, reversible, environment, severity}`
+- `Policy::DOMAIN_APPROVALS` on the existing rule engine, matched over `{action_key, risk_level, reversible, environment, severity}`. Nothing sets `severity` in the context yet, so a rule on it never matches.
+- One workspace-wide policy (`Workspace#approval_policy`), created by the first rule (`find_or_create_approval_policy!`). No policy means nothing waits, which is the default.
+- Rules are written from Gateway → Permissions (`ApprovalRulesController`). The dialog asks three questions (abilities, risk levels, environments) and `PolicyRule::ApprovalConditions` turns them into `is_one_of` conditions, so the engine stays generic. Environment values are catalog-entry ids, matching grant scopes.
+- Outcome contract (`PolicyRule::ApprovalOutcome`): `require: { role, count: 1, self_approval, notify, approvers, agents_may_approve }`. `approvers` is a list of `{ kind, id }` principal references (`Ability::Principal.reference`, a bare string is a person) validated against the policy's workspace. When present it replaces the role for deciding (`Ability::Approval#approver?`), and the role only describes the request. A role is only ever held by a person. A machine (agent or service key) can be named, and decides only when `agents_may_approve` is true, which the validator enforces at write time and `approver?` again at click time. `approver` on the approval is polymorphic for the same reason.
+- `notify` is `channel` (incidents channel, the default), `dm` (each approver, named or everyone holding the role), or `both`. `ApprovalNotificationService.post!` fans out and records every posted message on `approval.notifications`, and `mark_resolved!` rewrites each one.
 - Bound to a digest of action, params, and scope, so an approval admits exactly one call and is single-use
 - Resuming re-enters `authorize!`: grants and config are re-checked against current state, only the policy match is skipped
-- `approvals.*` actions are exempt from policy matching, otherwise resolving an approval would need an approval
-- Self-approval is allowed by default (a human confirming their own agent's proposal is the safety mechanism). Opt into four-eyes per policy with `require.self_approval: false`
+- `approvals.*` and `permissions.*` are exempt from policy matching (`Ability::Action.approval_exempt?`): resolving an approval would otherwise need an approval, and a rule that held the Permissions screen could lock admins out of removing it
+- Self-approval is allowed by default (a human confirming their own agent's proposal is the safety mechanism). Opt into four-eyes per rule with `require.self_approval: false`
 
 ## MCP exposure
 

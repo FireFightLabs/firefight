@@ -4,7 +4,7 @@ Firefight ships a [Model Context Protocol](https://modelcontextprotocol.io) serv
 
 ## Connecting
 
-Mint a token under **Settings → API keys**:
+Mint a token under **Developer → API Keys**:
 
 - **Personal token** ("acts as you") — reads everything you can see, and writes whatever you can write, which for an admin is everything (`ApiKey#has_permission?` delegates to `WorkspaceMembership#implicitly_permits?` for a personal token, so the token inherits the human's reach exactly). For your own agent sessions.
 - **Service key** scoped per resource and action — for headless agents and CI.
@@ -15,7 +15,7 @@ Mint a token under **Settings → API keys**:
 claude mcp add --transport http firefight https://<your-host>/mcp
 ```
 
-On first use your browser opens Firefight's consent screen, which names the client and the workspace it would reach — click Authorize and you're connected. The client self-registers via dynamic client registration; tokens are short-lived with refresh rotation, PKCE (S256) is required, and you can revoke any connection under **Settings → API keys → Connected agents**.
+On first use your browser opens Firefight's consent screen, which names the client and the workspace it would reach — click Authorize and you're connected. The client self-registers via dynamic client registration; tokens are short-lived with refresh rotation, PKCE (S256) is required, and you can revoke any connection under **Developer → API Keys → Connected agents**.
 
 A token belongs to exactly one workspace, because its Doorkeeper resource owner is a `WorkspaceMembership` — the same principal an `ApiKey` resolves to, which is what lets `Current.principal` stay a membership through the Ability Gateway, the ledger and the per-principal rate limit. Members of several workspaces pick one on the consent screen; the pick is resolved through the user's own memberships, so `workspace_id` cannot be forged. Reaching a second workspace means a second `claude mcp add` under a different name, with its own client and token.
 
@@ -69,6 +69,22 @@ Results are workspace-scoped to the token, capped at 50 items with explicit `tru
 | `upsert_runbook` | Create or update a runbook (steps and attach conditions replace the existing set) |
 
 Ids never leave the read tools, so every reference here resolves by slug too. `Mcp::ConditionValues` turns a condition into the row it needs: severity and incident type by slug, the custom field by its key, and values by option label or catalog entry slug. Anything matching no record raises rather than storing a condition that saves cleanly and then never fires. `CatalogEntry::ReferenceManagement` resolves reference attributes the same way, guarding the id lookup so a slug reaching a uuid column cannot raise out of the driver.
+
+## Gateway tools
+
+The Ability Gateway is administered over MCP with the same model calls the dashboard and REST API use (`Ability::Principal`, `Ability::Grant.grant!`, `Ability::Role#sync_actions!`, `PolicyRule::ApprovalRuleChanges`). All of them authorize as `permissions:*`, which is admin-only and ungrantable, so only an admin's personal token or OAuth session can reach them. `Mcp::Tools::GatewayPayloads` keeps the grant, set and rule shapes identical across the tools.
+
+| Tool | Does |
+|---|---|
+| `list_abilities` | Every grantable ability with risk level, group and whether approval rules can hold it |
+| `list_principals` | People, agents and service keys with the grants each holds |
+| `upsert_permission_set` | Create (no slug) or update (slug) a set. `abilities` is the full contents |
+| `delete_permission_set` | Delete a set, revoking it from everyone holding it |
+| `grant_ability` | Grant an ability key or a set slug to a principal, with environment slugs and an expiry. Regranting retargets the existing row |
+| `revoke_grant` | Revoke a grant by id |
+| `upsert_approval_rule` | Create (no id) or update (id) an approval rule. Only the keys given change |
+| `delete_approval_rule` | Delete a rule by id |
+| `search_activity` | The invocation ledger, filtered by decision and ability key |
 
 ## Incident-write tools
 

@@ -68,4 +68,43 @@ class PolicyRuleTest < ActiveSupport::TestCase
     duplicate = @policy.policy_rules.build(priority: 1, conditions: [], outcome: { "action" => PolicyRule::AlertRoutingOutcome::ACTION_DROP })
     assert_not duplicate.valid?
   end
+
+  test "approval outcomes name a role, where to ask, and members of the workspace as approvers" do
+    workspace = workspaces(:slack_workspace_one)
+    policy = workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals")
+    base = { "role" => WorkspaceMembership.roles[:admin], "count" => 1 }
+
+    rule = policy.policy_rules.new(priority: 1, conditions: [], outcome: { "require" => base })
+    assert rule.valid?
+
+    rule.outcome = { "require" => base.merge("notify" => "smoke signal") }
+    assert_not rule.valid?
+    assert_match "notify", rule.errors[:outcome].join
+
+    rule.outcome = { "require" => base.merge("approvers" => [ workspace_memberships(:alice_workspace_two).id ]) }
+    assert_not rule.valid?
+    assert_match "of this workspace", rule.errors[:outcome].join
+
+    rule.outcome = { "require" => base.merge("approvers" => [ workspace_memberships(:bob_workspace_one).id ], "notify" => "dm") }
+    assert rule.valid?
+
+    agent = workspace.agents.create!(name: "Grok", slug: "grok")
+    rule.outcome = { "require" => base.merge("approvers" => [ { "kind" => "agent", "id" => agent.id } ]) }
+    assert_not rule.valid?
+    assert_match "agents_may_approve", rule.errors[:outcome].join
+
+    rule.outcome = { "require" => base.merge("approvers" => [ { "kind" => "agent", "id" => agent.id } ], "agents_may_approve" => true) }
+    assert rule.valid?
+  end
+
+  test "approval conditions round-trip through the three dialog questions" do
+    conditions = PolicyRule::ApprovalConditions.build(
+      action_keys: [ "catalog.delete", "" ], risk_levels: [], environments: [ "env-1" ]
+    )
+
+    assert_equal 2, conditions.size
+    assert_equal [ "catalog.delete" ], PolicyRule::ApprovalConditions.values_for(conditions, "action_key")
+    assert_equal [], PolicyRule::ApprovalConditions.values_for(conditions, "risk_level")
+    assert_equal [ "env-1" ], PolicyRule::ApprovalConditions.values_for(conditions, "environment")
+  end
 end
