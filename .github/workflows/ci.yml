@@ -35,6 +35,27 @@ jobs:
       - name: Scan for known security vulnerabilities in gems used
         run: bin/bundler-audit
       
+  archspec:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Architecture boundaries hold with no grandfathered exceptions
+        run: |
+          if ruby -ryaml -e 'exit(YAML.safe_load_file("archspec_todo.yml").fetch("violations").empty? ? 0 : 1)'; then
+            :
+          else
+            echo "::error::archspec_todo.yml lists violations. The grandfathered list was emptied on 2026-08-25 and stays empty: a new boundary violation means the code is in the wrong place."
+            exit 1
+          fi
+          bundle exec archspec check
+
   lint:
     runs-on: ubuntu-latest
     env:
