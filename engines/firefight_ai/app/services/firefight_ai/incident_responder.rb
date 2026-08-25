@@ -25,11 +25,11 @@ module FirefightAi
         Inference.track(
           workspace: @workspace,
           feature:   feature,
-          provider:  Inference.provider_for(ai_model),
-          model:     ai_model,
+          provider:  ai_model.provider_name,
+          model:     ai_model.model,
           inferable: incident
         ) do
-          chat = RubyLLM.chat(model: ai_model)
+          chat = FirefightAi.chat(ai_model)
           chat.with_instructions(system_prompt)
           chat.ask(prompt_text)
         end
@@ -139,7 +139,7 @@ module FirefightAi
     end
 
     def ai_model
-      @ai_model ||= FirefightAi.model_for("INCIDENT_AI_MODEL", "gpt-4o-mini")
+      @ai_model ||= FirefightAi.model_for(AiPurpose::INCIDENT_RESPONSE, workspace: @workspace)
     end
   end
 end

@@ -5,7 +5,9 @@ module FirefightAi
     initializer "firefight_ai.configure_llm" do
       config.after_initialize do
         RubyLLM.configure do |c|
-          c.openai_api_key  = FirefightAi.configuration.openai_api_key if FirefightAi.configuration.openai_api_key.present?
+          FirefightAi.configuration.provider_settings.each do |setting, value|
+            c.public_send("#{setting}=", value) if value.present?
+          end
           c.request_timeout = FirefightAi.configuration.request_timeout
         end
       end

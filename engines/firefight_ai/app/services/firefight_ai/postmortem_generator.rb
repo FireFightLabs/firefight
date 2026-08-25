@@ -19,7 +19,7 @@ module FirefightAi
         title: ai_result["title"] || ai_result[:title],
         summary: ai_result["summary"] || ai_result[:summary],
         sections: sections.compact,
-        model: ai_model
+        model: ai_model.model
       )
     end
 
@@ -30,11 +30,11 @@ module FirefightAi
         Inference.track(
           workspace: @workspace,
           feature:   "postmortem_generate",
-          provider:  Inference.provider_for(ai_model),
-          model:     ai_model,
+          provider:  ai_model.provider_name,
+          model:     ai_model.model,
           inferable: incident
         ) do
-          chat = RubyLLM.chat(model: ai_model)
+          chat = FirefightAi.chat(ai_model)
           chat.with_instructions(system_prompt)
           chat.with_schema(Schemas::Postmortem)
           chat.ask(user_prompt(prompt_data, summary))
@@ -44,7 +44,7 @@ module FirefightAi
     end
 
     def ai_model
-      @ai_model ||= FirefightAi.model_for("POSTMORTEM_AI_MODEL", "gpt-4o")
+      @ai_model ||= FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace)
     end
 
     def system_prompt
