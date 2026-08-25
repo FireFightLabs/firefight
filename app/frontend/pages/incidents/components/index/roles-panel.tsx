@@ -29,12 +29,12 @@ export function RolesPanel({
   roles,
   incidentId,
   candidates,
-  canEdit,
+  blockedReason,
 }: {
   roles: Incident["roles"]
   incidentId: string
   candidates: InlineChoice[]
-  canEdit: boolean
+  blockedReason?: string | null
 }) {
   if (roles.length === 0) {
     return null
@@ -55,7 +55,7 @@ export function RolesPanel({
               selected={role.memberId ?? UNASSIGNED}
               path={assignIncidentRolePath(incidentId)}
               payload={(value) => ({ role: role.slug, member_id: value })}
-              disabled={!canEdit}
+              blockedReason={blockedReason}
               align="end"
             />
           </li>

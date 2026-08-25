@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 export type InlineChoice = { value: string; label: string }
 
@@ -21,7 +22,7 @@ export function InlineSelect({
   selected,
   path,
   payload,
-  disabled,
+  blockedReason,
   align = "start",
 }: {
   trigger: React.ReactNode
@@ -29,7 +30,7 @@ export function InlineSelect({
   selected?: string | null
   path: string
   payload: (value: string) => Record<string, string>
-  disabled?: boolean
+  blockedReason?: string | null
   align?: "start" | "end"
 }) {
   const [saving, setSaving] = useState(false)
@@ -46,8 +47,17 @@ export function InlineSelect({
     })
   }
 
-  if (disabled) {
-    return <>{trigger}</>
+  // Inert rather than absent, and it says why. A control that vanishes leaves
+  // the reader working out what happened to it.
+  if (blockedReason) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-default opacity-70">{trigger}</span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64">{blockedReason}</TooltipContent>
+      </Tooltip>
+    )
   }
 
   return (

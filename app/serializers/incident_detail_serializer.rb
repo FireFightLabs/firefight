@@ -26,6 +26,13 @@ class IncidentDetailSerializer < BaseSerializer
     incident.lead
   end
 
+  # The sentence a blocked control shows instead of vanishing. Nil while the
+  # incident can still be changed.
+  type :string, optional: true
+  def change_blocked_reason
+    incident.change_blocked_reason
+  end
+
   # The chip renders a person, the lead picker needs the row it points at.
   # Matching the chip's name back to a member breaks the moment two people
   # share a display name.

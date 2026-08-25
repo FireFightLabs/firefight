@@ -141,6 +141,15 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("it can no longer be assigned a lead")
   end
 
+  # Why a responder surface can no longer change this incident, or nil. The
+  # lead and role guards each state this rule in their own words, for the same
+  # reason: every change announces itself in a channel that may already be
+  # archived. Surfaces ask for the sentence rather than deciding what terminal
+  # means for themselves.
+  def change_blocked_reason
+    terminal_blocked_reason("it can no longer be changed")
+  end
+
   # Named after the role rather than the verb. A workspace renames these, and
   # the same sentence has to cover clearing a role as well as filling one.
   def role_assignment_blocked_reason(role)

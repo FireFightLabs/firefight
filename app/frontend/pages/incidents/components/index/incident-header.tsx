@@ -16,26 +16,33 @@ import { InlineSelect } from "@/pages/incidents/components/index/inline-select"
 import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
 import type { LinkableIncident } from "@/pages/incidents/components/index/link-incident-dialog"
 import { StatusIcon } from "@/pages/dashboard/components/status-icon"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { assignIncidentRolePath } from "@/lib/routes"
-import { LEAD_ROLE_SLUG, LIFECYCLE_STAGES } from "@/lib/generated/constants"
-
-const TERMINAL_STAGES: string[] = [ LIFECYCLE_STAGES.CLOSED, LIFECYCLE_STAGES.CANCELED ]
+import { LEAD_ROLE_SLUG } from "@/lib/generated/constants"
 
 // The badge itself is the affordance. A responder clicking it is asking to
-// change the incident, and the workspace's Update form is what asks how.
+// change the incident, and the workspace's Update form is what asks how. Once
+// the incident is over the badge stays put and says why it no longer opens.
 function EditableBadge({
-  editable,
+  blockedReason,
   onEdit,
   label,
   children,
 }: {
-  editable: boolean
+  blockedReason?: string | null
   onEdit: () => void
   label: string
   children: React.ReactNode
 }) {
-  if (!editable) {
-    return <>{children}</>
+  if (blockedReason) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-default opacity-70">{children}</span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64">{blockedReason}</TooltipContent>
+      </Tooltip>
+    )
   }
 
   return (
@@ -71,8 +78,9 @@ export function IncidentHeader({
   // workspace requires. The lead has its own dedicated modal in Slack, so it
   // gets a dropdown here for the same reason.
   const [updating, setUpdating] = useState(false)
-  const terminal = TERMINAL_STAGES.includes(incident.status.lifecycleStage)
-  const editable = canEdit && !terminal
+  // The model owns why an incident can no longer be changed. Working it out
+  // from the lifecycle stage here would be the same rule written twice.
+  const blockedReason = canEdit ? incident.changeBlockedReason : "You do not have permission to change incidents."
 
   function openUpdate() {
     setUpdating(true)
@@ -90,12 +98,12 @@ export function IncidentHeader({
     <header className="mb-10">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <EditableBadge editable={editable} onEdit={openUpdate} label="Change severity">
+          <EditableBadge blockedReason={blockedReason} onEdit={openUpdate} label="Change severity">
             <Badge className="min-w-24 justify-center py-1" style={severityBadgeStyle(incident.severity.color)}>
               {incident.severity.name}
             </Badge>
           </EditableBadge>
-          <EditableBadge editable={editable} onEdit={openUpdate} label="Change status">
+          <EditableBadge blockedReason={blockedReason} onEdit={openUpdate} label="Change status">
             <Badge
               style={{
                 backgroundColor: `${incident.status.color}33`,
@@ -153,7 +161,7 @@ export function IncidentHeader({
             selected={incident.leadId ?? null}
             path={assignIncidentRolePath(incident.id)}
             payload={leadPayload}
-            disabled={!editable}
+            blockedReason={blockedReason}
           />
         </MetaCell>
         <MetaCell label="Declared by">

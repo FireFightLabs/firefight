@@ -158,6 +158,40 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_equal other, @incident.duplicate_of
   end
 
+  # What a blocked control shows
+
+  test "a live incident blocks nothing" do
+    assert_nil @incident.change_blocked_reason
+  end
+
+  test "an incident that is over says why it can no longer be changed" do
+    IncidentLifecycleService.new(@workspace).change_status(
+      @incident, { incident_status: @workspace.incident_statuses.closed.active.first }, changed_by: @member
+    )
+
+    assert_equal "#{@incident.identifier} is closed, so it can no longer be changed.",
+                 @incident.reload.change_blocked_reason
+  end
+
+  test "a canceled incident says canceled rather than closed" do
+    IncidentLifecycleService.new(@workspace).change_status(
+      @incident, { incident_status: @workspace.default_canceled_status }, changed_by: @member
+    )
+
+    assert_match(/is canceled/, @incident.reload.change_blocked_reason)
+  end
+
+  test "the page ships the reason so the control can explain itself" do
+    IncidentLifecycleService.new(@workspace).change_status(
+      @incident, { incident_status: @workspace.incident_statuses.closed.active.first }, changed_by: @member
+    )
+
+    get incident_path(@incident), headers: inertia_headers
+    assert_response :success
+
+    assert_equal @incident.reload.change_blocked_reason, inertia_props.dig("incident", "changeBlockedReason")
+  end
+
   # Scoping
 
   test "another workspace's incident is not reachable" do

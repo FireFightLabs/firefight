@@ -18,23 +18,24 @@ import {
 } from "@/pages/incidents/components/index/lifecycle-form-dialog"
 import {
   LinkIncidentDialog,
+  type LinkableIncident,
   type Relationship,
 } from "@/pages/incidents/components/index/link-incident-dialog"
 import { incidentReopenPath } from "@/lib/routes"
-import { INCIDENT_RELATIONSHIPS, LIFECYCLE_STAGES } from "@/lib/generated/constants"
-
-const TERMINAL_STAGES: string[] = [ LIFECYCLE_STAGES.CLOSED, LIFECYCLE_STAGES.CANCELED ]
+import { INCIDENT_RELATIONSHIPS } from "@/lib/generated/constants"
 
 export function IncidentMenu({
   incident,
   linkable,
 }: {
   incident: Incident
-  linkable: { id: string; identifier: string; name: string | null }[]
+  linkable: LinkableIncident[]
 }) {
   const [form, setForm] = useState<LifecycleForm | null>(null)
   const [relationship, setRelationship] = useState<Relationship | null>(null)
-  const terminal = TERMINAL_STAGES.includes(incident.status.lifecycleStage)
+  // The model decides this, not a stage list kept here. An incident that can
+  // no longer be changed is one that has to be reopened first.
+  const terminal = Boolean(incident.changeBlockedReason)
 
   function openUpdate() {
     setForm("update")

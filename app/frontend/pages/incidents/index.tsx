@@ -54,6 +54,9 @@ export default function IncidentPage() {
     incident.status.lifecycleStage,
   );
   const canEditIncident = useCan("incidents");
+  const rolesBlockedReason = canEditIncident
+    ? incident.changeBlockedReason
+    : "You do not have permission to change incidents.";
 
   return (
     <AuthenticatedLayout title={incident.name}>
@@ -108,7 +111,7 @@ export default function IncidentPage() {
                 roles={incident.roles}
                 incidentId={incident.id}
                 candidates={memberChoices}
-                canEdit={canEditIncident}
+                blockedReason={rolesBlockedReason}
               />
               <Deferred data="actions" fallback={<ActionsSkeleton />}>
                 <IncidentActionsSidebar
