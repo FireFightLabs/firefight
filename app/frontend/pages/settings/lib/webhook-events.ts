@@ -21,6 +21,7 @@ const EVENT_LABELS: Record<WebhookEvent, string> = {
   "relationship.created": "Relationship created",
   "incident.marked_duplicate": "Incident marked duplicate",
   "incident.merged_into": "Incident merged into",
+  "milestone.noted": "AI note added",
 }
 
 export const subscribableEvents = WEBHOOK_EVENTS.map((value) => ({ value, label: EVENT_LABELS[value] }))

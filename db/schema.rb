@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_170001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -731,6 +731,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_170000) do
     t.uuid "incident_type_id"
     t.string "source", null: false
     t.uuid "source_api_key_id"
+    t.string "milestones_noted_through"
     t.index ["declared_at"], name: "index_incidents_on_declared_at"
     t.index ["declared_by_id"], name: "index_incidents_on_declared_by_id"
     t.index ["detected_at"], name: "index_incidents_on_detected_at"

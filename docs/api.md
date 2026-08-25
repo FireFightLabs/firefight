@@ -17,6 +17,7 @@ REST API at `/api/v1/` with Bearer token authentication via `ApiKey` model. API 
 app/controllers/concerns/api_authentication.rb  # Bearer token auth + permission checking
 app/controllers/api/v1/api_controller.rb        # Base controller (error handling, pagination)
 app/controllers/api/v1/incidents_controller.rb   # Incident CRUD
+app/controllers/api/v1/timeline_controller.rb    # Incident timeline (index) + dismiss one AI note
 app/controllers/api/v1/custom_fields_controller.rb # Custom field values
 app/controllers/api/v1/catalog/                  # Catalogue read/write endpoints
 app/controllers/api/v1/severities_controller.rb  # Read-only
@@ -34,6 +35,8 @@ app/models/api_key.rb                            # Token auth, permissions, cach
 app/models/idempotency_key.rb                    # Deduplication
 app/views/api/v1/                                # Jbuilder response templates
 ```
+
+**Timeline endpoints**: `GET /api/v1/incidents/:incident_id/timeline` returns the incident's recorded events in order, paginated, each with `event_type`, `description`, `actor` and, for `milestone.noted`, a `milestone` object carrying `kind`, `statement`, `said_by`, `message_text` and `permalink`. That is how an agent learns how an incident was debugged without reading the channel. `PATCH /api/v1/incidents/:incident_id/timeline/:id/dismiss` (`incidents:update`) dismisses one AI note. Anything that is not a note is refused 422. Dismissed notes leave the index, matching the MCP `get_incident` timeline and `dismiss_timeline_note`.
 
 **Gateway endpoints**: everything under Gateway → Permissions is reachable over REST, through the same model calls the dashboard uses (`Ability::Principal.find!`, `Ability::Grant.grant!`/`#rescope!`, `Ability::Role#sync_actions!`, `PolicyRule::ApprovalRuleChanges.attributes`). They authorize as `permissions:*`, which is admin-only, so only an admin's personal token reaches them. Principals are addressed by `principal_kind` (`user`, `agent`, `api_key`) plus id, abilities by key, sets by slug, environments by catalog slug. Approving or denying an approval additionally requires `Current.principal` to be a `WorkspaceMembership`, since `Ability::Approval#resolve!` takes a membership.
 

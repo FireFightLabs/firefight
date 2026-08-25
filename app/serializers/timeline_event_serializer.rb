@@ -64,6 +64,9 @@ class TimelineEventSerializer < BaseSerializer
     when IncidentEvent::INCIDENT_ESCALATED, IncidentEvent::ESCALATION_NUDGED
       member_person(event.references&.member(meta[:escalated_to_member_id])) ||
         named_person(meta[:escalated_to_name], meta[:escalated_to_avatar_url])
+    when IncidentEvent::MILESTONE_NOTED
+      member_person(event.references&.member(meta[:member_id])) ||
+        named_person(meta[:member_name], meta[:member_avatar_url])
     end
   end
 
@@ -77,6 +80,28 @@ class TimelineEventSerializer < BaseSerializer
       description: update.description,
       status: update.status,
       assignee: member_person(update.assignee)
+    }
+  end
+
+  MILESTONE_KIND_UNION = IncidentEvent::MILESTONE_KINDS.map(&:inspect).join(" | ")
+  MILESTONE_TYPE = "{ kind: #{MILESTONE_KIND_UNION}; statement: string; " \
+                   "quote: string | null; permalink: string | null; " \
+                   "dismissedAt: string | null; dismissedBy: string | null }".freeze
+
+  # Everything the row needs to render the note, the quote card and the
+  # dismissed group, read from what the noting pass stored.
+  type MILESTONE_TYPE, optional: true
+  def milestone
+    return nil unless event.milestone?
+
+    meta = event.metadata.to_h.with_indifferent_access
+    {
+      kind: meta[:kind],
+      statement: meta[:statement].to_s,
+      quote: meta[:message_text].presence,
+      permalink: meta[:permalink].presence,
+      dismissedAt: meta[:dismissed_at].presence,
+      dismissedBy: dismissed_by_name(meta)
     }
   end
 
@@ -142,8 +167,17 @@ class TimelineEventSerializer < BaseSerializer
 
   PERSON_EVENTS = [
     IncidentEvent::LEAD_ASSIGNED, IncidentEvent::ROLE_ASSIGNED,
-    IncidentEvent::INCIDENT_ESCALATED, IncidentEvent::ESCALATION_NUDGED
+    IncidentEvent::INCIDENT_ESCALATED, IncidentEvent::ESCALATION_NUDGED,
+    IncidentEvent::MILESTONE_NOTED
   ].freeze
+
+  # A note whose author has left the workspace still says who dismissed it,
+  # and a machine that dismissed one never had a member row to resolve.
+  def dismissed_by_name(meta)
+    return nil if meta[:dismissed_at].blank?
+
+    event.references&.member(meta[:dismissed_by_member_id])&.display_name || meta[:dismissed_by_name].presence
+  end
 
   def person_backed?
     PERSON_EVENTS.include?(event.event_type)

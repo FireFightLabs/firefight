@@ -3,7 +3,8 @@ module AiPurpose
   POSTMORTEM = "postmortem"
   INCIDENT_RESPONSE = "incident_response"
   SUMMARY = "summary"
-  ALL = [ POSTMORTEM, INCIDENT_RESPONSE, SUMMARY ].freeze
+  MILESTONES = "milestones"
+  ALL = [ POSTMORTEM, INCIDENT_RESPONSE, SUMMARY, MILESTONES ].freeze
 
   ANY = "any"
   OVERRIDABLE = (ALL + [ ANY ]).freeze

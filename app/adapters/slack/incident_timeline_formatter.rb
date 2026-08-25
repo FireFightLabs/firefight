@@ -20,7 +20,8 @@ module Slack
       IncidentEvent::MESSAGE_UNPINNED => { emoji: ":round_pushpin:", title: "Message unpinned" },
       IncidentEvent::MESSAGE_FILE_SHARED => { emoji: ":paperclip:", title: "File shared" },
       IncidentEvent::ESCALATION_ACKNOWLEDGED => { emoji: ":white_check_mark:", title: "Escalation acknowledged" },
-      IncidentEvent::ESCALATION_NUDGED => { emoji: ":bell:", title: "Escalation reminder sent" }
+      IncidentEvent::ESCALATION_NUDGED => { emoji: ":bell:", title: "Escalation reminder sent" },
+      IncidentEvent::MILESTONE_NOTED => { emoji: ":sparkles:", title: "AI note" }
     }.freeze
 
     def self.to_text(event)
@@ -103,6 +104,9 @@ module Slack
         "by <@#{details['acknowledged_by_platform_user_id']}>"
       when IncidentEvent::ESCALATION_NUDGED
         "to <@#{details['escalated_to_platform_user_id']}>"
+      when IncidentEvent::MILESTONE_NOTED
+        link = details["permalink"].present? ? "<#{details['permalink']}|Open in Slack>" : nil
+        [ details["statement"], link ].compact.join(" · ")
       else
         eventable = event.eventable
         message = if eventable&.respond_to?(:message)

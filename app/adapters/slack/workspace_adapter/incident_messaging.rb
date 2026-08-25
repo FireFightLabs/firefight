@@ -405,11 +405,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def build_timeline_view(incident, offset: 0)
-    total_events = incident.incident_events.count
+    total_events = incident.incident_events.undismissed.count
     # Events can be written while a modal sits open, so a stale offset is
     # clamped back onto the timeline rather than rendering an empty window.
     offset = offset.to_i.clamp(0, [ total_events - 1, 0 ].max)
-    events = incident.incident_events.includes(:eventable).recent.offset(offset).limit(TIMELINE_PAGE_SIZE).reverse
+    events = incident.incident_events.undismissed.includes(:eventable).recent.offset(offset).limit(TIMELINE_PAGE_SIZE).reverse
     return nil if events.empty?
 
     lead_text = incident.lead ? "<@#{incident.lead.platform_user_id}>" : "Unassigned"

@@ -158,7 +158,8 @@ export const WEBHOOK_EVENTS = [
   "postmortem.edited",
   "relationship.created",
   "incident.marked_duplicate",
-  "incident.merged_into"
+  "incident.merged_into",
+  "milestone.noted"
 ] as const
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number]
 

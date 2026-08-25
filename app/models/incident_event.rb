@@ -1,4 +1,9 @@
 class IncidentEvent < ApplicationRecord
+  # Raised when something that is not an AI-noted milestone is asked to be
+  # dismissed. Dismissal is error correction on a note, never a way to hide
+  # what a person did.
+  class NotDismissable < StandardError; end
+
   INCIDENT_CREATED = "incident.created"
   INCIDENT_UPDATED = "incident.updated"
   LEAD_ASSIGNED = "lead.assigned"
@@ -27,6 +32,23 @@ class IncidentEvent < ApplicationRecord
   ALERT_RESOLVED = "alert.resolved"
   RUNBOOK_ATTACHED = "runbook.attached"
   RUNBOOK_APPLIED = "runbook.applied"
+  MILESTONE_NOTED = "milestone.noted"
+
+  # What a milestone note is about. The extractor picks one per note and the
+  # timeline colours the entry from it.
+  MILESTONE_HYPOTHESIS = "hypothesis"
+  MILESTONE_FINDING = "finding"
+  MILESTONE_ROOT_CAUSE = "root_cause"
+  MILESTONE_MITIGATION = "mitigation"
+  MILESTONE_DECISION = "decision"
+  MILESTONE_BLOCKER = "blocker"
+  MILESTONE_IMPACT = "impact"
+  MILESTONE_RECOVERY = "recovery"
+
+  MILESTONE_KINDS = [
+    MILESTONE_HYPOTHESIS, MILESTONE_FINDING, MILESTONE_ROOT_CAUSE, MILESTONE_MITIGATION,
+    MILESTONE_DECISION, MILESTONE_BLOCKER, MILESTONE_IMPACT, MILESTONE_RECOVERY
+  ].freeze
 
   EVENT_TYPES = [
     INCIDENT_CREATED, INCIDENT_UPDATED, INCIDENT_ACCEPTED, LEAD_ASSIGNED,
@@ -37,7 +59,8 @@ class IncidentEvent < ApplicationRecord
     MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED,
     ESCALATION_ACKNOWLEDGED, ESCALATION_NUDGED,
     ALERT_ATTACHED, ALERT_RESOLVED,
-    RUNBOOK_ATTACHED, RUNBOOK_APPLIED
+    RUNBOOK_ATTACHED, RUNBOOK_APPLIED,
+    MILESTONE_NOTED
   ].freeze
 
   EVENT_DESCRIPTIONS = {
@@ -68,7 +91,8 @@ class IncidentEvent < ApplicationRecord
     ALERT_ATTACHED => "attached the alert",
     ALERT_RESOLVED => "resolved the alert",
     RUNBOOK_ATTACHED => "attached the runbook",
-    RUNBOOK_APPLIED => "added runbook steps as actions"
+    RUNBOOK_APPLIED => "added runbook steps as actions",
+    MILESTONE_NOTED => "noted"
   }.freeze
 
   # Only events backed by a Recordable snapshot appear here. Action-only events
@@ -108,6 +132,27 @@ class IncidentEvent < ApplicationRecord
   has_one_attached :artifact
   has_many :webhook_deliveries, dependent: :delete_all
 
+  def milestone?
+    event_type == MILESTONE_NOTED
+  end
+
+  def dismissed?
+    metadata.to_h["dismissed_at"].present?
+  end
+
+  # Error correction, not deletion. The row stays, and the dashboard files it
+  # under the day's dismissed notes. Any principal may dismiss, so the name is
+  # always stored and the member id only when a person did it.
+  def dismiss!(by:)
+    raise NotDismissable, "Only AI-noted milestones can be dismissed." unless milestone?
+
+    update!(metadata: metadata.to_h.merge({
+      "dismissed_at" => Time.current.iso8601,
+      "dismissed_by_member_id" => by.is_a?(WorkspaceMembership) ? by.id : nil,
+      "dismissed_by_name" => by&.actor_display_name
+    }.compact))
+  end
+
   def escalation_acknowledged?
     metadata&.dig("acknowledged_by_platform_user_id").present?
   end
@@ -118,6 +163,9 @@ class IncidentEvent < ApplicationRecord
   validate :eventable_matches_event_type
 
   scope :chronological, -> { order(created_at: :asc) }
+  # A dismissed note was a wrong reading. It stays on the row so the
+  # correction is visible in the dashboard, and every other surface skips it.
+  scope :undismissed, -> { where("metadata->>'dismissed_at' IS NULL") }
   scope :recent, -> { order(created_at: :desc) }
   scope :updates, -> { where(eventable_type: "IncidentUpdate") }
   scope :action_updates, -> { where(eventable_type: "IncidentActionUpdate") }
@@ -174,11 +222,16 @@ class IncidentEvent < ApplicationRecord
     when INCIDENT_ESCALATED, ESCALATION_NUDGED then meta["escalated_to_name"]
     when ROLE_ASSIGNED then meta["member_name"]
     when LEAD_ASSIGNED then eventable&.lead&.actor_display_name
+    when MILESTONE_NOTED then meta["statement"]
     end
   end
 
   def to_context_hash
-    { type: event_type, at: created_at.iso8601, by: actor_name, description: description }
+    base = { type: event_type, at: created_at.iso8601, by: actor_name, description: description }
+    return base unless milestone?
+
+    meta = metadata.to_h
+    base.merge(kind: meta["kind"], said_by: meta["member_name"]).compact
   end
 
   private

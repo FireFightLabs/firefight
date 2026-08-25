@@ -30,7 +30,7 @@ class IncidentCloseWorkflowTest < ActiveSupport::TestCase
     workflow = IncidentCloseWorkflow.start_inline!(@incident, context: workflow_context)
 
     assert_equal "succeeded", workflow.state
-    assert_equal 5, workflow.steps.count
+    assert_equal 6, workflow.steps.count
     assert workflow.steps.all?(&:succeeded?)
   end
 

@@ -284,7 +284,28 @@ Adding a new trackable model: create the snapshot table (mirroring tracked colum
 
 **Domain event publication** runs from `IncidentEvent`'s `after_create_commit :publish_to_event_bus` → `ProcessDomainEventJob`. The commit hook lives on the model because the canonical "this event happened" moment is the event row's commit; pushing publication into the service layer means every event-creation site has to remember to publish, and we'd lose events on accidental raw `incident_events.create!`.
 
-**Events without a recordable** (`MESSAGE_PINNED`, `INCIDENT_ESCALATED`, `ESCALATION_ACKNOWLEDGED`, `RELATIONSHIP_CREATED`, etc.) are still created directly with `incident.incident_events.create!(event_type:, user:, metadata:)`. They have no eventable; their payload lives flat in `metadata` (no `details:` nesting).
+**Events without a recordable** (`MESSAGE_PINNED`, `INCIDENT_ESCALATED`, `ESCALATION_ACKNOWLEDGED`, `RELATIONSHIP_CREATED`, `MILESTONE_NOTED`, etc.) are still created directly with `incident.incident_events.create!(event_type:, user:, metadata:)`. They have no eventable; their payload lives flat in `metadata` (no `details:` nesting).
+
+### `MILESTONE_NOTED` metadata contract
+
+`milestone.noted` is what an AI pass read out of the channel transcript once the incident ended (see [ai.md](ai.md)). It is metadata-only like a pin, and its metadata is the whole contract every surface renders from:
+
+| Key | Is |
+|---|---|
+| `kind` | One of `IncidentEvent::MILESTONE_KINDS`: `hypothesis`, `finding`, `root_cause`, `mitigation`, `decision`, `blocker`, `impact`, `recovery` |
+| `statement` | The one-sentence note, already naming the person it belongs to |
+| `member_id`, `member_name`, `member_avatar_url` | Who said it, stored at write time so a surface never resolves an id to render the row |
+| `message_id`, `message_text`, `permalink`, `said_at` | The single source message: its id, the scrubbed quote, its Slack link, and when it was said |
+| `confidence` | What the model reported, kept for tuning `MIN_CONFIDENCE` against real dismissal rates |
+| `inference_id` | The ledger row for the pass, so a note traces to its cost in Gateway → Activity |
+| `dismissed_at`, `dismissed_by_member_id`, `dismissed_by_name` | Set by `IncidentEvent#dismiss!`, absent until someone corrects the note |
+
+Two rules that are easy to get wrong:
+
+- **`actor` is nil.** Firefight noted it, so the sentence reads "Firefight noted". The person in `member_*` is who *said* the thing, not who performed an action, and `IncidentEvent::References` resolves them for the avatar.
+- **`created_at` is the source message's time, not the pass's.** That is what puts the note where the conversation was rather than at the end of the incident, and it means every surface orders it correctly through `chronological` without a special case.
+
+`IncidentEvent.undismissed` is the scope every text surface reads through. Dismissal keeps the row and hides it. Only the dashboard shows dismissed notes, collected at the end of their day.
 
 ## Outbound Webhooks
 

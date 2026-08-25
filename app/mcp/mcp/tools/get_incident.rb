@@ -22,7 +22,7 @@ module Mcp
         incident = find_by_reference(scope, reference)
         raise ActiveRecord::RecordNotFound unless incident
 
-        events = incident.incident_events.order(created_at: :desc).limit(TIMELINE_LIMIT + 1).to_a
+        events = incident.incident_events.undismissed.order(created_at: :desc).limit(TIMELINE_LIMIT + 1).to_a
         respond(
           **SearchIncidents.summary(incident),
           channel_id: incident.channel_id,
@@ -60,6 +60,7 @@ module Mcp
       def self.timeline_entry(event)
         {
           event: event.event_type,
+          kind: event.metadata.to_h["kind"],
           description: event.description,
           at: event.created_at.utc.iso8601,
           metadata: event.metadata.presence

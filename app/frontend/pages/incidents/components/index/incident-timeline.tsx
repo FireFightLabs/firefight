@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Link } from "@inertiajs/react"
 import {
   IconAlertTriangle,
@@ -5,6 +6,8 @@ import {
   IconBellCheck,
   IconBellRinging,
   IconBook,
+  IconChevronDown,
+  IconChevronRight,
   IconCircleCheck,
   IconCirclePlus,
   IconCircleX,
@@ -20,12 +23,19 @@ import {
   IconPencil,
   IconPin,
   IconPinnedOff,
+  IconSparkles,
   IconUserCheck,
   IconUserX,
 } from "@tabler/icons-react"
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { TimelineEvent } from "@/pages/incidents/types"
 import { PersonChip } from "@/pages/incidents/components/index/person-chip"
+import {
+  DismissNoteAction,
+  NoteQuote,
+  noteAccent,
+} from "@/pages/incidents/components/index/timeline-note"
 import { TimelineFileAttachment } from "@/pages/incidents/components/index/timeline-file-attachment"
 import { revealAction } from "@/pages/incidents/lib/action-anchor"
 import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
@@ -61,6 +71,7 @@ const eventIcons: Record<EventType, typeof IconFlame> = {
   "alert.resolved": IconBellCheck,
   "runbook.attached": IconBook,
   "runbook.applied": IconListCheck,
+  "milestone.noted": IconSparkles,
 }
 
 type DotAccent = "primary" | "emerald" | "amber" | "rose" | "violet" | "neutral"
@@ -113,9 +124,19 @@ function formatDate(dateStr: string): string {
   })
 }
 
+function dotAccent(event: TimelineEvent): DotAccent {
+  if (event.milestone) {
+    return noteAccent[event.milestone.kind]
+  }
+  if (event.automated) {
+    return "neutral"
+  }
+  return eventAccent[event.eventType] ?? "neutral"
+}
+
 function EventDot({ event }: { event: TimelineEvent }) {
-  const Icon = event.automated ? IconFlame : eventIcons[event.eventType]
-  const accent: DotAccent = event.automated ? "neutral" : eventAccent[event.eventType] ?? "neutral"
+  const Icon = event.automated && !event.milestone ? IconFlame : eventIcons[event.eventType]
+  const accent = dotAccent(event)
 
   return (
     <div className={`flex size-[28px] items-center justify-center overflow-hidden rounded-full border ${solidAccent[accent]}`}>
@@ -128,7 +149,38 @@ function EventDot({ event }: { event: TimelineEvent }) {
   )
 }
 
+// The note's statement already names the person, so the chip would say it
+// twice. The avatar alone attributes it and keeps the sentence readable.
+function NoteStatement({ event }: { event: TimelineEvent }) {
+  const person = event.person
+  const milestone = event.milestone
+
+  if (!milestone) {
+    return null
+  }
+
+  // flex-1 with a zero basis keeps the statement on the same line as the stem
+  // and lets a long one wrap inside itself, rather than the whole avatar and
+  // sentence dropping to a line of their own.
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-2">
+      {person && (
+        <Avatar className="size-5 shrink-0">
+          {person.avatarUrl ? <AvatarImage src={person.avatarUrl} alt={person.name} /> : null}
+          <AvatarFallback className="bg-primary/20 text-[10px] font-semibold text-primary">
+            {person.initials}
+          </AvatarFallback>
+        </Avatar>
+      )}
+      <span className="font-medium text-foreground">{milestone.statement}</span>
+    </span>
+  )
+}
+
 function EventSubject({ event }: { event: TimelineEvent }) {
+  if (event.milestone) {
+    return <NoteStatement event={event} />
+  }
   if (event.person) {
     return <PersonChip person={event.person} fallback="" />
   }
@@ -196,7 +248,7 @@ function PinCard({ pin, withDivider }: { pin: NonNullable<TimelineEvent["pin"]>;
   return (
     <div className={withDivider ? "mt-2 border-t border-border pt-2" : ""}>
       {pin.text && (
-        <blockquote className="border-l-2 border-border pl-3 text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
+        <blockquote className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
           {pin.text}
         </blockquote>
       )}
@@ -219,10 +271,11 @@ function EventCard({ event }: { event: TimelineEvent }) {
   const hasChanges = Boolean(event.changes && event.changes.length > 0)
   const hasAction = Boolean(event.action)
   const hasPin = Boolean(event.pin && (event.pin.text || event.pin.permalink))
+  const hasNote = Boolean(event.milestone)
   const hasDetails = Boolean(event.details)
   const hasFile = Boolean(event.file)
 
-  if (!hasChanges && !hasAction && !hasPin && !hasDetails && !hasFile) {
+  if (!hasChanges && !hasAction && !hasPin && !hasNote && !hasDetails && !hasFile) {
     return null
   }
 
@@ -231,62 +284,183 @@ function EventCard({ event }: { event: TimelineEvent }) {
       {event.changes && hasChanges && <ChangeList changes={event.changes} />}
       {event.action && <ActionCard action={event.action} />}
       {event.pin && hasPin && <PinCard pin={event.pin} withDivider={hasChanges || hasAction} />}
+      {event.milestone && (
+        <NoteQuote milestone={event.milestone} withDivider={hasChanges || hasAction || hasPin} />
+      )}
       {event.details && (
-        <p className={`text-sm leading-relaxed text-muted-foreground ${hasChanges || hasAction || hasPin ? "mt-2 border-t border-border pt-2" : ""}`}>
+        <p className={`text-sm leading-relaxed text-muted-foreground ${hasChanges || hasAction || hasPin || hasNote ? "mt-2 border-t border-border pt-2" : ""}`}>
           {event.details}
         </p>
       )}
       {event.file && (
-        <TimelineFileAttachment file={event.file} withDivider={hasChanges || hasAction || hasPin || hasDetails} />
+        <TimelineFileAttachment file={event.file} withDivider={hasChanges || hasAction || hasPin || hasNote || hasDetails} />
       )}
     </div>
   )
 }
 
-export function IncidentTimeline({ events }: { events: TimelineEvent[] }) {
+function EventRow({
+  event,
+  incidentId,
+  canDismiss,
+  connected,
+}: {
+  event: TimelineEvent
+  incidentId: string
+  canDismiss: boolean
+  connected: boolean
+}) {
+  const highlight = highlightEvents.includes(event.eventType)
+  const dismissable = Boolean(event.milestone) && !event.milestone?.dismissedAt && canDismiss
+
+  return (
+    <div className="relative pb-5">
+      {connected && <div aria-hidden className="absolute left-[14px] top-7 bottom-0 w-px bg-border" />}
+
+      <div className="group flex items-center gap-4">
+        <div className="relative z-10 shrink-0">
+          <EventDot event={event} />
+        </div>
+
+        {/* The sentence wraps on its own. Time and actions sit outside it so a
+            long note never pushes them onto a second line. */}
+        <div className="flex flex-1 min-w-0 items-center gap-2 flex-wrap text-sm">
+          <span className={`font-medium ${highlight ? "text-foreground" : "text-foreground/95"}`}>
+            {event.actor}
+          </span>
+          <span className="text-muted-foreground">{event.description}</span>
+          <EventSubject event={event} />
+        </div>
+
+        <span className="flex shrink-0 items-center gap-1">
+          <span className="text-xs tabular-nums text-muted-foreground/80">
+            {formatTime(event.createdAt)}
+          </span>
+          {dismissable && (
+            <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+              <DismissNoteAction event={event} incidentId={incidentId} />
+            </span>
+          )}
+        </span>
+      </div>
+
+      <EventCard event={event} />
+    </div>
+  )
+}
+
+function DismissedNotes({ notes, connected }: { notes: TimelineEvent[]; connected: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+
+  function toggle() {
+    setExpanded(!expanded)
+  }
+
+  const Chevron = expanded ? IconChevronDown : IconChevronRight
+
+  return (
+    <div className="relative pb-5">
+      {connected && <div aria-hidden className="absolute left-[14px] top-0 bottom-0 w-px bg-border" />}
+      <button
+        type="button"
+        onClick={toggle}
+        className="ml-[44px] inline-flex items-center gap-1.5 text-xs text-muted-foreground/80 transition-colors hover:text-foreground"
+      >
+        <Chevron className="size-3.5" />
+        {notes.length === 1 ? "1 dismissed note" : `${notes.length} dismissed notes`}
+      </button>
+
+      {expanded && (
+        <ul className="ml-[44px] mt-2 flex flex-col gap-2">
+          {notes.map((note) => (
+            <li
+              key={note.id}
+              className="rounded-lg border border-dashed border-border px-3.5 py-2.5 text-sm text-muted-foreground/80"
+            >
+              <p className="line-through decoration-muted-foreground/40">{note.milestone?.statement}</p>
+              <p className="mt-1 text-xs text-muted-foreground/70">
+                {note.milestone?.dismissedBy
+                  ? `Dismissed by ${note.milestone.dismissedBy}`
+                  : "Dismissed"}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+type DayGroup = { key: string; date: string; kept: TimelineEvent[]; dismissed: TimelineEvent[] }
+
+// Dismissed notes leave the run of the day and collect at its end, so a
+// correction stays visible without interrupting the story.
+function groupByDay(events: TimelineEvent[]): DayGroup[] {
+  const groups: DayGroup[] = []
+
+  events.forEach((event) => {
+    const date = formatDate(event.createdAt)
+    let group = groups[groups.length - 1]
+    if (!group || group.date !== date) {
+      group = { key: event.id, date, kept: [], dismissed: [] }
+      groups.push(group)
+    }
+    if (event.milestone?.dismissedAt) {
+      group.dismissed.push(event)
+    } else {
+      group.kept.push(event)
+    }
+  })
+
+  return groups
+}
+
+export function IncidentTimeline({
+  events,
+  incidentId,
+  canDismiss,
+}: {
+  events: TimelineEvent[]
+  incidentId: string
+  canDismiss: boolean
+}) {
+  const groups = groupByDay(events)
+
   return (
     <ol className="relative">
-      {events.map((event, index) => {
-        const eventDate = formatDate(event.createdAt)
-        const prevDate = index > 0 ? formatDate(events[index - 1].createdAt) : null
-        const showDate = eventDate !== prevDate
-        const highlight = highlightEvents.includes(event.eventType)
-        const isLast = index === events.length - 1
+      {groups.map((group, groupIndex) => {
+        const isLastGroup = groupIndex === groups.length - 1
 
         return (
-          <li key={event.id} className="relative">
-            {showDate && (
-              <div className="relative flex items-center py-6">
-                <div aria-hidden className="absolute left-[14px] top-0 bottom-0 w-px bg-border" />
-                <div aria-hidden className="relative z-10 ml-[7.5px] size-3.5 rounded-full border border-border bg-muted-foreground" />
-                <span className="ml-3 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                  {eventDate}
-                </span>
-              </div>
-            )}
-
-            <div className="relative pb-5">
-              {!isLast && <div aria-hidden className="absolute left-[14px] top-7 bottom-0 w-px bg-border" />}
-
-              <div className="flex items-center gap-4">
-                <div className="relative z-10 shrink-0">
-                  <EventDot event={event} />
-                </div>
-
-                <div className="flex flex-1 min-w-0 items-center gap-2 flex-wrap text-sm">
-                  <span className={`font-medium ${highlight ? "text-foreground" : "text-foreground/95"}`}>
-                    {event.actor}
-                  </span>
-                  <span className="text-muted-foreground">{event.description}</span>
-                  <EventSubject event={event} />
-                  <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground/80">
-                    {formatTime(event.createdAt)}
-                  </span>
-                </div>
-              </div>
-
-              <EventCard event={event} />
+          <li key={group.key} className="relative">
+            <div className="relative flex items-center py-6">
+              <div aria-hidden className="absolute left-[14px] top-0 bottom-0 w-px bg-border" />
+              <div aria-hidden className="relative z-10 ml-[7.5px] size-3.5 rounded-full border border-border bg-muted-foreground" />
+              <span className="ml-3 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                {group.date}
+              </span>
             </div>
+
+            <ol className="relative">
+              {group.kept.map((event, index) => (
+                <li key={event.id} className="relative">
+                  <EventRow
+                    event={event}
+                    incidentId={incidentId}
+                    canDismiss={canDismiss}
+                    connected={
+                      !isLastGroup ||
+                      index < group.kept.length - 1 ||
+                      group.dismissed.length > 0
+                    }
+                  />
+                </li>
+              ))}
+            </ol>
+
+            {group.dismissed.length > 0 && (
+              <DismissedNotes notes={group.dismissed} connected={!isLastGroup} />
+            )}
           </li>
         )
       })}
