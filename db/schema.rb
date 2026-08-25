@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_221247) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -52,6 +52,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_221247) do
     t.datetime "updated_at", null: false
     t.boolean "self_approvable", default: true, null: false
     t.jsonb "resume_payload"
+    t.string "source"
     t.index ["principal_type", "principal_id"], name: "index_ability_approvals_on_principal_type_and_principal_id"
     t.index ["workspace_id", "status", "created_at"], name: "idx_on_workspace_id_status_created_at_15ac906fa7"
   end
@@ -94,6 +95,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_221247) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.uuid "approval_id"
+    t.string "source"
     t.index ["action_key"], name: "index_ability_invocations_on_action_key"
     t.index ["principal_type", "principal_id", "created_at"], name: "index_ability_invocations_on_principal"
     t.index ["workspace_id", "created_at"], name: "index_ability_invocations_on_workspace_id_and_created_at"

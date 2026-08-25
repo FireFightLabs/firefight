@@ -27,7 +27,7 @@ import { slugColumnHint } from "@/pages/settings/lib/constants"
 
 const DEFAULT_TYPE_COLOR = "#6366F1"
 
-export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
+export function TypesTab({ types, canManage }: { types: IncidentTypeSettings[]; canManage: boolean }) {
   const [dialog, setDialog] = useState<OptionDialogState<IncidentTypeSettings>>(null)
   const [deleting, setDeleting] = useState<IncidentTypeSettings | null>(null)
 
@@ -41,10 +41,12 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
               Classify incidents by type to organize your response process and reporting.
             </CardDescription>
           </div>
-          <Button size="sm" onClick={() => setDialog({ mode: "create" })}>
-            <IconPlus className="size-4" />
-            Add Type
-          </Button>
+          {canManage && (
+            <Button size="sm" onClick={() => setDialog({ mode: "create" })}>
+              <IconPlus className="size-4" />
+              Add Type
+            </Button>
+          )}
         </div>
       </CardHeader>
 
@@ -58,10 +60,12 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
             <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
               Create types like Outage, Degradation, or Security to classify incidents and drive type-specific workflows.
             </p>
-            <Button size="sm" variant="outline" className="mt-4" onClick={() => setDialog({ mode: "create" })}>
-              <IconPlus className="size-3.5" />
-              Create your first type
-            </Button>
+            {canManage && (
+              <Button size="sm" variant="outline" className="mt-4" onClick={() => setDialog({ mode: "create" })}>
+                <IconPlus className="size-3.5" />
+                Create your first type
+              </Button>
+            )}
           </div>
         ) : (
           <OptionsTable
@@ -98,6 +102,7 @@ export function TypesTab({ types }: { types: IncidentTypeSettings[] }) {
               )}
             onEdit={(option) => setDialog({ mode: "edit", option })}
             onDelete={setDeleting}
+            readOnly={!canManage}
           />
         )}
       </CardContent>

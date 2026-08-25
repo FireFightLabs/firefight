@@ -36,9 +36,13 @@ function matchedRuleNumber(result: TestResult): number | null {
 export function CustomTestDialog({
   disabled,
   alertSourceId,
+  canSend,
 }: {
   disabled: boolean
   alertSourceId: string | null
+  // Sending posts to Slack, so only a viewer who may change routing gets it.
+  // Running the dry run stays open to everyone.
+  canSend: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [fields, setFields] = useState<TesterField[]>(() =>
@@ -93,7 +97,7 @@ export function CustomTestDialog({
   }
 
   const ruleNumber = result ? matchedRuleNumber(result) : null
-  const canSend = Boolean(result?.matched && result.resolution?.notify)
+  const showSend = canSend && Boolean(result?.matched && result.resolution?.notify)
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -166,7 +170,7 @@ export function CustomTestDialog({
                 ))}
               </div>
             )}
-            {canSend && (
+            {showSend && (
               <div className="mt-1 flex items-center gap-2 border-t border-border pt-2">
                 <Button size="sm" variant="outline" onClick={sendTest} disabled={sending || Boolean(sendResult?.sent)}>
                   <IconSend className="size-4" />

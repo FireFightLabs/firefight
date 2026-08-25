@@ -32,10 +32,12 @@ import { whenClosed } from "@/lib/handlers"
 
 export function WebhooksTab({
   webhooks,
+  canManage,
   activeWebhookId,
   onWebhookSelect,
 }: {
   webhooks: Webhook[]
+  canManage: boolean
   activeWebhookId: string | null
   onWebhookSelect: (id: string | null) => void
 }) {
@@ -62,7 +64,7 @@ export function WebhooksTab({
                 Send real-time notifications to external services when incident events occur.
               </CardDescription>
             </div>
-            <AddWebhookDialog />
+            {canManage ? <AddWebhookDialog /> : null}
           </div>
         </CardHeader>
         {webhooks.length > 0 ? (
@@ -110,7 +112,9 @@ export function WebhooksTab({
                       )}
                     </TableCell>
                     <TableCell onClick={(event) => event.stopPropagation()}>
-                      <RowActions onEdit={() => onWebhookSelect(webhook.id)} onDelete={() => setDeleting(webhook)} />
+                      {canManage ? (
+                        <RowActions onEdit={() => onWebhookSelect(webhook.id)} onDelete={() => setDeleting(webhook)} />
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -139,6 +143,7 @@ export function WebhooksTab({
 
       <WebhookDetailSheet
         webhook={detailWebhook}
+        canManage={canManage}
         open={detailWebhook !== null}
         onOpenChange={whenClosed(() => onWebhookSelect(null))}
       />

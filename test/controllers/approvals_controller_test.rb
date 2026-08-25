@@ -45,8 +45,22 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
     assert @approval.reload.approved?
   end
 
+  test "a member without an approvals grant is refused by the gateway" do
+    sign_in(users(:bob), @workspace)
+
+    post deny_approval_url(@approval)
+
+    assert_redirected_to dashboard_path
+    assert_match "don't have permission to change approvals", flash[:alert]
+    assert @approval.reload.pending?
+  end
+
   test "deny without the required role redirects with the refusal" do
     sign_in(users(:bob), @workspace)
+    @workspace.ability_grants.create!(
+      principal: workspace_memberships(:bob_workspace_one),
+      action: Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE))
+    )
 
     post deny_approval_url(@approval)
 

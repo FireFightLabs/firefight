@@ -26,7 +26,7 @@ import { OptionDialog, type OptionDialogState } from "@/pages/settings/component
 import { OptionsTable } from "@/pages/settings/components/options-table"
 import { slugColumnHint } from "@/pages/settings/lib/constants"
 
-export function SeveritiesTab({ severities }: { severities: IncidentSeveritySettings[] }) {
+export function SeveritiesTab({ severities, canManage }: { severities: IncidentSeveritySettings[]; canManage: boolean }) {
   const [dialog, setDialog] = useState<OptionDialogState<IncidentSeveritySettings>>(null)
   const [deleting, setDeleting] = useState<IncidentSeveritySettings | null>(null)
 
@@ -40,10 +40,12 @@ export function SeveritiesTab({ severities }: { severities: IncidentSeveritySett
               Define severity levels for classifying incident impact. Drag to reorder, most severe at the top.
             </CardDescription>
           </div>
-          <Button size="sm" onClick={() => setDialog({ mode: "create" })}>
-            <IconPlus className="size-4" />
-            Add Severity
-          </Button>
+          {canManage && (
+            <Button size="sm" onClick={() => setDialog({ mode: "create" })}>
+              <IconPlus className="size-4" />
+              Add Severity
+            </Button>
+          )}
         </div>
       </CardHeader>
 
@@ -83,6 +85,7 @@ export function SeveritiesTab({ severities }: { severities: IncidentSeveritySett
             )}
           onEdit={(option) => setDialog({ mode: "edit", option })}
           onDelete={setDeleting}
+          readOnly={!canManage}
         />
       </CardContent>
 

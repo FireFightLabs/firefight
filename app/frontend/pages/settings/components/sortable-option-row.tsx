@@ -37,6 +37,7 @@ interface OptionRowProps {
   onToggleEnabled: () => void
   onEdit: () => void
   onDelete: () => void
+  readOnly?: boolean
 }
 
 function OptionCells({
@@ -49,6 +50,7 @@ function OptionCells({
   onToggleEnabled,
   onEdit,
   onDelete,
+  readOnly = false,
 }: OptionRowProps) {
   return (
     <>
@@ -71,9 +73,11 @@ function OptionCells({
 
       {children}
 
-      {showDefault && !defaultSelectable && <TableCell />}
+      {showDefault && (!defaultSelectable || readOnly) && (
+        <TableCell className="text-center text-muted-foreground text-xs">{readOnly && option.isDefault ? "Default" : null}</TableCell>
+      )}
 
-      {showDefault && defaultSelectable && (
+      {showDefault && defaultSelectable && !readOnly && (
         <TableCell className="text-center">
           {option.defaultBlockedReason ? (
             <Blocked reason={option.defaultBlockedReason}>
@@ -86,7 +90,9 @@ function OptionCells({
       )}
 
       <TableCell className="text-center">
-        {option.disableBlockedReason ? (
+        {readOnly ? (
+          <Switch checked={option.enabled} disabled aria-label={option.enabled ? "Enabled" : "Disabled"} />
+        ) : option.disableBlockedReason ? (
           <Blocked reason={option.disableBlockedReason}>
             <Switch checked={option.enabled} disabled />
           </Blocked>
@@ -95,9 +101,11 @@ function OptionCells({
         )}
       </TableCell>
 
-      <TableCell>
-        <RowActions onEdit={onEdit} onDelete={onDelete} deleteDisabledReason={option.deletionBlockedReason} />
-      </TableCell>
+      {!readOnly && (
+        <TableCell>
+          <RowActions onEdit={onEdit} onDelete={onDelete} deleteDisabledReason={option.deletionBlockedReason} />
+        </TableCell>
+      )}
     </>
   )
 }

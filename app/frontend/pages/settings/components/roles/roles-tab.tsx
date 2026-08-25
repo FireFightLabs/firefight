@@ -24,7 +24,7 @@ import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-
 import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
 
-export function RolesTab({ roles }: { roles: IncidentRole[] }) {
+export function RolesTab({ roles, canManage }: { roles: IncidentRole[]; canManage: boolean }) {
   const [dialog, setDialog] = useState<OptionDialogState<IncidentRole>>(null)
   const [deleting, setDeleting] = useState<IncidentRole | null>(null)
 
@@ -38,10 +38,12 @@ export function RolesTab({ roles }: { roles: IncidentRole[] }) {
               Define the roles that can be assigned to team members during an incident. Drag to reorder.
             </CardDescription>
           </div>
-          <Button size="sm" onClick={() => setDialog({ mode: "create" })}>
-            <IconPlus className="size-4" />
-            Add Role
-          </Button>
+          {canManage && (
+            <Button size="sm" onClick={() => setDialog({ mode: "create" })}>
+              <IconPlus className="size-4" />
+              Add Role
+            </Button>
+          )}
         </div>
       </CardHeader>
 
@@ -67,6 +69,7 @@ export function RolesTab({ roles }: { roles: IncidentRole[] }) {
             )}
           onEdit={(option) => setDialog({ mode: "edit", option })}
           onDelete={setDeleting}
+          readOnly={!canManage}
         />
       </CardContent>
 

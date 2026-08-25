@@ -95,7 +95,7 @@ class ApiKey < ApplicationRecord
   def granted_permissions
     ability_grants.includes(:action).each_with_object({}) do |grant, matrix|
       key = grant.action&.key
-      next unless key && Ability::Action.managed_keys.include?(key)
+      next unless key && Ability::Action.grantable_keys.include?(key)
 
       resource, action = key.split(".")
       (matrix[resource] ||= []) << action
@@ -108,12 +108,12 @@ class ApiKey < ApplicationRecord
     desired = Array(matrix).flat_map do |resource, actions|
       Array(actions).map { |action| Ability::Action.system_key(resource, action) }
     end
-    unknown = desired - Ability::Action.managed_keys
+    unknown = desired - Ability::Action.grantable_keys
     raise ArgumentError, "unknown permission #{unknown.first}" if unknown.any?
 
     Ability::Grant.sync_direct!(
       principal: self, workspace: workspace,
-      desired_keys: desired, managed_keys: Ability::Action.managed_keys
+      desired_keys: desired, managed_keys: Ability::Action.grantable_keys
     )
   end
 

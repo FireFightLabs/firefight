@@ -57,10 +57,12 @@ const DELIVERY_OUTCOME: Record<
 
 export function WebhookDetailSheet({
   webhook,
+  canManage,
   open,
   onOpenChange,
 }: {
   webhook: Webhook | null;
+  canManage: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -171,56 +173,60 @@ export function WebhookDetailSheet({
           </SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-6 px-6 pb-6">
-          <div className="flex items-center gap-2">
-            {webhook.active ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.post(deactivateWebhookPath(webhook.id))}
-              >
-                Deactivate
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.post(activateWebhookPath(webhook.id))}
-              >
-                Activate
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.post(testWebhookPath(webhook.id))}
-            >
-              Send Test
-            </Button>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Signing Secret
-            </h4>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-sm break-all">
-                {secret ?? "••••••••••••••••••••••••••"}
-              </code>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleSecret}
-                disabled={secretPending}
-              >
-                {secretButtonLabel}
-              </Button>
-            </div>
-            {secretError ? (
-              <p className="text-destructive text-xs">{secretError}</p>
-            ) : null}
-          </div>
-
-          <Separator />
+          {canManage ? (
+            <>
+              <div className="flex items-center gap-2">
+                {webhook.active ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.post(deactivateWebhookPath(webhook.id))}
+                  >
+                    Deactivate
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.post(activateWebhookPath(webhook.id))}
+                  >
+                    Activate
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.post(testWebhookPath(webhook.id))}
+                >
+                  Send Test
+                </Button>
+              </div>
+    
+              <div className="flex flex-col gap-2">
+                <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  Signing Secret
+                </h4>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-sm break-all">
+                    {secret ?? "••••••••••••••••••••••••••"}
+                  </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleSecret}
+                    disabled={secretPending}
+                  >
+                    {secretButtonLabel}
+                  </Button>
+                </div>
+                {secretError ? (
+                  <p className="text-destructive text-xs">{secretError}</p>
+                ) : null}
+              </div>
+    
+              <Separator />
+            </>
+          ) : null}
 
           <div className="flex flex-col gap-2">
             <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -255,9 +261,11 @@ export function WebhookDetailSheet({
                       <TableHead className="w-28 text-right">
                         Delivered
                       </TableHead>
-                      <TableHead className="w-20 text-right">
-                        <span className="sr-only">Actions</span>
-                      </TableHead>
+                      {canManage ? (
+                        <TableHead className="w-20 text-right">
+                          <span className="sr-only">Actions</span>
+                        </TableHead>
+                      ) : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -296,15 +304,17 @@ export function WebhookDetailSheet({
                               minute: "2-digit",
                             })}
                           </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => replayDelivery(delivery.id)}
-                            >
-                              Replay
-                            </Button>
-                          </TableCell>
+                          {canManage ? (
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => replayDelivery(delivery.id)}
+                              >
+                                Replay
+                              </Button>
+                            </TableCell>
+                          ) : null}
                         </TableRow>
                       );
                     })}

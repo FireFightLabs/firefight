@@ -1,6 +1,8 @@
 class IncidentSeveritiesController < InertiaController
   include ManagesConfigurableOptions
 
+  manages_options_as Ability::Action::RESOURCE_SEVERITIES
+
   private
 
   def option_model

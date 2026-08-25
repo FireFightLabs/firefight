@@ -1,5 +1,5 @@
 class PolicyRulesController < InertiaController
-  before_action :require_admin!
+  authorizes Ability::Action::RESOURCE_POLICIES, create: :create, update: %i[update move_up move_down], delete: :destroy
   before_action :set_rule, only: [ :update, :destroy, :move_up, :move_down ]
 
   def create

@@ -35,6 +35,7 @@ export function EntryDetailSheet({
   open,
   onOpenChange,
   onEdit,
+  canManage,
 }: {
   entry: CatalogEntry | null
   type: CatalogType
@@ -44,6 +45,7 @@ export function EntryDetailSheet({
   open: boolean
   onOpenChange: (open: boolean) => void
   onEdit?: (entry: CatalogEntry) => void
+  canManage: boolean
 }) {
   if (!entry) {
     return null
@@ -57,6 +59,11 @@ export function EntryDetailSheet({
     router.delete(`/app/catalogue/entries/${entry.id}`, {
       onSuccess: () => onOpenChange(false),
     })
+  }
+
+  const startEdit = () => {
+    onOpenChange(false)
+    onEdit?.(entry)
   }
 
   return (
@@ -83,33 +90,27 @@ export function EntryDetailSheet({
           </div>
         </SheetHeader>
 
-        <div className="flex gap-2 px-6">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => {
-              onOpenChange(false)
-              onEdit?.(entry)
-            }}
-          >
-            <IconPencil className="size-3.5" />
-            Edit
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <IconDotsVertical className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem variant="destructive" onClick={handleDelete}>
-                <IconTrash className="size-4" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {canManage && (
+          <div className="flex gap-2 px-6">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={startEdit}>
+              <IconPencil className="size-3.5" />
+              Edit
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <IconDotsVertical className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+                  <IconTrash className="size-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
 
         <div className="flex flex-col gap-5 px-6 pb-6">
           {descValue ? (

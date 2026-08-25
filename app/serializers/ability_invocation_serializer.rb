@@ -54,6 +54,11 @@ class AbilityInvocationSerializer < BaseSerializer
     invocation.approval_id
   end
 
+  type :string, optional: true
+  def source
+    invocation.source
+  end
+
   type :string
   def created_at
     invocation.created_at.iso8601

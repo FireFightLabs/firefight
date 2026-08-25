@@ -80,11 +80,12 @@ interface FormsTabProps {
   severities: IncidentSeveritySettings[]
   statuses: IncidentStatusSettings[]
   selectedFormId: string | null
+  canManage: boolean
   onSelectForm: (formId: string) => void
   onNavigateToCustomFields?: () => void
 }
 
-export function FormsTab({ forms, customFields, incidentTypes, severities, statuses, selectedFormId, onSelectForm, onNavigateToCustomFields }: FormsTabProps) {
+export function FormsTab({ forms, customFields, incidentTypes, severities, statuses, selectedFormId, canManage, onSelectForm, onNavigateToCustomFields }: FormsTabProps) {
   const selectedForm = useMemo(() => {
     return forms.find((form) => form.id === selectedFormId) ?? forms[0] ?? null
   }, [forms, selectedFormId])
@@ -198,10 +199,12 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, statu
                     <CardDescription className="text-xs">{selectedForm.description}</CardDescription>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg px-3 text-xs" onClick={() => setAddFieldOpen(true)}>
-                  <IconPlus className="size-3.5" />
-                  Add custom field
-                </Button>
+                {canManage && (
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg px-3 text-xs" onClick={() => setAddFieldOpen(true)}>
+                    <IconPlus className="size-3.5" />
+                    Add custom field
+                  </Button>
+                )}
               </div>
             </CardHeader>
 
@@ -225,6 +228,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, statu
                       incidentTypes={incidentTypes}
                       severities={severities}
                       statuses={statuses}
+                      canManage={canManage}
                       onUpdate={(next) => handleUpdateField(field, next)}
                       onUpdateConditions={(conditions) => handleUpdateConditions(field, conditions)}
                       onRemove={() => setRemoving(field)}
@@ -246,7 +250,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, statu
         onCancel={() => setRemoving(null)}
       />
 
-      {selectedForm && (
+      {selectedForm && canManage && (
         <AddFieldDialog
           open={addFieldOpen}
           onOpenChange={setAddFieldOpen}

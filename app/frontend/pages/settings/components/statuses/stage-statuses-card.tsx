@@ -31,11 +31,13 @@ const stageColors: Record<string, string> = {
 
 export function StageStatusesCard({
   stage,
+  canManage,
   onCreate,
   onEdit,
   onDelete,
 }: {
   stage: LifecycleStageWithStatuses
+  canManage: boolean
   onCreate: (stage: LifecycleStageWithStatuses) => void
   onEdit: (status: IncidentStatusSettings) => void
   onDelete: (status: IncidentStatusSettings) => void
@@ -48,10 +50,12 @@ export function StageStatusesCard({
             <Badge variant="secondary" className={stageColors[stage.key]}>{stage.name}</Badge>
             <CardDescription>{stage.description}</CardDescription>
           </div>
-          <Button size="sm" onClick={() => onCreate(stage)}>
-            <IconPlus className="size-4" />
-            Add Status
-          </Button>
+          {canManage && (
+            <Button size="sm" onClick={() => onCreate(stage)}>
+              <IconPlus className="size-4" />
+              Add Status
+            </Button>
+          )}
         </div>
       </CardHeader>
       {stage.statuses.length > 0 && (
@@ -95,6 +99,7 @@ export function StageStatusesCard({
               )}
             onEdit={onEdit}
             onDelete={onDelete}
+            readOnly={!canManage}
           />
         </CardContent>
       )}

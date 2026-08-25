@@ -11,6 +11,7 @@ module Ability
     validates :action_id, uniqueness: { scope: [ :principal_type, :principal_id ] }, if: -> { action_id.present? }
     validates :role_id, uniqueness: { scope: [ :principal_type, :principal_id ] }, if: -> { role_id.present? }
     validate :exactly_one_target
+    validate :action_grantable
     validate :scope_well_formed
     validate :expiry_in_the_future, if: -> { expires_at_changed? && expires_at.present? }
 
@@ -23,7 +24,7 @@ module Ability
     # What an admin can hand out here, every global system action plus the
     # tool actions this workspace has minted by enabling a capability.
     def self.grantable_actions(workspace)
-      Ability::Action.where(workspace_id: [ nil, workspace.id ])
+      Ability::Action.where(workspace_id: [ nil, workspace.id ]).grantable
                      .includes(source: :integration)
                      .order(:kind, :key)
     end
@@ -63,6 +64,10 @@ module Ability
 
     def scope_well_formed
       Ability::Scope.validate(scope, errors)
+    end
+
+    def action_grantable
+      errors.add(:action, "is admin-only and cannot be granted") if action&.admin_only?
     end
 
     def bust_principal_cache

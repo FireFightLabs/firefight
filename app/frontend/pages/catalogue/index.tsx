@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Button } from "@/components/ui/button"
+import { useCan } from "@/lib/permissions"
 import { TypeGrid } from "@/pages/catalogue/components/index/type-grid"
 import { TypeFormDialog, type AttributeRoleOption } from "@/pages/catalogue/components/type-form-dialog"
 import type { CatalogType } from "@/pages/catalogue/types"
@@ -17,6 +18,7 @@ interface CataloguePageProps extends SharedProps {
 export default function CataloguePage() {
   const { types, attributeRoles } = usePage<CataloguePageProps>().props
   const [createOpen, setCreateOpen] = useState(false)
+  const canManage = useCan("catalog")
 
   return (
     <AuthenticatedLayout title="Catalogue">
@@ -29,15 +31,19 @@ export default function CataloguePage() {
               Define the entities that make up your organization
             </p>
           </div>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <IconPlus className="size-4" />
-            Create Type
-          </Button>
+          {canManage && (
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <IconPlus className="size-4" />
+              Create Type
+            </Button>
+          )}
         </div>
         <TypeGrid types={types} />
       </div>
 
-      <TypeFormDialog availableTypes={types} attributeRoles={attributeRoles} open={createOpen} onOpenChange={setCreateOpen} />
+      {canManage && (
+        <TypeFormDialog availableTypes={types} attributeRoles={attributeRoles} open={createOpen} onOpenChange={setCreateOpen} />
+      )}
     </AuthenticatedLayout>
   )
 }

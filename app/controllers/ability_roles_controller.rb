@@ -1,5 +1,5 @@
 class AbilityRolesController < InertiaController
-  before_action :require_admin!
+  authorizes Ability::Action::RESOURCE_PERMISSIONS, create: :create, update: :update, delete: :destroy
 
   def create
     current_workspace.ability_roles.create!(name: params.require(:name))
@@ -30,7 +30,7 @@ class AbilityRolesController < InertiaController
   private
 
   def permitted_action_ids
-    Ability::Action.where(workspace_id: [ nil, current_workspace.id ])
+    Ability::Action.where(workspace_id: [ nil, current_workspace.id ]).grantable
                    .where(id: Array(params[:action_ids]))
                    .pluck(:id)
   end

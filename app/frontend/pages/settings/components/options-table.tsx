@@ -44,6 +44,7 @@ export function OptionsTable<T extends ConfigurableOption>({
   onToggleEnabled,
   onEdit,
   onDelete,
+  readOnly = false,
 }: {
   options: T[]
   nameHeader: string
@@ -72,9 +73,13 @@ export function OptionsTable<T extends ConfigurableOption>({
   onToggleEnabled: (option: T) => void
   onEdit: (option: T) => void
   onDelete: (option: T) => void
+  // For a viewer the gateway would refuse: no drag handle, no switches, no
+  // default picker, no row menu. The list still reads the same.
+  readOnly?: boolean
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const { ordered, onDragEnd } = useOptimisticOrder(options)
+  const sortable = Boolean(reorderPath) && !readOnly
 
   function submitOrder(orderedIds: string[], onFailure: () => void) {
     if (!reorderPath) {
@@ -92,6 +97,7 @@ export function OptionsTable<T extends ConfigurableOption>({
     fallbackColor,
     showDefault: Boolean(onMakeDefault),
     defaultSelectable,
+    readOnly,
     onSelect: onSelect && (() => onSelect(option)),
     onToggleEnabled: () => onToggleEnabled(option),
     onEdit: () => onEdit(option),
@@ -103,7 +109,7 @@ export function OptionsTable<T extends ConfigurableOption>({
     <Table className={cn(fixedLayout && "table-fixed")}>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          {reorderPath && <TableHead className="w-8" />}
+          {sortable && <TableHead className="w-8" />}
           <TableHead className={cn(fixedLayout && "w-56")}>{nameHeader}</TableHead>
           {headers}
           {onMakeDefault && (
@@ -114,11 +120,11 @@ export function OptionsTable<T extends ConfigurableOption>({
           <TableHead className="w-24 text-center">Enabled</TableHead>
           {/* 64px is what auto layout settles on for the button plus its cell
               padding, so a fixed-layout table lands in the same place. */}
-          <TableHead className="w-16" />
+          {!readOnly && <TableHead className="w-16" />}
         </TableRow>
       </TableHeader>
-      <Rows options={ordered} onMakeDefault={defaultSelectable ? onMakeDefault : undefined}>
-        {reorderPath ? (
+      <Rows options={ordered} onMakeDefault={defaultSelectable && !readOnly ? onMakeDefault : undefined}>
+        {sortable ? (
           <SortableContext items={ordered.map((option) => option.id)} strategy={verticalListSortingStrategy}>
             {ordered.map((option) => <SortableOptionRow key={option.id} {...rowProps(option)} />)}
           </SortableContext>
@@ -129,7 +135,7 @@ export function OptionsTable<T extends ConfigurableOption>({
     </Table>
   )
 
-  if (!reorderPath) {
+  if (!sortable) {
     return table
   }
 

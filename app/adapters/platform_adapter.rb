@@ -82,6 +82,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A private message from Firefight to one person, outside any channel.
+  # @return [Hash] { success: true }
+  def post_direct_message(user_id:, text:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [Hash] { success: true }
   def update_message(channel_id:, message_id:, text:, blocks:)
     raise NotImplemented.new(__method__, self.class)

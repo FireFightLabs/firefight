@@ -19,6 +19,7 @@ module Ability
     validates :principal_label, :action_key, :request_digest, presence: true
     validates :status, inclusion: { in: STATUSES }
     validates :required_role, inclusion: { in: WorkspaceMembership.roles.keys }
+    validates :source, inclusion: { in: AbilityGateway::SOURCES }, allow_nil: true
 
     scope :pending, -> { where(status: STATUS_PENDING) }
 

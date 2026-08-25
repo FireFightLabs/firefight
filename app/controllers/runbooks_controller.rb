@@ -1,5 +1,5 @@
 class RunbooksController < InertiaController
-  before_action :require_admin!
+  authorizes Ability::Action::RESOURCE_RUNBOOKS, create: :create, update: %i[update disable enable reorder], delete: :destroy
   before_action :set_runbook, only: [ :update, :destroy, :disable, :enable ]
 
   def create

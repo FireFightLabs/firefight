@@ -1,6 +1,8 @@
 class IncidentStatusesController < InertiaController
   include ManagesConfigurableOptions
 
+  manages_options_as Ability::Action::RESOURCE_STATUSES
+
   # Statuses share one position sequence across stages, so a drag inside a stage
   # renumbers the workspace with the other stages held put.
   def reorder

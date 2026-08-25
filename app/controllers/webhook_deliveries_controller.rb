@@ -1,7 +1,7 @@
 class WebhookDeliveriesController < InertiaController
   # Replaying sends the customer's endpoint another live request, so it is
-  # admin work for the same reason configuring the webhook is.
-  before_action :require_admin!
+  # the same authority as configuring the webhook.
+  authorizes Ability::Action::RESOURCE_WEBHOOKS, read: %i[index show], update: :replay
 
   def index
     webhook = current_workspace.webhooks.find(params[:webhook_id])

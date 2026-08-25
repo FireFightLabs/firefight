@@ -1,5 +1,5 @@
 class AlertSourcesController < InertiaController
-  before_action :require_admin!
+  authorizes Ability::Action::RESOURCE_ALERTS, read: :sample_payload, create: :create, update: %i[update token], delete: :destroy
   before_action :set_alert_source, only: [ :update, :destroy, :token, :sample_payload ]
 
   def create

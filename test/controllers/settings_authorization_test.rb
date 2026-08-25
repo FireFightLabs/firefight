@@ -12,7 +12,6 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
     attempts = [
       -> { post alert_sources_url, params: { alert_source: { name: "X" } } },
       -> { post token_alert_source_url(source) },
-      -> { get sample_payload_alert_source_url(source) },
       -> { patch alert_routing_url, params: { policy: { enabled: false } } },
       -> { post alert_routing_send_test_url, params: { fields: {} }, as: :json },
       -> { post policy_rules_url, params: { rule: { conditions: [], outcome: {} } } },
@@ -25,17 +24,67 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
     attempts.each do |attempt|
       attempt.call
       assert_redirected_to dashboard_path, "expected member to be blocked: #{@request.path}"
+      assert_match "don't have permission", flash[:alert]
     end
     assert_equal 0, @workspace.policies.count
   end
 
-  test "members are blocked from the governance surfaces" do
+  test "a refusal goes back to the page it came from" do
     sign_in(users(:bob), @workspace)
 
-    [ settings_permissions_url, settings_activity_url, settings_approvals_url ].each do |url|
+    post incident_severities_url, params: { name: "Sev X" }, headers: { "HTTP_REFERER" => settings_severities_url }
+
+    assert_redirected_to settings_severities_url
+    assert_equal "You don't have permission to change severities. Ask a workspace admin to grant you severities access in Settings, Permissions.", flash[:alert]
+  end
+
+  test "a grant opens a settings mutation to a member" do
+    bob = workspace_memberships(:bob_workspace_one)
+    @workspace.ability_grants.create!(
+      principal: bob,
+      action: Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_SEVERITIES, Ability::Action::ACTION_CREATE))
+    )
+    sign_in(users(:bob), @workspace)
+
+    post incident_severities_url, params: { name: "Granted" }
+
+    assert_redirected_to settings_severities_path
+    assert @workspace.incident_severities.exists?(name: "Granted")
+    assert @workspace.ability_invocations.exists?(
+      principal: bob, action_key: "severities.create", decision: Ability::Invocation::DECISION_ALLOW,
+      source: AbilityGateway::SOURCE_WEB, outcome: Ability::Invocation::OUTCOME_SUCCESS
+    )
+  end
+
+  test "members are blocked from the admin-only surfaces" do
+    sign_in(users(:bob), @workspace)
+
+    [ settings_permissions_url, settings_activity_url ].each do |url|
       get url, headers: inertia_headers
       assert_redirected_to dashboard_path, "expected member to be blocked from #{url}"
     end
+  end
+
+  test "members read approvals and sample payloads like every other surface" do
+    sign_in(users(:bob), @workspace)
+    source = @workspace.alert_sources.create!(name: "Guarded", provider: AlertSource::PROVIDER_GENERIC)
+
+    get settings_approvals_url, headers: inertia_headers
+    assert_response :success
+
+    get sample_payload_alert_source_url(source)
+    assert_response :success
+  end
+
+  test "an admin-only resource cannot be granted" do
+    bob = workspace_memberships(:bob_workspace_one)
+    grant = @workspace.ability_grants.new(
+      principal: bob,
+      action: Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_UPDATE))
+    )
+
+    assert_not grant.valid?
+    assert_includes grant.errors.full_messages.to_sentence, "admin-only"
   end
 
   test "admins keep access to the governance surfaces" do

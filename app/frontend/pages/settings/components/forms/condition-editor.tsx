@@ -159,12 +159,14 @@ function conditionSummary(
     .join(" AND ")
 }
 
-export function ConditionEditor({ field, form, incidentTypes, severities, statuses, onSave }: {
+export function ConditionEditor({ field, form, incidentTypes, severities, statuses, readOnly = false, onSave }: {
   field: IncidentFormFieldSettings
   form: IncidentFormSettings
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
   statuses: IncidentStatusSettings[]
+  // Shows the saved conditions as plain text with no popover behind them.
+  readOnly?: boolean
   onSave: (conditions: IncidentConditionSettings[]) => void
 }) {
   const sources = buildSources(form, incidentTypes, severities, statuses)
@@ -229,6 +231,19 @@ export function ConditionEditor({ field, form, incidentTypes, severities, status
 
   const hasConditions = (field.conditions?.length ?? 0) > 0
   const nothingSelected = sources.every((source) => (states.get(source.key)?.selectedIds.size ?? 0) === 0)
+
+  if (readOnly) {
+    if (!hasConditions) {
+      return null
+    }
+
+    return (
+      <span className="flex items-center gap-1 rounded-md bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-600 dark:text-cyan-400">
+        <IconFilter className="size-3" />
+        {conditionSummary(field.conditions!, sources)}
+      </span>
+    )
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

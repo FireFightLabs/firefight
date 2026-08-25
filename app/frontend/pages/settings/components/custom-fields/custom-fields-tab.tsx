@@ -34,9 +34,10 @@ interface CustomFieldsTabProps {
   fields: IncidentFieldDefinitionSettings[]
   catalogTypes: CatalogTypeOption[]
   optionSourcesByFieldType: OptionSourcesByFieldType
+  canManage: boolean
 }
 
-export function CustomFieldsTab({ fields, catalogTypes, optionSourcesByFieldType }: CustomFieldsTabProps) {
+export function CustomFieldsTab({ fields, catalogTypes, optionSourcesByFieldType, canManage }: CustomFieldsTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingField, setEditingField] = useState<IncidentFieldDefinitionSettings | null>(null)
   const [deleting, setDeleting] = useState<IncidentFieldDefinitionSettings | null>(null)
@@ -61,10 +62,12 @@ export function CustomFieldsTab({ fields, catalogTypes, optionSourcesByFieldType
               Reusable field definitions for lifecycle forms. Attach them to Declare, Update, or Resolve forms, where their order is set per form.
             </CardDescription>
           </div>
-          <Button size="sm" onClick={openCreate}>
-            <IconPlus className="size-4" />
-            Add field
-          </Button>
+          {canManage && (
+            <Button size="sm" onClick={openCreate}>
+              <IconPlus className="size-4" />
+              Add field
+            </Button>
+          )}
         </div>
       </CardHeader>
 
@@ -111,6 +114,7 @@ export function CustomFieldsTab({ fields, catalogTypes, optionSourcesByFieldType
               )}
             onEdit={startEditing}
             onDelete={setDeleting}
+            readOnly={!canManage}
           />
         ) : (
           <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
@@ -121,10 +125,12 @@ export function CustomFieldsTab({ fields, catalogTypes, optionSourcesByFieldType
           <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
             Create fields like affected services, impacted environment, or customer segment. Then attach them to lifecycle forms.
           </p>
-          <Button size="sm" variant="outline" className="mt-4" onClick={openCreate}>
-            <IconPlus className="size-3.5" />
-            Create your first field
+          {canManage && (
+            <Button size="sm" variant="outline" className="mt-4" onClick={openCreate}>
+              <IconPlus className="size-3.5" />
+              Create your first field
             </Button>
+          )}
           </div>
         )}
       </CardContent>

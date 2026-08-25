@@ -25,12 +25,47 @@ module Ability
     RESOURCE_POLICIES = "policies"
     RESOURCE_RUNBOOKS = "runbooks"
     RESOURCE_APPROVALS = "approvals"
+    RESOURCE_INCIDENT_ROLES = "incident_roles"
+    RESOURCE_WEBHOOKS = "webhooks"
+    RESOURCE_INTEGRATIONS = "integrations"
+    RESOURCE_API_KEYS = "api_keys"
+    RESOURCE_PERMISSIONS = "permissions"
+    RESOURCE_WORKSPACE = "workspace"
 
-    RESOURCES = [
+    # The levers that control access itself. Admins hold them and nobody can
+    # be granted them, so a member or an agent can never mint keys or rewrite
+    # who has what.
+    ADMIN_ONLY_RESOURCES = [
+      RESOURCE_INTEGRATIONS, RESOURCE_API_KEYS, RESOURCE_PERMISSIONS, RESOURCE_WORKSPACE
+    ].freeze
+
+    GRANTABLE_RESOURCES = [
       RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
-      RESOURCE_RUNBOOKS, RESOURCE_APPROVALS
+      RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS
     ].freeze
+
+    RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
+
+    RESOURCE_LABELS = {
+      RESOURCE_INCIDENTS => "Incidents",
+      RESOURCE_SEVERITIES => "Severities",
+      RESOURCE_STATUSES => "Statuses",
+      RESOURCE_INCIDENT_TYPES => "Incident Types",
+      RESOURCE_CUSTOM_FIELDS => "Custom Fields",
+      RESOURCE_FORMS => "Forms",
+      RESOURCE_CATALOG => "Catalogue",
+      RESOURCE_ALERTS => "Alerts",
+      RESOURCE_POLICIES => "Alert Routing",
+      RESOURCE_RUNBOOKS => "Runbooks",
+      RESOURCE_APPROVALS => "Approvals",
+      RESOURCE_INCIDENT_ROLES => "Incident Roles",
+      RESOURCE_WEBHOOKS => "Webhooks",
+      RESOURCE_INTEGRATIONS => "Integrations",
+      RESOURCE_API_KEYS => "API Keys",
+      RESOURCE_PERMISSIONS => "Permissions",
+      RESOURCE_WORKSPACE => "Workspace"
+    }.freeze
 
     ACTION_READ = "read"
     ACTION_CREATE = "create"
@@ -67,15 +102,32 @@ module Ability
     validate :system_actions_are_global
 
     scope :system_actions, -> { where(kind: KIND_SYSTEM) }
+    scope :grantable, -> { where.not(key: admin_only_keys) }
 
     def self.system_key(resource, action)
       "#{resource}.#{action}"
     end
 
-    # Every system action key. The permissions matrix manages exactly these,
-    # and lookup self-heals any of them.
+    # Every system action key. Lookup self-heals any of them.
     def self.managed_keys
       @managed_keys ||= RESOURCES.product(ACTIONS).map { |resource, action| system_key(resource, action) }.freeze
+    end
+
+    # The keys a grant or a permissions matrix may carry.
+    def self.grantable_keys
+      @grantable_keys ||= GRANTABLE_RESOURCES.product(ACTIONS).map { |resource, action| system_key(resource, action) }.freeze
+    end
+
+    def self.admin_only_keys
+      @admin_only_keys ||= ADMIN_ONLY_RESOURCES.product(ACTIONS).map { |resource, action| system_key(resource, action) }.freeze
+    end
+
+    def self.resource_of(key)
+      key.to_s.split(".").first
+    end
+
+    def self.label(resource)
+      RESOURCE_LABELS.fetch(resource, resource.to_s.humanize)
     end
 
     # A key resolves to the global system action or the workspace's own
@@ -112,6 +164,10 @@ module Ability
 
     def system?
       kind == KIND_SYSTEM
+    end
+
+    def admin_only?
+      system? && ADMIN_ONLY_RESOURCES.include?(self.class.resource_of(key))
     end
 
     # Config ≠ permission: a tool action also needs whatever minted it to be

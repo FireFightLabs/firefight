@@ -1,5 +1,5 @@
 class IncidentFormFieldsController < InertiaController
-  before_action :require_admin!
+  authorizes Ability::Action::RESOURCE_FORMS, create: :create, update: %i[update move_up move_down reorder], delete: :destroy
   before_action :set_form_field, only: [ :update, :destroy, :move_up, :move_down ]
 
   # set_form_field runs before any action, so a bad synthetic id cannot be

@@ -1,5 +1,5 @@
 class AbilityGrantsController < InertiaController
-  before_action :require_admin!
+  authorizes Ability::Action::RESOURCE_PERMISSIONS, create: :create, update: :update, delete: :destroy
 
   # A grant targets exactly one of a set or a single action, which the DB
   # enforces. Which one arrived decides how the row is looked up.

@@ -1,4 +1,6 @@
 class IncidentRunbooksController < InertiaController
+  authorizes Ability::Action::RESOURCE_INCIDENTS, update: :create
+
   def create
     incident = current_workspace.incidents.find(params[:incident_id])
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
