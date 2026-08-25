@@ -7,6 +7,6 @@ class ConnectedAgentsController < InertiaController
     Doorkeeper::AccessToken.revoke_all_for(application.id, current_membership)
     Doorkeeper::AccessGrant.revoke_all_for(application.id, current_membership)
 
-    redirect_to settings_api_keys_path
+    redirect_to developer_api_keys_path
   end
 end

@@ -24,12 +24,12 @@ class ApiKeysController < InertiaController
     end
 
     flash.inertia[:api_key_token] = raw_token
-    redirect_to settings_api_keys_path
+    redirect_to developer_api_keys_path
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: settings_api_keys_path,
+    redirect_back fallback_location: developer_api_keys_path,
       inertia: { errors: e.record.errors.to_hash }
   rescue ArgumentError => e
-    redirect_back fallback_location: settings_api_keys_path, alert: e.message
+    redirect_back fallback_location: developer_api_keys_path, alert: e.message
   end
 
   # Only touch fields the client explicitly passes. Omitting `active` would
@@ -45,17 +45,17 @@ class ApiKeysController < InertiaController
       @api_key.replace_permissions!(params[:permissions].to_unsafe_h) if params.key?(:permissions)
     end
 
-    redirect_to settings_api_keys_path
+    redirect_to developer_api_keys_path
   rescue ActiveRecord::RecordInvalid => e
-    redirect_back fallback_location: settings_api_keys_path,
+    redirect_back fallback_location: developer_api_keys_path,
       inertia: { errors: e.record.errors.to_hash }
   rescue ArgumentError => e
-    redirect_back fallback_location: settings_api_keys_path, alert: e.message
+    redirect_back fallback_location: developer_api_keys_path, alert: e.message
   end
 
   def destroy
     @api_key.soft_delete!
-    redirect_to settings_api_keys_path
+    redirect_to developer_api_keys_path
   end
 
   # The grant preview, what this key can actually do, as resolved by the

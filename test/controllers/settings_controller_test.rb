@@ -42,7 +42,7 @@ class SettingsControllerTest < ActionDispatch::IntegrationTest
     @workspace.ability_grants.create!(principal: member, action: action, scope: {})
     @workspace.agents.create!(name: "Investigator", slug: "investigator")
 
-    get settings_permissions_url, headers: inertia_headers
+    get gateway_permissions_url, headers: inertia_headers
     assert_response :success
 
     principals = inertia_props["principals"]
@@ -58,4 +58,22 @@ class SettingsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  test "the old settings paths redirect to the gateway and developer screens" do
+    {
+      "/app/settings/permissions" => gateway_permissions_path,
+      "/app/settings/activity" => gateway_activity_path,
+      "/app/settings/approvals" => gateway_approvals_path,
+      "/app/settings/webhooks" => developer_webhooks_path,
+      "/app/settings/api-keys" => developer_api_keys_path
+    }.each do |old_path, new_path|
+      get old_path
+      assert_redirected_to new_path
+    end
+  end
+
+  test "every page shares the pending approval count for the sidebar badge" do
+    get settings_runbooks_url, headers: inertia_headers
+    assert_equal @workspace.ability_approvals.pending.count, inertia_props["pendingApprovalsCount"]
+  end
 end

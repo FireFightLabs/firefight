@@ -12,9 +12,9 @@ class AbilityGrantsController < InertiaController
     grant.expires_at = requested_expiry
     grant.save!
 
-    redirect_to settings_permissions_path, notice: "#{principal.principal_label} was granted #{grant_label(grant)}#{expiry_suffix(grant)}."
+    redirect_to gateway_permissions_path, notice: "#{principal.principal_label} was granted #{grant_label(grant)}#{expiry_suffix(grant)}."
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to settings_permissions_path, alert: e.record.errors.full_messages.to_sentence
+    redirect_to gateway_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
 
   # Changing the environment scope and changing the expiry are separate
@@ -26,16 +26,16 @@ class AbilityGrantsController < InertiaController
     attrs[:expires_at] = requested_expiry if params.key?(:expires_at)
     grant.update!(attrs)
 
-    redirect_to settings_permissions_path, notice: "#{grant_label(grant)} was updated#{expiry_suffix(grant)}."
+    redirect_to gateway_permissions_path, notice: "#{grant_label(grant)} was updated#{expiry_suffix(grant)}."
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to settings_permissions_path, alert: e.record.errors.full_messages.to_sentence
+    redirect_to gateway_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
 
   def destroy
     grant = current_workspace.ability_grants.find(params[:id])
     label = grant_label(grant)
     grant.destroy!
-    redirect_to settings_permissions_path, notice: "#{label} was revoked."
+    redirect_to gateway_permissions_path, notice: "#{label} was revoked."
   end
 
   private

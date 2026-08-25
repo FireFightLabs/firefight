@@ -27,6 +27,6 @@ class WebhookDeliveriesController < InertiaController
     webhook = current_workspace.webhooks.find(params[:webhook_id])
     delivery = webhook.webhook_deliveries.find(params[:id])
     delivery.replay!
-    redirect_to settings_webhooks_path, notice: "Delivery replay queued"
+    redirect_to developer_webhooks_path, notice: "Delivery replay queued"
   end
 end

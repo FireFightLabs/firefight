@@ -41,11 +41,12 @@ import {
   cataloguePath,
   dashboardPath,
   integrationsPath,
-  settingsActivityPath,
+  developerApiKeysPath,
+  developerWebhooksPath,
+  gatewayActivityPath,
+  gatewayApprovalsPath,
+  gatewayPermissionsPath,
   settingsAlertSourcesPath,
-  settingsApprovalsPath,
-  settingsPermissionsPath,
-  settingsApiKeysPath,
   settingsCustomFieldsPath,
   settingsFormsPath,
   settingsMembersPath,
@@ -55,7 +56,6 @@ import {
   settingsSeveritiesPath,
   settingsStatusesPath,
   settingsTypesPath,
-  settingsWebhooksPath,
 } from "@/lib/routes"
 
 interface SidebarNavItem {
@@ -63,6 +63,7 @@ interface SidebarNavItem {
   url: string
   icon: Icon
   adminOnly?: boolean
+  badge?: number
 }
 
 interface SidebarNavSection {
@@ -76,6 +77,14 @@ const navSections: SidebarNavSection[] = [
     items: [
       { title: "Incidents", url: dashboardPath(), icon: IconUrgent },
       { title: "Alerts", url: settingsAlertsPath(), icon: IconBell },
+    ],
+  },
+  {
+    label: "Gateway",
+    items: [
+      { title: "Approvals", url: gatewayApprovalsPath(), icon: IconShieldCheck },
+      { title: "Activity", url: gatewayActivityPath(), icon: IconHistory, adminOnly: true },
+      { title: "Permissions", url: gatewayPermissionsPath(), icon: IconLock, adminOnly: true },
     ],
   },
   {
@@ -102,18 +111,21 @@ const navSections: SidebarNavSection[] = [
   {
     label: "Developer",
     items: [
-      { title: "Webhooks", url: settingsWebhooksPath(), icon: IconWebhook },
-      { title: "API Keys", url: settingsApiKeysPath(), icon: IconKey },
-      { title: "Permissions", url: settingsPermissionsPath(), icon: IconLock, adminOnly: true },
-      { title: "Approvals", url: settingsApprovalsPath(), icon: IconShieldCheck },
-      { title: "Activity", url: settingsActivityPath(), icon: IconHistory, adminOnly: true },
+      { title: "Webhooks", url: developerWebhooksPath(), icon: IconWebhook },
+      { title: "API Keys", url: developerApiKeysPath(), icon: IconKey },
     ],
   },
 ]
 
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
-  const { currentUser, currentWorkspace, availableWorkspaces, cloudBillingPath, currentUserIsAdmin } =
-    usePage<SharedProps>().props
+  const {
+    currentUser,
+    currentWorkspace,
+    availableWorkspaces,
+    cloudBillingPath,
+    currentUserIsAdmin,
+    pendingApprovalsCount,
+  } = usePage<SharedProps>().props
 
   // The cloud engine shares this path when it is loaded, so self-hosted
   // builds never grow a Billing item.
@@ -126,9 +138,20 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       )
     : navSections
 
+  const sectionsWithBadges = sectionsWithBilling.map((section) =>
+    section.label === "Gateway"
+      ? {
+          ...section,
+          items: section.items.map((item) =>
+            item.title === "Approvals" ? { ...item, badge: pendingApprovalsCount } : item,
+          ),
+        }
+      : section,
+  )
+
   const sections = currentUserIsAdmin
-    ? sectionsWithBilling
-    : sectionsWithBilling
+    ? sectionsWithBadges
+    : sectionsWithBadges
         .map((section) => ({ ...section, items: section.items.filter((item) => !item.adminOnly) }))
         .filter((section) => section.items.length > 0)
 

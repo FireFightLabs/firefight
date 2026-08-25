@@ -19,9 +19,9 @@ class ApprovalsController < InertiaController
   def resolve
     yield
     ApprovalNotificationService.mark_resolved!(@approval)
-    redirect_to settings_approvals_path
+    redirect_to gateway_approvals_path
   rescue Ability::Approval::NotAllowed => e
-    redirect_to settings_approvals_path, alert: e.message
+    redirect_to gateway_approvals_path, alert: e.message
   end
 
   def set_approval

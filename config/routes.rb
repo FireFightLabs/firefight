@@ -109,7 +109,7 @@ Rails.application.routes.draw do
     end
     get "/settings/custom-fields", to: "settings#custom_fields", as: :settings_custom_fields
     get "/settings/forms", to: "settings#forms", as: :settings_forms
-    get "/settings/webhooks", to: "settings#webhooks", as: :settings_webhooks
+    get "/developer/webhooks", to: "settings#webhooks", as: :developer_webhooks
     get "/settings/alert-sources", to: "settings#alert_sources", as: :settings_alert_sources
     resources :alert_sources, only: [ :create, :update, :destroy ], path: "settings/alert-sources" do
       member do
@@ -128,9 +128,9 @@ Rails.application.routes.draw do
         patch :move_down
       end
     end
-    get "/settings/api-keys", to: "settings#api_keys", as: :settings_api_keys
-    delete "/settings/connected-agents/:id", to: "connected_agents#destroy", as: :connected_agent
-    resources :api_keys, only: [ :create, :update, :destroy ], path: "settings/api-keys" do
+    get "/developer/api-keys", to: "settings#api_keys", as: :developer_api_keys
+    delete "/developer/connected-agents/:id", to: "connected_agents#destroy", as: :connected_agent
+    resources :api_keys, only: [ :create, :update, :destroy ], path: "developer/api-keys" do
       member do
         get :abilities
       end
@@ -148,12 +148,12 @@ Rails.application.routes.draw do
         get "oauth/callback", action: :oauth_callback, as: :oauth_callback
       end
     end
-    get "/settings/permissions", to: "settings#permissions", as: :settings_permissions
-    resources :ability_grants, only: [ :create, :update, :destroy ], path: "settings/permissions/grants"
-    resources :ability_roles, only: [ :create, :update, :destroy ], path: "settings/permissions/sets"
-    get "/settings/activity", to: "settings#activity", as: :settings_activity
-    get "/settings/approvals", to: "settings#approvals", as: :settings_approvals
-    resources :approvals, only: [], path: "settings/approvals" do
+    get "/gateway/permissions", to: "settings#permissions", as: :gateway_permissions
+    resources :ability_grants, only: [ :create, :update, :destroy ], path: "gateway/permissions/grants"
+    resources :ability_roles, only: [ :create, :update, :destroy ], path: "gateway/permissions/sets"
+    get "/gateway/activity", to: "settings#activity", as: :gateway_activity
+    get "/gateway/approvals", to: "settings#approvals", as: :gateway_approvals
+    resources :approvals, only: [], path: "gateway/approvals" do
       member do
         post :approve
         post :deny
@@ -240,6 +240,13 @@ Rails.application.routes.draw do
     end
 
     get "/settings/members", to: "settings#members", as: :settings_members
+
+    # The gateway and developer screens used to live under /settings.
+    get "/settings/permissions", to: redirect("/app/gateway/permissions")
+    get "/settings/activity", to: redirect("/app/gateway/activity")
+    get "/settings/approvals", to: redirect("/app/gateway/approvals")
+    get "/settings/webhooks", to: redirect("/app/developer/webhooks")
+    get "/settings/api-keys", to: redirect("/app/developer/api-keys")
   end
 
   # Targets for `config.exceptions_app`, which is how Rails reaches these once
