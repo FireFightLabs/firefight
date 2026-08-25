@@ -6,7 +6,9 @@ Incident management platform built with Rails 8.1. Currently integrates with Sla
 
 Run `bin/ci` to validate changes. It runs rubocop, archspec (architecture boundaries, rules in `Archspec.rb`), bundler-audit, brakeman, rails test (parallel), system tests, and seeds.
 
-Never add a new entry to `archspec_todo.yml` to get a build green. The todo file is grandfathered debt that only shrinks. A new boundary violation means the code is in the wrong place. Refresh the file with `bundle exec archspec check --update-todo` only after removing violations.
+`archspec_todo.yml` is empty and stays empty. Never add an entry to get a build green: a new boundary violation means the code is in the wrong place. The `archspec` GitHub job fails on any violation and on a non-empty todo file, and it must be a required check once branch protection is available on the repo.
+
+ArchSpec proves the named boundaries. The leaks that hide behind an allowed name (a platform's shape in a column, a permission rule inlined in a controller, logic in an entry point, a TypeScript mirror of a Ruby list) are caught by the **boundary review**: run `/boundary-review` on the diff before opening any PR that touches `app/`, `engines/`, `lib/`, or `app/frontend/`, fix what it finds, and end the PR body with its report. A PR without that report is not ready.
 
 ## Git & PRs
 
@@ -121,6 +123,8 @@ Single-context: one `CONTEXT.md` and one `docs/adr/` at the root, alongside the 
 - Model concerns live next to their model in `app/models/<model>/`, not in `app/models/concerns/`. E.g. `Incident::Lifecycle` lives at `app/models/incident/lifecycle.rb`. Don't use `rails g concern` (it generates into `app/models/concerns/`) and create the file manually in the right directory.
 
 ## Architecture Rules (always apply)
+
+The V2 playbook (2026-08) made every one of these mechanical or reviewable: named boundaries are ArchSpec rules in `Archspec.rb`, the rest are questions in `.claude/skills/boundary-review.md`. When a rule here changes, change the rule or the question in the same PR.
 
 ```
 Controller → Dispatcher → Handler → Service → Adapter → Slack::Client
