@@ -16,7 +16,7 @@ module FirefightAi
                               "or a return to normal"
           string :statement,
                  description: "One sentence in the past tense naming who it belongs to, e.g. " \
-                              "'Diego suspects the 14:02 deploy'. No trailing period."
+                              "'Diego suspected the 14:02 deploy'. No trailing period."
           string :message_id,
                  description: "The message_id of the single transcript message this milestone came from, copied exactly"
           number :confidence,

@@ -40,15 +40,15 @@ class TimelineEventSerializerMilestoneTest < ActiveSupport::TestCase
   end
 
   test "notes sit in the conversation, ordered by when the message was said" do
-    note(statement: "Alice suspects the deploy", said_at: 3.hours.ago)
+    note(statement: "Alice suspected the deploy", said_at: 3.hours.ago)
     note(statement: "Alice confirmed the lock", said_at: 1.hour.ago)
     @incident.incident_events.create!(event_type: IncidentEvent::MESSAGE_PINNED, created_at: 2.hours.ago, metadata: {})
 
     statements = serialized.filter_map { |event| event.dig(:milestone, :statement) }
     pinned_at = serialized.index { |event| event[:eventType] == IncidentEvent::MESSAGE_PINNED }
 
-    assert_equal [ "Alice suspects the deploy", "Alice confirmed the lock" ], statements
-    assert_operator serialized.index { |event| event.dig(:milestone, :statement) == "Alice suspects the deploy" },
+    assert_equal [ "Alice suspected the deploy", "Alice confirmed the lock" ], statements
+    assert_operator serialized.index { |event| event.dig(:milestone, :statement) == "Alice suspected the deploy" },
                     :<, pinned_at
   end
 

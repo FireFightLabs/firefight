@@ -132,9 +132,11 @@ module FirefightAi
         - Each milestone comes from exactly one message. Copy that message's
           message_id verbatim.
         - Write the statement as one plain sentence in the past tense, naming
-          the person it belongs to, e.g. "Diego suspects the 14:02 deploy" or
-          "Uros rolled back the 14:02 deploy". Where a milestone belongs to
-          nobody in particular, state the fact: "Error rate back to baseline".
+          the person it belongs to, e.g. "Diego suspected the 14:02 deploy" or
+          "Uros rolled back the 14:02 deploy". Past tense holds even for a
+          theory that was live at the time, so the note reads alongside the
+          rest of the timeline. Where a milestone belongs to nobody in
+          particular, state the fact: "Error rate returned to baseline".
         - No trailing period, no markdown, no user mentions.
         - Set confidence honestly. A transcript with nothing worth noting
           should return an empty list, and that is a good answer.

@@ -14,7 +14,7 @@ class FirefightAi::MilestoneExtractorTest < ActiveSupport::TestCase
       add_message(message_id: "1.002", content: "rolling back the 14:02 deploy")
     ]
     stub_model([
-      { kind: "impact", statement: "Checkout is down for EU customers only", message_id: "1.001", confidence: 0.9 },
+      { kind: "impact", statement: "Checkout was down for EU customers only", message_id: "1.001", confidence: 0.9 },
       { kind: "mitigation", statement: "Alice rolled back the 14:02 deploy", message_id: "1.002", confidence: 0.95 }
     ])
 
@@ -28,7 +28,7 @@ class FirefightAi::MilestoneExtractorTest < ActiveSupport::TestCase
   test "drops rows below the confidence floor" do
     messages = [ add_message(message_id: "1.001", content: "maybe the cache?") ]
     stub_model([
-      { kind: "hypothesis", statement: "Alice suspects the cache", message_id: "1.001", confidence: 0.4 }
+      { kind: "hypothesis", statement: "Alice suspected the cache", message_id: "1.001", confidence: 0.4 }
     ])
 
     assert_empty @extractor.extract(@incident, messages: messages)
