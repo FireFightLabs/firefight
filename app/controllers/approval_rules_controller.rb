@@ -42,8 +42,8 @@ class ApprovalRulesController < InertiaController
 
   def rule_params
     params.require(:rule).permit(
-      :enabled, :approver_role, :self_approval, :notify,
-      action_keys: [], risk_levels: [], environments: [], approvers: []
+      :enabled, :approver_role, :self_approval, :notify, :agents_may_approve,
+      action_keys: [], risk_levels: [], environments: [], approvers: [ :kind, :id ]
     )
   end
 
@@ -60,7 +60,7 @@ class ApprovalRulesController < InertiaController
     )
     result[:outcome] = PolicyRule::ApprovalOutcome.build(
       role: attrs[:approver_role], self_approval: attrs.fetch(:self_approval, true),
-      notify: attrs[:notify], approvers: attrs[:approvers]
+      notify: attrs[:notify], approvers: attrs[:approvers], agents_may_approve: attrs.fetch(:agents_may_approve, false)
     )
     result
   end

@@ -163,7 +163,7 @@ export const APPROVAL_NOTIFY_OPTIONS = [
 export type ApprovalNotifyOption = (typeof APPROVAL_NOTIFY_OPTIONS)[number]
 
 export const APPROVER_ROLES = [
-  "admin",
-  "owner"
+  "owner",
+  "admin"
 ] as const
 export type ApproverRole = (typeof APPROVER_ROLES)[number]

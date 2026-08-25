@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -54,6 +54,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_160000) do
     t.jsonb "approver_ids", default: [], null: false
     t.string "notify"
     t.jsonb "notifications", default: [], null: false
+    t.string "approver_type"
+    t.boolean "agents_may_approve", default: false, null: false
     t.index ["principal_type", "principal_id"], name: "index_ability_approvals_on_principal_type_and_principal_id"
     t.index ["workspace_id", "status", "created_at"], name: "idx_on_workspace_id_status_created_at_15ac906fa7"
   end
@@ -1130,7 +1132,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_160000) do
   end
 
   add_foreign_key "ability_actions", "workspaces"
-  add_foreign_key "ability_approvals", "workspace_memberships", column: "approver_id"
   add_foreign_key "ability_approvals", "workspaces"
   add_foreign_key "ability_grants", "ability_actions", column: "action_id"
   add_foreign_key "ability_grants", "ability_roles", column: "role_id"

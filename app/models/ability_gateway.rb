@@ -155,7 +155,8 @@ class AbilityGateway
       params: params,
       required_role: requirement["role"],
       self_approvable: requirement.fetch("self_approval", true),
-      approver_ids: Array(requirement["approvers"]),
+      approver_ids: Ability::Principal.references(requirement["approvers"]),
+      agents_may_approve: requirement.fetch("agents_may_approve", false),
       notify: requirement["notify"],
       incident_id: context[:incident_id],
       source: context[:source]

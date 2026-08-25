@@ -16,7 +16,7 @@ import {
   describeScope,
   NOTIFY_LABELS,
 } from "@/pages/settings/components/permissions/approval-rule-form"
-import type { AbilityActionOption, ApprovalRule, EnvironmentOption, WorkspaceMembership } from "@/types/serializers"
+import type { AbilityActionOption, ApprovalRule, EnvironmentOption, Principal } from "@/types/serializers"
 
 type DialogState = { open: false } | { open: true; rule: ApprovalRule | null }
 
@@ -24,13 +24,13 @@ export function ApprovalRulesEditor({
   rules,
   actions,
   environments,
-  members,
+  principals,
   canManage,
 }: {
   rules: ApprovalRule[]
   actions: AbilityActionOption[]
   environments: EnvironmentOption[]
-  members: WorkspaceMembership[]
+  principals: Principal[]
   canManage: boolean
 }) {
   const [dialog, setDialog] = useState<DialogState>({ open: false })
@@ -92,9 +92,12 @@ export function ApprovalRulesEditor({
                     <span className="block truncate">{describeScope(rule, environments)}</span>
                   </TableCell>
                   <TableCell className="text-sm">
-                    <span className="block truncate">{describeApprovers(rule, members)}</span>
+                    <span className="block truncate">{describeApprovers(rule, principals)}</span>
                     {!rule.selfApproval && (
-                      <span className="text-muted-foreground text-xs">not the requester</span>
+                      <span className="text-muted-foreground block text-xs">not the requester</span>
+                    )}
+                    {rule.agentsMayApprove && (
+                      <span className="text-muted-foreground block text-xs">agents may decide</span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -153,7 +156,7 @@ export function ApprovalRulesEditor({
         rule={dialog.open ? dialog.rule : null}
         actions={actions}
         environments={environments}
-        members={members}
+        principals={principals}
         onDismiss={() => setDialog({ open: false })}
       />
 

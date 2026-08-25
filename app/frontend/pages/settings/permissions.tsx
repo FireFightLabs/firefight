@@ -17,7 +17,6 @@ import type {
   ApprovalRule,
   EnvironmentOption,
   Principal,
-  WorkspaceMembership,
 } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 import { useCan } from "@/lib/permissions"
@@ -29,7 +28,6 @@ interface PermissionsPageProps extends SharedProps {
   sets: AbilityRole[]
   environments: EnvironmentOption[]
   approvalRules: ApprovalRule[]
-  members: WorkspaceMembership[]
 }
 
 type Selection = { kind: "principal" | "set"; id: string } | { kind: "approvals" }
@@ -42,7 +40,7 @@ const SECTIONS: { kind: string; title: string; blurb: string }[] = [
 ]
 
 export default function Permissions() {
-  const { principals, actions, sets, environments, approvalRules, members } = usePage<PermissionsPageProps>().props
+  const { principals, actions, sets, environments, approvalRules } = usePage<PermissionsPageProps>().props
   const canManage = useCan("permissions")
   const [selection, setSelection] = useState<Selection>({ kind: "principal", id: principals[0]?.id ?? "" })
   const [granting, setGranting] = useState<Principal | null>(null)
@@ -171,7 +169,7 @@ export default function Permissions() {
               rules={approvalRules}
               actions={actions}
               environments={environments}
-              members={members}
+              principals={principals}
               canManage={canManage}
             />
           )}

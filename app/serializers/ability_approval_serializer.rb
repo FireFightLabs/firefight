@@ -30,9 +30,14 @@ class AbilityApprovalSerializer < BaseSerializer
     approval.params
   end
 
+  type "{ kind: string; id: string }[]"
+  def approvers
+    Ability::Principal.references(approval.approver_ids)
+  end
+
   type :string, optional: true
   def approver_name
-    approval.approver&.display_name
+    approval.approver&.actor_display_name
   end
 
   type :string, optional: true

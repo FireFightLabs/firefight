@@ -10,14 +10,15 @@ module PolicyRule::ApprovalOutcome
   NOTIFY_BOTH = "both"
   NOTIFY_OPTIONS = [ NOTIFY_CHANNEL, NOTIFY_DM, NOTIFY_BOTH ].freeze
 
-  def self.build(role:, self_approval: true, notify: nil, approvers: [])
+  def self.build(role:, self_approval: true, notify: nil, approvers: [], agents_may_approve: false)
     {
       REQUIRE_KEY => {
         "role" => role.to_s,
         "count" => SUPPORTED_COUNT,
         "self_approval" => ActiveModel::Type::Boolean.new.cast(self_approval),
         "notify" => notify.presence || NOTIFY_CHANNEL,
-        "approvers" => Array(approvers).map(&:to_s).reject(&:blank?)
+        "approvers" => Ability::Principal.references(approvers),
+        "agents_may_approve" => ActiveModel::Type::Boolean.new.cast(agents_may_approve)
       }
     }
   end
@@ -42,17 +43,28 @@ module PolicyRule::ApprovalOutcome
     unless requirement["notify"].nil? || NOTIFY_OPTIONS.include?(requirement["notify"])
       errors << "notify must be one of #{NOTIFY_OPTIONS.join(', ')}"
     end
-    errors.concat(approver_errors(requirement["approvers"], workspace))
+    unless requirement["agents_may_approve"].nil? || [ true, false ].include?(requirement["agents_may_approve"])
+      errors << "agents_may_approve must be true or false"
+    end
+    errors.concat(approver_errors(requirement, workspace))
     errors
   end
 
-  def self.approver_errors(approvers, workspace)
+  # Every named approver must be a principal of this workspace, and a
+  # machine can only be named when the rule says agents may decide.
+  def self.approver_errors(requirement, workspace)
+    approvers = requirement["approvers"]
     return [] if approvers.nil?
-    return [ "approvers must be a list of members" ] unless approvers.is_a?(Array)
+    return [ "approvers must be a list of principals" ] unless approvers.is_a?(Array)
     return [] if approvers.empty? || workspace.nil?
 
-    known = workspace.workspace_memberships.where(id: approvers).count
-    known == approvers.uniq.size ? [] : [ "approvers must all be members of this workspace" ]
+    references = Ability::Principal.references(approvers)
+    return [ "approvers must all be members, agents or service keys of this workspace" ] if references.any? { |ref| Ability::Principal.find_reference(workspace, ref).nil? }
+
+    machines = references.reject { |ref| ref["kind"] == Ability::Principal::KIND_USER }
+    return [] if machines.empty? || requirement["agents_may_approve"] == true
+
+    [ "an agent or service key can only approve when agents_may_approve is on" ]
   end
   private_class_method :approver_errors
 end

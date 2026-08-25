@@ -6,7 +6,8 @@ json.abilities PolicyRule::ApprovalConditions.values_for(approval_rule.condition
 json.risk_levels PolicyRule::ApprovalConditions.values_for(approval_rule.conditions, PolicyRule::ApprovalConditions::FIELD_RISK_LEVEL)
 json.environments approval_rule.policy.workspace.environment_entries.where(id: environment_ids).pluck(:slug)
 json.approver_role requirement["role"]
-json.approvers Array(requirement["approvers"])
+json.approvers Ability::Principal.references(requirement["approvers"])
+json.agents_may_approve requirement.fetch("agents_may_approve", false)
 json.notify requirement["notify"] || PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL
 json.self_approval requirement.fetch("self_approval", true)
 json.created_at approval_rule.created_at.utc.iso8601

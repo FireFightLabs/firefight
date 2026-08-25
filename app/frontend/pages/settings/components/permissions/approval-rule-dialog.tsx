@@ -21,35 +21,41 @@ import { approvalRulePath, approvalRulesPath } from "@/lib/routes"
 import { BadgeMultiSelect } from "@/pages/settings/components/alert-routing/badge-multi-select"
 import { FormErrors } from "@/pages/settings/components/form-errors"
 import {
+  APPROVER_CHOICE_LABELS,
   approvalRuleFormData,
   approvalRulePayload,
+  hasMachineApprover,
   isApproverRole,
   isNotifyOption,
   NOTIFY_LABELS,
-  ROLE_LABELS,
+  parseReferenceKey,
+  referenceKey,
   type ApprovalRuleFormData,
-  type ApproverKind,
+  type ApproverChoice,
 } from "@/pages/settings/components/permissions/approval-rule-form"
-import type { AbilityActionOption, ApprovalRule, EnvironmentOption, WorkspaceMembership } from "@/types/serializers"
+import type { AbilityActionOption, ApprovalRule, EnvironmentOption, Principal } from "@/types/serializers"
+
+const KIND_SUFFIX: Record<string, string> = { user: "", agent: " (agent)", api_key: " (service key)" }
 
 export function ApprovalRuleDialog({
   open,
   rule,
   actions,
   environments,
-  members,
+  principals,
   onDismiss,
 }: {
   open: boolean
   rule: ApprovalRule | null
   actions: AbilityActionOption[]
   environments: EnvironmentOption[]
-  members: WorkspaceMembership[]
+  principals: Principal[]
   onDismiss: () => void
 }) {
   const form = useForm<ApprovalRuleFormData>(approvalRuleFormData(rule))
   const { data, setData, errors, clearErrors, processing } = form
-  const needsApprovers = data.approverKind === "people" && data.approverIds.length === 0
+  const needsApprovers = data.approverChoice === "named" && data.approvers.length === 0
+  const machineNamed = hasMachineApprover(data.approvers)
 
   function patch(changes: Partial<ApprovalRuleFormData>) {
     setData((current) => ({ ...current, ...changes }))
@@ -70,20 +76,24 @@ export function ApprovalRuleDialog({
     patch({ environmentIds: next })
   }
 
-  function selectRole(value: string) {
-    if (isApproverRole(value)) {
-      patch({ role: value })
-    }
-  }
-
   function selectNotify(value: string) {
     if (isNotifyOption(value)) {
       patch({ notify: value })
     }
   }
 
-  function selectApproverKind(value: string) {
-    patch({ approverKind: value as ApproverKind })
+  function selectApproverChoice(value: string) {
+    if (value === "named" || isApproverRole(value)) {
+      patch({ approverChoice: value as ApproverChoice })
+    }
+  }
+
+  function addApprover(key: string) {
+    patch({ approvers: [ ...data.approvers, parseReferenceKey(key) ] })
+  }
+
+  function removeApprover(key: string) {
+    patch({ approvers: data.approvers.filter((approver) => referenceKey(approver) !== key) })
   }
 
   function submit(event: FormEvent) {
@@ -97,7 +107,11 @@ export function ApprovalRuleDialog({
   }
 
   const abilityOptions = actions.map((action) => ({ value: action.key, label: action.key }))
-  const memberOptions = members.map((member) => ({ value: member.id, label: member.name }))
+  const approverOptions = principals.map((principal) => ({
+    value: referenceKey({ kind: principal.kind, id: principal.id }),
+    label: `${principal.name}${KIND_SUFFIX[principal.kind] ?? ""}`,
+  }))
+  const choices: ApproverChoice[] = [ ...APPROVER_ROLES, "named" ]
 
   return (
     <Dialog open={open} onOpenChange={whenClosed(onDismiss)}>
@@ -114,6 +128,7 @@ export function ApprovalRuleDialog({
             <div className="flex flex-col gap-2">
               <Label>Which abilities</Label>
               <BadgeMultiSelect
+                stacked
                 selected={data.actionKeys}
                 options={abilityOptions}
                 placeholder="Any ability"
@@ -153,38 +168,40 @@ export function ApprovalRuleDialog({
 
             <div className="flex flex-col gap-2">
               <Label>Who approves</Label>
-              <RadioGroup value={data.approverKind} onValueChange={selectApproverKind} className="gap-2">
-                <div className="flex items-center gap-3">
-                  <RadioGroupItem value="role" id="approver-role" />
-                  <Label htmlFor="approver-role" className="font-normal">Anyone with a role</Label>
-                  <Select value={data.role} onValueChange={selectRole} disabled={data.approverKind !== "role"}>
-                    <SelectTrigger className="h-8 w-52">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {APPROVER_ROLES.map((role) => (
-                        <SelectItem key={role} value={role}>{ROLE_LABELS[role]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
-                    <RadioGroupItem value="people" id="approver-people" />
-                    <Label htmlFor="approver-people" className="font-normal">Specific people</Label>
+              <RadioGroup value={data.approverChoice} onValueChange={selectApproverChoice} className="gap-2">
+                {choices.map((choice) => (
+                  <div key={choice} className="flex items-center gap-3">
+                    <RadioGroupItem value={choice} id={`approver-${choice}`} />
+                    <Label htmlFor={`approver-${choice}`} className="font-normal">{APPROVER_CHOICE_LABELS[choice]}</Label>
                   </div>
-                  {data.approverKind === "people" && (
-                    <BadgeMultiSelect
-                      selected={data.approverIds}
-                      options={memberOptions}
-                      placeholder="Add a person"
-                      onAdd={(id) => patch({ approverIds: [ ...data.approverIds, id ] })}
-                      onRemove={(id) => patch({ approverIds: data.approverIds.filter((value) => value !== id) })}
-                      className="ml-7"
-                    />
-                  )}
-                </div>
+                ))}
               </RadioGroup>
+              {data.approverChoice === "named" && (
+                <BadgeMultiSelect
+                  stacked
+                  selected={data.approvers.map(referenceKey)}
+                  options={approverOptions}
+                  placeholder="Add a person, agent or service key"
+                  onAdd={addApprover}
+                  onRemove={removeApprover}
+                  className="ml-7"
+                />
+              )}
+              {data.approverChoice === "named" && machineNamed && (
+                <div className="ml-7 flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="agents-may-approve">Agents may decide this rule</Label>
+                    <p className="text-muted-foreground text-xs">
+                      Off means the named agents and keys are listed but only the people can decide.
+                    </p>
+                  </div>
+                  <Switch
+                    id="agents-may-approve"
+                    checked={data.agentsMayApprove}
+                    onCheckedChange={(checked) => patch({ agentsMayApprove: checked })}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-2">

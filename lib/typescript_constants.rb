@@ -35,7 +35,7 @@ module TypescriptConstants
       Export.new("WEBHOOK_EVENTS", Webhook::SUBSCRIBABLE_EVENTS, "WebhookEvent"),
       Export.new("ABILITY_RISK_LEVELS", Ability::Action::RISK_LEVELS, "AbilityRiskLevel"),
       Export.new("APPROVAL_NOTIFY_OPTIONS", PolicyRule::ApprovalOutcome::NOTIFY_OPTIONS, "ApprovalNotifyOption"),
-      Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:admin], WorkspaceMembership.roles[:owner] ], "ApproverRole")
+      Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:owner], WorkspaceMembership.roles[:admin] ], "ApproverRole")
     ]
   end
 

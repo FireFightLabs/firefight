@@ -16,7 +16,11 @@ module Mcp
           risk_levels: { type: "array", items: { type: "string" }, description: "read, write or destructive" },
           environments: { type: "array", items: { type: "string" }, description: "Environment slugs" },
           approver_role: { type: "string", description: "admin or owner, asked when no approvers are named" },
-          approvers: { type: "array", items: { type: "string" }, description: "Ids of the people who may decide, from list_principals" },
+          approvers: {
+            type: "array", items: { type: "object" },
+            description: "Who may decide, as [{\"kind\": \"user\", \"id\": \"...\"}] with kind and id from list_principals"
+          },
+          agents_may_approve: { type: "boolean", description: "Let a named agent or service key decide this rule (default false)" },
           notify: { type: "string", description: "channel, dm or both" },
           self_approval: { type: "boolean", description: "Whether the requester may approve their own request (default true)" },
           enabled: { type: "boolean", description: "Switch the rule off without deleting it" },

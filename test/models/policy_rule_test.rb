@@ -83,9 +83,17 @@ class PolicyRuleTest < ActiveSupport::TestCase
 
     rule.outcome = { "require" => base.merge("approvers" => [ workspace_memberships(:alice_workspace_two).id ]) }
     assert_not rule.valid?
-    assert_match "members of this workspace", rule.errors[:outcome].join
+    assert_match "of this workspace", rule.errors[:outcome].join
 
     rule.outcome = { "require" => base.merge("approvers" => [ workspace_memberships(:bob_workspace_one).id ], "notify" => "dm") }
+    assert rule.valid?
+
+    agent = workspace.agents.create!(name: "Grok", slug: "grok")
+    rule.outcome = { "require" => base.merge("approvers" => [ { "kind" => "agent", "id" => agent.id } ]) }
+    assert_not rule.valid?
+    assert_match "agents_may_approve", rule.errors[:outcome].join
+
+    rule.outcome = { "require" => base.merge("approvers" => [ { "kind" => "agent", "id" => agent.id } ], "agents_may_approve" => true) }
     assert rule.valid?
   end
 

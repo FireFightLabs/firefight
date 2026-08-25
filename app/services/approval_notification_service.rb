@@ -12,7 +12,7 @@ class ApprovalNotificationService
     end
 
     if approval.notify_dm?
-      approval.approvers.find_each do |approver|
+      approval.human_approvers.each do |approver|
         deliver(approval) { adapter.post_approval_request(approval: approval, channel_id: approver.platform_user_id) }
       end
     end

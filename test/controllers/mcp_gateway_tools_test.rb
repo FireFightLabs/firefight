@@ -66,18 +66,18 @@ class McpGatewayToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "approval rules are created, changed in part, and deleted" do
-    payload, error, = call_tool(Mcp::Tools::UPSERT_APPROVAL_RULE, {
-      risk_levels: [ "destructive" ], approvers: [ @bob.id ], notify: "dm", self_approval: false
+    payload, error, text = call_tool(Mcp::Tools::UPSERT_APPROVAL_RULE, {
+      risk_levels: [ "destructive" ], approvers: [ { kind: "user", id: @bob.id } ], notify: "dm", self_approval: false
     })
-    assert_not error
-    assert_equal [ @bob.id ], payload["approvers"]
+    assert_not error, text
+    assert_equal [ { "kind" => "user", "id" => @bob.id } ], payload["approvers"]
     assert_equal "dm", payload["notify"]
     id = payload["id"]
 
     payload, = call_tool(Mcp::Tools::UPSERT_APPROVAL_RULE, { id: id, enabled: false })
     assert_equal false, payload["enabled"]
     assert_equal [ "destructive" ], payload["risk_levels"]
-    assert_equal [ @bob.id ], payload["approvers"]
+    assert_equal [ { "kind" => "user", "id" => @bob.id } ], payload["approvers"]
 
     _, error, text = call_tool(Mcp::Tools::UPSERT_APPROVAL_RULE, { id: SecureRandom.uuid, enabled: true })
     assert error

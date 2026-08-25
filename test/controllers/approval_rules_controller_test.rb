@@ -11,7 +11,7 @@ class ApprovalRulesControllerTest < ActionDispatch::IntegrationTest
     {
       action_keys: [ "catalog.delete" ], risk_levels: [], environments: [],
       approver_role: WorkspaceMembership.roles[:admin], self_approval: false,
-      notify: PolicyRule::ApprovalOutcome::NOTIFY_BOTH, approvers: [ @bob.id ]
+      notify: PolicyRule::ApprovalOutcome::NOTIFY_BOTH, approvers: [ { kind: "user", id: @bob.id } ]
     }.merge(overrides)
   end
 
@@ -25,20 +25,20 @@ class ApprovalRulesControllerTest < ActionDispatch::IntegrationTest
     rule = @workspace.approval_rules.first!
     assert_equal [ "catalog.delete" ], PolicyRule::ApprovalConditions.values_for(rule.conditions, "action_key")
     requirement = rule.outcome["require"]
-    assert_equal [ @bob.id ], requirement["approvers"]
+    assert_equal [ { "kind" => "user", "id" => @bob.id } ], requirement["approvers"]
     assert_equal false, requirement["self_approval"]
     assert_equal PolicyRule::ApprovalOutcome::NOTIFY_BOTH, requirement["notify"]
 
     get gateway_permissions_url, headers: inertia_headers
     rendered = inertia_props["approvalRules"].first
     assert_equal rule.id, rendered["id"]
-    assert_equal [ @bob.id ], rendered["approverIds"]
+    assert_equal [ { "kind" => "user", "id" => @bob.id } ], rendered["approvers"]
     assert_equal "both", rendered["notify"]
-    assert inertia_props["members"].any? { |member| member["id"] == @bob.id }
+    assert inertia_props["principals"].any? { |principal| principal["id"] == @bob.id }
   end
 
   test "approvers must belong to the workspace" do
-    post approval_rules_url, params: { rule: rule_params(approvers: [ workspace_memberships(:alice_workspace_two).id ]) }, headers: inertia_headers
+    post approval_rules_url, params: { rule: rule_params(approvers: [ { kind: "user", id: workspace_memberships(:alice_workspace_two).id } ]) }, headers: inertia_headers
 
     assert_equal 0, @workspace.approval_rules.count
   end

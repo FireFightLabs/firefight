@@ -30,7 +30,8 @@ module Mcp
           risk_levels: PolicyRule::ApprovalConditions.values_for(rule.conditions, PolicyRule::ApprovalConditions::FIELD_RISK_LEVEL),
           environments: rule.policy.workspace.environment_entries.where(id: environment_ids).pluck(:slug),
           approver_role: requirement["role"],
-          approvers: Array(requirement["approvers"]),
+          approvers: Ability::Principal.references(requirement["approvers"]),
+          agents_may_approve: requirement.fetch("agents_may_approve", false),
           notify: requirement["notify"] || PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL,
           self_approval: requirement.fetch("self_approval", true)
         }

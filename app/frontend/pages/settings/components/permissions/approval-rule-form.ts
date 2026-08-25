@@ -1,20 +1,33 @@
-import type { AbilityActionOption, ApprovalRule, EnvironmentOption, WorkspaceMembership } from "@/types/serializers"
+import type { AbilityActionOption, ApprovalRule, EnvironmentOption, Principal } from "@/types/serializers"
 import { APPROVAL_NOTIFY_OPTIONS, APPROVER_ROLES, type ApprovalNotifyOption, type ApproverRole } from "@/lib/generated/constants"
 
 // Pure mapping between the approval rule dialog's form state and the
 // ApprovalRule serializer/params shapes. No React in here.
 
-export type ApproverKind = "role" | "people"
+// Who decides: everyone with the owner role, everyone with admin or owner,
+// or the principals the rule names.
+export type ApproverChoice = ApproverRole | "named"
+
+export interface ApproverReference {
+  kind: string
+  id: string
+}
 
 export interface ApprovalRuleFormData {
   actionKeys: string[]
   riskLevels: string[]
   environmentIds: string[]
-  approverKind: ApproverKind
-  role: ApproverRole
-  approverIds: string[]
+  approverChoice: ApproverChoice
+  approvers: ApproverReference[]
+  agentsMayApprove: boolean
   notify: ApprovalNotifyOption
   selfApproval: boolean
+}
+
+export const APPROVER_CHOICE_LABELS: Record<ApproverChoice, string> = {
+  owner: "Anyone with the owner role",
+  admin: "Anyone with the admin or owner role",
+  named: "Specific people or agents",
 }
 
 export const NOTIFY_LABELS: Record<ApprovalNotifyOption, string> = {
@@ -36,28 +49,43 @@ export function isApproverRole(value: string): value is ApproverRole {
   return (APPROVER_ROLES as readonly string[]).includes(value)
 }
 
+export function referenceKey(reference: ApproverReference): string {
+  return `${reference.kind}:${reference.id}`
+}
+
+export function parseReferenceKey(key: string): ApproverReference {
+  const [kind, id] = key.split(":")
+  return { kind, id }
+}
+
 export function approvalRuleFormData(rule: ApprovalRule | null): ApprovalRuleFormData {
   const role = rule && isApproverRole(rule.role) ? rule.role : "admin"
   return {
     actionKeys: rule?.actionKeys ?? [],
     riskLevels: rule?.riskLevels ?? [],
     environmentIds: rule?.environments ?? [],
-    approverKind: rule && rule.approverIds.length > 0 ? "people" : "role",
-    role,
-    approverIds: rule?.approverIds ?? [],
+    approverChoice: rule && rule.approvers.length > 0 ? "named" : role,
+    approvers: rule?.approvers ?? [],
+    agentsMayApprove: rule?.agentsMayApprove ?? false,
     notify: rule?.notify ?? "channel",
     selfApproval: rule?.selfApproval ?? true,
   }
 }
 
+export function hasMachineApprover(approvers: ApproverReference[]): boolean {
+  return approvers.some((approver) => approver.kind !== "user")
+}
+
 export function approvalRulePayload(data: ApprovalRuleFormData) {
+  const named = data.approverChoice === "named"
   return {
     rule: {
       action_keys: data.actionKeys,
       risk_levels: data.riskLevels,
       environments: data.environmentIds,
-      approver_role: data.role,
-      approvers: data.approverKind === "people" ? data.approverIds : [],
+      approver_role: named ? "admin" : data.approverChoice,
+      approvers: named ? data.approvers : [],
+      agents_may_approve: named && hasMachineApprover(data.approvers) ? data.agentsMayApprove : false,
       notify: data.notify,
       self_approval: data.selfApproval,
     },
@@ -91,9 +119,11 @@ export function describeScope(rule: ApprovalRule, environments: EnvironmentOptio
   return parts.join(" ")
 }
 
-export function describeApprovers(rule: ApprovalRule, members: WorkspaceMembership[]): string {
-  if (rule.approverIds.length > 0) {
-    const names = rule.approverIds.map((id) => members.find((member) => member.id === id)?.name ?? "a former member")
+export function describeApprovers(rule: ApprovalRule, principals: Principal[]): string {
+  if (rule.approvers.length > 0) {
+    const names = rule.approvers.map(
+      (approver) => principals.find((principal) => principal.kind === approver.kind && principal.id === approver.id)?.name ?? "a former member",
+    )
     return listOf(names)
   }
   return isApproverRole(rule.role) ? ROLE_LABELS[rule.role].toLowerCase() : rule.role

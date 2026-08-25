@@ -21,14 +21,10 @@ class Api::V1::ApprovalsController < Api::V1::ApiController
 
   private
 
-  # Deciding is structurally human. The model takes a membership, so a
-  # service key cannot resolve approvals whatever it was granted.
+  # The model decides who may: a person holding the role or named on the
+  # rule, or a machine named on a rule that lets agents decide.
   def resolve(decision)
     authorize!(Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE)
-    unless Current.principal.is_a?(WorkspaceMembership)
-      return render json: error_response("human_only", "Only a person can decide an approval. Use a personal token."), status: :forbidden
-    end
-
     @approval = current_workspace.ability_approvals.find(params[:id])
     decision == :approve ? @approval.approve!(by: Current.principal) : @approval.deny!(by: Current.principal)
     ApprovalNotificationService.mark_resolved!(@approval)

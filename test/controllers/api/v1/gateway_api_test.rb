@@ -109,7 +109,7 @@ class Api::V1::GatewayApiTest < ActionDispatch::IntegrationTest
     first = json_response
     assert_equal [ "runbooks.update" ], first["abilities"]
     assert_equal [ @environment.slug ], first["environments"]
-    assert_equal [ @bob.id ], first["approvers"]
+    assert_equal [ { "kind" => "user", "id" => @bob.id } ], first["approvers"]
     assert_equal "both", first["notify"]
     assert_equal false, first["self_approval"]
     assert_equal "admin", first["approver_role"]
@@ -141,10 +141,10 @@ class Api::V1::GatewayApiTest < ActionDispatch::IntegrationTest
   test "an approval rule with an approver from another workspace is rejected" do
     post_json api_v1_approval_rules_url, { approvers: [ workspace_memberships(:alice_workspace_two).id ] }
     assert_response :unprocessable_entity
-    assert_match "members of this workspace", json_response["error"]["errors"].first["message"]
+    assert_match "of this workspace", json_response["error"]["errors"].first["message"]
   end
 
-  test "approvals are listed and decided by a person, never a service key" do
+  test "approvals are decided by a person, or by an agent a rule named" do
     approval = @workspace.ability_approvals.create!(
       principal: @bob, principal_label: @bob.principal_label, action_key: "runbooks.update",
       request_digest: "d", required_role: WorkspaceMembership.roles[:admin]
@@ -156,8 +156,8 @@ class Api::V1::GatewayApiTest < ActionDispatch::IntegrationTest
     assert_equal [ approval.id ], json_response["approvals"].map { |row| row["id"] }
 
     post approve_api_v1_approval_url(approval), headers: api_headers(token: service_token)
-    assert_response :forbidden
-    assert_equal "human_only", json_response["error"]["type"]
+    assert_response :unprocessable_entity
+    assert_equal "approval_not_allowed", json_response["error"]["type"]
 
     post approve_api_v1_approval_url(approval), headers: api_headers(token: @admin_token)
     assert_response :success
@@ -178,5 +178,19 @@ class Api::V1::GatewayApiTest < ActionDispatch::IntegrationTest
     assert_equal "permissions.create", row["action_key"]
     assert_equal "api", row["source"]
     assert_equal 1, json_response["pagination"]["page"]
+  end
+
+  test "a service key named on a rule that lets agents decide can approve" do
+    key, service_token = create_service_key(workspace: @workspace, created_by: @admin, name: "Grok", permissions: { "approvals" => [ "read", "update" ] })
+    approval = @workspace.ability_approvals.create!(
+      principal: @bob, principal_label: @bob.principal_label, action_key: "runbooks.update",
+      request_digest: "d", required_role: WorkspaceMembership.roles[:admin],
+      approver_ids: [ { "kind" => "api_key", "id" => key.id } ], agents_may_approve: true
+    )
+
+    post approve_api_v1_approval_url(approval), headers: api_headers(token: service_token)
+    assert_response :success
+    assert_equal "Grok", json_response["approver"]
+    assert_equal key, approval.reload.approver
   end
 end

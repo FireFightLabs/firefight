@@ -17,6 +17,30 @@ module Ability
       end
     end
 
+    # A principal as a rule or an approval stores it: kind plus id. A bare
+    # string is a person, which is how approvers were written before agents
+    # could be named.
+    def self.reference(value)
+      return { "kind" => KIND_USER, "id" => value.to_s } if value.is_a?(String)
+
+      value = value.to_h.stringify_keys
+      { "kind" => value["kind"].to_s, "id" => value["id"].to_s }
+    end
+
+    def self.reference_for(principal)
+      { "kind" => principal.actor_kind, "id" => principal.id }
+    end
+
+    def self.references(values)
+      Array(values).map { |value| reference(value) }.reject { |ref| ref["id"].blank? }.uniq
+    end
+
+    def self.find_reference(workspace, reference)
+      find!(workspace, reference["kind"], reference["id"])
+    rescue ActiveRecord::RecordNotFound
+      nil
+    end
+
     # Everyone who can hold a grant, with their grants loaded.
     def self.all(workspace)
       associations = { ability_grants: [ :action, { role: :role_actions } ] }

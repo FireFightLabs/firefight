@@ -4,7 +4,7 @@
 # without a role asks any admin, matching the dashboard's default.
 module PolicyRule::ApprovalRuleChanges
   CONDITION_KEYS = %i[abilities risk_levels environments].freeze
-  OUTCOME_KEYS = %i[approver_role self_approval notify approvers].freeze
+  OUTCOME_KEYS = %i[approver_role self_approval notify approvers agents_may_approve].freeze
 
   def self.attributes(workspace:, existing:, changes:)
     changes = changes.to_h.symbolize_keys
@@ -25,7 +25,8 @@ module PolicyRule::ApprovalRuleChanges
         role: changes.fetch(:approver_role, requirement["role"] || WorkspaceMembership.roles[:admin]),
         self_approval: changes.fetch(:self_approval, requirement.fetch("self_approval", true)),
         notify: changes.fetch(:notify, requirement["notify"]),
-        approvers: changes.key?(:approvers) ? changes[:approvers] : requirement["approvers"]
+        approvers: changes.key?(:approvers) ? changes[:approvers] : requirement["approvers"],
+        agents_may_approve: changes.fetch(:agents_may_approve, requirement.fetch("agents_may_approve", false))
       )
     end
 

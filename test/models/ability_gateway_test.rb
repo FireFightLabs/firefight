@@ -317,7 +317,7 @@ class AbilityGatewayTest < ActiveSupport::TestCase
       AbilityGateway.authorize!(principal: @membership, action_key: "catalog.delete", workspace: @workspace)
     end
 
-    assert_equal [ bob.id ], error.approval.approver_ids
+    assert_equal [ { "kind" => "user", "id" => bob.id } ], error.approval.approver_ids
     assert_equal PolicyRule::ApprovalOutcome::NOTIFY_BOTH, error.approval.notify
   end
 

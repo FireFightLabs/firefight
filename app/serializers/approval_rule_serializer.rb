@@ -43,9 +43,14 @@ class ApprovalRuleSerializer < BaseSerializer
     requirement["notify"] || PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL
   end
 
-  type "string[]"
-  def approver_ids
-    Array(requirement["approvers"]).map(&:to_s)
+  type "{ kind: string; id: string }[]"
+  def approvers
+    Ability::Principal.references(requirement["approvers"])
+  end
+
+  type :boolean
+  def agents_may_approve
+    requirement.fetch("agents_may_approve", false)
   end
 
   private
