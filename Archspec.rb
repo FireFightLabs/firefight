@@ -1,6 +1,6 @@
 # Architecture rules, checked by `bundle exec archspec check` (part of bin/ci).
-# archspec_todo.yml grandfathers the violations that predate the rules, and
-# each refactor shrinks that list. New violations fail the build.
+# archspec_todo.yml is empty and stays empty: a new violation means the code
+# is in the wrong place. Any violation fails the build.
 #
 # The rules encode the boundaries documented in CLAUDE.md and
 # docs/architecture.md: platform code stays inside adapters, entry points stay
