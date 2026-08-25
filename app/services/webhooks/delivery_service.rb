@@ -116,6 +116,7 @@ class Webhooks::DeliveryService
   end
 
   def record_outcome
-    @webhook.webhook_delinquency_tracker&.record_delivery(@delivery)
+    deactivated = @webhook.webhook_delinquency_tracker&.record_delivery(@delivery)
+    Webhooks::DeactivationNotifier.notify(@webhook, reason: WebhookDelinquencyTracker::DEACTIVATION_REASON) if deactivated
   end
 end

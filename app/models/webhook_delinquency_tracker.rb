@@ -4,24 +4,29 @@ class WebhookDelinquencyTracker < ApplicationRecord
 
   belongs_to :webhook
 
+  DEACTIVATION_REASON = "delinquency_threshold"
+
+  # Returns true when this delivery tipped the webhook into deactivation, so
+  # the caller can tell someone.
   def record_delivery(delivery)
     if delivery.succeeded?
       reset
+      false
     else
       mark_first_failure_time if consecutive_failures_count.zero?
       increment!(:consecutive_failures_count, touch: true)
 
-      auto_deactivate! if delinquent?
+      delinquent? && auto_deactivate!
     end
   end
 
   private
 
   def auto_deactivate!
-    return unless webhook.active?
+    return false unless webhook.active?
 
     webhook.deactivate!
-    Webhooks::DeactivationNotifier.notify(webhook, reason: "delinquency_threshold")
+    true
   end
 
   def reset

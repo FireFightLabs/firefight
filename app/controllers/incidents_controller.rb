@@ -95,14 +95,7 @@ class IncidentsController < InertiaController
 
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
 
-    postmortem = Postmortem.create!(
-      incident: incident,
-      generated_by: member,
-      title: "#{incident.identifier} Postmortem: #{incident.name}",
-      status: Postmortem::STATUS_DRAFT,
-      content: { "html" => "" }
-    )
-    postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: member)
+    Postmortem.start_blank!(incident, by: member)
 
     redirect_to incident_postmortem_path(incident)
   end

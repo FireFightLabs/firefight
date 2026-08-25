@@ -50,6 +50,16 @@ class Postmortem < ApplicationRecord
   # when a generation is already running. The unique index on incident_id
   # serializes two callers creating the placeholder at once, and the guarded
   # update serializes two callers retrying a failed one.
+  # An empty document a person writes by hand, recorded like a generated one.
+  def self.start_blank!(incident, by:)
+    postmortem = create!(
+      incident: incident, generated_by: by, status: STATUS_DRAFT,
+      title: "#{incident.identifier} Postmortem: #{incident.name}", content: { "html" => "" }
+    )
+    postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: by)
+    postmortem
+  end
+
   def self.start_generation!(incident, by:)
     existing = incident.postmortem
     if existing.nil?

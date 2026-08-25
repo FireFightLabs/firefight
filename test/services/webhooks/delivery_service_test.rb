@@ -140,6 +140,20 @@ class Webhooks::DeliveryServiceTest < ActiveSupport::TestCase
     assert_equal 1, tracker.reload.consecutive_failures_count
   end
 
+  test "tells the workspace when a failure deactivates the webhook" do
+    stub_ssrf_resolution("93.184.216.34")
+    Net::HTTP.any_instance.stubs(:request).raises(Net::OpenTimeout)
+    @webhook.webhook_delinquency_tracker.update_columns(
+      consecutive_failures_count: WebhookDelinquencyTracker::DELINQUENCY_THRESHOLD - 1,
+      first_failure_at: 2.hours.ago
+    )
+    Webhooks::DeactivationNotifier.expects(:notify).with(@webhook, reason: WebhookDelinquencyTracker::DEACTIVATION_REASON).once
+
+    Webhooks::DeliveryService.deliver(@delivery)
+
+    assert_not @webhook.reload.active?
+  end
+
   test "signature is HMAC-SHA256 over scheme:timestamp:body" do
     stub_ssrf_resolution("93.184.216.34")
 
