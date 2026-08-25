@@ -51,7 +51,7 @@ class Interactions::OpenModalRefreshTest < ActiveSupport::TestCase
       user_id: @member.platform_user_id,
       view_id: view_id,
       callback_id: callback_id,
-      private_metadata: Slack::PrivateMetadata.encode(incident_id: incident_id)
+      private_metadata: ModalState.encode(incident_id: incident_id)
     )
   end
 end

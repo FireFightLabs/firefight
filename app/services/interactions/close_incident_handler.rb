@@ -9,20 +9,16 @@ module Interactions
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
-      return already_closed_error if incident.closed?
+      return already_closed_error(workspace) if incident.closed?
 
-      submission = Slack::FormSubmission.new(
-        workspace: workspace,
+      submission = workspace.adapter.parse_form_submission(
         form_slug: IncidentForm::SLUG_RESOLVE,
         values: interaction.values,
         incident: incident
-      ).parse
+      )
 
       if submission.errors.any?
-        return {
-          response_action: "errors",
-          errors: { submission.first_error_block_id => submission.errors.first }
-        }
+        return workspace.adapter.form_error_response(submission.first_error_field_key, submission.errors.first)
       end
 
       lead_member, lead_error = resolve_lead(workspace, submission)
@@ -37,7 +33,7 @@ module Interactions
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.warn({ event: "interactions.close_incident.record_not_found", error: e.message })
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata) if workspace && metadata
-      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_SUMMARY) => "Something went wrong. Please close this modal and try again." } }
+      workspace.adapter.form_error_response(IncidentSystemField::KEY_SUMMARY, "Something went wrong. Please close this modal and try again.")
     end
 
     def self.resolve_lead(workspace, submission)
@@ -49,7 +45,7 @@ module Interactions
         platform_user_id: lead_user_id,
         adapter: workspace.adapter
       )
-      return [ nil, lead_provision_error ] unless lead_member
+      return [ nil, lead_provision_error(workspace) ] unless lead_member
 
       [ lead_member, nil ]
     end
@@ -84,13 +80,13 @@ module Interactions
     end
     private_class_method :build_close_attrs
 
-    def self.already_closed_error
-      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_SUMMARY) => "This incident is already closed." } }
+    def self.already_closed_error(workspace)
+      workspace.adapter.form_error_response(IncidentSystemField::KEY_SUMMARY, "This incident is already closed.")
     end
     private_class_method :already_closed_error
 
-    def self.lead_provision_error
-      { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_LEAD) => "Couldn't load that user's profile from Slack. Please try again in a moment." } }
+    def self.lead_provision_error(workspace)
+      workspace.adapter.form_error_response(IncidentSystemField::KEY_LEAD, "Couldn't load that user's profile from Slack. Please try again in a moment.")
     end
     private_class_method :lead_provision_error
   end

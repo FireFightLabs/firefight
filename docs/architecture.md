@@ -90,7 +90,7 @@ Api::V1::InteractionsController → Slack::InteractionParser.parse → Interacti
 
 Who is acting is resolved once: `Command#principal` / `Interaction#principal` provision a `WorkspaceMembership` for the Slack user on the way through `AuthorizedDispatch`, before any gated handler runs, so handlers can trust `find_by!(platform_user_id:)`. A user whose profile cannot be read is refused with `AuthorizedDispatch::UNRESOLVED_MESSAGE`. An interaction from a `team_id` Firefight does not know is dropped with `head :ok` (there is no way to answer a click on an old message) and logged as `interaction.unknown_workspace`.
 
-A modal's `private_metadata` is parsed once by `Slack::InteractionParser` into the typed `Interaction#metadata` (`Slack::PrivateMetadata::Result`). Handlers read `interaction.metadata.incident_id` and friends and never parse the string themselves. Every modal builder encodes with `Slack::PrivateMetadata.encode`.
+A modal's `private_metadata` is parsed once by `Slack::InteractionParser` into the typed `Interaction#metadata` (`ModalState::Result`). Handlers read `interaction.metadata.incident_id` and friends and never parse the string themselves. Every modal builder encodes with `ModalState.encode`, which is platform-neutral: the string is Firefight's own JSON, the platform only carries it.
 
 Controllers are the platform-specific boundary — they normalize payloads into platform-agnostic objects before passing to dispatchers.
 
@@ -221,6 +221,15 @@ Don't create a service class that wraps a single model call. That's unnecessary 
 ## Adapters
 
 Platform abstraction layer. `WorkspaceAdapter.for(workspace)` is the factory — returns platform-specific adapter (e.g., `Slack::WorkspaceAdapter`). Always use the factory, never instantiate platform adapters directly.
+
+`PlatformAdapter` is the whole contract, and nothing outside `app/adapters/slack/` names a `Slack::` constant (ArchSpec enforces it, with no grandfathered exceptions left). The seams that keep it that way:
+
+- **Modals are built by kind.** `adapter.build_modal(PlatformAdapter::Modal::LEAD, incident)` returns the opaque view that `open_modal`, `push_modal`, `update_modal` and `form_update_response` accept. `Slack::WorkspaceAdapter::MODAL_BUILDERS` maps each kind to its builder, and anything only Slack needs (the `team_id` in a channel deep link) is filled in there. `metadata:` carries an encoded `ModalState`.
+- **Form submissions are parsed by the adapter.** `adapter.parse_form_submission(form_slug:, values:, incident:)` returns `system_attrs`, `custom_fields`, `errors` and `first_error_field_key`. A handler answers with `adapter.form_error_response(field_key, message)` or `adapter.form_update_response(view)`, never with a `response_action` hash of its own. The mapping from a field key to a block id lives in `Slack::Modals::FieldBlocks` only.
+- **People in free text are the platform's to resolve.** `adapter.people_targets?(text)` and `adapter.resolve_people(text)` wrap `Slack::HandleResolver`.
+- **Which kind a callback names is an `Identifiers` table** (`ACTION_ITEMS_LIST_KINDS`, `ACTION_ITEMS_FORM_KINDS`), and the kind's action type is `IncidentAction::ACTION_TYPE_BY_KIND`.
+- **Credentials refresh through the factory.** `RefreshPlatformCredentialsJob` calls `WorkspaceAdapter.refresh_expiring_credentials(buffer:)`, which asks each platform adapter class in turn.
+- **Transcript messages carry `message_id`, `thread_id` and `platform_user_id`**, the platform's identifiers under Firefight's names.
 
 Adapters have two levels of methods:
 - **Low-level**: generic operations (`post_message`, `open_modal`, `pin_message`, `post_ephemeral`)

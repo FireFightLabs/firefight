@@ -62,8 +62,8 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
     ].each do |ts, thread_ts, content|
       @incident.incident_transcript_messages.create!(
         workspace: @workspace, workspace_membership: member,
-        slack_ts: ts, slack_thread_ts: thread_ts,
-        slack_user_id: member.platform_user_id,
+        message_id: ts, thread_id: thread_ts,
+        platform_user_id: member.platform_user_id,
         content: content, posted_at: Time.at(ts.to_f)
       )
     end

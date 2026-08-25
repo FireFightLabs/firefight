@@ -2,7 +2,6 @@ class IncidentInviteService
   def initialize(workspace)
     @workspace = workspace
     @adapter = workspace.adapter
-    @resolver = Slack::HandleResolver.new(workspace)
   end
 
   def invite!(incident:, user_ids:)
@@ -29,7 +28,7 @@ class IncidentInviteService
   end
 
   def resolve_and_notify!(incident:, text:, channel_id:, user_id:)
-    targets = @resolver.resolve(text)
+    targets = @adapter.resolve_people(text)
 
     if targets[:user_ids].empty?
       message = if targets[:had_target_tokens]

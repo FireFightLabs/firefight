@@ -54,7 +54,7 @@ class Interactions::CreateActionItemHandlerTest < ActiveSupport::TestCase
 
   test "keeps the link to the message a reaction started from" do
     stub_post_message
-    metadata = Slack::PrivateMetadata.encode(
+    metadata = ModalState.encode(
       incident_id: @incident.id, source_message_text: "Original message", source_message_link: "https://example.com/msg"
     )
 
@@ -68,7 +68,7 @@ class Interactions::CreateActionItemHandlerTest < ActiveSupport::TestCase
   end
 
   test "returns a modal error when the incident is gone" do
-    metadata = Slack::PrivateMetadata.encode(incident_id: SecureRandom.uuid)
+    metadata = ModalState.encode(incident_id: SecureRandom.uuid)
 
     result = Interactions::CreateActionItemHandler.execute(
       build_interaction(callback_id: Identifiers::CREATE_ACTION_MODAL, description: "Test", private_metadata: metadata)
@@ -86,7 +86,7 @@ class Interactions::CreateActionItemHandlerTest < ActiveSupport::TestCase
       team_id: @workspace.platform_id,
       user_id: @member.platform_user_id,
       callback_id: callback_id,
-      private_metadata: private_metadata || Slack::PrivateMetadata.encode(incident_id: @incident.id),
+      private_metadata: private_metadata || ModalState.encode(incident_id: @incident.id),
       values: {
         "description_block" => { "description_input" => { "value" => description } },
         "assignee_block" => { "assignee_select" => { "selected_user" => assignee_user_id } }

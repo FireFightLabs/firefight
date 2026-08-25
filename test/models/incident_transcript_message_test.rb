@@ -36,8 +36,8 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
   end
 
   test "kept scope excludes soft-deleted rows" do
-    kept = build_message(slack_ts: "1.001").tap(&:save!)
-    build_message(slack_ts: "1.002", deleted_at: Time.current).tap(&:save!)
+    kept = build_message(message_id: "1.001").tap(&:save!)
+    build_message(message_id: "1.002", deleted_at: Time.current).tap(&:save!)
 
     assert_includes IncidentTranscriptMessage.kept, kept
     assert_equal 1, IncidentTranscriptMessage.kept.count
@@ -47,10 +47,10 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
     assert_equal false, build_message.tap(&:save!).reload.scrubbed
   end
 
-  test "requires workspace, incident, slack_ts, slack_user_id, posted_at" do
+  test "requires workspace, incident, message_id, platform_user_id, posted_at" do
     message = IncidentTranscriptMessage.new
     assert_not message.valid?
-    %i[workspace incident slack_ts slack_user_id posted_at].each do |field|
+    %i[workspace incident message_id platform_user_id posted_at].each do |field|
       assert message.errors[field].any?, "expected presence error on #{field}"
     end
   end
@@ -108,7 +108,7 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
     }
 
     samples.each do |label, secret|
-      message = build_message(slack_ts: "ts-#{label}", content: "leaked #{secret} here").tap(&:save!)
+      message = build_message(message_id: "ts-#{label}", content: "leaked #{secret} here").tap(&:save!)
       decrypted = message.reload.content
       assert_includes decrypted, "[REDACTED:#{label}]", "expected #{label} to be scrubbed"
       assert_not_includes decrypted, secret
@@ -125,7 +125,7 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
     }
 
     samples.each do |label, secret|
-      message = build_message(slack_ts: "ts-#{label}", content: "see #{secret}").tap(&:save!)
+      message = build_message(message_id: "ts-#{label}", content: "see #{secret}").tap(&:save!)
       assert_includes message.reload.content, "[REDACTED:#{label}]"
     end
   end
@@ -138,7 +138,7 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
     }
 
     samples.each do |label, secret|
-      message = build_message(slack_ts: "ts-#{label}", content: "token #{secret}").tap(&:save!)
+      message = build_message(message_id: "ts-#{label}", content: "token #{secret}").tap(&:save!)
       assert_includes message.reload.content, "[REDACTED:#{label}]"
     end
   end
@@ -162,8 +162,8 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
       workspace: @workspace,
       incident: @incident,
       workspace_membership: @member,
-      slack_ts: "1717420800.000100",
-      slack_user_id: @member.platform_user_id,
+      message_id: "1717420800.000100",
+      platform_user_id: @member.platform_user_id,
       content: "hello world",
       posted_at: Time.current
     }.merge(overrides))

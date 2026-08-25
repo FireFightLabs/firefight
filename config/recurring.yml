@@ -17,8 +17,8 @@ development:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events
     schedule: every 2 minutes
-  refresh_slack_tokens:
-    class: RefreshSlackTokensJob
+  refresh_platform_credentials:
+    class: RefreshPlatformCredentialsJob
     schedule: every hour
   workflow_sweeper:
     class: SolidWorkflow::SweeperJob
@@ -47,8 +47,8 @@ staging:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
-  refresh_slack_tokens:
-    class: RefreshSlackTokensJob
+  refresh_platform_credentials:
+    class: RefreshPlatformCredentialsJob
     schedule: every hour
   workflow_sweeper:
     class: SolidWorkflow::SweeperJob
@@ -77,8 +77,8 @@ production:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
-  refresh_slack_tokens:
-    class: RefreshSlackTokensJob
+  refresh_platform_credentials:
+    class: RefreshPlatformCredentialsJob
     schedule: every hour
   workflow_sweeper:
     class: SolidWorkflow::SweeperJob

@@ -21,7 +21,7 @@ class Interactions::IncidentUpdateSelectHandlerTest < ActiveSupport::TestCase
   test "keeps the modal pointed at the same incident" do
     view = capture_updated_view("resolved")
 
-    assert_equal @incident.id, Slack::PrivateMetadata.parse(view[:private_metadata]).incident_id
+    assert_equal @incident.id, ModalState.parse(view[:private_metadata]).incident_id
   end
 
   test "swallows a Slack failure rather than erroring the interaction" do
@@ -52,7 +52,7 @@ class Interactions::IncidentUpdateSelectHandlerTest < ActiveSupport::TestCase
       action_id: Identifiers::INCIDENT_UPDATE_STATUS_SELECT,
       callback_id: Identifiers::INCIDENT_UPDATE_MODAL,
       view_id: "V12345678",
-      private_metadata: Slack::PrivateMetadata.encode(incident_id: @incident.id),
+      private_metadata: ModalState.encode(incident_id: @incident.id),
       values: {
         "field_status_block" => {
           Identifiers::INCIDENT_UPDATE_STATUS_SELECT => { "selected_option" => { "value" => slug } }

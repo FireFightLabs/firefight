@@ -3,7 +3,7 @@ module Slack
     module Summary
       def self.build(incident, private_metadata: nil)
         initial_value = incident.summary.present? ? { initial_value: incident.summary } : {}
-        metadata = private_metadata || Slack::PrivateMetadata.encode(incident_id: incident.id)
+        metadata = private_metadata || ModalState.encode(incident_id: incident.id)
 
         {
           type: "modal",

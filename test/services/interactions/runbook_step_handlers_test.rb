@@ -129,7 +129,7 @@ class Interactions::RunbookStepHandlersTest < ActiveSupport::TestCase
     build_interaction(
       action_id: Identifiers::ASSIGN_RUNBOOK_STEP,
       block_id: "#{Identifiers::RUNBOOK_STEP_BLOCK_PREFIX}#{step.id}",
-      private_metadata: Slack::PrivateMetadata.encode(incident_id: @incident.id, incident_runbook_id: @incident_runbook.id),
+      private_metadata: ModalState.encode(incident_id: @incident.id, incident_runbook_id: @incident_runbook.id),
       selected_user: assignee.platform_user_id
     )
   end

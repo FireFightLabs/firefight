@@ -23,7 +23,7 @@ module Slack
         {
           type: "modal",
           callback_id: Identifiers::INCIDENT_HOME_MODAL,
-          private_metadata: Slack::PrivateMetadata.encode(channel_id: channel_id),
+          private_metadata: ModalState.encode(channel_id: channel_id),
           title: { type: "plain_text", text: "Incident Home" },
           submit: { type: "plain_text", text: "Continue" },
           close: { type: "plain_text", text: "Close" },

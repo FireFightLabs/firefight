@@ -16,7 +16,7 @@ module Slack
         {
           type: "modal",
           callback_id: Identifiers::SET_ROLES_MODAL,
-          private_metadata: Slack::PrivateMetadata.encode(incident_id: incident.id),
+          private_metadata: ModalState.encode(incident_id: incident.id),
           title: { type: "plain_text", text: "Incident Roles" },
           submit: { type: "plain_text", text: "Save" },
           close: { type: "plain_text", text: "Cancel" },

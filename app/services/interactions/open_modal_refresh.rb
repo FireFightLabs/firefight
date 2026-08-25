@@ -22,13 +22,13 @@ module Interactions
       metadata = interaction.metadata
 
       if interaction.callback_id == Identifiers::RUNBOOK_DETAIL_MODAL
-        return Slack::Modals::RunbookDetail.build(workspace.incident_runbooks.find(metadata.incident_runbook_id))
+        return workspace.adapter.build_modal(PlatformAdapter::Modal::RUNBOOK_DETAIL, workspace.incident_runbooks.find(metadata.incident_runbook_id))
       end
 
-      kind = Slack::Modals::ActionItemsList.kind_for(interaction.callback_id)
+      kind = Identifiers::ACTION_ITEMS_LIST_KINDS[interaction.callback_id]
       return nil if kind.nil?
 
-      Slack::Modals::ActionItemsList.build(workspace.incidents.find(metadata.incident_id), kind: kind)
+      workspace.adapter.build_modal(PlatformAdapter::Modal::ACTION_ITEMS_LIST, workspace.incidents.find(metadata.incident_id), kind: kind)
     end
   end
 end

@@ -132,6 +132,11 @@ module Identifiers
   MESSAGE_SUBTYPE_MESSAGE_CHANGED = "message_changed"
   MESSAGE_SUBTYPE_MESSAGE_DELETED = "message_deleted"
 
+  # The two action-item modals per kind, so a submission or a refresh reads
+  # the kind off the callback it arrived with.
+  ACTION_ITEMS_LIST_KINDS = { INCIDENT_ACTIONS_MODAL => :action, INCIDENT_FOLLOWUPS_MODAL => :followup }.freeze
+  ACTION_ITEMS_FORM_KINDS = { CREATE_ACTION_MODAL => :action, CREATE_FOLLOWUP_MODAL => :followup }.freeze
+
   def self.role_block_id(role)
     "#{ROLE_BLOCK_PREFIX}#{role.id}"
   end

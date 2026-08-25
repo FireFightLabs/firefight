@@ -8,9 +8,10 @@ module Interactions
       workspace = interaction.workspace
       incident_runbook = workspace.incident_runbooks.find(interaction.action_value)
 
-      workspace.adapter.open_modal(
+      adapter = workspace.adapter
+      adapter.open_modal(
         trigger_id: interaction.trigger_id,
-        view: Slack::Modals::RunbookDetail.build(incident_runbook)
+        view: adapter.build_modal(PlatformAdapter::Modal::RUNBOOK_DETAIL, incident_runbook)
       )
 
       nil

@@ -273,6 +273,18 @@ module Slack
       end
     end
 
+    def self.refresh_expiring_credentials(buffer:)
+      Slack::TokenManager.new.refresh_all_expiring(buffer: buffer)
+    end
+
+    def people_targets?(text)
+      Slack::HandleResolver.target_tokens?(text)
+    end
+
+    def resolve_people(text)
+      Slack::HandleResolver.new(@workspace).resolve(text)
+    end
+
     # chat.postMessage to a user id opens (or reuses) the app's DM with them.
     def post_direct_message(user_id:, text:)
       translate_errors do

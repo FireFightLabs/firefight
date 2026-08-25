@@ -10,7 +10,7 @@ module Interactions
       metadata = interaction.metadata
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
-      kind = Slack::Modals::ActionItemsForm.kind_for(interaction.callback_id)
+      kind = Identifiers::ACTION_ITEMS_FORM_KINDS[interaction.callback_id]
 
       description = interaction.values.dig("description_block", "description_input", "value")
       assignee_user_id = interaction.values.dig("assignee_block", "assignee_select", "selected_user")
@@ -29,7 +29,7 @@ module Interactions
       IncidentActionService.new(workspace).create_action(
         incident: incident,
         created_by: member,
-        action_type: Slack::Modals::ActionItemsForm::ACTION_TYPES.fetch(kind),
+        action_type: IncidentAction::ACTION_TYPE_BY_KIND.fetch(kind),
         description: description,
         assignee: assignee,
         platform_data: platform_data

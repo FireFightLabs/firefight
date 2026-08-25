@@ -12,11 +12,11 @@
 #      (block_id has exactly one action by Block Kit construction, so the
 #      action_id name doesn't need to be known up-front).
 #   4. Validate via the resolver, returning `system_attrs`, `custom_fields`,
-#      `errors`, and the first error's target block_id for Slack's
-#      `response_action: "errors"` shape.
+#      `errors`, and the key of the first field so the adapter can point the
+#      error response at it.
 module Slack
   class FormSubmission
-    Result = Data.define(:system_attrs, :custom_fields, :errors, :first_error_block_id, :visible_system_keys) do
+    Result = Data.define(:system_attrs, :custom_fields, :errors, :first_error_field_key, :visible_system_keys) do
       # True iff a system field with this key was rendered on the form. Lets
       # handlers distinguish "field was on the form, user blanked it" (clear
       # the attribute) from "field wasn't on the form" (preserve existing).
@@ -44,7 +44,7 @@ module Slack
         system_attrs: validation[:system_attrs],
         custom_fields: validation[:custom_fields],
         errors: validation[:errors],
-        first_error_block_id: first_block_id(visible_fields),
+        first_error_field_key: first_field_key(visible_fields),
         visible_system_keys: visible_fields.select(&:system?).map(&:system_field_key).to_set
       )
     end
@@ -144,9 +144,8 @@ module Slack
       end
     end
 
-    def first_block_id(visible_fields)
-      first_key = visible_fields.map { |f| field_key(f) }.compact.first
-      Slack::Modals::FieldBlocks.block_id(first_key) if first_key
+    def first_field_key(visible_fields)
+      visible_fields.map { |f| field_key(f) }.compact.first
     end
   end
 end

@@ -1,6 +1,43 @@
 module Slack::WorkspaceAdapter::IncidentModals
   extend ActiveSupport::Concern
 
+  MODAL_BUILDERS = {
+    PlatformAdapter::Modal::INCIDENT_CREATION => ->(workspace, **options) { Slack::Modals::IncidentCreation.build(workspace: workspace, **options) },
+    PlatformAdapter::Modal::INCIDENT_CREATED => ->(workspace, incident) { Slack::Modals::IncidentCreated.build(incident, team_id: workspace.platform_id) },
+    PlatformAdapter::Modal::INCIDENT_UPDATE => ->(_, incident, **options) { Slack::Modals::IncidentUpdate.build(incident, **options) },
+    PlatformAdapter::Modal::INCIDENT_CLOSE => ->(_, incident, **options) { Slack::Modals::IncidentClose.build(incident, **options) },
+    PlatformAdapter::Modal::INCIDENT_CANCEL => ->(_, incident, **options) { Slack::Modals::IncidentCancel.build(incident, **options) },
+    PlatformAdapter::Modal::REOPEN => ->(_, incident, **options) { Slack::Modals::Reopen.build(incident, **options) },
+    PlatformAdapter::Modal::SUMMARY => ->(_, incident, **options) { Slack::Modals::Summary.build(incident, **options) },
+    PlatformAdapter::Modal::ESCALATE => ->(_, incident, **options) { Slack::Modals::Escalate.build(incident, **options) },
+    PlatformAdapter::Modal::INVITE => ->(_, incident, **options) { Slack::Modals::Invite.build(incident, **options) },
+    PlatformAdapter::Modal::LEAD => ->(_, incident) { Slack::Modals::Lead.build(incident) },
+    PlatformAdapter::Modal::ROLES => ->(_, incident, roles) { Slack::Modals::Roles.build(incident, roles) },
+    PlatformAdapter::Modal::ATTACH_RUNBOOK => ->(_, incident, runbooks) { Slack::Modals::AttachRunbook.build(incident, runbooks) },
+    PlatformAdapter::Modal::RUNBOOK_DETAIL => ->(_, incident_runbook) { Slack::Modals::RunbookDetail.build(incident_runbook) },
+    PlatformAdapter::Modal::ACTION_ITEMS_LIST => ->(_, incident, kind:) { Slack::Modals::ActionItemsList.build(incident, kind: kind) },
+    PlatformAdapter::Modal::ACTION_ITEMS_FORM => ->(_, incident, **options) { Slack::Modals::ActionItemsForm.build(incident, **options) },
+    PlatformAdapter::Modal::SHOUTOUT => ->(_, incident) { Slack::Modals::Shoutout.build(incident) },
+    PlatformAdapter::Modal::HOME => ->(_, channel_id:) { Slack::Modals::Home.build(channel_id: channel_id) }
+  }.freeze
+
+  def build_modal(kind, *args, metadata: nil, **options)
+    options[:private_metadata] = metadata if metadata
+    MODAL_BUILDERS.fetch(kind).call(@workspace, *args, **options)
+  end
+
+  def parse_form_submission(form_slug:, values:, incident: nil)
+    Slack::FormSubmission.new(workspace: @workspace, form_slug: form_slug, values: values, incident: incident).parse
+  end
+
+  def form_error_response(field_key, message)
+    { response_action: "errors", errors: { Slack::Modals::FieldBlocks.block_id(field_key) => message } }
+  end
+
+  def form_update_response(view)
+    { response_action: "update", view: view }
+  end
+
   def update_modal(view_id:, view:)
     translate_errors do
       Slack::Client.update_modal(workspace: @workspace, view_id: view_id, view: view)

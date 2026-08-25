@@ -4,7 +4,8 @@ module Commands
     authorize_as Ability::Action::RESOURCE_INCIDENTS
 
     def self.execute(command)
-      command.workspace.adapter.open_modal(trigger_id: command.trigger_id, view: Slack::Modals::IncidentCreation.build(workspace: command.workspace))
+      adapter = command.workspace.adapter
+      adapter.open_modal(trigger_id: command.trigger_id, view: adapter.build_modal(PlatformAdapter::Modal::INCIDENT_CREATION))
       nil
     end
   end

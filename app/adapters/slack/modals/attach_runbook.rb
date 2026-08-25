@@ -7,7 +7,7 @@ module Slack
         {
           type: "modal",
           callback_id: Identifiers::ATTACH_RUNBOOK_MODAL,
-          private_metadata: Slack::PrivateMetadata.encode(incident_id: incident.id),
+          private_metadata: ModalState.encode(incident_id: incident.id),
           title: { type: "plain_text", text: "Attach runbook" },
           submit: { type: "plain_text", text: "Attach" },
           close: { type: "plain_text", text: "Cancel" },

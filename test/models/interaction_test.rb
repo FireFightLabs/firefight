@@ -4,12 +4,12 @@ class InteractionTest < ActiveSupport::TestCase
   test "metadata is parsed once and blank means a modal that carries nothing" do
     interaction = Interaction.new(platform: Platforms::SLACK, type: Interaction::VIEW_SUBMISSION, private_metadata: nil)
 
-    assert_same Slack::PrivateMetadata::EMPTY, interaction.metadata
+    assert_same ModalState::EMPTY, interaction.metadata
     assert_nil interaction.incident_id
   end
 
   test "metadata exposes what the modal encoded" do
-    encoded = Slack::PrivateMetadata.encode(incident_id: "inc-1", temp_message_ts: "1.2", channel_id: "C1")
+    encoded = ModalState.encode(incident_id: "inc-1", temp_message_ts: "1.2", channel_id: "C1")
     interaction = Interaction.new(platform: Platforms::SLACK, type: Interaction::VIEW_SUBMISSION, private_metadata: encoded)
 
     assert_equal "inc-1", interaction.incident_id
@@ -27,7 +27,7 @@ class InteractionTest < ActiveSupport::TestCase
   test "malformed metadata is logged and treated as empty rather than raised at a handler" do
     interaction = Interaction.new(platform: Platforms::SLACK, type: Interaction::VIEW_SUBMISSION, callback_id: "x", private_metadata: "{not json")
 
-    assert_same Slack::PrivateMetadata::EMPTY, interaction.metadata
+    assert_same ModalState::EMPTY, interaction.metadata
     assert_nil interaction.incident_id
   end
 end

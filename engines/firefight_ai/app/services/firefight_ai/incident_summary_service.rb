@@ -53,7 +53,7 @@ module FirefightAi
     end
 
     def latest_message_ts(incident)
-      incident.incident_transcript_messages.kept.maximum(:slack_ts)
+      incident.incident_transcript_messages.kept.maximum(:message_id)
     end
 
     def full_generate(incident)
@@ -62,7 +62,7 @@ module FirefightAi
 
       prompt = build_full_prompt(incident, messages)
       response, inference = call_llm(incident, prompt, feature: FEATURE_FULL)
-      upsert_summary(incident, response, inference, up_to_ts: messages.last.slack_ts)
+      upsert_summary(incident, response, inference, up_to_ts: messages.last.message_id)
     end
 
     def incremental_refresh(incident, summary)
@@ -80,7 +80,7 @@ module FirefightAi
     # a new reply since summary_up_to_ts. New top-level messages stay separate.
     def compute_delta(incident, summary_up_to_ts)
       delta = incident.incident_transcript_messages.kept
-                .where("slack_ts > ?", summary_up_to_ts)
+                .where("message_id > ?", summary_up_to_ts)
                 .order(:posted_at)
                 .to_a
 
@@ -88,8 +88,8 @@ module FirefightAi
       reply_parents = Set.new
 
       delta.each do |msg|
-        parent = msg.slack_thread_ts
-        if parent.nil? || parent == msg.slack_ts
+        parent = msg.thread_id
+        if parent.nil? || parent == msg.message_id
           top_level << msg
         else
           reply_parents << parent
@@ -97,21 +97,21 @@ module FirefightAi
       end
 
       affected = reply_parents.filter_map do |parent_ts|
-        parent = incident.incident_transcript_messages.kept.find_by(slack_ts: parent_ts)
+        parent = incident.incident_transcript_messages.kept.find_by(message_id: parent_ts)
         next unless parent
 
         replies = incident.incident_transcript_messages.kept
-                    .where(slack_thread_ts: parent_ts)
-                    .where.not(slack_ts: parent_ts)
+                    .where(thread_id: parent_ts)
+                    .where.not(message_id: parent_ts)
                     .order(:posted_at)
                     .to_a
 
         { parent: parent, replies: replies }
       end
 
-      # Use the max slack_ts (lex-ordered), since the next refresh's
-      # `where("slack_ts > ?", ...)` filter compares against this column.
-      latest_ts = delta.map(&:slack_ts).max || summary_up_to_ts
+      # Use the max message_id (lex-ordered), since the next refresh's
+      # `where("message_id > ?", ...)` filter compares against this column.
+      latest_ts = delta.map(&:message_id).max || summary_up_to_ts
       [ top_level, affected, latest_ts ]
     end
 
@@ -200,7 +200,7 @@ module FirefightAi
     end
 
     def format_message(message)
-      author = message.workspace_membership&.user&.name || message.slack_user_id
+      author = message.workspace_membership&.user&.name || message.platform_user_id
       "- [#{message.posted_at.iso8601}] #{author}: #{message.content}"
     end
   end

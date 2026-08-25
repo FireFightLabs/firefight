@@ -13,9 +13,10 @@ module Commands
         )
       end
 
-      command.workspace.adapter.open_modal(
+      adapter = command.workspace.adapter
+      adapter.open_modal(
         trigger_id: command.trigger_id,
-        view: Slack::Modals::AttachRunbook.build(command.incident, available)
+        view: adapter.build_modal(PlatformAdapter::Modal::ATTACH_RUNBOOK, command.incident, available)
       )
       nil
     end

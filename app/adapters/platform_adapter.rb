@@ -82,6 +82,90 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # The modals the app opens, by kind. Each platform maps a kind to its own
+  # builder, so no handler names one.
+  module Modal
+    INCIDENT_CREATION = :incident_creation
+    INCIDENT_CREATED = :incident_created
+    INCIDENT_UPDATE = :incident_update
+    INCIDENT_CLOSE = :incident_close
+    INCIDENT_CANCEL = :incident_cancel
+    REOPEN = :reopen
+    SUMMARY = :summary
+    ESCALATE = :escalate
+    INVITE = :invite
+    LEAD = :lead
+    ROLES = :roles
+    ATTACH_RUNBOOK = :attach_runbook
+    RUNBOOK_DETAIL = :runbook_detail
+    ACTION_ITEMS_LIST = :action_items_list
+    ACTION_ITEMS_FORM = :action_items_form
+    SHOUTOUT = :shoutout
+    HOME = :home
+  end
+
+  # Builds the platform's view for a modal kind. Positional arguments are the
+  # domain objects the modal shows (an incident, a runbook, a role list).
+  # `metadata:` is an encoded ModalState carried back on submission.
+  # @return [Object] an opaque view for open_modal, push_modal, update_modal
+  #   or form_update_response
+  def build_modal(kind, *args, metadata: nil, **options)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Reads a submitted incident form (declare, update, resolve, cancel) out of
+  # the platform's submission payload.
+  # @return [Object] responds to system_attrs, custom_fields, errors,
+  #   first_error_field_key, includes_system_key?
+  def parse_form_submission(form_slug:, values:, incident: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The submission response that keeps the modal open and marks one field
+  # (a system field key or a custom field key) with a message.
+  # @return [Hash]
+  def form_error_response(field_key, message)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The submission response that replaces the open modal with another view.
+  # @return [Hash]
+  def form_update_response(view)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Whether free text names people in the platform's own way (mentions,
+  # handles, ids), so a command can decide between acting and opening a picker.
+  # @return [Boolean]
+  def people_targets?(text)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Turns mentions, handles and ids in free text into platform user ids.
+  # @return [Hash] { user_ids: [String], unresolved_handles: [String], had_target_tokens: Boolean }
+  def resolve_people(text)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Posts an approval request where approvers will see it.
+  # @return [Hash] { message_id: String }
+  def post_approval_request(approval:, channel_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Rewrites a posted approval request once it is decided.
+  # @return [Hash] { success: true }
+  def mark_approval_resolved(approval:, channel_id:, message_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Everyone the platform knows in this workspace, split into the ids it
+  # returned as active and the ids it says are deactivated.
+  # @return [Hash] { active_ids: Set, deactivated_ids: Set }
+  def member_directory
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # A private message from Firefight to one person, outside any channel.
   # @return [Hash] { success: true }
   def post_direct_message(user_id:, text:)

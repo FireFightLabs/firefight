@@ -5,7 +5,7 @@ module Slack
         {
           type: "modal",
           callback_id: Identifiers::SHOUTOUT_MODAL,
-          private_metadata: Slack::PrivateMetadata.encode(incident_id: incident.id),
+          private_metadata: ModalState.encode(incident_id: incident.id),
           title: { type: "plain_text", text: "Give a shoutout" },
           submit: { type: "plain_text", text: "Send" },
           close: { type: "plain_text", text: "Cancel" },

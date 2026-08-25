@@ -8,7 +8,8 @@ module Interactions
       metadata = JSON.parse(interaction.action_value)
       incident = workspace.incidents.find(metadata["incident_id"])
 
-      workspace.adapter.open_modal(trigger_id: interaction.trigger_id, view: Slack::Modals::Shoutout.build(incident))
+      adapter = workspace.adapter
+      adapter.open_modal(trigger_id: interaction.trigger_id, view: adapter.build_modal(PlatformAdapter::Modal::SHOUTOUT, incident))
 
       nil
     rescue ActiveRecord::RecordNotFound, JSON::ParserError

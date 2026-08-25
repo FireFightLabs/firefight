@@ -4,6 +4,7 @@ class IncidentAction < ApplicationRecord
   ACTION_TYPE_ACTION = "action"
   ACTION_TYPE_FOLLOWUP = "followup"
   ACTION_TYPES = [ ACTION_TYPE_ACTION, ACTION_TYPE_FOLLOWUP ].freeze
+  ACTION_TYPE_BY_KIND = { action: ACTION_TYPE_ACTION, followup: ACTION_TYPE_FOLLOWUP }.freeze
 
   STATUS_OPEN = "open"
   STATUS_IN_PROGRESS = "in_progress"

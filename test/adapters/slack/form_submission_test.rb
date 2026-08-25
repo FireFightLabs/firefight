@@ -63,7 +63,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
     assert_equal({ "affected_services" => [ entry.id ] }, result.custom_fields)
   end
 
-  test "returns errors and first_error_block_id when a fixed-required field is missing" do
+  test "returns errors and the first field's key when a fixed-required field is missing" do
     values = {
       "field_name_block" => { "field_name_input" => { "value" => "No severity" } }
     }
@@ -74,7 +74,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
 
     refute_empty result.errors
     assert_match(/Severity is required/i, result.errors.first)
-    assert_equal "field_name_block", result.first_error_block_id
+    assert_equal IncidentSystemField::KEY_NAME, result.first_error_field_key
   end
 
   test "parses an update submission with incident context falling back to current values" do

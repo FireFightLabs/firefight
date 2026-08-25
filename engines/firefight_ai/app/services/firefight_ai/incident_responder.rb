@@ -39,7 +39,7 @@ module FirefightAi
 
     def thread_messages_for(incident, parent_ts)
       incident.incident_transcript_messages.kept
-        .where("slack_ts = ? OR slack_thread_ts = ?", parent_ts, parent_ts)
+        .where("message_id = ? OR thread_id = ?", parent_ts, parent_ts)
         .order(:posted_at)
         .to_a
     end
@@ -74,7 +74,7 @@ module FirefightAi
       parts << ""
       parts << "## Thread Messages"
       messages.each do |m|
-        author = m.workspace_membership&.user&.name || m.slack_user_id
+        author = m.workspace_membership&.user&.name || m.platform_user_id
         parts << "- [#{m.posted_at.iso8601}] #{author}: #{m.content}"
       end
       parts << ""
