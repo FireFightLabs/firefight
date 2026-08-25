@@ -112,6 +112,7 @@ module Ability
       APPROVAL_EXEMPT_RESOURCES.include?(resource_of(key))
     end
     scope :grantable, -> { where.not(key: admin_only_keys) }
+    scope :grantable_for, ->(workspace) { where(workspace_id: [ nil, workspace.id ]).grantable }
 
     def self.system_key(resource, action)
       "#{resource}.#{action}"

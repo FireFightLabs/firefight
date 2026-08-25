@@ -51,6 +51,6 @@ class ApprovalRuleSerializer < BaseSerializer
   private
 
   def requirement
-    rule.outcome.with_indifferent_access[PolicyRule::ApprovalOutcome::REQUIRE_KEY] || {}
+    PolicyRule::ApprovalOutcome.requirement(rule.outcome)
   end
 end

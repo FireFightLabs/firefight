@@ -71,7 +71,7 @@ export function GrantDialog({
     router.post(
       abilityGrantsPath(),
       {
-        principal_type: principal.principalType,
+        principal_kind: principal.kind,
         principal_id: principal.id,
         ...(mode === "set" ? { role_id: targetId } : { action_id: targetId }),
         environment_ids: environmentIds,

@@ -23,13 +23,24 @@ module Mcp
     SEARCH_APPROVALS = "search_approvals".freeze
     APPROVE_APPROVAL = "approve_approval".freeze
     DENY_APPROVAL = "deny_approval".freeze
+    LIST_ABILITIES = "list_abilities".freeze
+    LIST_PRINCIPALS = "list_principals".freeze
+    UPSERT_PERMISSION_SET = "upsert_permission_set".freeze
+    DELETE_PERMISSION_SET = "delete_permission_set".freeze
+    GRANT_ABILITY = "grant_ability".freeze
+    REVOKE_GRANT = "revoke_grant".freeze
+    UPSERT_APPROVAL_RULE = "upsert_approval_rule".freeze
+    DELETE_APPROVAL_RULE = "delete_approval_rule".freeze
+    SEARCH_ACTIVITY = "search_activity".freeze
 
     def self.all
       [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
         SearchRunbooks, GetRunbook, UpsertCatalogEntry, DeleteCatalogEntry,
         UpsertRoutingRule, DeleteRoutingRule, UpdateRoutingConfig, UpsertRunbook,
         AssignIncidentRole, AttachRunbook, SearchApprovals, ApproveApproval, DenyApproval,
-        GetForm, UpsertCustomField, UpsertFormField ]
+        GetForm, UpsertCustomField, UpsertFormField,
+        ListAbilities, ListPrincipals, UpsertPermissionSet, DeletePermissionSet, GrantAbility, RevokeGrant,
+        UpsertApprovalRule, DeleteApprovalRule, SearchActivity ]
     end
   end
 end

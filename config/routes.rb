@@ -29,6 +29,24 @@ Rails.application.routes.draw do
       resources :custom_fields, only: [ :index ]
       resources :runbooks, only: [ :index, :show ]
 
+      resources :abilities, only: [ :index ]
+      resources :principals, only: [ :index ]
+      resources :permission_sets, only: [ :index, :create, :update, :destroy ]
+      resources :grants, only: [ :index, :create, :update, :destroy ]
+      resources :approval_rules, only: [ :index, :create, :update, :destroy ] do
+        member do
+          post :move_up
+          post :move_down
+        end
+      end
+      resources :approvals, only: [ :index, :show ] do
+        member do
+          post :approve
+          post :deny
+        end
+      end
+      get "activity", to: "activity#index", as: :activity
+
       namespace :catalog do
         get "types", to: "types#index", as: :types
         get "types/:slug", to: "types#show", as: :type

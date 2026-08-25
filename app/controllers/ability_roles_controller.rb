@@ -30,8 +30,6 @@ class AbilityRolesController < InertiaController
   private
 
   def permitted_action_ids
-    Ability::Action.where(workspace_id: [ nil, current_workspace.id ]).grantable
-                   .where(id: Array(params[:action_ids]))
-                   .pluck(:id)
+    Ability::Action.grantable_for(current_workspace).where(id: Array(params[:action_ids])).pluck(:id)
   end
 end

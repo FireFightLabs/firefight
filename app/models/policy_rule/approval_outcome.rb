@@ -10,6 +10,22 @@ module PolicyRule::ApprovalOutcome
   NOTIFY_BOTH = "both"
   NOTIFY_OPTIONS = [ NOTIFY_CHANNEL, NOTIFY_DM, NOTIFY_BOTH ].freeze
 
+  def self.build(role:, self_approval: true, notify: nil, approvers: [])
+    {
+      REQUIRE_KEY => {
+        "role" => role.to_s,
+        "count" => SUPPORTED_COUNT,
+        "self_approval" => ActiveModel::Type::Boolean.new.cast(self_approval),
+        "notify" => notify.presence || NOTIFY_CHANNEL,
+        "approvers" => Array(approvers).map(&:to_s).reject(&:blank?)
+      }
+    }
+  end
+
+  def self.requirement(outcome)
+    outcome.with_indifferent_access[REQUIRE_KEY] || {}
+  end
+
   def self.errors_for(outcome, workspace: nil)
     return [ "outcome must be an object" ] unless outcome.is_a?(Hash)
 

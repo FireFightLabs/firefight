@@ -5,15 +5,10 @@ class ApprovalRulesController < InertiaController
   before_action :set_rule, only: [ :update, :destroy, :move_up, :move_down ]
 
   def create
-    policy = current_workspace.find_or_create_approval_policy!
-    rule = policy.policy_rules.new(rule_attributes)
-    rule.priority = (policy.policy_rules.maximum(:priority) || 0) + 1
-
-    if rule.save
-      redirect_to gateway_permissions_path, notice: "Approval rule was created."
-    else
-      redirect_back fallback_location: gateway_permissions_path, inertia: { errors: rule.errors.to_hash }
-    end
+    current_workspace.find_or_create_approval_policy!.append_rule!(rule_attributes)
+    redirect_to gateway_permissions_path, notice: "Approval rule was created."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: gateway_permissions_path, inertia: { errors: e.record.errors.to_hash }
   end
 
   def update
@@ -63,15 +58,10 @@ class ApprovalRulesController < InertiaController
     result[:conditions] = PolicyRule::ApprovalConditions.build(
       action_keys: attrs[:action_keys], risk_levels: attrs[:risk_levels], environments: attrs[:environments]
     )
-    result[:outcome] = {
-      PolicyRule::ApprovalOutcome::REQUIRE_KEY => {
-        "role" => attrs[:approver_role],
-        "count" => PolicyRule::ApprovalOutcome::SUPPORTED_COUNT,
-        "self_approval" => ActiveModel::Type::Boolean.new.cast(attrs.fetch(:self_approval, true)),
-        "notify" => attrs[:notify].presence || PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL,
-        "approvers" => Array(attrs[:approvers]).reject(&:blank?)
-      }
-    }
+    result[:outcome] = PolicyRule::ApprovalOutcome.build(
+      role: attrs[:approver_role], self_approval: attrs.fetch(:self_approval, true),
+      notify: attrs[:notify], approvers: attrs[:approvers]
+    )
     result
   end
 end

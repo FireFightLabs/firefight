@@ -40,7 +40,7 @@ class AbilityRolesControllerTest < ActionDispatch::IntegrationTest
     role.sync_actions!([ @list.id, @get.id ])
 
     post ability_grants_url, params: {
-      principal_type: "WorkspaceMembership", principal_id: @member.id,
+      principal_kind: "user", principal_id: @member.id,
       role_id: role.id, environment_ids: [ @production.id ]
     }
 

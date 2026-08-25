@@ -28,6 +28,10 @@ class Policy < ApplicationRecord
     policy_rules.order(:priority)
   end
 
+  def append_rule!(attributes)
+    policy_rules.create!(attributes.merge(priority: (policy_rules.maximum(:priority) || 0) + 1))
+  end
+
   private
 
   def scoped_to_same_workspace

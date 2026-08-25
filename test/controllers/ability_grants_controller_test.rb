@@ -20,7 +20,7 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
 
   test "granting a tool action scoped to an environment lets the call through only there" do
     post ability_grants_url, params: {
-      principal_type: "WorkspaceMembership", principal_id: @member.id,
+      principal_kind: "user", principal_id: @member.id,
       action_id: @action.id, environment_ids: [ @production.id ]
     }
 
@@ -48,7 +48,7 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
 
   test "an empty environment list means unrestricted rather than nothing" do
     post ability_grants_url, params: {
-      principal_type: "WorkspaceMembership", principal_id: @member.id,
+      principal_kind: "user", principal_id: @member.id,
       action_id: @action.id, environment_ids: []
     }
 
@@ -57,11 +57,11 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
 
   test "granting the same action again retargets rather than duplicating" do
     post ability_grants_url, params: {
-      principal_type: "WorkspaceMembership", principal_id: @member.id,
+      principal_kind: "user", principal_id: @member.id,
       action_id: @action.id, environment_ids: [ @production.id ]
     }
     post ability_grants_url, params: {
-      principal_type: "WorkspaceMembership", principal_id: @member.id,
+      principal_kind: "user", principal_id: @member.id,
       action_id: @action.id, environment_ids: [ @development.id ]
     }
 
@@ -72,7 +72,7 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
 
   test "a catalog entry that is not an environment cannot enter a scope" do
     post ability_grants_url, params: {
-      principal_type: "WorkspaceMembership", principal_id: @member.id,
+      principal_kind: "user", principal_id: @member.id,
       action_id: @action.id, environment_ids: [ catalog_entries(:vendor_acme).id ]
     }
 
@@ -83,7 +83,7 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
     outsider = workspace_memberships(:alice_workspace_two)
 
     post ability_grants_url, params: {
-      principal_type: "WorkspaceMembership", principal_id: outsider.id,
+      principal_kind: "user", principal_id: outsider.id,
       action_id: @action.id, environment_ids: []
     }
 
@@ -93,7 +93,7 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
 
   test "an unknown principal type is refused rather than constantized" do
     post ability_grants_url, params: {
-      principal_type: "User", principal_id: users(:alice).id,
+      principal_kind: "person", principal_id: users(:alice).id,
       action_id: @action.id, environment_ids: []
     }
 
@@ -128,7 +128,7 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
     sign_in(users(:bob), @workspace)
 
     post ability_grants_url, params: {
-      principal_type: "WorkspaceMembership", principal_id: @member.id,
+      principal_kind: "user", principal_id: @member.id,
       action_id: @action.id, environment_ids: []
     }
 

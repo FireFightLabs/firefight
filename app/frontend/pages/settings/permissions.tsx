@@ -113,7 +113,7 @@ export default function Permissions() {
                 <p className="text-sm font-medium">Approval rules</p>
                 <p className="text-muted-foreground text-xs">Which abilities wait for a second look</p>
               </div>
-              <div className="border-border rounded-lg border">
+              <div className="border-border overflow-hidden rounded-lg border">
                 <button
                   type="button"
                   onClick={() => setSelection({ kind: "approvals" })}
