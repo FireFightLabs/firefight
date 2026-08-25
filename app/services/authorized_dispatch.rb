@@ -13,7 +13,7 @@ module AuthorizedDispatch
     authorization = handler.authorization
     return yield if authorization == HandlerAuthorization::NONE
 
-    principal = subject.principal
+    principal = resolve_principal(subject)
     raise PrincipalUnresolved unless principal
 
     resource, crud_action = authorization
@@ -24,6 +24,17 @@ module AuthorizedDispatch
       params: subject.authorization_params,
       context: { source: AbilityGateway::SOURCE_SLACK, approval_id: subject.approval_id }.merge(context)
     ) { yield }
+  end
+
+  # The acting membership, provisioned on demand so a first-time caller is a
+  # principal like anyone else. nil when the platform lookup fails.
+  def self.resolve_principal(subject)
+    WorkspaceMemberProvisioner.find_or_provision!(
+      workspace: subject.workspace, platform_user_id: subject.user_id, adapter: subject.workspace.adapter
+    )
+  rescue StandardError => e
+    Rails.logger.warn({ event: "dispatch.principal_unresolved", user_id: subject.user_id, error: e.message }.to_json)
+    nil
   end
 
   def self.denied_message(error)

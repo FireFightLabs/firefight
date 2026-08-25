@@ -21,19 +21,6 @@ class Interaction
     @workspace = Workspace.find_by(platform: platform, platform_id: team_id)
   end
 
-  # Who the Ability Gateway authorizes this interaction as. Provisioned on
-  # demand so a first-time clicker is a principal like anyone else. nil when
-  # the platform lookup fails and the dispatcher then refuses the call.
-  def principal
-    return @principal if defined?(@principal)
-
-    @principal = WorkspaceMemberProvisioner.find_or_provision!(
-      workspace: workspace, platform_user_id: user_id, adapter: workspace.adapter
-    )
-  rescue StandardError => e
-    Rails.logger.warn({ event: "interaction.principal_unresolved", user_id: user_id, error: e.message }.to_json)
-    @principal = nil
-  end
 
   # What the approval digest is bound to. Deterministic and replayable. A
   # resumed interaction rebuilds the same hash, so the approval matches.

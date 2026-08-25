@@ -95,11 +95,7 @@ class IntegrationsController < InertiaController
       return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
     end
 
-    oauth = IntegrationProvider.oauth_client(provider.key)
-    flow = Integrations::OauthClient.begin_flow(
-      server_url: provider.server_url, redirect_uri: oauth_callback_integrations_url,
-      client_id: oauth[:client_id]
-    )
+    flow = Integrations::OauthFlow.begin(provider, redirect_uri: oauth_callback_integrations_url)
     session[:integration_oauth] = {
       "provider" => provider.key, "name" => params[:name].presence || provider.name,
       "environment_id" => environment_id_param,
@@ -107,7 +103,7 @@ class IntegrationsController < InertiaController
       "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint]
     }
     redirect_to flow[:authorize_url], allow_other_host: true
-  rescue Integrations::OauthClient::Error => e
+  rescue Integrations::OauthFlow::Error => e
     redirect_to integrations_path, alert: "Could not start one-click connect: #{e.message}"
   end
 
@@ -120,11 +116,8 @@ class IntegrationsController < InertiaController
     end
     return native_install_callback(provider, pending) if provider.kind == Integration::KIND_NATIVE
 
-    credentials = Integrations::OauthClient.exchange(
-      token_endpoint: pending["token_endpoint"], code: params[:code].to_s,
-      verifier: pending["verifier"], client_id: pending["client_id"],
-      client_secret: IntegrationProvider.oauth_client(provider.key)[:client_secret],
-      redirect_uri: oauth_callback_integrations_url, resource: provider.server_url
+    credentials = Integrations::OauthFlow.exchange(
+      provider, pending, code: params[:code].to_s, redirect_uri: oauth_callback_integrations_url
     )
 
     environment_row = connect!(provider, pending["name"], pending["environment_id"])
@@ -132,7 +125,7 @@ class IntegrationsController < InertiaController
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     redirect_to integrations_path
-  rescue Integrations::OauthClient::Error => e
+  rescue Integrations::OauthFlow::Error => e
     redirect_to integrations_path, alert: "Could not connect: #{e.message}"
   rescue NameTaken
     redirect_to integrations_path, alert: "Another connection already uses that name. Pick a different one."

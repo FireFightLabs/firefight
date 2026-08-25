@@ -40,14 +40,12 @@ class WebhookDelinquencyTrackerTest < ActiveSupport::TestCase
     )
 
     delivery = webhook_deliveries(:errored_delivery)
-    Webhooks::DeactivationNotifier.expects(:notify).with(@webhook, reason: "delinquency_threshold").once
 
-    @tracker.record_delivery(delivery)
-
+    assert @tracker.record_delivery(delivery)
     assert_not @webhook.reload.active?
   end
 
-  test "skips notification when webhook is already inactive" do
+  test "reports nothing to tell when the webhook is already inactive" do
     @webhook.deactivate!
     @tracker.update_columns(
       consecutive_failures_count: WebhookDelinquencyTracker::DELINQUENCY_THRESHOLD - 1,
@@ -55,9 +53,8 @@ class WebhookDelinquencyTrackerTest < ActiveSupport::TestCase
     )
 
     delivery = webhook_deliveries(:errored_delivery)
-    Webhooks::DeactivationNotifier.expects(:notify).never
 
-    @tracker.record_delivery(delivery)
+    assert_not @tracker.record_delivery(delivery)
   end
 
   test "does not deactivate webhook if failures are recent" do
