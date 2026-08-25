@@ -1,6 +1,6 @@
+import { useState } from "react"
 import {
   IconBrandSlack,
-  IconDotsVertical,
   IconExternalLink,
 } from "@tabler/icons-react"
 
@@ -9,39 +9,107 @@ import { severityBadgeStyle } from "@/lib/severity-color"
 import { formatDuration } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { MetaCell } from "@/pages/incidents/components/index/meta-cell"
 import { PersonChip } from "@/pages/incidents/components/index/person-chip"
+import { IncidentMenu } from "@/pages/incidents/components/index/incident-menu"
+import { InlineSelect } from "@/pages/incidents/components/index/inline-select"
+import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
+import type { LinkableIncident } from "@/pages/incidents/components/index/link-incident-dialog"
 import { StatusIcon } from "@/pages/dashboard/components/status-icon"
+import { assignIncidentRolePath } from "@/lib/routes"
+import { LEAD_ROLE_SLUG, LIFECYCLE_STAGES } from "@/lib/generated/constants"
 
-export function IncidentHeader({ incident }: { incident: Incident }) {
+const TERMINAL_STAGES: string[] = [ LIFECYCLE_STAGES.CLOSED, LIFECYCLE_STAGES.CANCELED ]
+
+// The badge itself is the affordance. A responder clicking it is asking to
+// change the incident, and the workspace's Update form is what asks how.
+function EditableBadge({
+  editable,
+  onEdit,
+  label,
+  children,
+}: {
+  editable: boolean
+  onEdit: () => void
+  label: string
+  children: React.ReactNode
+}) {
+  if (!editable) {
+    return <>{children}</>
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      aria-label={label}
+      title={label}
+      className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {children}
+    </button>
+  )
+}
+
+export function IncidentHeader({
+  incident,
+  channelUrl,
+  linkable,
+  canEdit,
+  leadCandidates,
+}: {
+  incident: Incident
+  channelUrl?: string | null
+  linkable: LinkableIncident[]
+  canEdit: boolean
+  leadCandidates: { value: string; label: string }[]
+}) {
   const declared = new Date(incident.declaredAt)
+  // Severity and status are questions on the workspace's Update form, and
+  // Slack asks the whole form for either. So the badges open that form rather
+  // than writing one field on their own, which would skip whatever else the
+  // workspace requires. The lead has its own dedicated modal in Slack, so it
+  // gets a dropdown here for the same reason.
+  const [updating, setUpdating] = useState(false)
+  const terminal = TERMINAL_STAGES.includes(incident.status.lifecycleStage)
+  const editable = canEdit && !terminal
+
+  function openUpdate() {
+    setUpdating(true)
+  }
+
+  function closeUpdate() {
+    setUpdating(false)
+  }
+
+  function leadPayload(memberId: string) {
+    return { role: LEAD_ROLE_SLUG, member_id: memberId }
+  }
 
   return (
     <header className="mb-10">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <Badge className="min-w-24 justify-center py-1" style={severityBadgeStyle(incident.severity.color)}>
-            {incident.severity.name}
-          </Badge>
-          <Badge
-            style={{
-              backgroundColor: `${incident.status.color}33`,
-              color: incident.status.color,
-              borderColor: `${incident.status.color}66`,
-              minWidth: "7.5rem",
-              paddingTop: "0.25rem",
-              paddingBottom: "0.25rem",
-            }}
-          >
-            <StatusIcon statusName={incident.status.name} lifecycleStage={incident.status.lifecycleStage} />
-            {incident.status.name}
-          </Badge>
+          <EditableBadge editable={editable} onEdit={openUpdate} label="Change severity">
+            <Badge className="min-w-24 justify-center py-1" style={severityBadgeStyle(incident.severity.color)}>
+              {incident.severity.name}
+            </Badge>
+          </EditableBadge>
+          <EditableBadge editable={editable} onEdit={openUpdate} label="Change status">
+            <Badge
+              style={{
+                backgroundColor: `${incident.status.color}33`,
+                color: incident.status.color,
+                borderColor: `${incident.status.color}66`,
+                minWidth: "7.5rem",
+                paddingTop: "0.25rem",
+                paddingBottom: "0.25rem",
+              }}
+            >
+              <StatusIcon statusName={incident.status.name} lifecycleStage={incident.status.lifecycleStage} />
+              {incident.status.name}
+            </Badge>
+          </EditableBadge>
           {incident.type && (
             <span className="inline-flex items-center rounded-full border border-border bg-transparent px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
               {incident.type.name}
@@ -49,38 +117,21 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {incident.source === "slack" && incident.channelName && incident.channelId && (
+          {channelUrl && incident.channelName && (
             <Button
               variant="outline"
               size="sm"
               className="h-8 gap-2 border-primary/30 bg-primary/10 px-3 font-mono text-[12px] text-primary hover:bg-primary/20 hover:border-primary/50 hover:text-primary"
               asChild
             >
-              <a
-                href={`https://slack.com/app_redirect?channel=${incident.channelId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <a href={channelUrl} target="_blank" rel="noopener noreferrer">
                 <IconBrandSlack className="size-3.5" />
                 <span className="hidden sm:inline">#{incident.channelName}</span>
                 <IconExternalLink className="size-3 opacity-50" />
               </a>
             </Button>
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-8 border-border bg-card hover:bg-accent focus-visible:ring-0 focus-visible:ring-offset-0"
-              >
-                <IconDotsVertical className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={8}>
-              <DropdownMenuItem>Close Incident</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {canEdit && <IncidentMenu incident={incident} linkable={linkable} />}
         </div>
       </div>
 
@@ -96,7 +147,14 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-4">
         <MetaCell label="Lead">
-          <PersonChip person={incident.lead} fallback="Unassigned" />
+          <InlineSelect
+            trigger={<PersonChip person={incident.lead} fallback="Unassigned" />}
+            choices={leadCandidates}
+            selected={incident.leadId ?? null}
+            path={assignIncidentRolePath(incident.id)}
+            payload={leadPayload}
+            disabled={!editable}
+          />
         </MetaCell>
         <MetaCell label="Declared by">
           <PersonChip person={incident.declaredBy} fallback="-" />
@@ -140,6 +198,12 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
           </div>
         </div>
       )}
+      <LifecycleFormDialog
+        incidentId={incident.id}
+        form="update"
+        open={updating}
+        onOpenChange={closeUpdate}
+      />
     </header>
   )
 }

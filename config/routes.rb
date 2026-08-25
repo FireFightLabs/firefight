@@ -236,6 +236,11 @@ Rails.application.routes.draw do
     post "/incidents/:incident_id/actions", to: "incident_actions#create", as: :incident_actions
     post "/incidents/:incident_id/runbooks", to: "incident_runbooks#create", as: :incident_runbooks
     patch "/incidents/:incident_id/events/:id/dismiss", to: "incident_events#dismiss", as: :dismiss_incident_event
+    get "/incidents/:incident_id/form/:form", to: "incident_lifecycle#form", as: :incident_form
+    patch "/incidents/:incident_id/form/:form", to: "incident_lifecycle#update", as: :incident_lifecycle
+    patch "/incidents/:incident_id/role", to: "incident_lifecycle#assign_role", as: :assign_incident_role
+    patch "/incidents/:incident_id/reopen", to: "incident_lifecycle#reopen", as: :incident_reopen
+    post "/incidents/:incident_id/link", to: "incident_lifecycle#link", as: :incident_link
     get "/incidents/:id", to: "incidents#show", as: :incident
     get "/incidents/:incident_id/postmortem", to: "incidents#postmortem", as: :incident_postmortem
     patch "/incidents/:incident_id/postmortem", to: "incidents#update_postmortem"

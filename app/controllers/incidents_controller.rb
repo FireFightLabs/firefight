@@ -1,4 +1,6 @@
 class IncidentsController < InertiaController
+  LINKABLE_LIMIT = 50
+
   authorizes Ability::Action::RESOURCE_INCIDENTS,
     read: %i[show postmortem postmortem_revisions],
     update: %i[update_postmortem update_postmortem_status generate_postmortem start_blank_postmortem ai_rewrite_postmortem]
@@ -17,10 +19,34 @@ class IncidentsController < InertiaController
         )
       },
       attachableRunbooks: attachable_runbooks(incident),
+      # The platform owns what a link to its own channel looks like, so the
+      # page is handed the finished URL rather than assembling one.
+      channelUrl: WorkspaceAdapter.for(current_workspace).channel_url(channel_id: incident.channel_id),
+      linkableIncidents: linkable_incidents(incident),
+      memberChoices: member_choices,
       hasPostmortem: incident.postmortem.present?,
       postmortemStatus: incident.postmortem&.status,
       postmortemGenerationState: incident.postmortem&.generation_state
     }
+  end
+
+  # Everything else still open or recently closed, for linking and marking a
+  # duplicate. Capped, since the picker searches rather than scrolls.
+  def linkable_incidents(incident)
+    current_workspace.incidents
+      .where(deleted_at: nil)
+      .where.not(id: incident.id)
+      .recent
+      .limit(LINKABLE_LIMIT)
+      .map { |other| { id: other.id, identifier: other.identifier, name: other.name } }
+  end
+
+  # Who a role can be handed to. The lead picker and the roles panel both read
+  # this rather than each fetching the roster.
+  def member_choices
+    current_workspace.workspace_memberships.includes(:user)
+      .map { |member| { value: member.id, label: member.display_name } }
+      .sort_by { |choice| choice[:label] }
   end
 
   def postmortem

@@ -11,6 +11,7 @@ import { RolesPanel } from "@/pages/incidents/components/index/roles-panel";
 import { RunbooksPanel } from "@/pages/incidents/components/index/runbooks-panel";
 import { TimelineSkeleton } from "@/pages/incidents/components/index/timeline-skeleton";
 import type { AttachableRunbook } from "@/pages/incidents/components/index/attach-runbook-dialog";
+import type { LinkableIncident } from "@/pages/incidents/components/index/link-incident-dialog";
 import type {
   Incident,
   IncidentAction,
@@ -28,6 +29,9 @@ interface IncidentPageProps extends SharedProps {
   postmortemStatus?: string;
   postmortemGenerationState?: "generating" | "failed";
   attachableRunbooks: AttachableRunbook[];
+  channelUrl?: string | null;
+  linkableIncidents: LinkableIncident[];
+  memberChoices: { value: string; label: string }[];
 }
 
 export default function IncidentPage() {
@@ -39,6 +43,9 @@ export default function IncidentPage() {
     postmortemStatus,
     postmortemGenerationState,
     attachableRunbooks,
+    channelUrl,
+    linkableIncidents,
+    memberChoices,
   } = usePage<IncidentPageProps>().props;
   const canAddAction = ["triage", "active"].includes(
     incident.status.lifecycleStage,
@@ -46,7 +53,7 @@ export default function IncidentPage() {
   const canAddFollowup = ["closed", "canceled"].includes(
     incident.status.lifecycleStage,
   );
-  const canDismissNotes = useCan("incidents");
+  const canEditIncident = useCan("incidents");
 
   return (
     <AuthenticatedLayout title={incident.name}>
@@ -66,7 +73,13 @@ export default function IncidentPage() {
           </span>
         </nav>
 
-        <IncidentHeader incident={incident} />
+        <IncidentHeader
+          incident={incident}
+          channelUrl={channelUrl}
+          linkable={linkableIncidents}
+          canEdit={canEditIncident}
+          leadCandidates={memberChoices}
+        />
 
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
           <div className="min-w-0 flex-1">
@@ -82,7 +95,7 @@ export default function IncidentPage() {
               <IncidentTimeline
                 events={timelineEvents ?? []}
                 incidentId={incident.id}
-                canDismiss={canDismissNotes}
+                canDismiss={canEditIncident}
               />
             </Deferred>
           </div>
@@ -91,7 +104,12 @@ export default function IncidentPage() {
             {/* Gap rather than margins on each card, so a panel that renders
                 nothing leaves no space behind it. */}
             <div className="flex flex-col gap-3 lg:sticky lg:top-[calc(var(--header-height)+1.75rem)]">
-              <RolesPanel roles={incident.roles} />
+              <RolesPanel
+                roles={incident.roles}
+                incidentId={incident.id}
+                candidates={memberChoices}
+                canEdit={canEditIncident}
+              />
               <Deferred data="actions" fallback={<ActionsSkeleton />}>
                 <IncidentActionsSidebar
                   actions={actions ?? []}

@@ -26,11 +26,18 @@ class IncidentDetailSerializer < BaseSerializer
     incident.lead
   end
 
-  # The lead has its own field, so this covers the rest of the roster.
+  # The chip renders a person, the lead picker needs the row it points at.
+  # Matching the chip's name back to a member breaks the moment two people
+  # share a display name.
+  type :string, optional: true
+  def lead_id
+    incident.lead&.id
+  end
+
+  # The lead has its own field, so this covers the rest of the roster. Every
+  # configured role appears, whether or not anyone holds it.
   has_many :roles, serializer: IncidentRoleAssignmentSerializer do
-    incident.incident_role_assignments
-      .reject { |assignment| assignment.incident_role.slug == IncidentRole::SLUG_INCIDENT_LEAD }
-      .sort_by { |assignment| assignment.incident_role.position }
+    incident.role_roster
   end
 
   has_one :declared_by, serializer: ActorCompactSerializer, optional: true do

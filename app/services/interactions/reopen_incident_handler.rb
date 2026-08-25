@@ -12,12 +12,10 @@ module Interactions
       return already_active_error unless incident.terminal?
 
       reason = interaction.values.dig("reason_block", "reason_input", "value")
-      live_statuses = workspace.incident_statuses.active.live
-      default_status = live_statuses.find_by(is_default: true) || live_statuses.ordered.first
 
       IncidentLifecycleService.new(workspace).change_status(
         incident,
-        { incident_status: default_status },
+        { incident_status: workspace.default_live_status },
         changed_by: member,
         message: reason
       )

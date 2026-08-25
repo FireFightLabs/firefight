@@ -86,22 +86,17 @@ module Slack
         end
       end
 
-      VISIBILITY_OPTIONS = [
-        { text: { type: "plain_text", text: "Everyone (public)" }, value: Incident::VISIBILITY_PUBLIC },
-        { text: { type: "plain_text", text: "Private" },           value: Incident::VISIBILITY_PRIVATE }
-      ].freeze
+      # Both lists are the registry's, rendered into Block Kit here. The words
+      # a responder reads are the same ones the dashboard shows.
+      VISIBILITY_OPTIONS = IncidentSystemField::VISIBILITY_CHOICES.map do |choice|
+        { text: { type: "plain_text", text: choice.label }, value: choice.value }
+      end.freeze
 
-      NEXT_UPDATE_OPTIONS = [
-        { label: "5 minutes", value: "5" },
-        { label: "15 minutes", value: "15" },
-        { label: "30 minutes", value: "30" },
-        { label: "1 hour", value: "60" },
-        { label: "3 hours", value: "180" },
-        { label: "1 day", value: "1440" },
-        { label: "7 days", value: "10080" }
-      ].freeze
+      NEXT_UPDATE_OPTIONS = IncidentSystemField::NEXT_UPDATE_CHOICES.map do |choice|
+        { label: choice.label, value: choice.value }
+      end.freeze
 
-      DEFAULT_NEXT_UPDATE_MINUTES = "15".freeze
+      DEFAULT_NEXT_UPDATE_MINUTES = IncidentSystemField::DEFAULT_NEXT_UPDATE_MINUTES
 
       def self.visibility_block(form_field, incident: nil, dispatch: false, selected: nil)
         stored = incident&.is_private ? Incident::VISIBILITY_PRIVATE : Incident::VISIBILITY_PUBLIC

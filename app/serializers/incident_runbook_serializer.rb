@@ -6,6 +6,13 @@ class IncidentRunbookSerializer < BaseSerializer
     incident_runbook.id
   end
 
+  # The attachment's id above identifies this incident's copy. This is the
+  # runbook itself, which is what the settings screen opens.
+  type :string
+  def runbook_id
+    incident_runbook.runbook_id
+  end
+
   type :string
   def name
     incident_runbook.runbook.name

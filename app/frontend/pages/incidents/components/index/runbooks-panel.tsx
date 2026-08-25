@@ -1,3 +1,4 @@
+import { Link } from "@inertiajs/react"
 import { IconBook, IconExternalLink } from "@tabler/icons-react"
 
 import type { Incident } from "@/pages/incidents/types"
@@ -5,6 +6,8 @@ import {
   AttachRunbookDialog,
   type AttachableRunbook,
 } from "@/pages/incidents/components/index/attach-runbook-dialog"
+import { RUNBOOK_QUERY_PARAM } from "@/lib/generated/constants"
+import { settingsRunbooksPath } from "@/lib/routes"
 
 function progressLabel(runbook: Incident["runbooks"][number]): string {
   if (runbook.stepsCount === 0) {
@@ -43,7 +46,14 @@ export function RunbooksPanel({
               <IconBook className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/70" aria-hidden />
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 text-[13px] leading-snug text-foreground">
-                  <span className="truncate">{runbook.name}</span>
+                  {/* The same target the timeline's runbook entry opens, so a
+                      runbook is one click from wherever it is named. */}
+                  <Link
+                    href={settingsRunbooksPath({ [RUNBOOK_QUERY_PARAM]: runbook.runbookId })}
+                    className="truncate hover:underline"
+                  >
+                    {runbook.name}
+                  </Link>
                   {runbook.externalUrl && (
                     <a
                       href={runbook.externalUrl}
