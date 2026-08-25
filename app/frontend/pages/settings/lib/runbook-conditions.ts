@@ -4,6 +4,7 @@ import type {
   IncidentTypeSettings,
   RunbookCustomField,
 } from "@/types/serializers"
+import { CONDITION_FIELD_LABELS, CONDITION_OPERATOR_LABELS } from "@/lib/generated/constants"
 
 export const CONDITION_FIELD_INCIDENT_TYPE = "incident_type"
 export const CONDITION_FIELD_SEVERITY = "severity"
@@ -11,17 +12,8 @@ export const CONDITION_FIELD_CUSTOM_FIELD = "custom_field"
 export const OPERATOR_ONE_OF = "one_of"
 export const OPERATOR_NOT_ONE_OF = "not_one_of"
 
-type FixedConditionField = typeof CONDITION_FIELD_INCIDENT_TYPE | typeof CONDITION_FIELD_SEVERITY
-
-const FIELD_LABELS: Record<FixedConditionField, string> = {
-  [CONDITION_FIELD_INCIDENT_TYPE]: "Incident Type",
-  [CONDITION_FIELD_SEVERITY]: "Severity",
-}
-
-const OPERATOR_LABELS: Record<string, string> = {
-  [OPERATOR_ONE_OF]: "is one of",
-  [OPERATOR_NOT_ONE_OF]: "is not one of",
-}
+const fieldLabels: Record<string, string> = CONDITION_FIELD_LABELS
+const operatorLabels: Record<string, string> = CONDITION_OPERATOR_LABELS
 
 export function conditionSummary(
   conditions: IncidentConditionSettings[],
@@ -39,7 +31,7 @@ export function conditionSummary(
 
   return conditions
     .map((condition) => {
-      const operatorLabel = OPERATOR_LABELS[condition.operator] ?? condition.operator
+      const operatorLabel = operatorLabels[condition.operator] ?? condition.operator
 
       if (condition.conditionField === CONDITION_FIELD_CUSTOM_FIELD) {
         const field = condition.incidentFieldDefinitionId ? fieldMap.get(condition.incidentFieldDefinitionId) : undefined
@@ -51,7 +43,7 @@ export function conditionSummary(
       }
 
       const map = condition.conditionField === CONDITION_FIELD_SEVERITY ? severityMap : typeMap
-      const fieldLabel = FIELD_LABELS[condition.conditionField as FixedConditionField] ?? condition.conditionField
+      const fieldLabel = fieldLabels[condition.conditionField] ?? condition.conditionField
       const names = condition.values.map((value) => map.get(value) ?? value).join(", ")
       return `${fieldLabel} ${operatorLabel} ${names}`
     })

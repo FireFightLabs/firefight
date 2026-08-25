@@ -1,37 +1,16 @@
-import {
-  IconCircleCheck,
-  IconClock,
-  IconLoader,
-  IconUser,
-} from "@tabler/icons-react"
+import { IconUser } from "@tabler/icons-react"
 
 import type { IncidentAction } from "@/pages/incidents/types"
-
-const statusIcons: Record<string, typeof IconClock> = {
-  open: IconClock,
-  in_progress: IconLoader,
-  done: IconCircleCheck,
-}
-
-const statusStyles: Record<string, string> = {
-  open: "text-muted-foreground",
-  in_progress: "text-amber-400",
-  done: "text-primary",
-}
-
-const statusLabels: Record<string, string> = {
-  open: "Open",
-  in_progress: "In progress",
-  done: "Done",
-}
+import { actionAnchorId } from "@/pages/incidents/lib/action-anchor"
+import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
 
 export function ActionItem({ action }: { action: IncidentAction }) {
-  const StatusIcon = statusIcons[action.status]
-  const statusColor = statusStyles[action.status]
+  const StatusIcon = actionStatusIcons[action.status]
+  const statusColor = actionStatusStyles[action.status]
   const isDone = action.status === "done"
 
   return (
-    <div className="py-3 border-b border-border/60 last:border-b-0">
+    <div id={actionAnchorId(action.id)} className="py-3 border-b border-border/60 last:border-b-0 transition-shadow">
       <div className="flex items-start gap-3">
         <div className={`mt-0.5 shrink-0 ${statusColor}`}>
           <StatusIcon className="block size-[15px]" strokeWidth={1.75} />
@@ -58,7 +37,7 @@ export function ActionItem({ action }: { action: IncidentAction }) {
           <span className="italic text-muted-foreground/40">Unassigned</span>
         )}
         <span className="text-muted-foreground/50">·</span>
-        <span className={statusColor}>{statusLabels[action.status]}</span>
+        <span className={statusColor}>{actionStatusLabels[action.status]}</span>
       </div>
     </div>
   )

@@ -44,6 +44,88 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
     assert_operator queries, :<=, 2, "serializing a loaded timeline ran #{queries} queries"
   end
 
+  test "an automated event is attributed to Firefight" do
+    incident = incidents(:active_critical_ws1)
+    runbook = incident.workspace.runbooks.create!(name: "Failover")
+    incident.incident_events.create!(
+      event_type: IncidentEvent::RUNBOOK_ATTACHED,
+      metadata: { runbook_id: runbook.id, runbook_slug: runbook.slug, runbook_name: runbook.name, reason: "Attached to every incident." }
+    )
+
+    rendered = TimelineEventSerializer.one(timeline_event(incident, IncidentEvent::RUNBOOK_ATTACHED))
+
+    assert_equal "Firefight", rendered[:actor]
+    assert rendered[:automated]
+    assert_equal "attached the runbook", rendered[:description]
+    assert_equal({ label: "Failover", href: "/app/settings/runbooks?runbook=#{runbook.id}" }, rendered[:subject])
+    assert_equal "Attached to every incident.", rendered[:details]
+  end
+
+  test "a related incident is a link to that incident" do
+    incident = incidents(:active_critical_ws1)
+    other = incident.workspace.incidents.where.not(id: incident.id).first!
+    incident.incident_events.create!(
+      event_type: IncidentEvent::RELATIONSHIP_CREATED,
+      actor: workspace_memberships(:alice_workspace_one),
+      metadata: { related_incident_id: other.id, related_identifier: other.identifier }
+    )
+
+    rendered = TimelineEventSerializer.one(timeline_event(incident, IncidentEvent::RELATIONSHIP_CREATED))
+
+    assert_equal({ label: other.identifier, href: "/app/incidents/#{other.id}" }, rendered[:subject])
+    assert_not rendered[:automated]
+  end
+
+  test "an escalation names the person with their avatar and the reason" do
+    incident = incidents(:active_critical_ws1)
+    target = workspace_memberships(:bob_workspace_one)
+    incident.incident_events.create!(
+      event_type: IncidentEvent::INCIDENT_ESCALATED,
+      actor: workspace_memberships(:alice_workspace_one),
+      metadata: {
+        escalated_to_platform_user_id: target.platform_user_id,
+        escalated_to_member_id: target.id,
+        escalated_to_name: target.display_name,
+        reason: "Need a database owner"
+      }
+    )
+
+    rendered = TimelineEventSerializer.one(timeline_event(incident, IncidentEvent::INCIDENT_ESCALATED))
+
+    assert_equal "escalated the incident to", rendered[:description]
+    assert_equal target.display_name, rendered[:person][:name]
+    assert_nil rendered[:subject]
+    assert_equal "Need a database owner", rendered[:details]
+  end
+
+  test "an action event carries the action's description, status and assignee" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    stub_post_message
+    action = IncidentActionService.new(incident.workspace).create_action(
+      incident: incident, created_by: member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "Restart the worker pool", assignee: member
+    )
+
+    rendered = TimelineEventSerializer.one(timeline_event(incident, IncidentEvent::ACTION_CREATED))
+
+    assert_equal "Restart the worker pool", rendered[:action][:description]
+    assert_equal action.status, rendered[:action][:status]
+    assert_equal member.display_name, rendered[:action][:assignee][:name]
+  end
+
+  test "a pin quotes the message and links to it" do
+    incident = incidents(:active_critical_ws1)
+    incident.incident_events.create!(
+      event_type: IncidentEvent::MESSAGE_PINNED,
+      metadata: { message_text: "Root cause found", permalink: "https://slack.example/p1" }
+    )
+
+    rendered = TimelineEventSerializer.one(timeline_event(incident, IncidentEvent::MESSAGE_PINNED))
+
+    assert_equal({ text: "Root cause found", permalink: "https://slack.example/p1" }, rendered[:pin])
+  end
+
   test "details surfaces the update message stored on the eventable" do
     incident = incidents(:active_critical_ws1)
     member = workspace_memberships(:alice_workspace_one)
@@ -168,5 +250,11 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
     event.update!(event_type: IncidentEvent::MESSAGE_FILE_SHARED, metadata: { details: "shared a file" })
 
     assert_nil TimelineEventSerializer.one(event)[:file]
+  end
+
+  private
+
+  def timeline_event(incident, event_type)
+    incident.timeline_events.find { |event| event.event_type == event_type }
   end
 end

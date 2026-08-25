@@ -28,6 +28,7 @@ import { OptionsTable } from "@/pages/settings/components/options-table"
 import { RunbookDetailSheet } from "@/pages/settings/components/runbooks/runbook-detail-sheet"
 import { RunbookDialog } from "@/pages/settings/components/runbooks/runbook-dialog"
 import { attachSummary } from "@/pages/settings/lib/runbook-conditions"
+import { RUNBOOK_QUERY_PARAM } from "@/lib/generated/constants"
 
 interface RunbooksTabProps {
   runbooks: RunbookSettings[]
@@ -37,11 +38,21 @@ interface RunbooksTabProps {
   canManage: boolean
 }
 
+// The incident timeline links a runbook by id. The page opens that runbook's
+// sheet straight away so the link lands on the runbook, not on the list.
+function runbookFromUrl(runbooks: RunbookSettings[]): RunbookSettings | null {
+  const requested = new URLSearchParams(window.location.search).get(RUNBOOK_QUERY_PARAM)
+  if (!requested) {
+    return null
+  }
+  return runbooks.find((runbook) => runbook.id === requested) ?? null
+}
+
 export function RunbooksTab({ runbooks, incidentTypes, severities, customFields, canManage }: RunbooksTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRunbook, setEditingRunbook] = useState<RunbookSettings | null>(null)
   const [deleting, setDeleting] = useState<RunbookSettings | null>(null)
-  const [viewing, setViewing] = useState<RunbookSettings | null>(null)
+  const [viewing, setViewing] = useState<RunbookSettings | null>(() => runbookFromUrl(runbooks))
 
   function openCreate() {
     setEditingRunbook(null)

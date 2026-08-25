@@ -189,6 +189,7 @@ Api::V1::EventsController → ProcessEventJob → EventDispatcher → Events::<T
 - `EventsController` handles `url_verification` inline, then enqueues `ProcessEventJob` with the raw payload and returns `head :ok`.
 - `EventDispatcher` routes on `Identifiers::EVENT_*` to handlers in `app/services/events/` (`MessageHandler`, `ReactionAddedHandler`, `PinAddedHandler`, `PinRemovedHandler`, `AppMentionHandler`, `MemberJoinedChannelHandler`). Unknown types are logged and dropped.
 - These handlers power transcript capture (`MessageHandler` → `IncidentTranscriptMessage`), reaction-to-action/followup/shoutout creation, pin timeline events, and AI responses to @mentions.
+- A pin event stores the pinned message's text (`fetch_message` through the adapter) alongside its permalink, so the timeline can quote it. The fetch is decoration: an `AdapterError` leaves `message_text` nil and the pin is still recorded.
 - Slack does **not** redeliver events after the 200 ack, so `ProcessEventJob` retries transient DB failures itself — a dropped job loses the event.
 
 Events handlers follow the same thinness rules as command/interaction handlers.
@@ -253,6 +254,7 @@ Every meaningful state change to `Incident`, `IncidentAction`, or `Postmortem` i
 
 Models opt in via two paired concerns:
 
+- **Event metadata names things, never just ids.** An `IncidentEvent` that points at something stores the id and the name the timeline will say (`runbook_id` + `runbook_name`, `related_incident_id` + `related_identifier`, `escalated_to_member_id` + `escalated_to_name` + `escalated_to_avatar_url`). `IncidentEvent#subject_label` reads those names, and `IncidentEvent::References` resolves the ids once per timeline for links and avatars. Automatic runbook attachment stores `reason` (`Runbook#attach_reason`, built from `IncidentCondition#to_sentence`), escalation stores `reason`, and both surface as the entry's details.
 - `Trackable` (`app/models/concerns/trackable.rb`) — on the live model. Provides `record_change!(event_type, by:, message: nil, metadata: nil) { ... }`. Diffs `snapshot_attributes` before/after the block, writes the snapshot + event in one transaction.
 - `Recordable` (`app/models/concerns/recordable.rb`) — on the snapshot model. Declares `records SourceClass, recorder: :column_name` and wires `has_one :incident_event, as: :eventable`.
 

@@ -33,7 +33,44 @@ class IncidentCondition < ApplicationRecord
   validate :conditionable_may_be_hidden
   validate :custom_field_is_answerable_here
 
+  # Shared with the dashboard through lib/typescript_constants.rb, so the
+  # editors and the timeline say the rule the same way.
+  FIELD_LABELS = {
+    FIELD_INCIDENT_TYPE => "Incident Type",
+    FIELD_SEVERITY => "Severity",
+    FIELD_STATUS => "Status",
+    FIELD_VISIBILITY => "Visibility"
+  }.freeze
+
+  OPERATOR_LABELS = {
+    OPERATOR_ONE_OF => "is one of",
+    OPERATOR_NOT_ONE_OF => "is not one of"
+  }.freeze
+
+  VISIBILITY_LABELS = {
+    Incident::VISIBILITY_PRIVATE => "Private",
+    Incident::VISIBILITY_PUBLIC => "Public"
+  }.freeze
+
+  # The rule in words, with names in place of ids: "Severity is one of
+  # Critical, Major". Same wording as the settings screen's conditions column.
+  def to_sentence
+    label = condition_field == FIELD_CUSTOM_FIELD ? incident_field_definition&.name || "Custom field" : FIELD_LABELS[condition_field]
+    "#{label} #{OPERATOR_LABELS[operator]} #{value_names.join(", ")}"
+  end
+
   private
+
+  def value_names
+    names = case condition_field
+    when FIELD_INCIDENT_TYPE then workspace.incident_types.where(id: values).index_by(&:id).transform_values(&:name)
+    when FIELD_SEVERITY then workspace.incident_severities.where(id: values).index_by(&:id).transform_values(&:name)
+    when FIELD_STATUS then workspace.incident_statuses.where(id: values).index_by(&:id).transform_values(&:name)
+    when FIELD_VISIBILITY then VISIBILITY_LABELS
+    when FIELD_CUSTOM_FIELD then incident_field_definition&.selectable_values || {}
+    end
+    values.map { |value| names[value] || value }
+  end
 
   # A condition is a second way to hide a field, so it has to respect the same
   # lock the Visible toggle does. Severity and Status are NOT NULL on incidents,

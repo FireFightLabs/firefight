@@ -17,23 +17,23 @@ class EscalationAcknowledgementReminderJob < ApplicationJob
       reason: reason
     )
 
-    record_nudged_event(incident, escalation_event.id, escalated_to_platform_user_id)
+    record_nudged_event(incident, escalation_event)
   end
 
   private
 
-  def record_nudged_event(incident, escalation_event_id, escalated_to_platform_user_id)
+  def record_nudged_event(incident, escalation_event)
     return if incident.incident_events
       .where(event_type: IncidentEvent::ESCALATION_NUDGED)
-      .where("metadata @> ?", { escalation_event_id: escalation_event_id }.to_json)
+      .where("metadata @> ?", { escalation_event_id: escalation_event.id }.to_json)
       .exists?
 
+    target = escalation_event.metadata.slice(
+      "escalated_to_platform_user_id", "escalated_to_member_id", "escalated_to_name", "escalated_to_avatar_url"
+    )
     incident.incident_events.create!(
       event_type: IncidentEvent::ESCALATION_NUDGED,
-      metadata: {
-        escalation_event_id: escalation_event_id,
-        escalated_to_platform_user_id: escalated_to_platform_user_id
-      }
+      metadata: target.merge(escalation_event_id: escalation_event.id)
     )
   end
 end

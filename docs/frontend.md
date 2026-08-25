@@ -111,6 +111,7 @@ app/frontend/
       components/
         index/             # incident-header, incident-timeline, action-panel, ... (detail page only)
         postmortem/        # postmortem-editor, ai-rewrite-dialog, revisions-sheet (postmortem page only)
+      lib/                 # action-status (shared status icons/labels), action-anchor (sidebar deep link)
       types.ts             # Re-exports Incident, IncidentAction, TimelineEvent from @/types/serializers
     catalogue/
       index.tsx            # /catalogue
@@ -292,3 +293,15 @@ Dark navy theme with cyan primary accent. Colors defined as CSS custom propertie
 - Background hue: 255 (navy blue tint, not pure gray)
 - Primary: hue 195 (cyan/teal)
 - Chroma on dark backgrounds: 0.035 (visibly blue, not grayish)
+
+## Incident timeline
+
+`TimelineEventSerializer` ships one entry per `IncidentEvent`, and `incident-timeline.tsx` renders it as a sentence plus an optional card. Everything the entry names is resolved server-side: `Incident#timeline_events` preloads the snapshots and builds one `IncidentEvent::References` (members, runbooks, related incidents named in metadata) for the whole list, so the serializer never queries per row and the page never fetches to fill in a name.
+
+- `actor` is the person's name, or `Firefight` when no human performed it (`IncidentEvent::AUTOMATED_ACTOR_NAME`, `automated: true`). Automated entries render a flame in a neutral dot, never an avatar.
+- `description` is the sentence stem (`attached the runbook`, `escalated the incident to`). The full sentence with the subject folded in is `IncidentEvent#description`, used by Slack and the AI context.
+- `subject` `{ label, href }` follows the stem for runbooks (deep link `settings/runbooks?runbook=<id>`, which opens the sheet), alerts (no page, no href), and related or merged incidents.
+- `person` follows the stem for lead, role, escalation and reminder events, rendered with `PersonChip`.
+- Cards: `changes` (snapshot diff), `action` (description, status, assignee, and a click that reveals the sidebar item via `revealAction`), `pin` (quoted message text and the Slack permalink), `details` (an update message or the `reason` metadata behind an escalation or an automatic runbook attachment), `file`.
+- The icon map is keyed on the full `eventType` union, so adding an event type is a compile error until the timeline knows how to draw it.
+

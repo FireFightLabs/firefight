@@ -67,10 +67,7 @@ class IncidentLifecycleService
     event = incident.incident_events.create!(
       event_type: IncidentEvent::INCIDENT_ESCALATED,
       actor: changed_by,
-      metadata: {
-        escalated_to_platform_user_id: escalated_to_platform_user_id,
-        reason: reason
-      }
+      metadata: escalation_target(escalated_to_platform_user_id).merge(reason: reason)
     )
 
     IncidentEscalationWorkflow.start!(incident, context: {
@@ -257,6 +254,30 @@ class IncidentLifecycleService
         member_name: member&.actor_display_name
       }.compact
     )
+  end
+
+  # The timeline names the person, never the platform id. A target who is not
+  # yet a member still gets a name and avatar from the platform, since
+  # escalating to someone is not what makes them a billable member.
+  def escalation_target(platform_user_id)
+    member = @workspace.workspace_memberships.find_by(platform_user_id: platform_user_id)
+    if member
+      return {
+        escalated_to_platform_user_id: platform_user_id,
+        escalated_to_member_id: member.id,
+        escalated_to_name: member.actor_display_name,
+        escalated_to_avatar_url: member.user.avatar_url
+      }
+    end
+
+    info = @workspace.adapter.get_user_info(user_id: platform_user_id)
+    {
+      escalated_to_platform_user_id: platform_user_id,
+      escalated_to_name: info[:real_name].presence || info[:display_name],
+      escalated_to_avatar_url: info[:avatar_url]
+    }
+  rescue AdapterError
+    { escalated_to_platform_user_id: platform_user_id }
   end
 
   def announce_role_changes(incident, changes)

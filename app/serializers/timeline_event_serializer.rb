@@ -13,9 +13,16 @@ class TimelineEventSerializer < BaseSerializer
     event.event_type
   end
 
+  PERSON_TYPE = "{ name: string; initials: string; avatarUrl?: string }".freeze
+
   type :string
   def actor
-    event.actor&.actor_display_name || "System"
+    event.actor_name
+  end
+
+  type :boolean
+  def automated
+    event.automated?
   end
 
   type :string, optional: true
@@ -33,7 +40,52 @@ class TimelineEventSerializer < BaseSerializer
 
   type :string
   def description
-    event.description
+    event.description_stem
+  end
+
+  type "{ label: string; href: string | null }", optional: true
+  def subject
+    label = event.subject_label
+    return nil if label.blank? || person_backed?
+
+    { label: label, href: subject_href }
+  end
+
+  type PERSON_TYPE, optional: true
+  def person
+    return nil unless person_backed?
+
+    meta = event.metadata.to_h.with_indifferent_access
+    case event.event_type
+    when IncidentEvent::LEAD_ASSIGNED
+      member_person(event.eventable&.lead)
+    when IncidentEvent::ROLE_ASSIGNED
+      member_person(event.references&.member(meta[:member_id]))
+    when IncidentEvent::INCIDENT_ESCALATED, IncidentEvent::ESCALATION_NUDGED
+      member_person(event.references&.member(meta[:escalated_to_member_id])) ||
+        named_person(meta[:escalated_to_name], meta[:escalated_to_avatar_url])
+    end
+  end
+
+  type "{ id: string; description: string; status: string; assignee: #{PERSON_TYPE} | null }", optional: true
+  def action
+    update = event.eventable
+    return nil unless update.is_a?(IncidentActionUpdate)
+
+    {
+      id: update.incident_action_id,
+      description: update.description,
+      status: update.status,
+      assignee: member_person(update.assignee)
+    }
+  end
+
+  type "{ text: string | null; permalink: string | null }", optional: true
+  def pin
+    return nil unless [ IncidentEvent::MESSAGE_PINNED, IncidentEvent::MESSAGE_UNPINNED ].include?(event.event_type)
+
+    meta = event.metadata.to_h.with_indifferent_access
+    { text: meta[:message_text].presence, permalink: meta[:permalink].presence }
   end
 
   type "{ field: string; before: string; after: string }[]", optional: true
@@ -57,15 +109,16 @@ class TimelineEventSerializer < BaseSerializer
     eventable = event.eventable
     return eventable.message if eventable.respond_to?(:message) && eventable.message.present?
 
-    d = event.metadata["message"] || event.metadata[:message]
-    d.is_a?(String) ? d : nil
+    meta = event.metadata.to_h.with_indifferent_access
+    text = meta[:message].presence || meta[:reason].presence
+    text.is_a?(String) ? text : nil
   end
 
   type "{ name: string; mimeType: string | null; slackPermalink: string | null; downloadUrl: string | null; byteSize: number | null }", optional: true
   def file
     return nil unless event.event_type == IncidentEvent::MESSAGE_FILE_SHARED
 
-    meta = event.metadata.with_indifferent_access
+    meta = event.metadata.to_h.with_indifferent_access
     blob = event.artifact.attached? ? event.artifact.blob : nil
 
     # The blob describes what downloadUrl actually returns, so it wins over the
@@ -86,6 +139,49 @@ class TimelineEventSerializer < BaseSerializer
   end
 
   private
+
+  PERSON_EVENTS = [
+    IncidentEvent::LEAD_ASSIGNED, IncidentEvent::ROLE_ASSIGNED,
+    IncidentEvent::INCIDENT_ESCALATED, IncidentEvent::ESCALATION_NUDGED
+  ].freeze
+
+  def person_backed?
+    PERSON_EVENTS.include?(event.event_type)
+  end
+
+  def member_person(member)
+    return nil unless member
+
+    ActorCompactSerializer.one(member)
+  end
+
+  def named_person(name, avatar_url)
+    return nil if name.blank?
+
+    { name: name, initials: name.split.map { |part| part[0] }.join.upcase, avatarUrl: avatar_url }
+  end
+
+  def subject_href
+    meta = event.metadata.to_h.with_indifferent_access
+    references = event.references
+    return nil unless references
+
+    case event.event_type
+    when IncidentEvent::RUNBOOK_ATTACHED
+      runbook = references.runbook(meta[:runbook_id])
+      runbook && runbook.deleted_at.nil? ? url_helpers.settings_runbooks_path(Runbook::QUERY_PARAM => runbook.id) : nil
+    when IncidentEvent::RELATIONSHIP_CREATED, IncidentEvent::MARKED_DUPLICATE
+      related = references.incident(meta[:related_incident_id])
+      related && url_helpers.incident_path(related)
+    when IncidentEvent::MERGED_INTO
+      canonical = references.incident(meta[:canonical_incident_id])
+      canonical && url_helpers.incident_path(canonical)
+    end
+  end
+
+  def url_helpers
+    Rails.application.routes.url_helpers
+  end
 
   def artifact_path(event)
     return nil unless event.artifact.attached?

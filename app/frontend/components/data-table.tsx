@@ -1,4 +1,5 @@
-import { flexRender, type Table as TanStackTable } from "@tanstack/react-table"
+import type { MouseEvent } from "react"
+import { flexRender, type Row, type Table as TanStackTable } from "@tanstack/react-table"
 
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -13,9 +14,25 @@ import {
 interface DataTableProps<TData> {
   table: TanStackTable<TData>
   emptyMessage?: string
+  onRowClick?: (record: TData) => void
 }
 
-export function DataTable<TData>({ table, emptyMessage = "No results found." }: DataTableProps<TData>) {
+// A row that navigates still holds real links, so a click that landed on one
+// is left to the link and never fires the row twice.
+function rowClickHandler<TData>(row: Row<TData>, onRowClick?: (record: TData) => void) {
+  if (!onRowClick) {
+    return undefined
+  }
+  return (event: MouseEvent<HTMLTableRowElement>) => {
+    if ((event.target as HTMLElement).closest("a, button")) {
+      return
+    }
+    onRowClick(row.original)
+  }
+}
+
+export function DataTable<TData>({ table, emptyMessage = "No results found.", onRowClick }: DataTableProps<TData>) {
+  const rowClassName = onRowClick ? "cursor-pointer" : undefined
   return (
     <Card className="overflow-hidden py-0">
       <CardContent className="p-0">
@@ -36,7 +53,7 @@ export function DataTable<TData>({ table, emptyMessage = "No results found." }: 
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow key={row.id} className={rowClassName} onClick={rowClickHandler(row, onRowClick)}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="py-4">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

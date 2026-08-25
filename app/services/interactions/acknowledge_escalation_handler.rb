@@ -22,6 +22,7 @@ module Interactions
 
       incident.incident_events.create!(
         event_type: IncidentEvent::ESCALATION_ACKNOWLEDGED,
+        actor: workspace.workspace_memberships.find_by(platform_user_id: interaction.user_id),
         metadata: {
           escalation_event_id: escalation_event.id,
           acknowledged_by_platform_user_id: interaction.user_id,

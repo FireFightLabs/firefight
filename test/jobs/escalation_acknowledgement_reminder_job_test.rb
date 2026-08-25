@@ -11,7 +11,9 @@ class EscalationAcknowledgementReminderJobTest < ActiveJob::TestCase
       event_type: IncidentEvent::INCIDENT_ESCALATED,
       actor: @escalated_by,
       metadata: {
-        escalated_to_platform_user_id: @escalated_to.platform_user_id
+        escalated_to_platform_user_id: @escalated_to.platform_user_id,
+        escalated_to_member_id: @escalated_to.id,
+        escalated_to_name: @escalated_to.display_name
       }
     )
   end
@@ -31,6 +33,8 @@ class EscalationAcknowledgementReminderJobTest < ActiveJob::TestCase
 
     nudge_event = @incident.incident_events.find_by!(event_type: IncidentEvent::ESCALATION_NUDGED)
     assert_equal @escalated_to.platform_user_id, nudge_event.metadata["escalated_to_platform_user_id"]
+    assert_equal @escalated_to.id, nudge_event.metadata["escalated_to_member_id"]
+    assert_equal @escalated_to.display_name, nudge_event.metadata["escalated_to_name"]
   end
 
   test "does not send reminder when already acknowledged" do

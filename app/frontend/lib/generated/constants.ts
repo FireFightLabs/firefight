@@ -15,6 +15,20 @@ export const INTEGRATION_KINDS = {
 
 export const CUSTOM_MCP_PROVIDER_KEY = "custom_mcp" as const
 
+export const RUNBOOK_QUERY_PARAM = "runbook" as const
+
+export const CONDITION_FIELD_LABELS = {
+  "incident_type": "Incident Type",
+  "severity": "Severity",
+  "status": "Status",
+  "visibility": "Visibility"
+} as const
+
+export const CONDITION_OPERATOR_LABELS = {
+  "one_of": "is one of",
+  "not_one_of": "is not one of"
+} as const
+
 export const ALERT_NORMALIZED_FIELDS = [
   "external_id",
   "fingerprint",

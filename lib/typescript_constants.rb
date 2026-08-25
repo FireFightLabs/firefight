@@ -18,6 +18,9 @@ module TypescriptConstants
         "MCP" => Integration::KIND_MCP, "HTTP" => Integration::KIND_HTTP, "NATIVE" => Integration::KIND_NATIVE
       }, nil),
       Export.new("CUSTOM_MCP_PROVIDER_KEY", Integration::PROVIDER_CUSTOM_MCP, nil),
+      Export.new("RUNBOOK_QUERY_PARAM", Runbook::QUERY_PARAM, nil),
+      Export.new("CONDITION_FIELD_LABELS", IncidentCondition::FIELD_LABELS, nil),
+      Export.new("CONDITION_OPERATOR_LABELS", IncidentCondition::OPERATOR_LABELS, nil),
       Export.new("ALERT_NORMALIZED_FIELDS", AlertProviders::Base::NORMALIZED_FIELDS, "AlertNormalizedField"),
       Export.new("ALERT_CONDITION_OPERATORS", PolicyRule::OPERATORS, "AlertConditionOperator"),
       Export.new("ALERT_OUTCOME_ACTIONS", PolicyRule::AlertRoutingOutcome::ACTIONS, "AlertOutcomeAction"),
