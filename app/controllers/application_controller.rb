@@ -14,12 +14,30 @@ class ApplicationController < ActionController::Base
 
   def current_user
     return @current_user if defined?(@current_user)
+    return @current_user = replayed_membership.user if replayed_membership
+
     @current_user = session[:user_id] ? User.find_by(id: session[:user_id]) : nil
   end
 
   def current_workspace
     return @current_workspace if defined?(@current_workspace)
+    return @current_workspace = replayed_membership.workspace if replayed_membership
+
     @current_workspace = current_user && resolve_current_workspace
+  end
+
+  # A request replayed after an approval carries its requester in the Rack
+  # env, which nothing on the wire can set, so it runs as that person
+  # without a session and without a form token.
+  def replayed_membership
+    return @replayed_membership if defined?(@replayed_membership)
+
+    membership_id = request.env.dig(WebRequestReplay::ENV_KEY, "membership_id")
+    @replayed_membership = membership_id && WorkspaceMembership.find_by(id: membership_id)
+  end
+
+  def verified_request?
+    super || replayed_membership.present?
   end
 
   # Resolve through the user's memberships so session[:workspace_id] can never
@@ -48,14 +66,6 @@ class ApplicationController < ActionController::Base
     return redirect_unauthenticated unless user_signed_in?
 
     Current.principal = current_membership
-  end
-
-  # Settings mutations and credential reads are admin territory. Responders
-  # keep full incident access through Slack and the app regardless.
-  def require_admin!
-    return if current_membership&.admin_access?
-
-    redirect_to dashboard_path, alert: "You need admin access to manage workspace settings"
   end
 
   def redirect_unauthenticated

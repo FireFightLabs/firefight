@@ -1,8 +1,8 @@
 class SettingsController < InertiaController
-  # The governance surfaces expose the invocation ledger, the grant matrix,
-  # and approval request params, so they are admin territory like the
-  # mutations behind them.
-  before_action :require_admin!, only: %i[ permissions activity approvals ]
+  # The grant matrix and the ledger are admin territory, like the
+  # mutations behind them. Approvals read as approvals do everywhere else.
+  authorizes Ability::Action::RESOURCE_PERMISSIONS, read: %i[permissions activity]
+  authorizes Ability::Action::RESOURCE_APPROVALS, read: :approvals
 
   RECENT_ALERTS_LIMIT = 50
   ACTIVITY_LIMIT = 200
@@ -106,8 +106,7 @@ class SettingsController < InertiaController
       sets: AbilityRoleSerializer.many(
         current_workspace.ability_roles.order(:name).includes(:grants, :role_actions)
       ),
-      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
-      canManage: current_membership.admin_access?
+      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries)
     }
   end
 
@@ -148,7 +147,6 @@ class SettingsController < InertiaController
 
     render inertia: "settings/api-keys", props: {
       apiKeys: ApiKeySerializer.many(scope.ordered.includes(created_by: :user)),
-      canManageServiceKeys: current_membership.admin_access?,
       connectedAgents: connected_agents
     }
   end

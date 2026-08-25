@@ -22,6 +22,7 @@ module Ability
     validates :principal_label, :action_key, :idempotency_key, presence: true
     validates :decision, inclusion: { in: DECISIONS }
     validates :outcome, inclusion: { in: OUTCOMES }, allow_nil: true
+    validates :source, inclusion: { in: AbilityGateway::SOURCES }, allow_nil: true
 
     scope :pending_outcome, -> { where(decision: DECISION_ALLOW, completed_at: nil) }
 

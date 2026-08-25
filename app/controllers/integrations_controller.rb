@@ -1,7 +1,11 @@
 class IntegrationsController < InertiaController
   class NameTaken < StandardError; end
 
-  before_action :require_admin!, except: :index
+  authorizes Ability::Action::RESOURCE_INTEGRATIONS,
+    read: :index,
+    create: %i[create oauth_start oauth_callback],
+    update: %i[sync toggle_tool set_all_tools toggle retarget_environment],
+    delete: :destroy
   before_action :set_integration,
                 only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :destroy ]
 
@@ -13,8 +17,7 @@ class IntegrationsController < InertiaController
       ),
       providers: IntegrationProviderSerializer.many(IntegrationProvider.all),
       categories: IntegrationProvider.categories,
-      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
-      canManage: current_membership.admin_access?
+      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries)
     }
   end
 

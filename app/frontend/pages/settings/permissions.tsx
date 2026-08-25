@@ -12,6 +12,7 @@ import { SetEditor } from "@/pages/settings/components/permissions/set-editor"
 import { IMPLICIT_AUTHORITY } from "@/pages/settings/components/permissions/risk"
 import type { AbilityActionOption, AbilityRole, EnvironmentOption, Principal } from "@/types/serializers"
 import type { SharedProps } from "@/types"
+import { useCan } from "@/lib/permissions"
 
 interface PermissionsPageProps extends SharedProps {
   [key: string]: unknown
@@ -19,7 +20,6 @@ interface PermissionsPageProps extends SharedProps {
   actions: AbilityActionOption[]
   sets: AbilityRole[]
   environments: EnvironmentOption[]
-  canManage: boolean
 }
 
 type Selection = { kind: "principal" | "set"; id: string }
@@ -32,7 +32,8 @@ const SECTIONS: { kind: string; title: string; blurb: string }[] = [
 ]
 
 export default function Permissions() {
-  const { principals, actions, sets, environments, canManage } = usePage<PermissionsPageProps>().props
+  const { principals, actions, sets, environments } = usePage<PermissionsPageProps>().props
+  const canManage = useCan("permissions")
   const [selection, setSelection] = useState<Selection>({ kind: "principal", id: principals[0]?.id ?? "" })
   const [granting, setGranting] = useState<Principal | null>(null)
   const [creatingSet, setCreatingSet] = useState(false)

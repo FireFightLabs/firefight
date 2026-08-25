@@ -1,4 +1,8 @@
 class IncidentsController < InertiaController
+  authorizes Ability::Action::RESOURCE_INCIDENTS,
+    read: %i[show postmortem postmortem_revisions],
+    update: %i[update_postmortem update_postmortem_status generate_postmortem start_blank_postmortem ai_rewrite_postmortem]
+
   def show
     incident = current_workspace.incidents
       .with_detail_associations

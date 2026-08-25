@@ -49,6 +49,10 @@ module SlackClientStubHelper
     end
   end
 
+  def stub_post_direct_message
+    Slack::Client.stubs(:post_message).returns({ ok: true, ts: "1234567890.123456" })
+  end
+
   def stub_post_ephemeral
     Slack::Client.stubs(:post_ephemeral).returns({ ok: true, ts: "1234567890.123456" })
   end

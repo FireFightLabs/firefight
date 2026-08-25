@@ -8,10 +8,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-// Every resource in Ability::Action::RESOURCES, every action in Ability::Action::ACTIONS. This
-// once mirrored the /api/v1 routes alone, which left most MCP tools
-// ungrantable: a service key could not be given runbooks or approvals at all,
-// so an agent had to run as an admin human and inherit everything.
+// Every resource in Ability::Action::GRANTABLE_RESOURCES, every action in
+// Ability::Action::ACTIONS. The admin-only resources (integrations, API keys,
+// permissions, workspace) are not here because nothing can be granted them.
 const apiResources = [
   { key: "incidents", label: "Incidents" },
   { key: "severities", label: "Severities" },
@@ -24,6 +23,8 @@ const apiResources = [
   { key: "policies", label: "Alert Routing" },
   { key: "runbooks", label: "Runbooks" },
   { key: "approvals", label: "Approvals" },
+  { key: "incident_roles", label: "Incident Roles" },
+  { key: "webhooks", label: "Webhooks" },
 ] as const
 
 const apiActions = ["read", "create", "update", "delete"] as const

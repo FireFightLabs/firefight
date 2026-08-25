@@ -1,5 +1,5 @@
 class IncidentFieldDefinitionsController < InertiaController
-  before_action :require_admin!
+  authorizes Ability::Action::RESOURCE_CUSTOM_FIELDS, create: :create, update: %i[update disable enable], delete: :destroy
   before_action :set_field_definition, only: [ :update, :disable, :enable, :destroy ]
 
   def create

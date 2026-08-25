@@ -5,6 +5,7 @@ module Ability
 
     validates :action_id, uniqueness: { scope: :role_id }
     validate :default_scope_well_formed
+    validate :action_grantable
 
     after_commit :bust_holder_caches
 
@@ -12,6 +13,10 @@ module Ability
 
     def default_scope_well_formed
       Ability::Scope.validate(default_scope, errors, attribute: :default_scope)
+    end
+
+    def action_grantable
+      errors.add(:action, "is admin-only and cannot be part of a set") if action&.admin_only?
     end
 
     def bust_holder_caches

@@ -1,4 +1,6 @@
 class IncidentActionsController < InertiaController
+  authorizes Ability::Action::RESOURCE_INCIDENTS, update: :create
+
   ASSIGNEE_UNAVAILABLE = "Couldn't load that user's profile from Slack. Please try again in a moment.".freeze
 
   def create

@@ -40,6 +40,14 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_equal service, service.principal
   end
 
+  test "the matrix refuses an admin-only resource" do
+    key = api_keys(:read_only_key)
+
+    assert_raises(ArgumentError) do
+      key.replace_permissions!(Ability::Action::RESOURCE_API_KEYS => [ Ability::Action::ACTION_CREATE ])
+    end
+  end
+
   test "member personal tokens read everything, participate in incidents, and configure nothing" do
     membership = workspace_memberships(:bob_workspace_one)
     key, _ = ApiKey.create_with_token!(
@@ -47,9 +55,12 @@ class ApiKeyTest < ActiveSupport::TestCase
       on_behalf_of: membership, name: "Personal"
     )
 
-    Ability::Action::RESOURCES.each do |resource|
+    Ability::Action::GRANTABLE_RESOURCES.each do |resource|
       assert key.has_permission?(resource, Ability::Action::ACTION_READ)
       assert_not key.has_permission?(resource, Ability::Action::ACTION_DELETE)
+    end
+    Ability::Action::ADMIN_ONLY_RESOURCES.each do |resource|
+      assert_not key.has_permission?(resource, Ability::Action::ACTION_READ)
     end
 
     assert key.has_permission?(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)

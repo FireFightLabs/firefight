@@ -6,6 +6,7 @@ import { IconArrowLeft } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { settingsAlertSourcesPath } from "@/lib/routes"
+import { useCan } from "@/lib/permissions"
 import { AlertRoutingTab } from "@/pages/settings/components/alert-routing/alert-routing-tab"
 import type { AlertRoutingPolicy, IncidentSeveritySettings, WorkspaceMembership } from "@/types/serializers"
 import type { SlackChannel } from "@/types"
@@ -26,6 +27,7 @@ interface AlertRoutingPageProps extends SharedProps {
 
 export default function AlertRouting() {
   const { policy, alertSource, hasWorkspaceFallback, severities, channels, members, catalogOptions, roleWarnings } = usePage<AlertRoutingPageProps>().props
+  const canManage = useCan("policies")
 
   return (
     <AuthenticatedLayout title="Alert Routing">
@@ -60,6 +62,7 @@ export default function AlertRouting() {
           catalogOptions={catalogOptions}
           alertSource={alertSource}
           hasWorkspaceFallback={hasWorkspaceFallback}
+          canManage={canManage}
         />
       </div>
     </AuthenticatedLayout>

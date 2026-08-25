@@ -15,12 +15,13 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { ConditionEditor } from "@/pages/settings/components/forms/condition-editor"
 
-export function SortableFieldRow({ field, form, incidentTypes, severities, statuses, onUpdate, onUpdateConditions, onRemove }: {
+export function SortableFieldRow({ field, form, incidentTypes, severities, statuses, canManage, onUpdate, onUpdateConditions, onRemove }: {
   field: IncidentFormFieldSettings
   form: IncidentFormSettings
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
   statuses: IncidentStatusSettings[]
+  canManage: boolean
   onUpdate: (next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) => void
   onUpdateConditions: (conditions: IncidentConditionSettings[]) => void
   onRemove: () => void
@@ -43,6 +44,8 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, statu
 
   const isVisible = field.visibilityMode === "visible"
   const isRequired = field.requiredMode === "required" || field.lockedRequired
+  const hasConditions = (field.conditions?.length ?? 0) > 0
+  const showReadOnlyState = !canManage && (!isVisible || hasConditions)
   const isSelect = field.selectable
   const isMultiline = field.slug === "summary"
   // Falls back only for custom fields, which carry no placeholder of their own.
@@ -61,15 +64,17 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, statu
     >
       {/* Field name + description + input preview */}
       <div className="flex items-start gap-2">
-        <button
-          ref={setActivatorNodeRef}
-          type="button"
-          className="mt-0.5 flex shrink-0 cursor-grab touch-none items-center text-muted-foreground/30 transition-colors hover:text-muted-foreground active:cursor-grabbing"
-          {...attributes}
-          {...listeners}
-        >
-          <IconGripVertical className="size-4" />
-        </button>
+        {canManage && (
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            className="mt-0.5 flex shrink-0 cursor-grab touch-none items-center text-muted-foreground/30 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+          >
+            <IconGripVertical className="size-4" />
+          </button>
+        )}
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5">
@@ -104,55 +109,76 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, statu
         </div>
       </div>
 
-      {/* Controls below the field content */}
-      <div className="mt-3 flex items-center gap-4 pl-6">
-        <label className="flex items-center gap-1.5 cursor-pointer">
-          <span className="text-[11px] text-muted-foreground">Visible</span>
-          <Switch
-            checked={isVisible}
-            disabled={field.lockedVisible}
-            onCheckedChange={(checked) => onUpdate({ visibilityMode: checked ? "visible" : "hidden" })}
-          />
-        </label>
-
-        <label className="flex items-center gap-1.5 cursor-pointer">
-          <span className="text-[11px] text-muted-foreground">Required</span>
-          {field.lockedRequired ? (
-            <>
-              <Switch checked disabled />
-              <Badge variant="secondary" className="rounded-full px-1.5 py-0 text-[10px]">Locked</Badge>
-            </>
-          ) : (
-            <Switch
-              checked={field.requiredMode === "required"}
-              onCheckedChange={(checked) => onUpdate({ requiredMode: checked ? "required" : "optional" })}
+      {showReadOnlyState && (
+        <div className="mt-3 flex items-center gap-4">
+          {!isVisible && (
+            <Badge variant="secondary" className="rounded-full px-1.5 py-0 text-[10px]">Hidden</Badge>
+          )}
+          {hasConditions && (
+            <ConditionEditor
+              field={field}
+              form={form}
+              incidentTypes={incidentTypes}
+              severities={severities}
+              statuses={statuses}
+              readOnly
+              onSave={onUpdateConditions}
             />
           )}
-        </label>
+        </div>
+      )}
 
-        {!field.lockedRequired && (
-          <ConditionEditor
-            field={field}
-            form={form}
-            incidentTypes={incidentTypes}
-            severities={severities}
-            statuses={statuses}
-            onSave={onUpdateConditions}
-          />
-        )}
+      {/* Controls below the field content */}
+      {canManage && (
+        <div className="mt-3 flex items-center gap-4 pl-6">
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <span className="text-[11px] text-muted-foreground">Visible</span>
+            <Switch
+              checked={isVisible}
+              disabled={field.lockedVisible}
+              onCheckedChange={(checked) => onUpdate({ visibilityMode: checked ? "visible" : "hidden" })}
+            />
+          </label>
 
-        {field.fieldSourceKind === "custom" && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto h-6 gap-1 rounded-md px-2 text-[11px] text-muted-foreground/40 hover:text-destructive"
-            onClick={onRemove}
-          >
-            <IconTrash className="size-3" />
-            Remove
-          </Button>
-        )}
-      </div>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <span className="text-[11px] text-muted-foreground">Required</span>
+            {field.lockedRequired ? (
+              <>
+                <Switch checked disabled />
+                <Badge variant="secondary" className="rounded-full px-1.5 py-0 text-[10px]">Locked</Badge>
+              </>
+            ) : (
+              <Switch
+                checked={field.requiredMode === "required"}
+                onCheckedChange={(checked) => onUpdate({ requiredMode: checked ? "required" : "optional" })}
+              />
+            )}
+          </label>
+
+          {!field.lockedRequired && (
+            <ConditionEditor
+              field={field}
+              form={form}
+              incidentTypes={incidentTypes}
+              severities={severities}
+              statuses={statuses}
+              onSave={onUpdateConditions}
+            />
+          )}
+
+          {field.fieldSourceKind === "custom" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-6 gap-1 rounded-md px-2 text-[11px] text-muted-foreground/40 hover:text-destructive"
+              onClick={onRemove}
+            >
+              <IconTrash className="size-3" />
+              Remove
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

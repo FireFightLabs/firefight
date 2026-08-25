@@ -30,6 +30,13 @@ import {
 const ALL = "all"
 const DECISIONS = ["allow", "deny", "pending"] as const
 
+const SOURCE_LABELS: Record<string, string> = {
+  web: "Dashboard",
+  slack: "Slack",
+  api: "API",
+  mcp: "Agent",
+}
+
 const DECISION_VARIANT: Record<string, "default" | "destructive" | "secondary"> = {
   allow: "default",
   deny: "destructive",
@@ -54,8 +61,8 @@ export function ActivityTab({
           <div>
             <CardTitle>Activity</CardTitle>
             <CardDescription className="mt-1">
-              The gateway ledger: every governed action agents and API keys performed, were denied, or
-              have pending approval.
+              The audit log: every configuration change and every governed action, whoever made it
+              and from wherever, with what was allowed, denied, or is waiting for approval.
             </CardDescription>
           </div>
           <Select
@@ -83,6 +90,7 @@ export function ActivityTab({
               <TableRow>
                 <TableHead>When</TableHead>
                 <TableHead>Principal</TableHead>
+                <TableHead>Source</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Decision</TableHead>
                 <TableHead>Outcome</TableHead>
@@ -96,6 +104,9 @@ export function ActivityTab({
                     {formatDateTime(invocation.createdAt)}
                   </TableCell>
                   <TableCell>{invocation.principalLabel}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {invocation.source ? (SOURCE_LABELS[invocation.source] ?? invocation.source) : "-"}
+                  </TableCell>
                   <TableCell>
                     <code className="text-xs">{invocation.actionKey}</code>
                   </TableCell>
@@ -119,7 +130,7 @@ export function ActivityTab({
       ) : (
         <CardContent>
           <p className="text-muted-foreground py-8 text-center text-sm">
-            No governed activity yet. Actions taken by agents and API keys will appear here.
+            Nothing recorded yet. Configuration changes and actions taken by agents and API keys will appear here.
           </p>
         </CardContent>
       )}

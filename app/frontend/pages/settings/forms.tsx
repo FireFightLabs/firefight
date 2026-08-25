@@ -3,6 +3,7 @@ import { Head, router, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { FormsTab } from "@/pages/settings/components/forms/forms-tab"
+import { useCan } from "@/lib/permissions"
 import { settingsCustomFieldsPath } from "@/lib/routes"
 import type {
   IncidentFieldDefinitionSettings,
@@ -22,6 +23,7 @@ interface FormsPageProps extends SharedProps {
 
 export default function Forms() {
   const { forms, customFields, incidentTypes, severities, statuses } = usePage<FormsPageProps>().props
+  const canManage = useCan("forms")
 
   const [selectedFormId, setSelectedFormId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search)
@@ -52,6 +54,7 @@ export default function Forms() {
           severities={severities}
           statuses={statuses}
           selectedFormId={selectedFormId}
+          canManage={canManage}
           onSelectForm={updateFormParam}
           onNavigateToCustomFields={() => router.visit(settingsCustomFieldsPath())}
         />

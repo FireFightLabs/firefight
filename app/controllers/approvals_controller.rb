@@ -1,7 +1,9 @@
 # Resolution side of the approvals inbox (the page itself is
 # settings#approvals). The model enforces role-at-click-time and
-# self-approval rules. These endpoints only require a signed-in member.
+# self-approval rules on top of the gateway's answer.
 class ApprovalsController < InertiaController
+  authorizes Ability::Action::RESOURCE_APPROVALS, update: %i[approve deny]
+
   before_action :set_approval
 
   def approve

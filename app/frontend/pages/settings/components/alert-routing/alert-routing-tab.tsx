@@ -66,6 +66,7 @@ export function AlertRoutingTab({
   catalogOptions,
   alertSource,
   hasWorkspaceFallback,
+  canManage,
 }: {
   policy: AlertRoutingPolicy | null
   severities: IncidentSeveritySettings[]
@@ -74,6 +75,7 @@ export function AlertRoutingTab({
   catalogOptions: CatalogOptionMap
   alertSource: { id: string; name: string } | null
   hasWorkspaceFallback: boolean
+  canManage: boolean
 }) {
   const alertSourceId = alertSource?.id ?? null
   const [editingRule, setEditingRule] = useState<PolicyRule | null>(null)
@@ -149,14 +151,19 @@ export function AlertRoutingTab({
               </CardDescription>
             </div>
             <div className="flex items-center gap-4">
-              {policy && (
+              {policy && canManage && (
                 <div className="flex items-center gap-2">
                   <Label htmlFor="routing-enabled" className="text-sm text-muted-foreground">Enabled</Label>
                   <Switch id="routing-enabled" checked={policy.enabled} onCheckedChange={togglePolicy} />
                 </div>
               )}
-              <CustomTestDialog disabled={!canTest} alertSourceId={alertSourceId} />
-              <Button size="sm" onClick={() => setAddingRule(true)}>Add rule</Button>
+              {policy && !canManage && (
+                <Badge variant={policy.enabled ? "default" : "secondary"}>
+                  {policy.enabled ? "Enabled" : "Disabled"}
+                </Badge>
+              )}
+              <CustomTestDialog disabled={!canTest} alertSourceId={alertSourceId} canSend={canManage} />
+              {canManage && <Button size="sm" onClick={() => setAddingRule(true)}>Add rule</Button>}
             </div>
           </div>
           {ruleTest && (
@@ -200,11 +207,17 @@ export function AlertRoutingTab({
                         <Badge variant="outline">{ACTION_LABELS[rule.outcome.action] ?? rule.outcome.action}</Badge>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Switch
-                          checked={rule.enabled}
-                          onCheckedChange={(enabled) => toggleRule(rule, enabled)}
-                          aria-label={`Rule ${index + 1} enabled`}
-                        />
+                        {canManage ? (
+                          <Switch
+                            checked={rule.enabled}
+                            onCheckedChange={(enabled) => toggleRule(rule, enabled)}
+                            aria-label={`Rule ${index + 1} enabled`}
+                          />
+                        ) : (
+                          <Badge variant={rule.enabled ? "default" : "secondary"}>
+                            {rule.enabled ? "On" : "Off"}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-0.5">
@@ -219,32 +232,36 @@ export function AlertRoutingTab({
                           >
                             <IconFlask className="size-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7 text-muted-foreground"
-                            title="Move up"
-                            aria-label="Move rule up"
-                            disabled={index === 0}
-                            onClick={() => moveRule(rule, "up")}
-                          >
-                            <IconArrowUp className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7 text-muted-foreground"
-                            title="Move down"
-                            aria-label="Move rule down"
-                            disabled={index === rules.length - 1}
-                            onClick={() => moveRule(rule, "down")}
-                          >
-                            <IconArrowDown className="size-4" />
-                          </Button>
-                          <RowActions
-                            onEdit={() => setEditingRule(rule)}
-                            onDelete={() => setDeletingRule(rule)}
-                          />
+                          {canManage && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7 text-muted-foreground"
+                                title="Move up"
+                                aria-label="Move rule up"
+                                disabled={index === 0}
+                                onClick={() => moveRule(rule, "up")}
+                              >
+                                <IconArrowUp className="size-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7 text-muted-foreground"
+                                title="Move down"
+                                aria-label="Move rule down"
+                                disabled={index === rules.length - 1}
+                                onClick={() => moveRule(rule, "down")}
+                              >
+                                <IconArrowDown className="size-4" />
+                              </Button>
+                              <RowActions
+                                onEdit={() => setEditingRule(rule)}
+                                onDelete={() => setDeletingRule(rule)}
+                              />
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -260,15 +277,17 @@ export function AlertRoutingTab({
                 <IconRoute className="size-4" />
                 No routing rules yet. Without a matching rule, incoming alerts are stored but never create incidents.
               </div>
-              <Button size="sm" variant="outline" onClick={() => setAddingRule(true)}>Add your first rule</Button>
+              {canManage && (
+                <Button size="sm" variant="outline" onClick={() => setAddingRule(true)}>Add your first rule</Button>
+              )}
             </div>
           </CardContent>
         )}
       </Card>
 
-      {policy && <GroupingSettings policy={policy} alertSourceId={alertSourceId} />}
+      {policy && <GroupingSettings policy={policy} alertSourceId={alertSourceId} canManage={canManage} />}
 
-      {(addingRule || editingRule) && (
+      {canManage && (addingRule || editingRule) && (
         <RuleDialog
           rule={editingRule}
           severities={severities}
@@ -284,13 +303,15 @@ export function AlertRoutingTab({
         />
       )}
 
-      <ConfirmDeleteDialog
-        open={Boolean(deletingRule)}
-        title="Delete this rule?"
-        description="Alerts that only this rule matches will fall through to later rules, or go unmatched and create nothing."
-        onConfirm={confirmDeleteRule}
-        onCancel={() => setDeletingRule(null)}
-      />
+      {canManage && (
+        <ConfirmDeleteDialog
+          open={Boolean(deletingRule)}
+          title="Delete this rule?"
+          description="Alerts that only this rule matches will fall through to later rules, or go unmatched and create nothing."
+          onConfirm={confirmDeleteRule}
+          onCancel={() => setDeletingRule(null)}
+        />
+      )}
     </div>
   )
 }

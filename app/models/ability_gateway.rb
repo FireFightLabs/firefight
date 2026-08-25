@@ -11,9 +11,12 @@ class AbilityGateway
   SOURCE_API = "api"
   SOURCE_MCP = "mcp"
   SOURCE_SLACK = "slack"
-  # Entry points where a human acts inside a conversation. A second chat
-  # platform joins this list, nothing else in the gateway changes.
-  CHAT_SOURCES = [ SOURCE_SLACK ].freeze
+  SOURCE_WEB = "web"
+  SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB ].freeze
+  # Entry points where a human acts directly, rather than through a key or
+  # an agent. A second chat platform joins this list, nothing else in the
+  # gateway changes.
+  HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 
   class Denied < StandardError
     attr_reader :action_key
@@ -152,7 +155,8 @@ class AbilityGateway
       params: params,
       required_role: requirement["role"],
       self_approvable: requirement.fetch("self_approval", true),
-      incident_id: context[:incident_id]
+      incident_id: context[:incident_id],
+      source: context[:source]
     )
     record!(decision: Ability::Invocation::DECISION_PENDING, completed_at: Time.current,
             principal: principal, action: action, action_key: action_key,
@@ -190,21 +194,22 @@ class AbilityGateway
   # Reads of our own data are not, since they run at request volume and the
   # request log already covers them.
   #
-  # Chat participation is the other exemption. A responder clicking buttons
-  # in their own incident channel writes an IncidentEvent through
-  # record_change! already, and that timeline is the better record.
-  # Ledgering it twice buries the agent and API rows the ledger exists for.
-  # Tool calls from a chat platform are still recorded, because they leave
-  # Firefight.
+  # Incident participation by a person is the other exemption. A responder
+  # clicking buttons in their incident channel or editing the postmortem
+  # writes an IncidentEvent through record_change! already, and that
+  # timeline is the better record. Ledgering it twice buries the rows the
+  # ledger exists for. A person changing workspace configuration is
+  # recorded, so the ledger doubles as the audit log of who changed what.
   def self.ledger_execution?(action, principal, context)
     return true if action.kind == Ability::Action::KIND_TOOL
-    return false if chat_participation?(principal, context)
+    return false if incident_participation?(action, principal, context)
 
     action.risk_level != Ability::Action::RISK_READ
   end
 
-  def self.chat_participation?(principal, context)
-    CHAT_SOURCES.include?(context[:source]) && principal.is_a?(WorkspaceMembership)
+  def self.incident_participation?(action, principal, context)
+    HUMAN_SOURCES.include?(context[:source]) && principal.is_a?(WorkspaceMembership) &&
+      WorkspaceMembership::PARTICIPATION.key?(Ability::Action.resource_of(action.key))
   end
 
   def self.record!(decision:, completed_at:, principal:, action:, action_key:, workspace:, scope:, params:, context:, approval: nil)
@@ -216,6 +221,7 @@ class AbilityGateway
       triggered_by_label: context[:triggered_by_label],
       action_key: action_key,
       risk_level: action&.risk_level,
+      source: context[:source],
       scope: scope,
       params: params,
       decision: decision,

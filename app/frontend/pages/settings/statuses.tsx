@@ -1,6 +1,7 @@
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
+import { useCan } from "@/lib/permissions"
 import { StatusesTab } from "@/pages/settings/components/statuses/statuses-tab"
 import type { LifecycleStageWithStatuses } from "@/pages/settings/lib/types"
 import type { SharedProps } from "@/types"
@@ -12,12 +13,13 @@ interface StatusesPageProps extends SharedProps {
 
 export default function Statuses() {
   const { lifecycleStages } = usePage<StatusesPageProps>().props
+  const canManage = useCan("statuses")
 
   return (
     <AuthenticatedLayout title="Statuses">
       <Head title="Statuses" />
       <div className="flex flex-col gap-6 px-4 py-4 md:py-6 lg:px-6">
-        <StatusesTab lifecycleStages={lifecycleStages} />
+        <StatusesTab lifecycleStages={lifecycleStages} canManage={canManage} />
       </div>
     </AuthenticatedLayout>
   )

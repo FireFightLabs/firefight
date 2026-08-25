@@ -12,6 +12,7 @@ import { CatalogIcon } from "@/pages/catalogue/lib/icon-map"
 import type { CatalogType, CatalogEntry, ReferenceEntry, WorkspaceMember } from "@/pages/catalogue/types"
 import type { SharedProps } from "@/types"
 import { cataloguePath } from "@/lib/routes"
+import { useCan } from "@/lib/permissions"
 
 interface CatalogueTypePageProps extends SharedProps {
   type: CatalogType
@@ -26,6 +27,7 @@ export default function CatalogueTypePage() {
   const { type, entries, allTypes, referenceEntries, workspaceMembers, attributeRoles } = usePage<CatalogueTypePageProps>().props
   const [addEntryOpen, setAddEntryOpen] = useState(false)
   const [editTypeOpen, setEditTypeOpen] = useState(false)
+  const canManage = useCan("catalog")
 
   return (
     <AuthenticatedLayout title={type.name}>
@@ -59,16 +61,18 @@ export default function CatalogueTypePage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setEditTypeOpen(true)}>
-              <IconSettings className="size-4" />
-              Edit Type
-            </Button>
-            <Button size="sm" onClick={() => setAddEntryOpen(true)}>
-              <IconPlus className="size-4" />
-              Add {type.name}
-            </Button>
-          </div>
+          {canManage && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditTypeOpen(true)}>
+                <IconSettings className="size-4" />
+                Edit Type
+              </Button>
+              <Button size="sm" onClick={() => setAddEntryOpen(true)}>
+                <IconPlus className="size-4" />
+                Add {type.name}
+              </Button>
+            </div>
+          )}
         </div>
 
         <EntryTable
@@ -77,24 +81,29 @@ export default function CatalogueTypePage() {
           allTypes={allTypes}
           referenceEntries={referenceEntries}
           workspaceMembers={workspaceMembers}
+          canManage={canManage}
         />
       </div>
 
-      <EntryFormDialog
-        type={type}
-        allTypes={allTypes}
-        referenceEntries={referenceEntries}
-        workspaceMembers={workspaceMembers}
-        open={addEntryOpen}
-        onOpenChange={setAddEntryOpen}
-      />
-      <TypeFormDialog
-        type={type}
-        availableTypes={allTypes}
-        attributeRoles={attributeRoles}
-        open={editTypeOpen}
-        onOpenChange={setEditTypeOpen}
-      />
+      {canManage && (
+        <>
+          <EntryFormDialog
+            type={type}
+            allTypes={allTypes}
+            referenceEntries={referenceEntries}
+            workspaceMembers={workspaceMembers}
+            open={addEntryOpen}
+            onOpenChange={setAddEntryOpen}
+          />
+          <TypeFormDialog
+            type={type}
+            availableTypes={allTypes}
+            attributeRoles={attributeRoles}
+            open={editTypeOpen}
+            onOpenChange={setEditTypeOpen}
+          />
+        </>
+      )}
     </AuthenticatedLayout>
   )
 }

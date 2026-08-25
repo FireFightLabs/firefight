@@ -15,7 +15,7 @@ module Ability
 
     # The member-level authority personal tokens carry, every system read.
     def self.implicit_member_reads
-      Action.system_actions.where(risk_level: Action::RISK_READ).order(:key).map do |action|
+      Action.system_actions.grantable.where(risk_level: Action::RISK_READ).order(:key).map do |action|
         { action_key: action.key, risk_level: action.risk_level, reversible: action.reversible,
           scopes: [ {} ], implicit: true }
       end

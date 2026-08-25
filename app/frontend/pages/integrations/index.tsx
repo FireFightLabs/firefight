@@ -10,6 +10,7 @@ import type { IntegrationProvider } from "@/types/serializers"
 import type { EnvironmentOption, Integration } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 import { whenClosed } from "@/lib/handlers"
+import { useCan } from "@/lib/permissions"
 
 interface IntegrationsPageProps extends SharedProps {
   [key: string]: unknown
@@ -17,11 +18,11 @@ interface IntegrationsPageProps extends SharedProps {
   providers: IntegrationProvider[]
   categories: Record<string, string>
   environments: EnvironmentOption[]
-  canManage: boolean
 }
 
 export default function Integrations() {
-  const { integrations, providers, categories, environments, canManage } = usePage<IntegrationsPageProps>().props
+  const { integrations, providers, categories, environments } = usePage<IntegrationsPageProps>().props
+  const canManage = useCan("integrations")
   const [connecting, setConnecting] = useState<IntegrationProvider | null>(null)
   const [detailsId, setDetailsId] = useState<string | null>(null)
 

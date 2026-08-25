@@ -1,5 +1,9 @@
 class CatalogueController < InertiaController
-  before_action :require_admin!, only: [ :create_type, :update_type, :destroy_type, :create_entry, :update_entry, :destroy_entry ]
+  authorizes Ability::Action::RESOURCE_CATALOG,
+    read: %i[index show search_members search_channels],
+    create: %i[create_type create_entry],
+    update: %i[update_type update_entry],
+    delete: %i[destroy_type destroy_entry]
 
   def index
     types = current_workspace.catalog_types.active.ordered.with_entry_counts

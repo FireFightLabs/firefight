@@ -1,6 +1,7 @@
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
+import { useCan } from "@/lib/permissions"
 import { RunbooksTab } from "@/pages/settings/components/runbooks/runbooks-tab"
 import type {
   IncidentSeveritySettings,
@@ -20,6 +21,7 @@ interface RunbooksPageProps extends SharedProps {
 
 export default function Runbooks() {
   const { runbooks, incidentTypes, severities, customFields } = usePage<RunbooksPageProps>().props
+  const canManage = useCan("runbooks")
 
   return (
     <AuthenticatedLayout title="Runbooks">
@@ -30,6 +32,7 @@ export default function Runbooks() {
           incidentTypes={incidentTypes}
           severities={severities}
           customFields={customFields}
+          canManage={canManage}
         />
       </div>
     </AuthenticatedLayout>

@@ -5,8 +5,16 @@ module ManagesConfigurableOptions
   extend ActiveSupport::Concern
 
   included do
-    before_action :require_admin!
     before_action :set_option, only: [ :update, :disable, :enable, :destroy, :make_default ]
+  end
+
+  class_methods do
+    def manages_options_as(resource)
+      authorizes resource,
+        create: :create,
+        update: %i[update disable enable make_default reorder],
+        delete: :destroy
+    end
   end
 
   def create

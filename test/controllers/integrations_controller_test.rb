@@ -21,7 +21,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "Sentry" ], props["integrations"].map { |i| i["name"] }
     assert_equal "sentry.issues.search", props["integrations"].first["tools"].first["actionKey"]
     assert_includes props["providers"].map { |p| p["key"] }, "github"
-    assert props["canManage"]
+    assert props["currentUserCan"]["integrations"]
 
     assert_equal Integration::KIND_MCP, props["integrations"].first["kind"]
     github = props["providers"].find { |p| p["key"] == "github" }

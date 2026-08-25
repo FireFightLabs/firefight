@@ -4,10 +4,11 @@ class ApiKeysController < InertiaController
   before_action :set_api_key, only: [ :update, :destroy, :abilities ]
 
   # Personal tokens are self-service (any member can mint their own, GitHub
-  # PAT style). Service keys carry workspace-wide scopes and need an admin.
+  # PAT style). Service keys carry workspace-wide scopes and are the
+  # gateway's api_keys resource.
   def create
     personal = params[:kind] == KIND_PERSONAL
-    return require_admin! unless personal || current_membership.admin_access?
+    return unless personal || authorize_web!(Ability::Action::RESOURCE_API_KEYS, Ability::Action::ACTION_CREATE)
 
     api_key, raw_token = ActiveRecord::Base.transaction do
       key, token = ApiKey.create_with_token!(
@@ -71,10 +72,18 @@ class ApiKeysController < InertiaController
 
   private
 
-  # Admins manage every key. Members only their own personal tokens.
+  SERVICE_KEY_ACTIONS = {
+    "update" => Ability::Action::ACTION_UPDATE,
+    "destroy" => Ability::Action::ACTION_DELETE,
+    "abilities" => Ability::Action::ACTION_READ
+  }.freeze
+
+  # A member reaches only their own personal tokens. Anything done to a
+  # service key is authorized as the api_keys resource.
   def set_api_key
     scope = current_workspace.api_keys.where(deleted_at: nil)
     scope = scope.where(workspace_membership_id: current_membership.id) unless current_membership.admin_access?
     @api_key = scope.find(params[:id])
+    authorize_web!(Ability::Action::RESOURCE_API_KEYS, SERVICE_KEY_ACTIONS.fetch(action_name)) unless @api_key.personal?
   end
 end

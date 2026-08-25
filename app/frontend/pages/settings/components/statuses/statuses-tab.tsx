@@ -8,7 +8,7 @@ import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-
 import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { StageStatusesCard } from "@/pages/settings/components/statuses/stage-statuses-card"
 
-export function StatusesTab({ lifecycleStages }: { lifecycleStages: LifecycleStageWithStatuses[] }) {
+export function StatusesTab({ lifecycleStages, canManage }: { lifecycleStages: LifecycleStageWithStatuses[]; canManage: boolean }) {
   const [dialog, setDialog] = useState<OptionDialogState<IncidentStatusSettings>>(null)
   const [creatingIn, setCreatingIn] = useState<LifecycleStageWithStatuses | null>(null)
   const [deleting, setDeleting] = useState<IncidentStatusSettings | null>(null)
@@ -29,6 +29,7 @@ export function StatusesTab({ lifecycleStages }: { lifecycleStages: LifecycleSta
         <StageStatusesCard
           key={stage.key}
           stage={stage}
+          canManage={canManage}
           onCreate={startCreating}
           onEdit={(option) => setDialog({ mode: "edit", option })}
           onDelete={setDeleting}

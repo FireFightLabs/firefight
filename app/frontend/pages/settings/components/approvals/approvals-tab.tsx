@@ -3,6 +3,7 @@ import { router } from "@inertiajs/react"
 import type { AbilityApproval } from "@/types/serializers"
 import { approveApprovalPath, denyApprovalPath } from "@/lib/routes"
 import { formatDateTime } from "@/lib/formatters"
+import { useCan } from "@/lib/permissions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,11 +22,27 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+const SOURCE_LABELS: Record<string, string> = {
+  web: "Dashboard",
+  slack: "Slack",
+  api: "API",
+  mcp: "Agent",
+}
+
 const STATUS_VARIANT: Record<string, "default" | "destructive" | "secondary" | "outline"> = {
   approved: "default",
   denied: "destructive",
   pending: "secondary",
   expired: "outline",
+}
+
+// A dashboard request is bound to its route, which reads better than the
+// digest. Anything else shows as it was recorded.
+function describeParams(params: Record<string, unknown>): string {
+  if (typeof params.method === "string" && typeof params.path === "string") {
+    return `${params.method} ${params.path}`
+  }
+  return JSON.stringify(params)
 }
 
 export function ApprovalsTab({
@@ -35,6 +52,7 @@ export function ApprovalsTab({
   pendingApprovals: AbilityApproval[]
   resolvedApprovals: AbilityApproval[]
 }) {
+  const canDecide = useCan("approvals")
   function resolve(approval: AbilityApproval, decision: "approve" | "deny") {
     const path = decision === "approve" ? approveApprovalPath(approval.id) : denyApprovalPath(approval.id)
     router.post(path, {}, { preserveScroll: true })
@@ -46,8 +64,9 @@ export function ApprovalsTab({
         <CardHeader>
           <CardTitle>Pending approvals</CardTitle>
           <CardDescription className="mt-1">
-            Calls parked behind an approval policy. Approving admits exactly the parked call, once.
-            The requester then retries with the approval id.
+            Requests parked behind an approval policy. Approving admits exactly the parked request, once.
+            A request from the dashboard or Slack then runs on its own, and an API or agent caller
+            retries with the approval id.
           </CardDescription>
         </CardHeader>
         {pendingApprovals.length > 0 ? (
@@ -57,10 +76,11 @@ export function ApprovalsTab({
                 <TableRow>
                   <TableHead>Requested</TableHead>
                   <TableHead>Requester</TableHead>
+                  <TableHead>Source</TableHead>
                   <TableHead>Action</TableHead>
                   <TableHead>Details</TableHead>
                   <TableHead>Requires</TableHead>
-                  <TableHead className="text-right">Decision</TableHead>
+                  {canDecide && <TableHead className="text-right">Decision</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -70,23 +90,28 @@ export function ApprovalsTab({
                       {formatDateTime(approval.createdAt)}
                     </TableCell>
                     <TableCell>{approval.principalLabel}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {approval.source ? (SOURCE_LABELS[approval.source] ?? approval.source) : "-"}
+                    </TableCell>
                     <TableCell>
                       <code className="text-xs">{approval.actionKey}</code>
                     </TableCell>
                     <TableCell className="text-muted-foreground max-w-64 truncate text-xs">
-                      {JSON.stringify(approval.params)}
+                      {describeParams(approval.params)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{approval.requiredRole}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button size="sm" onClick={() => resolve(approval, "approve")}>
-                          Approve
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => resolve(approval, "deny")}>
-                          Deny
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {canDecide && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" onClick={() => resolve(approval, "approve")}>
+                            Approve
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => resolve(approval, "deny")}>
+                            Deny
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

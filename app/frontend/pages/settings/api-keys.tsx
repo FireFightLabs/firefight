@@ -4,6 +4,7 @@ import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { ApiKeysTab } from "@/pages/settings/components/api-keys/api-keys-tab"
 import type { ApiKey } from "@/types/serializers"
 import type { SharedProps } from "@/types"
+import { useCan } from "@/lib/permissions"
 
 export interface ConnectedAgent {
   id: string
@@ -14,12 +15,12 @@ export interface ConnectedAgent {
 interface ApiKeysPageProps extends SharedProps {
   [key: string]: unknown
   apiKeys: ApiKey[]
-  canManageServiceKeys: boolean
   connectedAgents: ConnectedAgent[]
 }
 
 export default function ApiKeys() {
-  const { apiKeys, canManageServiceKeys, connectedAgents } = usePage<ApiKeysPageProps>().props
+  const { apiKeys, connectedAgents } = usePage<ApiKeysPageProps>().props
+  const canManageServiceKeys = useCan("api_keys")
 
   return (
     <AuthenticatedLayout title="API Keys">

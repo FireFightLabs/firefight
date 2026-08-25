@@ -64,6 +64,7 @@ class WorkspaceMembership < ApplicationRecord
   # it, so the two can never drift.
   def implicitly_permits?(resource, crud_action)
     return true if admin_access?
+    return false if Ability::Action::ADMIN_ONLY_RESOURCES.include?(resource.to_s)
     return true if crud_action.to_s == Ability::Action::ACTION_READ
 
     PARTICIPATION.fetch(resource, []).include?(crud_action.to_s)

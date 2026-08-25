@@ -32,9 +32,11 @@ import { RowActions } from "@/pages/settings/components/row-actions"
 export function AlertSourcesTab({
   alertSources,
   severities,
+  canManage,
 }: {
   alertSources: AlertSourceSettings[]
   severities: IncidentSeveritySettings[]
+  canManage: boolean
 }) {
   const [editingSource, setEditingSource] = useState<AlertSourceSettings | null>(null)
   const [deletingSource, setDeletingSource] = useState<AlertSourceSettings | null>(null)
@@ -93,7 +95,7 @@ export function AlertSourcesTab({
                   Routing rules
                 </Link>
               </Button>
-              <AddSourceDialog />
+              {canManage && <AddSourceDialog />}
             </div>
           </div>
         </CardHeader>
@@ -104,7 +106,7 @@ export function AlertSourcesTab({
                 <TableRow className="hover:bg-transparent">
                   <TableHead>Source</TableHead>
                   <TableHead className="hidden md:table-cell">Ingest URL</TableHead>
-                  <TableHead className="hidden lg:table-cell">Token</TableHead>
+                  {canManage && <TableHead className="hidden lg:table-cell">Token</TableHead>}
                   <TableHead className="hidden w-40 lg:table-cell">Last received</TableHead>
                   <TableHead className="w-24 text-center">Status</TableHead>
                   <TableHead className="w-12" />
@@ -133,17 +135,19 @@ export function AlertSourcesTab({
                         {source.ingestPath}
                       </Button>
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1.5 px-2 font-mono text-xs text-muted-foreground"
-                        onClick={() => void handleCopyToken(source)}
-                      >
-                        {copiedField === `token-${source.id}` ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
-                        Copy token
-                      </Button>
-                    </TableCell>
+                    {canManage && (
+                      <TableCell className="hidden lg:table-cell">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 gap-1.5 px-2 font-mono text-xs text-muted-foreground"
+                          onClick={() => void handleCopyToken(source)}
+                        >
+                          {copiedField === `token-${source.id}` ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
+                          Copy token
+                        </Button>
+                      </TableCell>
+                    )}
                     <TableCell className="hidden lg:table-cell">
                       <LastEventCell source={source} />
                     </TableCell>
@@ -166,10 +170,12 @@ export function AlertSourcesTab({
                             Routing
                           </Link>
                         </Button>
-                        <RowActions
-                          onEdit={() => setEditingSource(source)}
-                          onDelete={() => setDeletingSource(source)}
-                        />
+                        {canManage && (
+                          <RowActions
+                            onEdit={() => setEditingSource(source)}
+                            onDelete={() => setDeletingSource(source)}
+                          />
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -186,7 +192,7 @@ export function AlertSourcesTab({
         )}
       </Card>
 
-      {editingSource && (
+      {canManage && editingSource && (
         <EditSourceDialog
           source={editingSource}
           severities={severities}
@@ -194,13 +200,15 @@ export function AlertSourcesTab({
         />
       )}
 
-      <ConfirmDeleteDialog
-        open={Boolean(deletingSource)}
-        title={`Delete ${deletingSource?.name ?? "this source"}?`}
-        description="Its ingest URL and token stop working immediately: anything still sending alerts here will be rejected. Its alerts and routing rules are deleted too."
-        onConfirm={confirmDelete}
-        onCancel={() => setDeletingSource(null)}
-      />
+      {canManage && (
+        <ConfirmDeleteDialog
+          open={Boolean(deletingSource)}
+          title={`Delete ${deletingSource?.name ?? "this source"}?`}
+          description="Its ingest URL and token stop working immediately: anything still sending alerts here will be rejected. Its alerts and routing rules are deleted too."
+          onConfirm={confirmDelete}
+          onCancel={() => setDeletingSource(null)}
+        />
+      )}
     </div>
   )
 }

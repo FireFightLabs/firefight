@@ -34,15 +34,14 @@ interface RunbooksTabProps {
   incidentTypes: IncidentTypeSettings[]
   severities: IncidentSeveritySettings[]
   customFields: RunbookCustomField[]
+  canManage: boolean
 }
 
-export function RunbooksTab({ runbooks, incidentTypes, severities, customFields }: RunbooksTabProps) {
+export function RunbooksTab({ runbooks, incidentTypes, severities, customFields, canManage }: RunbooksTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRunbook, setEditingRunbook] = useState<RunbookSettings | null>(null)
   const [deleting, setDeleting] = useState<RunbookSettings | null>(null)
   const [viewing, setViewing] = useState<RunbookSettings | null>(null)
-
-
 
   function openCreate() {
     setEditingRunbook(null)
@@ -63,15 +62,17 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
             Document response procedures and surface them automatically on matching incidents.
           </CardDescription>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <IconPlus className="size-4" />
-          Add runbook
-        </Button>
+        {canManage && (
+          <Button size="sm" onClick={openCreate}>
+            <IconPlus className="size-4" />
+            Add runbook
+          </Button>
+        )}
       </div>
     </CardHeader>
   )
 
-  const dialog = (
+  const dialog = canManage && (
     <RunbookDialog
       open={dialogOpen}
       onOpenChange={setDialogOpen}
@@ -95,10 +96,12 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
             <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
               Create runbooks like Database failover or Rollback deploy to give responders step-by-step guidance during incidents.
             </p>
-            <Button size="sm" variant="outline" className="mt-4" onClick={openCreate}>
-              <IconPlus className="size-3.5" />
-              Create your first runbook
-            </Button>
+            {canManage && (
+              <Button size="sm" variant="outline" className="mt-4" onClick={openCreate}>
+                <IconPlus className="size-3.5" />
+                Create your first runbook
+              </Button>
+            )}
           </div>
         </CardContent>
         {dialog}
@@ -156,6 +159,7 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
           onSelect={setViewing}
           onEdit={openEdit}
           onDelete={setDeleting}
+          readOnly={!canManage}
         />
       </CardContent>
       {dialog}
@@ -169,18 +173,20 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields 
         onOpenChange={(next) => !next && setViewing(null)}
       />
 
-      <ConfirmDeleteDialog
-        open={Boolean(deleting)}
-        title={`Delete ${deleting?.name ?? "this runbook"}?`}
-        description="No incident references this runbook, so nothing loses its history. It stops matching new incidents straight away."
-        onConfirm={() => {
-          if (!deleting) {
-            return
-          }
-          router.delete(runbookPath(deleting.id), { preserveScroll: true, onFinish: () => setDeleting(null) })
-        }}
-        onCancel={() => setDeleting(null)}
-      />
+      {canManage && (
+        <ConfirmDeleteDialog
+          open={Boolean(deleting)}
+          title={`Delete ${deleting?.name ?? "this runbook"}?`}
+          description="No incident references this runbook, so nothing loses its history. It stops matching new incidents straight away."
+          onConfirm={() => {
+            if (!deleting) {
+              return
+            }
+            router.delete(runbookPath(deleting.id), { preserveScroll: true, onFinish: () => setDeleting(null) })
+          }}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </Card>
   )
 }

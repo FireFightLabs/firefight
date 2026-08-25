@@ -23,12 +23,14 @@ export function EntryTable({
   allTypes,
   referenceEntries,
   workspaceMembers,
+  canManage,
 }: {
   type: CatalogType
   entries: CatalogEntry[]
   allTypes: CatalogType[]
   referenceEntries: ReferenceEntry[]
   workspaceMembers: WorkspaceMember[]
+  canManage: boolean
 }) {
   const [search, setSearch] = useState("")
   const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(null)
@@ -138,16 +140,19 @@ export function EntryTable({
         open={selectedEntry !== null}
         onOpenChange={whenClosed(() => setSelectedEntry(null))}
         onEdit={(entry) => setEditingEntry(entry)}
+        canManage={canManage}
       />
-      <EntryFormDialog
-        type={type}
-        entry={editingEntry}
-        allTypes={allTypes}
-        referenceEntries={referenceEntries}
-        workspaceMembers={workspaceMembers}
-        open={editingEntry !== null}
-        onOpenChange={whenClosed(() => setEditingEntry(null))}
-      />
+      {canManage && (
+        <EntryFormDialog
+          type={type}
+          entry={editingEntry}
+          allTypes={allTypes}
+          referenceEntries={referenceEntries}
+          workspaceMembers={workspaceMembers}
+          open={editingEntry !== null}
+          onOpenChange={whenClosed(() => setEditingEntry(null))}
+        />
+      )}
     </>
   )
 }

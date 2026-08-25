@@ -1,5 +1,5 @@
 class AlertRoutingController < InertiaController
-  before_action :require_admin!, only: [ :update, :send_test ]
+  authorizes Ability::Action::RESOURCE_POLICIES, read: :test, update: %i[update send_test]
 
   def update
     policy = routing_scope.find_or_create_alert_routing_policy!

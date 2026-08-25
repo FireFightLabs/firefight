@@ -273,6 +273,14 @@ module Slack
       end
     end
 
+    # chat.postMessage to a user id opens (or reuses) the app's DM with them.
+    def post_direct_message(user_id:, text:)
+      translate_errors do
+        Slack::Client.post_message(workspace: @workspace, channel: user_id, text: text)
+        { success: true }
+      end
+    end
+
     # One users.list call, split the way a picker needs it, the people to offer,
     # and the ids the platform says are deactivated. Someone in neither list is
     # someone the platform did not return, which is not the same as gone, so a
