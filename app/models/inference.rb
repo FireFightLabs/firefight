@@ -41,12 +41,14 @@ class Inference < ApplicationRecord
     end
   end
 
-  def self.provider_for(model)
-    case model
-    when /\Agpt-|\Ao\d/ then "openai"
-    when /\Aclaude-/   then "anthropic"
-    else "unknown"
-    end
+  # The provider the ledger records. An explicit provider (a model the
+  # registry does not know) wins, otherwise the registry says.
+  def self.provider_for(model, provider: nil)
+    return provider.to_s if provider.present?
+
+    RubyLLM.models.find(model).provider.to_s
+  rescue RubyLLM::ModelNotFoundError
+    "unknown"
   end
 
   def self.cost_to_micros(cost)

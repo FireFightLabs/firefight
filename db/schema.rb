@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -158,6 +158,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["workspace_id", "slug"], name: "index_agents_on_workspace_id_and_slug", unique: true
+  end
+
+  create_table "ai_model_overrides", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "purpose", null: false
+    t.string "model", null: false
+    t.string "provider"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workspace_id", "purpose"], name: "index_ai_model_overrides_on_workspace_id_and_purpose", unique: true
+    t.index ["workspace_id"], name: "index_ai_model_overrides_on_workspace_id"
   end
 
   create_table "alert_groups", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1130,6 +1141,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_120000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "agents", "workspaces"
+  add_foreign_key "ai_model_overrides", "workspaces"
   add_foreign_key "alert_groups", "incidents"
   add_foreign_key "alert_groups", "workspaces"
   add_foreign_key "alert_sources", "workspaces"

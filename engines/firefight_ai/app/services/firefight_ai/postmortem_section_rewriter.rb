@@ -14,11 +14,11 @@ module FirefightAi
         Inference.track(
           workspace: @workspace,
           feature:   FEATURE,
-          provider:  Inference.provider_for(model_id),
-          model:     model_id,
+          provider:  model_choice.provider_name,
+          model:     model_choice.model,
           inferable: incident
         ) do
-          chat = RubyLLM.chat(model: model_id)
+          chat = FirefightAi.chat(model_choice)
           chat.with_instructions(system_prompt)
           chat.ask(build_prompt(context, summary, selected_html, instruction))
         end
@@ -29,8 +29,8 @@ module FirefightAi
 
     private
 
-    def model_id
-      @model_id ||= FirefightAi.model_for("POSTMORTEM_AI_MODEL", "gpt-4o")
+    def model_choice
+      @model_choice ||= FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace)
     end
 
     def system_prompt

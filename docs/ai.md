@@ -28,22 +28,19 @@ app/services/
 
 ## Model-agnostic by configuration
 
-The engine calls models through `RubyLLM` — no provider-specific SDK code in services. Configuration is wired in `config/initializers/firefight_ai.rb`:
+The engine calls models through `RubyLLM` — no provider-specific SDK code in services. Every provider RubyLLM supports is configured the same way: one env var per RubyLLM setting, named after it. `FirefightAi::Configuration::PROVIDER_SETTINGS` is the list (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `BEDROCK_REGION`, `VERTEXAI_SERVICE_ACCOUNT_KEY`, `OLLAMA_API_BASE`, `OPENROUTER_API_KEY`, ...). `config/initializers/firefight_ai.rb` reads them into `configuration.provider_settings` and the engine hands them to `RubyLLM.configure` untouched, so adding a provider RubyLLM gains is one entry in the list. Bedrock takes its AWS credentials from the SDK's usual environment.
 
-```ruby
-FirefightAi.configure do |config|
-  config.openai_api_key = ENV["OPENAI_API_KEY"] || Rails.application.credentials.dig(:openai, :api_key)
-  config.default_model = ENV["FIREFIGHT_AI_MODEL"]
-end
-```
+Every call has a purpose (`AiPurpose::POSTMORTEM`, `INCIDENT_RESPONSE`, `SUMMARY`), and every service resolves its model through `FirefightAi.model_for(purpose, workspace:)`, most specific first:
 
-Every service resolves its model through `FirefightAi.model_for(feature_env_var, fallback)`, in this order:
+1. The workspace's `AiModelOverride` for that purpose
+2. The workspace's `AiModelOverride` for `AiPurpose::ANY`
+3. The purpose's env var (`POSTMORTEM_AI_MODEL`, `INCIDENT_AI_MODEL`, `SUMMARY_AI_MODEL`)
+4. `FIREFIGHT_AI_MODEL`
+5. The purpose's built-in fallback (postmortems default to a stronger model than chat responses)
 
-1. The feature's own env var (`POSTMORTEM_AI_MODEL`, `INCIDENT_AI_MODEL`, `SUMMARY_AI_MODEL`)
-2. `FIREFIGHT_AI_MODEL`, when set
-3. The feature's built-in fallback (postmortems default to a stronger model than chat responses)
+The answer is a `FirefightAi::ModelChoice` (`model`, `provider`). A provider only travels with a model RubyLLM's registry cannot place on its own, such as a Bedrock or Ollama deployment: set `POSTMORTEM_AI_PROVIDER`, `FIREFIGHT_AI_PROVIDER`, or the override row's `provider`. `FirefightAi.chat(choice)` opens the chat and passes `assume_model_exists` for an unregistered model. `Inference.provider_for(model, provider:)` records the explicit provider or asks the registry, never guesses from the model name.
 
-Self-hosters point `FIREFIGHT_AI_MODEL` (and the relevant API key) at their own provider. Don't read model env vars directly in services — go through `FirefightAi.model_for`.
+`AiModelOverride` rows are operator data: set from the Rails console today and from the operator console in firefight_cloud later, never from the dashboard. Self-hosters set env vars. Don't read model env vars directly in services — go through `FirefightAi.model_for`.
 
 ## Inference ledger — every call is tracked
 

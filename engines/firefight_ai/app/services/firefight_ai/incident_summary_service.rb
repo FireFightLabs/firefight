@@ -121,7 +121,7 @@ module FirefightAi
         content:          response.content,
         summary_up_to_ts: up_to_ts,
         generated_at:     Time.current,
-        model:            model_id,
+        model:            model_choice.model,
         inference:        inference
       )
       summary.save!
@@ -136,19 +136,19 @@ module FirefightAi
         Inference.track(
           workspace: @workspace,
           feature:   feature,
-          provider:  Inference.provider_for(model_id),
-          model:     model_id,
+          provider:  model_choice.provider_name,
+          model:     model_choice.model,
           inferable: incident
         ) do
-          chat = RubyLLM.chat(model: model_id)
+          chat = FirefightAi.chat(model_choice)
           chat.with_instructions(system_prompt)
           chat.ask(prompt_text)
         end
       end
     end
 
-    def model_id
-      @model_id ||= FirefightAi.model_for("SUMMARY_AI_MODEL", "gpt-4o-mini")
+    def model_choice
+      @model_choice ||= FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace)
     end
 
     def system_prompt
