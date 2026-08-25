@@ -37,7 +37,6 @@ class IncidentFormResolver
   # hidden field never reaches a responder.
   # `form:` is for callers that already hold the row, so resolving does not go
   # and fetch the record it was called on.
-  # The fields a terminal form asks for this incident as it stands now.
   def fields_for(incident, form_slug)
     resolve(form_slug, context: IncidentConditionEvaluator.context_for(incident))
   end

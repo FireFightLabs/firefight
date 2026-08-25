@@ -7,8 +7,6 @@ class WorkspaceAdapter
   #
   #   adapter = WorkspaceAdapter.for(workspace)
   #   result = adapter.create_incidents_channel
-  # Every platform refreshes the credentials it holds that lapse within the
-  # buffer, on the recurring schedule.
   def self.refresh_expiring_credentials(buffer:)
     Slack::WorkspaceAdapter.refresh_expiring_credentials(buffer: buffer)
   end

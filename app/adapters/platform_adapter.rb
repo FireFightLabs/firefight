@@ -82,8 +82,7 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The modals the app opens, by kind. Each platform maps a kind to its own
-  # builder, so no handler names one.
+  # The modals the app opens, by kind.
   module Modal
     INCIDENT_CREATION = :incident_creation
     INCIDENT_CREATED = :incident_created
