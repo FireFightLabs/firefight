@@ -1,4 +1,6 @@
 class AlertSource < ApplicationRecord
+  include StormControl
+
   PROVIDER_GENERIC = "generic"
   PROVIDER_NORTHFLANK = "northflank"
   PROVIDERS = [ PROVIDER_GENERIC, PROVIDER_NORTHFLANK ].freeze
@@ -23,10 +25,6 @@ class AlertSource < ApplicationRecord
   validates :secret_token, presence: true
 
   scope :enabled, -> { where(enabled: true) }
-
-  def adapter
-    AlertProviders.for(provider)
-  end
 
   # What fires at ingest, this source's own policy wins. The workspace-wide
   # policy is the shared fallback for sources without one. For the policy
