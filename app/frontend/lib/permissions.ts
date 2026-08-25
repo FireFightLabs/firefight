@@ -23,8 +23,6 @@ export type ManagedResource =
   | "permissions"
   | "workspace"
 
-// Whether the signed-in person may change a resource, as the gateway would
-// answer. Pages offer controls from this, never from "is admin".
 export function useCan(resource: ManagedResource): boolean {
   const { currentUserCan } = usePage<SharedProps>().props
   return Boolean(currentUserCan?.[resource])

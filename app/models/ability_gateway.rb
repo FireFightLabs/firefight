@@ -194,12 +194,10 @@ class AbilityGateway
   # Reads of our own data are not, since they run at request volume and the
   # request log already covers them.
   #
-  # Incident participation by a person is the other exemption. A responder
-  # clicking buttons in their incident channel or editing the postmortem
-  # writes an IncidentEvent through record_change! already, and that
-  # timeline is the better record. Ledgering it twice buries the rows the
-  # ledger exists for. A person changing workspace configuration is
-  # recorded, so the ledger doubles as the audit log of who changed what.
+  # Incident participation by a person is the other exemption: record_change!
+  # already writes the IncidentEvent timeline, and ledgering it twice buries
+  # the rows the ledger exists for. A person changing configuration is
+  # recorded, which is what makes the ledger the audit log.
   def self.ledger_execution?(action, principal, context)
     return true if action.kind == Ability::Action::KIND_TOOL
     return false if incident_participation?(action, principal, context)
