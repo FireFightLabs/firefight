@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -46,13 +46,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_150000) do
     t.datetime "resolved_at"
     t.datetime "consumed_at"
     t.uuid "incident_id"
-    t.string "notification_channel_id"
-    t.string "notification_message_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "self_approvable", default: true, null: false
     t.jsonb "resume_payload"
     t.string "source"
+    t.jsonb "approver_ids", default: [], null: false
+    t.string "notify"
+    t.jsonb "notifications", default: [], null: false
     t.index ["principal_type", "principal_id"], name: "index_ability_approvals_on_principal_type_and_principal_id"
     t.index ["workspace_id", "status", "created_at"], name: "idx_on_workspace_id_status_created_at_15ac906fa7"
   end

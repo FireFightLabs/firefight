@@ -40,7 +40,7 @@ module AuthorizedDispatch
   def self.denied_message(error)
     resource = error.action_key.split(".").first
     "You don't have permission to do that in Firefight (#{error.action_key}). " \
-      "Ask a workspace admin to grant you #{resource} access in Settings, Permissions."
+      "Ask a workspace admin to grant you #{resource} access under Gateway, Permissions."
   end
 
   def self.pending_message(approval)

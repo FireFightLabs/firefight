@@ -151,6 +151,12 @@ Rails.application.routes.draw do
     get "/gateway/permissions", to: "settings#permissions", as: :gateway_permissions
     resources :ability_grants, only: [ :create, :update, :destroy ], path: "gateway/permissions/grants"
     resources :ability_roles, only: [ :create, :update, :destroy ], path: "gateway/permissions/sets"
+    resources :approval_rules, only: [ :create, :update, :destroy ], path: "gateway/permissions/approval-rules" do
+      member do
+        patch :move_up
+        patch :move_down
+      end
+    end
     get "/gateway/activity", to: "settings#activity", as: :gateway_activity
     get "/gateway/approvals", to: "settings#approvals", as: :gateway_approvals
     resources :approvals, only: [], path: "gateway/approvals" do

@@ -119,5 +119,41 @@ module Ability
         parked.deny!(by: @admin)
       end
     end
+
+    test "named approvers replace the role" do
+      bob = workspace_memberships(:bob_workspace_one)
+      @approval.update!(approver_ids: [ bob.id ])
+
+      assert @approval.approver?(bob)
+      assert_not @approval.approver?(@admin)
+      assert_equal [ bob ], @approval.approvers.to_a
+
+      error = assert_raises(Ability::Approval::NotAllowed) { @approval.approve!(by: @admin) }
+      assert_match bob.display_name, error.message
+
+      @approval.approve!(by: bob)
+      assert @approval.approved?
+    end
+
+    test "without named approvers everyone holding the role is an approver" do
+      assert_equal [ @admin ], @approval.approvers.to_a
+      assert @approval.approver?(@admin)
+      assert_not @approval.approver?(workspace_memberships(:bob_workspace_one))
+    end
+
+    test "notify decides where the request is asked" do
+      assert @approval.notify_channel?
+      assert_not @approval.notify_dm?
+
+      @approval.update!(notify: PolicyRule::ApprovalOutcome::NOTIFY_DM)
+      assert_not @approval.notify_channel?
+      assert @approval.notify_dm?
+
+      @approval.update!(notify: PolicyRule::ApprovalOutcome::NOTIFY_BOTH)
+      assert @approval.notify_channel?
+      assert @approval.notify_dm?
+
+      assert_raises(ActiveRecord::RecordInvalid) { @approval.update!(notify: "carrier pigeon") }
+    end
   end
 end

@@ -27,8 +27,15 @@ module Slack
         lines = [ "*#{approval.principal_label}* wants to run `#{approval.action_key}`" ]
         lines << "*Scope:* `#{approval.scope.to_json}`" if approval.scope.present?
         lines << "*Params:* `#{approval.params.to_json.truncate(500)}`" if approval.params.present?
-        lines << "*Requires:* workspace #{approval.required_role}"
+        lines << approvers_line(approval)
         lines.join("\n")
+      end
+
+      def self.approvers_line(approval)
+        return "*Requires:* workspace #{approval.required_role}" unless approval.named_approvers?
+
+        mentions = approval.approvers.map { |approver| "<@#{approver.platform_user_id}>" }
+        "*Approvers:* #{mentions.join(', ')}"
       end
     end
   end

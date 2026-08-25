@@ -25,7 +25,7 @@ module WebAuthorization
   def self.denied_message(error)
     resource = Ability::Action.resource_of(error.action_key)
     "You don't have permission to change #{Ability::Action.label(resource).downcase}. " \
-      "Ask a workspace admin to grant you #{resource} access in Settings, Permissions."
+      "Ask a workspace admin to grant you #{resource} access under Gateway, Permissions."
   end
 
   def self.pending_message(approval)

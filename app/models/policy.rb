@@ -7,6 +7,7 @@ class Policy < ApplicationRecord
   DOMAINS = [ DOMAIN_ALERT_ROUTING, DOMAIN_AUTO_INVESTIGATE, DOMAIN_APPROVALS ].freeze
 
   DEFAULT_ALERT_ROUTING_NAME = "Alert routing".freeze
+  DEFAULT_APPROVALS_NAME = "Approvals".freeze
 
   belongs_to :workspace
   belongs_to :scoped_to, polymorphic: true, optional: true

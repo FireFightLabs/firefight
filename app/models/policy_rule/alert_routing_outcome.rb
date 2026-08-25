@@ -22,7 +22,7 @@ module PolicyRule::AlertRoutingOutcome
     TARGET_CHANNEL => "channel_id"
   }.freeze
 
-  def self.errors_for(outcome)
+  def self.errors_for(outcome, workspace: nil)
     return [ "outcome must be an object" ] unless outcome.is_a?(Hash)
 
     outcome = outcome.with_indifferent_access

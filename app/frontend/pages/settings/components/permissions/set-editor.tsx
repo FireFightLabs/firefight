@@ -1,23 +1,26 @@
 import { useState } from "react"
 import { router } from "@inertiajs/react"
 
-import type { AbilityActionOption, AbilityRole } from "@/types/serializers"
+import type { AbilityActionOption, AbilityRole, ApprovalRule } from "@/types/serializers"
 import { abilityRolePath } from "@/lib/routes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { RequiresApprovalBadge } from "@/pages/settings/components/permissions/requires-approval-badge"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
 import { useGroupedActions } from "@/pages/settings/components/permissions/use-grouped-actions"
 
 export function SetEditor({
   set,
   actions,
+  approvalRules,
   canManage,
 }: {
   set: AbilityRole
   actions: AbilityActionOption[]
+  approvalRules: ApprovalRule[]
   canManage: boolean
 }) {
   const [search, setSearch] = useState("")
@@ -109,6 +112,7 @@ export function SetEditor({
                       onCheckedChange={() => toggle(action.id)}
                     />
                     <code className="min-w-0 flex-1 truncate text-xs">{action.key}</code>
+                    <RequiresApprovalBadge action={action} rules={approvalRules} />
                     <Badge variant={RISK_VARIANT[action.riskLevel] ?? "secondary"} className="shrink-0">
                       {action.riskLevel}
                     </Badge>

@@ -146,8 +146,9 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Posts an approval request where approvers will see it.
-  # @return [Hash] { message_id: String }
+  # Posts an approval request where approvers will see it. channel_id may be
+  # a person, in which case it lands as a direct message.
+  # @return [Hash] { message_id: String, channel_id: String }
   def post_approval_request(approval:, channel_id:)
     raise NotImplemented.new(__method__, self.class)
   end

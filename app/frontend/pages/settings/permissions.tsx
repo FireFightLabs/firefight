@@ -1,16 +1,24 @@
 import { useState } from "react"
 import { Head, usePage } from "@inertiajs/react"
-import { IconKey, IconPlus, IconRobot, IconStack2, IconUser } from "@tabler/icons-react"
+import { IconKey, IconPlus, IconRobot, IconShieldCheck, IconStack2, IconUser } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ApprovalRulesEditor } from "@/pages/settings/components/permissions/approval-rules-editor"
 import { GrantDialog } from "@/pages/settings/components/permissions/grant-dialog"
 import { GrantRow } from "@/pages/settings/components/permissions/grant-row"
 import { SetDialog } from "@/pages/settings/components/permissions/set-dialog"
 import { SetEditor } from "@/pages/settings/components/permissions/set-editor"
 import { IMPLICIT_AUTHORITY } from "@/pages/settings/components/permissions/risk"
-import type { AbilityActionOption, AbilityRole, EnvironmentOption, Principal } from "@/types/serializers"
+import type {
+  AbilityActionOption,
+  AbilityRole,
+  ApprovalRule,
+  EnvironmentOption,
+  Principal,
+  WorkspaceMembership,
+} from "@/types/serializers"
 import type { SharedProps } from "@/types"
 import { useCan } from "@/lib/permissions"
 
@@ -20,9 +28,11 @@ interface PermissionsPageProps extends SharedProps {
   actions: AbilityActionOption[]
   sets: AbilityRole[]
   environments: EnvironmentOption[]
+  approvalRules: ApprovalRule[]
+  members: WorkspaceMembership[]
 }
 
-type Selection = { kind: "principal" | "set"; id: string }
+type Selection = { kind: "principal" | "set"; id: string } | { kind: "approvals" }
 
 const KIND_ICON = { user: IconUser, agent: IconRobot, api_key: IconKey }
 const SECTIONS: { kind: string; title: string; blurb: string }[] = [
@@ -32,7 +42,7 @@ const SECTIONS: { kind: string; title: string; blurb: string }[] = [
 ]
 
 export default function Permissions() {
-  const { principals, actions, sets, environments } = usePage<PermissionsPageProps>().props
+  const { principals, actions, sets, environments, approvalRules, members } = usePage<PermissionsPageProps>().props
   const canManage = useCan("permissions")
   const [selection, setSelection] = useState<Selection>({ kind: "principal", id: principals[0]?.id ?? "" })
   const [granting, setGranting] = useState<Principal | null>(null)
@@ -44,6 +54,7 @@ export default function Permissions() {
   const selectedSet = selection.kind === "set"
     ? sets.find((set) => set.id === selection.id) ?? null
     : null
+  const enabledRuleCount = approvalRules.filter((rule) => rule.enabled).length
   const authorityNote = selected ? IMPLICIT_AUTHORITY[selected.implicitAuthority] : null
 
 
@@ -97,6 +108,26 @@ export default function Permissions() {
               )}
             </div>
 
+            <div className="flex flex-col gap-1.5">
+              <div>
+                <p className="text-sm font-medium">Approval rules</p>
+                <p className="text-muted-foreground text-xs">Which abilities wait for a second look</p>
+              </div>
+              <div className="border-border rounded-lg border">
+                <button
+                  type="button"
+                  onClick={() => setSelection({ kind: "approvals" })}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                    selection.kind === "approvals" ? "bg-accent" : "hover:bg-muted/50"
+                  }`}
+                >
+                  <IconShieldCheck className="text-muted-foreground size-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">Rules</span>
+                  <span className="text-muted-foreground shrink-0 text-xs">{enabledRuleCount}</span>
+                </button>
+              </div>
+            </div>
+
             {SECTIONS.map((section) => {
               const rows = principals.filter((principal) => principal.kind === section.kind)
               if (rows.length === 0) {
@@ -135,7 +166,19 @@ export default function Permissions() {
             })}
           </div>
 
-          {selectedSet && <SetEditor set={selectedSet} actions={actions} canManage={canManage} />}
+          {selection.kind === "approvals" && (
+            <ApprovalRulesEditor
+              rules={approvalRules}
+              actions={actions}
+              environments={environments}
+              members={members}
+              canManage={canManage}
+            />
+          )}
+
+          {selectedSet && (
+            <SetEditor set={selectedSet} actions={actions} approvalRules={approvalRules} canManage={canManage} />
+          )}
 
           {selected && (
             <Card>
@@ -188,6 +231,7 @@ export default function Permissions() {
           actions={actions}
           sets={sets}
           environments={environments}
+          approvalRules={approvalRules}
           onDismiss={() => setGranting(null)}
         />
       </div>
