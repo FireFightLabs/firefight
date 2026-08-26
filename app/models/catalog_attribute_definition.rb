@@ -63,7 +63,7 @@ class CatalogAttributeDefinition < ApplicationRecord
   def reference_type
     return nil unless reference? && reference_type_id.present?
 
-    catalog_type.workspace.catalog_types.find_by(id: reference_type_id)
+    catalog_type.workspace.catalog_type_by_id(reference_type_id)
   end
 
   def reference_type_id

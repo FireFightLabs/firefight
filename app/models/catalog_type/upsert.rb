@@ -41,7 +41,7 @@ class CatalogType::Upsert
     Array(args[:attributes]).map do |attribute|
       attribute = attribute.to_h.with_indifferent_access
       params = {
-        id: existing[slug_for(attribute)]&.id,
+        id: existing[Sluggable.word_slug(attribute[:name])]&.id,
         name: attribute[:name],
         attribute_type: attribute[:attribute_type],
         required: ActiveModel::Type::Boolean.new.cast(attribute[:required]),
@@ -50,10 +50,6 @@ class CatalogType::Upsert
       params[:role] = attribute[:role].presence if attribute.key?(:role)
       params
     end
-  end
-
-  def slug_for(attribute)
-    attribute[:name].to_s.strip.downcase.gsub(/\s+/, "_").gsub(/[^a-z0-9_]/, "")
   end
 
   def config_for(attribute)
