@@ -10,7 +10,8 @@
   <a href="https://firefight.app">Website</a> ·
   <a href="#self-hosting">Self-hosting</a> ·
   <a href="#local-development">Local development</a> ·
-  <a href="https://github.com/FireFightLabs/firefight/releases">Releases</a>
+  <a href="https://github.com/FireFightLabs/firefight/releases">Releases</a> ·
+  <a href="https://firefight.app/slack">Community</a>
 </h4>
 
 <h4 align="center">
