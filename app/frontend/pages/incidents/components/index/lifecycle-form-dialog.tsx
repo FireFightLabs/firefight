@@ -26,8 +26,6 @@ import {
 import type { IncidentPromptField } from "@/types/serializers"
 import type { IncidentFormSlug } from "@/lib/generated/constants"
 
-// Every lifecycle form except declaring, which creates the incident channel
-// and so only exists in Slack.
 export type LifecycleForm = IncidentFormSlug
 
 // Declaring has no incident behind it, so it reads and writes its own pair of

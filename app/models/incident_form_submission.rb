@@ -79,7 +79,7 @@ class IncidentFormSubmission
     scope = terminal_scope
     return chosen_status || @incident.incident_status unless scope
 
-    # first! rather than first: a workspace with no status in the target stage
+    # first! rather than first. A workspace with no status in the target stage
     # cannot complete this transition at all, and the caller renders the raise
     # as the sentence saying so.
     chosen_status(scope) || scope.first!
@@ -127,7 +127,7 @@ class IncidentFormSubmission
   # A workspace that took Next Update off its form has opted out of reminders,
   # so the field being absent leaves next_update_at alone. On the form but
   # unanswered clears it. It rides along with the status rather than being
-  # written afterwards, so a terminal status wins: Incident::Lifecycle clears
+  # written afterwards, so a terminal status wins. Incident::Lifecycle clears
   # next_update_at in the same save, and a later write would undo it.
   def next_update_attributes
     return {} unless offered?(IncidentSystemField::KEY_NEXT_UPDATE)

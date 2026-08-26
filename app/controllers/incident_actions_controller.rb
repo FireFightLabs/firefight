@@ -46,8 +46,6 @@ class IncidentActionsController < InertiaController
 
   private
 
-  # Every one of these is the same shape: find the item, check the model still
-  # allows it, call the service, come back to the page.
   def act(operation, **arguments)
     incident = current_workspace.incidents.find(params[:incident_id])
     action = incident.incident_actions.active.find(params[:id])

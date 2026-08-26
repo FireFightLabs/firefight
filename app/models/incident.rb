@@ -144,7 +144,7 @@ class Incident < ApplicationRecord
 
   # Why a responder surface can no longer change this incident, or nil. The
   # lead and role guards each state this rule in their own words, for the same
-  # reason: every change announces itself in a channel that may already be
+  # reason. Every change announces itself in a channel that may already be
   # archived. Surfaces ask for the sentence rather than deciding what terminal
   # means for themselves.
   def change_blocked_reason

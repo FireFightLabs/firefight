@@ -103,7 +103,7 @@ class IncidentLifecycleController < InertiaController
     redirect_to incident_path(incident), alert: e.message
   end
 
-  # Not form-driven, the same as Slack: a reopened incident lands on the
+  # Not form-driven, the same as Slack. A reopened incident lands on the
   # workspace's default live status and carries the reason as its message.
   def reopen
     incident = find_incident
@@ -147,9 +147,9 @@ class IncidentLifecycleController < InertiaController
     current_workspace.workspace_memberships.find_by!(user: current_user)
   end
 
-  # A declare has no incident behind it, so the context is only what has been
-  # answered so far. The resolver reads it to decide which conditional fields
-  # apply as the responder fills the form in.
+  # The resolver reads this to decide which conditional fields apply as the
+  # responder fills the form in. With no incident behind it, the only context
+  # is what has been answered so far.
   def declare_context
     IncidentFormPrompt.new(
       current_workspace, incident: nil, form_slug: IncidentForm::SLUG_DECLARE, answers: answers

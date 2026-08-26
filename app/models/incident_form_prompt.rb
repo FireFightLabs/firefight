@@ -38,7 +38,6 @@ class IncidentFormPrompt
   INPUT_PERSON = "person"
   INPUTS = [ INPUT_TEXT, INPUT_LONG_TEXT, INPUT_NUMBER, INPUT_LINK, INPUT_SELECT, INPUT_MULTI_SELECT, INPUT_PERSON ].freeze
 
-  # The system fields a responder types prose into rather than a single line.
   LONG_TEXT_KEYS = [ IncidentSystemField::KEY_SUMMARY, IncidentSystemField::KEY_MESSAGE ].freeze
 
   def initialize(workspace, incident:, form_slug:, answers: {})

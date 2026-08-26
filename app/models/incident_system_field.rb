@@ -185,7 +185,7 @@ class IncidentSystemField
   DEFINITIONS_BY_KEY = DEFINITIONS.index_by(&:key).freeze
 
   # What the two fixed-choice system fields offer. They live here for the same
-  # reason label, hint and placeholder do: both surfaces read them, and a copy
+  # reason label, hint and placeholder do. Both surfaces read them, and a copy
   # kept in one of them is a copy that drifts. The workspace's own records
   # answer the rest (statuses, severities, types, people).
   Choice = Data.define(:value, :label)
