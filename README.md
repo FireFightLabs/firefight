@@ -98,7 +98,6 @@ It is AGPL-3.0, so you can read every line, run it yourself, and never be locked
 - **Web dashboard**: the incident list, the incident itself, the postmortem editor, and every settings screen
 - **REST API**: the whole product over HTTP, from declaring an incident to configuring every settings screen, with bearer-token auth, granular per-key permissions, idempotency keys, and an OpenAPI document covering every operation
 - **Outbound webhooks**: subscribe external systems to incident events, with delivery tracking and retries
-- **Self-hostable**: one container and a Postgres database. No telemetry, no usage reporting, no licence check calling home
 
 ## Documentation
 
@@ -131,6 +130,8 @@ docker compose up -d
 ```
 
 You need a machine with Docker, a hostname pointing at it, and a Slack app, which Firefight ships the manifest for. **[SELF_HOSTING.md](SELF_HOSTING.md)** walks through all of it, plus upgrades, backups, and running it without Compose.
+
+Your instance talks to Slack, to Postgres, and to whatever AI provider you configure. It sends nothing to us: no telemetry, no usage reporting, no license check calling home.
 
 ## Local development
 
