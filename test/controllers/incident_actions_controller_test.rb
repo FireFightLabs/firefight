@@ -185,6 +185,29 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  # An agent has no user behind it, so the page has to render an item a
+  # machine holds without trying to load one.
+  test "the incident page renders an item held by an agent" do
+    agent = @workspace.agents.create!(name: "Support agent", slug: "support_agent")
+    action = open_action
+    IncidentActionService.new(@workspace).assign_action(
+      action: action, assignee: agent, assigned_by: @member
+    )
+
+    # The actions prop is deferred, so it only renders when asked for.
+    get incident_path(@incident), headers: {
+      "X-Inertia" => "true",
+      "X-Inertia-Version" => InertiaRails.configuration.version.to_s,
+      "X-Inertia-Partial-Component" => "incidents/index",
+      "X-Inertia-Partial-Data" => "actions"
+    }
+
+    assert_response :success
+    assignee = JSON.parse(response.body).dig("props", "actions", 0, "assignee")
+    assert_equal agent.name, assignee["name"]
+    assert_equal Ability::Principal::KIND_AGENT, assignee["kind"]
+  end
+
   private
 
   def open_action

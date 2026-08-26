@@ -28,7 +28,7 @@ class WorkspaceMembership < ApplicationRecord
 
   # Actor interface (shared with ApiKey) for polymorphic event/snapshot attribution.
   def actor_display_name = display_name
-  def actor_kind = "user"
+  def actor_kind = Ability::Principal::KIND_USER
 
   def admin_access?
     admin_role? || owner_role?
@@ -92,6 +92,17 @@ class WorkspaceMembership < ApplicationRecord
     find_by(id: reference) ||
       find_by(platform_user_id: reference) ||
       joins(:user).find_by(users: { email: reference.downcase })
+  end
+
+  # The same lookup for a caller that was handed a name and cannot carry on
+  # without it. A reference matching nobody is a mistake worth saying out loud
+  # rather than a silent nil. Naming nobody is still a legitimate answer, so a
+  # blank reference resolves to no member rather than raising.
+  def self.resolve!(reference)
+    return nil if reference.blank?
+
+    resolve(reference) ||
+      raise(ActiveRecord::RecordNotFound, "No workspace member matches #{reference.inspect}")
   end
 
   # Locks the workspace so "am I the first member" and the insert that answers

@@ -14,7 +14,7 @@ module Interactions
 
       IncidentLifecycleService.new(workspace).escalate(
         incident,
-        escalated_to_platform_user_id: interaction.values.dig("escalate_to_block", "escalate_to_select", "selected_user"),
+        escalated_to: interaction.values.dig("escalate_to_block", "escalate_to_select", "selected_user"),
         reason: interaction.values.dig("reason_block", "reason_input", "value"),
         changed_by: member
       )

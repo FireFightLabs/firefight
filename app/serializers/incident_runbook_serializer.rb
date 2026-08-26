@@ -51,7 +51,7 @@ class IncidentRunbookSerializer < BaseSerializer
         id: step.id,
         title: step.title,
         instruction: step.instruction.presence,
-        assignee: action&.assignee&.display_name,
+        assignee: action&.assignee&.actor_display_name,
         done: action&.done? || false
       }
     end

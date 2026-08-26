@@ -26,11 +26,11 @@ class IncidentActionService
     action
   end
 
-  # Taking a step and handing one out are the same operation, differing only in
-  # who ends up holding it.
+  # A step somebody has already touched is the item behind it, so claiming it
+  # is the same operation as claiming any other piece of work.
   def assign_step(incident:, runbook_step:, assignee:, assigned_by:)
     existing = incident.incident_actions.active.find_by(runbook_step: runbook_step)
-    return reassign_action(action: existing, assignee: assignee, reassigned_by: assigned_by) if existing
+    return assign_action(action: existing, assignee: assignee, assigned_by: assigned_by) if existing
 
     action = create_action(
       incident: incident,
@@ -44,6 +44,20 @@ class IncidentActionService
     action
   rescue ActiveRecord::RecordNotUnique
     incident.incident_actions.active.find_by(runbook_step: runbook_step)
+  end
+
+  # Taking a piece of work and handing it over differ only in who ends up
+  # holding it, so a caller that knows the assignee does not also have to
+  # decide which of the two this is. Returns the item either way, since the
+  # two verbs below return whatever their last message call did.
+  def assign_action(action:, assignee:, assigned_by:)
+    if assignee == assigned_by && action.claimable?
+      pick_up_action(action: action, picked_up_by: assigned_by)
+    else
+      reassign_action(action: action, assignee: assignee, reassigned_by: assigned_by)
+    end
+
+    action.reload
   end
 
   def pick_up_action(action:, picked_up_by:)

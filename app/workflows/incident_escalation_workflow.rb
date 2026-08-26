@@ -6,40 +6,26 @@ class IncidentEscalationWorkflow < SolidWorkflow::Base
   step :post_escalation_direct_message
 
   def post_escalation_message(workflow:, step:, input:)
-    checkpointed(step) do
-      service(workflow).post_escalation_message(
-        workflow.subject,
-        escalated_by_platform_user_id: workflow.context["escalated_by_platform_user_id"],
-        escalated_to_platform_user_id: workflow.context["escalated_to_platform_user_id"],
-        reason: workflow.context["reason"]
-      )
-    end
+    checkpointed(step) { service(workflow).post_escalation_message(workflow.subject, event: event(workflow)) }
   end
 
   def post_escalation_announcement_thread(workflow:, step:, input:)
     checkpointed(step) do
-      service(workflow).post_escalation_announcement_thread(
-        workflow.subject,
-        escalated_by_platform_user_id: workflow.context["escalated_by_platform_user_id"],
-        escalated_to_platform_user_id: workflow.context["escalated_to_platform_user_id"],
-        reason: workflow.context["reason"]
-      )
+      service(workflow).post_escalation_announcement_thread(workflow.subject, event: event(workflow))
     end
   end
 
   def post_escalation_direct_message(workflow:, step:, input:)
-    checkpointed(step) do
-      service(workflow).post_escalation_direct_message(
-        workflow.subject,
-        escalated_by_platform_user_id: workflow.context["escalated_by_platform_user_id"],
-        escalated_to_platform_user_id: workflow.context["escalated_to_platform_user_id"],
-        escalation_event_id: workflow.context["escalation_event_id"],
-        reason: workflow.context["reason"]
-      )
-    end
+    checkpointed(step) { service(workflow).post_escalation_direct_message(workflow.subject, event: event(workflow)) }
   end
 
   private
+
+  # Everything an escalation message says is already on its event: who asked,
+  # who was asked, and why. Carrying copies in the context would let them drift.
+  def event(workflow)
+    @event ||= workflow.subject.incident_events.find(workflow.context["escalation_event_id"])
+  end
 
   def service(workflow)
     @service ||= IncidentUpdateService.new(workflow.subject.workspace)

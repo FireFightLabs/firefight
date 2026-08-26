@@ -31,7 +31,7 @@ module Slack
           summary: incident.summary,
           severity_name: incident.incident_severity.name,
           status_name: incident.incident_status.name,
-          reporter_id: incident.declared_by.platform_user_id,
+          reporter_id: incident.declared_by&.platform_user_id,
           lead_id: incident.lead&.platform_user_id,
           channel_id: channel_id,
           relationship_text: Formatting.relationship_summary(incident),

@@ -28,6 +28,16 @@ Rails.application.routes.draw do
             patch :dismiss
           end
         end
+        resources :action_items, only: [ :index, :create, :update ]
+        # Taking part in an incident rather than moving it: everything a person
+        # can do from Slack short of changing the status.
+        member do
+          post :escalate, to: "incident_participation#escalate"
+          post :invite, to: "incident_participation#invite"
+          post :link, to: "incident_participation#link"
+          post :shoutout, to: "incident_participation#shoutout"
+          post "runbook_steps/claim", to: "incident_participation#claim_runbook_step", as: :claim_runbook_step
+        end
       end
       resources :severities, only: [ :index ]
       resources :statuses, only: [ :index ]
@@ -181,6 +191,14 @@ Rails.application.routes.draw do
         patch :move_down
       end
     end
+    resources :agents, only: [ :index, :create, :update, :destroy ], path: "gateway/agents", as: :gateway_agents do
+      member do
+        post :rotate
+      end
+    end
+    # An agent's tokens are its own business, managed where the agent is rather
+    # than alongside the workspace's developer keys.
+    delete "/gateway/agents/:agent_id/tokens/:id", to: "agent_tokens#destroy", as: :gateway_agent_token
     get "/gateway/activity", to: "settings#activity", as: :gateway_activity
     get "/gateway/approvals", to: "settings#approvals", as: :gateway_approvals
     resources :approvals, only: [], path: "gateway/approvals" do
@@ -247,6 +265,9 @@ Rails.application.routes.draw do
     patch "/incidents/:incident_id/role", to: "incident_lifecycle#assign_role", as: :assign_incident_role
     patch "/incidents/:incident_id/reopen", to: "incident_lifecycle#reopen", as: :incident_reopen
     post "/incidents/:incident_id/link", to: "incident_lifecycle#link", as: :incident_link
+    post "/incidents/:incident_id/escalate", to: "incident_participation#escalate", as: :incident_escalate
+    post "/incidents/:incident_id/invite", to: "incident_participation#invite", as: :incident_invite
+    post "/incidents/:incident_id/shoutout", to: "incident_participation#shoutout", as: :incident_shoutout
     get "/incidents/:id", to: "incidents#show", as: :incident
     get "/incidents/:incident_id/postmortem", to: "incidents#postmortem", as: :incident_postmortem
     patch "/incidents/:incident_id/postmortem", to: "incidents#update_postmortem"

@@ -4,7 +4,9 @@
 inc1_action_open:
   incident: active_critical_ws1
   created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  created_by_type: WorkspaceMembership
   assignee_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  assignee_type: WorkspaceMembership
   action_type: action
   status: open
   description: "Increase database connection pool size"
@@ -13,7 +15,9 @@ inc1_action_open:
 inc1_action_in_progress:
   incident: active_critical_ws1
   created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  created_by_type: WorkspaceMembership
   assignee_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  assignee_type: WorkspaceMembership
   action_type: action
   status: in_progress
   description: "Investigate long-running queries"
@@ -22,6 +26,7 @@ inc1_action_in_progress:
 inc1_followup:
   incident: active_critical_ws1
   created_by_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  created_by_type: WorkspaceMembership
   action_type: followup
   status: open
   description: "Add connection pool monitoring alerts"
@@ -31,7 +36,9 @@ inc1_followup:
 inc2_action_done:
   incident: active_major_ws1
   created_by_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  created_by_type: WorkspaceMembership
   assignee_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  assignee_type: WorkspaceMembership
   action_type: action
   status: done
   description: "Restart payment gateway service"
@@ -41,7 +48,9 @@ inc2_action_done:
 inc3_followup_done:
   incident: resolved_minor_ws1
   created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  created_by_type: WorkspaceMembership
   assignee_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  assignee_type: WorkspaceMembership
   action_type: followup
   status: done
   description: "Update image upload documentation"
@@ -51,6 +60,7 @@ inc3_followup_done:
 inc1_deleted_action:
   incident: active_critical_ws1
   created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  created_by_type: WorkspaceMembership
   action_type: action
   status: open
   description: "This action was deleted"
@@ -61,7 +71,9 @@ inc1_deleted_action:
 ws2_inc1_action:
   incident: active_p0_ws2
   created_by_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
+  created_by_type: WorkspaceMembership
   assignee_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
+  assignee_type: WorkspaceMembership
   action_type: action
   status: in_progress
   description: "Investigate service outage root cause"

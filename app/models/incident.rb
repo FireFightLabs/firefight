@@ -1,7 +1,8 @@
 class Incident < ApplicationRecord
-  # Raised when an incident that is over is asked to do something only a live
-  # incident can do. Carries the sentence the surface shows, so a dispatcher
-  # can render it without knowing which rule refused.
+  # Raised when an incident is asked to do something it cannot: one that is
+  # over, or one whose channel has not been opened yet. Carries the sentence
+  # the surface shows, so a dispatcher can render it without knowing which
+  # rule refused.
   class NotActive < StandardError; end
 
   VISIBILITY_PUBLIC = "public"
@@ -10,6 +11,7 @@ class Incident < ApplicationRecord
   SOURCE_SLACK = "slack"
   SOURCE_ALERT = "alert"
   SOURCE_DASHBOARD = "dashboard"
+  SOURCE_MCP = "mcp"
 
   DEFAULT_PER_PAGE = 20
   MAX_PER_PAGE = 50
@@ -24,7 +26,10 @@ class Incident < ApplicationRecord
   include Incident::Serialization
 
   belongs_to :workspace
-  belongs_to :declared_by, class_name: "WorkspaceMembership", optional: true
+  # Polymorphic for the same reason IncidentEvent#actor is. An agent can
+  # declare an incident, and saying a person did it would be a lie the ledger
+  # exists to prevent.
+  belongs_to :declared_by, polymorphic: true, optional: true
   belongs_to :source_api_key, class_name: "ApiKey", optional: true
   belongs_to :incident_status
   belongs_to :incident_severity
@@ -73,7 +78,7 @@ class Incident < ApplicationRecord
     includes(
       { incident_status: :incident_lifecycle_stage },
       :incident_severity,
-      { declared_by: :user },
+      :declared_by,
       incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
     )
   }
@@ -82,12 +87,20 @@ class Incident < ApplicationRecord
       { incident_status: :incident_lifecycle_stage },
       :incident_severity,
       :incident_type,
-      { declared_by: :user },
+      :declared_by,
       :postmortem,
       incident_role_assignments: [ :incident_role, { workspace_membership: :user } ],
       incident_runbooks: { runbook: :runbook_steps }
     )
   }
+
+  # The declarer is polymorphic, so its own associations cannot ride along on
+  # includes. Everyone reading a list of incidents names the declarer, so the
+  # people among them get their users in one query rather than one each.
+  def self.preload_declarers(incidents)
+    Principal.preload_users(incidents.map(&:declared_by))
+    incidents
+  end
 
   def self.filtered_list(filters: {}, page: nil, per_page: nil)
     scope = all.where(deleted_at: nil).with_list_associations.recent
@@ -101,7 +114,7 @@ class Incident < ApplicationRecord
     page = (page || 1).to_i.clamp(1, total_pages)
 
     {
-      incidents: scope.offset((page - 1) * per_page).limit(per_page),
+      incidents: preload_declarers(scope.offset((page - 1) * per_page).limit(per_page).to_a),
       pagination: { page:, perPage: per_page, totalCount: total_count, totalPages: total_pages }
     }
   end
@@ -125,7 +138,15 @@ class Incident < ApplicationRecord
   end
 
   def escalation_blocked_reason
-    terminal_blocked_reason("it can no longer be escalated")
+    terminal_blocked_reason("it can no longer be escalated") || channelless_blocked_reason("ask anyone")
+  end
+
+  def invite_blocked_reason
+    terminal_blocked_reason("nobody else can be brought into it") || channelless_blocked_reason("bring people into")
+  end
+
+  def shoutout_blocked_reason
+    terminal_blocked_reason("shoutouts can no longer be posted to it") || channelless_blocked_reason("post one")
   end
 
   # The one rule the status machine refuses: an incident that is over cannot
@@ -166,12 +187,11 @@ class Incident < ApplicationRecord
     events = incident_events.chronological.with_attached_artifact.includes(:actor, eventable: nil).to_a
     updates = events.map(&:eventable).grep(IncidentUpdate)
     ActiveRecord::Associations::Preloader.new(
-      records: updates, associations: [ :incident_status, :incident_severity, :incident_type, { lead: :user }, { declared_by: :user } ]
+      records: updates, associations: [ :incident_status, :incident_severity, :incident_type, { lead: :user } ]
     ).call
     updates.each_cons(2) { |earlier, later| later.previous_update = earlier }
-    ActiveRecord::Associations::Preloader.new(
-      records: events.map(&:eventable).grep(IncidentActionUpdate), associations: [ { assignee: :user } ]
-    ).call
+    action_updates = events.map(&:eventable).grep(IncidentActionUpdate)
+    Principal.preload_users(events.map(&:actor) + action_updates.map(&:assignee))
     references = IncidentEvent::References.for(self, events)
     events.each { |event| event.references = references }
     events
@@ -217,5 +237,14 @@ class Incident < ApplicationRecord
     return nil unless terminal?
 
     "#{identifier} is #{canceled? ? "canceled" : "closed"}, so #{clause}."
+  end
+
+  # Asking someone, bringing someone in and thanking someone all post in the
+  # incident channel, which the creation workflow opens a moment after the
+  # incident exists.
+  def channelless_blocked_reason(clause)
+    return nil if channel_id.present?
+
+    "#{identifier} has no channel yet, so there is nowhere to #{clause}."
   end
 end

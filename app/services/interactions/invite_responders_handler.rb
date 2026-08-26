@@ -16,12 +16,9 @@ module Interactions
         }
       end
 
-      service = IncidentInviteService.new(workspace)
-      result = service.invite!(incident: incident, user_ids: user_ids)
-      workspace.adapter.post_ephemeral(
-        channel_id: incident.channel_id,
-        user_id: interaction.user_id,
-        text: service.summary_message(result)
+      result = IncidentInviteService.new(workspace).invite!(incident: incident, people: user_ids)
+      workspace.adapter.post_invite_summary(
+        channel_id: incident.channel_id, user_id: interaction.user_id, result: result
       )
 
       { response_action: "clear" }

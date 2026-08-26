@@ -30,7 +30,9 @@ module Mcp
           timeline_truncated: events.size > TIMELINE_LIMIT,
           postmortem: postmortem(incident),
           alerts: incident.alerts.map { |alert| SearchAlerts.summary(alert) },
-          roles: roles(incident)
+          roles: roles(incident),
+          action_items: action_items(incident),
+          runbooks: runbooks(incident)
         )
       end
 
@@ -46,6 +48,39 @@ module Mcp
             description: role.description,
             held_by: holders[role.id]&.workspace_membership&.display_name
           }.compact
+        end
+      end
+
+      # The work, with the ids the write tools take. Without these an agent
+      # can see that an item exists and has no way to name it.
+      def self.action_items(incident)
+        incident.incident_actions.active.order(:created_at).map do |action|
+          {
+            id: action.id,
+            kind: action.action_type,
+            description: action.description,
+            status: action.status,
+            assignee: action.assignee&.actor_display_name
+          }.compact
+        end
+      end
+
+      def self.runbooks(incident)
+        incident.incident_runbooks.includes(runbook: :runbook_steps).map do |attachment|
+          actions = attachment.actions_by_step
+          {
+            id: attachment.id,
+            name: attachment.runbook.name,
+            steps: attachment.runbook.runbook_steps.sort_by(&:position).map do |step|
+              action = actions[step.id]
+              {
+                id: step.id,
+                title: step.title,
+                claimed_by: action&.assignee&.actor_display_name,
+                done: action&.done? || false
+              }.compact
+            end
+          }
         end
       end
 

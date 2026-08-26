@@ -13,7 +13,7 @@ module Slack
 
       def self.created(action)
         emoji, label = display(action)
-        creator = "<@#{action.created_by.platform_user_id}>"
+        creator = Mrkdwn.mention(action.created_by)
 
         blocks = [
           { type: "section", text: { type: "mrkdwn", text: "#{emoji}  *New #{label}*" } },
@@ -22,7 +22,7 @@ module Slack
           {
             type: "context",
             elements: [
-              { type: "mrkdwn", text: "Added by #{creator}  |  #{action.assigned? ? "Assigned to <@#{action.assignee.platform_user_id}>" : "Unassigned"}" }
+              { type: "mrkdwn", text: "Added by #{creator}  |  #{action.assigned? ? "Assigned to #{Mrkdwn.mention(action.assignee)}" : "Unassigned"}" }
             ]
           }
         ]
@@ -40,7 +40,7 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: "> #{action.description}" } },
           {
             type: "context",
-            elements: [ { type: "mrkdwn", text: ":large_blue_circle: Picked up by <@#{action.assignee.platform_user_id}>" } ]
+            elements: [ { type: "mrkdwn", text: ":large_blue_circle: Picked up by #{Mrkdwn.mention(action.assignee)}" } ]
           },
           controls(action)
         ]
@@ -58,7 +58,7 @@ module Slack
           action_id: Identifiers::REASSIGN_ACTION,
           placeholder: { type: "plain_text", text: action.assigned? ? "Reassign" : "Assign to" }
         }
-        picker[:initial_user] = action.assignee.platform_user_id if action.assigned?
+        picker[:initial_user] = action.assignee.platform_user_id if action.assignee&.platform_user_id.present?
 
         {
           type: "actions",
@@ -133,7 +133,7 @@ module Slack
 
       def self.completed(action)
         emoji, _label = display(action)
-        completer = action.assignee ? "<@#{action.assignee.platform_user_id}>" : "someone"
+        completer = Mrkdwn.mention(action.assignee)
 
         [
           { type: "section", text: { type: "mrkdwn", text: "#{emoji}  ~#{action.description}~" } },

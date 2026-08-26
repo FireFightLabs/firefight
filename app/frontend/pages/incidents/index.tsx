@@ -81,7 +81,7 @@ export default function IncidentPage() {
           channelUrl={channelUrl}
           linkable={linkableIncidents}
           canEdit={canEditIncident}
-          leadCandidates={memberChoices}
+          members={memberChoices}
         />
 
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">

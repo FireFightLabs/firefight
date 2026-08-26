@@ -219,32 +219,23 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident reopened", blocks: blocks)
   end
 
-  def post_escalation_message(channel_id:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+  def post_escalation_message(channel_id:, incident:, escalated_by:, escalated_to:, reason: nil)
     blocks = Slack::Messages::Escalation.build(
-      incident,
-      escalated_by_platform_user_id: escalated_by_platform_user_id,
-      escalated_to_platform_user_id: escalated_to_platform_user_id,
-      reason: reason
+      incident, escalated_by: escalated_by, escalated_to: escalated_to, reason: reason
     )
     post_message(channel_id: channel_id, text: "Incident escalated", blocks: blocks)
   end
 
-  def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+  def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by:, escalated_to:, reason: nil)
     blocks = Slack::Messages::Escalation.build(
-      incident,
-      escalated_by_platform_user_id: escalated_by_platform_user_id,
-      escalated_to_platform_user_id: escalated_to_platform_user_id,
-      reason: reason
+      incident, escalated_by: escalated_by, escalated_to: escalated_to, reason: reason
     )
     post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident escalated", blocks: blocks)
   end
 
-  def post_escalation_direct_message(user_id:, incident:, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
+  def post_escalation_direct_message(user_id:, incident:, escalated_by:, escalation_event_id:, reason: nil)
     blocks = Slack::Messages::Escalation.direct_message(
-      incident,
-      escalated_by_platform_user_id: escalated_by_platform_user_id,
-      escalation_event_id: escalation_event_id,
-      reason: reason
+      incident, escalated_by: escalated_by, escalation_event_id: escalation_event_id, reason: reason
     )
     post_message(channel_id: user_id, text: "Incident escalated to you", blocks: blocks)
   end
@@ -268,13 +259,10 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def post_escalation_nudge_direct_message(user_id:, incident:, escalated_by_platform_user_id:, escalation_event_id:, reason: nil)
+  def post_escalation_nudge_direct_message(user_id:, incident:, escalated_by:, escalation_event_id:, reason: nil)
     blocks = Slack::Messages::Escalation.direct_message(
-      incident,
-      escalated_by_platform_user_id: escalated_by_platform_user_id,
-      escalation_event_id: escalation_event_id,
-      reason: reason,
-      variant: :nudge
+      incident, escalated_by: escalated_by, escalation_event_id: escalation_event_id,
+      reason: reason, variant: :nudge
     )
     post_message(channel_id: user_id, text: "Reminder to acknowledge escalation", blocks: blocks)
   end
@@ -326,18 +314,21 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   def post_handover(channel_id, action, blocks)
     post_message(
       channel_id: channel_id,
-      text: "#{action.assignee&.display_name} now has this #{Slack::Messages::Action.label_for(action)}: #{action.description}",
+      text: "#{action.assignee&.actor_display_name} now has this #{Slack::Messages::Action.label_for(action)}: #{action.description}",
       blocks: blocks
     )
   end
 
-  def post_shoutout_message(channel_id:, incident:, from_user_id:, recipient_user_id:, message:)
-    blocks = Slack::Messages::Shoutout.build(
-      incident,
-      from_user_id: from_user_id,
-      recipient_user_id: recipient_user_id,
-      message: message
-    )
+  def post_invite_unresolved(channel_id:, user_id:, targets:)
+    post_ephemeral(channel_id: channel_id, user_id: user_id, text: Slack::Messages::Invite.unresolved(targets))
+  end
+
+  def post_invite_summary(channel_id:, user_id:, result:)
+    post_ephemeral(channel_id: channel_id, user_id: user_id, text: Slack::Messages::Invite.summary(result))
+  end
+
+  def post_shoutout_message(channel_id:, incident:, from:, to:, message:)
+    blocks = Slack::Messages::Shoutout.build(incident, from: from, to: to, message: message)
     post_message(channel_id: channel_id, text: ":heart_on_fire: Shoutout in #{incident.identifier}", blocks: blocks)
   end
 

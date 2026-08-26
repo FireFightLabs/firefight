@@ -22,13 +22,7 @@ class EscalationAcknowledgementReminderJobTest < ActiveJob::TestCase
     stub_post_message
 
     assert_difference "IncidentEvent.count", 1 do
-      EscalationAcknowledgementReminderJob.perform_now(
-        @incident.id,
-        @escalation_event.id,
-        @escalated_by.platform_user_id,
-        @escalated_to.platform_user_id,
-        "please help"
-      )
+      EscalationAcknowledgementReminderJob.perform_now(@incident.id, @escalation_event.id)
     end
 
     nudge_event = @incident.incident_events.find_by!(event_type: IncidentEvent::ESCALATION_NUDGED)
@@ -46,12 +40,7 @@ class EscalationAcknowledgementReminderJobTest < ActiveJob::TestCase
     )
 
     assert_no_difference "IncidentEvent.count" do
-      EscalationAcknowledgementReminderJob.perform_now(
-        @incident.id,
-        @escalation_event.id,
-        @escalated_by.platform_user_id,
-        @escalated_to.platform_user_id
-      )
+      EscalationAcknowledgementReminderJob.perform_now(@incident.id, @escalation_event.id)
     end
   end
 end

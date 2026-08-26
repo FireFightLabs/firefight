@@ -49,11 +49,12 @@ class Interactions::EscalateIncidentHandlerTest < ActiveSupport::TestCase
       Interactions::EscalateIncidentHandler.execute(build_interaction)
     end
 
+    # The event carries who and why, so the context carries only its id.
     workflow = SolidWorkflow::Workflow.find_by!(name: "incident.escalation.v1", subject: @incident)
-    assert_equal @member.platform_user_id, workflow.context["escalated_by_platform_user_id"]
-    assert_equal @target.platform_user_id, workflow.context["escalated_to_platform_user_id"]
-    assert_equal "Need backend support", workflow.context["reason"]
-    assert_not_nil workflow.context["escalation_event_id"]
+    event = @incident.incident_events.find(workflow.context["escalation_event_id"])
+    assert_equal @member, event.actor
+    assert_equal @target.platform_user_id, event.metadata["escalated_to_platform_user_id"]
+    assert_equal "Need backend support", event.metadata["reason"]
   end
 
   test "enqueues acknowledgement reminder" do

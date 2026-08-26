@@ -12,8 +12,8 @@ class IncidentActionUpdate < ApplicationRecord
   belongs_to :incident_action
   belongs_to :incident
   belongs_to :actor, polymorphic: true
-  belongs_to :created_by, class_name: "WorkspaceMembership"
-  belongs_to :assignee, class_name: "WorkspaceMembership", optional: true
+  belongs_to :created_by, polymorphic: true
+  belongs_to :assignee, polymorphic: true, optional: true
 
   validates :update_type, presence: true, inclusion: { in: UPDATE_TYPES }
   validates :action_type, presence: true, inclusion: { in: ->(_) { IncidentAction::ACTION_TYPES } }

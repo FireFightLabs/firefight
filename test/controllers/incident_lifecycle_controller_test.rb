@@ -286,6 +286,17 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  # The database has always refused this. The model says why, so the dashboard
+  # shows a sentence rather than a 500.
+  test "linking an incident to itself is refused with the reason" do
+    post incident_link_path(@incident),
+         params: { target_id: @incident.id, relationship: IncidentRelationship::RELATED }
+
+    assert_redirected_to incident_path(@incident)
+    assert_match(/must be a different incident/, flash[:alert])
+    assert_empty @incident.incident_relationships
+  end
+
   private
 
   # Exactly what each form asks for in the fixture workspace. Reading them off

@@ -15,7 +15,7 @@ class IncidentsController < InertiaController
       timelineEvents: InertiaRails.defer { TimelineEventSerializer.many(incident.timeline_events) },
       actions: InertiaRails.defer {
         IncidentActionSerializer.many(
-          incident.incident_actions.active.includes(assignee: :user, created_by: :user)
+          IncidentAction.with_actors(incident.incident_actions.active.includes(:assignee, :created_by).to_a)
         )
       },
       attachableRunbooks: attachable_runbooks(incident),

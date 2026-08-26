@@ -18,4 +18,15 @@ module ApiTestHelper
     key.replace_permissions!(permissions)
     [ key, token ]
   end
+
+  # An agent plus the token it presents. Grants hang off the agent, not the
+  # token, so a rotation in a test would not change what it may do.
+  def create_agent(workspace:, created_by:, name: "Test Agent", slug: "test_agent", permissions: {})
+    agent = workspace.agents.create!(name: name, slug: slug)
+    Ability::Grant.replace_system_grants!(principal: agent, workspace: workspace, matrix: permissions)
+    _, token = ApiKey.create_with_token!(
+      workspace: workspace, created_by: created_by, agent: agent, name: "#{name} token"
+    )
+    [ agent, token ]
+  end
 end

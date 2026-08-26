@@ -44,23 +44,9 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
     body = rpc("tools/list")
     tools = body.dig("result", "tools")
-    assert_equal [ Mcp::Tools::EVALUATE_ROUTING, Mcp::Tools::GET_INCIDENT, Mcp::Tools::GET_RUNBOOK,
-                   Mcp::Tools::SEARCH_ALERTS, Mcp::Tools::SEARCH_CATALOG, Mcp::Tools::SEARCH_INCIDENTS,
-                   Mcp::Tools::SEARCH_RUNBOOKS, Mcp::Tools::UPSERT_CATALOG_ENTRY,
-                   Mcp::Tools::DELETE_CATALOG_ENTRY, Mcp::Tools::UPSERT_ROUTING_RULE,
-                   Mcp::Tools::DELETE_ROUTING_RULE, Mcp::Tools::UPDATE_ROUTING_CONFIG,
-                   Mcp::Tools::UPSERT_RUNBOOK, Mcp::Tools::ASSIGN_INCIDENT_ROLE,
-                   Mcp::Tools::ATTACH_RUNBOOK, Mcp::Tools::DISMISS_TIMELINE_NOTE,
-                   Mcp::Tools::SEARCH_APPROVALS,
-                   Mcp::Tools::APPROVE_APPROVAL, Mcp::Tools::DENY_APPROVAL,
-                   Mcp::Tools::LIST_ABILITIES, Mcp::Tools::LIST_PRINCIPALS,
-                   Mcp::Tools::UPSERT_PERMISSION_SET, Mcp::Tools::DELETE_PERMISSION_SET,
-                   Mcp::Tools::GRANT_ABILITY, Mcp::Tools::REVOKE_GRANT,
-                   Mcp::Tools::UPSERT_APPROVAL_RULE, Mcp::Tools::DELETE_APPROVAL_RULE,
-                   Mcp::Tools::SEARCH_ACTIVITY,
-                   Mcp::Tools::GET_FORM, Mcp::Tools::UPSERT_CUSTOM_FIELD,
-                   Mcp::Tools::UPSERT_FORM_FIELD ].sort,
-                 tools.map { |t| t["name"] }.sort
+    # The registry is the wiring, so the server exposes exactly it rather than
+    # a second list that drifts every time a tool is added.
+    assert_equal Mcp::Tools.all.map(&:name_value).sort, tools.map { |tool| tool["name"] }.sort
 
     read_tools, write_tools = tools.partition { |t| t["name"].start_with?("search", "get", "evaluate", "list") }
     assert read_tools.all? { |t| t.dig("annotations", "readOnlyHint") }

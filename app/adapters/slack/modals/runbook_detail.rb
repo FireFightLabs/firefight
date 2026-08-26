@@ -68,7 +68,7 @@ module Slack
           action_id: Identifiers::ASSIGN_RUNBOOK_STEP,
           placeholder: { type: "plain_text", text: "Assign" }
         }
-        element[:initial_user] = action.assignee.platform_user_id if action&.assignee
+        element[:initial_user] = action.assignee.platform_user_id if action&.assignee&.platform_user_id.present?
         element
       end
 

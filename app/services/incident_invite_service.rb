@@ -1,70 +1,58 @@
 class IncidentInviteService
+  # What one invite round did, holding the people it was asked about rather
+  # than the platform ids it derived from them. A caller that named members
+  # gets members back and never has to reverse the mapping.
+  Result = Data.define(:invited, :already_in_channel, :failed)
+  Failure = Data.define(:person, :error)
+
   def initialize(workspace)
     @workspace = workspace
     @adapter = workspace.adapter
   end
 
-  def invite!(incident:, user_ids:)
-    invited_user_ids = []
-    already_in_channel_user_ids = []
-    failed_invites = []
+  # `people` are members, platform user ids, or a mix, so a caller that knows
+  # someone as a member never has to reach for their platform account.
+  def invite!(incident:, people:)
+    blocked_reason = incident.invite_blocked_reason
+    raise Incident::NotActive, blocked_reason if blocked_reason
 
-    normalized_user_ids(user_ids).each do |user_id|
-      begin
-        @adapter.invite_user(channel_id: incident.channel_id, user_id: user_id)
-        invited_user_ids << user_id
-      rescue AdapterError::AlreadyInChannel
-        already_in_channel_user_ids << user_id
-      rescue AdapterError => e
-        failed_invites << { user_id: user_id, error: e.message }
-      end
+    invited = []
+    already_in_channel = []
+    failed = []
+
+    distinct(people).each do |person|
+      @adapter.invite_user(channel_id: incident.channel_id, user_id: platform_user_id(person))
+      invited << person
+    rescue AdapterError::AlreadyInChannel
+      already_in_channel << person
+    rescue AdapterError => e
+      failed << Failure.new(person: person, error: e.message)
     end
 
-    {
-      invited_user_ids: invited_user_ids,
-      already_in_channel_user_ids: already_in_channel_user_ids,
-      failed_invites: failed_invites
-    }
+    Result.new(invited: invited, already_in_channel: already_in_channel, failed: failed)
   end
 
   def resolve_and_notify!(incident:, text:, channel_id:, user_id:)
     targets = @adapter.resolve_people(text)
 
     if targets[:user_ids].empty?
-      message = if targets[:had_target_tokens]
-        "Couldn't resolve #{targets[:unresolved_handles].map { |h| "@#{h}" }.join(', ')}. Try `/ff invite` to pick responders from the modal."
-      else
-        "No users specified. Try `/ff invite @alice @bob` or `/ff invite` to pick responders from the modal."
-      end
-      @adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: message)
+      @adapter.post_invite_unresolved(channel_id: channel_id, user_id: user_id, targets: targets)
       return
     end
 
-    result = invite!(incident: incident, user_ids: targets[:user_ids])
-    @adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: summary_message(result))
-  end
-
-  def summary_message(result)
-    invited_count = result[:invited_user_ids].size
-    already_count = result[:already_in_channel_user_ids].size
-    failed_count = result[:failed_invites].size
-
-    parts = []
-    parts << "Invited #{invited_count} responder#{'s' unless invited_count == 1}." if invited_count.positive?
-    if already_count.positive?
-      mentions = result[:already_in_channel_user_ids].map { |id| "<@#{id}>" }.join(", ")
-      verb = already_count == 1 ? "is" : "are"
-      parts << "#{mentions} #{verb} already in this channel."
-    end
-    parts << "#{failed_count} failed." if failed_count.positive?
-    parts = [ "No responders were invited." ] if parts.empty?
-
-    parts.join(" ")
+    result = invite!(incident: incident, people: targets[:user_ids])
+    @adapter.post_invite_summary(channel_id: channel_id, user_id: user_id, result: result)
   end
 
   private
 
-  def normalized_user_ids(user_ids)
-    Array(user_ids).compact.map(&:to_s).uniq
+  # Two references can name one person, and the platform is what decides that,
+  # so the round is deduped by the account it will be asked about.
+  def distinct(people)
+    Array(people).compact.uniq { |person| platform_user_id(person) }
+  end
+
+  def platform_user_id(person)
+    person.is_a?(WorkspaceMembership) ? person.platform_user_id : person.to_s
   end
 end

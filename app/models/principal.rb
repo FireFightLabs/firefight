@@ -9,6 +9,16 @@ module Principal
     has_many :ability_grants, class_name: "Ability::Grant", as: :principal, dependent: :destroy
   end
 
+  # A polymorphic actor column cannot be eager-loaded with a nested `:user`,
+  # because only a person has one behind them. Preload the ones that do, and
+  # leave the machines alone.
+  def self.preload_users(actors)
+    people = actors.compact.grep(WorkspaceMembership)
+    return if people.empty?
+
+    ActiveRecord::Associations::Preloader.new(records: people, associations: [ :user ]).call
+  end
+
   # Authority held before any grant, as a stable key the permissions UI
   # explains and `implicitly_allowed?` enforces. Keep the two in step.
   def implicit_authority

@@ -21,6 +21,11 @@ module Mcp
     ASSIGN_INCIDENT_ROLE = "assign_incident_role".freeze
     ATTACH_RUNBOOK = "attach_runbook".freeze
     DISMISS_TIMELINE_NOTE = "dismiss_timeline_note".freeze
+    DECLARE_INCIDENT = "declare_incident".freeze
+    POST_INCIDENT_UPDATE = "post_incident_update".freeze
+    RESOLVE_INCIDENT = "resolve_incident".freeze
+    CANCEL_INCIDENT = "cancel_incident".freeze
+    REOPEN_INCIDENT = "reopen_incident".freeze
     SEARCH_APPROVALS = "search_approvals".freeze
     APPROVE_APPROVAL = "approve_approval".freeze
     DENY_APPROVAL = "deny_approval".freeze
@@ -33,16 +38,27 @@ module Mcp
     UPSERT_APPROVAL_RULE = "upsert_approval_rule".freeze
     DELETE_APPROVAL_RULE = "delete_approval_rule".freeze
     SEARCH_ACTIVITY = "search_activity".freeze
+    CREATE_ACTION_ITEM = "create_action_item".freeze
+    ASSIGN_ACTION_ITEM = "assign_action_item".freeze
+    COMPLETE_ACTION_ITEM = "complete_action_item".freeze
+    CLAIM_RUNBOOK_STEP = "claim_runbook_step".freeze
+    LINK_INCIDENT = "link_incident".freeze
+    GIVE_SHOUTOUT = "give_shoutout".freeze
+    ESCALATE_INCIDENT = "escalate_incident".freeze
+    INVITE_RESPONDERS = "invite_responders".freeze
 
     def self.all
       [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
         SearchRunbooks, GetRunbook, UpsertCatalogEntry, DeleteCatalogEntry,
         UpsertRoutingRule, DeleteRoutingRule, UpdateRoutingConfig, UpsertRunbook,
         AssignIncidentRole, AttachRunbook, DismissTimelineNote,
+        DeclareIncident, PostIncidentUpdate, ResolveIncident, CancelIncident, ReopenIncident,
         SearchApprovals, ApproveApproval, DenyApproval,
         GetForm, UpsertCustomField, UpsertFormField,
         ListAbilities, ListPrincipals, UpsertPermissionSet, DeletePermissionSet, GrantAbility, RevokeGrant,
-        UpsertApprovalRule, DeleteApprovalRule, SearchActivity ]
+        UpsertApprovalRule, DeleteApprovalRule, SearchActivity,
+        CreateActionItem, AssignActionItem, CompleteActionItem, ClaimRunbookStep,
+        LinkIncident, GiveShoutout, EscalateIncident, InviteResponders ]
     end
   end
 end

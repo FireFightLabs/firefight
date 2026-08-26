@@ -56,34 +56,26 @@ class IncidentLifecycleService
     })
   end
 
-  # Escalation writes an event, pages someone through a workflow, and schedules
-  # a chase. Slack is its only entry point today, so the guard lives here
-  # rather than on the event, the next entry point inherits it instead of
-  # having to remember it.
-  def escalate(incident, escalated_to_platform_user_id:, reason:, changed_by:)
+  # Escalation writes an event, asks someone to pick the incident up, and
+  # schedules a chase if they do not. The guard lives here rather than on the
+  # event, so every entry point inherits it instead of remembering it.
+  #
+  # `escalated_to` is a member, or the platform id of someone the platform
+  # knows. Both are legitimate, since escalating to a person is not what makes
+  # them a member. The event carries who and why, so the workflow and the chase
+  # need nothing but its id.
+  def escalate(incident, escalated_to:, reason:, changed_by:)
     blocked_reason = incident.escalation_blocked_reason
     raise Incident::NotActive, blocked_reason if blocked_reason
 
     event = incident.incident_events.create!(
       event_type: IncidentEvent::INCIDENT_ESCALATED,
       actor: changed_by,
-      metadata: escalation_target(escalated_to_platform_user_id).merge(reason: reason)
+      metadata: escalation_target(escalated_to).to_metadata.merge(reason: reason)
     )
 
-    IncidentEscalationWorkflow.start!(incident, context: {
-      escalated_by_platform_user_id: changed_by&.platform_user_id,
-      escalated_to_platform_user_id: escalated_to_platform_user_id,
-      escalation_event_id: event.id,
-      reason: reason
-    })
-
-    EscalationAcknowledgementReminderJob.set(wait: ESCALATION_ACK_WAIT).perform_later(
-      incident.id,
-      event.id,
-      changed_by&.platform_user_id,
-      escalated_to_platform_user_id,
-      reason
-    )
+    IncidentEscalationWorkflow.start!(incident, context: { escalation_event_id: event.id })
+    EscalationAcknowledgementReminderJob.set(wait: ESCALATION_ACK_WAIT).perform_later(incident.id, event.id)
 
     event
   end
@@ -257,27 +249,21 @@ class IncidentLifecycleService
   end
 
   # The timeline names the person, never the platform id. A target who is not
-  # yet a member still gets a name and avatar from the platform, since
-  # escalating to someone is not what makes them a billable member.
-  def escalation_target(platform_user_id)
-    member = @workspace.workspace_memberships.find_by(platform_user_id: platform_user_id)
-    if member
-      return {
-        escalated_to_platform_user_id: platform_user_id,
-        escalated_to_member_id: member.id,
-        escalated_to_name: member.actor_display_name,
-        escalated_to_avatar_url: member.user.avatar_url
-      }
-    end
+  # yet a member still gets a name and avatar from the platform.
+  def escalation_target(person)
+    return Incident::EscalationTarget.for_member(person) if person.is_a?(WorkspaceMembership)
 
-    info = @workspace.adapter.get_user_info(user_id: platform_user_id)
-    {
-      escalated_to_platform_user_id: platform_user_id,
-      escalated_to_name: info[:real_name].presence || info[:display_name],
-      escalated_to_avatar_url: info[:avatar_url]
-    }
+    member = @workspace.workspace_memberships.find_by(platform_user_id: person)
+    return Incident::EscalationTarget.for_member(member) if member
+
+    info = @workspace.adapter.get_user_info(user_id: person)
+    Incident::EscalationTarget.new(
+      platform_user_id: person,
+      name: info[:real_name].presence || info[:display_name],
+      avatar_url: info[:avatar_url]
+    )
   rescue AdapterError
-    { escalated_to_platform_user_id: platform_user_id }
+    Incident::EscalationTarget.new(platform_user_id: person)
   end
 
   def announce_role_changes(incident, changes)

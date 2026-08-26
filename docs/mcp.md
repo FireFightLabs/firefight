@@ -4,10 +4,13 @@ Firefight ships a [Model Context Protocol](https://modelcontextprotocol.io) serv
 
 ## Connecting
 
-Mint a token under **Developer → API Keys**:
+Three kinds of credential, by who the call should be attributed to:
 
-- **Personal token** ("acts as you") — reads everything you can see, and writes whatever you can write, which for an admin is everything (`ApiKey#has_permission?` delegates to `WorkspaceMembership#implicitly_permits?` for a personal token, so the token inherits the human's reach exactly). For your own agent sessions.
-- **Service key** scoped per resource and action — for headless agents and CI.
+- **Agent token**, minted under **Gateway → Agents** — the call is attributed to the agent itself. `ApiKey#principal` returns `agent || on_behalf_of || self`, so the agent is what the gateway authorizes, what the ledger records, and what `declared_by` and every timeline `actor` name. For an AI that takes part in incidents under its own name.
+- **Personal token** ("acts as you"), under **Developer → API Keys** — reads everything you can see, and writes whatever you can write, which for an admin is everything (`ApiKey#has_permission?` delegates to `WorkspaceMembership#implicitly_permits?` for a personal token, so the token inherits the human's reach exactly). For your own sessions.
+- **Service key** scoped per resource and action, under **Developer → API Keys** — for headless integrations and CI, attributed to the key.
+
+**Agent tokens are long-lived on purpose.** There is no refresh flow: an agent runs unattended, and what a leaked token can do is bounded by the agent's grants, the approval rules that park its risky calls, and the ledger that records every one, not by an expiry it would have to renew through a flow nobody is present for. The OAuth refresh path below is for third-party clients borrowing a person's authority, which is a different problem. Rotation is an overlap rather than a swap: **Issue a new token** mints a second live credential, the agent keeps running on the old one until its config is updated, and **Tokens → Revoke** ends the old one. Grants and history hang off the agent, so neither moves.
 
 **Claude Code (OAuth — recommended)**
 
@@ -93,10 +96,29 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 | `assign_incident_role` | Assign one person to an incident role, or clear it (omit `member`) |
 | `attach_runbook` | Attach a runbook to an incident by slug, idempotent |
 | `dismiss_timeline_note` | Dismiss one AI-noted milestone from an incident's timeline by id |
+| `declare_incident` | Open an incident against the workspace's Declare form |
+| `post_incident_update` | Post an update against the Update form |
+| `resolve_incident` / `cancel_incident` / `reopen_incident` | Move an incident through its lifecycle |
+| `create_action_item` | Add a piece of work and post it to the channel |
+| `assign_action_item` | Take a piece of work, or hand it to someone (omit `member` to take it) |
+| `complete_action_item` | Mark a piece of work done |
+| `claim_runbook_step` | Take one step of an attached runbook, creating the item behind it |
+| `link_incident` | Record a `related` link, or a `duplicate` that cancels this incident into the other |
+| `escalate_incident` | Ask a named person to pick the incident up, with a DM and a chase |
+| `invite_responders` | Bring people into the incident channel |
+| `give_shoutout` | Thank someone for their work, posted in the channel |
+
+**Participation is the point.** An agent that can open and close an incident but cannot raise work, take it, pull a human in or say what it found is a reporting tool, not a responder. Each of these calls the same service the Slack button and the dashboard call, so an item raised over MCP is indistinguishable from one raised by a person, and the timeline names the agent rather than whoever created its token.
+
+`get_incident` returns `action_items` and `runbooks` with their ids, which is where an agent gets the ids these tools take. Without them the work would be visible and unnameable.
+
+`assign_action_item` and `claim_runbook_step` take the work themselves when `member` is omitted, which is the "I can take this" button. Naming someone else announces the handover, the way Slack does. `escalate_incident` and `invite_responders` differ on purpose: inviting lets people watch, escalating asks one named person to answer and chases them if they do not.
+
+An agent can hold work. `incident_actions.created_by` and `assignee` are polymorphic, as `declared_by` is, so an item can belong to an `Agent` or a service key. A machine has no Slack account to mention, so `Slack::Mrkdwn.mention` names it in bold rather than rendering an empty `<@>`, and the dashboard marks it with a robot rather than a person's initials.
 
 `dismiss_timeline_note` also authorizes as `incidents:update`. It is error correction on the notes Firefight reads out of the channel transcript when an incident ends, described in [ai.md](ai.md). A joke read as a decision, or the wrong person credited. The note is kept and marked dismissed rather than deleted, and stops being returned in `get_incident`'s timeline. Note ids come from that timeline, where each `milestone.noted` entry also carries its `kind`.
 
-`assign_incident_role` authorizes as `incidents:update`. Roles hold one person each, so assigning replaces the current holder; the Incident Lead cannot be cleared, only handed over. `get_incident` returns every configured role with its holder, which is how an agent discovers the slugs it may pass. The rest of the incident lifecycle (declare, status, severity, close) stays out of MCP for now.
+`assign_incident_role` authorizes as `incidents:update`. Roles hold one person each, so assigning replaces the current holder; the Incident Lead cannot be cleared, only handed over. `get_incident` returns every configured role with its holder, which is how an agent discovers the slugs it may pass.
 
 Authorization is the gateway's: admin personal tokens carry the admin's authority; service keys need the explicit `<resource>:<action>` scope. Every write is ledgered (`AbilityInvocation`), and workspace approval policies can park any call as `pending` — the tool result then carries an `approval id`; after a workspace admin approves (Slack buttons or `/app/gateway/approvals`), retry the identical call with `approval_id`.
 
