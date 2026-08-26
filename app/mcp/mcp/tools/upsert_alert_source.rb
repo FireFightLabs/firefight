@@ -34,8 +34,6 @@ module Mcp
         if source
           source.update!({ name: args[:name], enabled: args[:enabled] }.compact)
         else
-          raise ArgumentError, "name is required when creating." if args[:name].blank?
-
           source = workspace.alert_sources.create!(
             name: args[:name],
             provider: args[:provider].presence || AlertSource::PROVIDER_GENERIC

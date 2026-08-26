@@ -31,8 +31,6 @@ module Mcp
         key = upsert_target(workspace, args)
         return respond(ApiKeyPayloads.summary(update(key, args))) if key
 
-        raise ArgumentError, "name is required when creating." if args[:name].blank?
-
         key, token = create(workspace, principal, args)
         respond(ApiKeyPayloads.summary(key).merge(token: token))
       end

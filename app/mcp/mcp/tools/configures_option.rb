@@ -87,7 +87,7 @@ module Mcp
         attributes = attributes_for(model, args).merge(tool.prepared_attributes(args))
 
         option = ActiveRecord::Base.transaction do
-          record = existing ? update(existing, attributes) : create(model, workspace, attributes, args)
+          record = existing ? update(existing, attributes) : create(model, workspace, attributes)
           apply_state(record, args)
           record
         end
@@ -121,11 +121,7 @@ module Mcp
          .compact
       end
 
-      # A creating call needs a name, and saying so beats a validation error
-      # that reads like a database complaint.
-      def self.create(model, workspace, attributes, args)
-        raise ArgumentError, "name is required when creating." if args[:name].blank?
-
+      def self.create(model, workspace, attributes)
         model.create_in_list!(workspace, attributes)
       end
       private_class_method :create

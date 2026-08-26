@@ -66,11 +66,13 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     assert_equal "sev0", content["slug"]
   end
 
-  test "creating without a name says so rather than failing at the database" do
+  # The model owns the rule, so every surface reports the same sentence rather
+  # than each restating it in its own words.
+  test "creating without a name reports what the model refused" do
     _, is_error, text = call_tool(Mcp::Tools::UPSERT_SEVERITY, { rank: 1 }, token: @admin_token)
 
     assert is_error
-    assert_match(/name is required/, text)
+    assert_match(/Name can't be blank/, text)
   end
 
   # Renaming leaves the slug alone, because stored records point at it.

@@ -26,8 +26,6 @@ module Mcp
         agent = upsert_target(workspace, args)
         return respond(AgentPayloads.summary(update(agent, args))) if agent
 
-        raise ArgumentError, "name is required when creating." if args[:name].blank?
-
         agent, token = AgentPayloads.create(workspace, principal, args)
         respond(AgentPayloads.summary(agent).merge(token: token))
       end
