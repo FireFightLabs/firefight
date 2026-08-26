@@ -58,7 +58,7 @@ Firefight is also built to be worked by machines. Any agent can connect over MCP
 - **Agents are first-class**: an agent is its own principal with its own token and its own name on the timeline. It inherits nothing from whoever created it, and no machine can mint another machine
 - **Invocation ledger**: every privileged call is recorded before it runs, with who asked, what for, and whether it was allowed, refused, or held for approval
 - **Governed transcripts**: an agent can read what people actually said in an incident channel, but only once an admin turns it on and grants the ability, with secrets redacted before storage and a retention window you set
-- **Bring your own agent**: Claude Code, an internal bot, whatever you already run. Firefight is where it is allowed to work, not a rival to it
+- **Bring your own agent**: Claude Code, an internal support bot, whatever you already run. It connects over MCP or the API and works the incident
 
 ### AI built in
 - **AI postmortems**: a structured draft generated from the incident's full timeline and channel transcript, ready for human editing
