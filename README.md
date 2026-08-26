@@ -27,8 +27,8 @@
   <a href="https://firefight.app/slack">
     <img src="https://img.shields.io/badge/chat-on%20Slack-blueviolet" alt="Chat with the Firefight community on Slack" />
   </a>
-  <a href="https://x.com/FireFight_app">
-    <img src="https://img.shields.io/twitter/follow/FireFight_app?label=Follow" alt="Follow Firefight on X" />
+  <a href="https://x.com/firefightapp_">
+    <img src="https://img.shields.io/twitter/follow/firefightapp_?label=Follow" alt="Follow Firefight on X" />
   </a>
 </h4>
 
