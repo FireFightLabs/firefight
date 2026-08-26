@@ -54,11 +54,11 @@ Firefight is also built to be worked by machines. Any agent can connect over MCP
 
 ### Built for agents
 - **MCP server**: every incident action and every settings screen has a tool behind it, so an agent can run an incident or set the workspace up without touching a browser
-- **Ability Gateway**: one chokepoint for every privileged call. Grant abilities individually or in named sets, scope them to an environment, and hold the risky ones for human approval
+- **Ability Gateway**: every privileged call goes through one gate. Grant abilities individually or in named sets, scope them to an environment, and hold the risky ones for human approval
 - **Agents are first-class**: an agent is its own principal with its own token and its own name on the timeline. It inherits nothing from whoever created it, and no machine can mint another machine
 - **Invocation ledger**: every privileged call is recorded before it runs, with who asked, what for, and whether it was allowed, refused, or held for approval
 - **Governed transcripts**: an agent can read what people actually said in an incident channel, but only once an admin turns it on and grants the ability, with secrets redacted before storage and a retention window you set
-- **Model-agnostic**: bring your own agent and your own provider. Firefight is the harness, not the investigator
+- **Bring your own agent**: Claude Code, an internal bot, whatever you already run. Firefight is where it is allowed to work, not a rival to it
 
 ### AI built in
 - **AI postmortems**: a structured draft generated from the incident's full timeline and channel transcript, ready for human editing
