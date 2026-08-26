@@ -149,6 +149,17 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("shoutouts can no longer be posted to it") || channelless_blocked_reason("post one")
   end
 
+  # A postmortem is the write-up of something that happened, so there has to be
+  # something to write up. Every surface offering to start one asks this rather
+  # than deciding for itself what "over" means.
+  def postmortem_blocked_reason
+    return "#{identifier} already has a postmortem." if postmortem.present?
+    return "#{identifier} was canceled, so it has nothing to write up." if canceled?
+    return nil if closed?
+
+    "#{identifier} is still open. A postmortem can be written once it is resolved."
+  end
+
   # The one rule the status machine refuses: an incident that is over cannot
   # swap between closed and canceled. Reopen it, then close or cancel.
   def status_change_blocked_reason(new_status)

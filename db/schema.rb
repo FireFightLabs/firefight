@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_130001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_170001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -941,6 +941,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_130001) do
     t.datetime "updated_at", null: false
     t.string "generation_state"
     t.string "generation_error"
+    t.string "generated_by_type", null: false
+    t.index ["generated_by_type", "generated_by_id"], name: "index_postmortems_on_generated_by_type_and_generated_by_id"
     t.index ["incident_id"], name: "index_postmortems_on_incident_id", unique: true
   end
 
@@ -1245,7 +1247,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_130001) do
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortems", "incidents"
-  add_foreign_key "postmortems", "workspace_memberships", column: "generated_by_id"
   add_foreign_key "runbook_steps", "runbooks"
   add_foreign_key "runbooks", "workspaces"
   add_foreign_key "shoutouts", "incidents"

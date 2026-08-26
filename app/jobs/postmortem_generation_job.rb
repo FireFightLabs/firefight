@@ -17,9 +17,10 @@ class PostmortemGenerationJob < ApplicationJob
 
   discard_on ActiveRecord::RecordNotFound
 
-  def perform(incident_id, generated_by_id)
+  # The postmortem records who started it, so the job is not told a second time.
+  # That copy could only disagree, and it could not name an agent at all.
+  def perform(incident_id)
     incident = Incident.find(incident_id)
-    member = WorkspaceMembership.find(generated_by_id)
     return unless incident.postmortem&.generating?
 
     unless Entitlements.allows?(incident.workspace, Entitlements::AI)
@@ -28,7 +29,7 @@ class PostmortemGenerationJob < ApplicationJob
       return
     end
 
-    PostmortemGenerationService.new(incident.workspace).generate!(incident, generated_by: member)
+    PostmortemGenerationService.new(incident.workspace).generate!(incident, generated_by: incident.postmortem.generated_by)
   end
 
   # The placeholder stays, marked failed, so the page can say what happened
@@ -43,15 +44,18 @@ class PostmortemGenerationJob < ApplicationJob
     record_failure(FirefightAi::TransientError.new("retries exhausted"))
   end
 
+  # Whoever asked for it hears that it failed. An agent has no account to be
+  # messaged at, so there is nobody to tell and the failure is on the record
+  # either way.
   def notify_failure(error, terminal:)
-    incident_id, member_id = arguments
+    incident_id, = arguments
     incident = Incident.find_by(id: incident_id)
-    member = WorkspaceMembership.find_by(id: member_id)
-    return unless incident && member && incident.channel_id && member.platform_user_id
+    author = incident&.postmortem&.generated_by
+    return unless incident && incident.channel_id && author&.platform_user_id
 
     WorkspaceAdapter.for(incident.workspace).post_postmortem_generation_failed(
       channel_id: incident.channel_id,
-      user_id: member.platform_user_id,
+      user_id: author.platform_user_id,
       incident: incident,
       reason: failure_reason(error),
       retrying: !terminal

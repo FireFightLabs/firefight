@@ -67,6 +67,10 @@ module Mcp
     LIST_API_KEYS = "list_api_keys".freeze
     UPSERT_API_KEY = "upsert_api_key".freeze
     DELETE_API_KEY = "delete_api_key".freeze
+    GET_POSTMORTEM = "get_postmortem".freeze
+    START_POSTMORTEM = "start_postmortem".freeze
+    UPDATE_POSTMORTEM = "update_postmortem".freeze
+    SET_POSTMORTEM_STATUS = "set_postmortem_status".freeze
 
     def self.all
       [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
@@ -85,7 +89,8 @@ module Mcp
         UpsertIncidentType, DeleteIncidentType, UpsertIncidentRole, DeleteIncidentRole,
         UpsertAlertSource, DeleteAlertSource, UpsertWebhook, DeleteWebhook,
         ListAgents, UpsertAgent, RotateAgentToken, RevokeAgentToken, DeleteAgent,
-        ListApiKeys, UpsertApiKey, DeleteApiKey ]
+        ListApiKeys, UpsertApiKey, DeleteApiKey,
+        GetPostmortem, StartPostmortem, UpdatePostmortem, SetPostmortemStatus ]
     end
   end
 end

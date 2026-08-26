@@ -94,22 +94,16 @@ class IncidentsController < InertiaController
   def generate_postmortem
     incident = current_workspace.incidents.find(params[:incident_id])
     return redirect_to incident_path(incident), alert: "AI features are not available." unless defined?(FirefightAi)
-    return redirect_to incident_postmortem_path(incident), alert: "Postmortem already exists." if incident.postmortem.present?
-    unless incident.incident_status.closed?
-      alert = if incident.canceled?
-        "#{incident.identifier} was canceled, so it has no postmortem to write."
-      else
-        "Postmortems can be created once the incident is resolved."
-      end
-      return redirect_to incident_path(incident), alert: alert
-    end
+
+    blocked_reason = incident.postmortem_blocked_reason
+    return redirect_to incident_path(incident), alert: blocked_reason if blocked_reason
 
     gate = Entitlements.check(current_workspace, Entitlements::AI)
     return redirect_to incident_path(incident), alert: gate.message if gate.blocked?
 
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
 
-    PostmortemGenerationJob.perform_later(incident.id, member.id) if Postmortem.start_generation!(incident, by: member)
+    PostmortemGenerationJob.perform_later(incident.id) if Postmortem.start_generation!(incident, by: member)
 
     redirect_to incident_postmortem_path(incident)
   end
@@ -117,7 +111,9 @@ class IncidentsController < InertiaController
   def start_blank_postmortem
     incident = current_workspace.incidents.find(params[:incident_id])
     return redirect_to incident_postmortem_path(incident) if incident.postmortem.present?
-    return redirect_to incident_path(incident), alert: "Postmortems can be created once the incident is resolved." unless incident.incident_status.closed?
+
+    blocked_reason = incident.postmortem_blocked_reason
+    return redirect_to incident_path(incident), alert: blocked_reason if blocked_reason
 
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
 

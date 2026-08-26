@@ -32,7 +32,9 @@ class Postmortem < ApplicationRecord
   }.freeze
 
   belongs_to :incident
-  belongs_to :generated_by, class_name: "WorkspaceMembership"
+  # Polymorphic for the same reason declared_by is: an agent can write one,
+  # and saying a person did would be a lie the ledger exists to prevent.
+  belongs_to :generated_by, polymorphic: true
   has_many :postmortem_updates, dependent: :destroy
 
   validates :generation_state, inclusion: { in: GENERATION_STATES }, allow_nil: true
