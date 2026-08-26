@@ -2,7 +2,7 @@
   Firefight
 </h1>
 <p align="center">
-  <b>Open-source, agent-ready incident management.</b><br />
+  <b>Open-source, agent-ready incident management</b><br />
   Run incidents from Slack, and let your AI agents work them too, with every action they take permissioned, approved, and on the record.
 </p>
 
