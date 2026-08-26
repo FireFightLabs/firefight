@@ -1,0 +1,5 @@
+# Caddy gets a certificate from Let's Encrypt on first boot and renews it, so
+# FIREFIGHT_HOST has to be a real hostname pointing at this machine.
+{$FIREFIGHT_HOST} {
+	reverse_proxy firefight:80
+}

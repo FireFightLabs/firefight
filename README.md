@@ -8,7 +8,7 @@
 
 <h4 align="center">
   <a href="https://firefight.app">Website</a> ·
-  <a href="#self-hosting">Self-hosting</a> ·
+  <a href="SELF_HOSTING.md">Self-hosting</a> ·
   <a href="#local-development">Local development</a> ·
   <a href="https://github.com/FireFightLabs/firefight/releases">Releases</a> ·
   <a href="https://firefight.app/slack">Community</a>
@@ -79,17 +79,18 @@ Agents can do all of it too. Connect one over MCP or the REST API and it declare
 | | |
 |---|---|
 | **Firefight Cloud** | The fastest way to get started: managed hosting with AI features included. Sign in at [app.firefight.app](https://app.firefight.app). |
-| **Self-hosting** | Run Firefight on your own infrastructure. See [Self-hosting](#self-hosting) below. |
+| **Self-hosting** | Run Firefight on your own infrastructure, free under the AGPL. See [SELF_HOSTING.md](SELF_HOSTING.md). |
 
 ## Self-hosting
 
-Firefight ships as a Docker image with every release:
+Firefight ships as a Docker image with every release, and the repository carries a `docker-compose.yml` that runs it with Postgres and TLS.
 
 ```sh
-docker pull ghcr.io/firefightlabs/firefight:latest
+cp .env.selfhost.example .env   # fill in your hostname, Slack app, and secrets
+docker compose up -d
 ```
 
-You'll need PostgreSQL 18+, a Slack app, and the environment variables documented in [`.env.example`](.env.example). Each [release](https://github.com/FireFightLabs/firefight/releases) includes upgrade notes; upgrading is `docker pull` plus `bin/rails db:prepare`.
+You need a machine with Docker, a hostname pointing at it, and a Slack app, which Firefight ships the manifest for. **[SELF_HOSTING.md](SELF_HOSTING.md)** walks through all of it, plus upgrades, backups, and running it without Compose.
 
 ## Local development
 
