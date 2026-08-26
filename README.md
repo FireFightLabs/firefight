@@ -131,7 +131,7 @@ docker compose up -d
 
 You need a machine with Docker, a hostname pointing at it, and a Slack app, which Firefight ships the manifest for. **[SELF_HOSTING.md](SELF_HOSTING.md)** walks through all of it, plus upgrades, backups, and running it without Compose.
 
-Your instance talks to Slack, to Postgres, and to whatever AI provider you configure. It sends nothing to us: no telemetry, no usage reporting, no license check calling home.
+Your instance talks to Slack, to Postgres, and to whatever AI provider you configure. It sends us nothing.
 
 ## Local development
 
