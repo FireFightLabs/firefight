@@ -1136,14 +1136,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_200001) do
     t.text "refresh_token"
     t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
-    t.boolean "transcript_access_enabled", default: false, null: false
-    t.integer "transcript_retention_days", default: 30
     t.boolean "archive_channel_enabled", default: true, null: false
     t.integer "archive_channel_delay_minutes", default: 60, null: false
     t.datetime "suspended_at"
     t.string "suspended_reason"
     t.datetime "disconnected_at"
     t.string "disconnected_reason"
+    t.boolean "transcript_access_enabled", default: false, null: false
+    t.integer "transcript_retention_days", default: 30
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["platform", "platform_id"], name: "index_workspaces_on_platform_and_platform_id", unique: true
     t.index ["platform"], name: "index_workspaces_on_platform"
