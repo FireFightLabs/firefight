@@ -78,7 +78,7 @@ Agents can do all of it too. Connect one over MCP or the REST API and it declare
 
 | | |
 |---|---|
-| **Firefight Cloud** | The fastest way to get started: managed hosting with AI features included. Coming soon at [firefight.app](https://firefight.app). |
+| **Firefight Cloud** | The fastest way to get started: managed hosting with AI features included. Sign in at [app.firefight.app](https://app.firefight.app). |
 | **Self-hosting** | Run Firefight on your own infrastructure. See [Self-hosting](#self-hosting) below. |
 
 ## Self-hosting
