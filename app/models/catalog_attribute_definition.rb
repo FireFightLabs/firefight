@@ -58,6 +58,14 @@ class CatalogAttributeDefinition < ApplicationRecord
   def reference? = attribute_type == TYPE_REFERENCE
   def select? = attribute_type == TYPE_SELECT
 
+  # What a reference attribute points at. Callers that write a type name it by
+  # slug rather than by id, so reading one back has to answer in the same terms.
+  def reference_type
+    return nil unless reference? && reference_type_id.present?
+
+    catalog_type.workspace.catalog_types.find_by(id: reference_type_id)
+  end
+
   def reference_type_id
     config["reference_type_id"]
   end
