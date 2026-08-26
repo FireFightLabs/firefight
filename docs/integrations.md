@@ -42,6 +42,8 @@ Block form wraps execution. Handle form returns an `Authorization` the caller fi
 | Service key | nothing, explicit grants only |
 | `Agent` | nothing, explicit grants only |
 
+An `Agent` row is created under **Gateway → Agents**, which mints its first token in the same step, since an agent without a credential can do nothing and making that a second step is a step everyone forgets. It arrives with zero grants: it can authenticate and nothing else until someone grants it something on the Permissions screen, where it appears alongside members and service keys (`Ability::Principal.all`). Its tokens are managed on the Agents screen rather than on **Developer → API Keys**, which filters agent keys out (`agent_id: nil`) so an agent's lifecycle lives in one place. Disabling an agent leaves the row listed with a way back on, because a vanished row still holds its slug and its grants.
+
 Enabling a capability **is** the admin's deliberate decision, so it takes effect without a second grant step. The rule that must not bend: **machines never inherit a human's reach.** A service key or agent reaches an external system only through a grant someone created for it.
 
 **Incident participation is member-level authority**, because responding to an incident is what a member is for, and it has to read the same on every surface — a responder closing an incident from Slack, from the API with a personal token, and through MCP is one person doing one thing. `WorkspaceMembership::PARTICIPATION` is the whole list. Configuring the workspace stays admin territory. This is deliberately *implicit* rather than a grant every workspace would have to hand out: making it revocable would mean deny-grants, and a permission system with a deny list stops being readable.

@@ -17,20 +17,16 @@ class Interactions::InviteRespondersHandlerTest < ActiveSupport::TestCase
   test "invites selected users and clears modal" do
     service = mock("incident_invite_service")
     IncidentInviteService.expects(:new).with(@workspace).returns(service)
-    service.expects(:invite!).with(incident: @incident, user_ids: [ "U11111111", "U22222222" ]).returns({
-      invited_user_ids: [ "U11111111", "U22222222" ],
-      already_in_channel_user_ids: [],
-      failed_invites: []
-    })
-    service.expects(:summary_message).returns("Invited 2 responders.")
+    result = IncidentInviteService::Result.new(
+      invited_user_ids: [ "U11111111", "U22222222" ], already_in_channel_user_ids: [], failed_invites: []
+    )
+    service.expects(:invite!).with(incident: @incident, people: [ "U11111111", "U22222222" ]).returns(result)
 
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
-    adapter.expects(:post_ephemeral).with do |args|
-      args[:channel_id] == @incident.channel_id &&
-        args[:user_id] == @member.platform_user_id &&
-        args[:text].include?("Invited 2 responders")
-    end
+    adapter.expects(:post_invite_summary).with(
+      channel_id: @incident.channel_id, user_id: @member.platform_user_id, result: result
+    )
 
     result = Interactions::InviteRespondersHandler.execute(
       build_interaction(selected_users: [ "U11111111", "U22222222" ])

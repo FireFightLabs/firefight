@@ -264,7 +264,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
       assert_enqueued_with(job: EscalationAcknowledgementReminderJob) do
         event = @service.escalate(
           @incident,
-          escalated_to_platform_user_id: target.platform_user_id,
+          escalated_to: target,
           reason: "Need backend support",
           changed_by: @member
         )
@@ -278,7 +278,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     assert_equal target.display_name, event.metadata["escalated_to_name"]
 
     workflow = SolidWorkflow::Workflow.find_by!(name: "incident.escalation.v1", subject: @incident)
-    assert_equal @member.platform_user_id, workflow.context["escalated_by_platform_user_id"]
     assert_equal event.id, workflow.context["escalation_event_id"]
   end
 
@@ -288,7 +287,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
 
     event = @service.escalate(
       @incident,
-      escalated_to_platform_user_id: "U_NOT_A_MEMBER",
+      escalated_to: "U_NOT_A_MEMBER",
       reason: "Need backend support",
       changed_by: @member
     )
@@ -307,7 +306,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
         error = assert_raises(Incident::NotActive) do
           @service.escalate(
             @incident,
-            escalated_to_platform_user_id: workspace_memberships(:bob_workspace_one).platform_user_id,
+            escalated_to: workspace_memberships(:bob_workspace_one),
             reason: "Need backend support",
             changed_by: @member
           )

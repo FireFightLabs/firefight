@@ -142,8 +142,10 @@ class SettingsController < InertiaController
     }
   end
 
+  # Agent credentials are managed on the Agents screen, so they are not mixed
+  # in with a person's own tokens and the workspace's service keys.
   def api_keys
-    scope = current_workspace.api_keys.where(deleted_at: nil)
+    scope = current_workspace.api_keys.where(deleted_at: nil, agent_id: nil)
     scope = scope.where(workspace_membership_id: current_membership.id) unless current_membership.admin_access?
 
     render inertia: "settings/api-keys", props: {

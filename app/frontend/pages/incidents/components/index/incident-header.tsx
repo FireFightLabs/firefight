@@ -10,7 +10,7 @@ import { formatDuration } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MetaCell } from "@/pages/incidents/components/index/meta-cell"
-import { PersonChip } from "@/pages/incidents/components/index/person-chip"
+import { ActorChip } from "@/pages/incidents/components/index/actor-chip"
 import { IncidentMenu } from "@/pages/incidents/components/index/incident-menu"
 import { InlineSelect } from "@/pages/incidents/components/index/inline-select"
 import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
@@ -182,7 +182,7 @@ export function IncidentHeader({
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-4">
         <MetaCell label="Lead">
           <InlineSelect
-            trigger={<PersonChip person={incident.lead} fallback="Unassigned" />}
+            trigger={<ActorChip actor={incident.lead} fallback="Unassigned" />}
             choices={leadCandidates}
             selected={incident.leadId ?? null}
             path={assignIncidentRolePath(incident.id)}
@@ -191,7 +191,7 @@ export function IncidentHeader({
           />
         </MetaCell>
         <MetaCell label="Declared by">
-          <PersonChip person={incident.declaredBy} fallback="-" />
+          <ActorChip actor={incident.declaredBy} fallback="-" />
         </MetaCell>
         <MetaCell label="Declared">
           <div className="flex items-baseline gap-1.5">

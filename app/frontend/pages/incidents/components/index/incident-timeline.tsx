@@ -17,12 +17,14 @@ import {
   IconFlame,
   IconGitMerge,
   IconHandGrab,
+  IconKey,
   IconLink,
   IconListCheck,
   IconPaperclip,
   IconPencil,
   IconPin,
   IconPinnedOff,
+  IconRobot,
   IconSparkles,
   IconUserCheck,
   IconUserX,
@@ -30,7 +32,8 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { TimelineEvent } from "@/pages/incidents/types"
-import { PersonChip } from "@/pages/incidents/components/index/person-chip"
+import { ActorChip } from "@/pages/incidents/components/index/actor-chip"
+import { PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import {
   DismissNoteAction,
   NoteQuote,
@@ -134,8 +137,26 @@ function dotAccent(event: TimelineEvent): DotAccent {
   return eventAccent[event.eventType] ?? "neutral"
 }
 
+// A machine's row wears its own mark instead of the event's, since who acted
+// is the thing a reader needs first.
+const MACHINE_ICONS = {
+  [PRINCIPAL_KINDS.AGENT]: IconRobot,
+  [PRINCIPAL_KINDS.API_KEY]: IconKey,
+}
+
+function eventIcon(event: TimelineEvent) {
+  const machineIcon = MACHINE_ICONS[event.actorKind as keyof typeof MACHINE_ICONS]
+  if (machineIcon) {
+    return machineIcon
+  }
+  if (event.automated && !event.milestone) {
+    return IconFlame
+  }
+  return eventIcons[event.eventType]
+}
+
 function EventDot({ event }: { event: TimelineEvent }) {
-  const Icon = event.automated && !event.milestone ? IconFlame : eventIcons[event.eventType]
+  const Icon = eventIcon(event)
   const accent = dotAccent(event)
 
   return (
@@ -182,7 +203,7 @@ function EventSubject({ event }: { event: TimelineEvent }) {
     return <NoteStatement event={event} />
   }
   if (event.person) {
-    return <PersonChip person={event.person} fallback="" />
+    return <ActorChip actor={event.person} fallback="" />
   }
   if (!event.subject) {
     return null
@@ -238,7 +259,7 @@ function ActionCard({ action }: { action: NonNullable<TimelineEvent["action"]> }
           {actionStatusLabels[action.status]}
         </span>
         <span className="text-muted-foreground/50">·</span>
-        <PersonChip person={action.assignee ?? undefined} fallback="Unassigned" />
+        <ActorChip actor={action.assignee ?? undefined} fallback="Unassigned" />
       </span>
     </button>
   )

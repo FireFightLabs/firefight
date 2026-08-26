@@ -18,6 +18,8 @@ app/controllers/concerns/api_authentication.rb  # Bearer token auth + permission
 app/controllers/api/v1/api_controller.rb        # Base controller (error handling, pagination)
 app/controllers/api/v1/incidents_controller.rb   # Incident CRUD
 app/controllers/api/v1/timeline_controller.rb    # Incident timeline (index) + dismiss one AI note
+app/controllers/api/v1/action_items_controller.rb # Incident action items: list, create, take, hand over, finish
+app/controllers/api/v1/incident_participation_controller.rb # Escalate, invite, link, shoutout, claim a runbook step
 app/controllers/api/v1/custom_fields_controller.rb # Custom field values
 app/controllers/api/v1/catalog/                  # Catalogue read/write endpoints
 app/controllers/api/v1/severities_controller.rb  # Read-only
@@ -35,6 +37,23 @@ app/models/api_key.rb                            # Token auth, permissions, cach
 app/models/idempotency_key.rb                    # Deduplication
 app/views/api/v1/                                # Jbuilder response templates
 ```
+
+**Participation endpoints**: everything a responder does inside an incident, as opposed to moving its status, which stays on `PATCH /api/v1/incidents/:id`. All of them authorize as `incidents:update` and call the same services Slack and the dashboard call, so the timeline cannot tell where the action came from.
+
+```
+GET    /api/v1/incidents/:incident_id/action_items
+POST   /api/v1/incidents/:incident_id/action_items       # description, kind, assignee_id
+PATCH  /api/v1/incidents/:incident_id/action_items/:id   # assignee_id and/or status
+POST   /api/v1/incidents/:id/escalate                    # member_id, reason
+POST   /api/v1/incidents/:id/invite                      # member_ids
+POST   /api/v1/incidents/:id/link                        # other_incident_id, relationship
+POST   /api/v1/incidents/:id/shoutout                    # member_id, message
+POST   /api/v1/incidents/:id/runbook_steps/claim         # runbook_id, step_id, member_id
+```
+
+`PATCH action_items/:id` is one call for three verbs because from the caller's side each is the same sentence: this item now looks like this. Sending `assignee_id: null` takes the item for the key itself (a pick-up, no announcement), naming someone else hands it over (announced), and `status: "done"` finishes it. Which event is recorded is `IncidentActionService`'s decision, not the body's.
+
+`member_id` fields accept an email or a platform user id, never a database id, matching the MCP tools. A reference that resolves to nobody is a 404 rather than a silent no-op.
 
 **Timeline endpoints**: `GET /api/v1/incidents/:incident_id/timeline` returns the incident's recorded events in order, paginated, each with `event_type`, `description`, `actor` and, for `milestone.noted`, a `milestone` object carrying `kind`, `statement`, `said_by`, `message_text` and `permalink`. That is how an agent learns how an incident was debugged without reading the channel. `PATCH /api/v1/incidents/:incident_id/timeline/:id/dismiss` (`incidents:update`) dismisses one AI note. Anything that is not a note is refused 422. Dismissed notes leave the index, matching the MCP `get_incident` timeline and `dismiss_timeline_note`.
 

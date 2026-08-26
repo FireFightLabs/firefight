@@ -7,7 +7,6 @@ module Interactions
       workspace = interaction.workspace
       incident = workspace.incidents.find(interaction.metadata.incident_id)
 
-      from_member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
       recipient_user_id = interaction.values.dig("recipient_block", "recipient_select", "selected_user")
       to_member = if recipient_user_id
         WorkspaceMemberProvisioner.find_or_provision!(
@@ -16,23 +15,13 @@ module Interactions
           adapter: workspace.adapter
         )
       end
-      message = interaction.values.dig("message_block", "message_input", "value")
 
-      shoutout = Shoutout.create!(
+      ShoutoutService.new(workspace).give(
         incident: incident,
-        from_member: from_member,
-        to_member: to_member,
-        message: message
+        from: workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id),
+        to: to_member,
+        message: interaction.values.dig("message_block", "message_input", "value")
       )
-
-      result = workspace.adapter.post_shoutout_message(
-        channel_id: incident.channel_id,
-        incident: incident,
-        from_user_id: interaction.user_id,
-        recipient_user_id: recipient_user_id,
-        message: message
-      )
-      shoutout.update_column(:slack_message_ts, result[:message_id])
 
       nil
     rescue ActiveRecord::RecordNotFound, JSON::ParserError

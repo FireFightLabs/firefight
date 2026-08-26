@@ -13,7 +13,10 @@ class TimelineEventSerializer < BaseSerializer
     event.event_type
   end
 
-  PERSON_TYPE = "{ name: string; initials: string; avatarUrl?: string }".freeze
+  # Mirrors ActorCompactSerializer. The generator only resolves a serializer
+  # reference for a has_one, and person is built by hand for people this
+  # workspace no longer has a membership row for.
+  ACTOR_TYPE = "{ name: string; initials: string; avatarUrl?: string; kind: string }".freeze
 
   type :string
   def actor
@@ -23,6 +26,13 @@ class TimelineEventSerializer < BaseSerializer
   type :boolean
   def automated
     event.automated?
+  end
+
+  # A machine that acts in an incident is marked as one on its own row, so
+  # nobody reads an agent's work as a colleague's.
+  type :string, optional: true
+  def actor_kind
+    event.actor&.actor_kind
   end
 
   type :string, optional: true
@@ -51,7 +61,7 @@ class TimelineEventSerializer < BaseSerializer
     { label: label, href: subject_href }
   end
 
-  type PERSON_TYPE, optional: true
+  type ACTOR_TYPE, optional: true
   def person
     return nil unless person_backed?
 
@@ -70,7 +80,7 @@ class TimelineEventSerializer < BaseSerializer
     end
   end
 
-  type "{ id: string; description: string; status: string; assignee: #{PERSON_TYPE} | null }", optional: true
+  type "{ id: string; description: string; status: string; assignee: #{ACTOR_TYPE} | null }", optional: true
   def action
     update = event.eventable
     return nil unless update.is_a?(IncidentActionUpdate)
@@ -189,10 +199,17 @@ class TimelineEventSerializer < BaseSerializer
     ActorCompactSerializer.one(member)
   end
 
+  # Someone Slack knows but this workspace no longer has a membership for.
+  # Still a person, so the chip renders them as one.
   def named_person(name, avatar_url)
     return nil if name.blank?
 
-    { name: name, initials: name.split.map { |part| part[0] }.join.upcase, avatarUrl: avatar_url }
+    {
+      name: name,
+      initials: name.split.map { |part| part[0] }.join.upcase,
+      avatarUrl: avatar_url,
+      kind: Ability::Principal::KIND_USER
+    }
   end
 
   def subject_href

@@ -97,7 +97,7 @@ module Slack
 
       def self.item_blocks(action)
         context_parts = [
-          { type: "mrkdwn", text: action.assigned? ? "Assigned to <@#{action.assignee.platform_user_id}>" : "Unassigned" }
+          { type: "mrkdwn", text: action.assigned? ? "Assigned to #{Slack::Mrkdwn.mention(action.assignee)}" : "Unassigned" }
         ]
         if (status_label = STATUS_LABEL[action.status])
           context_parts << { type: "mrkdwn", text: "  |  #{status_label}" }

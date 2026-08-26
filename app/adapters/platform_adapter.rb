@@ -248,6 +248,51 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Everyone who was pulled into the incident channel, and everyone who was
+  # already there, reported back to whoever asked.
+  # @param result [IncidentInviteService::Result]
+  # @return [Hash] { success: true }
+  def post_invite_summary(channel_id:, user_id:, result:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Nobody in what they typed resolved to a person, said in the vocabulary of
+  # the command they ran.
+  # @param targets [Hash] { user_ids:, unresolved_handles:, had_target_tokens: }
+  # @return [Hash] { success: true }
+  def post_invite_unresolved(channel_id:, user_id:, targets:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @param from [#actor_display_name] whoever is thanking
+  # @param to [#actor_display_name, nil] whoever is being thanked
+  # @return [Hash] { message_id: ... }
+  def post_shoutout_message(channel_id:, incident:, from:, to:, message:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @param escalated_by [#actor_display_name] whoever asked
+  # @param escalated_to [Incident::EscalationTarget] whoever was asked
+  # @return [Hash] { message_id: ... }
+  def post_escalation_message(channel_id:, incident:, escalated_by:, escalated_to:, reason: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id: ... }
+  def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by:, escalated_to:, reason: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id: ... }
+  def post_escalation_direct_message(user_id:, incident:, escalated_by:, escalation_event_id:, reason: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id: ... }
+  def post_escalation_nudge_direct_message(user_id:, incident:, escalated_by:, escalation_event_id:, reason: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Modals / forms
 
   # @param view [Hash] Opaque platform-specific view descriptor.

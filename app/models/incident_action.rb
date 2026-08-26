@@ -12,8 +12,10 @@ class IncidentAction < ApplicationRecord
   STATUSES = [ STATUS_OPEN, STATUS_IN_PROGRESS, STATUS_DONE ].freeze
 
   belongs_to :incident
-  belongs_to :created_by, class_name: "WorkspaceMembership"
-  belongs_to :assignee, class_name: "WorkspaceMembership", optional: true
+  # Polymorphic because an agent takes part as itself, never on a person's
+  # behalf. Both hold a WorkspaceMembership, an Agent or an ApiKey.
+  belongs_to :created_by, polymorphic: true
+  belongs_to :assignee, polymorphic: true, optional: true
   belongs_to :runbook_step, optional: true
   has_many :incident_action_updates, dependent: :destroy
 
@@ -41,7 +43,15 @@ class IncidentAction < ApplicationRecord
   end
 
   def completable?
-    !done?
+    completion_blocked_reason.nil?
+  end
+
+  # A sentence or nil, so an entry point reports the rule rather than
+  # restating it.
+  def completion_blocked_reason
+    return nil unless done?
+
+    "That item is already done."
   end
 
   def open?
@@ -76,8 +86,15 @@ class IncidentAction < ApplicationRecord
     OriginReference.new(label: "View #{action_type == ACTION_TYPE_FOLLOWUP ? 'follow-up' : 'action'}", url: nil, message_ts: message_ts)
   end
 
+  # Both actors are polymorphic, so the people among them get their users
+  # preloaded and the machines are left alone.
+  def self.with_actors(actions)
+    Principal.preload_users(actions.flat_map { |action| [ action.created_by, action.assignee ] })
+    actions
+  end
+
   def to_context_hash
-    { type: action_type, description:, status:, assignee: assignee&.user&.name }
+    { type: action_type, description:, status:, assignee: assignee&.actor_display_name }
   end
 
   private

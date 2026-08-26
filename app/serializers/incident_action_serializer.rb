@@ -12,18 +12,13 @@ class IncidentActionSerializer < BaseSerializer
     status: { type: '"open" | "in_progress" | "done"' }
   )
 
-  type :string, optional: true
-  def assignee
-    action.assignee&.user&.name
+  # Whoever holds it, person or machine. The row marks a machine as one, so
+  # it ships the same actor shape every other surface renders.
+  has_one :assignee, serializer: ActorCompactSerializer, optional: true do
+    action.assignee
   end
 
-  type :string, optional: true
-  def assignee_avatar_url
-    action.assignee&.user&.avatar_url
-  end
-
-  type :string
-  def created_by
-    action.created_by.user.name
+  has_one :created_by, serializer: ActorCompactSerializer do
+    action.created_by
   end
 end

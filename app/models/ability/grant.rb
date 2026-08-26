@@ -57,6 +57,21 @@ module Ability
         raise ActiveRecord::RecordInvalid.new(grant.tap { |record| record.errors.add(:expires_at, "is not a valid date") })
     end
 
+    # The same reconciliation from a permissions matrix, which is how every
+    # principal that holds system actions is granted them.
+    def self.replace_system_grants!(principal:, workspace:, matrix:)
+      desired = Array(matrix).flat_map do |resource, actions|
+        Array(actions).map { |action| Ability::Action.system_key(resource, action) }
+      end
+      unknown = desired - Ability::Action.grantable_keys
+      raise ArgumentError, "unknown permission #{unknown.first}" if unknown.any?
+
+      sync_direct!(
+        principal: principal, workspace: workspace,
+        desired_keys: desired, managed_keys: Ability::Action.grantable_keys
+      )
+    end
+
     # Reconciles a principal's direct grants over a bounded set of action
     # keys: grants inside `managed_keys` but absent from `desired_keys` are
     # removed, missing ones created. Grants outside `managed_keys` (e.g.

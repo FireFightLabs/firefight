@@ -28,7 +28,7 @@ class WorkspaceMembership < ApplicationRecord
 
   # Actor interface (shared with ApiKey) for polymorphic event/snapshot attribution.
   def actor_display_name = display_name
-  def actor_kind = "user"
+  def actor_kind = Ability::Principal::KIND_USER
 
   def admin_access?
     admin_role? || owner_role?

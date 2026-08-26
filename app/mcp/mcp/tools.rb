@@ -38,6 +38,14 @@ module Mcp
     UPSERT_APPROVAL_RULE = "upsert_approval_rule".freeze
     DELETE_APPROVAL_RULE = "delete_approval_rule".freeze
     SEARCH_ACTIVITY = "search_activity".freeze
+    CREATE_ACTION_ITEM = "create_action_item".freeze
+    ASSIGN_ACTION_ITEM = "assign_action_item".freeze
+    COMPLETE_ACTION_ITEM = "complete_action_item".freeze
+    CLAIM_RUNBOOK_STEP = "claim_runbook_step".freeze
+    LINK_INCIDENT = "link_incident".freeze
+    GIVE_SHOUTOUT = "give_shoutout".freeze
+    ESCALATE_INCIDENT = "escalate_incident".freeze
+    INVITE_RESPONDERS = "invite_responders".freeze
 
     def self.all
       [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
@@ -48,7 +56,9 @@ module Mcp
         SearchApprovals, ApproveApproval, DenyApproval,
         GetForm, UpsertCustomField, UpsertFormField,
         ListAbilities, ListPrincipals, UpsertPermissionSet, DeletePermissionSet, GrantAbility, RevokeGrant,
-        UpsertApprovalRule, DeleteApprovalRule, SearchActivity ]
+        UpsertApprovalRule, DeleteApprovalRule, SearchActivity,
+        CreateActionItem, AssignActionItem, CompleteActionItem, ClaimRunbookStep,
+        LinkIncident, GiveShoutout, EscalateIncident, InviteResponders ]
     end
   end
 end

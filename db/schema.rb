@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -253,6 +253,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_membership_id"
+    t.uuid "agent_id"
+    t.index ["agent_id"], name: "index_api_keys_on_agent_id"
     t.index ["created_by_id"], name: "index_api_keys_on_created_by_id"
     t.index ["token_digest"], name: "index_api_keys_on_token_digest", unique: true
     t.index ["workspace_id", "deleted_at"], name: "index_api_keys_on_workspace_id_and_deleted_at"
@@ -354,6 +356,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
     t.datetime "deleted_at"
     t.jsonb "changed_fields", default: [], null: false
     t.string "actor_type", null: false
+    t.string "created_by_type"
+    t.string "assignee_type"
     t.index ["actor_id"], name: "index_incident_action_updates_on_actor_id"
     t.index ["assignee_id"], name: "index_incident_action_updates_on_assignee_id"
     t.index ["created_by_id"], name: "index_incident_action_updates_on_created_by_id"
@@ -376,7 +380,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
     t.datetime "updated_at", null: false
     t.datetime "deleted_at"
     t.uuid "runbook_step_id"
+    t.string "created_by_type"
+    t.string "assignee_type"
     t.index ["assignee_id"], name: "index_incident_actions_on_assignee_id"
+    t.index ["assignee_type", "assignee_id"], name: "index_incident_actions_on_assignee_type_and_assignee_id"
     t.index ["deleted_at"], name: "index_incident_actions_on_deleted_at"
     t.index ["incident_id", "action_type"], name: "index_incident_actions_on_incident_id_and_action_type"
     t.index ["incident_id", "runbook_step_id"], name: "index_incident_actions_on_incident_and_runbook_step", unique: true, where: "((runbook_step_id IS NOT NULL) AND (deleted_at IS NULL))"
@@ -512,6 +519,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
     t.uuid "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "created_by_type"
     t.index ["created_by_id"], name: "index_incident_relationships_on_created_by_id"
     t.index ["incident_id", "related_incident_id", "relationship_type"], name: "idx_incident_relationships_unique_pair", unique: true
     t.index ["incident_id"], name: "index_incident_relationships_on_incident_id"
@@ -972,6 +980,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
     t.string "slack_message_ts"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "from_member_type"
+    t.string "to_member_type"
     t.index ["incident_id"], name: "index_shoutouts_on_incident_id"
   end
 
@@ -1156,6 +1166,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
   add_foreign_key "alerts", "incidents"
   add_foreign_key "alerts", "policy_rules", column: "matched_policy_rule_id", on_delete: :nullify
   add_foreign_key "alerts", "workspaces"
+  add_foreign_key "api_keys", "agents"
   add_foreign_key "api_keys", "workspace_memberships"
   add_foreign_key "api_keys", "workspace_memberships", column: "created_by_id"
   add_foreign_key "api_keys", "workspaces"
@@ -1170,12 +1181,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
   add_foreign_key "idempotency_keys", "workspaces"
   add_foreign_key "incident_action_updates", "incident_actions"
   add_foreign_key "incident_action_updates", "incidents"
-  add_foreign_key "incident_action_updates", "workspace_memberships", column: "assignee_id"
-  add_foreign_key "incident_action_updates", "workspace_memberships", column: "created_by_id"
   add_foreign_key "incident_actions", "incidents"
   add_foreign_key "incident_actions", "runbook_steps"
-  add_foreign_key "incident_actions", "workspace_memberships", column: "assignee_id"
-  add_foreign_key "incident_actions", "workspace_memberships", column: "created_by_id"
   add_foreign_key "incident_conditions", "incident_field_definitions"
   add_foreign_key "incident_conditions", "workspaces"
   add_foreign_key "incident_events", "incidents"
@@ -1191,7 +1198,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
   add_foreign_key "incident_forms", "workspaces"
   add_foreign_key "incident_relationships", "incidents"
   add_foreign_key "incident_relationships", "incidents", column: "related_incident_id"
-  add_foreign_key "incident_relationships", "workspace_memberships", column: "created_by_id"
   add_foreign_key "incident_role_assignments", "incident_roles"
   add_foreign_key "incident_role_assignments", "incidents"
   add_foreign_key "incident_role_assignments", "workspace_memberships"
@@ -1243,8 +1249,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
   add_foreign_key "runbook_steps", "runbooks"
   add_foreign_key "runbooks", "workspaces"
   add_foreign_key "shoutouts", "incidents"
-  add_foreign_key "shoutouts", "workspace_memberships", column: "from_member_id"
-  add_foreign_key "shoutouts", "workspace_memberships", column: "to_member_id"
   add_foreign_key "solid_workflow_events", "solid_workflow_steps", column: "step_id", on_delete: :cascade
   add_foreign_key "solid_workflow_events", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade
   add_foreign_key "solid_workflow_steps", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade

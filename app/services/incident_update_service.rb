@@ -86,36 +86,38 @@ class IncidentUpdateService
     )
   end
 
-  def post_escalation_message(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+  # An escalation event holds who asked, who was asked and why, so each of
+  # these reads it rather than being handed the same three values again.
+  def post_escalation_message(incident, event:)
     @workspace.adapter.post_escalation_message(
       channel_id: incident.channel_id,
       incident: incident,
-      escalated_by_platform_user_id: escalated_by_platform_user_id,
-      escalated_to_platform_user_id: escalated_to_platform_user_id,
-      reason: reason
+      escalated_by: event.actor,
+      escalated_to: escalation_target(event),
+      reason: event.metadata["reason"]
     )
   end
 
-  def post_escalation_announcement_thread(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+  def post_escalation_announcement_thread(incident, event:)
     return unless incident.announcement_message_ts
 
     @workspace.adapter.post_escalation_announcement_thread(
       channel_id: @workspace.incidents_channel_id,
       parent_message_id: incident.announcement_message_ts,
       incident: incident,
-      escalated_by_platform_user_id: escalated_by_platform_user_id,
-      escalated_to_platform_user_id: escalated_to_platform_user_id,
-      reason: reason
+      escalated_by: event.actor,
+      escalated_to: escalation_target(event),
+      reason: event.metadata["reason"]
     )
   end
 
-  def post_escalation_direct_message(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, escalation_event_id:, reason: nil)
+  def post_escalation_direct_message(incident, event:)
     @workspace.adapter.post_escalation_direct_message(
-      user_id: escalated_to_platform_user_id,
+      user_id: escalation_target(event).platform_user_id,
       incident: incident,
-      escalated_by_platform_user_id: escalated_by_platform_user_id,
-      escalation_event_id: escalation_event_id,
-      reason: reason
+      escalated_by: event.actor,
+      escalation_event_id: event.id,
+      reason: event.metadata["reason"]
     )
   end
 
@@ -128,13 +130,13 @@ class IncidentUpdateService
     )
   end
 
-  def post_escalation_nudge_direct_message(incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, escalation_event_id:, reason: nil)
+  def post_escalation_nudge_direct_message(incident, event:)
     @workspace.adapter.post_escalation_nudge_direct_message(
-      user_id: escalated_to_platform_user_id,
+      user_id: escalation_target(event).platform_user_id,
       incident: incident,
-      escalated_by_platform_user_id: escalated_by_platform_user_id,
-      escalation_event_id: escalation_event_id,
-      reason: reason
+      escalated_by: event.actor,
+      escalation_event_id: event.id,
+      reason: event.metadata["reason"]
     )
   end
 
@@ -151,5 +153,11 @@ class IncidentUpdateService
       previous_severity_name: previous_severity_name,
       previous_type_name: previous_type_name
     )
+  end
+
+  private
+
+  def escalation_target(event)
+    Incident::EscalationTarget.from_metadata(@workspace, event.metadata)
   end
 end

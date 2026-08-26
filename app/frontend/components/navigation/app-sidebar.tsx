@@ -8,6 +8,7 @@ import {
   IconChecklist,
   IconForms,
   IconHistory,
+  IconRobot,
   IconShieldCheck,
   IconLock,
   IconBellRinging,
@@ -44,6 +45,7 @@ import {
   developerApiKeysPath,
   developerWebhooksPath,
   gatewayActivityPath,
+  gatewayAgentsPath,
   gatewayApprovalsPath,
   gatewayPermissionsPath,
   settingsAlertSourcesPath,
@@ -82,6 +84,7 @@ const navSections: SidebarNavSection[] = [
   {
     label: "Gateway",
     items: [
+      { title: "Agents", url: gatewayAgentsPath(), icon: IconRobot, adminOnly: true },
       { title: "Approvals", url: gatewayApprovalsPath(), icon: IconShieldCheck },
       { title: "Activity", url: gatewayActivityPath(), icon: IconHistory, adminOnly: true },
       { title: "Permissions", url: gatewayPermissionsPath(), icon: IconLock, adminOnly: true },

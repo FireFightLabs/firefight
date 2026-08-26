@@ -46,6 +46,15 @@ class IncidentActionService
     incident.incident_actions.active.find_by(runbook_step: runbook_step)
   end
 
+  # Taking a piece of work and handing it over differ only in who ends up
+  # holding it, so a caller that knows the assignee does not also have to
+  # decide which of the two this is.
+  def assign_action(action:, assignee:, assigned_by:)
+    return pick_up_action(action: action, picked_up_by: assigned_by) if assignee == assigned_by && action.claimable?
+
+    reassign_action(action: action, assignee: assignee, reassigned_by: assigned_by)
+  end
+
   def pick_up_action(action:, picked_up_by:)
     action.record_change!(IncidentEvent::ACTION_PICKED_UP, by: picked_up_by) do
       action.update!(assignee: picked_up_by, status: IncidentAction::STATUS_IN_PROGRESS)

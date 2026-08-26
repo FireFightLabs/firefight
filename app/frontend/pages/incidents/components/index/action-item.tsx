@@ -1,5 +1,5 @@
 import { router } from "@inertiajs/react"
-import { IconDotsVertical, IconUser } from "@tabler/icons-react"
+import { IconDotsVertical, IconKey, IconRobot, IconUser } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -10,8 +10,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import type { ActorCompact } from "@/types/serializers"
 import type { IncidentAction } from "@/pages/incidents/types"
 import type { InlineChoice } from "@/pages/incidents/components/index/inline-select"
+import { PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import { actionAnchorId } from "@/pages/incidents/lib/action-anchor"
 import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
 import {
@@ -19,6 +21,28 @@ import {
   completeIncidentActionPath,
   pickUpIncidentActionPath,
 } from "@/lib/routes"
+
+// A machine holding an item wears its own mark, since who has the work is the
+// first thing a reader checks.
+const KIND_ICONS = {
+  [PRINCIPAL_KINDS.AGENT]: IconRobot,
+  [PRINCIPAL_KINDS.API_KEY]: IconKey,
+}
+
+function AssigneeMark({ assignee }: { assignee: ActorCompact }) {
+  const KindIcon = KIND_ICONS[assignee.kind as keyof typeof KIND_ICONS] ?? IconUser
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {assignee.avatarUrl ? (
+        <img src={assignee.avatarUrl} alt="" className="size-3.5 rounded-full object-cover" />
+      ) : (
+        <KindIcon className="size-3" />
+      )}
+      {assignee.name}
+    </span>
+  )
+}
 
 // Taking it yourself and handing it over are separate events, which is why
 // they are separate items rather than one picker that happens to include you.
@@ -102,18 +126,7 @@ export function ActionItem({
       </div>
       <div className="mt-1 flex items-center gap-1.5 pl-[27px] text-xs text-muted-foreground/60">
         {action.assignee ? (
-          <span className="inline-flex items-center gap-1.5">
-            {action.assigneeAvatarUrl ? (
-              <img
-                src={action.assigneeAvatarUrl}
-                alt=""
-                className="size-3.5 rounded-full object-cover"
-              />
-            ) : (
-              <IconUser className="size-3" />
-            )}
-            {action.assignee}
-          </span>
+          <AssigneeMark assignee={action.assignee} />
         ) : (
           <span className="italic text-muted-foreground/40">Unassigned</span>
         )}

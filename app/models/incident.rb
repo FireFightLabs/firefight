@@ -97,10 +97,7 @@ class Incident < ApplicationRecord
   # includes. Everyone reading a list of incidents names the declarer, so the
   # people among them get their users in one query rather than one each.
   def self.preload_declarers(incidents)
-    people = incidents.map(&:declared_by).grep(WorkspaceMembership)
-    return incidents if people.empty?
-
-    ActiveRecord::Associations::Preloader.new(records: people, associations: [ :user ]).call
+    Principal.preload_users(incidents.map(&:declared_by))
     incidents
   end
 
@@ -184,9 +181,8 @@ class Incident < ApplicationRecord
       records: updates, associations: [ :incident_status, :incident_severity, :incident_type, { lead: :user } ]
     ).call
     updates.each_cons(2) { |earlier, later| later.previous_update = earlier }
-    ActiveRecord::Associations::Preloader.new(
-      records: events.map(&:eventable).grep(IncidentActionUpdate), associations: [ { assignee: :user } ]
-    ).call
+    action_updates = events.map(&:eventable).grep(IncidentActionUpdate)
+    Principal.preload_users(events.map(&:actor) + action_updates.map(&:assignee))
     references = IncidentEvent::References.for(self, events)
     events.each { |event| event.references = references }
     events

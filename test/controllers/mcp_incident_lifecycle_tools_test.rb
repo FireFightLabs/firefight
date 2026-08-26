@@ -64,6 +64,71 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
     assert_equal "api_key", incident.declared_by.actor_kind
   end
 
+  # The point of agents: one takes part under its own name, with only the
+  # abilities it was granted, and the record says the agent did it.
+  test "an agent declares under its own name, not a person's" do
+    agent, token = create_agent(
+      workspace: @workspace, created_by: @membership, name: "Support agent", slug: "support_agent",
+      permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read create] }
+    )
+
+    _, is_error = call_tool(Mcp::Tools::DECLARE_INCIDENT, {
+      answers: { name: "Raised from a support ticket", severity: severity_slug }
+    }, token: token)
+
+    assert_not is_error
+    incident = @workspace.incidents.find_by!(name: "Raised from a support ticket")
+    assert_equal agent, incident.declared_by
+    assert_equal "agent", incident.declared_by.actor_kind
+    assert_equal "Support agent", incident.declared_by.actor_display_name
+  end
+
+  test "an agent granted only reads cannot move an incident" do
+    _, token = create_agent(
+      workspace: @workspace, created_by: @membership, name: "Watcher", slug: "watcher",
+      permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read] }
+    )
+
+    _, is_error = call_tool(
+      Mcp::Tools::CANCEL_INCIDENT, { incident: @incident.identifier, answers: {} }, token: token
+    )
+
+    assert is_error
+    assert_not @incident.reload.canceled?
+  end
+
+  test "an agent with no grants can authenticate and do nothing" do
+    _, token = create_agent(
+      workspace: @workspace, created_by: @membership, name: "Ungranted", slug: "ungranted"
+    )
+
+    _, is_error = call_tool(Mcp::Tools::DECLARE_INCIDENT, {
+      answers: { name: "Should never exist", severity: severity_slug }
+    }, token: token)
+
+    assert is_error
+    assert_nil @workspace.incidents.find_by(name: "Should never exist")
+  end
+
+  # Rotation moves the credential, never the identity: the same agent keeps
+  # its grants and stays the actor on everything it does next.
+  test "an agent keeps its identity across a token rotation" do
+    agent, = create_agent(
+      workspace: @workspace, created_by: @membership, name: "Rotator", slug: "rotator",
+      permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read create] }
+    )
+    _, rotated = ApiKey.create_with_token!(
+      workspace: @workspace, created_by: @membership, agent: agent, name: "Rotator token 2"
+    )
+
+    _, is_error = call_tool(Mcp::Tools::DECLARE_INCIDENT, {
+      answers: { name: "After the rotation", severity: severity_slug }
+    }, token: rotated)
+
+    assert_not is_error
+    assert_equal agent, @workspace.incidents.find_by!(name: "After the rotation").declared_by
+  end
+
   test "declaring says what the workspace asks for rather than failing silently" do
     _, is_error, text = call_tool(Mcp::Tools::DECLARE_INCIDENT, { answers: { name: "No severity" } })
 

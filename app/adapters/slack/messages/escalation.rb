@@ -2,12 +2,12 @@ module Slack
   module Messages
     module Escalation
       # Identical body used for the in-channel post and the announcement thread.
-      def self.build(_incident, escalated_by_platform_user_id:, escalated_to_platform_user_id:, reason: nil)
+      def self.build(_incident, escalated_by:, escalated_to:, reason: nil)
         blocks = [
           { type: "header", text: { type: "plain_text", text: ":rotating_light: Incident Escalated", emoji: true } },
           { type: "divider" },
-          { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Escalated to:* <@#{escalated_to_platform_user_id}>" } },
-          { type: "section", text: { type: "mrkdwn", text: ":mega: *Escalated by:* <@#{escalated_by_platform_user_id}>" } }
+          { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Escalated to:* #{Mrkdwn.mention(escalated_to)}" } },
+          { type: "section", text: { type: "mrkdwn", text: ":mega: *Escalated by:* #{Mrkdwn.mention(escalated_by)}" } }
         ]
         blocks << { type: "section", text: { type: "mrkdwn", text: "> #{reason}" } } if reason.present?
         blocks
@@ -16,7 +16,7 @@ module Slack
       # DM sent to the person being escalated to. `variant: :initial` is the
       # first ping. `variant: :nudge` is the reminder sent if they haven't
       # acknowledged.
-      def self.direct_message(incident, escalated_by_platform_user_id:, escalation_event_id:, reason: nil, variant: :initial)
+      def self.direct_message(incident, escalated_by:, escalation_event_id:, reason: nil, variant: :initial)
         config = case variant
         when :initial then { header_emoji: ":rotating_light:", header_suffix: "Escalation", body: "*You've been pulled into this incident*" }
         when :nudge   then { header_emoji: ":bell:",            header_suffix: "Escalation Reminder", body: "*This incident is still waiting for your response*" }
@@ -25,7 +25,7 @@ module Slack
         blocks = [
           { type: "header", text: { type: "plain_text", text: "#{config[:header_emoji]} #{incident.identifier} · #{config[:header_suffix]}", emoji: true } },
           { type: "section", text: { type: "mrkdwn", text: config[:body] } },
-          { type: "section", text: { type: "mrkdwn", text: ":mega: *Escalated by:* <@#{escalated_by_platform_user_id}>" } },
+          { type: "section", text: { type: "mrkdwn", text: ":mega: *Escalated by:* #{Mrkdwn.mention(escalated_by)}" } },
           { type: "section", text: { type: "mrkdwn", text: ":speech_balloon: *Channel:* <##{incident.channel_id}>" } }
         ]
         blocks << { type: "section", text: { type: "mrkdwn", text: "> #{reason}" } } if reason.present?

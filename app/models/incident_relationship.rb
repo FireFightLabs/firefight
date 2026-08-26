@@ -5,7 +5,7 @@ class IncidentRelationship < ApplicationRecord
 
   belongs_to :incident
   belongs_to :related_incident, class_name: "Incident"
-  belongs_to :created_by, class_name: "WorkspaceMembership", optional: true
+  belongs_to :created_by, polymorphic: true, optional: true
 
   validates :relationship_type, presence: true, inclusion: { in: RELATIONSHIP_TYPES }
   validate :incidents_in_same_workspace
