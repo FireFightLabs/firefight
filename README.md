@@ -37,11 +37,11 @@
 
 ## What is Firefight?
 
-Firefight is an incident management platform built for the way teams actually respond: in Slack, under pressure, at 3am. Declare an incident with a slash command and Firefight creates the channel, posts the announcement, assigns the lead, tracks every status change, and keeps stakeholders updated, then generates the postmortem when it's over.
+Firefight runs incidents from Slack. Declare one with a slash command and it creates the channel, posts the announcement, assigns the lead, tracks every status change, keeps stakeholders updated, and generates the postmortem when it's over.
 
-Everything that happens is recorded as an immutable, audit-grade event timeline, visible in a clean web dashboard alongside your service catalog, custom fields, and API keys.
+Every change is recorded as an immutable event with full attribution. The web dashboard shows that timeline alongside your service catalog, custom fields, alert routing, and API keys.
 
-Firefight is also built to be worked by machines. Any agent can connect over MCP or the REST API and do what a responder does: declare, investigate, take action items, escalate, write the postmortem. It acts under its own name, reaches only what you granted it, waits for a human on the calls you said should wait, and leaves every attempt in the ledger whether it was allowed or refused. Bring your own agent and your own model. Firefight is where it is allowed to work, not the thing doing the thinking.
+Agents can do all of it too. Connect one over MCP or the REST API and it declares incidents, reads the channel, takes action items, escalates, and writes the postmortem. It acts under its own name, reaches only what you granted it, waits for approval on the calls you marked, and every attempt is logged whether it was allowed or refused.
 
 ## Features
 
