@@ -20,7 +20,7 @@ module Mcp
       )
 
       def self.perform_with_principal(workspace:, principal:, args:)
-        _incident, action = ActionItemWrite.find!(workspace, args[:incident], args[:action_item])
+        action = ActionItemWrite.find!(workspace, args[:incident], args[:action_item])
 
         IncidentActionService.new(workspace).assign_action(
           action: action,

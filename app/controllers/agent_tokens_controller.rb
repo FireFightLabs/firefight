@@ -1,5 +1,5 @@
-# Revoking one of an agent's tokens. Rotation leaves two live at once, so the
-# old one needs a way out that does not touch the agent or its grants.
+# Rotation leaves two tokens live at once, so the old one needs a way out that
+# does not touch the agent or its grants.
 class AgentTokensController < InertiaController
   authorizes Ability::Action::RESOURCE_PERMISSIONS, delete: :destroy
 

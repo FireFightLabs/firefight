@@ -1,7 +1,6 @@
-# Taking part in an incident from the dashboard rather than moving it: asking
-# a named person to respond, bringing people into the channel, and thanking
-# someone. The same services Slack and the API call, so the timeline cannot
-# tell where the action came from.
+# Taking part in an incident from the dashboard rather than moving it. The
+# same services Slack and the API call, so the timeline cannot tell where the
+# action came from.
 class IncidentParticipationController < InertiaController
   authorizes Ability::Action::RESOURCE_INCIDENTS, update: %i[escalate invite shoutout]
 

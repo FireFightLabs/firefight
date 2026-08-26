@@ -79,7 +79,7 @@ class ApiKey < ApplicationRecord
 
   # Who this request is authorized AS: the human behind a personal token,
   # or the key itself for a service key.
-  # The token is the credential, this is who it is. An agent's token acts as
+  # The token is the credential. This is who it is. An agent's token acts as
   # the agent, a personal token as the person, and a service key as itself.
   def principal
     agent || on_behalf_of || self

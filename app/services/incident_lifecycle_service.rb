@@ -61,8 +61,8 @@ class IncidentLifecycleService
   # event, so every entry point inherits it instead of remembering it.
   #
   # `escalated_to` is a member, or the platform id of someone the platform
-  # knows. Both are legitimate: escalating to a person is not what makes them
-  # a member. The event carries who and why, so the workflow and the chase
+  # knows. Both are legitimate, since escalating to a person is not what makes
+  # them a member. The event carries who and why, so the workflow and the chase
   # need nothing but its id.
   def escalate(incident, escalated_to:, reason:, changed_by:)
     blocked_reason = incident.escalation_blocked_reason

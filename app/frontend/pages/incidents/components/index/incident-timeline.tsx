@@ -28,8 +28,10 @@ import {
   IconSparkles,
   IconUserCheck,
   IconUserX,
+  type Icon,
 } from "@tabler/icons-react"
 
+import type { ActorCompact } from "@/types/serializers"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { TimelineEvent } from "@/pages/incidents/types"
 import { ActorChip } from "@/pages/incidents/components/index/actor-chip"
@@ -139,13 +141,13 @@ function dotAccent(event: TimelineEvent): DotAccent {
 
 // A machine's row wears its own mark instead of the event's, since who acted
 // is the thing a reader needs first.
-const MACHINE_ICONS = {
+const MACHINE_ICONS: Partial<Record<ActorCompact["kind"], Icon>> = {
   [PRINCIPAL_KINDS.AGENT]: IconRobot,
   [PRINCIPAL_KINDS.API_KEY]: IconKey,
 }
 
 function eventIcon(event: TimelineEvent) {
-  const machineIcon = MACHINE_ICONS[event.actorKind as keyof typeof MACHINE_ICONS]
+  const machineIcon = event.actorKind && MACHINE_ICONS[event.actorKind]
   if (machineIcon) {
     return machineIcon
   }

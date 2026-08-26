@@ -1,8 +1,8 @@
 module Slack
   module Messages
     module Invite
-      # What the person who ran the invite gets back. Everything it says is
-      # about people, so it names them rather than reporting counts alone.
+      # Everything this says is about people, so it names them rather than
+      # reporting counts alone.
       # Nobody to invite, said in the vocabulary of the command they ran.
       def self.unresolved(targets)
         unless targets[:had_target_tokens]

@@ -18,7 +18,7 @@ module Mcp
       )
 
       def self.perform_with_principal(workspace:, principal:, args:)
-        _incident, action = ActionItemWrite.find!(workspace, args[:incident], args[:action_item])
+        action = ActionItemWrite.find!(workspace, args[:incident], args[:action_item])
         blocked_reason = action.completion_blocked_reason
         return Mcp::ToolDispatcher.error_response(blocked_reason) if blocked_reason
 

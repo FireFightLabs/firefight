@@ -1,5 +1,5 @@
 import { router } from "@inertiajs/react"
-import { IconDotsVertical, IconKey, IconRobot, IconUser } from "@tabler/icons-react"
+import { IconDotsVertical, IconKey, IconRobot, IconUser, type Icon } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,13 +24,13 @@ import {
 
 // A machine holding an item wears its own mark, since who has the work is the
 // first thing a reader checks.
-const KIND_ICONS = {
+const KIND_ICONS: Partial<Record<ActorCompact["kind"], Icon>> = {
   [PRINCIPAL_KINDS.AGENT]: IconRobot,
   [PRINCIPAL_KINDS.API_KEY]: IconKey,
 }
 
 function AssigneeMark({ assignee }: { assignee: ActorCompact }) {
-  const KindIcon = KIND_ICONS[assignee.kind as keyof typeof KIND_ICONS] ?? IconUser
+  const KindIcon = KIND_ICONS[assignee.kind] ?? IconUser
 
   return (
     <span className="inline-flex items-center gap-1.5">

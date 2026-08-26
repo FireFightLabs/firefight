@@ -1,4 +1,4 @@
-import { IconKey, IconRobot } from "@tabler/icons-react"
+import { IconKey, IconRobot, type Icon } from "@tabler/icons-react"
 
 import type { ActorCompact } from "@/types/serializers"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -6,7 +6,7 @@ import { PRINCIPAL_KINDS } from "@/lib/generated/constants"
 
 // A machine gets the same chip a person does, marked so nobody reads an
 // agent's work as a colleague's.
-const MACHINE_ICONS = {
+const MACHINE_ICONS: Partial<Record<ActorCompact["kind"], Icon>> = {
   [PRINCIPAL_KINDS.AGENT]: IconRobot,
   [PRINCIPAL_KINDS.API_KEY]: IconKey,
 }
@@ -16,7 +16,7 @@ export function ActorChip({ actor, fallback }: { actor?: ActorCompact; fallback:
     return <span className="text-muted-foreground">{fallback}</span>
   }
 
-  const MachineIcon = MACHINE_ICONS[actor.kind as keyof typeof MACHINE_ICONS]
+  const MachineIcon = MACHINE_ICONS[actor.kind]
 
   return (
     <div className="flex items-center gap-2">

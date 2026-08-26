@@ -16,7 +16,7 @@ class TimelineEventSerializer < BaseSerializer
   # Mirrors ActorCompactSerializer. The generator only resolves a serializer
   # reference for a has_one, and person is built by hand for people this
   # workspace no longer has a membership row for.
-  ACTOR_TYPE = "{ name: string; initials: string; avatarUrl?: string; kind: string }".freeze
+  ACTOR_TYPE = "{ name: string; initials: string; avatarUrl?: string; kind: #{ActorCompactSerializer::KIND_UNION} }"
 
   type :string
   def actor
@@ -29,8 +29,9 @@ class TimelineEventSerializer < BaseSerializer
   end
 
   # A machine that acts in an incident is marked as one on its own row, so
-  # nobody reads an agent's work as a colleague's.
-  type :string, optional: true
+  # nobody reads an agent's work as a colleague's. Absent when nobody acted,
+  # which is what an automated entry looks like.
+  type ActorCompactSerializer::KIND_UNION, optional: true
   def actor_kind
     event.actor&.actor_kind
   end

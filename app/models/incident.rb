@@ -26,7 +26,7 @@ class Incident < ApplicationRecord
   include Incident::Serialization
 
   belongs_to :workspace
-  # Polymorphic for the same reason IncidentEvent#actor is: an agent can
+  # Polymorphic for the same reason IncidentEvent#actor is. An agent can
   # declare an incident, and saying a person did it would be a lie the ledger
   # exists to prevent.
   belongs_to :declared_by, polymorphic: true, optional: true

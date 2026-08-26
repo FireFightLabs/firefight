@@ -6,8 +6,8 @@ class Agent < ApplicationRecord
   include Principal
 
   belongs_to :workspace
-  # Plural because rotation runs two at once: the new token is minted and put
-  # in place before the old one is revoked.
+  # Plural because rotation runs two at once, the new one minted and put in
+  # place before the old one is revoked.
   has_many :api_keys, dependent: :destroy, inverse_of: :agent
 
   validates :name, presence: true

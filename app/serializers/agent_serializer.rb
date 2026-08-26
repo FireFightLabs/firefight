@@ -32,8 +32,8 @@ class AgentSerializer < BaseSerializer
     agent.last_used_at&.utc&.iso8601
   end
 
-  # How many abilities it holds. An agent with none can authenticate and do
-  # nothing, which is the state worth seeing at a glance.
+  # An agent with none can authenticate and do nothing, which is the state
+  # worth seeing at a glance.
   type :number
   def grant_count
     agent.ability_grants.size

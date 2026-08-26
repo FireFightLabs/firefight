@@ -1,5 +1,5 @@
 # Agents are principals, so they are the gateway's business rather than the
-# developer's: what an agent may do is a permissions decision, and its token is
+# developer's. What an agent may do is a permissions decision, and its token is
 # only the credential it presents.
 class AgentsController < InertiaController
   authorizes Ability::Action::RESOURCE_PERMISSIONS,
