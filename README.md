@@ -47,7 +47,7 @@ It is also built for the machines on your team. Agents connect over MCP or the R
 
 ## Why Firefight?
 
-Incident response is usually held together with glue. An alerting tool, a chat thread, a doc template, a status page, and a process doc that describes how they fit, which is the first thing to come apart under pressure.
+An alerting tool, a chat thread, a doc template, a status page. Nothing holds them together except a process doc, and nobody opens a process doc at 3am.
 
 - **The first twenty minutes go to setup.** Opening the channel, working out who to pull in, posting the first update. The incident has a head start before anyone is even in the room.
 - **The answers end up buried.** Critical detail sits in DMs, threads, and someone's dashboard. Whoever joins late reads two hundred messages to learn what everyone else already knows.
@@ -98,7 +98,7 @@ It is AGPL-3.0, so you can read every line, run it yourself, and never be locked
 - **Web dashboard**: the incident list, the incident itself, the postmortem editor, and every settings screen
 - **REST API**: the whole product over HTTP, from declaring an incident to configuring every settings screen, with bearer-token auth, granular per-key permissions, idempotency keys, and an OpenAPI document covering every operation
 - **Outbound webhooks**: subscribe external systems to incident events, with delivery tracking and retries
-- **Self-hostable**: one container and a Postgres database, with no phone-home
+- **Self-hostable**: one container and a Postgres database. No telemetry, no usage reporting, no licence check calling home
 
 ## Documentation
 
