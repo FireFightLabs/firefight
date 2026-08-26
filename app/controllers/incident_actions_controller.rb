@@ -32,25 +32,25 @@ class IncidentActionsController < InertiaController
   # owns the difference, including that a handover announces and taking your
   # own work does not.
   def pick_up
-    act(:pick_up_action, picked_up_by: current_member) { |action| action.open? && !action.assigned? }
+    act(:claimable?, :pick_up_action, picked_up_by: current_member)
   end
 
   def assign
     assignee = current_workspace.workspace_memberships.find(params.require(:member_id))
-    act(:reassign_action, assignee: assignee, reassigned_by: current_member) { |action| !action.done? }
+    act(:completable?, :reassign_action, assignee: assignee, reassigned_by: current_member)
   end
 
   def complete
-    act(:complete_action, completed_by: current_member) { |action| !action.done? }
+    act(:completable?, :complete_action, completed_by: current_member)
   end
 
   private
 
-  def act(operation, **arguments)
+  def act(guard, operation, **arguments)
     incident = current_workspace.incidents.find(params[:incident_id])
     action = incident.incident_actions.active.find(params[:id])
 
-    return redirect_to(incident_path(incident)) unless yield(action)
+    return redirect_to(incident_path(incident)) unless action.public_send(guard)
 
     begin
       IncidentActionService.new(current_workspace).public_send(operation, action: action, **arguments)

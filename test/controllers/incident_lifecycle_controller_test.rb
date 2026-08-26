@@ -125,6 +125,28 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_not @incident.reload.canceled?
   end
 
+  # A field the responder's own answers made applicable has to survive the
+  # submit. Validating against the stored incident instead of the answers made
+  # the form show it and then refuse it as an unknown field.
+  test "a field a submitted answer brings into scope is accepted, not rejected" do
+    critical = @workspace.incident_severities.active.find_by!(slug: "critical")
+    @incident.update!(incident_severity: @workspace.incident_severities.active.where.not(id: critical.id).first)
+    conditional_field(on_severity: critical)
+
+    answers = update_answers.merge(severity: critical.slug, exec_comms: "sent")
+
+    shown = IncidentFormPrompt.new(
+      @workspace, incident: @incident, form_slug: IncidentForm::SLUG_UPDATE, answers: answers.stringify_keys
+    ).fields.map(&:key)
+    assert_includes shown, "exec_comms", "the form should offer the field once severity is Critical"
+
+    patch incident_lifecycle_path(@incident, IncidentForm::SLUG_UPDATE), params: { answers: answers }
+
+    assert_nil flash[:alert]
+    assert_equal critical, @incident.reload.incident_severity
+    assert_equal "sent", @incident.custom_fields["exec_comms"]
+  end
+
   # Reopening
 
   test "reopening a closed incident puts it back on the default live status" do
@@ -276,6 +298,30 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
       severity: @workspace.incident_severities.active.first.slug,
       summary: "EU customers only"
     }
+  end
+
+  # A custom field the workspace only asks about at one severity.
+  def conditional_field(on_severity:)
+    definition = @workspace.incident_field_definitions.create!(
+      name: "Exec comms sent", slug: "exec_comms",
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE,
+      position: @workspace.incident_field_definitions.maximum(:position).to_i + 1
+    )
+    form = @workspace.incident_forms.find_by!(lifecycle_event: IncidentForm::SLUG_UPDATE)
+    field = form.incident_form_fields.create!(
+      field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_CUSTOM,
+      incident_field_definition: definition,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL,
+      position: 99
+    )
+    field.incident_conditions.create!(
+      workspace: @workspace,
+      condition_field: IncidentCondition::FIELD_SEVERITY,
+      operator: IncidentCondition::OPERATOR_ONE_OF,
+      values: [ on_severity.id ]
+    )
   end
 
   def resolve_answers

@@ -6,7 +6,7 @@ module Interactions
     def self.execute(interaction)
       workspace = interaction.workspace
       action = IncidentAction.in_workspace(workspace).find(interaction.action_value)
-      return nil if action.done?
+      return nil unless action.completable?
 
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 

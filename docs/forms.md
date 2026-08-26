@@ -37,6 +37,8 @@ and resolves a lead from a platform user id it may have to provision. The
 dashboard posts JSON and resolves a lead from a membership id. Both hand the
 same two hashes to the same model.
 
+**One context, built from the answers.** `IncidentConditionEvaluator.context_for(incident, workspace:, answers:)` is the only place that decides what the incident will hold once a submission lands. Rendering the form and validating it read the same call, because the two drifting apart is how a field gets shown and then refused as unknown. `validate_submission` returns `visible_system_keys` alongside the values, so no caller resolves a second time to work out what was asked.
+
 **Which fields apply is never the browser's answer.** A field marked
 `dispatches` re-fetches `GET /app/incidents/:id/form/:slug` with the answers so
 far, because `moot_for_context?` and every condition live in the resolver. This

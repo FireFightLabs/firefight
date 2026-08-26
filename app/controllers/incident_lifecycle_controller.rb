@@ -12,41 +12,17 @@ class IncidentLifecycleController < InertiaController
   # a dispatching field changes, because which fields apply is the resolver's
   # answer and never the browser's.
   def form
-    incident = find_incident
-    prompt = IncidentFormPrompt.new(
-      current_workspace,
-      incident: incident,
-      form_slug: form_slug,
-      answers: answers
-    )
-
-    render json: { fields: IncidentPromptFieldSerializer.many(prompt.fields) }
+    render json: { fields: IncidentPromptFieldSerializer.many(prompt(find_incident).fields) }
   end
 
   # Declaring has no incident yet, so it reads the same Declare form Slack
   # opens with nothing to prefill from.
   def declare_form
-    prompt = IncidentFormPrompt.new(
-      current_workspace,
-      incident: nil,
-      form_slug: IncidentForm::SLUG_DECLARE,
-      answers: answers
-    )
-
-    render json: { fields: IncidentPromptFieldSerializer.many(prompt.fields) }
+    render json: { fields: IncidentPromptFieldSerializer.many(prompt(nil, IncidentForm::SLUG_DECLARE).fields) }
   end
 
   def declare
-    validated = IncidentFormResolver.new(current_workspace).validate_submission!(
-      IncidentForm::SLUG_DECLARE, answers, context: declare_context
-    )
-    submission = IncidentFormSubmission.new(
-      current_workspace,
-      incident: nil,
-      form_slug: IncidentForm::SLUG_DECLARE,
-      system_attrs: validated[:system_attrs],
-      custom_fields: validated[:custom_fields]
-    )
+    submission = validated_submission(nil, IncidentForm::SLUG_DECLARE)
 
     incident = IncidentLifecycleService.new(current_workspace).create(
       **submission.creation_attributes,
@@ -61,25 +37,13 @@ class IncidentLifecycleController < InertiaController
 
   def update
     incident = find_incident
-    member = current_member
-
-    validated = IncidentFormResolver.new(current_workspace).validate_submission!(
-      form_slug, answers, context: IncidentConditionEvaluator.context_for(incident)
-    )
-    submission = IncidentFormSubmission.new(
-      current_workspace,
-      incident: incident,
-      form_slug: form_slug,
-      system_attrs: validated[:system_attrs],
-      custom_fields: validated[:custom_fields],
-      visible_system_keys: visible_system_keys(incident)
-    )
+    submission = validated_submission(incident, form_slug)
 
     attrs = submission.attributes
     attrs[:lead] = resolve_lead(submission.lead_value) if submission.lead_value
 
     IncidentLifecycleService.new(current_workspace).change_status(
-      incident, attrs, changed_by: member, message: submission.message
+      incident, attrs, changed_by: current_member, message: submission.message
     )
 
     redirect_to incident_path(incident), notice: confirmation(incident)
@@ -147,13 +111,25 @@ class IncidentLifecycleController < InertiaController
     current_workspace.workspace_memberships.find_by!(user: current_user)
   end
 
-  # The resolver reads this to decide which conditional fields apply as the
-  # responder fills the form in. With no incident behind it, the only context
-  # is what has been answered so far.
-  def declare_context
-    IncidentFormPrompt.new(
-      current_workspace, incident: nil, form_slug: IncidentForm::SLUG_DECLARE, answers: answers
-    ).context
+  def prompt(incident, slug = form_slug)
+    IncidentFormPrompt.new(current_workspace, incident: incident, form_slug: slug, answers: answers)
+  end
+
+  # Validated against the context the fields were resolved against, never
+  # against what the incident currently holds. Reading the stored one meant a
+  # field the responder had just made applicable was shown and then rejected.
+  def validated_submission(incident, slug)
+    validated = IncidentFormResolver.new(current_workspace)
+      .validate_submission!(slug, answers, context: prompt(incident, slug).context)
+
+    IncidentFormSubmission.new(
+      current_workspace,
+      incident: incident,
+      form_slug: slug,
+      system_attrs: validated[:system_attrs],
+      custom_fields: validated[:custom_fields],
+      visible_system_keys: validated[:visible_system_keys]
+    )
   end
 
   def form_slug
@@ -179,16 +155,6 @@ class IncidentLifecycleController < InertiaController
 
   def custom_definitions
     @custom_definitions ||= current_workspace.incident_field_definitions.active.to_a
-  end
-
-  # Which system fields the form put in front of the responder, so blanking one
-  # clears the attribute and a field that was never shown leaves it alone.
-  def visible_system_keys(incident)
-    IncidentFormResolver.new(current_workspace)
-      .resolve(form_slug, context: IncidentConditionEvaluator.context_for(incident))
-      .select(&:system?)
-      .map(&:system_field_key)
-      .to_set
   end
 
   def resolve_lead(member_id)

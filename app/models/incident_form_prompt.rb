@@ -9,10 +9,6 @@
 # It reads the same `resolve(slug, context:)` that `validate_submission` reads,
 # so a field cannot be rendered here and rejected there, or the reverse.
 class IncidentFormPrompt
-  # Which stage a terminal form's Status select is allowed to offer, so nobody
-  # resolves an incident into Investigating.
-  TERMINAL_STAGE = IncidentFormResolver::TERMINAL_STAGE_BY_FORM
-
   # Answering one of these changes which fields the form asks for, so the
   # surface re-resolves instead of guessing. Status drives Next Update through
   # `moot_for_context?`, and every one of them can drive a custom field's
@@ -53,47 +49,16 @@ class IncidentFormPrompt
     end
   end
 
-  # What the incident will hold once this is submitted: the answers in front of
-  # the responder over whatever the incident already has. Same rule the Slack
-  # submission uses, so a condition on a field from this same form can match
-  # before anything is saved. Public because validating a submission has to
-  # read the same context the fields were resolved against.
+  # The context the fields were resolved against. Validating a submission has
+  # to read the same one, or a field is shown and then rejected.
   def context
-    IncidentConditionEvaluator.context(
-      incident_type: answered_id(:incident_types, IncidentSystemField::KEY_INCIDENT_TYPE, :incident_type_id),
-      severity: answered_id(:incident_severities, IncidentSystemField::KEY_SEVERITY, :incident_severity_id),
-      status: answered_id(:incident_statuses, IncidentSystemField::KEY_STATUS, :incident_status_id),
-      visibility: answered_visibility,
-      custom_fields: (@incident&.custom_fields || {}).merge(answered_custom_fields)
-    )
+    IncidentConditionEvaluator.context_for(@incident, workspace: @workspace, answers: @answers)
   end
 
   private
 
   def resolver
     @resolver ||= IncidentFormResolver.new(@workspace)
-  end
-
-  def answered_id(association, key, incident_attr)
-    slug = @answers[key]
-    if slug.present?
-      id = @workspace.public_send(association).where(slug: slug).pick(:id)
-      return id if id
-    end
-    @incident&.public_send(incident_attr)
-  end
-
-  def answered_visibility
-    answered = @answers[IncidentSystemField::KEY_VISIBILITY]
-    return answered if answered.present?
-    return nil if @incident.nil?
-
-    @incident.is_private ? Incident::VISIBILITY_PRIVATE : Incident::VISIBILITY_PUBLIC
-  end
-
-  def answered_custom_fields
-    slugs = @workspace.incident_field_definitions.active.pluck(:slug)
-    @answers.slice(*slugs).compact
   end
 
   def system_field(form_field)
@@ -137,7 +102,7 @@ class IncidentFormPrompt
   # else offers the live ones plus whatever the incident currently holds, so a
   # reopened incident's own status is never missing from its own form.
   def status_choices
-    stage = TERMINAL_STAGE[@form_slug]
+    stage = IncidentFormResolver::TERMINAL_STAGE_BY_FORM[@form_slug]
     return slug_choices(@workspace.incident_statuses.active.in_stage(stage).ordered) if stage
 
     slug_choices(@workspace.incident_statuses.active.ordered)
