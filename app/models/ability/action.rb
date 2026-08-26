@@ -26,6 +26,10 @@ module Ability
     RESOURCE_RUNBOOKS = "runbooks"
     RESOURCE_APPROVALS = "approvals"
     RESOURCE_INCIDENT_ROLES = "incident_roles"
+    # Its own resource rather than part of incidents, because reading an
+    # incident and reading everything anyone said in its channel are different
+    # asks. Folding it in would have widened every grant already made.
+    RESOURCE_INCIDENT_TRANSCRIPTS = "incident_transcripts"
     RESOURCE_WEBHOOKS = "webhooks"
     RESOURCE_INTEGRATIONS = "integrations"
     RESOURCE_API_KEYS = "api_keys"
@@ -42,7 +46,8 @@ module Ability
     GRANTABLE_RESOURCES = [
       RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
-      RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS
+      RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
+      RESOURCE_INCIDENT_TRANSCRIPTS
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -60,6 +65,7 @@ module Ability
       RESOURCE_RUNBOOKS => "Runbooks",
       RESOURCE_APPROVALS => "Approvals",
       RESOURCE_INCIDENT_ROLES => "Incident Roles",
+      RESOURCE_INCIDENT_TRANSCRIPTS => "Incident Transcripts",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",

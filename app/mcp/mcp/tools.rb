@@ -71,6 +71,7 @@ module Mcp
     START_POSTMORTEM = "start_postmortem".freeze
     UPDATE_POSTMORTEM = "update_postmortem".freeze
     SET_POSTMORTEM_STATUS = "set_postmortem_status".freeze
+    GET_INCIDENT_TRANSCRIPT = "get_incident_transcript".freeze
 
     def self.all
       [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
@@ -90,7 +91,8 @@ module Mcp
         UpsertAlertSource, DeleteAlertSource, UpsertWebhook, DeleteWebhook,
         ListAgents, UpsertAgent, RotateAgentToken, RevokeAgentToken, DeleteAgent,
         ListApiKeys, UpsertApiKey, DeleteApiKey,
-        GetPostmortem, StartPostmortem, UpdatePostmortem, SetPostmortemStatus ]
+        GetPostmortem, StartPostmortem, UpdatePostmortem, SetPostmortemStatus,
+        GetIncidentTranscript ]
     end
   end
 end

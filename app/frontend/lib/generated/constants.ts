@@ -101,6 +101,7 @@ export const ABILITY_RESOURCES = [
   "approvals",
   "incident_roles",
   "webhooks",
+  "incident_transcripts",
   "integrations",
   "api_keys",
   "permissions",
@@ -121,7 +122,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "runbooks",
   "approvals",
   "incident_roles",
-  "webhooks"
+  "webhooks",
+  "incident_transcripts"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -138,6 +140,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "runbooks": "Runbooks",
   "approvals": "Approvals",
   "incident_roles": "Incident Roles",
+  "incident_transcripts": "Incident Transcripts",
   "webhooks": "Webhooks",
   "integrations": "Integrations",
   "api_keys": "API Keys",

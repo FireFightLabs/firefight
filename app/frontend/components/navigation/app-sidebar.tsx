@@ -8,6 +8,7 @@ import {
   IconChecklist,
   IconForms,
   IconHistory,
+  IconBuilding,
   IconRobot,
   IconShieldCheck,
   IconLock,
@@ -58,6 +59,7 @@ import {
   settingsSeveritiesPath,
   settingsStatusesPath,
   settingsTypesPath,
+  settingsWorkspacePath,
 } from "@/lib/routes"
 
 interface SidebarNavItem {
@@ -109,6 +111,7 @@ const navSections: SidebarNavSection[] = [
     label: "Team",
     items: [
       { title: "Members", url: settingsMembersPath(), icon: IconUsers },
+      { title: "Workspace", url: settingsWorkspacePath(), icon: IconBuilding, adminOnly: true },
     ],
   },
   {

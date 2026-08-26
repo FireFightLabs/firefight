@@ -119,6 +119,23 @@ class Workspace < ApplicationRecord
     environment_entries.where(slug: Array(slugs).map(&:to_s)).pluck(:id)
   end
 
+  validates :transcript_retention_days,
+            numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+
+  # A grant says who may ask. This says whether the workspace has decided the
+  # transcript is readable at all, which is an admin's call rather than
+  # something that arrives with a permission checkbox.
+  def transcript_access_blocked_reason
+    return nil if transcript_access_enabled
+
+    "This workspace has not turned on transcript access. An admin can enable it under Settings, Workspace."
+  end
+
+  # Nil keeps them forever, which a workspace can choose knowing what it means.
+  def transcripts_purge_after
+    transcript_retention_days&.days
+  end
+
   def adapter
     WorkspaceAdapter.for(self)
   end

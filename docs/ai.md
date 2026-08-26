@@ -64,6 +64,34 @@ Never call `RubyLLM` outside an `Inference.track` block — the ledger is the co
 
 AI features read incident channel history from `IncidentTranscriptMessage`, not live Slack calls. Messages are scrubbed on the way in by `IncidentTranscriptMessage::Scrubbing`, which redacts secrets (AWS/GitHub/Slack/Anthropic/OpenAI/Stripe/etc. token patterns) **before persistence and before any prompt**. New secret formats belong in `SECRET_PATTERNS` there.
 
+## Transcript access and retention
+
+Two things gate reading a transcript from outside the product, and they answer
+different questions. `Ability::Action::RESOURCE_INCIDENT_TRANSCRIPTS` is its own
+grantable resource rather than part of `incidents`, because reading an incident
+and reading everything said in its channel are different asks, and folding the
+second into the first would have widened every grant already made. On top of
+that, `Workspace#transcript_access_blocked_reason` refuses unless an admin has
+turned access on under Settings, Workspace. A grant says who may ask, the
+setting says whether there is anything to ask for.
+
+`TranscriptRetentionJob` drops the raw messages once the incident they belong to
+has been over for `transcript_retention_days`, nightly. The window starts at the
+end rather than at close because postmortem generation reads the transcript and
+one is usually written the next morning. A null retention keeps them forever,
+which a workspace can choose.
+
+**The transcript is scaffolding, the timeline is the artifact.** Milestones
+already carry the decision, the quote and the person onto the timeline, and the
+postmortem carries the write-up, so purging drops the conversation and not the
+memory. Anything that wants to learn from past incidents should extract at close
+rather than assume the messages will be there later.
+
+Scrubbing redacts secret *formats* and nothing else. Names, customers, hostnames
+and links survive it. It was built so a credential never reaches a prompt, not
+so a transcript is safe to hand to a third party, which is why the surface above
+it is gated twice.
+
 ## Entitlements gate
 
 AI features are gated per workspace via `Entitlements.allows?(workspace, Entitlements::AI)`. In the open-source build this always allows (see the Entitlements section in [architecture.md](architecture.md)); the proprietary cloud build swaps in a backend enforcing trial/credit state. Gate new AI features the same way — never with a hardcoded flag.
