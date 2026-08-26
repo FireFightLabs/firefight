@@ -64,3 +64,4 @@ node_modules
 app/frontend/cloud_pages/
 
 docs/agents/*
+CLAUDE.local.md
