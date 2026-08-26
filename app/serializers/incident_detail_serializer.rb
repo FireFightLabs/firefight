@@ -41,6 +41,24 @@ class IncidentDetailSerializer < BaseSerializer
     incident.change_blocked_reason
   end
 
+  # Each participation control shows its own sentence rather than vanishing,
+  # because they are blocked for different reasons: an incident that is over,
+  # or one whose channel is still being created.
+  type :string, optional: true
+  def escalation_blocked_reason
+    incident.escalation_blocked_reason
+  end
+
+  type :string, optional: true
+  def invite_blocked_reason
+    incident.invite_blocked_reason
+  end
+
+  type :string, optional: true
+  def shoutout_blocked_reason
+    incident.shoutout_blocked_reason
+  end
+
   # The chip renders a person, the lead picker needs the row it points at.
   # Matching the chip's name back to a member breaks the moment two people
   # share a display name.

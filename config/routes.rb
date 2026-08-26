@@ -265,6 +265,9 @@ Rails.application.routes.draw do
     patch "/incidents/:incident_id/role", to: "incident_lifecycle#assign_role", as: :assign_incident_role
     patch "/incidents/:incident_id/reopen", to: "incident_lifecycle#reopen", as: :incident_reopen
     post "/incidents/:incident_id/link", to: "incident_lifecycle#link", as: :incident_link
+    post "/incidents/:incident_id/escalate", to: "incident_participation#escalate", as: :incident_escalate
+    post "/incidents/:incident_id/invite", to: "incident_participation#invite", as: :incident_invite
+    post "/incidents/:incident_id/shoutout", to: "incident_participation#shoutout", as: :incident_shoutout
     get "/incidents/:id", to: "incidents#show", as: :incident
     get "/incidents/:incident_id/postmortem", to: "incidents#postmortem", as: :incident_postmortem
     patch "/incidents/:incident_id/postmortem", to: "incidents#update_postmortem"

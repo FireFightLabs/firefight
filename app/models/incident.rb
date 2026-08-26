@@ -137,7 +137,15 @@ class Incident < ApplicationRecord
   end
 
   def escalation_blocked_reason
-    terminal_blocked_reason("it can no longer be escalated")
+    terminal_blocked_reason("it can no longer be escalated") || channelless_blocked_reason("ask anyone")
+  end
+
+  def invite_blocked_reason
+    terminal_blocked_reason("nobody else can be brought into it") || channelless_blocked_reason("bring people into")
+  end
+
+  def shoutout_blocked_reason
+    terminal_blocked_reason("shoutouts can no longer be posted to it") || channelless_blocked_reason("post one")
   end
 
   # The one rule the status machine refuses: an incident that is over cannot
@@ -228,5 +236,14 @@ class Incident < ApplicationRecord
     return nil unless terminal?
 
     "#{identifier} is #{canceled? ? "canceled" : "closed"}, so #{clause}."
+  end
+
+  # Asking someone, bringing someone in and thanking someone all post in the
+  # incident channel, which the creation workflow opens a moment after the
+  # incident exists.
+  def channelless_blocked_reason(clause)
+    return nil if channel_id.present?
+
+    "#{identifier} has no channel yet, so there is nowhere to #{clause}."
   end
 end

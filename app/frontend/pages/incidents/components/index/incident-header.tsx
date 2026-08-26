@@ -102,13 +102,15 @@ export function IncidentHeader({
   channelUrl,
   linkable,
   canEdit,
-  leadCandidates,
+  members,
 }: {
   incident: Incident
   channelUrl?: string | null
   linkable: LinkableIncident[]
   canEdit: boolean
-  leadCandidates: { value: string; label: string }[]
+  // Everyone in the workspace. The lead picker and every participation dialog
+  // offer the same people, so they read the same list.
+  members: { value: string; label: string }[]
 }) {
   const declared = new Date(incident.declaredAt)
   // Severity and status are questions on the workspace's Update form, and
@@ -165,7 +167,7 @@ export function IncidentHeader({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <ChannelLink url={channelUrl} label={incident.channelLabel} />
-          {canEdit && <IncidentMenu incident={incident} linkable={linkable} />}
+          {canEdit && <IncidentMenu incident={incident} linkable={linkable} members={members} />}
         </div>
       </div>
 
@@ -183,7 +185,7 @@ export function IncidentHeader({
         <MetaCell label="Lead">
           <InlineSelect
             trigger={<ActorChip actor={incident.lead} fallback="Unassigned" />}
-            choices={leadCandidates}
+            choices={members}
             selected={incident.leadId ?? null}
             path={assignIncidentRolePath(incident.id)}
             payload={leadPayload}
