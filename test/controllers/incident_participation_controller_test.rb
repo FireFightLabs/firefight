@@ -90,6 +90,16 @@ class IncidentParticipationControllerTest < ActionDispatch::IntegrationTest
     assert_empty @incident.shoutouts
   end
 
+  # The picker sends ids, but a hand-rolled request can send anything, and the
+  # same resolver answers all of it.
+  test "a person named by email resolves the same as one named by id" do
+    post incident_shoutout_path(@incident),
+         params: { member_id: @other.user.email, message: "Named by email" }
+
+    assert_redirected_to incident_path(@incident)
+    assert_equal @other, @incident.shoutouts.find_by!(message: "Named by email").to_member
+  end
+
   test "somebody from another workspace is not reachable" do
     post incident_shoutout_path(@incident),
          params: { member_id: workspace_memberships(:alice_workspace_two).id, message: "Hello" }

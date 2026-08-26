@@ -28,7 +28,7 @@ module Mcp
         action = IncidentActionService.new(workspace).assign_step(
           incident: incident,
           runbook_step: step,
-          assignee: ActionItemWrite.member_for(workspace, args[:member]) || principal,
+          assignee: workspace.workspace_memberships.resolve!(args[:member]) || principal,
           assigned_by: principal
         )
 

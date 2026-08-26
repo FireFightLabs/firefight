@@ -11,6 +11,9 @@ class IncidentInviteService
   # `people` are members, platform user ids, or a mix, so a caller that knows
   # someone as a member never has to reach for their platform account.
   def invite!(incident:, people:)
+    blocked_reason = incident.invite_blocked_reason
+    raise Incident::NotActive, blocked_reason if blocked_reason
+
     user_ids = platform_user_ids(people)
     invited = []
     already_in_channel = []

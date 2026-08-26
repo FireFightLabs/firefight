@@ -20,7 +20,7 @@ module Mcp
         )
 
         attrs = submission.attributes
-        attrs[:lead] = lead_for(workspace, submission.lead_value) if submission.lead_value
+        attrs[:lead] = workspace.workspace_memberships.resolve!(submission.lead_value) if submission.lead_value
 
         IncidentLifecycleService.new(workspace).change_status(
           incident, attrs, changed_by: principal, message: submission.message
@@ -37,13 +37,6 @@ module Mcp
         )
       rescue Incident::NotActive => e
         Mcp::ToolDispatcher.error_response(e.message)
-      end
-
-      # An agent names a person the way every other tool does, by email or
-      # platform user id, never by a database id it has no way to know.
-      def self.lead_for(workspace, reference)
-        workspace.workspace_memberships.resolve(reference) ||
-          raise(ActiveRecord::RecordNotFound, "No workspace member matches #{reference.inspect}")
       end
     end
   end

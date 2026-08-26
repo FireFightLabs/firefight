@@ -24,7 +24,7 @@ module Mcp
 
         IncidentActionService.new(workspace).assign_action(
           action: action,
-          assignee: ActionItemWrite.member_for(workspace, args[:member]) || principal,
+          assignee: workspace.workspace_memberships.resolve!(args[:member]) || principal,
           assigned_by: principal
         )
 

@@ -29,7 +29,7 @@ module Mcp
           created_by: principal,
           action_type: args[:kind].presence || IncidentAction::ACTION_TYPE_ACTION,
           description: args[:description].to_s,
-          assignee: ActionItemWrite.member_for(workspace, args[:member])
+          assignee: workspace.workspace_memberships.resolve!(args[:member])
         )
 
         respond(ActionItemWrite.summary(action))

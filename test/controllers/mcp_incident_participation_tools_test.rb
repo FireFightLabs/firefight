@@ -157,7 +157,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
     })
 
     assert is_error
-    assert_match(/itself/, text)
+    assert_match(/must be a different incident/, text)
   end
 
   test "an agent thanks someone and the shoutout names the agent" do
@@ -218,6 +218,71 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
     assert_match(/Not found in this workspace/, text)
   end
 
+  # The guard lives on the incident and the service refuses, so a surface that
+  # never thought to ask still cannot post into a channel that is gone.
+  test "an incident that is over refuses an invite and a shoutout" do
+    close_incident
+
+    _, is_error, text = call_tool(Mcp::Tools::INVITE_RESPONDERS, {
+      incident: @incident.identifier, members: [ @other.user.email ]
+    })
+    assert is_error
+    assert_match(/nobody else can be brought into it/, text)
+
+    _, is_error, text = call_tool(Mcp::Tools::GIVE_SHOUTOUT, {
+      incident: @incident.identifier, member: @other.user.email, message: "Nice work"
+    })
+    assert is_error
+    assert_match(/shoutouts can no longer be posted/, text)
+    assert_empty @incident.shoutouts
+  end
+
+  test "an incident whose channel is still being created refuses both too" do
+    @incident.update_columns(channel_id: nil)
+
+    _, is_error, text = call_tool(Mcp::Tools::INVITE_RESPONDERS, {
+      incident: @incident.identifier, members: [ @other.user.email ]
+    })
+    assert is_error
+    assert_match(/no channel yet/, text)
+
+    _, is_error, text = call_tool(Mcp::Tools::GIVE_SHOUTOUT, {
+      incident: @incident.identifier, member: @other.user.email, message: "Nice work"
+    })
+    assert is_error
+    assert_match(/no channel yet/, text)
+  end
+
+  # Claiming a step nobody holds is taking it, whichever door you came through.
+  test "claiming an unheld step records a pick up rather than a handover" do
+    attachment = attach_runbook
+    step = attachment.runbook.runbook_steps.first
+    IncidentActionService.new(@workspace).assign_step(
+      incident: @incident, runbook_step: step, assignee: @other, assigned_by: @membership
+    )
+    @incident.incident_actions.active.find_by!(runbook_step: step).update!(
+      assignee: nil, status: IncidentAction::STATUS_OPEN
+    )
+
+    content, is_error = call_tool(Mcp::Tools::CLAIM_RUNBOOK_STEP, {
+      incident: @incident.identifier, runbook: attachment.id, step: step.id
+    }, token: @agent_token)
+
+    assert_not is_error, content.inspect
+    assert_equal @agent.name, content["assignee"]
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_PICKED_UP)
+  end
+
+  test "a person this workspace has never heard of is named, not silently dropped" do
+    _, is_error, text = call_tool(Mcp::Tools::CREATE_ACTION_ITEM, {
+      incident: @incident.identifier, description: "Page somebody", member: "nobody@example.com"
+    })
+
+    assert is_error
+    assert_match(/Not found in this workspace/, text)
+    assert_nil @incident.incident_actions.find_by(description: "Page somebody")
+  end
+
   test "an agent granted only reads cannot raise an action item" do
     _, token = create_agent(
       workspace: @workspace, created_by: @membership, name: "Watcher", slug: "watcher",
@@ -233,6 +298,12 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def close_incident
+    IncidentLifecycleService.new(@workspace).change_status(
+      @incident, { incident_status: @workspace.incident_statuses.closed.active.first }, changed_by: @membership
+    )
+  end
 
   def attach_runbook
     runbook = @workspace.runbooks.create!(name: "Database failover", slug: "database_failover")

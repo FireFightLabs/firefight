@@ -27,7 +27,6 @@ module Mcp
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = IncidentWrite.find!(workspace, args[:incident])
         other = IncidentWrite.find!(workspace, args[:other_incident])
-        return Mcp::ToolDispatcher.error_response("An incident cannot be linked to itself.") if incident == other
 
         service = IncidentRelationshipService.new(workspace)
         duplicate = args[:relationship].to_s == IncidentRelationship::DUPLICATE

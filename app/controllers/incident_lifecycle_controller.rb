@@ -99,6 +99,8 @@ class IncidentLifecycleController < InertiaController
     redirect_to incident_path(incident), notice: notice
   rescue ActiveRecord::RecordNotFound
     redirect_to incident_path(incident), alert: "Your workspace has no canceled status configured, so nothing can be marked a duplicate yet."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to incident_path(incident), alert: e.record.errors.full_messages.to_sentence
   end
 
   private

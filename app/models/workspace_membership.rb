@@ -94,6 +94,17 @@ class WorkspaceMembership < ApplicationRecord
       joins(:user).find_by(users: { email: reference.downcase })
   end
 
+  # The same lookup for a caller that was handed a name and cannot carry on
+  # without it. A reference matching nobody is a mistake worth saying out loud
+  # rather than a silent nil. Naming nobody is still a legitimate answer, so a
+  # blank reference resolves to no member rather than raising.
+  def self.resolve!(reference)
+    return nil if reference.blank?
+
+    resolve(reference) ||
+      raise(ActiveRecord::RecordNotFound, "No workspace member matches #{reference.inspect}")
+  end
+
   # Locks the workspace so "am I the first member" and the insert that answers
   # it are one serialized step. Two people completing the install in the same
   # moment would otherwise both read an empty workspace and both become owner,

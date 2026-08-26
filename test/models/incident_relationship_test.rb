@@ -30,14 +30,18 @@ class IncidentRelationshipTest < ActiveSupport::TestCase
     assert_includes rel.errors[:relationship_type], "is not included in the list"
   end
 
-  test "prevents self-reference at database level" do
-    assert_raises(ActiveRecord::StatementInvalid) do
-      IncidentRelationship.create!(
-        incident: @incident1,
-        related_incident: @incident1,
-        relationship_type: IncidentRelationship::RELATED
-      )
-    end
+  # The surfaces show the sentence, the constraint is what makes it true even
+  # for a writer that skips validation.
+  test "refuses to link an incident to itself" do
+    rel = IncidentRelationship.new(
+      incident: @incident1,
+      related_incident: @incident1,
+      relationship_type: IncidentRelationship::RELATED
+    )
+
+    assert_not rel.valid?
+    assert_includes rel.errors[:related_incident], "must be a different incident"
+    assert_raises(ActiveRecord::StatementInvalid) { rel.save(validate: false) }
   end
 
   test "incidents must be in the same workspace" do

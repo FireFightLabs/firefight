@@ -1,7 +1,8 @@
 class Incident < ApplicationRecord
-  # Raised when an incident that is over is asked to do something only a live
-  # incident can do. Carries the sentence the surface shows, so a dispatcher
-  # can render it without knowing which rule refused.
+  # Raised when an incident is asked to do something it cannot: one that is
+  # over, or one whose channel has not been opened yet. Carries the sentence
+  # the surface shows, so a dispatcher can render it without knowing which
+  # rule refused.
   class NotActive < StandardError; end
 
   VISIBILITY_PUBLIC = "public"

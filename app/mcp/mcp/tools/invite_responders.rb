@@ -24,7 +24,7 @@ module Mcp
 
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = IncidentWrite.find!(workspace, args[:incident])
-        members = Array(args[:members]).map { |reference| ActionItemWrite.member_for(workspace, reference) }
+        members = Array(args[:members]).map { |reference| workspace.workspace_memberships.resolve!(reference) }
         return Mcp::ToolDispatcher.error_response("Name at least one person to invite.") if members.empty?
 
         result = IncidentInviteService.new(workspace).invite!(incident: incident, people: members)

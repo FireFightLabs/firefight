@@ -19,7 +19,7 @@ class Api::V1::ActionItemsController < Api::V1::ApiController
       created_by: Current.principal,
       action_type: params.fetch(:kind, IncidentAction::ACTION_TYPE_ACTION),
       description: params.require(:description),
-      assignee: member(params[:assignee_id])
+      assignee: current_workspace.workspace_memberships.resolve!(params[:assignee_id])
     )
 
     render :show, status: :created
@@ -49,20 +49,13 @@ class Api::V1::ActionItemsController < Api::V1::ApiController
   def assign_item
     service.assign_action(
       action: @action_item,
-      assignee: member(params[:assignee_id]) || Current.principal,
+      assignee: current_workspace.workspace_memberships.resolve!(params[:assignee_id]) || Current.principal,
       assigned_by: Current.principal
     )
   end
 
   def service
     @service ||= IncidentActionService.new(current_workspace)
-  end
-
-  def member(reference)
-    return nil if reference.blank?
-
-    current_workspace.workspace_memberships.resolve(reference) ||
-      raise(ActiveRecord::RecordNotFound, "No workspace member matches #{reference.inspect}")
   end
 
   def set_incident

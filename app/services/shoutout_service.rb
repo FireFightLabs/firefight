@@ -7,6 +7,9 @@ class ShoutoutService
   end
 
   def give(incident:, from:, to:, message:)
+    blocked_reason = incident.shoutout_blocked_reason
+    raise Incident::NotActive, blocked_reason if blocked_reason
+
     shoutout = Shoutout.create!(incident: incident, from_member: from, to_member: to, message: message)
 
     result = @workspace.adapter.post_shoutout_message(

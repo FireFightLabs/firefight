@@ -10,7 +10,7 @@ class IncidentParticipationController < InertiaController
   def escalate
     return redirect_blocked(@incident.escalation_blocked_reason) if @incident.escalation_blocked_reason
 
-    target = member(params.require(:member_id))
+    target = current_workspace.workspace_memberships.resolve!(params.require(:member_id))
     IncidentLifecycleService.new(current_workspace).escalate(
       @incident, escalated_to: target, reason: params.require(:reason), changed_by: current_member
     )
@@ -22,7 +22,7 @@ class IncidentParticipationController < InertiaController
   def invite
     return redirect_blocked(@incident.invite_blocked_reason) if @incident.invite_blocked_reason
 
-    members = Array(params.require(:member_ids)).map { |reference| member(reference) }
+    members = Array(params.require(:member_ids)).map { |reference| current_workspace.workspace_memberships.resolve!(reference) }
     result = IncidentInviteService.new(current_workspace).invite!(incident: @incident, people: members)
 
     redirect_to incident_path(@incident), notice: invite_notice(result, members)
@@ -31,7 +31,7 @@ class IncidentParticipationController < InertiaController
   def shoutout
     return redirect_blocked(@incident.shoutout_blocked_reason) if @incident.shoutout_blocked_reason
 
-    recipient = member(params.require(:member_id))
+    recipient = current_workspace.workspace_memberships.resolve!(params.require(:member_id))
     ShoutoutService.new(current_workspace).give(
       incident: @incident, from: current_member, to: recipient, message: params.require(:message)
     )
@@ -55,10 +55,6 @@ class IncidentParticipationController < InertiaController
 
   def redirect_blocked(reason)
     redirect_to incident_path(@incident), alert: reason
-  end
-
-  def member(reference)
-    current_workspace.workspace_memberships.find(reference)
   end
 
   def current_member

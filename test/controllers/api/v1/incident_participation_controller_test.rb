@@ -72,6 +72,22 @@ class Api::V1::IncidentParticipationControllerTest < ActionDispatch::Integration
     assert @incident.reload.canceled?
   end
 
+  # The service refuses, so a surface that never thought to ask still cannot
+  # post into a channel that is gone.
+  test "an incident that is over refuses an invite and a shoutout" do
+    close_incident
+
+    post invite_api_v1_incident_url(@incident),
+         params: { member_ids: [ @other.user.email ] }, headers: api_headers, as: :json
+    assert_response :unprocessable_entity
+    assert_equal "incident_not_active", json_response.dig("error", "type")
+
+    post shoutout_api_v1_incident_url(@incident),
+         params: { member_id: @other.user.email, message: "Nice work" }, headers: api_headers, as: :json
+    assert_response :unprocessable_entity
+    assert_empty @incident.shoutouts
+  end
+
   test "an incident cannot be linked to itself" do
     post link_api_v1_incident_url(@incident),
          params: { other_incident_id: @incident.id, relationship: IncidentRelationship::RELATED },
@@ -121,6 +137,13 @@ class Api::V1::IncidentParticipationControllerTest < ActionDispatch::Integration
   end
 
   private
+
+  def close_incident
+    stub_set_channel_topic
+    IncidentLifecycleService.new(@workspace).change_status(
+      @incident, { incident_status: @workspace.incident_statuses.closed.active.first }, changed_by: @member
+    )
+  end
 
   def attach_runbook
     runbook = @workspace.runbooks.create!(name: "Database failover", slug: "database_failover")

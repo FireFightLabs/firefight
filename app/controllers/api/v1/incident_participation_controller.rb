@@ -7,7 +7,7 @@ class Api::V1::IncidentParticipationController < Api::V1::ApiController
   before_action :authorize_update
 
   def escalate
-    target = member!(params.require(:member_id))
+    target = current_workspace.workspace_memberships.resolve!(params.require(:member_id))
     @event = IncidentLifecycleService.new(current_workspace).escalate(
       @incident, escalated_to: target, reason: params.require(:reason), changed_by: Current.principal
     )
@@ -21,7 +21,7 @@ class Api::V1::IncidentParticipationController < Api::V1::ApiController
   end
 
   def invite
-    members = Array(params.require(:member_ids)).map { |reference| member!(reference) }
+    members = Array(params.require(:member_ids)).map { |reference| current_workspace.workspace_memberships.resolve!(reference) }
     result = IncidentInviteService.new(current_workspace).invite!(incident: @incident, people: members)
     by_platform_id = members.index_by(&:platform_user_id)
 
@@ -38,7 +38,6 @@ class Api::V1::IncidentParticipationController < Api::V1::ApiController
   def link
     other = current_workspace.incidents.where(deleted_at: nil).find(params.require(:other_incident_id))
     relationship = params.require(:relationship)
-    return render_self_link if other == @incident
 
     service = IncidentRelationshipService.new(current_workspace)
     if relationship == IncidentRelationship::DUPLICATE
@@ -56,7 +55,7 @@ class Api::V1::IncidentParticipationController < Api::V1::ApiController
   end
 
   def shoutout
-    recipient = member!(params.require(:member_id))
+    recipient = current_workspace.workspace_memberships.resolve!(params.require(:member_id))
     shoutout = ShoutoutService.new(current_workspace).give(
       incident: @incident, from: Current.principal, to: recipient, message: params.require(:message)
     )
@@ -75,7 +74,7 @@ class Api::V1::IncidentParticipationController < Api::V1::ApiController
     @action_item = IncidentActionService.new(current_workspace).assign_step(
       incident: @incident,
       runbook_step: step,
-      assignee: params[:member_id].present? ? member!(params[:member_id]) : Current.principal,
+      assignee: params[:member_id].present? ? current_workspace.workspace_memberships.resolve!(params[:member_id]) : Current.principal,
       assigned_by: Current.principal
     )
 
@@ -84,19 +83,9 @@ class Api::V1::IncidentParticipationController < Api::V1::ApiController
 
   private
 
-  def render_self_link
-    render json: error_response("validation_error", "An incident cannot be linked to itself."),
-           status: :unprocessable_entity
-  end
-
   def members_for(user_ids, by_platform_id)
     user_ids.filter_map { |user_id| by_platform_id[user_id] }
       .map { |member| { id: member.id, name: member.actor_display_name } }
-  end
-
-  def member!(reference)
-    current_workspace.workspace_memberships.resolve(reference) ||
-      raise(ActiveRecord::RecordNotFound, "No workspace member matches #{reference.inspect}")
   end
 
   def set_incident
