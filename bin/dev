@@ -2,6 +2,23 @@
 
 export PORT="${PORT:-3000}"
 
+# Secrets come from Infisical when this machine is set up for it, which is
+# where the team keeps them. Anyone without it falls through to .env, which is
+# what CONTRIBUTING.md describes and what a fork needs to run.
+#
+# Re-execs itself under `infisical run` rather than exporting, so the whole
+# process tree sees the variables. FIREFIGHT_SECRETS_LOADED stops the loop.
+if [ -z "$FIREFIGHT_SECRETS_LOADED" ] && [ -f .infisical.json ] && command -v infisical > /dev/null 2>&1
+then
+  if infisical secrets --env=dev --silent > /dev/null 2>&1
+  then
+    FIREFIGHT_SECRETS_LOADED=1
+    export FIREFIGHT_SECRETS_LOADED
+    exec infisical run --env=dev --silent -- "$0" "$@"
+  fi
+  echo "Infisical is set up here but not logged in. Run 'infisical login', or delete .infisical.json to use .env instead."
+fi
+
 if command -v overmind 1> /dev/null 2>&1
 then
   overmind start -f Procfile.dev "$@"
