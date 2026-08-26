@@ -2,8 +2,8 @@
   Firefight
 </h1>
 <p align="center">
-  <b>Open-source, AI-first incident management.</b><br />
-  Declare, coordinate, and resolve incidents from Slack, with AI that writes your catchups and postmortems, an audit-grade timeline, and a web dashboard for everything in between.
+  <b>Open-source, agent-ready incident management.</b><br />
+  Run incidents from Slack, and let your AI agents work them too, with every action they take permissioned, approved, and on the record.
 </p>
 
 <h4 align="center">
@@ -41,6 +41,8 @@ Firefight is an incident management platform built for the way teams actually re
 
 Everything that happens is recorded as an immutable, audit-grade event timeline, visible in a clean web dashboard alongside your service catalog, custom fields, and API keys.
 
+Firefight is also built to be worked by machines. Any agent can connect over MCP or the REST API and do what a responder does: declare, investigate, take action items, escalate, write the postmortem. It acts under its own name, reaches only what you granted it, waits for a human on the calls you said should wait, and leaves every attempt in the ledger whether it was allowed or refused. Bring your own agent and your own model. Firefight is where it is allowed to work, not the thing doing the thinking.
+
 ## Features
 
 ### Incident response
@@ -49,6 +51,14 @@ Everything that happens is recorded as an immutable, audit-grade event timeline,
 - **Audit-grade timeline**: every state change is an immutable event with full attribution
 - **Custom fields and incident types**: model your organization's process, not ours
 - **Incident relationships**: link related and duplicate incidents
+
+### Built for agents
+- **MCP server**: every incident action and every settings screen has a tool behind it, so an agent can run an incident or set the workspace up without touching a browser
+- **Ability Gateway**: one chokepoint for every privileged call. Grant abilities individually or in named sets, scope them to an environment, and hold the risky ones for human approval
+- **Agents are first-class**: an agent is its own principal with its own token and its own name on the timeline. It inherits nothing from whoever created it, and no machine can mint another machine
+- **Invocation ledger**: every privileged call is recorded before it runs, with who asked, what for, and whether it was allowed, refused, or held for approval
+- **Governed transcripts**: an agent can read what people actually said in an incident channel, but only once an admin turns it on and grants the ability, with secrets redacted before storage and a retention window you set
+- **Model-agnostic**: bring your own agent and your own provider. Firefight is the harness, not the investigator
 
 ### AI built in
 - **AI postmortems**: a structured draft generated from the incident's full timeline and channel transcript, ready for human editing
@@ -59,7 +69,7 @@ Everything that happens is recorded as an immutable, audit-grade event timeline,
 - **Web dashboard**: incident list with server-side filtering, incident detail with timeline, postmortem editor, settings
 - **Alert ingestion and routing**: point your monitoring at a per-source endpoint, then route with first-match-wins rules that open an incident, attach to an open one, notify a team, or drop it, with deduplication, flap handling, and storm grouping so an alert storm becomes one incident
 - **Service catalog**: services, teams, environments, and functionality with typed attributes and relationships
-- **REST API**: incident CRUD with bearer-token auth, granular per-key permissions, and idempotency keys
+- **REST API**: the whole product over HTTP, from declaring an incident to configuring every settings screen, with bearer-token auth, granular per-key permissions, idempotency keys, and an OpenAPI document covering every operation
 - **Outbound webhooks**: subscribe external systems to incident events, with delivery tracking and retries
 - **Workflow engine**: durable, step-based orchestration with retries, crash recovery, and a full execution audit trail
 
@@ -102,17 +112,17 @@ Full setup (Slack app creation, environment variables, the local tunnel for Slac
 
 ## Open source vs. paid
 
-This repository is licensed under [AGPL-3.0](LICENSE): free to use, self-host, and modify; if you run a modified version as a service, you must share your changes under the same license.
+This repository is licensed under [AGPL-3.0](LICENSE): free to use, self-host, and modify. If you run a modified version as a service, you must share your changes under the same license.
 
 Firefight Cloud is our managed offering: hosting, upgrades, and AI features with usage included in the plan. Self-hosters bring their own LLM API key for the AI features.
 
 ## Security
 
-Found a vulnerability? Please report it privately; see [SECURITY.md](SECURITY.md). Do not open a public issue for security problems.
+Found a vulnerability? Please report it privately, see [SECURITY.md](SECURITY.md). Do not open a public issue for security problems.
 
 ## Contributing
 
-Contributions are welcome: bug reports, fixes, and features. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and conventions. Fork PRs run the full CI suite, no secrets required.
+Contributions are welcome: bug reports, fixes, and features. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and conventions, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for how we work together. Fork PRs run the full CI suite, no secrets required.
 
 ## License
 
