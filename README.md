@@ -8,6 +8,7 @@
 
 <h4 align="center">
   <a href="https://firefight.app">Website</a> ·
+  <a href="https://firefight.app/docs/">Docs</a> ·
   <a href="SELF_HOSTING.md">Self-hosting</a> ·
   <a href="#local-development">Local development</a> ·
   <a href="https://github.com/FireFightLabs/firefight/releases">Releases</a> ·
@@ -38,11 +39,24 @@
 
 ## What is Firefight?
 
-Firefight runs incidents from Slack. Declare one with a slash command and it creates the channel, posts the announcement, assigns the lead, tracks every status change, keeps stakeholders updated, and generates the postmortem when it's over.
+Firefight is an incident management platform. It is the system of record for what broke, who responded, what they did, and what you changed so it does not happen again.
 
-Every change is recorded as an immutable event with full attribution. The web dashboard shows that timeline alongside your service catalog, custom fields, alert routing, and API keys.
+It runs where the response already happens. Declaring an incident opens its channel, pulls in the people who should be there, announces it to the rest of the company, and starts a timeline that records every decision from that point on. When it is over, the postmortem is drafted from what actually happened rather than from memory.
 
-Agents can do all of it too. Connect one over MCP or the REST API and it declares incidents, reads the channel, takes action items, escalates, and writes the postmortem. It acts under its own name, reaches only what you granted it, waits for approval on the calls you marked, and every attempt is logged whether it was allowed or refused.
+It is also built for the machines on your team. Agents connect over MCP or the REST API and work an incident the way a person does, under their own name, reaching only what you granted them.
+
+## Why Firefight?
+
+Incident response is usually held together with glue. An alerting tool, a chat thread, a doc template, a status page, and a process doc that describes how they fit, which is the first thing to come apart under pressure.
+
+- **The first twenty minutes go to setup.** Opening the channel, working out who to pull in, posting the first update. The incident has a head start before anyone is even in the room.
+- **The answers end up buried.** Critical detail sits in DMs, threads, and someone's dashboard. Whoever joins late reads two hundred messages to learn what everyone else already knows.
+- **The fix ships and the write-up waits.** Somebody still has to rebuild the timeline, chase the follow-ups, and write it up, usually after hours. So it gets skipped, and the same incident comes back in two months.
+- **Your agents are locked out.** They can read your code and your logs, but not your incidents, your history, or the reasoning behind either. The one place that knows what actually happened is the one place they cannot reach.
+
+Firefight closes all four. Setup is automatic, the timeline records itself, the postmortem is drafted from the record, and the whole thing is reachable by an agent under permissions you control.
+
+It is AGPL-3.0, so you can read every line, run it yourself, and never be locked in.
 
 ## Features
 
@@ -50,8 +64,8 @@ Agents can do all of it too. Connect one over MCP or the REST API and it declare
 - **Slack-native flow**: declare, update status and severity, assign a lead, invite responders, escalate, and close without leaving Slack
 - **Incident channels**: created automatically with pinned quick actions, topic metadata, and announcement threads
 - **Audit-grade timeline**: every state change is an immutable event with full attribution
-- **Custom fields and incident types**: model your organization's process, not ours
-- **Incident relationships**: link related and duplicate incidents
+- **Roles, action items and follow-ups**: assign who is accountable, track work during the incident and after it
+- **Incident relationships**: link related incidents, or mark one a duplicate of another
 
 ### Built for agents
 - **MCP server**: every incident action and every settings screen has a tool behind it, so an agent can run an incident or set the workspace up without touching a browser
@@ -64,15 +78,41 @@ Agents can do all of it too. Connect one over MCP or the REST API and it declare
 ### AI built in
 - **AI postmortems**: a structured draft generated from the incident's full timeline and channel transcript, ready for human editing
 - **AI catchups**: joining an incident late? Get a summary of what's happened so far
+- **Timeline notes**: the theories tested, the decisions made and the root cause, lifted out of the conversation onto the timeline with the quote and the person
 - **Cost-tracked inference**: every AI call is logged with tokens, latency, and cost
 
+### Alerts
+- **Ingest from anything**: point anything that can POST JSON at a per-source endpoint
+- **Routing rules**: first-match-wins rules that open an incident, attach to an open one, notify a team, or drop it
+- **Storm control**: deduplication, flap handling, and grouping, so an alert storm becomes one incident rather than forty
+- **Test before you ship**: dry run a rule against a sample alert and see exactly why it did or did not match, without notifying anyone
+
+### Make it yours
+- **Custom fields**: text, numbers, links, single and multi select, or a reference into your catalog
+- **Lifecycle forms**: decide what responders are asked when they declare, update, resolve or cancel, with fields that only appear when they are relevant
+- **Severities, statuses, types and roles**: your vocabulary, not ours, all of it renameable and reorderable
+- **Runbooks**: the procedure for a known failure, attached automatically to the incidents that match it
+- **Service catalog**: services, teams, environments and anything else you track, with typed attributes and relationships
+
 ### Platform
-- **Web dashboard**: incident list with server-side filtering, incident detail with timeline, postmortem editor, settings
-- **Alert ingestion and routing**: point anything that can POST JSON at a per-source endpoint, then route with first-match-wins rules that open an incident, attach to an open one, notify a team, or drop it, with deduplication, flap handling, and storm grouping so an alert storm becomes one incident
-- **Service catalog**: services, teams, environments, and functionality with typed attributes and relationships
+- **Web dashboard**: the incident list, the incident itself, the postmortem editor, and every settings screen
 - **REST API**: the whole product over HTTP, from declaring an incident to configuring every settings screen, with bearer-token auth, granular per-key permissions, idempotency keys, and an OpenAPI document covering every operation
 - **Outbound webhooks**: subscribe external systems to incident events, with delivery tracking and retries
-- **Workflow engine**: durable, step-based orchestration with retries, crash recovery, and a full execution audit trail
+- **Self-hostable**: one container and a Postgres database, with no phone-home
+
+## Documentation
+
+Full documentation is at **[firefight.app/docs](https://firefight.app/docs/)**.
+
+| | |
+|---|---|
+| [Your first incident](https://firefight.app/docs/getting-started/your-first-incident/) | Start here |
+| [Slack command reference](https://firefight.app/docs/incidents/slack-commands/) | Every `/ff` command |
+| [MCP server](https://firefight.app/docs/api/mcp-server/) | Connecting an agent, and every tool it gets |
+| [REST API](https://firefight.app/docs/api/overview/) | Auth, endpoints, and the OpenAPI document |
+| [The gateway](https://firefight.app/docs/gateway/overview/) | Permissions, approvals, and the activity log |
+
+Engineering references for people working on Firefight itself live in [`docs/`](docs/).
 
 ## Getting started
 
