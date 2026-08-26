@@ -1,6 +1,6 @@
-# Agents over REST, matching upsert_agent and its siblings on MCP. Authorizes
-# as permissions, which is admin-only and ungrantable, so an agent can never
-# create or re-credential another agent whatever it holds.
+# Authorizes as permissions, which is admin-only and ungrantable, so an agent
+# can never create or re-credential another agent whatever it holds. The MCP
+# tools are the siblings of these.
 class Api::V1::AgentsController < Api::V1::ApiController
   before_action :set_agent, only: %i[update destroy rotate revoke_token]
 

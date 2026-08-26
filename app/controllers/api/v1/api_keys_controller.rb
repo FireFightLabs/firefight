@@ -1,8 +1,7 @@
-# Service keys over REST, matching upsert_api_key and delete_api_key on MCP.
-# Authorizes as api_keys, which is admin-only and ungrantable, so a personal
-# token belonging to an admin reaches this and no machine ever can.
+# Authorizes as api_keys, which is admin-only and ungrantable, so an admin's
+# personal token reaches this and no machine ever can.
 #
-# Personal tokens are left out on purpose: they belong to the person who minted
+# Personal tokens are left out on purpose. They belong to the person who minted
 # them, not to the workspace.
 class Api::V1::ApiKeysController < Api::V1::ApiController
   before_action :set_api_key, only: %i[update destroy]
@@ -51,7 +50,7 @@ class Api::V1::ApiKeysController < Api::V1::ApiController
   private
 
   def permissions
-    params[:permissions].respond_to?(:to_unsafe_h) ? params[:permissions].to_unsafe_h : params[:permissions].to_h
+    params[:permissions].to_unsafe_h
   end
 
   def key_scope

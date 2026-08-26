@@ -60,8 +60,6 @@ module ConfigurableOption
     nil
   end
 
-  # What this list has beyond the shared shape, for a surface reporting one
-  # back. Empty for every list that has nothing extra.
   def config_extras
     {}
   end

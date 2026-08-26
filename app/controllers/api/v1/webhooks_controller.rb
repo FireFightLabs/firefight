@@ -1,6 +1,5 @@
-# Outbound webhooks over REST, matching upsert_webhook and delete_webhook on
-# MCP. The signing secret never leaves through here: it is read on demand from
-# the dashboard, so it is not sitting in every listing waiting to be scraped.
+# The signing secret never leaves through here. It is read on demand from the
+# dashboard, so it is not sitting in every listing waiting to be scraped.
 class Api::V1::WebhooksController < Api::V1::ApiController
   before_action :set_webhook, only: %i[update destroy]
 

@@ -1,8 +1,8 @@
 module Mcp
   module Tools
-    # What the agent tools share. Minting a credential alongside the agent is
-    # one operation, since an agent without one can do nothing and leaving it
-    # to a second call is a step everyone forgets.
+    # Minting a credential alongside the agent is one operation, since an agent
+    # without one can do nothing and leaving it to a second call is a step
+    # everyone forgets.
     module AgentPayloads
       def self.create(workspace, principal, args)
         ActiveRecord::Base.transaction do

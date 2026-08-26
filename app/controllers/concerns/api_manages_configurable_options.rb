@@ -1,9 +1,7 @@
-# The write half of a configurable option list over REST. The same four
-# operations the settings screen and the MCP tools use, calling the same model
-# methods, so a list changed here behaves as if it had been dragged.
-#
+# The same operations the settings screen and the MCP tools use, calling the
+# same model methods, so a list changed here behaves as if it had been dragged.
 # A controller supplies its model, its gateway resource, and any attributes
-# specific to it. Guard rules come from the model's *_blocked_reason methods.
+# specific to it.
 module ApiManagesConfigurableOptions
   extend ActiveSupport::Concern
 
@@ -70,8 +68,8 @@ module ApiManagesConfigurableOptions
 
   private
 
-  # Enabling, disabling and making one the default each have their own rule on
-  # the model, so they run as operations rather than as columns on the write.
+  # Each of these is its own operation on the model, with its own rule, rather
+  # than a column on the write.
   def apply_state!
     toggle_enabled! unless params[:enabled].nil?
     make_default! if ActiveModel::Type::Boolean.new.cast(params[:default])
@@ -93,7 +91,6 @@ module ApiManagesConfigurableOptions
     attributes.compact.merge(extra_attributes)
   end
 
-  # Attributes beyond the shared ones, for a list that has some.
   def extra_attributes
     {}
   end

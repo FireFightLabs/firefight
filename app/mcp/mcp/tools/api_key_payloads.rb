@@ -1,7 +1,7 @@
 module Mcp
   module Tools
-    # What the service-key tools report. The token itself appears once, in the
-    # response that minted it, and never in a listing.
+    # The token appears once, in the response that minted it, and never in a
+    # listing.
     module ApiKeyPayloads
       def self.summary(key)
         {

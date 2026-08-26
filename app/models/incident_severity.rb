@@ -7,10 +7,6 @@ class IncidentSeverity < ApplicationRecord
   NOUN = "severity".freeze
   SLUG_CRITICAL = "critical"
 
-  def config_extras
-    { rank: rank }
-  end
-
   validates :rank, presence: true, numericality: { only_integer: true, greater_than: 0 }
 
   # rank is derived from position on every reorder, so a new row only needs a
@@ -33,6 +29,12 @@ class IncidentSeverity < ApplicationRecord
   # never drift from the order the settings screen shows.
   def self.position_columns(index, total)
     { position: index + 1, rank: total - index }
+  end
+
+  # Rank is what orders severities, so it travels with one wherever it is
+  # reported.
+  def config_extras
+    { rank: rank }
   end
 
   def more_severe_than?(other_severity)

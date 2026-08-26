@@ -31,9 +31,6 @@ module Mcp
       end
 
       module ClassMethods
-        # Declares everything a list's upsert tool needs: which model it
-        # manages, which gateway resource authorizes it, and any fields this
-        # list has that the others do not.
         # `extra` describes the fields only this list has, and `prepare` says
         # how they land as attributes. They are separate because a list can
         # take an argument in its own vocabulary, the way a status takes a
@@ -146,9 +143,8 @@ module Mcp
       end
       private_class_method :attributes_for
 
-      # Enabling, disabling and making one the default are their own operations
-      # on the model, each with its own rule, so they run after the write
-      # rather than as columns on it.
+      # Each of these is its own operation on the model, with its own rule,
+      # rather than a column on the write.
       def self.apply_state(option, args)
         toggle_enabled(option, args[:enabled]) unless args[:enabled].nil?
         make_default(option) if args[:default] && option.class.defaultable?
