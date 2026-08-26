@@ -15,7 +15,7 @@ class ShoutoutService
     result = @workspace.adapter.post_shoutout_message(
       channel_id: incident.channel_id, incident: incident, from: from, to: to, message: message
     )
-    shoutout.update_column(:slack_message_ts, result[:message_id])
+    shoutout.update_column(:message_ts, result[:message_id])
 
     shoutout
   end

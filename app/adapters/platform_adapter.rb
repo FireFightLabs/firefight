@@ -230,6 +230,22 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # The item's own message, carrying the controls a responder acts on.
+  # @return [Hash] { message_id: ... }
+  def post_action_message(channel_id:, action:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { success: true }
+  def update_action_picked_up(channel_id:, message_id:, action:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { success: true }
+  def update_action_completed(channel_id:, message_id:, action:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [Hash] { message_id: ... }
   def post_action_handed_over(channel_id:, action:, reassigned_by:)
     raise NotImplemented.new(__method__, self.class)

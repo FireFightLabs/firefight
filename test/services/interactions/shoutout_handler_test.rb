@@ -27,7 +27,7 @@ class Interactions::ShoutoutHandlerTest < ActiveSupport::TestCase
 
     shoutout = @incident.shoutouts.find_by!(from_member: @from_member, to_member: @to_member)
     assert_equal "Amazing debugging work!", shoutout.message
-    assert_equal "1234567890.123456", shoutout.slack_message_ts
+    assert_equal "1234567890.123456", shoutout.message_ts
   end
 
   test "returns nil on success" do
