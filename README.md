@@ -39,11 +39,11 @@
 
 ## What is Firefight?
 
-Firefight is an incident management platform. It is the system of record for what broke, who responded, what they did, and what you changed so it does not happen again.
+Firefight is an incident management platform. It records what broke, who responded, and what you changed so it doesn't happen again.
 
-It runs where the response already happens. Declaring an incident opens its channel, pulls in the people who should be there, announces it to the rest of the company, and starts a timeline that records every decision from that point on. When it is over, the postmortem is drafted from what actually happened rather than from memory.
+Declaring an incident opens its channel, pulls in the people who should be there, announces it to the rest of the company, and starts a timeline that records every decision from that point on. When it's over, the postmortem is drafted from what actually happened rather than from memory.
 
-It is also built for the machines on your team. Agents connect over MCP or the REST API and work an incident the way a person does, under their own name, reaching only what you granted them.
+Agents work an incident the same way, over MCP or the REST API, under their own name and reaching only what you granted them.
 
 ## Why Firefight?
 
@@ -54,9 +54,8 @@ An alerting tool, a chat thread, a doc template, a status page. Nothing holds th
 - **The fix ships and the write-up waits.** Somebody still has to rebuild the timeline, chase the follow-ups, and write it up, usually after hours. So it gets skipped, and the same incident comes back in two months.
 - **Your agents are locked out.** They can read your code and your logs, but not your incidents, your history, or the reasoning behind either. The one place that knows what actually happened is the one place they cannot reach.
 
-Firefight closes all four. Setup is automatic, the timeline records itself, the postmortem is drafted from the record, and the whole thing is reachable by an agent under permissions you control.
 
-It is AGPL-3.0, so you can read every line, run it yourself, and never be locked in
+It is AGPL-3.0, so you can read every line and run it yourself
 
 ## Features
 
@@ -145,7 +144,7 @@ bin/rails db:prepare && bin/rails db:prepare RAILS_ENV=test
 bin/dev
 ```
 
-Full setup, meaning Slack app creation, environment variables, the local tunnel for Slack callbacks, and how the multi-database layout works, is in [CONTRIBUTING.md](CONTRIBUTING.md)
+[CONTRIBUTING.md](CONTRIBUTING.md) has the full setup: creating the Slack app, the environment variables, the local tunnel for Slack callbacks, and how the multi-database layout works
 
 ## Open source vs. paid
 
