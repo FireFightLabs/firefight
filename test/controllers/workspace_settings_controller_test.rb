@@ -49,6 +49,23 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 14, settings["transcriptRetentionDays"]
   end
 
+  # Zero or negative makes the cutoff now, so the next nightly run would purge
+  # every terminal incident's conversation in the workspace.
+  test "a retention that would purge everything is refused" do
+    patch settings_workspace_path, params: { transcript_retention_days: 0 }
+
+    assert_not_equal 0, @workspace.reload.transcript_retention_days
+    assert_equal [ "must be greater than 0" ],
+                 session[:inertia_errors].deep_stringify_keys["transcript_retention_days"]
+  end
+
+  # An integer column turns junk into 0 silently, which is the same purge.
+  test "a retention that is not a number is refused" do
+    patch settings_workspace_path, params: { transcript_retention_days: "abc" }
+
+    assert_not_equal 0, @workspace.reload.transcript_retention_days
+  end
+
   test "a member without workspace permission cannot turn it on" do
     sign_in(users(:bob), @workspace)
     WorkspaceMembership.any_instance.stubs(:implicitly_permits?).returns(false)

@@ -18,8 +18,8 @@ module Mcp
           incident: { type: "string", description: "Incident UUID or identifier like INC-42" },
           limit: {
             type: "integer",
-            description: "How many messages, newest last. Default #{IncidentTranscriptMessage::Paging::DEFAULT_MESSAGES}, " \
-                         "most #{IncidentTranscriptMessage::Paging::MAX_MESSAGES}"
+            description: "How many messages, newest last. Default #{IncidentTranscriptMessage::DEFAULT_MESSAGES}, " \
+                         "most #{IncidentTranscriptMessage::MAX_MESSAGES}"
           },
           before: {
             type: "string",

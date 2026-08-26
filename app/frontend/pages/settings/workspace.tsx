@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Head, router, usePage } from "@inertiajs/react"
+import type { Errors } from "@inertiajs/core"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Button } from "@/components/ui/button"
@@ -24,6 +25,7 @@ export default function Workspace() {
   const [transcriptAccess, setTranscriptAccess] = useState(settings.transcriptAccessEnabled)
   const [retention, setRetention] = useState(retentionText(settings.transcriptRetentionDays))
   const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<Errors>({})
 
   function changeRetention(event: React.ChangeEvent<HTMLInputElement>) {
     setRetention(event.target.value)
@@ -33,12 +35,20 @@ export default function Workspace() {
     setSaving(false)
   }
 
+  function succeed() {
+    setErrors({})
+  }
+
+  function fail(formErrors: Errors) {
+    setErrors(formErrors)
+  }
+
   function save() {
     setSaving(true)
     router.patch(
       settingsWorkspacePath(),
       { transcript_access_enabled: transcriptAccess, transcript_retention_days: retention },
-      { preserveScroll: true, onFinish: finish },
+      { preserveScroll: true, onSuccess: succeed, onError: fail, onFinish: finish },
     )
   }
 
@@ -94,6 +104,9 @@ export default function Workspace() {
                 />
                 <span className="text-sm text-muted-foreground">days after an incident ends</span>
               </div>
+              {errors.transcript_retention_days && (
+                <p className="mt-2 text-sm text-destructive">{errors.transcript_retention_days}</p>
+              )}
               <p className="mt-2 text-sm text-muted-foreground">
                 Leave it empty to keep them for good. What the team worked out survives either
                 way, as timeline notes with the quote and the person, and in the postmortem, so

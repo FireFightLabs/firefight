@@ -119,6 +119,9 @@ class Workspace < ApplicationRecord
     environment_entries.where(slug: Array(slugs).map(&:to_s)).pluck(:id)
   end
 
+  validates :transcript_retention_days,
+            numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+
   # A grant says who may ask. This says whether the workspace has decided the
   # transcript is readable at all, which is an admin's call rather than
   # something that arrives with a permission checkbox.

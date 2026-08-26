@@ -19,15 +19,8 @@ class TranscriptRetentionJob < ApplicationJob
 
   private
 
-  # A resolved incident stamps resolved_at. A canceled one stamps nothing, so
-  # its last write is the cancel itself and updated_at is the closest thing to
-  # an end. Whichever is later wins, so an incident that was reopened and
-  # closed again starts its window from the second time.
   def purge(workspace)
-    cutoff = Time.current - workspace.transcripts_purge_after
-    incidents = workspace.incidents.terminal
-      .where("GREATEST(COALESCE(incidents.resolved_at, incidents.updated_at), incidents.updated_at) <= ?", cutoff)
-      .select(:id)
+    incidents = workspace.incidents.ended_before(Time.current - workspace.transcripts_purge_after).select(:id)
 
     purged = workspace.incident_transcript_messages
       .where(incident_id: incidents)
