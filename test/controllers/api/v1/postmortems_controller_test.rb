@@ -91,6 +91,22 @@ class Api::V1::PostmortemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "<p>Typed by a person</p>", postmortem.reload.html_content
   end
 
+  # The refusal must not hand back the version that won, or a client can adopt
+  # it and overwrite on its next write the work it was just refused for.
+  test "a refusal does not hand back the version that beat it" do
+    postmortem = started_postmortem
+    stale = postmortem.content_version
+    postmortem.update_content!("<p>Typed by a person</p>", by: @member, expected_version: stale)
+
+    patch api_v1_incident_postmortem_url(@incident),
+          params: { html: "<p>Written by an agent</p>", version: stale },
+          headers: api_headers, as: :json
+
+    assert_response :conflict
+    assert_nil json_response["version"]
+    assert_nil json_response.dig("error", "version")
+  end
+
   test "a body sent with no version at all is refused" do
     postmortem = started_postmortem
 

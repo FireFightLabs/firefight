@@ -73,8 +73,7 @@ class IncidentsController < InertiaController
     render json: { version: postmortem.reload.content_version }
   rescue Postmortem::StaleContent
     render json: {
-      error: "Somebody else changed this postmortem while you were editing. Reload to see their version.",
-      version: postmortem.reload.content_version
+      error: "Somebody else changed this postmortem while you were editing. Reload to see their version."
     }, status: :conflict
   end
 

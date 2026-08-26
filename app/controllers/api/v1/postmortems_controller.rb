@@ -29,9 +29,9 @@ class Api::V1::PostmortemsController < Api::V1::ApiController
   def update
     authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE)
 
-    return render_missing_version if params.key?(:html) && !params.key?(:version)
-
     if params.key?(:html)
+      return render_missing_version unless params.key?(:version)
+
       @postmortem.update_content!(params[:html], by: Current.principal, expected_version: params[:version])
     end
     @postmortem.update_status!(params.require(:status), by: Current.principal) if params.key?(:status)

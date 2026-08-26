@@ -38,7 +38,7 @@ import { requestJson } from "@/lib/http";
 type SaveState = "idle" | "saving" | "saved" | "conflict";
 
 interface SaveResult {
-  version: number;
+  version?: number;
   error?: string;
 }
 
@@ -75,6 +75,7 @@ export default function PostmortemPage() {
   // The version the editor's text was built from. A save that loses to
   // somebody else's rewrite is refused rather than throwing their work away.
   const versionRef = useRef(postmortem?.version ?? 0);
+  const conflictedRef = useRef(false);
 
   const save = useCallback(async () => {
     setSaveState("saving");
@@ -83,15 +84,26 @@ export default function PostmortemPage() {
       body: { html_content: editorContentRef.current, version: versionRef.current },
     });
 
-    if (result.data?.version !== undefined) {
-      versionRef.current = result.data.version;
+    // Losing means nothing was written, so the version stays where it was and
+    // the editor stops trying. Adopting the version that won would let the
+    // next keystroke overwrite the work this save was refused for.
+    if (!result.ok) {
+      conflictedRef.current = true;
+      setSaveState("conflict");
+      return;
     }
-    setSaveState(result.ok ? "saved" : "conflict");
+
+    versionRef.current = result.data?.version ?? versionRef.current;
+    setSaveState("saved");
   }, [incident.id]);
 
   const handleContentUpdate = useCallback(
     (html: string) => {
       editorContentRef.current = html;
+      if (conflictedRef.current) {
+        return;
+      }
+
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
         saveTimerRef.current = undefined;
@@ -134,7 +146,7 @@ export default function PostmortemPage() {
     // request survives page unload / tab close. Inertia's router has no
     // keepalive equivalent, the request would be cancelled on navigation.
     const flushPendingSave = () => {
-      if (!saveTimerRef.current) {
+      if (!saveTimerRef.current || conflictedRef.current) {
         return;
       }
       clearTimeout(saveTimerRef.current);
@@ -153,6 +165,15 @@ export default function PostmortemPage() {
       flushPendingSave();
     };
   }, [incident.id]);
+
+  useEffect(() => {
+    if (saveState !== "saved") {
+      return;
+    }
+
+    const timer = setTimeout(() => setSaveState("idle"), 2000);
+    return () => clearTimeout(timer);
+  }, [saveState]);
 
   function reloadPostmortem() {
     router.reload();
