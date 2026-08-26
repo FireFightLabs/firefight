@@ -55,6 +55,34 @@ POST   /api/v1/incidents/:id/runbook_steps/claim         # runbook_id, step_id, 
 
 `member_id` fields accept an email or a platform user id, never a database id, matching the MCP tools. A reference that resolves to nobody is a 404 rather than a silent no-op.
 
+**Configuration endpoints**: every settings screen has a matching REST surface,
+mirroring the MCP tools. The four option lists share
+`ApiManagesConfigurableOptions`, which calls the same model methods the
+dashboard and MCP call.
+
+```
+GET/POST        /api/v1/severities          PATCH/DELETE /api/v1/severities/:slug
+GET/POST        /api/v1/statuses            PATCH/DELETE /api/v1/statuses/:slug
+GET/POST        /api/v1/incident_types      PATCH/DELETE /api/v1/incident_types/:slug
+GET/POST        /api/v1/incident_roles      PATCH/DELETE /api/v1/incident_roles/:slug
+GET/POST        /api/v1/alert_sources       PATCH/DELETE /api/v1/alert_sources/:endpoint_path
+GET/POST        /api/v1/webhooks            PATCH/DELETE /api/v1/webhooks/:id
+GET/POST        /api/v1/api_keys            PATCH/DELETE /api/v1/api_keys/:prefix
+GET/POST        /api/v1/agents              PATCH/DELETE /api/v1/agents/:slug
+POST            /api/v1/agents/:slug/rotate
+DELETE          /api/v1/agents/:slug/tokens/:token_prefix
+```
+
+Options are addressed by slug, which renaming never moves, because it is what
+stored records point at. **The listing keeps its existing collection key and
+still leaves disabled entries out**, so adding writes moved nothing for a
+reader. `?include_disabled=true` returns them for a caller managing the list,
+since re-enabling one means seeing it first.
+
+`api_keys` and `agents` authorize as `ADMIN_ONLY_RESOURCES`, so an admin's
+personal token reaches them and no service key or agent can. A token appears
+once, in the response that minted it, and never in a listing.
+
 **Timeline endpoints**: `GET /api/v1/incidents/:incident_id/timeline` returns the incident's recorded events in order, paginated, each with `event_type`, `description`, `actor` and, for `milestone.noted`, a `milestone` object carrying `kind`, `statement`, `said_by`, `message_text` and `permalink`. That is how an agent learns how an incident was debugged without reading the channel. `PATCH /api/v1/incidents/:incident_id/timeline/:id/dismiss` (`incidents:update`) dismisses one AI note. Anything that is not a note is refused 422. Dismissed notes leave the index, matching the MCP `get_incident` timeline and `dismiss_timeline_note`.
 
 **Gateway endpoints**: everything under Gateway → Permissions is reachable over REST, through the same model calls the dashboard uses (`Ability::Principal.find!`, `Ability::Grant.grant!`/`#rescope!`, `Ability::Role#sync_actions!`, `PolicyRule::ApprovalRuleChanges.attributes`). They authorize as `permissions:*`, which is admin-only, so only an admin's personal token reaches them. Principals are addressed by `principal_kind` (`user`, `agent`, `api_key`) plus id, abilities by key, sets by slug, environments by catalog slug. Approving or denying an approval additionally requires `Current.principal` to be a `WorkspaceMembership`, since `Ability::Approval#resolve!` takes a membership.

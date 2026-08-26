@@ -6,6 +6,10 @@ module ManagesConfigurableOptions
 
   included do
     before_action :set_option, only: [ :update, :disable, :enable, :destroy, :make_default ]
+
+    # The pre-checks below name the rule for a control that should not have
+    # been offered. This catches the same refusal when two people act at once.
+    rescue_from OptionGuards::Blocked, with: :redirect_blocked_reason
   end
 
   class_methods do
@@ -18,16 +22,13 @@ module ManagesConfigurableOptions
   end
 
   def create
-    name = params[:name].to_s.strip
-    option = option_scope.new(
-      name: name,
+    option = option_model.create_in_list!(current_workspace, {
+      name: params[:name].to_s.strip,
       description: params[:description],
       **color_attribute,
       **create_attributes
-    )
+    })
 
-    option.save_in_position!
-    renumber!
     redirect_to options_path, notice: "#{option.name} was created."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: options_path, inertia: { errors: e.record.errors.to_hash }
@@ -68,8 +69,7 @@ module ManagesConfigurableOptions
   def destroy
     return redirect_blocked(@option.deletion_blocked_reason) if @option.deletion_blocked_reason
 
-    @option.destroy!
-    renumber!
+    @option.destroy_from_list!
     redirect_to options_path, notice: "#{@option.name} was deleted."
   end
 
@@ -106,7 +106,7 @@ module ManagesConfigurableOptions
   end
 
   def option_scope
-    option_model.where(workspace_id: current_workspace.id)
+    option_model.list_for(current_workspace)
   end
 
   def set_option
@@ -117,9 +117,7 @@ module ManagesConfigurableOptions
     redirect_to options_path, alert: reason
   end
 
-  # Closes the gaps a create or destroy leaves, and re-derives any column
-  # mirrored from the order.
-  def renumber!
-    option_model.reorder!(current_workspace, option_scope.ordered.pluck(:id))
+  def redirect_blocked_reason(exception)
+    redirect_blocked(exception.message)
   end
 end

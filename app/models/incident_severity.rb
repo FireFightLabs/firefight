@@ -31,6 +31,12 @@ class IncidentSeverity < ApplicationRecord
     { position: index + 1, rank: total - index }
   end
 
+  # Rank is what orders severities, so it travels with one wherever it is
+  # reported.
+  def config_extras
+    { rank: rank }
+  end
+
   def more_severe_than?(other_severity)
     rank > other_severity.rank
   end

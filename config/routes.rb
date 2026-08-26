@@ -39,9 +39,21 @@ Rails.application.routes.draw do
           post "runbook_steps/claim", to: "incident_participation#claim_runbook_step", as: :claim_runbook_step
         end
       end
-      resources :severities, only: [ :index ]
-      resources :statuses, only: [ :index ]
-      resources :incident_types, only: [ :index ]
+      # Configuring the workspace over REST, matching the MCP tools. Options are
+      # addressed by slug, which is the handle stored records refer to.
+      resources :severities, only: [ :index, :create, :update, :destroy ]
+      resources :statuses, only: [ :index, :create, :update, :destroy ]
+      resources :incident_types, only: [ :index, :create, :update, :destroy ]
+      resources :incident_roles, only: [ :index, :create, :update, :destroy ]
+      resources :alert_sources, only: [ :index, :create, :update, :destroy ]
+      resources :webhooks, only: [ :index, :create, :update, :destroy ]
+      resources :api_keys, only: [ :index, :create, :update, :destroy ]
+      resources :agents, only: [ :index, :create, :update, :destroy ] do
+        member do
+          post :rotate
+          delete "tokens/:token_prefix", action: :revoke_token, as: :token
+        end
+      end
       resources :custom_fields, only: [ :index ]
       resources :runbooks, only: [ :index, :show ]
 

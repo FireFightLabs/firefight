@@ -34,6 +34,12 @@ class IncidentStatus < ApplicationRecord
 
   # Statuses are grouped by stage in the UI but share one position sequence, so
   # a drag inside a stage renumbers the workspace with the other stages held put.
+  # Which stage it belongs to is the thing that makes a status mean anything,
+  # so it travels with the status wherever one is reported.
+  def config_extras
+    { lifecycle_stage: incident_lifecycle_stage.key }
+  end
+
   def self.reorder_within_stage!(workspace, stage_key, ordered_ids)
     by_stage = workspace.incident_statuses.ordered.includes(:incident_lifecycle_stage)
       .group_by { |status| status.incident_lifecycle_stage.key }

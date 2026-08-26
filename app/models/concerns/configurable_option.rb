@@ -28,6 +28,25 @@ module ConfigurableOption
   end
 
   class_methods do
+    # Creating or deleting leaves the position sequence with a gap or a
+    # collision, so the list is renumbered as part of the write rather than by
+    # whoever remembered to. Every surface that manages one of these lists
+    # calls these two.
+    def create_in_list!(workspace, attributes)
+      option = list_for(workspace).new(**attributes)
+      option.save_in_position!
+      renumber!(workspace)
+      option
+    end
+
+    def renumber!(workspace)
+      reorder!(workspace, list_for(workspace).ordered.pluck(:id))
+    end
+
+    def list_for(workspace)
+      where(workspace_id: workspace.id)
+    end
+
     def defaultable?
       false
     end
@@ -39,6 +58,16 @@ module ConfigurableOption
 
   def default_blocked_reason
     nil
+  end
+
+  def config_extras
+    {}
+  end
+
+  def destroy_from_list!
+    refuse!(deletion_blocked_reason)
+    destroy!
+    self.class.renumber!(workspace)
   end
 
   private

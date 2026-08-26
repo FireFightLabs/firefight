@@ -46,6 +46,27 @@ module Mcp
     GIVE_SHOUTOUT = "give_shoutout".freeze
     ESCALATE_INCIDENT = "escalate_incident".freeze
     INVITE_RESPONDERS = "invite_responders".freeze
+    GET_WORKSPACE_CONFIG = "get_workspace_config".freeze
+    UPSERT_SEVERITY = "upsert_severity".freeze
+    DELETE_SEVERITY = "delete_severity".freeze
+    UPSERT_STATUS = "upsert_status".freeze
+    DELETE_STATUS = "delete_status".freeze
+    UPSERT_INCIDENT_TYPE = "upsert_incident_type".freeze
+    DELETE_INCIDENT_TYPE = "delete_incident_type".freeze
+    UPSERT_INCIDENT_ROLE = "upsert_incident_role".freeze
+    DELETE_INCIDENT_ROLE = "delete_incident_role".freeze
+    UPSERT_ALERT_SOURCE = "upsert_alert_source".freeze
+    DELETE_ALERT_SOURCE = "delete_alert_source".freeze
+    UPSERT_WEBHOOK = "upsert_webhook".freeze
+    DELETE_WEBHOOK = "delete_webhook".freeze
+    LIST_AGENTS = "list_agents".freeze
+    UPSERT_AGENT = "upsert_agent".freeze
+    ROTATE_AGENT_TOKEN = "rotate_agent_token".freeze
+    REVOKE_AGENT_TOKEN = "revoke_agent_token".freeze
+    DELETE_AGENT = "delete_agent".freeze
+    LIST_API_KEYS = "list_api_keys".freeze
+    UPSERT_API_KEY = "upsert_api_key".freeze
+    DELETE_API_KEY = "delete_api_key".freeze
 
     def self.all
       [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
@@ -58,7 +79,13 @@ module Mcp
         ListAbilities, ListPrincipals, UpsertPermissionSet, DeletePermissionSet, GrantAbility, RevokeGrant,
         UpsertApprovalRule, DeleteApprovalRule, SearchActivity,
         CreateActionItem, AssignActionItem, CompleteActionItem, ClaimRunbookStep,
-        LinkIncident, GiveShoutout, EscalateIncident, InviteResponders ]
+        LinkIncident, GiveShoutout, EscalateIncident, InviteResponders,
+        GetWorkspaceConfig,
+        UpsertSeverity, DeleteSeverity, UpsertStatus, DeleteStatus,
+        UpsertIncidentType, DeleteIncidentType, UpsertIncidentRole, DeleteIncidentRole,
+        UpsertAlertSource, DeleteAlertSource, UpsertWebhook, DeleteWebhook,
+        ListAgents, UpsertAgent, RotateAgentToken, RevokeAgentToken, DeleteAgent,
+        ListApiKeys, UpsertApiKey, DeleteApiKey ]
     end
   end
 end
