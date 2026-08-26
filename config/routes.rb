@@ -84,7 +84,10 @@ Rails.application.routes.draw do
 
       namespace :catalog do
         get "types", to: "types#index", as: :types
+        post "types", to: "types#create"
         get "types/:slug", to: "types#show", as: :type
+        patch "types/:slug", to: "types#update"
+        delete "types/:slug", to: "types#destroy"
         get "types/:slug/entries", to: "entries#index", as: :type_entries
         post "types/:slug/entries", to: "entries#create"
         get "entries/:id", to: "entries#show", as: :entry

@@ -136,6 +136,14 @@ class Workspace < ApplicationRecord
     transcript_retention_days&.days
   end
 
+  # Reference attributes carry the type they point at as an id inside their
+  # config, so there is no association to preload. Listing every type would
+  # otherwise be a query per attribute.
+  def catalog_type_by_id(id)
+    @catalog_types_by_id ||= catalog_types.active.index_by(&:id)
+    @catalog_types_by_id[id]
+  end
+
   def adapter
     WorkspaceAdapter.for(self)
   end
