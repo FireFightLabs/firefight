@@ -307,6 +307,33 @@ Two rules that are easy to get wrong:
 
 `IncidentEvent.undismissed` is the scope every text surface reads through. Dismissal keeps the row and hides it. Only the dashboard shows dismissed notes, collected at the end of their day.
 
+## The dashboard writes through the same services
+
+The dashboard used to read incidents and write only their postmortems, actions
+and runbook attachments. Everything that changes the incident itself lived in
+Slack. `IncidentLifecycleController` closes that: resolve, cancel, reopen,
+update, assign a role, link, and mark a duplicate.
+
+It carries no rules of its own. The workspace's configured form decides what is
+asked (`IncidentFormResolver`), one model decides what the answers mean
+(`IncidentFormSubmission`), and `IncidentLifecycleService` decides what a status
+change is. Read [forms.md](forms.md) before touching any of it.
+
+Two things about it are worth knowing before adding a control:
+
+- **A single-field write is only correct where Slack has one.** `/ff severity`
+  and `/ff status` both open the whole Update modal, so the dashboard's severity
+  and status badges open the Update dialog rather than patching one attribute.
+  Doing otherwise would skip whatever else that workspace made required. The
+  lead and the other roles do have their own dedicated Slack modals, so they get
+  a dropdown that writes on its own through `assign_role`.
+- **The platform builds its own URLs.** `PlatformAdapter#channel_url` returns
+  the deep link that opens an incident's channel, and the page is handed the
+  finished string. The frontend used to assemble
+  `https://slack.com/app_redirect?channel=...` itself, which both leaked Slack
+  into React and dropped the `team`, so a browser signed into more than one
+  workspace opened the wrong one.
+
 ## Outbound Webhooks
 
 Domain events fan out to customer-configured webhooks:

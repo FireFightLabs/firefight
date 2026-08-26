@@ -2,8 +2,8 @@
 # update, resolve). Encapsulates the pipeline shared by every modal that
 # submits incident-form values:
 #
-#   1. Build a conditions context (severity_id, incident_type_id) from the
-#      submitted values, falling back to the existing incident when present.
+#   1. Read the condition-relevant answers off the submitted values and ask
+#      IncidentConditionEvaluator what context they add up to.
 #   2. Resolve visible fields via `IncidentFormResolver` for the given slug.
 #      Raises `ActiveRecord::RecordNotFound` if the form isn't seeded, this
 #      is a workspace setup invariant, not a runtime fallback.
@@ -34,7 +34,7 @@ module Slack
 
     def parse
       resolver = IncidentFormResolver.new(@workspace)
-      context = build_condition_context
+      context = IncidentConditionEvaluator.context_for(@incident, workspace: @workspace, answers: submitted_answers)
       visible_fields = resolver.resolve(@form_slug, context: context)
 
       raw_params = extract_raw_params(visible_fields)
@@ -45,32 +45,26 @@ module Slack
         custom_fields: validation[:custom_fields],
         errors: validation[:errors],
         first_error_field_key: first_field_key(visible_fields),
-        visible_system_keys: visible_fields.select(&:system?).map(&:system_field_key).to_set
+        visible_system_keys: validation[:visible_system_keys]
       )
     end
 
     private
 
-    # What the incident will hold once this is submitted, the answers in front
-    # of the responder, over whatever the incident already has. Reading only the
-    # stored ones meant a condition on a custom field from this same form could
-    # never match, because the answer it needed was sitting unread in the
-    # submission. Severity and incident type already worked this way.
-    #
-    # Built before the values are parsed, since it decides which fields are
-    # visible and parsing reads that.
-    def build_condition_context
-      IncidentConditionEvaluator.context(
-        incident_type: resolved_id(:incident_types, IncidentSystemField::KEY_INCIDENT_TYPE, :incident_type_id),
-        severity: resolved_id(:incident_severities, IncidentSystemField::KEY_SEVERITY, :incident_severity_id),
-        status: resolved_id(:incident_statuses, IncidentSystemField::KEY_STATUS, :incident_status_id),
-        visibility: submitted_visibility,
-        custom_fields: (@incident&.custom_fields || {}).merge(submitted_custom_fields)
-      )
+    # The condition-relevant answers, read straight off the view state by block
+    # id rather than from the resolved set, which is not known yet. What they
+    # mean for the incident is the evaluator's job, not Block Kit's.
+    def submitted_answers
+      selects = [
+        IncidentSystemField::KEY_INCIDENT_TYPE,
+        IncidentSystemField::KEY_SEVERITY,
+        IncidentSystemField::KEY_STATUS,
+        IncidentSystemField::KEY_VISIBILITY
+      ].index_with { |key| read_slug(key) }.compact
+
+      selects.merge(submitted_custom_fields)
     end
 
-    # Read straight off the view state by slug rather than from the resolved
-    # set, which is not known yet.
     def submitted_custom_fields
       @workspace.incident_field_definitions.active.each_with_object({}) do |definition, values|
         block_id = Slack::Modals::FieldBlocks.block_id(definition.slug)
@@ -82,25 +76,6 @@ module Slack
         )
         values[definition.slug] = value unless value.nil?
       end
-    end
-
-    # Visibility is a plain value rather than a record, so it reads straight off
-    # the block, falling back to what the incident already is.
-    def submitted_visibility
-      submitted = read_slug(IncidentSystemField::KEY_VISIBILITY)
-      return submitted if submitted.present?
-      return nil if @incident.nil?
-
-      @incident.is_private ? Incident::VISIBILITY_PRIVATE : Incident::VISIBILITY_PUBLIC
-    end
-
-    def resolved_id(association, system_key, incident_attr)
-      slug = read_slug(system_key)
-      if slug.present?
-        id = @workspace.public_send(association).where(slug: slug).pick(:id)
-        return id if id
-      end
-      @incident&.public_send(incident_attr)
     end
 
     def read_slug(system_key)

@@ -34,6 +34,16 @@ class IncidentAction < ApplicationRecord
   scope :completed, -> { where(status: STATUS_DONE) }
   scope :recent, -> { order(created_at: :desc) }
 
+  # Nobody has taken it, so taking it is the next move. Both entry points ask
+  # rather than each spelling out what an untaken item looks like.
+  def claimable?
+    open? && !assigned?
+  end
+
+  def completable?
+    !done?
+  end
+
   def open?
     status == STATUS_OPEN
   end

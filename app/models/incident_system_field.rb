@@ -184,6 +184,38 @@ class IncidentSystemField
 
   DEFINITIONS_BY_KEY = DEFINITIONS.index_by(&:key).freeze
 
+  # What the two fixed-choice system fields offer. They live here for the same
+  # reason label, hint and placeholder do. Both surfaces read them, and a copy
+  # kept in one of them is a copy that drifts. The workspace's own records
+  # answer the rest (statuses, severities, types, people).
+  Choice = Data.define(:value, :label)
+
+  VISIBILITY_CHOICES = [
+    Choice.new(value: Incident::VISIBILITY_PUBLIC, label: "Everyone (public)"),
+    Choice.new(value: Incident::VISIBILITY_PRIVATE, label: "Private")
+  ].freeze
+
+  NEXT_UPDATE_CHOICES = [
+    Choice.new(value: "5", label: "5 minutes"),
+    Choice.new(value: "15", label: "15 minutes"),
+    Choice.new(value: "30", label: "30 minutes"),
+    Choice.new(value: "60", label: "1 hour"),
+    Choice.new(value: "180", label: "3 hours"),
+    Choice.new(value: "1440", label: "1 day"),
+    Choice.new(value: "10080", label: "7 days")
+  ].freeze
+
+  DEFAULT_NEXT_UPDATE_MINUTES = "15".freeze
+
+  # The fixed choices for a key, or nil when the answers come from the
+  # workspace's own records instead.
+  def self.choices_for(key)
+    case key
+    when KEY_VISIBILITY then VISIBILITY_CHOICES
+    when KEY_NEXT_UPDATE then NEXT_UPDATE_CHOICES
+    end
+  end
+
   def self.fetch(key)
     DEFINITIONS_BY_KEY.fetch(key)
   end

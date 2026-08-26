@@ -21,23 +21,20 @@ module Interactions
         return workspace.adapter.form_error_response(submission.first_error_field_key, submission.errors.first)
       end
 
-      chosen = submission.system_attrs[IncidentSystemField::KEY_STATUS]
-      status = (chosen.present? && workspace.incident_statuses.canceled.active.find_by(slug: chosen)) ||
-               workspace.default_canceled_status
-
-      system_attrs = submission.system_attrs
-      attrs = { incident_status: status }
-      attrs[:name] = system_attrs[IncidentSystemField::KEY_NAME] if system_attrs[IncidentSystemField::KEY_NAME].present?
-      attrs[:summary] = system_attrs[IncidentSystemField::KEY_SUMMARY] if system_attrs[IncidentSystemField::KEY_SUMMARY].present?
-      attrs[:custom_fields] = submission.custom_fields if submission.custom_fields.present?
+      form = IncidentFormSubmission.new(
+        workspace,
+        incident: incident,
+        form_slug: IncidentForm::SLUG_CANCEL,
+        system_attrs: submission.system_attrs,
+        custom_fields: submission.custom_fields,
+        visible_system_keys: submission.visible_system_keys
+      )
 
       IncidentLifecycleService.new(workspace).change_status(
         incident,
-        attrs,
+        form.attributes,
         changed_by: member,
-        # The summary a responder typed while cancelling is the explanation of
-        # why, so it belongs in the message the channel sees.
-        message: system_attrs[IncidentSystemField::KEY_SUMMARY].presence
+        message: form.message
       )
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata)
 

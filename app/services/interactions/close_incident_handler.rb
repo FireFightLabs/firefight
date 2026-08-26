@@ -21,10 +21,20 @@ module Interactions
         return workspace.adapter.form_error_response(submission.first_error_field_key, submission.errors.first)
       end
 
-      lead_member, lead_error = resolve_lead(workspace, submission)
+      form = IncidentFormSubmission.new(
+        workspace,
+        incident: incident,
+        form_slug: IncidentForm::SLUG_RESOLVE,
+        system_attrs: submission.system_attrs,
+        custom_fields: submission.custom_fields,
+        visible_system_keys: submission.visible_system_keys
+      )
+
+      lead_member, lead_error = resolve_lead(workspace, form)
       return lead_error if lead_error
 
-      attrs = build_close_attrs(workspace, incident, submission, lead_member)
+      attrs = form.attributes
+      attrs[:lead] = lead_member if lead_member
 
       IncidentLifecycleService.new(workspace).change_status(incident, attrs, changed_by: member)
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata)
@@ -36,8 +46,11 @@ module Interactions
       workspace.adapter.form_error_response(IncidentSystemField::KEY_SUMMARY, "Something went wrong. Please close this modal and try again.")
     end
 
-    def self.resolve_lead(workspace, submission)
-      lead_user_id = submission.system_attrs["lead"]
+    # Slack hands over a platform user id, so the person may not have a
+    # membership row yet. Only this entry point knows that, which is why the
+    # shared submission hands back the raw value rather than a member.
+    def self.resolve_lead(workspace, form)
+      lead_user_id = form.lead_value
       return [ nil, nil ] if lead_user_id.blank?
 
       lead_member = WorkspaceMemberProvisioner.find_or_provision!(
@@ -50,35 +63,6 @@ module Interactions
       [ lead_member, nil ]
     end
     private_class_method :resolve_lead
-
-    # Honours the status a responder picked when the workspace has more than
-    # one closed status, and falls back to the first by position when the form
-    # never offered the choice.
-    def self.resolve_status(workspace, submission)
-      scope = workspace.incident_statuses.closed.active.ordered
-      chosen = submission.system_attrs[IncidentSystemField::KEY_STATUS]
-
-      (chosen.present? && scope.find_by(slug: chosen)) || scope.first
-    end
-    private_class_method :resolve_status
-
-    def self.build_close_attrs(workspace, incident, submission, lead_member)
-      system_attrs = submission.system_attrs
-
-      attrs = {
-        incident_status: resolve_status(workspace, submission),
-        incident_severity: system_attrs["severity"].present? ? workspace.incident_severities.active.find_by!(slug: system_attrs["severity"]) : incident.incident_severity
-      }
-      attrs[:name] = system_attrs["name"] if system_attrs["name"].present?
-      attrs[:summary] = system_attrs["summary"] if system_attrs["summary"].present?
-      attrs[:incident_type] = workspace.incident_types.active.find_by!(slug: system_attrs["incident_type"]) if system_attrs["incident_type"].present?
-      # Only the submitted fields. Values are rows now, so writing a subset
-      # leaves the rest untouched without reading them back first.
-      attrs[:custom_fields] = submission.custom_fields if submission.custom_fields.present?
-      attrs[:lead] = lead_member if lead_member
-      attrs
-    end
-    private_class_method :build_close_attrs
 
     def self.already_closed_error(workspace)
       workspace.adapter.form_error_response(IncidentSystemField::KEY_SUMMARY, "This incident is already closed.")

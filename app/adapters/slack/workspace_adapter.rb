@@ -200,6 +200,16 @@ module Slack
       end
     end
 
+    # Deep link rather than a web URL, and it carries the team so a browser
+    # signed into several workspaces lands in the right one. Without it Slack
+    # opens whichever workspace was last used, where the channel does not
+    # exist.
+    def channel_url(channel_id:)
+      return nil if channel_id.blank?
+
+      "slack://channel?team=#{@workspace.platform_id}&id=#{channel_id}"
+    end
+
     def get_message_permalink(channel_id:, message_id:)
       translate_errors do
         result = Slack::Client.get_permalink(

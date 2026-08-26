@@ -19,6 +19,11 @@ module TypescriptConstants
       }, nil),
       Export.new("CUSTOM_MCP_PROVIDER_KEY", Integration::PROVIDER_CUSTOM_MCP, nil),
       Export.new("RUNBOOK_QUERY_PARAM", Runbook::QUERY_PARAM, nil),
+      Export.new("INCIDENT_FORM_SLUGS", IncidentForm::SLUGS, "IncidentFormSlug"),
+      Export.new("INCIDENT_RELATIONSHIPS", {
+        "RELATED" => IncidentRelationship::RELATED, "DUPLICATE" => IncidentRelationship::DUPLICATE
+      }, nil),
+      Export.new("LEAD_ROLE_SLUG", IncidentRole::SLUG_INCIDENT_LEAD, nil),
       Export.new("CONDITION_FIELD_LABELS", IncidentCondition::FIELD_LABELS, nil),
       Export.new("CONDITION_OPERATOR_LABELS", IncidentCondition::OPERATOR_LABELS, nil),
       Export.new("ALERT_NORMALIZED_FIELDS", AlertProviders::Base::NORMALIZED_FIELDS, "AlertNormalizedField"),

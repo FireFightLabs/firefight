@@ -86,6 +86,13 @@ class Workspace < ApplicationRecord
     incident_statuses.canceled.active.ordered.first!
   end
 
+  # Where a reopened incident lands: the workspace's default status when it is
+  # a live one, otherwise the first live status by position.
+  def default_live_status
+    live = incident_statuses.active.live
+    live.find_by(is_default: true) || live.ordered.first!
+  end
+
   def find_or_create_alert_routing_policy!
     alert_routing_policy ||
       policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: Policy::DEFAULT_ALERT_ROUTING_NAME)

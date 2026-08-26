@@ -198,6 +198,12 @@ class PlatformAdapter
   end
 
   # @return [Hash] { permalink: "https://..." }
+  # A URL that opens the incident's channel in the platform's own client.
+  # @return [String, nil] nil when the incident has no channel.
+  def channel_url(channel_id:)
+    raise NotImplementedError
+  end
+
   def get_message_permalink(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end

@@ -17,6 +17,21 @@ export const CUSTOM_MCP_PROVIDER_KEY = "custom_mcp" as const
 
 export const RUNBOOK_QUERY_PARAM = "runbook" as const
 
+export const INCIDENT_FORM_SLUGS = [
+  "declare",
+  "update",
+  "resolve",
+  "cancel"
+] as const
+export type IncidentFormSlug = (typeof INCIDENT_FORM_SLUGS)[number]
+
+export const INCIDENT_RELATIONSHIPS = {
+  "RELATED": "related",
+  "DUPLICATE": "duplicate"
+} as const
+
+export const LEAD_ROLE_SLUG = "incident_lead" as const
+
 export const CONDITION_FIELD_LABELS = {
   "incident_type": "Incident Type",
   "severity": "Severity",

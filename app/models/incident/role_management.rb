@@ -4,6 +4,21 @@ module Incident::RoleManagement
   # A role names who is accountable, not who is working, so there is one holder
   # per role per incident and assigning replaces whoever held it. Parallel
   # effort is carried by actions and follow-ups, which are many by design.
+  # Every role the workspace configured, held or not, minus the lead, which has
+  # its own place in the header. A role nobody holds still has to be listed, or
+  # there is no way to fill it.
+  RoleSeat = Data.define(:incident_role, :workspace_membership)
+
+  def role_roster
+    holders = incident_role_assignments.includes(:workspace_membership).index_by(&:incident_role_id)
+
+    workspace.incident_roles.active.ordered.filter_map do |role|
+      next if role.slug == IncidentRole::SLUG_INCIDENT_LEAD
+
+      RoleSeat.new(incident_role: role, workspace_membership: holders[role.id]&.workspace_membership)
+    end
+  end
+
   def role_holder(role)
     role_assignment_for(role)&.workspace_membership
   end

@@ -1,10 +1,46 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { Incident } from "@/pages/incidents/types"
+import { InlineSelect, type InlineChoice } from "@/pages/incidents/components/index/inline-select"
+import { assignIncidentRolePath } from "@/lib/routes"
 
-export function RolesPanel({ roles }: { roles: Incident["roles"] }) {
+// Clearing a role is picking nobody, so the picker carries an entry for it
+// rather than hiding the option behind a separate control.
+const UNASSIGNED = ""
+
+function Holder({ member }: { member: Incident["roles"][number]["member"] }) {
+  if (!member) {
+    return <span className="text-[13px] text-muted-foreground/70">Unassigned</span>
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Avatar className="size-5">
+        {member.avatarUrl ? <AvatarImage src={member.avatarUrl} alt={member.name} /> : null}
+        <AvatarFallback className="bg-primary/20 text-[10px] font-semibold text-primary">
+          {member.initials}
+        </AvatarFallback>
+      </Avatar>
+      <span className="truncate text-[13px] text-foreground">{member.name}</span>
+    </div>
+  )
+}
+
+export function RolesPanel({
+  roles,
+  incidentId,
+  candidates,
+  blockedReason,
+}: {
+  roles: Incident["roles"]
+  incidentId: string
+  candidates: InlineChoice[]
+  blockedReason?: string | null
+}) {
   if (roles.length === 0) {
     return null
   }
+
+  const choices: InlineChoice[] = [ { value: UNASSIGNED, label: "Unassigned" }, ...candidates ]
 
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">
@@ -13,17 +49,15 @@ export function RolesPanel({ roles }: { roles: Incident["roles"] }) {
         {roles.map((role) => (
           <li key={role.id} className="flex items-center justify-between gap-3">
             <span className="truncate text-xs text-muted-foreground">{role.name}</span>
-            <div className="flex min-w-0 items-center gap-2">
-              <Avatar className="size-5">
-                {role.member.avatarUrl ? (
-                  <AvatarImage src={role.member.avatarUrl} alt={role.member.name} />
-                ) : null}
-                <AvatarFallback className="bg-primary/20 text-[10px] font-semibold text-primary">
-                  {role.member.initials}
-                </AvatarFallback>
-              </Avatar>
-              <span className="truncate text-[13px] text-foreground">{role.member.name}</span>
-            </div>
+            <InlineSelect
+              trigger={<Holder member={role.member} />}
+              choices={choices}
+              selected={role.memberId ?? UNASSIGNED}
+              path={assignIncidentRolePath(incidentId)}
+              payload={(value) => ({ role: role.slug, member_id: value })}
+              blockedReason={blockedReason}
+              align="end"
+            />
           </li>
         ))}
       </ul>

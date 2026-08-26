@@ -118,7 +118,14 @@ class IncidentFormResolver
     unknown = raw_params.keys - known_keys
     errors << "Unknown fields: #{unknown.join(', ')}" if unknown.any?
 
-    { system_attrs: system_attrs, custom_fields: custom_fields, errors: errors }
+    {
+      system_attrs: system_attrs,
+      custom_fields: custom_fields,
+      errors: errors,
+      # Which system fields were put in front of the responder, so a caller can
+      # tell "blanked on the form" from "never asked" without resolving again.
+      visible_system_keys: visible_fields.select(&:system?).map(&:system_field_key).to_set
+    }
   end
 
   def validate_submission!(lifecycle_event, raw_params, context: {})

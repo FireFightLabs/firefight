@@ -125,4 +125,77 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     ApplicationController.any_instance.stubs(:current_workspace).returns(workspace)
     ApplicationController.any_instance.stubs(:user_signed_in?).returns(true)
   end
+
+  # Working an item from the page
+
+  test "picking up an unassigned item takes it and starts it" do
+    action = open_action
+
+    patch pick_up_incident_action_path(@incident, action)
+
+    assert_redirected_to incident_path(@incident)
+    assert_equal @member, action.reload.assignee
+    assert_equal IncidentAction::STATUS_IN_PROGRESS, action.status
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_PICKED_UP)
+  end
+
+  test "handing an item to someone else is a reassignment, not a pick up" do
+    action = open_action
+    other = workspace_memberships(:bob_workspace_one)
+
+    patch assign_incident_action_path(@incident, action), params: { member_id: other.id }
+
+    assert_equal other, action.reload.assignee
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_REASSIGNED)
+  end
+
+  test "completing an item records it done" do
+    action = open_action
+
+    patch complete_incident_action_path(@incident, action)
+
+    assert action.reload.done?
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_COMPLETED)
+  end
+
+  test "an item that is already done is left alone" do
+    action = open_action
+    IncidentActionService.new(@workspace).complete_action(action: action, completed_by: @member)
+
+    assert_no_difference -> { @incident.incident_events.where(event_type: IncidentEvent::ACTION_COMPLETED).count } do
+      patch complete_incident_action_path(@incident, action)
+    end
+  end
+
+  test "picking up an item someone already holds does nothing" do
+    action = open_action
+    other = workspace_memberships(:bob_workspace_one)
+    IncidentActionService.new(@workspace).pick_up_action(action: action, picked_up_by: other)
+
+    patch pick_up_incident_action_path(@incident, action)
+
+    assert_equal other, action.reload.assignee
+  end
+
+  test "another workspace's item is not reachable" do
+    action = open_action
+
+    patch complete_incident_action_path(incidents(:active_p0_ws2), action)
+
+    assert_response :not_found
+  end
+
+  private
+
+  def open_action
+    stub_post_message
+    stub_update_message
+    stub_get_permalink
+    IncidentActionService.new(@workspace).create_action(
+      incident: @incident,
+      created_by: @member,
+      action_type: IncidentAction::ACTION_TYPE_ACTION,
+      description: "Drain replica 2"
+    )
+  end
 end
