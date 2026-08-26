@@ -7,8 +7,6 @@ class WorkspaceSettingsSerializer < BaseSerializer
     archive_channel_delay_minutes: { type: :number }
   )
 
-  # Null keeps transcripts forever, which the screen says in words rather than
-  # leaving the field empty and unexplained.
   type :number, optional: true
   def transcript_retention_days
     workspace.transcript_retention_days

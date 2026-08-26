@@ -15,8 +15,6 @@ interface WorkspacePageProps extends SharedProps {
   settings: WorkspaceSettings
 }
 
-// A blank retention means keep everything, so the field is empty rather than
-// carrying a number that would read as a limit.
 function retentionText(days?: number): string {
   return days ? String(days) : ""
 }

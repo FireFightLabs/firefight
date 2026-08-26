@@ -1,6 +1,6 @@
 # The workspace's own settings, which until now had no screen at all. Transcript
-# access is here rather than on the Permissions page on purpose: a grant says
-# who may ask, and this says whether the conversation is readable at all.
+# access is here rather than on the Permissions page on purpose. A grant says who
+# may ask, and this says whether the conversation is readable at all.
 class WorkspaceSettingsController < InertiaController
   authorizes Ability::Action::RESOURCE_WORKSPACE, read: :show, update: :update
 

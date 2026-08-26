@@ -1,5 +1,3 @@
-# Drops the raw conversation once the incident it belonged to is long over.
-#
 # The transcript is scaffolding. What was worked out in it survives as timeline
 # milestones and, where one was written, as the postmortem, so purging loses
 # the messages and not the memory. The window starts when the incident ends
@@ -36,7 +34,7 @@ class TranscriptRetentionJob < ApplicationJob
       .in_batches(of: BATCH)
       .delete_all
 
-    return if purged.to_i.zero?
+    return if purged.zero?
 
     Rails.logger.info({ event: "transcript_retention.purged", workspace_id: workspace.id, messages: purged })
   end

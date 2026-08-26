@@ -45,9 +45,8 @@ module Mcp
         )
       end
 
-      # Newest last, because that is the order a conversation reads in, but
-      # paged backwards from the end, because that is the part worth reading
-      # first.
+      # Newest last, since that is how a conversation reads, but paged from the
+      # end, since that is the part worth reading first.
       def self.page(incident, args)
         scope = incident.incident_transcript_messages.kept.order(posted_at: :desc, message_id: :desc)
         scope = older_than(scope, incident, args[:before]) if args[:before].present?

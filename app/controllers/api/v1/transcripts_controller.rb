@@ -1,6 +1,5 @@
-# What people said in an incident's channel. Its own resource rather than part
-# of incidents, because reading an incident and reading every message in it are
-# different asks, and a grant made for one should not quietly buy the other.
+# What people said in an incident's channel, gated by its own resource and by
+# the workspace having turned access on.
 class Api::V1::TranscriptsController < Api::V1::ApiController
   DEFAULT_MESSAGES = 100
   MAX_MESSAGES = 500
@@ -18,8 +17,8 @@ class Api::V1::TranscriptsController < Api::V1::ApiController
 
   private
 
-  # Newest last, because that is the order a conversation reads in, but paged
-  # backwards from the end, because that is the part worth reading first.
+  # Newest last, since that is how a conversation reads, but paged from the end,
+  # since that is the part worth reading first.
   def page
     scope = @incident.incident_transcript_messages.kept.order(posted_at: :desc, message_id: :desc)
     scope = scope.where("posted_at < ?", cursor.posted_at) if params[:before].present?
