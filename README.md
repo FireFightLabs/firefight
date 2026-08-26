@@ -54,7 +54,6 @@ An alerting tool, a chat thread, a doc template, a status page. Nothing holds th
 - **The fix ships and the write-up waits.** Somebody still has to rebuild the timeline, chase the follow-ups, and write it up, usually after hours. So it gets skipped, and the same incident comes back in two months.
 - **Your agents are locked out.** They can read your code and your logs, but not your incidents, your history, or the reasoning behind either. The one place that knows what actually happened is the one place they cannot reach.
 
-
 It is AGPL-3.0, so you can read every line and run it yourself
 
 ## Features
