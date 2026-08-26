@@ -44,13 +44,13 @@ class IncidentParticipationController < InertiaController
   # Counting rather than naming, because the picker only offers people this
   # workspace already has and the reader just watched themselves pick them.
   def invite_notice(result, members)
-    invited = result.invited_user_ids.size
-    return "Everyone you picked is already in the channel." if invited.zero? && result.failed_invites.empty?
+    invited = result.invited.size
+    return "Everyone you picked is already in the channel." if invited.zero? && result.failed.empty?
 
     notice = "Invited #{invited} of #{members.size} to the channel."
-    return notice if result.failed_invites.empty?
+    return notice if result.failed.empty?
 
-    "#{notice} #{result.failed_invites.size} could not be invited."
+    "#{notice} #{result.failed.size} could not be invited."
   end
 
   def redirect_blocked(reason)

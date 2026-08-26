@@ -1,7 +1,9 @@
 class IncidentInviteService
-  # What one invite round did, in the platform ids the platform was asked
-  # about.
-  Result = Data.define(:invited_user_ids, :already_in_channel_user_ids, :failed_invites)
+  # What one invite round did, holding the people it was asked about rather
+  # than the platform ids it derived from them. A caller that named members
+  # gets members back and never has to reverse the mapping.
+  Result = Data.define(:invited, :already_in_channel, :failed)
+  Failure = Data.define(:person, :error)
 
   def initialize(workspace)
     @workspace = workspace
@@ -14,25 +16,20 @@ class IncidentInviteService
     blocked_reason = incident.invite_blocked_reason
     raise Incident::NotActive, blocked_reason if blocked_reason
 
-    user_ids = platform_user_ids(people)
     invited = []
     already_in_channel = []
     failed = []
 
-    user_ids.each do |user_id|
-      @adapter.invite_user(channel_id: incident.channel_id, user_id: user_id)
-      invited << user_id
+    distinct(people).each do |person|
+      @adapter.invite_user(channel_id: incident.channel_id, user_id: platform_user_id(person))
+      invited << person
     rescue AdapterError::AlreadyInChannel
-      already_in_channel << user_id
+      already_in_channel << person
     rescue AdapterError => e
-      failed << { user_id: user_id, error: e.message }
+      failed << Failure.new(person: person, error: e.message)
     end
 
-    Result.new(
-      invited_user_ids: invited,
-      already_in_channel_user_ids: already_in_channel,
-      failed_invites: failed
-    )
+    Result.new(invited: invited, already_in_channel: already_in_channel, failed: failed)
   end
 
   def resolve_and_notify!(incident:, text:, channel_id:, user_id:)
@@ -49,9 +46,13 @@ class IncidentInviteService
 
   private
 
-  def platform_user_ids(people)
-    Array(people).compact.map do |person|
-      person.is_a?(WorkspaceMembership) ? person.platform_user_id : person.to_s
-    end.uniq
+  # Two references can name one person, and the platform is what decides that,
+  # so the round is deduped by the account it will be asked about.
+  def distinct(people)
+    Array(people).compact.uniq { |person| platform_user_id(person) }
+  end
+
+  def platform_user_id(person)
+    person.is_a?(WorkspaceMembership) ? person.platform_user_id : person.to_s
   end
 end

@@ -23,15 +23,12 @@ class Api::V1::IncidentParticipationController < Api::V1::ApiController
   def invite
     members = Array(params.require(:member_ids)).map { |reference| current_workspace.workspace_memberships.resolve!(reference) }
     result = IncidentInviteService.new(current_workspace).invite!(incident: @incident, people: members)
-    by_platform_id = members.index_by(&:platform_user_id)
 
     render json: {
       incident_id: @incident.id,
-      invited: members_for(result.invited_user_ids, by_platform_id),
-      already_here: members_for(result.already_in_channel_user_ids, by_platform_id),
-      failed: result.failed_invites.map do |failure|
-        { member: by_platform_id[failure[:user_id]]&.actor_display_name, error: failure[:error] }
-      end
+      invited: named(result.invited),
+      already_here: named(result.already_in_channel),
+      failed: result.failed.map { |failure| { member: failure.person.actor_display_name, error: failure.error } }
     }
   end
 
@@ -83,9 +80,8 @@ class Api::V1::IncidentParticipationController < Api::V1::ApiController
 
   private
 
-  def members_for(user_ids, by_platform_id)
-    user_ids.filter_map { |user_id| by_platform_id[user_id] }
-      .map { |member| { id: member.id, name: member.actor_display_name } }
+  def named(people)
+    people.map { |person| { id: person.id, name: person.actor_display_name } }
   end
 
   def set_incident

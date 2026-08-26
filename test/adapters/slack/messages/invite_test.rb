@@ -2,19 +2,28 @@ require "test_helper"
 
 class Slack::Messages::InviteTest < ActiveSupport::TestCase
   test "names how many went in" do
-    assert_equal "Invited 2 responders.", summary(invited_user_ids: [ "U1", "U2" ])
-    assert_equal "Invited 1 responder.", summary(invited_user_ids: [ "U1" ])
+    assert_equal "Invited 2 responders.", summary(invited: [ "U1", "U2" ])
+    assert_equal "Invited 1 responder.", summary(invited: [ "U1" ])
   end
 
   test "names the people who were already here rather than counting them" do
-    text = summary(invited_user_ids: [ "U1" ], already_in_channel_user_ids: [ "U2" ])
+    text = summary(invited: [ "U1" ], already_in_channel: [ "U2" ])
 
     assert_includes text, "Invited 1 responder."
     assert_includes text, "<@U2> is already in this channel."
   end
 
+  # A round started from the dashboard holds members, one started from the
+  # slash command holds platform ids, and both mention correctly.
+  test "mentions a member the same as a platform id" do
+    member = workspace_memberships(:alice_workspace_one)
+    text = summary(already_in_channel: [ member ])
+
+    assert_includes text, "<@#{member.platform_user_id}> is already in this channel."
+  end
+
   test "reports failures alongside what did work" do
-    text = summary(invited_user_ids: [ "U1" ], failed_invites: [ { user_id: "U3", error: "cant_invite" } ])
+    text = summary(invited: [ "U1" ], failed: [ IncidentInviteService::Failure.new(person: "U3", error: "cant_invite") ])
 
     assert_includes text, "Invited 1 responder."
     assert_includes text, "1 failed."
@@ -41,12 +50,10 @@ class Slack::Messages::InviteTest < ActiveSupport::TestCase
 
   private
 
-  def summary(invited_user_ids: [], already_in_channel_user_ids: [], failed_invites: [])
+  def summary(invited: [], already_in_channel: [], failed: [])
     Slack::Messages::Invite.summary(
       IncidentInviteService::Result.new(
-        invited_user_ids: invited_user_ids,
-        already_in_channel_user_ids: already_in_channel_user_ids,
-        failed_invites: failed_invites
+        invited: invited, already_in_channel: already_in_channel, failed: failed
       )
     )
   end

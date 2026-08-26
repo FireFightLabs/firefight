@@ -28,21 +28,43 @@ import { ShoutoutDialog } from "@/pages/incidents/components/index/shoutout-dial
 import { incidentReopenPath } from "@/lib/routes"
 import { INCIDENT_RELATIONSHIPS } from "@/lib/generated/constants"
 
-type Participation = "escalate" | "invite" | "shoutout"
+// Only one of these is ever open, so they are one piece of state rather than
+// three that could contradict each other.
+type OpenDialog =
+  | { kind: "lifecycle"; form: LifecycleForm }
+  | { kind: "link"; relationship: Relationship }
+  | { kind: "escalate" }
+  | { kind: "invite" }
+  | { kind: "shoutout" }
+
+const UPDATE: OpenDialog = { kind: "lifecycle", form: "update" }
+const RESOLVE: OpenDialog = { kind: "lifecycle", form: "resolve" }
+const CANCEL: OpenDialog = { kind: "lifecycle", form: "cancel" }
+const RELATED: OpenDialog = { kind: "link", relationship: INCIDENT_RELATIONSHIPS.RELATED }
+const DUPLICATE: OpenDialog = { kind: "link", relationship: INCIDENT_RELATIONSHIPS.DUPLICATE }
+const ESCALATE: OpenDialog = { kind: "escalate" }
+const INVITE: OpenDialog = { kind: "invite" }
+const SHOUTOUT: OpenDialog = { kind: "shoutout" }
 
 // A control the model has refused stays visible and says why, rather than
 // vanishing and leaving the reader to guess.
 function MenuItem({
   label,
+  dialog,
   blockedReason,
-  onSelect,
+  onOpen,
 }: {
   label: string
+  dialog: OpenDialog
   blockedReason?: string
-  onSelect: () => void
+  onOpen: (dialog: OpenDialog) => void
 }) {
+  function open() {
+    onOpen(dialog)
+  }
+
   if (!blockedReason) {
-    return <DropdownMenuItem onSelect={onSelect}>{label}</DropdownMenuItem>
+    return <DropdownMenuItem onSelect={open}>{label}</DropdownMenuItem>
   }
 
   return (
@@ -69,55 +91,13 @@ export function IncidentMenu({
   linkable: LinkableIncident[]
   members: SearchableSelectOption[]
 }) {
-  const [form, setForm] = useState<LifecycleForm | null>(null)
-  const [relationship, setRelationship] = useState<Relationship | null>(null)
-  const [participation, setParticipation] = useState<Participation | null>(null)
+  const [dialog, setDialog] = useState<OpenDialog | null>(null)
   // The model decides this, not a stage list kept here. An incident that can
   // no longer be changed is one that has to be reopened first.
   const terminal = Boolean(incident.changeBlockedReason)
 
-  function openUpdate() {
-    setForm("update")
-  }
-
-  function openResolve() {
-    setForm("resolve")
-  }
-
-  function openCancel() {
-    setForm("cancel")
-  }
-
-  function closeForm() {
-    setForm(null)
-  }
-
-  function openRelated() {
-    setRelationship(INCIDENT_RELATIONSHIPS.RELATED)
-  }
-
-  function openDuplicate() {
-    setRelationship(INCIDENT_RELATIONSHIPS.DUPLICATE)
-  }
-
-  function closeRelationship() {
-    setRelationship(null)
-  }
-
-  function openEscalate() {
-    setParticipation("escalate")
-  }
-
-  function openInvite() {
-    setParticipation("invite")
-  }
-
-  function openShoutout() {
-    setParticipation("shoutout")
-  }
-
-  function closeParticipation() {
-    setParticipation(null)
+  function close() {
+    setDialog(null)
   }
 
   function reopen() {
@@ -142,73 +122,68 @@ export function IncidentMenu({
             <DropdownMenuItem onSelect={reopen}>Reopen incident</DropdownMenuItem>
           ) : (
             <>
-              <DropdownMenuItem onSelect={openUpdate}>Post an update</DropdownMenuItem>
+              <MenuItem label="Post an update" dialog={UPDATE} onOpen={setDialog} />
               <DropdownMenuSeparator />
               <MenuItem
                 label="Ask someone to pick this up"
+                dialog={ESCALATE}
                 blockedReason={incident.escalationBlockedReason}
-                onSelect={openEscalate}
+                onOpen={setDialog}
               />
               <MenuItem
                 label="Bring people in"
+                dialog={INVITE}
                 blockedReason={incident.inviteBlockedReason}
-                onSelect={openInvite}
+                onOpen={setDialog}
               />
               <MenuItem
                 label="Give a shoutout"
+                dialog={SHOUTOUT}
                 blockedReason={incident.shoutoutBlockedReason}
-                onSelect={openShoutout}
+                onOpen={setDialog}
               />
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={openResolve}>Resolve incident</DropdownMenuItem>
-              <DropdownMenuItem onSelect={openCancel}>Cancel incident</DropdownMenuItem>
+              <MenuItem label="Resolve incident" dialog={RESOLVE} onOpen={setDialog} />
+              <MenuItem label="Cancel incident" dialog={CANCEL} onOpen={setDialog} />
             </>
           )}
           <DropdownMenuSeparator />
-          {linkable.length === 0 ? (
-            <MenuItem
-              label="Link to an incident"
-              blockedReason="This is the only incident in the workspace"
-              onSelect={openRelated}
-            />
-          ) : (
-            <>
-              <DropdownMenuItem onSelect={openRelated}>Link to an incident</DropdownMenuItem>
-              <DropdownMenuItem onSelect={openDuplicate}>Mark as duplicate</DropdownMenuItem>
-            </>
+          <MenuItem
+            label="Link to an incident"
+            dialog={RELATED}
+            blockedReason={linkable.length === 0 ? "This is the only incident in the workspace" : undefined}
+            onOpen={setDialog}
+          />
+          {linkable.length > 0 && (
+            <MenuItem label="Mark as duplicate" dialog={DUPLICATE} onOpen={setDialog} />
           )}
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {form && (
-        <LifecycleFormDialog
-          incidentId={incident.id}
-          form={form}
-          open
-          onOpenChange={closeForm}
-        />
+      {dialog?.kind === "lifecycle" && (
+        <LifecycleFormDialog incidentId={incident.id} form={dialog.form} open onOpenChange={close} />
       )}
 
-      {relationship && (
+      {dialog?.kind === "link" && (
         <LinkIncidentDialog
           incidentId={incident.id}
-          relationship={relationship}
+          relationship={dialog.relationship}
           incidents={linkable}
           open
-          onOpenChange={closeRelationship}
+          onOpenChange={close}
         />
       )}
 
-      {participation === "escalate" && (
-        <EscalateDialog incidentId={incident.id} members={members} open onOpenChange={closeParticipation} />
+      {dialog?.kind === "escalate" && (
+        <EscalateDialog incidentId={incident.id} members={members} open onOpenChange={close} />
       )}
 
-      {participation === "invite" && (
-        <InviteDialog incidentId={incident.id} members={members} open onOpenChange={closeParticipation} />
+      {dialog?.kind === "invite" && (
+        <InviteDialog incidentId={incident.id} members={members} open onOpenChange={close} />
       )}
 
-      {participation === "shoutout" && (
-        <ShoutoutDialog incidentId={incident.id} members={members} open onOpenChange={closeParticipation} />
+      {dialog?.kind === "shoutout" && (
+        <ShoutoutDialog incidentId={incident.id} members={members} open onOpenChange={close} />
       )}
     </>
   )

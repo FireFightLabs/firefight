@@ -15,7 +15,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
 
     result = @service.invite!(incident: @incident, people: [ member ])
 
-    assert_equal [ member.platform_user_id ], result.invited_user_ids
+    assert_equal [ member ], result.invited
   end
 
   test "invites each user once" do
@@ -23,9 +23,9 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
 
     result = @service.invite!(incident: @incident, people: [ "U11111111", "U22222222", "U11111111" ])
 
-    assert_equal [ "U11111111", "U22222222" ], result.invited_user_ids
-    assert_empty result.already_in_channel_user_ids
-    assert_empty result.failed_invites
+    assert_equal [ "U11111111", "U22222222" ], result.invited
+    assert_empty result.already_in_channel
+    assert_empty result.failed
   end
 
   test "treats already_in_channel as non-fatal" do
@@ -33,9 +33,9 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
 
     result = @service.invite!(incident: @incident, people: [ "U11111111" ])
 
-    assert_empty result.invited_user_ids
-    assert_equal [ "U11111111" ], result.already_in_channel_user_ids
-    assert_empty result.failed_invites
+    assert_empty result.invited
+    assert_equal [ "U11111111" ], result.already_in_channel
+    assert_empty result.failed
   end
 
   test "treats cant_invite_self as non-fatal" do
@@ -43,9 +43,9 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
 
     result = @service.invite!(incident: @incident, people: [ "U11111111" ])
 
-    assert_empty result.invited_user_ids
-    assert_equal [ "U11111111" ], result.already_in_channel_user_ids
-    assert_empty result.failed_invites
+    assert_empty result.invited
+    assert_equal [ "U11111111" ], result.already_in_channel
+    assert_empty result.failed
   end
 
   test "collects other invite failures" do
@@ -53,10 +53,10 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
 
     result = @service.invite!(incident: @incident, people: [ "U11111111" ])
 
-    assert_empty result.invited_user_ids
-    assert_empty result.already_in_channel_user_ids
-    assert_equal 1, result.failed_invites.size
-    assert_equal "U11111111", result.failed_invites.first[:user_id]
+    assert_empty result.invited
+    assert_empty result.already_in_channel
+    assert_equal 1, result.failed.size
+    assert_equal "U11111111", result.failed.first.person
   end
 
   test "resolve_and_notify! invites users and posts summary ephemeral" do
@@ -66,7 +66,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
     adapter.expects(:invite_user).with(channel_id: @incident.channel_id, user_id: "U11111111").returns({ invited_user: "U11111111" })
     adapter.expects(:post_invite_summary).with do |args|
       args[:channel_id] == "C_FROM" && args[:user_id] == "U_FROM" &&
-        args[:result].invited_user_ids == [ "U11111111" ]
+        args[:result].invited == [ "U11111111" ]
     end
 
     service = IncidentInviteService.new(@workspace)

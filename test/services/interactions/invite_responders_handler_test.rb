@@ -18,7 +18,7 @@ class Interactions::InviteRespondersHandlerTest < ActiveSupport::TestCase
     service = mock("incident_invite_service")
     IncidentInviteService.expects(:new).with(@workspace).returns(service)
     result = IncidentInviteService::Result.new(
-      invited_user_ids: [ "U11111111", "U22222222" ], already_in_channel_user_ids: [], failed_invites: []
+      invited: [ "U11111111", "U22222222" ], already_in_channel: [], failed: []
     )
     service.expects(:invite!).with(incident: @incident, people: [ "U11111111", "U22222222" ]).returns(result)
 

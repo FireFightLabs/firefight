@@ -28,20 +28,14 @@ module Mcp
         return Mcp::ToolDispatcher.error_response("Name at least one person to invite.") if members.empty?
 
         result = IncidentInviteService.new(workspace).invite!(incident: incident, people: members)
-        by_platform_id = members.index_by(&:platform_user_id)
 
         respond(
           incident: incident.identifier,
-          invited: names(result.invited_user_ids, by_platform_id),
-          already_here: names(result.already_in_channel_user_ids, by_platform_id),
-          failed: result.failed_invites.map { |failure| { member: by_platform_id[failure[:user_id]]&.actor_display_name, error: failure[:error] } }
+          invited: result.invited.map(&:actor_display_name),
+          already_here: result.already_in_channel.map(&:actor_display_name),
+          failed: result.failed.map { |failure| { member: failure.person.actor_display_name, error: failure.error } }
         )
       end
-
-      def self.names(user_ids, by_platform_id)
-        user_ids.filter_map { |user_id| by_platform_id[user_id]&.actor_display_name }
-      end
-      private_class_method :names
     end
   end
 end
