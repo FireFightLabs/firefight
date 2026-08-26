@@ -1,0 +1,92 @@
+# Firefight, self-hosted. See SELF_HOSTING.md for what to fill in.
+#
+# Three containers: Postgres, Firefight itself, and Caddy in front of it for
+# TLS. Caddy is not optional decoration. Firefight sets force_ssl, and Slack
+# will not deliver events to a URL that is not HTTPS, so the app is unreachable
+# without a certificate.
+
+name: firefight
+
+services:
+  postgres:
+    image: postgres:18.3
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-firefight}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: firefight_production
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-firefight}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  firefight:
+    image: ghcr.io/firefightlabs/firefight:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Firefight keeps its cache, its job queue and its cable in their own
+      # databases alongside the main one. db:prepare creates all four.
+      FIREFIGHT_DATABASE_HOST: postgres
+      FIREFIGHT_DATABASE: firefight_production
+      FIREFIGHT_DATABASE_CACHE: firefight_production_cache
+      FIREFIGHT_DATABASE_QUEUE: firefight_production_queue
+      FIREFIGHT_DATABASE_CABLE: firefight_production_cable
+      FIREFIGHT_DATABASE_USERNAME: ${POSTGRES_USER:-firefight}
+      FIREFIGHT_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # The default is require, which a Postgres on the same private network
+      # is not serving.
+      FIREFIGHT_DATABASE_SSLMODE: disable
+
+      # Creates the four databases and migrates them on boot. Right for one
+      # container, wrong for several, since they would race each other.
+      RUN_DB_PREPARE: "true"
+      # Runs the job worker inside the web process. Postmortems, AI summaries,
+      # webhook deliveries and the nightly cleanups are all jobs, so without
+      # this the app looks fine and quietly does none of them.
+      SOLID_QUEUE_IN_PUMA: "1"
+
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?see SELF_HOSTING.md}
+      ALLOWED_HOSTS: ${FIREFIGHT_HOST:?set FIREFIGHT_HOST in .env}
+
+      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ${ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY:?see SELF_HOSTING.md}
+      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY:?see SELF_HOSTING.md}
+      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT:?see SELF_HOSTING.md}
+
+      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID:?see SELF_HOSTING.md}
+      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET:?see SELF_HOSTING.md}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:?see SELF_HOSTING.md}
+      SLACK_TEAM_ID: ${SLACK_TEAM_ID:-}
+
+      # Leave empty to run without the AI features.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+      ACTIVE_STORAGE_SERVICE: local
+    volumes:
+      - storage:/rails/storage
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - firefight
+    environment:
+      FIREFIGHT_HOST: ${FIREFIGHT_HOST:?set FIREFIGHT_HOST in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  postgres-data:
+  storage:
+  caddy-data:
+  caddy-config:
