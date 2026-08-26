@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_170001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_100002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -693,6 +693,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_170001) do
     t.datetime "detected_at"
     t.uuid "incident_type_id"
     t.string "created_by_type"
+    t.string "declared_by_type"
     t.index ["created_by_id"], name: "index_incident_updates_on_created_by_id"
     t.index ["declared_by_id"], name: "index_incident_updates_on_declared_by_id"
     t.index ["incident_id", "created_at"], name: "index_incident_updates_on_incident_id_and_created_at"
@@ -732,8 +733,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_170001) do
     t.string "source", null: false
     t.uuid "source_api_key_id"
     t.string "milestones_noted_through"
+    t.string "declared_by_type"
     t.index ["declared_at"], name: "index_incidents_on_declared_at"
     t.index ["declared_by_id"], name: "index_incidents_on_declared_by_id"
+    t.index ["declared_by_type", "declared_by_id"], name: "index_incidents_on_declared_by_type_and_declared_by_id"
     t.index ["detected_at"], name: "index_incidents_on_detected_at"
     t.index ["incident_severity_id"], name: "index_incidents_on_incident_severity_id"
     t.index ["incident_status_id"], name: "index_incidents_on_incident_status_id"
@@ -1212,14 +1215,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_170001) do
   add_foreign_key "incident_updates", "incident_statuses"
   add_foreign_key "incident_updates", "incident_types"
   add_foreign_key "incident_updates", "incidents"
-  add_foreign_key "incident_updates", "workspace_memberships", column: "declared_by_id"
   add_foreign_key "incident_updates", "workspace_memberships", column: "lead_id"
   add_foreign_key "incident_updates", "workspaces"
   add_foreign_key "incidents", "api_keys", column: "source_api_key_id"
   add_foreign_key "incidents", "incident_severities"
   add_foreign_key "incidents", "incident_statuses"
   add_foreign_key "incidents", "incident_types"
-  add_foreign_key "incidents", "workspace_memberships", column: "declared_by_id"
   add_foreign_key "incidents", "workspaces"
   add_foreign_key "inferences", "api_keys"
   add_foreign_key "inferences", "workspace_memberships", column: "member_id"

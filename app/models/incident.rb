@@ -10,6 +10,7 @@ class Incident < ApplicationRecord
   SOURCE_SLACK = "slack"
   SOURCE_ALERT = "alert"
   SOURCE_DASHBOARD = "dashboard"
+  SOURCE_MCP = "mcp"
 
   DEFAULT_PER_PAGE = 20
   MAX_PER_PAGE = 50
@@ -24,7 +25,10 @@ class Incident < ApplicationRecord
   include Incident::Serialization
 
   belongs_to :workspace
-  belongs_to :declared_by, class_name: "WorkspaceMembership", optional: true
+  # Polymorphic for the same reason IncidentEvent#actor is: an agent can
+  # declare an incident, and saying a person did it would be a lie the ledger
+  # exists to prevent.
+  belongs_to :declared_by, polymorphic: true, optional: true
   belongs_to :source_api_key, class_name: "ApiKey", optional: true
   belongs_to :incident_status
   belongs_to :incident_severity
@@ -73,7 +77,7 @@ class Incident < ApplicationRecord
     includes(
       { incident_status: :incident_lifecycle_stage },
       :incident_severity,
-      { declared_by: :user },
+      :declared_by,
       incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
     )
   }
@@ -82,12 +86,23 @@ class Incident < ApplicationRecord
       { incident_status: :incident_lifecycle_stage },
       :incident_severity,
       :incident_type,
-      { declared_by: :user },
+      :declared_by,
       :postmortem,
       incident_role_assignments: [ :incident_role, { workspace_membership: :user } ],
       incident_runbooks: { runbook: :runbook_steps }
     )
   }
+
+  # The declarer is polymorphic, so its own associations cannot ride along on
+  # includes. Everyone reading a list of incidents names the declarer, so the
+  # people among them get their users in one query rather than one each.
+  def self.preload_declarers(incidents)
+    people = incidents.map(&:declared_by).grep(WorkspaceMembership)
+    return incidents if people.empty?
+
+    ActiveRecord::Associations::Preloader.new(records: people, associations: [ :user ]).call
+    incidents
+  end
 
   def self.filtered_list(filters: {}, page: nil, per_page: nil)
     scope = all.where(deleted_at: nil).with_list_associations.recent
@@ -101,7 +116,7 @@ class Incident < ApplicationRecord
     page = (page || 1).to_i.clamp(1, total_pages)
 
     {
-      incidents: scope.offset((page - 1) * per_page).limit(per_page),
+      incidents: preload_declarers(scope.offset((page - 1) * per_page).limit(per_page).to_a),
       pagination: { page:, perPage: per_page, totalCount: total_count, totalPages: total_pages }
     }
   end
@@ -166,7 +181,7 @@ class Incident < ApplicationRecord
     events = incident_events.chronological.with_attached_artifact.includes(:actor, eventable: nil).to_a
     updates = events.map(&:eventable).grep(IncidentUpdate)
     ActiveRecord::Associations::Preloader.new(
-      records: updates, associations: [ :incident_status, :incident_severity, :incident_type, { lead: :user }, { declared_by: :user } ]
+      records: updates, associations: [ :incident_status, :incident_severity, :incident_type, { lead: :user } ]
     ).call
     updates.each_cons(2) { |earlier, later| later.previous_update = earlier }
     ActiveRecord::Associations::Preloader.new(

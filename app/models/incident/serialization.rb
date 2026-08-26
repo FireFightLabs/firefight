@@ -10,7 +10,7 @@ module Incident::Serialization
       detected_at: detected_at&.iso8601,
       resolved_at: resolved_at&.iso8601,
       duration_minutes: time_to_resolve,
-      declared_by: declared_by.user.name,
+      declared_by: declared_by&.actor_display_name,
       lead: lead&.user&.name,
       custom_fields: custom_fields_for_display
     }

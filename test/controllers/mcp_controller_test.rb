@@ -51,6 +51,8 @@ class McpControllerTest < ActionDispatch::IntegrationTest
                    Mcp::Tools::DELETE_ROUTING_RULE, Mcp::Tools::UPDATE_ROUTING_CONFIG,
                    Mcp::Tools::UPSERT_RUNBOOK, Mcp::Tools::ASSIGN_INCIDENT_ROLE,
                    Mcp::Tools::ATTACH_RUNBOOK, Mcp::Tools::DISMISS_TIMELINE_NOTE,
+                   Mcp::Tools::DECLARE_INCIDENT, Mcp::Tools::POST_INCIDENT_UPDATE,
+                   Mcp::Tools::RESOLVE_INCIDENT, Mcp::Tools::CANCEL_INCIDENT, Mcp::Tools::REOPEN_INCIDENT,
                    Mcp::Tools::SEARCH_APPROVALS,
                    Mcp::Tools::APPROVE_APPROVAL, Mcp::Tools::DENY_APPROVAL,
                    Mcp::Tools::LIST_ABILITIES, Mcp::Tools::LIST_PRINCIPALS,

@@ -21,6 +21,11 @@ module Mcp
     ASSIGN_INCIDENT_ROLE = "assign_incident_role".freeze
     ATTACH_RUNBOOK = "attach_runbook".freeze
     DISMISS_TIMELINE_NOTE = "dismiss_timeline_note".freeze
+    DECLARE_INCIDENT = "declare_incident".freeze
+    POST_INCIDENT_UPDATE = "post_incident_update".freeze
+    RESOLVE_INCIDENT = "resolve_incident".freeze
+    CANCEL_INCIDENT = "cancel_incident".freeze
+    REOPEN_INCIDENT = "reopen_incident".freeze
     SEARCH_APPROVALS = "search_approvals".freeze
     APPROVE_APPROVAL = "approve_approval".freeze
     DENY_APPROVAL = "deny_approval".freeze
@@ -39,6 +44,7 @@ module Mcp
         SearchRunbooks, GetRunbook, UpsertCatalogEntry, DeleteCatalogEntry,
         UpsertRoutingRule, DeleteRoutingRule, UpdateRoutingConfig, UpsertRunbook,
         AssignIncidentRole, AttachRunbook, DismissTimelineNote,
+        DeclareIncident, PostIncidentUpdate, ResolveIncident, CancelIncident, ReopenIncident,
         SearchApprovals, ApproveApproval, DenyApproval,
         GetForm, UpsertCustomField, UpsertFormField,
         ListAbilities, ListPrincipals, UpsertPermissionSet, DeletePermissionSet, GrantAbility, RevokeGrant,

@@ -24,14 +24,20 @@ class IncidentRunbookTest < ActiveSupport::TestCase
     incident = Incident.with_detail_associations.find(@incident.id)
     attachments = incident.incident_runbooks.to_a
 
+    # Counted per attachment rather than in total. How many queries the first
+    # load costs depends on what else the page preloaded, and that is not what
+    # this is about. The second attachment adding none is.
     queries = 0
     counter = ->(*, payload) { queries += 1 unless payload[:name] == "SCHEMA" || payload[:cached] }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
-      attachments.each { |attachment| attachment.actions_by_step }
-    end
+
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { attachments.first.actions_by_step }
+    assert_operator queries, :>=, 1, "the first attachment should load the incident's step actions"
+
+    queries = 0
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { attachments.last.actions_by_step }
 
     assert_equal 2, attachments.size
-    assert_equal 1, queries, "two attachments should share one load of the incident's step actions"
+    assert_equal 0, queries, "the second attachment should reuse the first one's load"
   end
 
   private
