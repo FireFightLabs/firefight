@@ -39,59 +39,14 @@ module Mcp
       upserts Ability::Action::RESOURCE_CUSTOM_FIELDS, scope: ->(workspace) { workspace.incident_field_definitions.active }
 
       def self.perform(workspace:, args:)
-        existing = upsert_target(workspace, args)
-        service = IncidentFieldDefinitionService.new(workspace)
-        attrs = definition_attributes(workspace, args, existing)
-
-        definition = existing ? service.update(existing, attrs) : service.create(attrs)
+        definition = IncidentFieldDefinitionService.new(workspace)
+          .upsert!(upsert_target(workspace, args), args)
 
         respond(
           slug: definition.slug, name: definition.name, field_type: definition.field_type,
           option_source: definition.option_source,
           options: definition.incident_field_options.active.map { |o| { id: o.id, label: o.label } }
         )
-      end
-
-      def self.definition_attributes(workspace, args, existing)
-        {
-          name: args[:name].presence || existing&.name,
-          description: args.key?(:description) ? args[:description] : existing&.description,
-          field_type: args[:field_type].presence || existing&.field_type,
-          option_source: args[:option_source].presence || existing&.option_source,
-          catalog_type_id: catalog_type_id(workspace, args, existing),
-          options: option_params(args, existing)
-        }
-      end
-
-      def self.catalog_type_id(workspace, args, existing)
-        return existing&.catalog_type_id unless args.key?(:catalog_type)
-        return nil if args[:catalog_type].blank?
-
-        workspace.catalog_types.active.find_by!(slug: args[:catalog_type].to_s).id
-      end
-
-      # Labels are the only handle an agent has, so an incoming label that
-      # already exists reuses that option's row rather than replacing it. That
-      # is what keeps a rename from orphaning the incidents pointing at it.
-      def self.option_params(args, existing)
-        return existing_option_params(existing) unless args.key?(:options)
-
-        by_label = existing&.incident_field_options&.index_by(&:label) || {}
-
-        Array(args[:options]).filter_map do |label|
-          label = label.to_s.strip
-          next if label.blank?
-
-          { id: by_label[label]&.id, label: label }
-        end
-      end
-
-      def self.existing_option_params(existing)
-        return [] unless existing
-
-        existing.incident_field_options.map do |option|
-          { id: option.id, label: option.label, disabled: !option.enabled? }
-        end
       end
     end
   end

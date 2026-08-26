@@ -29,6 +29,7 @@ Rails.application.routes.draw do
           end
         end
         resources :action_items, only: [ :index, :create, :update ]
+        resource :postmortem, only: [ :show, :create, :update ], controller: "postmortems"
         # Taking part in an incident rather than moving it: everything a person
         # can do from Slack short of changing the status.
         member do
@@ -54,8 +55,13 @@ Rails.application.routes.draw do
           delete "tokens/:token_prefix", action: :revoke_token, as: :token
         end
       end
-      resources :custom_fields, only: [ :index ]
-      resources :runbooks, only: [ :index, :show ]
+      resources :custom_fields, only: [ :index, :create, :update, :destroy ]
+      resources :forms, only: [ :show, :update ]
+      # Routing rules belong to a scope, either the workspace or one alert
+      # source, and are addressed by their priority within it.
+      resources :routing_rules, only: [ :index, :create, :update, :destroy ]
+      post "routing/evaluate", to: "routing#evaluate", as: :evaluate_routing
+      resources :runbooks, only: [ :index, :show, :create, :update, :destroy ]
 
       resources :abilities, only: [ :index ]
       resources :principals, only: [ :index ]

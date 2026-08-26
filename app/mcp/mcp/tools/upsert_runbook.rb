@@ -37,41 +37,12 @@ module Mcp
       upserts Ability::Action::RESOURCE_RUNBOOKS, scope: ->(workspace) { workspace.runbooks.active }
 
       def self.perform(workspace:, args:)
-        runbook = upsert_target(workspace, args)
-
-        Runbook.transaction do
-          if runbook
-            runbook.update!(runbook_attributes(args))
-          else
-            runbook = workspace.runbooks.create!(name: args[:name].to_s, **runbook_attributes(args))
-          end
-
-          runbook.sync_steps!(step_params(args)) if args.key?(:steps)
-          runbook.sync_conditions!(condition_params(workspace, args)) if args.key?(:conditions)
-        end
+        runbook = Runbook::Upsert.new(workspace).call(upsert_target(workspace, args), args)
 
         respond(
           slug: runbook.slug, name: runbook.name, summary: runbook.summary,
           steps_count: runbook.runbook_steps.count, conditions_count: runbook.incident_conditions.count
         )
-      end
-
-      def self.runbook_attributes(args)
-        { name: args[:name], summary: args[:summary], content: args[:content],
-          external_url: args[:external_url] }.compact
-      end
-
-      def self.step_params(args)
-        Array(args[:steps]).map do |step|
-          step = step.to_h.with_indifferent_access
-          { title: step[:title], instruction: step[:instruction] }
-        end
-      end
-
-      def self.condition_params(workspace, args)
-        Array(args[:conditions]).map do |condition|
-          ConditionValues.attributes(workspace, condition.to_h.with_indifferent_access)
-        end
       end
     end
   end

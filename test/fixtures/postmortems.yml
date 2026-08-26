@@ -1,6 +1,7 @@
 postmortem_resolved_ws1:
   incident: resolved_minor_ws1
   generated_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  generated_by_type: WorkspaceMembership
   title: "INC-003 Postmortem: Image upload broken"
   summary: "Users were unable to upload profile images for approximately 4 hours."
   content:

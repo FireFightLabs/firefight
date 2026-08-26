@@ -81,7 +81,67 @@ class IncidentFormService
     end
   end
 
+  # Changing what one lifecycle form asks for, from the shape every surface
+  # hands in. A system field has no row until something about it is changed and
+  # a custom field has none until it is attached, so both are materialized here
+  # rather than making a caller create one first.
+  def upsert_field!(args)
+    form = @workspace.ensure_incident_form!(form_slug(args))
+    form_field = resolve_field(form, args)
+
+    update_field(
+      form_field,
+      visibility_mode: visibility_mode(args, form_field),
+      required_mode: required_mode(args, form_field)
+    )
+    form_field.sync_conditions!(condition_params(args)) if args.key?(:conditions)
+
+    [ form, form_field.reload ]
+  end
+
   private
+
+  def form_slug(args)
+    slug = args[:form].to_s
+    raise ArgumentError, "unknown form #{slug.inspect}. Valid: #{IncidentForm::SLUGS.join(', ')}" unless IncidentForm::SLUGS.include?(slug)
+
+    slug
+  end
+
+  # A system field has no row until something about it is changed, and a
+  # custom field has none until it is attached, so both are materialized
+  # here rather than making the agent create one first.
+  def resolve_field(form, args)
+    if args[:system_field].present?
+      ensure_system_field!(form, args[:system_field].to_s)
+    elsif args[:custom_field].present?
+      definition = form.workspace.incident_field_definitions.active.find_by(slug: args[:custom_field].to_s)
+      raise ArgumentError, "unknown custom field #{args[:custom_field].to_s.inspect}" if definition.nil?
+
+      existing = form.incident_form_fields.find_by(incident_field_definition_id: definition.id)
+      existing || add_custom_field(form, definition)
+    else
+      raise ArgumentError, "pass either custom_field or system_field"
+    end
+  end
+
+  def visibility_mode(args, form_field)
+    return form_field.visibility_mode unless args.key?(:visible)
+
+    args[:visible] ? IncidentFormField::VISIBILITY_MODE_VISIBLE : IncidentFormField::VISIBILITY_MODE_HIDDEN
+  end
+
+  def required_mode(args, form_field)
+    return form_field.required_mode unless args.key?(:required)
+
+    args[:required] ? IncidentFormField::REQUIRED_MODE_REQUIRED : IncidentFormField::REQUIRED_MODE_OPTIONAL
+  end
+
+  def condition_params(args)
+    Array(args[:conditions]).map do |condition|
+      IncidentCondition::Values.attributes(@workspace, condition.to_h.with_indifferent_access)
+    end
+  end
 
   # Raises rather than skipping, an id the form does not recognize means the
   # page is stale or the payload is wrong, and silently dropping it is what
