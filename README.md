@@ -56,7 +56,7 @@ Incident response is usually held together with glue. An alerting tool, a chat t
 
 Firefight closes all four. Setup is automatic, the timeline records itself, the postmortem is drafted from the record, and the whole thing is reachable by an agent under permissions you control.
 
-It is AGPL-3.0, so you can read every line, run it yourself, and never be locked in.
+It is AGPL-3.0, so you can read every line, run it yourself, and never be locked in
 
 ## Features
 
@@ -102,7 +102,7 @@ It is AGPL-3.0, so you can read every line, run it yourself, and never be locked
 
 ## Documentation
 
-Full documentation is at **[firefight.app/docs](https://firefight.app/docs/)**.
+Full documentation is at **[firefight.app/docs](https://firefight.app/docs/)**
 
 | | |
 |---|---|
@@ -112,14 +112,14 @@ Full documentation is at **[firefight.app/docs](https://firefight.app/docs/)**.
 | [REST API](https://firefight.app/docs/api/overview/) | Auth, endpoints, and the OpenAPI document |
 | [The gateway](https://firefight.app/docs/gateway/overview/) | Permissions, approvals, and the activity log |
 
-Engineering references for people working on Firefight itself live in [`docs/`](docs/).
+Engineering references for people working on Firefight itself live in [`docs/`](docs/)
 
 ## Getting started
 
 | | |
 |---|---|
-| **Firefight Cloud** | The fastest way to get started: managed hosting with AI features included. Sign in at [app.firefight.app](https://app.firefight.app). |
-| **Self-hosting** | Run Firefight on your own infrastructure, free under the AGPL. See [SELF_HOSTING.md](SELF_HOSTING.md). |
+| **Firefight Cloud** | The fastest way to get started: managed hosting with AI features included. Sign in at [app.firefight.app](https://app.firefight.app) |
+| **Self-hosting** | Run Firefight on your own infrastructure, free under the AGPL. See [SELF_HOSTING.md](SELF_HOSTING.md) |
 
 ## Self-hosting
 
@@ -144,7 +144,7 @@ bin/rails db:prepare && bin/rails db:prepare RAILS_ENV=test
 bin/dev
 ```
 
-Full setup (Slack app creation, environment variables, the local tunnel for Slack callbacks, and how the multi-database layout works) is in [CONTRIBUTING.md](CONTRIBUTING.md).
+Full setup, meaning Slack app creation, environment variables, the local tunnel for Slack callbacks, and how the multi-database layout works, is in [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Open source vs. paid
 
