@@ -28,7 +28,12 @@ module OptionGuards
 
   # Soft delete is a method, not a column callers write. Disabled rows stay
   # listed on the settings screen so an admin can enable them again.
+  # Raised when one of the *_blocked_reason rules refuses. Carries the sentence
+  # the surface shows, so a caller renders it without knowing which rule it was.
+  class Blocked < StandardError; end
+
   def disable!
+    refuse!(disable_blocked_reason)
     update!(deleted_at: Time.current)
   end
 
@@ -50,6 +55,10 @@ module OptionGuards
 
   def disable_blocked_reason
     nil
+  end
+
+  def refuse!(reason)
+    raise Blocked, reason if reason
   end
 
   private

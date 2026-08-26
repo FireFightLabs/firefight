@@ -7,6 +7,10 @@ class IncidentSeverity < ApplicationRecord
   NOUN = "severity".freeze
   SLUG_CRITICAL = "critical"
 
+  def config_extras
+    { rank: rank }
+  end
+
   validates :rank, presence: true, numericality: { only_integer: true, greater_than: 0 }
 
   # rank is derived from position on every reorder, so a new row only needs a

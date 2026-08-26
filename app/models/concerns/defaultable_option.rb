@@ -17,6 +17,8 @@ module DefaultableOption
   # unique index backs this up, since the model validation alone cannot stop an
   # update_all or a raw write.
   def make_default!
+    refuse!(default_blocked_reason)
+
     self.class.transaction do
       self.class.where(workspace_id: workspace_id, is_default: true).where.not(id: id).update_all(is_default: false)
       update!(is_default: true)

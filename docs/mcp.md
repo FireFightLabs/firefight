@@ -124,6 +124,50 @@ Authorization is the gateway's: admin personal tokens carry the admin's authorit
 
 The server is self-describing for agents: server instructions, tool descriptions, and guidance-worthy responses (permission errors, no routing policy, unmatched dry runs) link to the relevant public docs page via `Mcp::Docs` constants — each page is fetchable as raw markdown (`https://firefight.app/docs/**/*.md`, index at `/llms.txt`).
 
+## Configuring the workspace
+
+Everything a person can change on a settings screen has a tool, because the
+surface should not decide who is holding the key. An SRE in Claude Code saying
+"go set our severities up" and an agent doing the same thing are the same call,
+and the gateway is what tells them apart.
+
+| Tool | Manages |
+|---|---|
+| `get_workspace_config` | One read behind all of it: severities, statuses with their stage, types, roles, alert sources and webhooks |
+| `upsert_severity` / `delete_severity` | Severities, with `rank` |
+| `upsert_status` / `delete_status` | Statuses, with `lifecycle_stage` |
+| `upsert_incident_type` / `delete_incident_type` | Incident types |
+| `upsert_incident_role` / `delete_incident_role` | Incident roles |
+| `upsert_alert_source` / `delete_alert_source` | Alert sources, addressed by endpoint path |
+| `upsert_webhook` / `delete_webhook` | Outbound webhooks |
+| `list_agents`, `upsert_agent`, `rotate_agent_token`, `revoke_agent_token`, `delete_agent` | Agents and their credentials |
+| `list_api_keys`, `upsert_api_key`, `delete_api_key` | Service keys |
+
+**The four option lists share their operations and not their payloads**, which
+is why they are eight tools rather than one with a `kind` argument. A status
+needs a lifecycle stage, a severity needs a rank, and only some are colored or
+defaultable. One schema carrying all four conditionally would leave an agent
+guessing which apply, so `ConfiguresOption` shares the implementation and each
+tool declares its own fields. `configures_option` takes the model, the gateway
+resource, the `extra` schema properties this list has, and a `prepare` lambda
+saying how those arguments land as attributes.
+
+**One home per rule.** `ConfigurableOption.create_in_list!` and
+`#destroy_from_list!` own creating and deleting with the renumber that keeps
+positions gapless, and `disable!`, `make_default!` and `destroy_from_list!`
+raise `OptionGuards::Blocked` when a `*_blocked_reason` refuses. The dashboard,
+MCP and REST all call the same methods, so a rule cannot be enforced on one
+surface and forgotten on another. The dashboard still pre-checks so it can name
+the rule on a control it should not have offered, and rescues the same error for
+the race where two people act at once.
+
+**Credentials are admin-only and ungrantable.** `upsert_agent`, `upsert_api_key`
+and their siblings authorize as `permissions` and `api_keys`, both in
+`ADMIN_ONLY_RESOURCES`. An admin's personal token or OAuth session reaches them
+and no service key or agent ever can, whatever it was granted, so an agent
+cannot mint another agent. Creating one returns its token once and never again,
+and a listing never carries one.
+
 ## Architecture
 
 `McpController` (entry point: Bearer auth → `Current.principal`, API rate limit, stateless `handle_json` dispatch — no sessions/SSE, multi-worker safe) → `Mcp::ToolDispatcher` (telemetry; routes every call through `AbilityGateway.authorize!`, which resolves the principal's grants and ledgers denials) → tool classes in `app/mcp/` (workspace-scoped reads + formatting only; no business logic, no writes, no adapter calls; tool names from `Mcp::Tools` constants).

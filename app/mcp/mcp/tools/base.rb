@@ -46,12 +46,15 @@ module Mcp
         # update, and a key that resolves to nothing is an error rather than
         # a silent duplicate under a fresh slug. The dispatcher renders the
         # raise as "Not found in this workspace.".
-        def upserts(resource, scope:, key: :slug)
+        # `key` names the argument an agent passes, `column` the one it is
+        # stored under. They differ where a list calls its handle something of
+        # its own, the way an alert source's is its endpoint path.
+        def upserts(resource, scope:, key: :slug, column: key)
           define_singleton_method(:upsert_target) do |workspace, args|
             value = args[key]
             next nil if value.blank?
 
-            scope.call(workspace).find_by!(slug: value.to_s)
+            scope.call(workspace).find_by!(column => value.to_s)
           end
 
           define_singleton_method(:authorization) do |workspace, args|
