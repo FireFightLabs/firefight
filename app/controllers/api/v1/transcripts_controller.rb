@@ -1,9 +1,6 @@
 # What people said in an incident's channel, gated by its own resource and by
 # the workspace having turned access on.
 class Api::V1::TranscriptsController < Api::V1::ApiController
-  DEFAULT_MESSAGES = 100
-  MAX_MESSAGES = 500
-
   def index
     authorize!(Ability::Action::RESOURCE_INCIDENT_TRANSCRIPTS, Ability::Action::ACTION_READ)
 
@@ -11,28 +8,11 @@ class Api::V1::TranscriptsController < Api::V1::ApiController
     return render_blocked(blocked_reason) if blocked_reason
 
     @incident = current_workspace.incidents.where(deleted_at: nil).find(params[:incident_id])
-    @messages = page
+    @page = @incident.incident_transcript_messages.page(before: params[:before], limit: params[:limit])
     render :index
   end
 
   private
-
-  # Newest last, since that is how a conversation reads, but paged from the end,
-  # since that is the part worth reading first.
-  def page
-    scope = @incident.incident_transcript_messages.kept.order(posted_at: :desc, message_id: :desc)
-    scope = scope.where("posted_at < ?", cursor.posted_at) if params[:before].present?
-
-    scope.limit(limit).includes(:workspace_membership).to_a.reverse
-  end
-
-  def cursor
-    @incident.incident_transcript_messages.find_by!(message_id: params[:before])
-  end
-
-  def limit
-    (params[:limit].presence || DEFAULT_MESSAGES).to_i.clamp(1, MAX_MESSAGES)
-  end
 
   def render_blocked(reason)
     render json: error_response("transcript_access_disabled", reason), status: :forbidden

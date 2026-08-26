@@ -1,5 +1,5 @@
 json.incident_id @incident.id
-json.messages @messages do |message|
+json.messages @page.messages do |message|
   json.message_id message.message_id
   json.thread_id message.thread_id
   json.said_at message.posted_at.utc.iso8601
@@ -13,4 +13,4 @@ json.messages @messages do |message|
     json.said_by nil
   end
 end
-json.more_before @messages.first&.message_id
+json.more_before @page.more_before

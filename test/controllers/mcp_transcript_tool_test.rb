@@ -80,6 +80,34 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
     assert_equal [ "message 1", "message 2" ], earlier["messages"].map { |m| m["text"] }
   end
 
+  # A cursor that always came back meant a caller walking the conversation
+  # never learned it had reached the start.
+  test "the first page of a short conversation offers nothing before it" do
+    say "all there is"
+
+    content, = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier })
+
+    assert_nil content["more_before"]
+  end
+
+  # Slack stamps to the millisecond, so two people typing at once share a
+  # posted_at. Paging on that alone would drop whichever one the cursor was not.
+  test "messages said in the same instant survive paging" do
+    same = 2.minutes.ago
+    say "later", at: 1.minute.ago, message_id: "1700000000.0003"
+    say "tied second", at: same, message_id: "1700000000.0002"
+    say "tied first", at: same, message_id: "1700000000.0001"
+
+    content, = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier, limit: 2 })
+    assert_equal [ "tied second", "later" ], content["messages"].map { |m| m["text"] }
+
+    earlier, = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, {
+      incident: @incident.identifier, limit: 2, before: content["more_before"]
+    })
+    assert_equal [ "tied first" ], earlier["messages"].map { |m| m["text"] }
+    assert_nil earlier["more_before"]
+  end
+
   test "the limit is capped rather than trusted" do
     say "only one"
 
@@ -114,9 +142,9 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
 
   private
 
-  def say(text, at: 1.minute.ago)
+  def say(text, at: 1.minute.ago, message_id: "17#{rand(10**8)}.#{rand(9999)}")
     IncidentTranscriptMessage.create!(
-      workspace: @workspace, incident: @incident, message_id: "17#{rand(10**8)}.#{rand(9999)}",
+      workspace: @workspace, incident: @incident, message_id: message_id,
       platform_user_id: @membership.platform_user_id, workspace_membership: @membership,
       content: text, posted_at: at
     )

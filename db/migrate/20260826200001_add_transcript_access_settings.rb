@@ -11,7 +11,7 @@ class AddTranscriptAccessSettings < ActiveRecord::Migration[8.1]
   def down
     Ability::Action.where(
       workspace_id: nil,
-      key: Ability::Action::ACTIONS.map { |a| "#{Ability::Action::RESOURCE_INCIDENT_TRANSCRIPTS}.#{a}" }
+      key: Ability::Action::ACTIONS.map { |action| Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENT_TRANSCRIPTS, action) }
     ).destroy_all
     remove_column :workspaces, :transcript_retention_days
     remove_column :workspaces, :transcript_access_enabled

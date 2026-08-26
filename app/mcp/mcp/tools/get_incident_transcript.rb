@@ -1,9 +1,6 @@
 module Mcp
   module Tools
     class GetIncidentTranscript < Base
-      DEFAULT_MESSAGES = 100
-      MAX_MESSAGES = 500
-
       tool_name GET_INCIDENT_TRANSCRIPT
       authorize_as Ability::Action::RESOURCE_INCIDENT_TRANSCRIPTS
       description "What people actually said in an incident's channel, in order, with who said it " \
@@ -21,7 +18,8 @@ module Mcp
           incident: { type: "string", description: "Incident UUID or identifier like INC-42" },
           limit: {
             type: "integer",
-            description: "How many messages, newest last. Default #{DEFAULT_MESSAGES}, most #{MAX_MESSAGES}"
+            description: "How many messages, newest last. Default #{IncidentTranscriptMessage::Paging::DEFAULT_MESSAGES}, " \
+                         "most #{IncidentTranscriptMessage::Paging::MAX_MESSAGES}"
           },
           before: {
             type: "string",
@@ -36,33 +34,13 @@ module Mcp
         return Mcp::ToolDispatcher.error_response(blocked_reason) if blocked_reason
 
         incident = IncidentWrite.find!(workspace, args[:incident])
-        messages = page(incident, args)
+        page = incident.incident_transcript_messages.page(before: args[:before], limit: args[:limit])
 
         respond(
           incident: incident.identifier,
-          messages: messages.map { |message| entry(message) },
-          more_before: messages.first&.message_id
+          messages: page.messages.map { |message| entry(message) },
+          more_before: page.more_before
         )
-      end
-
-      # Newest last, since that is how a conversation reads, but paged from the
-      # end, since that is the part worth reading first.
-      def self.page(incident, args)
-        scope = incident.incident_transcript_messages.kept.order(posted_at: :desc, message_id: :desc)
-        scope = older_than(scope, incident, args[:before]) if args[:before].present?
-
-        scope.limit(limit(args)).to_a.reverse
-      end
-
-      def self.older_than(scope, incident, message_id)
-        cursor = incident.incident_transcript_messages.find_by(message_id: message_id.to_s)
-        raise ActiveRecord::RecordNotFound unless cursor
-
-        scope.where("posted_at < ?", cursor.posted_at)
-      end
-
-      def self.limit(args)
-        (args[:limit].presence || DEFAULT_MESSAGES).to_i.clamp(1, MAX_MESSAGES)
       end
 
       def self.entry(message)

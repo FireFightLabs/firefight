@@ -1,11 +1,7 @@
 class WorkspaceSettingsSerializer < BaseSerializer
   object_as :workspace
 
-  attributes(
-    transcript_access_enabled: { type: :boolean },
-    archive_channel_enabled: { type: :boolean },
-    archive_channel_delay_minutes: { type: :number }
-  )
+  attributes(transcript_access_enabled: { type: :boolean })
 
   type :number, optional: true
   def transcript_retention_days

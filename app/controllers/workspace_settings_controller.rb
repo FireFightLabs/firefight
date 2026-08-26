@@ -23,7 +23,7 @@ class WorkspaceSettingsController < InertiaController
   # A blank retention means keep everything, which is a choice rather than an
   # omission, so it is stored as null rather than rejected.
   def settings_params
-    attributes = params.permit(:transcript_access_enabled, :archive_channel_enabled, :archive_channel_delay_minutes).to_h
+    attributes = params.permit(:transcript_access_enabled).to_h
     attributes[:transcript_retention_days] = params[:transcript_retention_days].presence if params.key?(:transcript_retention_days)
     attributes
   end

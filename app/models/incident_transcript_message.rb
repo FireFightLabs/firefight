@@ -1,5 +1,6 @@
 class IncidentTranscriptMessage < ApplicationRecord
   include Scrubbing
+  include Paging
 
   belongs_to :workspace
   belongs_to :workspace_membership, optional: true
