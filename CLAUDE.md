@@ -91,20 +91,6 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 | [docs/integrations.md](docs/integrations.md) | Adding or changing an integration provider or connection, and anything touching the Ability Gateway (actions, grants, approvals, the invocation ledger) |
 | [docs/ai.md](docs/ai.md) | AI features (`engines/firefight_ai/`), the Inference ledger, transcript store/scrubbing, or model configuration |
 
-## Agent skills
-
-### Issue tracker
-
-Issues live in the **Firefight Issues** Notion database, reached through the Notion MCP server, never GitHub Issues. See [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
-
-### Triage labels
-
-The five canonical triage roles are values of the `Triage` single-select property, not labels. See [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
-
-### Domain docs
-
-Single-context: one `CONTEXT.md` and one `docs/adr/` at the root, alongside the deep-dives above. See [docs/agents/domain.md](docs/agents/domain.md).
-
 ## Code Style
 
 - No unnecessary comments, only explanations of non-obvious logic
