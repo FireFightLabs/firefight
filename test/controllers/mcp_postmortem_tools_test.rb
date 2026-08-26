@@ -70,7 +70,8 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
 
     content, is_error = call_tool(Mcp::Tools::UPDATE_POSTMORTEM, {
       incident: @incident.identifier,
-      html: "<h2>What happened</h2><p>The connection pool was exhausted.</p>"
+      html: "<h2>What happened</h2><p>The connection pool was exhausted.</p>",
+      version: @incident.reload.postmortem.content_version
     }, token: @agent_token)
 
     assert_not is_error, content.inspect
@@ -85,7 +86,8 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
 
     call_tool(Mcp::Tools::UPDATE_POSTMORTEM, {
       incident: @incident.identifier,
-      html: "<p>Fine</p><script>alert('no')</script>"
+      html: "<p>Fine</p><script>alert('no')</script>",
+      version: @incident.reload.postmortem.content_version
     })
 
     html = @incident.reload.postmortem.html_content
@@ -97,7 +99,8 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
     resolve!
     call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier }, token: @agent_token)
     call_tool(Mcp::Tools::UPDATE_POSTMORTEM, {
-      incident: @incident.identifier, html: "<p>Root cause was the pooler.</p>"
+      incident: @incident.identifier, html: "<p>Root cause was the pooler.</p>",
+      version: @incident.reload.postmortem.content_version
     }, token: @agent_token)
 
     content, is_error = call_tool(Mcp::Tools::GET_POSTMORTEM, { incident: @incident.identifier })
@@ -105,6 +108,24 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
     assert_not is_error, content.inspect
     assert_includes content["html"], "Root cause was the pooler"
     assert_equal @agent.name, content["written_by"]
+  end
+
+  # An agent that read the document, then a person who edited it before the
+  # agent wrote. The agent loses, not the person.
+  test "an agent writing against a replaced version is refused rather than winning" do
+    resolve!
+    call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier }, token: @agent_token)
+    postmortem = @incident.reload.postmortem
+    stale = postmortem.content_version
+    postmortem.update_content!("<p>Typed by a person</p>", by: @membership, expected_version: stale)
+
+    _, is_error, text = call_tool(Mcp::Tools::UPDATE_POSTMORTEM, {
+      incident: @incident.identifier, html: "<p>Written by an agent</p>", version: stale
+    }, token: @agent_token)
+
+    assert is_error
+    assert_match(/changed since the version you read/, text)
+    assert_equal "<p>Typed by a person</p>", postmortem.reload.html_content
   end
 
   test "an incident with no postmortem says so rather than returning an empty one" do

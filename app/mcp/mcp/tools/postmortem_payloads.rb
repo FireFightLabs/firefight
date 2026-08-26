@@ -22,6 +22,7 @@ module Mcp
           status: postmortem.status,
           generation_state: postmortem.generation_state,
           written_by: postmortem.generated_by&.actor_display_name,
+          version: postmortem.content_version,
           updated_at: postmortem.updated_at.utc.iso8601
         }.compact
       end

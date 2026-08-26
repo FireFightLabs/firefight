@@ -2,6 +2,7 @@ json.(@postmortem, :id, :title, :status)
 json.incident_id @incident.id
 json.html @postmortem.html_content
 json.generation_state @postmortem.generation_state
+json.version @postmortem.content_version
 json.written_by do
   json.partial! "shared/actor", actor: @postmortem.generated_by
 end

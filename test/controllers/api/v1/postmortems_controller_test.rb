@@ -36,7 +36,8 @@ class Api::V1::PostmortemsControllerTest < ActionDispatch::IntegrationTest
     post api_v1_incident_postmortem_url(@incident), headers: api_headers, as: :json
 
     patch api_v1_incident_postmortem_url(@incident),
-          params: { html: "<p>The pooler ran out.</p><script>alert('no')</script>" },
+          params: { html: "<p>The pooler ran out.</p><script>alert('no')</script>",
+                    version: @incident.reload.postmortem.content_version },
           headers: api_headers, as: :json
 
     assert_response :success
@@ -74,7 +75,74 @@ class Api::V1::PostmortemsControllerTest < ActionDispatch::IntegrationTest
     assert_nil @incident.reload.postmortem
   end
 
+  # An agent that read the document, then a person who edited it before the
+  # agent wrote. The agent loses, not the person.
+  test "a body sent against a version somebody has replaced is refused" do
+    postmortem = started_postmortem
+    stale = postmortem.content_version
+    postmortem.update_content!("<p>Typed by a person</p>", by: @member, expected_version: stale)
+
+    patch api_v1_incident_postmortem_url(@incident),
+          params: { html: "<p>Written by an agent</p>", version: stale },
+          headers: api_headers, as: :json
+
+    assert_response :conflict
+    assert_equal "stale_content", json_response.dig("error", "type")
+    assert_equal "<p>Typed by a person</p>", postmortem.reload.html_content
+  end
+
+  # The refusal must not hand back the version that won, or a client can adopt
+  # it and overwrite on its next write the work it was just refused for.
+  test "a refusal does not hand back the version that beat it" do
+    postmortem = started_postmortem
+    stale = postmortem.content_version
+    postmortem.update_content!("<p>Typed by a person</p>", by: @member, expected_version: stale)
+
+    patch api_v1_incident_postmortem_url(@incident),
+          params: { html: "<p>Written by an agent</p>", version: stale },
+          headers: api_headers, as: :json
+
+    assert_response :conflict
+    assert_nil json_response["version"]
+    assert_nil json_response.dig("error", "version")
+  end
+
+  test "a body sent with no version at all is refused" do
+    postmortem = started_postmortem
+
+    patch api_v1_incident_postmortem_url(@incident),
+          params: { html: "<p>No version</p>" }, headers: api_headers, as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal "version_required", json_response.dig("error", "type")
+    assert_not_equal "<p>No version</p>", postmortem.reload.html_content
+  end
+
+  test "reading gives back the version to send" do
+    postmortem = started_postmortem
+
+    get api_v1_incident_postmortem_url(@incident), headers: api_headers
+
+    assert_equal postmortem.content_version, json_response["version"]
+  end
+
+  # Moving a postmortem along while somebody types is not a conflict.
+  test "a status change needs no version" do
+    started_postmortem
+
+    patch api_v1_incident_postmortem_url(@incident),
+          params: { status: Postmortem::STATUS_IN_REVIEW }, headers: api_headers, as: :json
+
+    assert_response :success
+  end
+
   private
+
+  def started_postmortem
+    resolve!
+    post api_v1_incident_postmortem_url(@incident), headers: api_headers, as: :json
+    @incident.reload.postmortem
+  end
 
   def resolve!
     IncidentLifecycleService.new(@workspace).change_status(

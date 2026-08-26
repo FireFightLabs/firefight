@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Head, Link, router, useHttp, usePage } from "@inertiajs/react";
+import { Head, Link, router, usePage } from "@inertiajs/react";
 import {
   IconArrowLeft,
   IconCheck,
+  IconAlertTriangle,
   IconClock,
   IconDotsVertical,
   IconFlame,
@@ -34,6 +35,13 @@ import {
 } from "@/lib/routes";
 import { requestJson } from "@/lib/http";
 
+type SaveState = "idle" | "saving" | "saved" | "conflict";
+
+interface SaveResult {
+  version?: number;
+  error?: string;
+}
+
 const statusLabels: Record<string, string> = {
   draft: "Draft",
   in_progress: "In progress",
@@ -60,34 +68,58 @@ export default function PostmortemPage() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
-  const { setData, patch, processing, recentlySuccessful } = useHttp({
-    html_content: "",
-  });
   const [editorKey, setEditorKey] = useState(0);
   const [revisionsOpen, setRevisionsOpen] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
   const editorContentRef = useRef(postmortem?.htmlContent ?? "");
+  // The version the editor's text was built from. A save that loses to
+  // somebody else's rewrite is refused rather than throwing their work away.
+  const versionRef = useRef(postmortem?.version ?? 0);
+  const conflictedRef = useRef(false);
+
+  const save = useCallback(async () => {
+    setSaveState("saving");
+    const result = await requestJson<SaveResult>(incidentPostmortemPath(incident.id), {
+      method: "PATCH",
+      body: { html_content: editorContentRef.current, version: versionRef.current },
+    });
+
+    // Losing means nothing was written, so the version stays where it was and
+    // the editor stops trying. Adopting the version that won would let the
+    // next keystroke overwrite the work this save was refused for.
+    if (!result.ok) {
+      conflictedRef.current = true;
+      setSaveState("conflict");
+      return;
+    }
+
+    versionRef.current = result.data?.version ?? versionRef.current;
+    setSaveState("saved");
+  }, [incident.id]);
 
   const handleContentUpdate = useCallback(
     (html: string) => {
       editorContentRef.current = html;
+      if (conflictedRef.current) {
+        return;
+      }
+
       clearTimeout(saveTimerRef.current);
-      setData("html_content", html);
       saveTimerRef.current = setTimeout(() => {
         saveTimerRef.current = undefined;
-        patch(incidentPostmortemPath(incident.id));
+        void save();
       }, 1500);
     },
-    [incident.id, setData, patch],
+    [save],
   );
 
   const handleRestore = useCallback(
     (html: string) => {
       editorContentRef.current = html;
       setEditorKey((key) => key + 1);
-      setData("html_content", html);
-      patch(incidentPostmortemPath(incident.id));
+      void save();
     },
-    [incident.id, setData, patch],
+    [save],
   );
 
   const handleExportMarkdown = useCallback(() => {
@@ -114,7 +146,7 @@ export default function PostmortemPage() {
     // request survives page unload / tab close. Inertia's router has no
     // keepalive equivalent, the request would be cancelled on navigation.
     const flushPendingSave = () => {
-      if (!saveTimerRef.current) {
+      if (!saveTimerRef.current || conflictedRef.current) {
         return;
       }
       clearTimeout(saveTimerRef.current);
@@ -122,7 +154,7 @@ export default function PostmortemPage() {
 
       void requestJson(incidentPostmortemPath(incident.id), {
         method: "PATCH",
-        body: { html_content: editorContentRef.current },
+        body: { html_content: editorContentRef.current, version: versionRef.current },
         keepalive: true,
       });
     };
@@ -133,6 +165,19 @@ export default function PostmortemPage() {
       flushPendingSave();
     };
   }, [incident.id]);
+
+  useEffect(() => {
+    if (saveState !== "saved") {
+      return;
+    }
+
+    const timer = setTimeout(() => setSaveState("idle"), 2000);
+    return () => clearTimeout(timer);
+  }, [saveState]);
+
+  function reloadPostmortem() {
+    router.reload();
+  }
 
   function retryGeneration() {
     router.post(incidentPostmortemGeneratePath(incident.id));
@@ -252,13 +297,13 @@ export default function PostmortemPage() {
               </span>
             </nav>
             <div className="ml-auto flex items-center gap-2">
-              {recentlySuccessful && (
+              {saveState === "saved" && (
                 <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
                   <IconCheck className="size-3" />
                   Saved
                 </span>
               )}
-              {processing && (
+              {saveState === "saving" && (
                 <span className="text-xs text-muted-foreground">Saving...</span>
               )}
               <Badge
@@ -325,6 +370,18 @@ export default function PostmortemPage() {
               {incident.identifier}: {incident.name}
             </p>
           </div>
+          {saveState === "conflict" && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+              <IconAlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <p className="text-sm text-foreground">
+                Somebody else changed this postmortem while you were editing, so your last change was
+                not saved. Reload to see their version, or copy your text out first.
+              </p>
+              <Button variant="outline" size="sm" className="ml-auto" onClick={reloadPostmortem}>
+                Reload
+              </Button>
+            </div>
+          )}
           <PostmortemEditor
             key={editorKey}
             content={editorContentRef.current || undefined}
