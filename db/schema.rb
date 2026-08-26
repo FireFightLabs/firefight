@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_170001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_200001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1136,6 +1136,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_170001) do
     t.text "refresh_token"
     t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
+    t.boolean "transcript_access_enabled", default: false, null: false
+    t.integer "transcript_retention_days", default: 30
     t.boolean "archive_channel_enabled", default: true, null: false
     t.integer "archive_channel_delay_minutes", default: 60, null: false
     t.datetime "suspended_at"

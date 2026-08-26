@@ -40,6 +40,10 @@ staging:
   cleanup_idempotency_keys:
     class: CleanupIdempotencyKeysJob
     schedule: at 3am every day
+  transcript_retention:
+    class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
+    queue: background
+    schedule: at 4am every day
   cleanup_webhook_deliveries:
     class: Webhooks::CleanupJob
     queue: webhooks
@@ -70,6 +74,10 @@ production:
   cleanup_idempotency_keys:
     class: CleanupIdempotencyKeysJob
     schedule: at 3am every day
+  transcript_retention:
+    class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
+    queue: background
+    schedule: at 4am every day
   cleanup_webhook_deliveries:
     class: Webhooks::CleanupJob
     queue: webhooks

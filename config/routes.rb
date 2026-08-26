@@ -30,6 +30,9 @@ Rails.application.routes.draw do
         end
         resources :action_items, only: [ :index, :create, :update ]
         resource :postmortem, only: [ :show, :create, :update ], controller: "postmortems"
+        # Its own resource, so a key granted incidents does not also read every
+        # message said in one.
+        resources :transcript, only: [ :index ], controller: "transcripts"
         # Taking part in an incident rather than moving it: everything a person
         # can do from Slack short of changing the status.
         member do
@@ -323,6 +326,8 @@ Rails.application.routes.draw do
     get "/settings/members", to: "settings#members", as: :settings_members
 
     # The gateway and developer screens used to live under /settings.
+    get "/settings/workspace", to: "workspace_settings#show", as: :settings_workspace
+    patch "/settings/workspace", to: "workspace_settings#update"
     get "/settings/permissions", to: redirect("/app/gateway/permissions")
     get "/settings/activity", to: redirect("/app/gateway/activity")
     get "/settings/approvals", to: redirect("/app/gateway/approvals")

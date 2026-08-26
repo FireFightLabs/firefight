@@ -172,6 +172,21 @@ and no service key or agent ever can, whatever it was granted, so an agent
 cannot mint another agent. Creating one returns its token once and never again,
 and a listing never carries one.
 
+## Reading the conversation
+
+`get_incident_transcript` returns what people actually said in an incident
+channel, in order, with who said it. It is the one thing `get_incident` never
+gave an agent: the timeline says what happened, the transcript says why.
+
+It authorizes as `incident_transcripts`, deliberately not `incidents`, so a key
+already granted incidents does not silently gain the conversation. It also
+refuses unless the workspace has turned transcript access on. See the gates and
+the retention window in [ai.md](ai.md).
+
+Paging walks backwards from the end, since the last thing said is usually the
+part worth reading, and `more_before` carries the cursor. The limit is capped at
+500 rather than trusted.
+
 ## Architecture
 
 `McpController` (entry point: Bearer auth → `Current.principal`, API rate limit, stateless `handle_json` dispatch — no sessions/SSE, multi-worker safe) → `Mcp::ToolDispatcher` (telemetry; routes every call through `AbilityGateway.authorize!`, which resolves the principal's grants and ledgers denials) → tool classes in `app/mcp/` (workspace-scoped reads + formatting only; no business logic, no writes, no adapter calls; tool names from `Mcp::Tools` constants).
