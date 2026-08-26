@@ -43,6 +43,13 @@ class PostmortemSerializer < BaseSerializer
     postmortem.updated_at.utc.iso8601
   end
 
+  # What the editor sends back when it saves, so a rewrite from an agent while
+  # somebody is typing is refused rather than silently winning.
+  type :number
+  def version
+    postmortem.content_version
+  end
+
   type :string, optional: true
   def html_content
     postmortem.html_content

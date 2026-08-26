@@ -29,14 +29,36 @@ class Api::V1::PostmortemsController < Api::V1::ApiController
   def update
     authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE)
 
-    @postmortem.update_content!(params[:html], by: Current.principal) if params.key?(:html)
+    return render_missing_version if params.key?(:html) && !params.key?(:version)
+
+    if params.key?(:html)
+      @postmortem.update_content!(params[:html], by: Current.principal, expected_version: params[:version])
+    end
     @postmortem.update_status!(params.require(:status), by: Current.principal) if params.key?(:status)
 
     @postmortem.reload
     render :show
+  rescue Postmortem::StaleContent
+    render_stale
   end
 
   private
+
+  # A body replaces the whole document, so the caller says which version it
+  # read. Reading first was already the advice, this makes it the contract.
+  def render_missing_version
+    render json: error_response(
+      "version_required",
+      "Send the version you read from this postmortem alongside html, so an edit somebody else made in the meantime is not thrown away."
+    ), status: :unprocessable_entity
+  end
+
+  def render_stale
+    render json: error_response(
+      "stale_content",
+      "This postmortem has changed since version #{params[:version]}. Read it again and reapply your edit."
+    ), status: :conflict
+  end
 
   def start_blank!
     Postmortem.start_blank!(@incident, by: Current.principal)

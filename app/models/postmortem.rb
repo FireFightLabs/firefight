@@ -1,6 +1,10 @@
 class Postmortem < ApplicationRecord
   include Postmortem::Snapshots
 
+  # Raised when a caller sends a body built from a version of the document that
+  # somebody else has since replaced.
+  class StaleContent < StandardError; end
+
   STATUS_DRAFT = "draft"
   STATUS_IN_PROGRESS = "in_progress"
   STATUS_IN_REVIEW = "in_review"

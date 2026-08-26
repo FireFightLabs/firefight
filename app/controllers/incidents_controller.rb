@@ -68,9 +68,14 @@ class IncidentsController < InertiaController
     postmortem = incident.postmortem or raise ActiveRecord::RecordNotFound
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
 
-    postmortem.update_content!(params[:html_content], by: member)
+    postmortem.update_content!(params[:html_content], by: member, expected_version: params[:version])
 
-    head :ok
+    render json: { version: postmortem.reload.content_version }
+  rescue Postmortem::StaleContent
+    render json: {
+      error: "Somebody else changed this postmortem while you were editing. Reload to see their version.",
+      version: postmortem.reload.content_version
+    }, status: :conflict
   end
 
   def update_postmortem_status

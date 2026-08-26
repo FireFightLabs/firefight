@@ -38,6 +38,8 @@ module Mcp
                      "must approve this call. Retry the identical call with approval_id: \"#{e.approval.id}\" once approved.")
     rescue Incident::NotActive => e
       error_response(e.message)
+    rescue Postmortem::StaleContent
+      error_response("This postmortem has changed since the version you read. Read it again with get_postmortem and reapply your edit.")
     rescue ActiveRecord::RecordNotFound
       error_response("Not found in this workspace.")
     rescue ActiveRecord::RecordInvalid => e
