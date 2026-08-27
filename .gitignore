@@ -64,4 +64,10 @@ node_modules
 app/frontend/cloud_pages/
 
 docs/agents/*
+
+# One Slack app per deployed environment, each with its own URLs. The public
+# template next to them carries the same scopes.
+/config/slack_manifests/development.yml
+/config/slack_manifests/staging.yml
+/config/slack_manifests/production.yml
 CLAUDE.local.md

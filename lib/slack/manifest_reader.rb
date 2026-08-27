@@ -1,10 +1,10 @@
 module Slack
   class ManifestReader
     def self.scopes_for_environment(env = Rails.env)
-      manifest_path = Rails.root.join("config", "slack_manifests", "#{env}.yml")
+      manifest_path = manifest_for(env)
 
-      unless File.exist?(manifest_path)
-        Rails.logger.warn "Slack manifest not found: #{manifest_path}"
+      unless manifest_path
+        Rails.logger.warn "Slack manifest not found for #{env}"
         return { user_scope: "", bot_scope: "" }
       end
 
@@ -22,6 +22,15 @@ module Slack
         user_scope: user_scopes,         # Just user scopes
         bot_scope: bot_scopes            # Just bot scopes
       }
+    end
+
+    # Deployments keep a manifest per environment, since each one is a separate
+    # Slack app with its own URLs. Anyone else has the template, which carries
+    # the same scopes.
+    def self.manifest_for(env)
+      [ "#{env}.yml", "template.yml" ]
+        .map { |name| Rails.root.join("config", "slack_manifests", name) }
+        .find { |path| File.exist?(path) }
     end
   end
 end
