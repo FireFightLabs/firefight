@@ -42,6 +42,24 @@ Development uses four databases on this one Postgres server — the primary plus
 
 Copy `.env.example` to `.env` and fill in the values. At minimum you need the Slack credentials and Active Record encryption keys.
 
+### If you are on the Firefight team
+
+Secrets live in Infisical rather than in a file. Prefix any command with `infisical run` and it gets them, without anything landing on disk:
+
+```sh
+infisical run --env=dev -- bin/dev
+infisical run --env=dev -- bin/rails console
+infisical run --env=dev -- bin/ci
+```
+
+An alias is worth having, in your own shell rather than in the repository:
+
+```sh
+alias ff='infisical run --env=dev --'
+```
+
+Environment variables win over anything in `.env`, so the two can coexist while you move across.
+
 Generate the encryption keys (run once per developer machine):
 
 ```sh
