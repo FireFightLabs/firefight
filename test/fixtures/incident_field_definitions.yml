@@ -1,0 +1,20 @@
+affected_services_ws1:
+  id: bb000001-0000-0000-0000-000000000001
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  slug: affected_services
+  name: Affected Services
+  description: Services impacted by the incident
+  field_type: catalog_multi_reference
+  option_source: catalog
+  catalog_type_id: aa000001-0000-0000-0000-000000000002
+  position: 1
+
+customer_tier_ws1:
+  id: bb000001-0000-0000-0000-000000000002
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  slug: customer_tier
+  name: Customer Tier
+  description: Highest impacted customer tier
+  field_type: single_select
+  option_source: fixed
+  position: 2

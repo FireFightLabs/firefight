@@ -1,0 +1,27 @@
+module SolidWorkflow
+  class Step < Record
+    module Statusable
+      extend ActiveSupport::Concern
+
+      included do
+        enum :status, {
+          pending: "pending",
+          running: "running",
+          succeeded: "succeeded",
+          failed: "failed",
+          skipped: "skipped",
+          cancelled: "cancelled"
+        }
+
+        scope :pending, -> { where(status: :pending) }
+        scope :running, -> { where(status: :running) }
+        scope :failed, -> { where(status: :failed) }
+        scope :orphaned, ->(threshold = SolidWorkflow.orphaned_step_threshold.ago) { running.where("updated_at < ?", threshold) }
+      end
+
+      def completed?
+        succeeded? || failed? || skipped? || cancelled?
+      end
+    end
+  end
+end

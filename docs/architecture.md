@@ -1,0 +1,435 @@
+# Architecture
+
+Backend layering, entry points, services, adapters, and domain events. Read this before touching controllers, dispatchers, handlers, services, adapters, or domain events, or before adding a new entry point or command.
+
+## Layer Hierarchy
+
+```
+Controller → Dispatcher → Handler → Service → Adapter → Slack::Client
+                                  ↘ Job → Service → Adapter → Slack::Client   (heavy work only)
+```
+
+Each layer has a single responsibility. Never skip layers.
+
+Commands dispatch **synchronously** by default — Slack's 3-second budget covers the common path (modal openers, ephemerals, fast DB work). A handler enqueues its own job only when the work can't fit: AI generation, paginated Slack lookups, large fan-outs. See [When to enqueue from a handler](#when-to-enqueue-from-a-handler).
+
+## Entry Points (Boundary Layers)
+
+Slack and the Public API are **entry points** into the same system. They are thin boundary layers that normalize platform-specific input and call shared services. All business logic and side effects live in shared services — never in entry points.
+
+```
+Slack:  Controller → Dispatcher → Handler → IncidentLifecycleService → Workflows
+API:    Controller                        → IncidentLifecycleService → Workflows
+Teams:  (future)   → ...                  → IncidentLifecycleService → Workflows
+```
+
+There is a third inbound path for Slack **events** (messages, reactions, pins, mentions) — see [Slack Events](#slack-events-third-entry-path) below. It follows the same boundary rules.
+
+### What entry points do (boundary concerns only)
+1. **Normalize input** — parse platform-specific payload into resolved records (Slack: dig into interaction values, resolve slugs; API: parse JSON params, resolve UUIDs)
+2. **Call shared service** — `IncidentLifecycleService.new(workspace).create(...)` / `.change_status(...)` / `.assign_role(...)` etc.
+3. **Platform-specific response** — Slack: return modal hash, delete temp messages; API: render JSON
+4. **Platform-specific extras** — only when the platform requires it (e.g., Slack handler creates channel synchronously before the workflow so the confirmation modal can include a channel link)
+
+### What entry points must NOT do
+- Business logic (event type determination, transcript cache management, channel archival)
+- Workflow orchestration (deciding which workflow to start)
+- Side effects (these belong in the service)
+- Duplicate logic that exists in another entry point
+
+### Adding a new entry point (e.g., Teams, Discord, new API endpoint)
+1. Create a controller/handler that normalizes input
+2. Call `IncidentLifecycleService` — same methods, same interface
+3. Return platform-specific response
+4. Never duplicate the service logic — if the service doesn't support what you need, extend the service
+
+## IncidentLifecycleService
+
+All incident write operations go through `IncidentLifecycleService` (`app/services/incident_lifecycle_service.rb`). This is the single source of truth for what happens when an incident is created, updated, closed, canceled, reopened, accepted, or has a lead assigned.
+
+```ruby
+service = IncidentLifecycleService.new(workspace)
+
+# Create — creates incident record, starts IncidentCreationWorkflow (channel, announcements, etc.)
+incident = service.create(declared_by:, incident_status:, incident_severity:, name:, source:, ...)
+
+# Every status change. The verb is decided once, from the stage the incident
+# is in and the stage the new status belongs to:
+#   same stage            → update  (IncidentUpdateWorkflow)
+#   live → closed         → close   (IncidentCloseWorkflow, resolved_at, archival)
+#   live → canceled       → cancel  (IncidentCancelWorkflow, archival, no runbooks)
+#   terminal → live       → reopen  (IncidentReopenWorkflow, unarchive)
+#   triage → active       → accept
+#   closed ↔ canceled     → refused with Incident#status_change_blocked_reason
+# attrs may carry any incident column plus :lead. No status means a plain update.
+service.change_status(incident, { incident_status: resolved_status, summary: "New info" }, changed_by: member, message: "Status update")
+
+# Cancel with the workspace's default canceled status (the Cancel button, /ff cancel)
+service.cancel_with_default_status(incident, changed_by: member)
+
+# Assign lead — records change, starts LeadAssignmentWorkflow (channel topic, lead DM, announcement)
+service.assign_lead(incident, lead_member, changed_by: member)
+```
+
+The verbs themselves (`update`, `close`, `cancel`, `reopen`, `accept`) are private. Every entry point, Slack handler or API, calls `change_status`, so none of them can pick the wrong verb for the status it was handed. Each lifecycle event owns its own workflow and step list, so a step that belongs to one event (runbook attachment on update, archival on close and cancel) is declared there rather than skipped elsewhere.
+
+The service:
+- Takes `changed_by` as a `WorkspaceMembership` (works for both Slack users and API key creators)
+- Derives workflow context (e.g., `platform_user_id`) from the membership — no platform-specific IDs passed by callers
+- Handles all side effects: transcript cache, channel archival, workflow start
+- Is independently testable (`test/services/incident_lifecycle_service_test.rb`)
+
+## Thin Controllers
+
+Controllers validate requests, normalize payloads, dispatch synchronously, and render the response. No business logic. Slack requires response within 3 seconds (trigger_id expiration) — the controller stays in-process and meets that budget by relying on handlers to enqueue jobs when their work is heavy.
+
+```
+Api::V1::CommandsController     → Slack::CommandParser.parse     → CommandDispatcher.dispatch     → render JSON / head :ok
+Api::V1::InteractionsController → Slack::InteractionParser.parse → InteractionDispatcher.dispatch → render JSON / head :ok
+```
+
+Who is acting is resolved once: `Command#principal` / `Interaction#principal` provision a `WorkspaceMembership` for the Slack user on the way through `AuthorizedDispatch`, before any gated handler runs, so handlers can trust `find_by!(platform_user_id:)`. A user whose profile cannot be read is refused with `AuthorizedDispatch::UNRESOLVED_MESSAGE`. An interaction from a `team_id` Firefight does not know is dropped with `head :ok` (there is no way to answer a click on an old message) and logged as `interaction.unknown_workspace`.
+
+A modal's `private_metadata` is parsed once by `Slack::InteractionParser` into the typed `Interaction#metadata` (`ModalState::Result`). Handlers read `interaction.metadata.incident_id` and friends and never parse the string themselves. Every modal builder encodes with `ModalState.encode`, which is platform-neutral: the string is Firefight's own JSON, the platform only carries it.
+
+Controllers are the platform-specific boundary — they normalize payloads into platform-agnostic objects before passing to dispatchers.
+
+### When to enqueue from a handler
+
+Most handlers stay sync. A handler should enqueue its own job when **any** of these is true:
+
+- The work calls an AI provider or another slow external API (`Commands::GeneratePostmortem`, `Commands::GenerateCatchup`).
+- The work hits paginated Slack endpoints (`users.list`, `conversations.list`) or fans out N sequential API calls (`Commands::InviteResponders` resolve+invite path).
+- The work could plausibly exceed ~1.5s on the slowest realistic workspace (leaves headroom inside Slack's 3s budget for signature verify, membership provisioning, and dispatch).
+
+Pattern (see `Commands::InviteResponders` + `IncidentInviteJob` + `IncidentInviteService#resolve_and_notify!` as the reference):
+
+1. Handler does cheap precondition checks; if heavy work is needed, calls `MyJob.perform_later(...)` with primitive args (ids, text, channel_id, user_id — never AR records).
+2. Handler returns an immediate ephemeral acknowledgment (`Command.ephemeral(":hourglass_flowing_sand: …")`).
+3. Job loads records and calls a single service method that owns the whole flow (work + final notification via `adapter.post_ephemeral`).
+4. Job is a thin shell — no business logic, no Slack calls. Service owns the orchestration; adapter owns the platform calls.
+
+Handlers that must stay sync regardless of cost: anything that opens a modal. `trigger_id` expires in 3s and cannot be used from a job.
+
+**Inertia controllers** follow the same thin pattern. Query filtering belongs in model scopes (chainable, independently testable). Serialization belongs in serializer classes (`app/serializers/`). Aggregations and computed metrics belong in POROs (e.g., `DashboardStats`). The controller parses params, chains scopes, paginates, and renders — no inline SQL, no serialization loops, no metric calculations.
+
+## Dispatchers
+
+Route to handlers using lookup tables. Fall back to `UnknownHandler`.
+
+- `CommandDispatcher` — routes on `command.command_name` + `command.subcommand`
+- `InteractionDispatcher` — routes on `interaction.type` + `callback_id`/`action_id`
+
+### Authorization
+
+Slack is an entry point like the API and MCP, so it has one gate, in its dispatchers. Every handler declares what it authorizes as with `authorize_as` (`HandlerAuthorization`, the same idiom as `Mcp::Tools::Base`), and the dispatcher runs `handler.execute` inside `AbilityGateway.authorize!` via `AuthorizedDispatch`. A handler that touches nothing declares `authorizes_nothing`; a handler that declares neither raises, so a new one cannot arrive ungated.
+
+- `/ff` routes through `Commands::HomeHandler`, so `CommandDispatcher.authorizing_handler` resolves the leaf the subcommand names and checks *its* declaration. `HomeHandler::SUBCOMMAND_HANDLERS` is the single routing table both the dispatch and the authorization read.
+- Modal openers declare a read and the submission handler declares the write, so a refusal for a gated user lands on submit rather than on the button.
+- The acting principal is the clicker's `WorkspaceMembership`, provisioned on demand by `Interaction#principal` / `Command#principal`. No principal means no dispatch: the call is refused rather than run unattributed.
+- `Denied` and `PendingApproval` both come back as an ephemeral. Slack has no retry, so a parked call stores its payload on the approval (`ApprovalResumption.park!`) and is replayed by `AbilityApprovalResumptionJob` once someone approves.
+- Incident participation by a human (`AbilityGateway::HUMAN_SOURCES`, Slack and the dashboard, on a `WorkspaceMembership::PARTICIPATION` resource) is exempt from the invocation ledger, since `record_change!` already writes the `IncidentEvent` timeline. Everything else a human does is ledgered with its `source`, which is what makes Gateway → Activity the audit log of configuration changes. Tool calls are always ledgered. The gateway enqueues approver notification when it parks a call, and `Ability::Approval#resolve!` enqueues the parked-request replay. No model callback does either, so writing an approval row elsewhere triggers no platform traffic.
+The dashboard has the same single gate, `WebAuthorization`, included by `InertiaController`. A controller declares what each action authorizes as (`authorizes Ability::Action::RESOURCE_WEBHOOKS, create: :create, update: %i[update test], delete: :destroy`) and the before_action runs the gateway with `source: web`. There is no `require_admin!`: admin-only areas are admin-only because their resource is in `Ability::Action::ADMIN_ONLY_RESOURCES`, which nothing can be granted and which `implicitly_permits?` refuses to members even for reads. The one dynamic case, a personal API token versus a service key, calls `authorize_web!` inside the action. `Denied` redirects back with an alert. `PendingApproval` parks the raw request (`ApprovalResumption.park_web!`, path, method, body and content type) and `WebRequestReplay` re-runs it through the router as the requester once approved, with the approval in the Rack env, then the requester is told by direct message. `InertiaController` shares `currentUserCan`, one flag per resource, and pages render controls from it (`useCan`), never from "is admin".
+
+- **`EventDispatcher` is not gated.** Reaction-to-action, reaction-to-followup, and shoutout-from-reaction write through the same services a gated button does, so an approval policy on `incidents.update` parks the button and not the emoji. The actor on an event is always a human in a channel, so nothing an agent can reach is currently ungated, but that stops being true the moment an event handler can be triggered by anything else.
+
+## Handlers
+
+The "handler" layer is split by namespace, with different naming conventions reflecting different semantics:
+
+- **`app/services/commands/`** — Slack slash-command handlers. Named as action verbs without a `Handler` suffix (e.g. `Commands::DeclareIncident`, `Commands::ChangeStatus`, `Commands::AssignLead`). The class name reads as the user's intent; the `Commands::` namespace already marks the architectural layer. The dispatch site reads like an English description (`on SUBCOMMAND_STATUS, Commands::ChangeStatus.execute(command)`). One exception: `Commands::HomeHandler` keeps the suffix because it's the sub-dispatcher, not a leaf action — it routes `Identifiers::SUBCOMMAND_*` to the corresponding command class.
+- **`app/services/interactions/`** — Slack interaction handlers (button clicks, view submissions, shortcuts). Keep the `Handler` suffix (e.g. `Interactions::HomeContinueHandler`, `Interactions::UnknownHandler`). Interaction names describe *what UI event happened*, not an action — `Handler` reads naturally as "handles this event."
+
+Both layers share the same shape:
+
+Class methods with `self.execute(command)` or `self.execute(interaction)`. Stateless. Return response hashes or nil.
+
+They are thin — only guards, routing, and delegation:
+- Guard clauses (`return ephemeral("...") unless command.workspace`)
+- Route to the right service or adapter method
+- Return the response hash
+
+Never put in a handler: DB queries beyond `command.workspace` / `command.incident`, business logic, platform-specific formatting (Block Kit, Slack mrkdwn), or response building. That belongs in services (business logic) or the adapter (platform-specific output).
+
+`command.workspace` and `command.incident` are memoized on `Command` — call them directly, no local variable needed.
+
+**Terminal-state guards.** An incident that is over must not be handed work that only a live incident can take. The rule lives on the model, twice over:
+
+- **The model refuses.** `Incident#assign_role!` and `#unassign_role!` raise `Incident::NotActive` when `role_assignment_blocked_reason(role)` returns a sentence, and `lead=` inherits it by routing through `assign_role!`. Both directions refuse because both announce: filling the lead DMs the person and rewrites the channel topic, and every other role change posts to the channel, which `ChannelArchivalJob` may already have archived. Reporting alone is advisory — a caller that forgets to ask is exactly how this reached the API and MCP twice over. Refusing catches Slack, the API, MCP, alert ingest, the console, and whatever is written next, from one place. `IncidentLifecycleService#close` sets the lead *before* the status for this reason: the same save closes the incident, and the guard fires once the status has landed.
+- **The service refuses what has no model write.** `IncidentLifecycleService#escalate` raises the same error on `escalation_blocked_reason`. Escalation writes an event, pages someone through a workflow, and schedules a chase, none of which is a state change on `Incident` a model guard could sit on, so the floor is the service method every entry point has to go through.
+- **Every surface translates it once**, in the same rescue that already handles `AbilityGateway::Denied`: `CommandDispatcher` → ephemeral, `InteractionDispatcher` → `refuse` (which resolves a channel for a button click and for a modal submission alike), `Api::V1::ApiController` → 422 `incident_not_active`, `Mcp::ToolDispatcher` → tool error. Add a surface, add one rescue.
+
+`role_assignment_blocked_reason` names the role rather than the verb (`its Communications Lead can no longer be changed`) because workspaces rename roles and because the same sentence has to cover clearing one. The lead keeps its own wording, which is what the Slack buttons and modals already show.
+
+Handlers still pre-check, and that is not redundant. `Command#incident` resolves through the `active` scope, so a slash command in a channel whose incident is over never finds one. Buttons and modals have no such filter: `QuickActions` drops Escalate and Make me Lead once the incident is over, but a Slack client can still be rendering the version that had them, and a modal can sit open while someone else closes the incident. A view submission needs `response_action: "errors"` against a specific `block_id`, which only the handler knows, so it asks `escalation_blocked_reason` / `lead_assignment_blocked_reason` and hangs the sentence on the right field; a button click posts it with `Interactions::TerminalNotice`. Guard at the boundary for the message, refuse at the model for the safety.
+
+`EscalateIncidentHandler` is thin for the same reason every other handler is: it resolves the incident and the member, pre-checks for the modal error, and hands the work to `IncidentLifecycleService#escalate`. The event, the workflow, and the reminder job all live in the service, which is how `escalate_incident` over MCP and `POST /api/v1/incidents/:id/escalate` inherit the guard rather than having to remember it.
+
+**`escalated_to` is a person, not an id.** It takes a `WorkspaceMembership` or the platform id of someone the platform knows, and normalizes both into `Incident::EscalationTarget`. Both are legitimate: escalating to someone is not what makes them a billable member, so a Slack mention of a non-member still resolves to a name and an avatar. The target answers the same questions any actor does (`platform_user_id`, `actor_display_name`), so a message names it without asking which kind it is.
+
+**The escalation event is the only thing the workflow and the chase carry.** `IncidentEscalationWorkflow`'s context is `{ escalation_event_id }` and `EscalationAcknowledgementReminderJob` takes `(incident_id, escalation_event_id)`. Who asked (`event.actor`, polymorphic, so an agent works), who was asked and why are all on the event already, and a copy in a workflow context is a copy that can drift.
+
+Handlers decide whether to dispatch sync or enqueue a job — see [When to enqueue from a handler](#when-to-enqueue-from-a-handler). The controller never decides; it always calls the handler the same way.
+
+**Naming new commands:** verb first, noun after — `DeclareIncident`, `ChangeStatus`, `AssignLead`, `GeneratePostmortem`. Filename matches: `declare_incident.rb`, etc. If the command opens a modal as its only action, name it after the *intent* rather than the implementation (`AssignLead`, not `OpenLeadModal`). Only fall back to `Open<Thing>` when the intent really is "show this view" (`OpenHome`).
+
+## Normalizers
+
+Platform-specific payloads are normalized into platform-agnostic POJOs at the boundary (controllers/jobs) before reaching dispatchers and handlers.
+
+- `Slack::CommandParser.parse(payload)` → `Command` (ActiveModel with validations) — called in `CommandsController`
+- `Slack::InteractionParser.parse(payload)` → `Interaction` (plain PORO with attr_readers) — called in `InteractionsController`
+
+Dispatchers and handlers only receive normalized objects — never raw payloads. Handlers access normalized fields (`interaction.user_id`, `command.trigger_id`).
+
+## Slack Events (third entry path)
+
+Alongside commands and interactions, Slack pushes **events** (channel messages, reactions, pins, app mentions, member joins). Unlike commands, events have no 3-second response budget — the controller acks immediately and all work is async:
+
+```
+Api::V1::EventsController → ProcessEventJob → EventDispatcher → Events::<Type>Handler
+```
+
+- `EventsController` handles `url_verification` inline, then enqueues `ProcessEventJob` with the raw payload and returns `head :ok`.
+- `EventDispatcher` routes on `Identifiers::EVENT_*` to handlers in `app/services/events/` (`MessageHandler`, `ReactionAddedHandler`, `PinAddedHandler`, `PinRemovedHandler`, `AppMentionHandler`, `MemberJoinedChannelHandler`). Unknown types are logged and dropped.
+- These handlers power transcript capture (`MessageHandler` → `IncidentTranscriptMessage`), reaction-to-action/followup/shoutout creation, pin timeline events, and AI responses to @mentions.
+- A pin event stores the pinned message's text (`fetch_message` through the adapter) alongside its permalink, so the timeline can quote it. The fetch is decoration: an `AdapterError` leaves `message_text` nil and the pin is still recorded.
+- Slack does **not** redeliver events after the 200 ack, so `ProcessEventJob` retries transient DB failures itself — a dropped job loses the event.
+
+Events handlers follow the same thinness rules as command/interaction handlers.
+
+## Services
+
+Encapsulate business logic. Each method is independently callable (from workflows, console, or controllers). Use adapters for platform operations.
+
+- `IncidentLifecycleService` — **shared write operations for all entry points** (create, update, close, reopen, assign lead). Both Slack handlers and API controller call this. See [IncidentLifecycleService](#incidentlifecycleservice) above.
+- `IncidentCreationService` — incident creation flow details (channel, metadata, announcements). Called by `IncidentCreationWorkflow`.
+- `WorkspaceSetupService` — workspace setup flow
+
+Pattern:
+```ruby
+adapter = WorkspaceAdapter.for(workspace)
+adapter.create_channel(name: ..., is_private: ...)
+```
+
+**Why services exist here — platform-agnostic coordination:**
+Services are not a generic "service layer." They exist because Firefight bridges to external platforms (Slack now, Teams later). The business logic (record event, start workflow, set metadata) is identical regardless of platform, but the operations (create channel, post announcement) are platform-specific. Services own the shared "what happens," adapters own the platform-specific "how." Without multi-platform coordination, most services could live on models.
+
+**When to use a service vs. model methods:**
+- **Service** — orchestrates across platform boundaries or multiple systems: model writes + workflow starts, cache expiry, channel archival, job scheduling (e.g., `IncidentLifecycleService#close` updates the incident, expires transcript cache, starts a workflow, and schedules channel archival)
+- **Model** — manages its own state and records its own events. If the logic is just "update my fields and record the change," it belongs on the model or a concern (e.g., `Postmortem#update_content!` wraps `record_change!` + `update!` — no service needed)
+
+Don't create a service class that wraps a single model call. That's unnecessary indirection, not architecture.
+
+**Litmus test before creating anything in `app/services/`:** does it call an adapter, start a workflow, or touch another system (cache, jobs, external API)? If no, it is domain logic and belongs on the model or a concern in `app/models/<model>/` — no matter how algorithm-shaped it looks. Example: policy rule evaluation is a pure function over `Policy`/`PolicyRule` data, so it lives in `Policy::Evaluation` (`app/models/policy/evaluation.rb`), not in a `PolicyRouter` service.
+
+## Adapters
+
+Platform abstraction layer. `WorkspaceAdapter.for(workspace)` is the factory — returns platform-specific adapter (e.g., `Slack::WorkspaceAdapter`). Always use the factory, never instantiate platform adapters directly.
+
+`PlatformAdapter` is the whole contract, and nothing outside `app/adapters/slack/` names a `Slack::` constant (ArchSpec enforces it, with no grandfathered exceptions left). The seams that keep it that way:
+
+- **Modals are built by kind.** `adapter.build_modal(PlatformAdapter::Modal::LEAD, incident)` returns the opaque view that `open_modal`, `push_modal`, `update_modal` and `form_update_response` accept. `Slack::WorkspaceAdapter::MODAL_BUILDERS` maps each kind to its builder, and anything only Slack needs (the `team_id` in a channel deep link) is filled in there. `metadata:` carries an encoded `ModalState`.
+- **Form submissions are parsed by the adapter.** `adapter.parse_form_submission(form_slug:, values:, incident:)` returns `system_attrs`, `custom_fields`, `errors` and `first_error_field_key`. A handler answers with `adapter.form_error_response(field_key, message)` or `adapter.form_update_response(view)`, never with a `response_action` hash of its own. The mapping from a field key to a block id lives in `Slack::Modals::FieldBlocks` only.
+- **People in free text are the platform's to resolve.** `adapter.people_targets?(text)` and `adapter.resolve_people(text)` wrap `Slack::HandleResolver`.
+- **Which kind a callback names is an `Identifiers` table** (`ACTION_ITEMS_LIST_KINDS`, `ACTION_ITEMS_FORM_KINDS`), and the kind's action type is `IncidentAction::ACTION_TYPE_BY_KIND`.
+- **Credentials refresh through the factory.** `RefreshPlatformCredentialsJob` calls `WorkspaceAdapter.refresh_expiring_credentials(buffer:)`, which asks each platform adapter class in turn.
+- **Transcript messages carry `message_id`, `thread_id` and `platform_user_id`**, the platform's identifiers under Firefight's names.
+
+Adapters have two levels of methods:
+- **Low-level**: generic operations (`post_message`, `open_modal`, `pin_message`, `post_ephemeral`)
+- **High-level**: intent-based operations that encapsulate UI building (`open_incident_creation_modal`, `open_home_modal`, `update_home_modal`, `post_incident_quick_actions`, `post_incident_announcement`)
+
+Handlers and services call high-level adapter methods — never reference platform-specific builders (`Slack::Messages::*`, `Slack::Modals::*`) directly. UI building stays inside the adapter layer.
+
+Platform clients raise `AdapterError` subclasses directly, so there is one error family in the whole app. `Slack::Client::SLACK_ERROR_CODES` maps each Slack error code to its `AdapterError` (`expired_trigger_id` → `TriggerExpired`, `name_taken` → `ChannelExists`, `token_revoked` → `AuthRevoked`, …), 429s become `RateLimited`, 5xx become `ServerError`, and a transport failure that outlives the retries becomes `AdapterError::Unavailable`. Nothing platform-specific, not even a `Net::ReadTimeout`, leaves `app/adapters/`. `Slack::WorkspaceAdapter#translate_errors` only adds the side effect a revoked install needs.
+
+A revoked install (`token_revoked`, `account_inactive`, or a refresh token Slack no longer accepts) marks the workspace disconnected (`Workspace::Connection`). The dashboard keeps working and shows a banner asking an admin to reconnect through `/onboarding/reinstall`, which skips the invite gate for a workspace that already exists. The hourly token refresh skips disconnected workspaces. A reinstall clears the flag.
+
+Services and handlers rescue `AdapterError` subclasses — never platform-specific errors.
+
+Adapters return normalized hashes: `{ channel_id:, channel_name: }`, `{ message_id:, channel_id: }` for anything that posts a message, `{ success: true }` for everything else.
+
+**Platform boundary rule**: `Slack::Client` is only called from `Slack::WorkspaceAdapter`. No Slack-specific code outside `app/adapters/slack/`.
+
+## Domain Events — Trackable + Recordable
+
+Every meaningful state change to `Incident`, `IncidentAction`, or `Postmortem` is recorded as an `IncidentUpdate` / `IncidentActionUpdate` / `PostmortemUpdate` (the immutable snapshot — full state at that moment + `changed_fields` diff) plus an `IncidentEvent` (the event-bus row linking back to the snapshot via `delegated_type :eventable`).
+
+Models opt in via two paired concerns:
+
+- **Event metadata names things, never just ids.** An `IncidentEvent` that points at something stores the id and the name the timeline will say (`runbook_id` + `runbook_name`, `related_incident_id` + `related_identifier`, `escalated_to_member_id` + `escalated_to_name` + `escalated_to_avatar_url`). `IncidentEvent#subject_label` reads those names, and `IncidentEvent::References` resolves the ids once per timeline for links and avatars. Automatic runbook attachment stores `reason` (`Runbook#attach_reason`, built from `IncidentCondition#to_sentence`), escalation stores `reason`, and both surface as the entry's details.
+- `Trackable` (`app/models/concerns/trackable.rb`) — on the live model. Provides `record_change!(event_type, by:, message: nil, metadata: nil) { ... }`. Diffs `snapshot_attributes` before/after the block, writes the snapshot + event in one transaction.
+- `Recordable` (`app/models/concerns/recordable.rb`) — on the snapshot model. Declares `records SourceClass, recorder: :column_name` and wires `has_one :incident_event, as: :eventable`.
+
+```ruby
+class Incident
+  include Trackable
+  tracked_by IncidentUpdate
+
+  def snapshot_attributes
+    { incident: self, workspace_id:, incident_status:, ... }
+  end
+end
+
+class IncidentUpdate < ApplicationRecord
+  include Recordable
+  records Incident, recorder: :created_by
+end
+
+incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, by: member) do
+  incident.update!(incident_status: resolved_status)
+end
+```
+
+Pass no block for "this just got created" — the diff is empty.
+
+Adding a new trackable model: create the snapshot table (mirroring tracked columns + `update_type`, `changed_fields`, recorder FK), include the concerns, add event_type constants to `IncidentEvent::EVENT_TYPES`, add the pair to `IncidentEvent::UPDATE_TYPE_MAP`, append the recordable class to `IncidentEvent`'s `delegated_type :eventable, types: [...]`.
+
+**Domain event publication** runs from `IncidentEvent`'s `after_create_commit :publish_to_event_bus` → `ProcessDomainEventJob`. The commit hook lives on the model because the canonical "this event happened" moment is the event row's commit; pushing publication into the service layer means every event-creation site has to remember to publish, and we'd lose events on accidental raw `incident_events.create!`.
+
+**Events without a recordable** (`MESSAGE_PINNED`, `INCIDENT_ESCALATED`, `ESCALATION_ACKNOWLEDGED`, `RELATIONSHIP_CREATED`, `MILESTONE_NOTED`, etc.) are still created directly with `incident.incident_events.create!(event_type:, user:, metadata:)`. They have no eventable; their payload lives flat in `metadata` (no `details:` nesting).
+
+### `MILESTONE_NOTED` metadata contract
+
+`milestone.noted` is what an AI pass read out of the channel transcript once the incident ended (see [ai.md](ai.md)). It is metadata-only like a pin, and its metadata is the whole contract every surface renders from:
+
+| Key | Is |
+|---|---|
+| `kind` | One of `IncidentEvent::MILESTONE_KINDS`: `hypothesis`, `finding`, `root_cause`, `mitigation`, `decision`, `blocker`, `impact`, `recovery` |
+| `statement` | The one-sentence note, already naming the person it belongs to |
+| `member_id`, `member_name`, `member_avatar_url` | Who said it, stored at write time so a surface never resolves an id to render the row |
+| `message_id`, `message_text`, `permalink`, `said_at` | The single source message: its id, the scrubbed quote, its Slack link, and when it was said |
+| `confidence` | What the model reported, kept for tuning `MIN_CONFIDENCE` against real dismissal rates |
+| `inference_id` | The ledger row for the pass, so a note traces to its cost in Gateway → Activity |
+| `dismissed_at`, `dismissed_by_member_id`, `dismissed_by_name` | Set by `IncidentEvent#dismiss!`, absent until someone corrects the note |
+
+Two rules that are easy to get wrong:
+
+- **`actor` is nil.** Firefight noted it, so the sentence reads "Firefight noted". The person in `member_*` is who *said* the thing, not who performed an action, and `IncidentEvent::References` resolves them for the avatar.
+- **`created_at` is the source message's time, not the pass's.** That is what puts the note where the conversation was rather than at the end of the incident, and it means every surface orders it correctly through `chronological` without a special case.
+
+`IncidentEvent.undismissed` is the scope every text surface reads through. Dismissal keeps the row and hides it. Only the dashboard shows dismissed notes, collected at the end of their day.
+
+## The dashboard writes through the same services
+
+The dashboard used to read incidents and write only their postmortems, actions
+and runbook attachments. Everything that changes the incident itself lived in
+Slack. `IncidentLifecycleController` closes that: resolve, cancel, reopen,
+update, assign a role, link, and mark a duplicate.
+
+It carries no rules of its own. The workspace's configured form decides what is
+asked (`IncidentFormResolver`), one model decides what the answers mean
+(`IncidentFormSubmission`), and `IncidentLifecycleService` decides what a status
+change is. Read [forms.md](forms.md) before touching any of it.
+
+Two things about it are worth knowing before adding a control:
+
+- **A single-field write is only correct where Slack has one.** `/ff severity`
+  and `/ff status` both open the whole Update modal, so the dashboard's severity
+  and status badges open the Update dialog rather than patching one attribute.
+  Doing otherwise would skip whatever else that workspace made required. The
+  lead and the other roles do have their own dedicated Slack modals, so they get
+  a dropdown that writes on its own through `assign_role`.
+- **The platform builds its own URLs.** `PlatformAdapter#channel_url` returns
+  the deep link that opens an incident's channel, and the page is handed the
+  finished string. The frontend used to assemble
+  `https://slack.com/app_redirect?channel=...` itself, which both leaked Slack
+  into React and dropped the `team`, so a browser signed into more than one
+  workspace opened the wrong one.
+
+## Outbound Webhooks
+
+Domain events fan out to customer-configured webhooks:
+
+```
+IncidentEvent commit → ProcessDomainEventJob → EventRouter → Webhooks::DispatchJob
+                     → WebhookDelivery (row per attempt) → Webhooks::DeliveryService
+```
+
+- `EventRouter` maps each `IncidentEvent::*` type to subscribers (`SUBSCRIBERS` table); webhook-worthy events route to `Webhooks::EventSubscriber`, internal-only events map to `[]`. New event types must be added to this table explicitly.
+- `Webhooks::DispatchJob` finds the workspace's webhooks subscribed to the event type (`triggered_by` scope) and creates a `WebhookDelivery` per webhook. The payload is **snapshotted at dispatch time** (`Webhooks::PayloadRenderer`, shared jbuilder partials in `app/views/shared/`) so retries resend identical bytes.
+- `Webhooks::DeliveryService` sends it: timestamped HMAC signing (scheme `v1`), 7s endpoint timeout, 100KB response cap, and `Webhooks::SsrfProtector` blocks private/internal targets.
+- `WebhookDelinquencyTracker` counts consecutive failures per webhook; sustained failure (threshold 10 over 1h) deactivates the webhook and `Webhooks::DeactivationNotifier` informs the workspace. `Webhooks::CleanupJob` prunes old deliveries.
+
+## Entitlements (open-core seam)
+
+Paid/cloud features are gated through `Entitlements` (`app/models/entitlements.rb`), never hardcoded flags:
+
+```ruby
+Entitlements.allows?(workspace, Entitlements::AI)   # → true/false
+Entitlements.check(workspace, feature)              # → Result (allowed? + message)
+```
+
+- The default backend is `Entitlements::OpenSourceBackend`, which **always allows** — self-hosters get every core feature with zero configuration.
+- The proprietary cloud build swaps in its own backend (trial state, credit caps) via `Entitlements.backend=`. That code lives in the private `firefight_cloud` gem, loaded only when the Gemfile's `FIREFIGHT_CLOUD` env flag is set at build time — it is never bundled or locked for self-hosters, and the app must always run without it.
+- Rules: gate new premium-capable features through `Entitlements.allows?` with a new feature constant; never reference `firefight_cloud` from app code; never make core behavior depend on the gem's presence.
+
+## Identifiers
+
+All callback_ids, action_ids, and subcommand strings are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, `Identifiers::SUBCOMMAND_CLOSE`, etc.
+
+## Key Files
+
+```
+app/adapters/
+  adapter_error.rb                    # Platform-agnostic error hierarchy
+  workspace_adapter.rb                # Factory: WorkspaceAdapter.for(workspace)
+  slack/
+    client.rb                         # Slack API wrapper (Net::HTTP::Persistent pool, see http_pool)
+    workspace_adapter.rb              # Slack adapter (low-level methods + includes the concerns below)
+    workspace_adapter/                # High-level methods, split by concern
+      incident_messaging.rb           #   post/update announcements, quick actions, resolutions, reminders
+      incident_modals.rb              #   open/update incident modals
+      user_operations.rb              #   user lookups, DMs
+      workspace_setup.rb              #   install-time channel + welcome flow
+    messages/                         # Block Kit message builders (Announcement, QuickActions, Action,
+                                      #   Resolution, AiResponse, Escalation, Shoutout, ... + Formatting)
+    modals/                           # Block Kit modal builders (IncidentCreation, IncidentUpdate, Lead, ...)
+    interaction_parser.rb             # Raw payload → Interaction POJO
+    command_parser.rb                 # Raw payload → Command POJO
+    signature_verifier.rb             # Slack request signature verification
+    token_manager.rb                  # Token refresh/rotation
+
+app/models/
+  command.rb                          # Platform-agnostic command (ActiveModel)
+  interaction.rb                      # Platform-agnostic interaction (PORO, has platform attr)
+  identifiers.rb                      # Platform-agnostic callback_ids/action_ids
+  incident.rb                         # AR model with concerns (Sequencing, ChannelNaming, etc.)
+
+app/serializers/                      # (representative — one serializer per Inertia prop shape)
+  base_serializer.rb                  # Oj::Serializer base with camelCase keys + TS generation
+  incident_detail_serializer.rb       # Incident → incident detail page props
+  incident_list_item_serializer.rb    # Incident → dashboard list props (auto-generates TS)
+  timeline_event_serializer.rb        # IncidentEvent → timeline entries
+
+app/services/
+  incident_lifecycle_service.rb       # Shared write operations (create, update, close, reopen, lead)
+  incident_invite_service.rb          # Resolve targets + invite + notify (used by InviteHandler + IncidentInviteJob)
+  command_dispatcher.rb               # Routes commands → handlers
+  interaction_dispatcher.rb           # Routes interactions → handlers
+  incident_creation_service.rb        # Incident creation details (channel, metadata, announcements)
+  workspace_setup_service.rb          # Workspace setup business logic
+  workspace_member_provisioner.rb     # Lazy provisions WorkspaceMembership from a Slack user_id
+
+app/jobs/
+  incident_invite_job.rb              # Async resolve+invite for InviteHandler (paginated users.list path)
+
+app/views/shared/
+  _incident.json.jbuilder             # Shared incident serialization (used by API + webhooks)
+  _actor.json.jbuilder                # Shared actor serialization (used by API + webhooks)
+
+app/workflows/                        # All inherit SolidWorkflow::Base (engine: engines/solid_workflow/)
+  incident_creation_workflow.rb       # Thin delegates to IncidentCreationService
+  incident_close_workflow.rb          # + update/reopen/escalation/link/lead/summary workflows
+  slack_workspace_setup_workflow.rb   # Thin delegates to WorkspaceSetupService
+```
+
+## Enforcement with ArchSpec
+
+[ArchSpec](https://archspecrb.dev) checks the boundary rules in this document statically. The rules live in `Archspec.rb` at the repo root and run as the `Architecture: boundaries` step of `bin/ci`.
+
+- Components are disjoint file sets (handlers, dispatchers, services, adapters, engines, entry points), plus namespace components for boundaries that are names rather than folders (`Slack::*`, `SolidWorkflow::*`, `AbilityGateway`, the integration clients).
+- The headline rules. Only `app/adapters/slack/`, the Slack webhook controllers, the OAuth install flow, and the `WorkspaceAdapter` factory may reference `Slack::*`. Only dispatchers reach handlers. Models never reference services, controllers, or adapters. The four entry points (Slack handlers, API, MCP, dashboard) never reference each other. Both engines keep their declared set of constants.
+- `archspec_todo.yml` holds the grandfathered violations that predate the rules. It only shrinks. Never add an entry to make a build pass. A new violation means the code is in the wrong place. After removing violations, refresh the file with `bundle exec archspec check --update-todo`.
+- ArchSpec sees constants and method calls, not strings or symbols. Duplicated query logic, raw table names in SQL, and magic strings are outside its reach and stay a review concern.

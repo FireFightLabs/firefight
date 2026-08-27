@@ -1,0 +1,98 @@
+# examples:
+#   periodic_cleanup:
+#     class: CleanSoftDeletedRecordsJob
+#     queue: background
+#     args: [ 1000, { batch_size: 500 } ]
+#     schedule: every hour
+#   periodic_cleanup_with_command:
+#     command: "SoftDeletedRecord.due.delete_all"
+#     priority: 2
+#     schedule: at 5am every day
+
+development:
+  integration_health_sweep:
+    class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
+    schedule: every 30 minutes
+  alert_routing_sweep:
+    class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
+    queue: events
+    schedule: every 2 minutes
+  refresh_platform_credentials:
+    class: RefreshPlatformCredentialsJob
+    schedule: every hour
+  workflow_sweeper:
+    class: SolidWorkflow::SweeperJob
+    queue: workflows
+    schedule: every 5 minutes
+  workflow_cleanup:
+    class: SolidWorkflow::CleanupJob # prunes completed workflows + steps + events older than 30 days
+    queue: workflows
+    schedule: at 4am every day
+
+staging:
+  integration_health_sweep:
+    class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
+    schedule: every 30 minutes
+  alert_routing_sweep:
+    class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
+    queue: events
+    schedule: every 2 minutes
+  cleanup_idempotency_keys:
+    class: CleanupIdempotencyKeysJob
+    schedule: at 3am every day
+  transcript_retention:
+    class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
+    queue: background
+    schedule: at 4am every day
+  cleanup_webhook_deliveries:
+    class: Webhooks::CleanupJob
+    queue: webhooks
+    schedule: at 4am every day
+  clear_solid_queue_finished_jobs:
+    command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
+    schedule: every hour at minute 12
+  refresh_platform_credentials:
+    class: RefreshPlatformCredentialsJob
+    schedule: every hour
+  workflow_sweeper:
+    class: SolidWorkflow::SweeperJob
+    queue: workflows
+    schedule: every 5 minutes
+  workflow_cleanup:
+    class: SolidWorkflow::CleanupJob # prunes completed workflows + steps + events older than 30 days
+    queue: workflows
+    schedule: at 4am every day
+
+production:
+  integration_health_sweep:
+    class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
+    schedule: every 30 minutes
+  alert_routing_sweep:
+    class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
+    queue: events
+    schedule: every 2 minutes
+  cleanup_idempotency_keys:
+    class: CleanupIdempotencyKeysJob
+    schedule: at 3am every day
+  transcript_retention:
+    class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
+    queue: background
+    schedule: at 4am every day
+  cleanup_webhook_deliveries:
+    class: Webhooks::CleanupJob
+    queue: webhooks
+    schedule: at 4am every day
+  clear_solid_queue_finished_jobs:
+    command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
+    schedule: every hour at minute 12
+  refresh_platform_credentials:
+    class: RefreshPlatformCredentialsJob
+    schedule: every hour
+  workflow_sweeper:
+    class: SolidWorkflow::SweeperJob
+    queue: workflows
+    schedule: every 5 minutes
+  workflow_cleanup:
+    class: SolidWorkflow::CleanupJob # prunes completed workflows + steps + events older than 30 days
+    queue: workflows
+    schedule: at 4am every day

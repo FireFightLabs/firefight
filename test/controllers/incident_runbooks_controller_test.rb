@@ -1,0 +1,99 @@
+require "test_helper"
+
+class IncidentRunbooksControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    @workspace = workspaces(:slack_workspace_one)
+    @member = workspace_memberships(:alice_workspace_one)
+    @incident = incidents(:active_critical_ws1)
+    @runbook = @workspace.runbooks.create!(name: "Database outage")
+    @runbook.runbook_steps.create!(title: "Check the pool", position: 1)
+    sign_in(@member.user, @workspace)
+    stub_post_message
+  end
+
+  test "attaching a runbook by hand posts it and confirms" do
+    assert_difference "@incident.incident_runbooks.count", 1 do
+      post incident_runbooks_path(@incident), params: { slug: @runbook.slug }
+    end
+
+    assert_redirected_to incident_path(@incident)
+    assert_equal "Database outage was attached.", flash[:notice]
+  end
+
+  test "attaching the same runbook twice leaves one attachment" do
+    post incident_runbooks_path(@incident), params: { slug: @runbook.slug }
+
+    assert_no_difference "@incident.incident_runbooks.count" do
+      post incident_runbooks_path(@incident), params: { slug: @runbook.slug }
+    end
+  end
+
+  test "an unknown slug is refused rather than silently doing nothing" do
+    post incident_runbooks_path(@incident), params: { slug: "not_a_runbook" }
+
+    assert_redirected_to incident_path(@incident)
+    assert_equal "That runbook is no longer available.", flash[:alert]
+  end
+
+  test "the incident page offers only runbooks that are not attached yet" do
+    get incident_path(@incident), headers: inertia_headers
+    assert_response :success
+    offered = inertia_props["attachableRunbooks"].map { |runbook| runbook["slug"] }
+    assert_includes offered, @runbook.slug
+
+    post incident_runbooks_path(@incident), params: { slug: @runbook.slug }
+
+    get incident_path(@incident), headers: inertia_headers
+    offered = inertia_props["attachableRunbooks"].map { |runbook| runbook["slug"] }
+    assert_not_includes offered, @runbook.slug
+  end
+
+  # Working a step from the page
+
+  test "claiming a step creates the action item behind it and assigns it" do
+    stub_update_message
+    stub_get_permalink
+    post incident_runbooks_path(@incident), params: { slug: @runbook.slug }
+    step = @runbook.runbook_steps.first
+
+    assert_difference "@incident.incident_actions.count", 1 do
+      post claim_runbook_step_path(@incident, @incident.incident_runbooks.find_by!(runbook: @runbook), step)
+    end
+
+    action = @incident.incident_actions.find_by!(runbook_step: step)
+    assert_equal @member, action.assignee
+    assert_equal step.title, action.description
+  end
+
+  test "claiming a step someone already holds hands it over rather than duplicating" do
+    stub_update_message
+    stub_get_permalink
+    post incident_runbooks_path(@incident), params: { slug: @runbook.slug }
+    step = @runbook.runbook_steps.first
+    attachment = @incident.incident_runbooks.find_by!(runbook: @runbook)
+    other = workspace_memberships(:bob_workspace_one)
+    IncidentActionService.new(@workspace).assign_step(
+      incident: @incident, runbook_step: step, assignee: other, assigned_by: other
+    )
+
+    assert_no_difference "@incident.incident_actions.count" do
+      post claim_runbook_step_path(@incident, attachment, step)
+    end
+
+    assert_equal @member, @incident.incident_actions.find_by!(runbook_step: step).assignee
+  end
+
+  test "the panel ships each step with who is on it" do
+    stub_update_message
+    stub_get_permalink
+    post incident_runbooks_path(@incident), params: { slug: @runbook.slug }
+
+    get incident_path(@incident), headers: inertia_headers
+    assert_response :success
+
+    steps = inertia_props.dig("incident", "runbooks", 0, "steps")
+    assert_equal @runbook.runbook_steps.count, steps.size
+    assert_equal "Check the pool", steps.first["title"]
+    assert_nil steps.first["assignee"]
+  end
+end

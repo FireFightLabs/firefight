@@ -1,0 +1,147 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Explicit version, semver without v (e.g. 0.1.0). Leave blank to auto-bump."
+        required: false
+        type: string
+      bump:
+        description: "Bump level when no explicit version is given"
+        required: false
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: v
+        run: |
+          set -euo pipefail
+          INPUT="${{ inputs.version }}"
+          if [ -n "$INPUT" ]; then
+            # Explicit version wins.
+            VERSION="$INPUT"
+            if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::Version must be semver like 0.1.0 (no leading v)"
+              exit 1
+            fi
+          else
+            # Auto-bump from the latest v* tag (0.0.0 if there are none yet).
+            LATEST="$(git tag -l 'v*' --sort=-v:refname | head -n1 || true)"
+            LATEST="${LATEST#v}"
+            LATEST="${LATEST:-0.0.0}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST"
+            case "${{ inputs.bump }}" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              *)     PATCH=$((PATCH + 1)) ;;
+            esac
+            VERSION="$MAJOR.$MINOR.$PATCH"
+          fi
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists"
+            exit 1
+          fi
+          echo "Releasing v$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Pushing the tag is what deploys: Northflank's git trigger fires on the tag
+      # push and runs the release workflow (build the tagged commit -> migrate ->
+      # deploy prod). Branch CI is off, so commits to main don't deploy — only tags.
+      - name: Tag the release
+        run: |
+          git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.tag }}"
+          git push origin "${{ steps.v.outputs.tag }}"
+
+      # Self-host distribution image (no cloud gem) for open-source users to pull.
+      # Only built when the repo is public — while private nobody can pull it, and
+      # the multi-arch (arm64-via-QEMU) build adds ~10min for no one. These steps
+      # skip until open-source, then run automatically.
+      - name: Set up QEMU
+        if: github.event.repository.visibility == 'public'
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        if: github.event.repository.visibility == 'public'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: github.event.repository.visibility == 'public'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        if: github.event.repository.visibility == 'public'
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ steps.v.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push self-host image
+        if: github.event.repository.visibility == 'public'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SERVICE_VERSION=${{ steps.v.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Draft GitHub release with generated notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > /tmp/upgrade-notes.md <<'NOTES'
+          ## Upgrade notes
+
+          - Migrations run automatically on deploy (`bin/rails db:prepare`).
+          <!-- Before publishing: list any new required env vars (see .env.example),
+               breaking changes, or manual steps, then delete this comment. -->
+
+          ## Self-host image
+
+          ```
+          docker pull ghcr.io/${{ github.repository }}:${{ steps.v.outputs.version }}
+          ```
+          NOTES
+          gh release create "${{ steps.v.outputs.tag }}" \
+            --draft \
+            --generate-notes \
+            --notes-file /tmp/upgrade-notes.md \
+            --title "${{ steps.v.outputs.tag }}"

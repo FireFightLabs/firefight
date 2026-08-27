@@ -1,0 +1,19 @@
+postmortem_update_generated_ws1:
+  postmortem: postmortem_resolved_ws1
+  incident: resolved_minor_ws1
+  edited_by_type: WorkspaceMembership
+  edited_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  update_type: generated
+  title: "INC-003 Postmortem: Image upload broken"
+  summary: "Users were unable to upload profile images for approximately 4 hours."
+  content:
+    sections:
+      - key: summary
+        heading: Summary
+        body: "**Problem**: Image uploads returning 500 errors."
+      - key: introduction
+        heading: Introduction
+        body: "On the morning of the incident, users reported issues."
+  status: draft
+  model_id: claude-sonnet-4-6
+  changed_fields: []

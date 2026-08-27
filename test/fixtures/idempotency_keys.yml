@@ -1,0 +1,13 @@
+existing_key:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  key: existing-idempotency-key-123
+  resource_type: Incident
+  resource_id: <%= ActiveRecord::FixtureSet.identify(:active_critical_ws1, :uuid) %>
+  created_at: <%= 1.hour.ago %>
+
+stale_key:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  key: stale-idempotency-key-456
+  resource_type: Incident
+  resource_id: <%= ActiveRecord::FixtureSet.identify(:active_critical_ws1, :uuid) %>
+  created_at: <%= 25.hours.ago %>

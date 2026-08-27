@@ -1,0 +1,32 @@
+module Interactions
+  # The Cancel button beside Accept in triage. Mirrors AcceptIncidentHandler:
+  # one click, no modal, because a false positive should cost nothing to
+  # dismiss. A workspace wanting to capture a reason attaches a field to the
+  # Cancel form, which routes through CancelIncidentHandler instead.
+  class CancelIncidentButtonHandler
+    extend HandlerAuthorization
+    authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
+
+    def self.execute(interaction)
+      workspace = interaction.workspace
+      incident = workspace.incidents.find(interaction.action_value)
+      member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
+
+      if incident.incident_status.incident_lifecycle_stage.canceled?
+        Rails.logger.warn({ event: "incident.cancel_skipped", incident_id: incident.id, reason: "already_canceled" })
+        return nil
+      end
+
+      IncidentLifecycleService.new(workspace).cancel_with_default_status(incident, changed_by: member)
+
+      Rails.logger.info({
+        event: "incident.canceled",
+        incident_id: incident.id,
+        identifier: incident.identifier,
+        canceled_by: member.platform_user_id
+      })
+
+      nil
+    end
+  end
+end

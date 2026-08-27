@@ -1,0 +1,3 @@
+web: bin/rails s
+vite: bin/vite dev
+worker: bundle exec rake solid_queue:start

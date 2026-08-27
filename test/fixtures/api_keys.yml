@@ -1,0 +1,50 @@
+full_access_key:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  name: Full Access Key
+  token_digest: <%= Digest::SHA256.hexdigest("ff_test_full_access_token_123456") %>
+  token_prefix: "ff_test_full"
+  active: true
+  expires_at: <%= 1.year.from_now %>
+
+read_only_key:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  name: Read Only Key
+  token_digest: <%= Digest::SHA256.hexdigest("ff_test_read_only_token_12345678") %>
+  token_prefix: "ff_test_read"
+  active: true
+
+inactive_key:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  name: Inactive Key
+  token_digest: <%= Digest::SHA256.hexdigest("ff_test_inactive_token_123456789") %>
+  token_prefix: "ff_test_inac"
+  active: false
+
+expired_key:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  name: Expired Key
+  token_digest: <%= Digest::SHA256.hexdigest("ff_test_expired_token_1234567890") %>
+  token_prefix: "ff_test_expi"
+  active: true
+  expires_at: <%= 1.day.ago %>
+
+deleted_key:
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  created_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  name: Deleted Key
+  token_digest: <%= Digest::SHA256.hexdigest("ff_test_deleted_token_1234567890") %>
+  token_prefix: "ff_test_dele"
+  active: true
+  deleted_at: <%= 1.day.ago %>
+
+workspace_two_key:
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  created_by_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
+  name: Workspace Two Key
+  token_digest: <%= Digest::SHA256.hexdigest("ff_test_ws2_token_1234567890abcd") %>
+  token_prefix: "ff_test_ws2_"
+  active: true

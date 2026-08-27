@@ -1,0 +1,113 @@
+team_description:
+  id: bb000001-0000-0000-0000-000000000001
+  catalog_type_id: aa000001-0000-0000-0000-000000000001
+  slug: description
+  name: Description
+  attribute_type: text
+  required: false
+  position: 1
+  config: {}
+
+team_slack_channel:
+  id: bb000001-0000-0000-0000-000000000002
+  catalog_type_id: aa000001-0000-0000-0000-000000000001
+  slug: slack_channel
+  name: Slack Channel
+  attribute_type: slack_channel
+  required: false
+  position: 2
+  role: notification_channel
+  config: {}
+
+team_manager:
+  id: bb000001-0000-0000-0000-000000000009
+  catalog_type_id: aa000001-0000-0000-0000-000000000001
+  slug: manager
+  name: Manager
+  attribute_type: workspace_member
+  required: false
+  position: 3
+  role: manager
+  config: {}
+
+team_members:
+  id: bb000001-0000-0000-0000-000000000010
+  catalog_type_id: aa000001-0000-0000-0000-000000000001
+  slug: members
+  name: Members
+  attribute_type: workspace_members
+  required: false
+  position: 4
+  role: members
+  config: {}
+
+service_description:
+  id: bb000001-0000-0000-0000-000000000003
+  catalog_type_id: aa000001-0000-0000-0000-000000000002
+  slug: description
+  name: Description
+  attribute_type: text
+  required: false
+  position: 1
+  config: {}
+
+service_owner_team:
+  id: bb000001-0000-0000-0000-000000000004
+  catalog_type_id: aa000001-0000-0000-0000-000000000002
+  slug: owner_team
+  name: Owner Team
+  attribute_type: reference
+  required: false
+  position: 2
+  config: { "reference_type_id": "aa000001-0000-0000-0000-000000000001" }
+
+service_tier:
+  id: bb000001-0000-0000-0000-000000000005
+  catalog_type_id: aa000001-0000-0000-0000-000000000002
+  slug: tier
+  name: Tier
+  attribute_type: select
+  required: false
+  position: 3
+  config: { "options": ["Critical", "Standard", "Internal"] }
+
+service_slack_channel:
+  id: bb000001-0000-0000-0000-000000000011
+  catalog_type_id: aa000001-0000-0000-0000-000000000002
+  slug: slack_channel
+  name: Slack Channel
+  attribute_type: slack_channel
+  required: false
+  position: 4
+  role: notification_channel
+  config: {}
+
+env_is_production:
+  id: bb000001-0000-0000-0000-000000000006
+  catalog_type_id: aa000001-0000-0000-0000-000000000003
+  slug: is_production
+  name: Is Production
+  attribute_type: boolean
+  required: false
+  position: 1
+  config: {}
+
+vendor_name_attr:
+  id: bb000001-0000-0000-0000-000000000007
+  catalog_type_id: aa000001-0000-0000-0000-000000000005
+  slug: contact_email
+  name: Contact Email
+  attribute_type: text
+  required: true
+  position: 1
+  config: {}
+
+vendor_tier:
+  id: bb000001-0000-0000-0000-000000000008
+  catalog_type_id: aa000001-0000-0000-0000-000000000005
+  slug: tier
+  name: Tier
+  attribute_type: select
+  required: false
+  position: 2
+  config: { "options": ["Gold", "Silver", "Bronze"] }

@@ -1,0 +1,48 @@
+platform_team:
+  id: cc000001-0000-0000-0000-000000000001
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  catalog_type_id: aa000001-0000-0000-0000-000000000001
+  name: Platform Team
+  slug: platform_team
+  attributes: { "description": "Platform engineering team" }
+
+auth_service:
+  id: cc000001-0000-0000-0000-000000000002
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  catalog_type_id: aa000001-0000-0000-0000-000000000002
+  name: Auth Service
+  slug: auth_service
+  attributes: { "description": "Handles authentication", "tier": "Critical" }
+
+production_env:
+  id: cc000001-0000-0000-0000-000000000003
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  catalog_type_id: aa000001-0000-0000-0000-000000000003
+  name: Production
+  slug: production
+  attributes: { "is_production": true, "description": "Production environment" }
+
+deleted_entry:
+  id: cc000001-0000-0000-0000-000000000004
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  catalog_type_id: aa000001-0000-0000-0000-000000000001
+  name: Old Team
+  slug: old_team
+  attributes: {}
+  deleted_at: <%= 1.day.ago %>
+
+vendor_acme:
+  id: cc000001-0000-0000-0000-000000000005
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  catalog_type_id: aa000001-0000-0000-0000-000000000005
+  name: Acme Corp
+  slug: acme_corp
+  attributes: { "contact_email": "support@acme.com", "tier": "Gold" }
+
+development_env:
+  id: cc000001-0000-0000-0000-000000000006
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  catalog_type_id: aa000001-0000-0000-0000-000000000003
+  name: Development
+  slug: development
+  attributes: { "is_production": false, "description": "Development environment" }

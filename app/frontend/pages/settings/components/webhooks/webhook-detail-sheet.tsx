@@ -1,0 +1,330 @@
+import { useCallback, useEffect, useState } from "react";
+import { router } from "@inertiajs/react";
+import { IconCircleCheck, IconCircleX } from "@tabler/icons-react";
+
+import type { Webhook, WebhookDelivery } from "@/types/serializers";
+import {
+  activateWebhookPath,
+  deactivateWebhookPath,
+  replayWebhookDeliveryPath,
+  signingSecretWebhookPath,
+  testWebhookPath,
+} from "@/lib/routes";
+import { requestJson } from "@/lib/http";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { eventLabel } from "@/pages/settings/lib/webhook-events";
+
+// One place decides what each delivery state looks like. The server decides
+// the state, so the sheet never recomputes it from the response code.
+const DELIVERY_OUTCOME: Record<
+  WebhookDelivery["state"],
+  { label: (code: number | undefined) => string; className: string }
+> = {
+  pending: {
+    label: () => "Queued",
+    className: "bg-muted text-muted-foreground",
+  },
+  in_progress: {
+    label: () => "Sending",
+    className: "bg-muted text-muted-foreground",
+  },
+  succeeded: {
+    label: (code) => String(code ?? "OK"),
+    className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  },
+  failed: {
+    label: (code) => String(code ?? "ERR"),
+    className: "bg-red-500/15 text-red-600 dark:text-red-400",
+  },
+};
+
+export function WebhookDetailSheet({
+  webhook,
+  canManage,
+  open,
+  onOpenChange,
+}: {
+  webhook: Webhook | null;
+  canManage: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [secret, setSecret] = useState<string | null>(null);
+  const [secretPending, setSecretPending] = useState(false);
+  const [secretError, setSecretError] = useState<string | null>(null);
+  const webhookId = webhook?.id;
+
+  // A secret held in component state must not outlive the sheet it was asked
+  // for, or the next webhook opens showing the previous one's.
+  useEffect(() => {
+    setSecret(null);
+    setSecretError(null);
+  }, [webhookId, open]);
+
+  const hideSecret = useCallback(() => {
+    setSecret(null);
+    setSecretError(null);
+  }, []);
+
+  const revealSecret = useCallback(async () => {
+    if (!webhookId) {
+      return;
+    }
+
+    setSecretPending(true);
+    setSecretError(null);
+    try {
+      const { ok, data } = await requestJson<{ signingSecret: string }>(
+        signingSecretWebhookPath(webhookId),
+        { method: "GET" },
+      );
+      if (ok && data) {
+        setSecret(data.signingSecret);
+      } else {
+        setSecretError(
+          "Couldn't load the signing secret. You may not have admin access.",
+        );
+      }
+    } catch {
+      setSecretError("Couldn't load the signing secret. Please try again.");
+    } finally {
+      setSecretPending(false);
+    }
+  }, [webhookId]);
+
+  // preserveState keeps the sheet open, so the new attempt appears in the list
+  // the person is already looking at instead of dropping them back to the page.
+  const replayDelivery = useCallback(
+    (deliveryId: string) => {
+      if (!webhookId) {
+        return;
+      }
+
+      router.post(
+        replayWebhookDeliveryPath(webhookId, deliveryId),
+        {},
+        {
+          preserveState: true,
+          preserveScroll: true,
+        },
+      );
+    },
+    [webhookId],
+  );
+
+  const toggleSecret = secret === null ? revealSecret : hideSecret;
+  const secretButtonLabel = secretPending
+    ? "Loading"
+    : secret === null
+      ? "Reveal"
+      : "Hide";
+
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      hideSecret();
+    }
+    onOpenChange(next);
+  }
+
+  if (!webhook) {
+    return null;
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent className="sm:max-w-lg overflow-y-auto">
+        <SheetHeader>
+          <div className="flex items-center gap-2">
+            <SheetTitle>{webhook.name}</SheetTitle>
+            {webhook.active ? (
+              <Badge
+                variant="secondary"
+                className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+              >
+                <IconCircleCheck className="size-3" />
+                Active
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="gap-1">
+                <IconCircleX className="size-3" />
+                Inactive
+              </Badge>
+            )}
+          </div>
+          <SheetDescription className="font-mono text-xs break-all">
+            {webhook.url}
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-col gap-6 px-6 pb-6">
+          {canManage ? (
+            <>
+              <div className="flex items-center gap-2">
+                {webhook.active ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.post(deactivateWebhookPath(webhook.id))}
+                  >
+                    Deactivate
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.post(activateWebhookPath(webhook.id))}
+                  >
+                    Activate
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.post(testWebhookPath(webhook.id))}
+                >
+                  Send Test
+                </Button>
+              </div>
+    
+              <div className="flex flex-col gap-2">
+                <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  Signing Secret
+                </h4>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-sm break-all">
+                    {secret ?? "••••••••••••••••••••••••••"}
+                  </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleSecret}
+                    disabled={secretPending}
+                  >
+                    {secretButtonLabel}
+                  </Button>
+                </div>
+                {secretError ? (
+                  <p className="text-destructive text-xs">{secretError}</p>
+                ) : null}
+              </div>
+    
+              <Separator />
+            </>
+          ) : null}
+
+          <div className="flex flex-col gap-2">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Subscribed Events
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
+              {webhook.subscribedEvents.map((event) => (
+                <Badge key={event} variant="outline" className="text-xs">
+                  {eventLabel(event)}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-col gap-3">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Recent Deliveries
+            </h4>
+            {webhook.deliveries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                This webhook hasn't been triggered yet.
+              </p>
+            ) : (
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Event</TableHead>
+                      <TableHead className="w-20 text-center">Status</TableHead>
+                      <TableHead className="w-28 text-right">
+                        Delivered
+                      </TableHead>
+                      {canManage ? (
+                        <TableHead className="w-20 text-right">
+                          <span className="sr-only">Actions</span>
+                        </TableHead>
+                      ) : null}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {webhook.deliveries.map((delivery) => {
+                      const outcome = DELIVERY_OUTCOME[delivery.state];
+                      return (
+                        <TableRow key={delivery.id}>
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm">
+                                {eventLabel(delivery.eventType)}
+                              </span>
+                              {delivery.state === "failed" &&
+                                delivery.errorMessage && (
+                                  <span className="text-xs text-red-500 dark:text-red-400">
+                                    {delivery.errorMessage}
+                                  </span>
+                                )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge
+                              variant="secondary"
+                              className={`gap-1 text-xs ${outcome.className}`}
+                            >
+                              {outcome.label(delivery.responseCode)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">
+                            {new Date(
+                              delivery.deliveredAt ?? delivery.attemptedAt,
+                            ).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </TableCell>
+                          {canManage ? (
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => replayDelivery(delivery.id)}
+                              >
+                                Replay
+                              </Button>
+                            </TableCell>
+                          ) : null}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}

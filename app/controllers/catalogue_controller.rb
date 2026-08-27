@@ -1,0 +1,162 @@
+class CatalogueController < InertiaController
+  authorizes Ability::Action::RESOURCE_CATALOG,
+    read: %i[index show search_members search_channels],
+    create: %i[create_type create_entry],
+    update: %i[update_type update_entry],
+    delete: %i[destroy_type destroy_entry]
+
+  def index
+    types = current_workspace.catalog_types.active.ordered.with_entry_counts
+      .includes(:catalog_attribute_definitions)
+
+    render inertia: "catalogue/index", props: {
+      types: CatalogTypeSerializer.many(types),
+      attributeRoles: attribute_role_options
+    }
+  end
+
+  def show
+    type = current_workspace.catalog_types.active.find_by!(slug: params[:type_slug])
+    entries = type.catalog_entries.active.ordered.with_relationships
+    all_types = current_workspace.catalog_types.active.ordered.includes(:catalog_attribute_definitions)
+
+    render inertia: "catalogue/type", props: {
+      type: CatalogTypeSerializer.one(type),
+      entries: CatalogEntrySerializer.many(entries),
+      allTypes: CatalogTypeSerializer.many(all_types),
+      referenceEntries: type.reference_entry_options,
+      workspaceMembers: member_resolution_service.resolve_for_entries(entries, type),
+      attributeRoles: attribute_role_options
+    }
+  end
+
+  def search_members
+    render json: member_resolution_service.pickable_members
+  end
+
+  def search_channels
+    render json: current_workspace.adapter.list_channels
+  end
+
+  def create_type
+    type = CatalogType.create_custom!(
+      workspace: current_workspace,
+      name: params[:name], description: params[:description],
+      icon: params[:icon], color: params[:color],
+      attribute_definitions: parse_attribute_definitions
+    )
+    redirect_to catalogue_type_path(type.slug)
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: catalogue_path, inertia: { errors: type_errors(e.record) }
+  end
+
+  def update_type
+    type = current_workspace.catalog_types.active.find(params[:id])
+    type.update_with_definitions!(
+      { name: params[:name], description: params[:description], icon: params[:icon], color: params[:color] },
+      attribute_definitions: parse_attribute_definitions
+    )
+    redirect_to catalogue_type_path(type.slug)
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: catalogue_path, inertia: { errors: type_errors(e.record) }
+  rescue ActiveRecord::RecordNotDestroyed => e
+    redirect_back fallback_location: catalogue_path, inertia: { errors: { base: [ e.message ] } }
+  end
+
+  def destroy_type
+    type = current_workspace.catalog_types.active.find(params[:id])
+    type.soft_delete!
+    redirect_to catalogue_path
+  rescue ActiveRecord::RecordNotDestroyed => e
+    redirect_back fallback_location: catalogue_path, inertia: { errors: { base: [ e.message ] } }
+  end
+
+  def create_entry
+    type = current_workspace.catalog_types.active.find_by!(slug: params[:type_slug])
+    entry_service.create(type: type, name: params[:name], raw_attributes: params[:attributes]&.to_unsafe_h || {})
+    redirect_to catalogue_type_path(type.slug)
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: catalogue_type_path(params[:type_slug]), inertia: { errors: e.record.errors.to_hash }
+  end
+
+  def update_entry
+    entry = current_workspace.catalog_entries.active.find(params[:id])
+    entry_service.update(entry, name: params[:name], raw_attributes: params[:attributes]&.to_unsafe_h || {})
+    redirect_to catalogue_type_path(entry.catalog_type.slug)
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: catalogue_path, inertia: { errors: e.record.errors.to_hash }
+  end
+
+  def destroy_entry
+    entry = current_workspace.catalog_entries.active.find(params[:id])
+    entry_service.delete(entry)
+    redirect_to catalogue_type_path(entry.catalog_type.slug)
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: catalogue_path, inertia: { errors: e.record.errors.to_hash }
+  rescue ActiveRecord::RecordNotDestroyed => e
+    redirect_back fallback_location: catalogue_path, inertia: { errors: { base: [ e.message ] } }
+  end
+
+  private
+
+  # The role dropdown's choices, with the attribute types each role fits, so
+  # the dialog offers a role only where the model would accept it.
+  def attribute_role_options
+    CatalogAttributeDefinition::ROLE_LABELS.map do |value, label|
+      {
+        value: value,
+        label: label,
+        attributeTypes: CatalogAttributeDefinition::ATTRIBUTE_TYPES_BY_ROLE.fetch(value)
+      }
+    end
+  end
+
+  # An invalid attribute definition carries its errors on name, slug and
+  # attribute_type, which are field names on the type itself, so left alone they
+  # render against the type's own inputs. Move them to base, named.
+  def type_errors(record)
+    return record.errors.to_hash if record.is_a?(CatalogType)
+
+    { base: attribute_definition_errors(record) }
+  end
+
+  # The slug is generated from the name and has no input of its own, so its
+  # errors are the name's errors wearing a name nobody recognises.
+  def attribute_definition_errors(definition)
+    return [ "Every attribute needs a name" ] if definition.name.blank?
+
+    messages = definition.errors.reject { |error| error.attribute == :slug }
+      .map { |error| "#{definition.name}: #{error.message}" }
+    messages << "#{definition.name}: an attribute with this name already exists" if definition.errors.of_kind?(:slug, :taken)
+    messages
+  end
+
+  def entry_service
+    @entry_service ||= Catalogue::EntryService.new(current_workspace, may_provision_members: true)
+  end
+
+  def member_resolution_service
+    @member_resolution_service ||= Catalogue::MemberResolutionService.new(current_workspace)
+  end
+
+  def parse_attribute_definitions
+    return [] unless params[:attribute_definitions].present?
+
+    params[:attribute_definitions].map do |d|
+      config = d[:config]&.to_unsafe_h || {}
+      config["options"] = Array(d[:options]) if d[:options].present?
+      ref_id = d[:referenceTypeId] || d[:reference_type_id]
+      config["reference_type_id"] = ref_id if ref_id.present?
+
+      definition = {
+        id: d[:id],
+        name: d[:name],
+        attribute_type: d[:attribute_type] || d[:attributeType],
+        required: ActiveModel::Type::Boolean.new.cast(d[:required]),
+        config: config
+      }
+      definition[:role] = d[:role].presence if d.key?(:role)
+      definition
+    end
+  end
+end

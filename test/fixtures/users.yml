@@ -1,0 +1,18 @@
+# Users for testing
+alice:
+  id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  name: Alice Smith
+  email: alice@example.com
+  avatar_url: https://example.com/alice.jpg
+
+bob:
+  id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+  name: Bob Jones
+  email: bob@example.com
+  avatar_url: https://example.com/bob.jpg
+
+charlie:
+  id: cccccccc-cccc-cccc-cccc-cccccccccccc
+  name: Charlie Brown
+  email: charlie@example.com
+  avatar_url: https://example.com/charlie.jpg

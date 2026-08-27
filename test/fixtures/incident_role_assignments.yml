@@ -1,0 +1,33 @@
+# Incident role assignments for testing
+
+# Workspace One - Active incident with assignments (no lead assigned for testing)
+bob_comms_ws1_inc1:
+  incident: active_critical_ws1
+  incident_role_id: eeeeeeee-1111-eeee-2222-eeeeeeeeeeee
+  workspace_membership_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  assigned_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  assigned_at: <%= 1.hour.ago %>
+
+# Workspace One - Another incident with lead assignment
+bob_lead_ws1_inc2:
+  incident: active_major_ws1
+  incident_role_id: eeeeeeee-1111-eeee-1111-eeeeeeeeeeee
+  workspace_membership_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  assigned_by_id: bbbbbbbb-1111-bbbb-1111-bbbbbbbbbbbb
+  assigned_at: <%= 1.hour.ago %>
+
+# Another lead assignment for testing multiple roles
+alice_lead_ws1_inc3:
+  incident: resolved_minor_ws1
+  incident_role_id: eeeeeeee-1111-eeee-1111-eeeeeeeeeeee
+  workspace_membership_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  assigned_by_id: aaaaaaaa-1111-aaaa-1111-aaaaaaaaaaaa
+  assigned_at: <%= 1.day.ago %>
+
+# Workspace Two - Different role assignments
+alice_lead_ws2_inc1:
+  incident: active_p0_ws2
+  incident_role_id: eeeeeeee-2222-eeee-1111-eeeeeeeeeeee
+  workspace_membership_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
+  assigned_by_id: aaaaaaaa-2222-aaaa-2222-aaaaaaaaaaaa
+  assigned_at: <%= 15.minutes.ago %>

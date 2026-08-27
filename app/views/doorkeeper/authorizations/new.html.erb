@@ -1,0 +1,29 @@
+<% memberships = oauth_consent_memberships(current_resource_owner) %>
+
+<h1>Connect <%= @pre_auth.client.name %>?</h1>
+
+<% if memberships.many? %>
+  <p class="subject">Connecting as <%= current_resource_owner.display_name %>. Pick the workspace it can reach.</p>
+  <label class="picker">
+    Workspace
+    <%# Outside the form, associated by id, so it sits above both buttons. %>
+    <%= select_tag :workspace_id, oauth_workspace_options(current_resource_owner, memberships), form: "authorize" %>
+  </label>
+<% else %>
+  <p class="subject">Connecting to <strong><%= current_resource_owner.workspace.name %></strong> as <%= current_resource_owner.display_name %>.</p>
+<% end %>
+
+<div class="actions">
+  <%= form_tag oauth_authorization_path, method: :post, id: "authorize" do %>
+    <% oauth_pre_auth_fields(@pre_auth).each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+    <button type="submit" class="authorize">Authorize</button>
+  <% end %>
+  <%= form_tag oauth_authorization_path, method: :delete do %>
+    <% oauth_pre_auth_fields(@pre_auth).each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+    <button type="submit" class="deny">Deny</button>
+  <% end %>
+</div>

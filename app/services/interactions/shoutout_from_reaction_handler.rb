@@ -1,0 +1,21 @@
+module Interactions
+  class ShoutoutFromReactionHandler
+    extend HandlerAuthorization
+    authorize_as Ability::Action::RESOURCE_INCIDENTS
+
+    def self.execute(interaction)
+      workspace = interaction.workspace
+      metadata = JSON.parse(interaction.action_value)
+      incident = workspace.incidents.find(metadata["incident_id"])
+
+      adapter = workspace.adapter
+      adapter.open_modal(trigger_id: interaction.trigger_id, view: adapter.build_modal(PlatformAdapter::Modal::SHOUTOUT, incident))
+
+      nil
+    rescue ActiveRecord::RecordNotFound, JSON::ParserError
+      nil
+    rescue AdapterError::TriggerExpired
+      nil
+    end
+  end
+end

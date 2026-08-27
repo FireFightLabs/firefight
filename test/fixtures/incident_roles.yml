@@ -1,0 +1,60 @@
+# Incident Roles for testing
+# Workspace One - Simple MVP setup
+incident_lead_ws1:
+  id: eeeeeeee-1111-eeee-1111-eeeeeeeeeeee
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Incident Lead
+  slug: incident_lead
+  description: Person responsible for coordinating the incident response
+  position: 1
+
+communications_lead_ws1:
+  id: eeeeeeee-1111-eeee-2222-eeeeeeeeeeee
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Communications Lead
+  slug: communications_lead
+  description: Handles communications during incident
+  position: 2
+
+# Workspace Two - More complex role structure
+incident_commander_ws2:
+  id: eeeeeeee-2222-eeee-1111-eeeeeeeeeeee
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  name: Incident Commander
+  slug: incident_commander
+  description: Overall incident coordinator
+  position: 1
+
+comms_lead_ws2:
+  id: eeeeeeee-2222-eeee-2222-eeeeeeeeeeee
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  name: Communications Lead
+  slug: communications_lead
+  description: Handles internal and external communications
+  position: 2
+
+tech_lead_ws2:
+  id: eeeeeeee-2222-eeee-3333-eeeeeeeeeeee
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  name: Technical Lead
+  slug: technical_lead
+  description: Leads technical investigation and resolution
+  position: 3
+
+scribe_ws2:
+  id: eeeeeeee-2222-eeee-4444-eeeeeeeeeeee
+  workspace_id: 22222222-2222-2222-2222-222222222222
+  name: Scribe
+  slug: scribe
+  description: Documents timeline and key decisions
+  position: 4
+
+# Deleted role for testing soft deletes
+deleted_role:
+  id: eeeeeeee-9999-eeee-9999-eeeeeeeeeeee
+  workspace_id: 11111111-1111-1111-1111-111111111111
+  name: Archived Role
+  slug: archived_role
+  description: This role was deleted
+  position: 99
+  deleted_at: <%= 1.day.ago %>

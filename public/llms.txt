@@ -1,0 +1,14 @@
+# Firefight
+
+Firefight is open-source (AGPL-3.0), Slack-first incident management: declare and run incidents in Slack channels, severities, roles, timelines, postmortems, a service catalog, alert ingestion with policy-based routing, workflows, and a public REST API. Self-hostable.
+
+- Website: https://firefight.app
+- Source: https://github.com/FireFightLabs/firefight
+
+## MCP server
+
+Read-only Model Context Protocol server at POST /mcp (Streamable HTTP, stateless). Authenticate with `Authorization: Bearer <token>` — mint tokens under Settings → API keys. Tools: search_incidents, get_incident, search_alerts, search_catalog, evaluate_routing (alert-routing dry runs with a per-condition trace). All results are scoped to the token's workspace.
+
+## REST API
+
+Bearer-authenticated JSON API under /api/v1 (incidents, severities, statuses, types, custom fields, catalog) plus per-source alert ingestion at /api/v1/alerts/<endpoint_path>.
