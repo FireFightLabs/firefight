@@ -1,8 +1,17 @@
+# The Slack app Firefight needs, as one manifest.
+#
+# Replace every <base-url> with the address you reach your install at, such as
+# https://firefight.example.com, then paste this into Create New App, From a
+# manifest at https://api.slack.com/apps.
+#
+# Scopes are read from here at boot, so a comment next to one is the record of
+# why it is asked for. Removing a scope removes the feature beside it.
+
 display_information:
   name: Firefight
   description: Declare, run, and resolve incidents without leaving Slack
   background_color: "#04111d"
-  long_description: Firefight is an incident management platform built for Slack-first teams. Declare an incident with /firefight, and a dedicated channel is created with the right responders, severity, and lifecycle tracking. Updates, lead assignments, and status changes are captured as a timeline automatically — no copy-pasting into a separate tool. When the incident resolves, Firefight generates a postmortem draft from the channel transcript so you can review what happened instead of reconstructing it. Integrations let you page specific teams in their own channels, receive alerts from observability tools, and sync with your on-call rotation. Designed for engineering, platform, and SRE teams who want rigorous incident response without leaving the tools they already use.
+  long_description: Firefight is an incident management platform for teams that respond in Slack. Declare an incident and a channel is created with the right responders, severity and lifecycle tracking. Updates, lead assignments and status changes are captured as a timeline automatically. When the incident resolves, Firefight drafts the postmortem from what actually happened.
 
 features:
   bot_user:
@@ -15,18 +24,18 @@ features:
       description: Quickly declare a new incident
   slash_commands:
     - command: /firefight
-      url: https://slack.firefight.app/api/v1/commands
+      url: <base-url>/api/v1/commands
       description: Manage incidents and coordinate response
       should_escape: false
     - command: /ff
-      url: https://slack.firefight.app/api/v1/commands
+      url: <base-url>/api/v1/commands
       description: Manage incidents (short alias for /firefight)
       should_escape: false
 
 oauth_config:
   redirect_urls:
-    - https://app.firefight.app/auth/slack/callback
-    - https://app.firefight.app/auth/slack_openid/callback
+    - <base-url>/auth/slack/callback
+    - <base-url>/auth/slack_openid/callback
   scopes:
     user:
       - openid           # OIDC: triggers Slack's native workspace picker on sign-in
@@ -58,7 +67,7 @@ oauth_config:
 
 settings:
   event_subscriptions:
-    request_url: https://slack.firefight.app/api/v1/events
+    request_url: <base-url>/api/v1/events
     bot_events:
       - app_mention
       - member_joined_channel
@@ -69,7 +78,7 @@ settings:
       - reaction_added
   interactivity:
     is_enabled: true
-    request_url: https://slack.firefight.app/api/v1/interactions
+    request_url: <base-url>/api/v1/interactions
   org_deploy_enabled: true
   socket_mode_enabled: false
   token_rotation_enabled: true
