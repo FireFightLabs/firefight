@@ -15,7 +15,7 @@ Budget about twenty minutes. Most of it is creating the Slack app.
 
 Firefight ships the app definition it needs, so you do not have to click through scopes.
 
-Open [`config/slack_manifests/production.yml`](config/slack_manifests/production.yml) and replace every `slack.firefight.app` and `app.firefight.app` with your own hostname. There are five URLs: the two slash commands, the events request URL, the interactivity request URL, and the two OAuth redirect URLs.
+Open [`config/slack_manifests/template.yml`](config/slack_manifests/template.yml) and replace every `<base-url>` with the address you will reach Firefight at, such as `https://firefight.example.com`. There are seven, covering the two slash commands, the events request URL, the interactivity request URL, and the two OAuth redirect URLs.
 
 Then go to [api.slack.com/apps](https://api.slack.com/apps), choose **Create New App**, pick **From a manifest**, select your workspace, and paste the edited YAML.
 

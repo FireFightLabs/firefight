@@ -1,12 +1,4 @@
-# The Slack app Firefight needs, as one manifest.
-#
-# Replace every <base-url> with the address you reach your install at, such as
-# https://firefight.example.com, then paste this into Create New App, From a
-# manifest at https://api.slack.com/apps.
-#
-# Scopes are read from here at boot, so a comment next to one is the record of
-# why it is asked for. Removing a scope removes the feature beside it.
-
+# Replace <base-url> and paste into Slack. See SELF_HOSTING.md.
 display_information:
   name: Firefight
   description: Declare, run, and resolve incidents without leaving Slack
