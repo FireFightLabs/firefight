@@ -159,6 +159,15 @@ Found a vulnerability? Please report it privately, see [SECURITY.md](SECURITY.md
 
 Contributions are welcome: bug reports, fixes, and features. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and conventions, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for how we work together. Fork PRs run the full CI suite, no secrets required.
 
+## Getting in touch
+
+| | |
+|---|---|
+| Questions, bug reports, feature ideas | [open an issue](https://github.com/FireFightLabs/firefight/issues) |
+| Talking to other people running it | [the community Slack](https://firefight.app/slack) |
+| Anything else, including partnerships and self-hosting at scale | **hello@firefight.app** |
+| Something security related | **security@firefight.app**, privately, see [SECURITY.md](SECURITY.md) |
+
 ## License
 
 [AGPL-3.0](LICENSE) © Firefight Labs
