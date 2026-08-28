@@ -71,3 +71,7 @@ docs/agents/*
 /config/slack_manifests/staging.yml
 /config/slack_manifests/production.yml
 CLAUDE.local.md
+
+# An engine mounted by path takes its versions from the host's lockfile, so a
+# lockfile here is never read and only goes stale. solid_workflow has none.
+/engines/*/Gemfile.lock
