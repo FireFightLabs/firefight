@@ -37,6 +37,8 @@
   <img src=".github/assets/readme-hero.png" width="100%" alt="Firefight: declare and resolve incidents in Slack, tracked in a full web dashboard" />
 </p>
 
+Questions, or want to talk about running it at your company? **hello@firefight.app**
+
 ## What is Firefight?
 
 Firefight is an incident management platform. It records what broke, who responded, and what you changed so it doesn't happen again.
