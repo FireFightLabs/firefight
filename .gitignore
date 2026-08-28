@@ -71,3 +71,6 @@ docs/agents/*
 /config/slack_manifests/staging.yml
 /config/slack_manifests/production.yml
 CLAUDE.local.md
+
+# A path-mounted engine takes its versions from the host's lockfile.
+/engines/*/Gemfile.lock
