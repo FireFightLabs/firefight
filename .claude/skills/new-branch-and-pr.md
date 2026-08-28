@@ -23,10 +23,11 @@ Keep the branch to one change set. If a second problem surfaces mid-flight, note
 
 ## 3. Regenerate what the change implies
 
-These are part of the change, not a follow-up. Forgetting either breaks the app at import time rather than at test time.
+These are part of the change, not a follow-up. Forgetting any of them breaks the app at import time rather than at test time.
 
 - Touched `config/routes.rb` → `bin/rails js:routes:typescript`
 - Added or edited a serializer → `bundle exec rake types_from_serializers:generate`
+- Changed a Ruby constant the dashboard renders (`lib/typescript_constants.rb`) → `bin/rails typescript:constants`
 
 ## 4. Verify, in three passes
 
