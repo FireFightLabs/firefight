@@ -1,8 +1,9 @@
 source "https://rubygems.org"
 
-# Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
-# gem "rails", "~> 8.1.1"
-gem "rails", github: "rails/rails", branch: "8-1-stable"
+# A released gem rather than the 8-1-stable branch, so the version is a fact
+# rather than whatever was last pushed there. 8.1.3.1 carries the Active
+# Storage fix for CVE-2026-66066, so the floor sits on it.
+gem "rails", "~> 8.1.3", ">= 8.1.3.1"
 # Use postgresql as the database for Active Record
 gem "pg", "~> 1.6"
 # Use the Puma web server [https://github.com/puma/puma]
