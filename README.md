@@ -37,6 +37,8 @@
   <img src=".github/assets/readme-hero.png" width="100%" alt="Firefight: declare and resolve incidents in Slack, tracked in a full web dashboard" />
 </p>
 
+Questions, or want to talk about running it at your company? **hello@firefight.app**
+
 ## What is Firefight?
 
 Firefight is an incident management platform. It records what broke, who responded, and what you changed so it doesn't happen again.
@@ -158,15 +160,6 @@ Found a vulnerability? Please report it privately, see [SECURITY.md](SECURITY.md
 ## Contributing
 
 Contributions are welcome: bug reports, fixes, and features. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and conventions, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for how we work together. Fork PRs run the full CI suite, no secrets required.
-
-## Getting in touch
-
-| | |
-|---|---|
-| Questions, bug reports, feature ideas | [open an issue](https://github.com/FireFightLabs/firefight/issues) |
-| Talking to other people running it | [the community Slack](https://firefight.app/slack) |
-| Anything else, including partnerships and self-hosting at scale | **hello@firefight.app** |
-| Something security related | **security@firefight.app**, privately, see [SECURITY.md](SECURITY.md) |
 
 ## License
 
