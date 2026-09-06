@@ -1,6 +1,8 @@
 require "test_helper"
 
 class IncidentEventTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   # Associations
 
   test "belongs to incident" do
@@ -294,5 +296,18 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_equal incidents(:active_critical_ws1), event.incident
     assert_equal "incident.created", event.event_type
     assert_not_nil event.metadata
+  end
+
+  test "destroying an event with an artifact purges the blob and takes the attachment with it" do
+    event = incidents(:active_critical_ws1).incident_events.create!(
+      event_type: IncidentEvent::MESSAGE_FILE_SHARED, actor: workspace_memberships(:alice_workspace_one), metadata: { "file_name" => "x.txt" }
+    )
+    event.artifact.attach(io: StringIO.new("hello"), filename: "x.txt", content_type: "text/plain")
+    blob = event.artifact.blob
+
+    assert_enqueued_with(job: ActiveStorage::PurgeJob, args: [ blob ]) do
+      assert_nothing_raised { event.destroy! }
+    end
+    assert_not ActiveStorage::Attachment.exists?(record_type: "IncidentEvent", record_id: event.id)
   end
 end
