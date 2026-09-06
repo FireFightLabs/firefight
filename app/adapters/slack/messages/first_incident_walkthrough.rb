@@ -15,7 +15,7 @@ module Slack
       STEPS = {
         1 => {
           title: ":compass:  *Your first incident. Step 1 of 4*",
-          body: "Make yourself the lead. The announcement in %{channel} updates as you go.",
+          body: "Make yourself the lead. Click the button or run `/ff lead`. The announcement in %{channel} updates as you go.",
           fallback: "Your first incident. Step 1 of 4: make yourself the lead.",
           button: { text: ":firefighter: Make me Lead", action_id: Identifiers::SET_INCIDENT_LEAD_SELF }
         },
@@ -26,13 +26,13 @@ module Slack
         },
         3 => {
           title: ":white_check_mark:  *Good. Step 3 of 4*",
-          body: "Resolve the incident when it is fixed.",
+          body: "Resolve the incident when it is fixed. Click the button or run `/ff resolve`.",
           fallback: "Step 3 of 4: resolve the incident when it is fixed.",
           button: { text: ":white_check_mark: Resolve", action_id: Identifiers::RESOLVE_INCIDENT }
         },
         4 => {
           title: ":white_check_mark:  *Resolved. Step 4 of 4*",
-          body: "Write the postmortem. Firefight drafts it from the timeline and your messages.",
+          body: "Write the postmortem. Click the button or run `/ff postmortem`. Firefight drafts it from the timeline and your messages.",
           fallback: "Step 4 of 4: write the postmortem.",
           button: { text: ":clipboard: Write the postmortem", action_id: Identifiers::WRITE_POSTMORTEM }
         },

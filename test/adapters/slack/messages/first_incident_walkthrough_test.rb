@@ -28,6 +28,9 @@ class Slack::Messages::FirstIncidentWalkthroughTest < ActiveSupport::TestCase
     assert_nil buttons[2]
     Slack::Messages::FirstIncidentWalkthrough::SCRIPT.each { |line| assert_match line, bodies[2] }
     assert_equal Identifiers::RESOLVE_INCIDENT, buttons[3][:action_id]
+    assert_match "`/ff lead`", bodies[1]
+    assert_match "`/ff resolve`", bodies[3]
+    assert_match "`/ff postmortem`", bodies[4]
     assert_equal Identifiers::WRITE_POSTMORTEM, buttons[4][:action_id]
     assert_nil buttons[5]
     assert_match "share <#C_INCIDENTS>", bodies[5]
