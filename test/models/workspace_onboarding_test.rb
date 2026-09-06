@@ -11,47 +11,39 @@ class WorkspaceOnboardingTest < ActiveSupport::TestCase
     @onboarding = @workspace.create_onboarding!(installer: @installer)
   end
 
-  test "progress starts empty and follows the first incident" do
-    assert_not @onboarding.progress.declared
+  test "the stage starts at none and follows the first test incident" do
+    assert_equal WorkspaceOnboarding::STAGE_NONE, @onboarding.stage
 
     incident = declare!
-    progress = @onboarding.progress
-    assert progress.declared
-    assert_not progress.lead_set
-    assert_not progress.resolved
-    assert_not progress.complete?
+    assert_equal WorkspaceOnboarding::STAGE_DECLARED, @onboarding.stage
 
     incident.lead = @installer
     incident.save!
-    assert @onboarding.progress.lead_set
+    assert_equal WorkspaceOnboarding::STAGE_LED, @onboarding.stage
+
+    incident.incident_transcript_messages.create!(workspace: @workspace, message_id: "1.1", platform_user_id: "U_INSTALLER", workspace_membership: @installer, content: "502s", posted_at: Time.current)
+    assert_equal WorkspaceOnboarding::STAGE_MESSAGED, @onboarding.stage
 
     incident.update!(incident_status: @workspace.incident_statuses.closed.first!)
-    assert @onboarding.progress.resolved
-    assert_not @onboarding.progress.complete?
+    assert_equal WorkspaceOnboarding::STAGE_RESOLVED, @onboarding.stage
 
     Postmortem.start_blank!(incident, by: @installer)
-    assert @onboarding.progress.written_up
-    assert @onboarding.progress.complete?
+    assert_equal WorkspaceOnboarding::STAGE_DONE, @onboarding.stage
   end
 
-  test "a generating placeholder is not a write-up yet" do
+  test "a generating placeholder is not a postmortem yet" do
     incident = declare!
     incident.update!(incident_status: @workspace.incident_statuses.closed.first!)
     Postmortem.start_generation!(incident, by: @installer)
 
-    assert_not @onboarding.progress.written_up
+    assert_equal WorkspaceOnboarding::STAGE_RESOLVED, @onboarding.stage
   end
 
-  test "a canceled first incident drops the write-up and completes" do
+  test "a canceled first incident ends the loop" do
     incident = declare!
-    incident.lead = @installer
-    incident.save!
     incident.update!(incident_status: @workspace.incident_statuses.canceled.first!)
 
-    progress = @onboarding.progress
-    assert progress.resolved
-    assert progress.write_up_dropped
-    assert progress.complete?
+    assert_equal WorkspaceOnboarding::STAGE_DONE, @onboarding.stage
   end
 
   test "only the first test incident is tracked, never a real one" do

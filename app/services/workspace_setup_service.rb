@@ -73,8 +73,7 @@ class WorkspaceSetupService
   # the onboarding row for the progress updates that follow.
   def post_welcome_message(workspace, channel_id)
     onboarding = workspace.onboarding
-    progress = onboarding&.progress || WorkspaceOnboarding::Progress.none
-    result = workspace.adapter.post_welcome_message(channel_id: channel_id, progress: progress)
+    result = workspace.adapter.post_welcome_message(channel_id: channel_id, stage: onboarding&.stage || WorkspaceOnboarding::STAGE_NONE)
     onboarding&.update!(welcome_message_id: result[:message_id])
 
     Rails.logger.info({
@@ -88,30 +87,30 @@ class WorkspaceSetupService
     result
   end
 
-  # Redraws the checklist from the first incident's current state. A message
-  # somebody deleted is logged and left alone, the onboarding still completes.
+  # Redraws the checklist from the first incident's current state. Completion
+  # is a fact about the incident, so it is recorded before the platform is
+  # asked, and a message somebody deleted is logged and left alone.
   def refresh_welcome_message(workspace)
     onboarding = workspace.onboarding
     return { skipped: true } unless onboarding&.welcome_message_id.present? && workspace.incidents_channel_id.present?
 
-    progress = onboarding.progress
+    stage = onboarding.stage
+    onboarding.complete! if stage == WorkspaceOnboarding::STAGE_DONE
     workspace.adapter.update_welcome_message(
       channel_id: workspace.incidents_channel_id,
       message_id: onboarding.welcome_message_id,
-      progress: progress
+      stage: stage
     )
-    onboarding.complete! if progress.complete?
 
-    { updated: true, complete: progress.complete? }
+    { updated: true, stage: stage }
   rescue AdapterError => e
     Rails.logger.warn({
       event: "workspace_setup.welcome_refresh_failed",
       workspace_id: workspace.id,
-      message_ts: onboarding.welcome_message_id,
+      message_id: onboarding.welcome_message_id,
       error: e.message
     })
-    onboarding.complete! if progress.complete?
-    { updated: false }
+    { updated: false, stage: stage }
   end
 
   def store_channel_id(workspace, channel_id)

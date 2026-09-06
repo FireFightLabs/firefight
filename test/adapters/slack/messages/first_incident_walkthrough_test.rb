@@ -7,7 +7,7 @@ class Slack::Messages::FirstIncidentWalkthroughTest < ActiveSupport::TestCase
   end
 
   test "every step is a titled message with a divider and one instruction" do
-    (1..WorkspaceOnboarding::WALKTHROUGH_DONE).each do |step|
+    (1..WorkspaceOnboarding::STAGE_DONE).each do |step|
       blocks = Slack::Messages::FirstIncidentWalkthrough.build(@incident, step: step)
 
       assert_equal "section", blocks.first[:type], "step #{step}"

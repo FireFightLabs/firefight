@@ -2,22 +2,30 @@ module Slack
   module Messages
     # The message pinned to the top of #incidents on install. It is the
     # onboarding: three steps, ticked off in place as the first incident moves
-    # through them. Rebuilt from WorkspaceOnboarding::Progress each time, so
-    # the message never says more than the incident record does.
+    # through them. Rebuilt from the onboarding stage each time, so the
+    # message never says more than the incident record does.
     module Welcome
       FALLBACK_TEXT = "Welcome to Firefight. Three steps to see how it works.".freeze
 
       DONE = ":white_check_mark:".freeze
       PENDING = ":white_circle:".freeze
 
-      def self.build(progress)
+      # The checklist's three steps map onto the stages declared, led and
+      # resolved. Posting messages is coached in the channel, not ticked here.
+      STEP_STAGES = [
+        WorkspaceOnboarding::STAGE_DECLARED,
+        WorkspaceOnboarding::STAGE_LED,
+        WorkspaceOnboarding::STAGE_RESOLVED
+      ].freeze
+
+      def self.build(stage)
         blocks = [
           { type: "section", text: { type: "mrkdwn", text: ":wave:  *Welcome to Firefight*" } },
           { type: "divider" },
-          { type: "section", text: { type: "mrkdwn", text: body(progress) } }
+          { type: "section", text: { type: "mrkdwn", text: body(stage) } }
         ]
 
-        unless progress.declared
+        if stage < WorkspaceOnboarding::STAGE_DECLARED
           blocks << {
             type: "actions",
             elements: [
@@ -52,14 +60,13 @@ module Slack
         blocks
       end
 
-      def self.body(progress)
-        done = [ progress.declared, progress.lead_set, progress.resolved ]
+      def self.body(stage)
         lines = [ "Three steps to see how it works. Takes about three minutes. The test incident is not counted in your metrics.", "" ]
         WorkspaceOnboarding::STEPS.each_with_index do |step, index|
-          lines << "#{mark(done[index])} *#{index + 1}. #{step[:title]}* #{step[:detail]}"
+          lines << "#{mark(stage >= STEP_STAGES[index])} *#{index + 1}. #{step[:title]}* #{step[:detail]}"
         end
 
-        if progress.complete?
+        if stage == WorkspaceOnboarding::STAGE_DONE
           lines << ""
           lines << ":tada: That is the whole loop. Share this channel with your team so they can declare incidents too."
         end

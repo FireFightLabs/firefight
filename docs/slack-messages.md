@@ -168,7 +168,7 @@ Sentence case for titles: "Incident canceled", not "Incident Canceled".
 ## Messages that are edited in place
 
 `Welcome` is the onboarding checklist in `#incidents`, rebuilt from
-`WorkspaceOnboarding::Progress` and updated through `update_welcome_message`
+`WorkspaceOnboarding#stage` and updated through `update_welcome_message`
 as the first incident moves. It is the one message where an edit is the right
 call: the reader is already in the channel doing the steps, so nobody needs
 notifying, and a checklist that posted a new message per tick would bury

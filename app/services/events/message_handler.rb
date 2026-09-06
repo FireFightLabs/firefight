@@ -45,7 +45,6 @@ module Events
           content: event["text"].to_s,
           posted_at: Time.at(message_ts.to_f)
         )
-        nudge_onboarding(workspace, incident)
       end
 
       handle_files(workspace, channel_id, incident, event, member)
@@ -53,16 +52,6 @@ module Events
       nil
     end
     private_class_method :handle_new_message
-
-    # The first message in the first test incident's channel is a walkthrough
-    # step earned, so the coach gets to post the next one.
-    def self.nudge_onboarding(workspace, incident)
-      onboarding = workspace.onboarding
-      return unless incident.is_test? && onboarding&.tracks?(incident)
-
-      WorkspaceOnboardingProgressJob.perform_later(onboarding.id)
-    end
-    private_class_method :nudge_onboarding
 
     def self.handle_edit(workspace, channel_id, event)
       incident = find_incident(workspace, channel_id)

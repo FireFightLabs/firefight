@@ -1,8 +1,8 @@
-# A workspace's first run. Progress is read off the first test incident
-# rather than stored, so a step can never be ticked without the thing having
-# happened. What is stored is what the incident cannot know: the welcome
-# message to update, whether the installer has seen the dialog, and when the
-# loop was closed.
+# A workspace's first run. How far it has got is read off the first test
+# incident rather than stored, so a step can never be ticked without the
+# thing having happened. What is stored is what the incident cannot know:
+# the welcome message to update, the last coaching step posted, whether the
+# installer has seen the dialog, and when the loop was closed.
 class WorkspaceOnboarding < ApplicationRecord
   # The three steps, worded once for the Slack welcome message and the
   # dashboard dialog alike.
@@ -12,7 +12,7 @@ class WorkspaceOnboarding < ApplicationRecord
     { title: "Resolve it.", detail: "Firefight drafts the postmortem for you" }
   ].freeze
 
-  # The events that can move a step. The subscriber ignores everything else.
+  # The events that can move the first test incident a stage on.
   PROGRESS_EVENTS = [
     IncidentEvent::INCIDENT_CREATED,
     IncidentEvent::LEAD_ASSIGNED,
@@ -21,15 +21,14 @@ class WorkspaceOnboarding < ApplicationRecord
     IncidentEvent::POSTMORTEM_GENERATED
   ].freeze
 
-  Progress = Struct.new(:declared, :lead_set, :resolved, :written_up, :write_up_dropped, keyword_init: true) do
-    def self.none
-      new(declared: false, lead_set: false, resolved: false, written_up: false, write_up_dropped: false)
-    end
-
-    def complete?
-      declared && lead_set && resolved && (written_up || write_up_dropped)
-    end
-  end
+  # How far the first test incident has got, as one number every surface
+  # reads: the welcome checklist, the coach in the channel, and the dialog.
+  STAGE_NONE = 0
+  STAGE_DECLARED = 1
+  STAGE_LED = 2
+  STAGE_MESSAGED = 3
+  STAGE_RESOLVED = 4
+  STAGE_DONE = 5
 
   belongs_to :workspace
   belongs_to :installer, class_name: "WorkspaceMembership", optional: true
@@ -44,38 +43,24 @@ class WorkspaceOnboarding < ApplicationRecord
     incident.first_test_in_workspace?
   end
 
-  # A canceled first incident still counts as taking the loop to its end.
-  # There is nothing to write up, so that step is dropped rather than left
-  # waiting forever.
-  def progress
+  def stage
     incident = first_incident
-    return Progress.none unless incident
+    incident ? stage_of(incident) : STAGE_NONE
+  end
 
-    Progress.new(
-      declared: true,
-      lead_set: incident.lead.present?,
-      resolved: incident.closed? || incident.canceled?,
-      written_up: incident.postmortem.present? && !incident.postmortem.generating?,
-      write_up_dropped: incident.canceled?
-    )
+  # A canceled first incident ends the loop early. There is nothing to write
+  # up, so it counts as done rather than waiting forever.
+  def stage_of(incident)
+    return STAGE_DONE if incident.canceled? || (incident.postmortem.present? && !incident.postmortem.generating?)
+    return STAGE_RESOLVED if incident.closed?
+    return STAGE_MESSAGED if incident.incident_transcript_messages.kept.exists?
+    return STAGE_LED if incident.lead.present?
+
+    STAGE_DECLARED
   end
 
   # The dialog exists to get the first test incident declared. Once one
   # exists, from any surface, there is nothing left for it to say.
-  # Which walkthrough step the first test incident has earned, read off its
-  # state. 1 is declared, 2 has a lead, 3 has channel messages, 4 is
-  # resolved, 5 has its postmortem.
-  WALKTHROUGH_DONE = 5
-
-  def walkthrough_target(incident)
-    return WALKTHROUGH_DONE if incident.postmortem.present? && !incident.postmortem.generating?
-    return 4 if incident.closed?
-    return 3 if incident.incident_transcript_messages.kept.exists?
-    return 2 if incident.lead.present?
-
-    1
-  end
-
   def dialog_pending_for?(membership)
     return false if dialog_dismissed_at.present?
     return false unless installer.present? && installer == membership

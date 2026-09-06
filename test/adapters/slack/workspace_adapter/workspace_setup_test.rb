@@ -69,7 +69,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
 
   test "post_welcome_message posts to channel" do
     stub_post_message
-    result = @adapter.post_welcome_message(channel_id: "C12345678", progress: fresh_progress)
+    result = @adapter.post_welcome_message(channel_id: "C12345678", stage: WorkspaceOnboarding::STAGE_NONE)
 
     assert result[:message_id].present?
   end
@@ -79,7 +79,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
       args[:text] == Slack::Messages::Welcome::FALLBACK_TEXT && args[:blocks].is_a?(Array) && args[:blocks].any?
     end.returns({ ok: true, ts: "123.456" })
 
-    @adapter.post_welcome_message(channel_id: "C12345678", progress: fresh_progress)
+    @adapter.post_welcome_message(channel_id: "C12345678", stage: WorkspaceOnboarding::STAGE_NONE)
   end
 
   test "update_welcome_message redraws the same message in place" do
@@ -87,7 +87,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
       args[:ts] == "123.456" && args[:channel] == "C12345678" && args[:blocks].is_a?(Array)
     end.returns({ ok: true, ts: "123.456" })
 
-    @adapter.update_welcome_message(channel_id: "C12345678", message_id: "123.456", progress: fresh_progress)
+    @adapter.update_welcome_message(channel_id: "C12345678", message_id: "123.456", stage: WorkspaceOnboarding::STAGE_NONE)
   end
 
   # post_preview_announcement tests
@@ -227,11 +227,5 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     assert_raises(AdapterError::NotFound) do
       @adapter.create_incidents_channel
     end
-  end
-
-  private
-
-  def fresh_progress
-    WorkspaceOnboarding::Progress.new(declared: false, lead_set: false, resolved: false, written_up: false, write_up_dropped: false)
   end
 end

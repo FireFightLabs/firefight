@@ -2,7 +2,7 @@ require "test_helper"
 
 class Slack::Messages::WelcomeTest < ActiveSupport::TestCase
   test "a fresh workspace gets three pending steps, a declare button and the command" do
-    blocks = Slack::Messages::Welcome.build(progress)
+    blocks = Slack::Messages::Welcome.build(WorkspaceOnboarding::STAGE_NONE)
 
     assert_equal "section", blocks.first[:type]
     assert_equal "divider", blocks.second[:type]
@@ -18,7 +18,7 @@ class Slack::Messages::WelcomeTest < ActiveSupport::TestCase
   end
 
   test "the declare button goes once the first incident exists and steps tick as it moves" do
-    blocks = Slack::Messages::Welcome.build(progress(declared: true, lead_set: true))
+    blocks = Slack::Messages::Welcome.build(WorkspaceOnboarding::STAGE_LED)
 
     body = blocks.third.dig(:text, :text)
     assert_equal 2, body.scan(Slack::Messages::Welcome::DONE).size
@@ -29,32 +29,24 @@ class Slack::Messages::WelcomeTest < ActiveSupport::TestCase
     assert_includes action_ids, Identifiers::PREVIEW_ANNOUNCEMENT
   end
 
-  test "a completed loop says so" do
-    blocks = Slack::Messages::Welcome.build(progress(declared: true, lead_set: true, resolved: true, written_up: true))
+  test "posting messages is coached in the channel, not ticked here, so resolving ticks step three" do
+    messaged = Slack::Messages::Welcome.build(WorkspaceOnboarding::STAGE_MESSAGED).third.dig(:text, :text)
+    resolved = Slack::Messages::Welcome.build(WorkspaceOnboarding::STAGE_RESOLVED).third.dig(:text, :text)
 
-    assert_match "whole loop", blocks.third.dig(:text, :text)
+    assert_equal 2, messaged.scan(Slack::Messages::Welcome::DONE).size
+    assert_equal 3, resolved.scan(Slack::Messages::Welcome::DONE).size
+    assert_no_match "whole loop", resolved
   end
 
-  test "a canceled first incident completes the loop without a write-up" do
-    done = progress(declared: true, lead_set: true, resolved: true, write_up_dropped: true)
-
-    assert done.complete?
-    assert_match "whole loop", Slack::Messages::Welcome.build(done).third.dig(:text, :text)
+  test "a completed loop says so" do
+    assert_match "whole loop", Slack::Messages::Welcome.build(WorkspaceOnboarding::STAGE_DONE).third.dig(:text, :text)
   end
 
   test "no actions block is ever empty" do
-    [ progress, progress(declared: true) ].each do |state|
-      Slack::Messages::Welcome.build(state).select { |block| block[:type] == "actions" }.each do |block|
+    [ WorkspaceOnboarding::STAGE_NONE, WorkspaceOnboarding::STAGE_DECLARED, WorkspaceOnboarding::STAGE_DONE ].each do |stage|
+      Slack::Messages::Welcome.build(stage).select { |block| block[:type] == "actions" }.each do |block|
         assert block[:elements].any?
       end
     end
-  end
-
-  private
-
-  def progress(**overrides)
-    WorkspaceOnboarding::Progress.new(
-      { declared: false, lead_set: false, resolved: false, written_up: false, write_up_dropped: false }.merge(overrides)
-    )
   end
 end

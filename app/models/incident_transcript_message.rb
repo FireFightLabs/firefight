@@ -16,6 +16,10 @@ class IncidentTranscriptMessage < ApplicationRecord
 
   scope :kept, -> { where(deleted_at: nil) }
 
+  # The first message in the first test incident's channel is a coaching step
+  # earned, whichever platform it came from.
+  after_create_commit :nudge_onboarding, if: -> { incident.first_test_in_workspace? }
+
   # Matches the page sort exactly. Comparing posted_at alone would skip whatever
   # else was said in the same instant as the cursor.
   scope :before_cursor, ->(cursor) {
@@ -41,5 +45,12 @@ class IncidentTranscriptMessage < ApplicationRecord
 
   def soft_delete!
     update!(deleted_at: Time.current)
+  end
+
+  private
+
+  def nudge_onboarding
+    onboarding = workspace.onboarding
+    WorkspaceOnboardingProgressJob.perform_later(onboarding.id) if onboarding
   end
 end

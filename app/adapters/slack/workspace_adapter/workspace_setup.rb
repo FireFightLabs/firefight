@@ -33,20 +33,20 @@ module Slack::WorkspaceAdapter::WorkspaceSetup
     }
   end
 
-  def post_welcome_message(channel_id:, progress:)
+  def post_welcome_message(channel_id:, stage:)
     post_message(
       channel_id: channel_id,
       text: Slack::Messages::Welcome::FALLBACK_TEXT,
-      blocks: Slack::Messages::Welcome.build(progress)
+      blocks: Slack::Messages::Welcome.build(stage)
     )
   end
 
-  def update_welcome_message(channel_id:, message_id:, progress:)
+  def update_welcome_message(channel_id:, message_id:, stage:)
     update_message(
       channel_id: channel_id,
       message_id: message_id,
       text: Slack::Messages::Welcome::FALLBACK_TEXT,
-      blocks: Slack::Messages::Welcome.build(progress)
+      blocks: Slack::Messages::Welcome.build(stage)
     )
   end
 

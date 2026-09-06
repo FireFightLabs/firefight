@@ -10,13 +10,14 @@ class OnboardingWalkthroughService
   # Two callers can arrive together (the close workflow and the resolve
   # event, for one), so the row is read fresh and the step is claimed with a
   # conditional update before anything is posted, and released if the post
-  # fails.
+  # fails. A canceled incident ends the coaching, there is no postmortem to
+  # talk about.
   def advance!(incident)
     onboarding = WorkspaceOnboarding.find_by(workspace: @workspace)
-    return { skipped: true } unless onboarding&.tracks?(incident) && incident.channel_id.present?
+    return { skipped: true } unless onboarding&.tracks?(incident) && incident.channel_id.present? && !incident.canceled?
 
     seen = onboarding.walkthrough_step
-    target = onboarding.walkthrough_target(incident)
+    target = onboarding.stage_of(incident)
     return { skipped: true } if target <= seen.to_i
     return { skipped: true } unless claim(onboarding, from: seen, to: target)
 

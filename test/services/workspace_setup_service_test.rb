@@ -171,8 +171,7 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
   test "refresh_welcome_message redraws the checklist and completes the onboarding when the loop is done" do
     onboarding = @workspace.create_onboarding!(welcome_message_id: "111.222")
     @workspace.update!(incidents_channel_id: "C12345678")
-    done = WorkspaceOnboarding::Progress.new(declared: true, lead_set: true, resolved: true, written_up: true, write_up_dropped: false)
-    WorkspaceOnboarding.any_instance.stubs(:progress).returns(done)
+    WorkspaceOnboarding.any_instance.stubs(:stage).returns(WorkspaceOnboarding::STAGE_DONE)
     Slack::Client.expects(:update_message).with(has_entries(channel: "C12345678", ts: "111.222")).once.returns({ ok: true })
 
     result = @service.refresh_welcome_message(@workspace)
@@ -192,7 +191,7 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
     @workspace.update!(incidents_channel_id: "C12345678")
     Slack::Client.stubs(:update_message).raises(AdapterError::NotFound.new("message_not_found"))
 
-    assert_equal({ updated: false }, @service.refresh_welcome_message(@workspace))
+    assert_equal({ updated: false, stage: WorkspaceOnboarding::STAGE_NONE }, @service.refresh_welcome_message(@workspace))
   end
 
   test "post_welcome_message logs event" do
