@@ -17,16 +17,21 @@ class Slack::Messages::FirstIncidentWalkthroughTest < ActiveSupport::TestCase
     end
   end
 
-  test "the steps point at the buttons and the channel in order" do
-    bodies = (1..5).map { |step| Slack::Messages::FirstIncidentWalkthrough.build(@incident, step: step).third.dig(:text, :text) }
+  test "the steps that ask for a click carry the button, and none says above" do
+    messages = (1..5).to_h { |step| [ step, Slack::Messages::FirstIncidentWalkthrough.build(@incident, step: step) ] }
+    bodies = messages.transform_values { |blocks| blocks.third.dig(:text, :text) }
+    buttons = messages.transform_values { |blocks| blocks.find { |block| block[:type] == "actions" }&.dig(:elements, 0) }
 
-    assert_match "Make me Lead", bodies[0]
-    assert_match "<#C_INCIDENTS>", bodies[0]
-    Slack::Messages::FirstIncidentWalkthrough::SCRIPT.each { |line| assert_match line, bodies[1] }
-    assert_match "Resolve", bodies[2]
-    assert_match "Write the postmortem", bodies[3]
-    assert_match "share <#C_INCIDENTS>", bodies[4]
-    assert_no_match(/write-up/i, bodies.join)
+    assert_equal Identifiers::SET_INCIDENT_LEAD_SELF, buttons[1][:action_id]
+    assert_equal @incident.id, buttons[1][:value]
+    assert_match "<#C_INCIDENTS>", bodies[1]
+    assert_nil buttons[2]
+    Slack::Messages::FirstIncidentWalkthrough::SCRIPT.each { |line| assert_match line, bodies[2] }
+    assert_equal Identifiers::RESOLVE_INCIDENT, buttons[3][:action_id]
+    assert_equal Identifiers::WRITE_POSTMORTEM, buttons[4][:action_id]
+    assert_nil buttons[5]
+    assert_match "share <#C_INCIDENTS>", bodies[5]
+    assert_no_match(/above|write-up/i, bodies.values.join)
   end
 
   test "names the channel plainly when the workspace has none stored" do
