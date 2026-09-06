@@ -9,7 +9,8 @@ class IncidentDetailSerializer < BaseSerializer
     source: { type: :string },
     channel_name: { type: :string, optional: true },
     channel_id: { type: :string, optional: true },
-    is_private: { type: :boolean }
+    is_private: { type: :boolean },
+    is_test: { type: :boolean }
   )
 
   has_one :incident_severity, as: :severity, serializer: SeverityCompactSerializer

@@ -58,6 +58,8 @@ class Incident < ApplicationRecord
   validates :source, presence: true
 
   scope :in_channel, ->(channel_id) { where(channel_id: channel_id) }
+  scope :real, -> { where(is_test: false) }
+  scope :tests, -> { where(is_test: true) }
   scope :active, -> { joins(:incident_status).merge(IncidentStatus.live) }
   scope :closed, -> { joins(:incident_status).merge(IncidentStatus.closed) }
   scope :canceled, -> { joins(:incident_status).merge(IncidentStatus.canceled) }
@@ -132,8 +134,10 @@ class Incident < ApplicationRecord
     incident_status.closed?
   end
 
-  def first_in_workspace?
-    sequence_number == WorkspaceOnboarding::FIRST_INCIDENT_SEQUENCE
+  # The workspace's first test incident is the one the onboarding walks
+  # through. Later test incidents get no walkthrough.
+  def first_test_in_workspace?
+    is_test? && workspace.incidents.tests.where("sequence_number < ?", sequence_number).none?
   end
 
   def canceled?

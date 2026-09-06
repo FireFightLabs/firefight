@@ -11,6 +11,7 @@ export default interface IncidentListItem {
   identifier: string
   lead?: string
   name: string
+  isTest: boolean
   resolvedAt?: string
   severity: SeverityCompact
   status: StatusCompact

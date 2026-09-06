@@ -24,6 +24,7 @@ export default interface IncidentDetail {
   identifier: string
   inviteBlockedReason?: string
   isPrivate: boolean
+  isTest: boolean
   lead?: ActorCompact
   leadId?: string
   name: string

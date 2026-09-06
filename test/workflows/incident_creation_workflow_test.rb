@@ -30,7 +30,7 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     assert workflow.steps.all? { |s| s.succeeded? || s.skipped? }
   end
 
-  test "the walkthrough is skipped for every incident but the workspace's first" do
+  test "the walkthrough is skipped for every incident but the workspace's first test incident" do
     stub_successful_slack_workflow
     Slack::WorkspaceAdapter.any_instance.expects(:post_first_incident_walkthrough).never
 
@@ -39,9 +39,9 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     assert_equal({ "skipped" => true }, workflow.steps.find_by!(name: "post_first_incident_walkthrough").output)
   end
 
-  test "the walkthrough is posted under the quick actions of the workspace's first incident" do
+  test "the walkthrough is posted under the quick actions of the workspace's first test incident" do
     stub_successful_slack_workflow
-    Incident.any_instance.stubs(:first_in_workspace?).returns(true)
+    @incident.update!(is_test: true)
     Slack::WorkspaceAdapter.any_instance.expects(:post_first_incident_walkthrough)
       .with(has_entries(incident: @incident)).once.returns({ message_id: "1.2", channel_id: "C12345678" })
 

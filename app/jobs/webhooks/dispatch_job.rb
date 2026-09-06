@@ -7,6 +7,9 @@ class Webhooks::DispatchJob < ApplicationJob
   def perform(event_hash)
     event = DomainEvent.from_h(event_hash)
     incident = event.incident
+    # A test incident must never reach the systems a webhook is wired to.
+    return if incident.is_test?
+
     workspace = incident.workspace
 
     workspace.webhooks.triggered_by(event.event_type).find_each do |webhook|

@@ -67,6 +67,14 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_equal @workspace.incident_statuses.default_status, incident.incident_status
   end
 
+  test "declaring with test set makes a test incident, and without it a real one" do
+    post declare_incident_path, params: { answers: declare_answers, test: true }
+    assert @workspace.incidents.find_by!(name: "Checkout is failing").is_test?
+
+    post declare_incident_path, params: { answers: declare_answers.merge(name: "Real one") }
+    assert_not @workspace.incidents.find_by!(name: "Real one").is_test?
+  end
+
   # Severity is fixed_required on every workspace's Declare form. Name is not,
   # this one has it configured optional, which is the point of asking the
   # resolver rather than assuming.

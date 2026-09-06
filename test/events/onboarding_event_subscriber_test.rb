@@ -6,6 +6,7 @@ class Onboarding::EventSubscriberTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @first = incidents(:active_critical_ws1)
+    @first.update!(is_test: true)
     @onboarding = @workspace.create_onboarding!(installer: workspace_memberships(:alice_workspace_one))
   end
 

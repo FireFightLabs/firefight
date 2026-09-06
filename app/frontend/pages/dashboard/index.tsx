@@ -27,10 +27,12 @@ interface DashboardPageProps extends SharedProps {
 export default function Dashboard() {
   const { stats, incidents, pagination, filters, severityOptions, onboarding } = usePage<DashboardPageProps>().props
   const [declaring, setDeclaring] = useState(false)
+  const [declaringTest, setDeclaringTest] = useState(false)
   const [onboardingOpen, setOnboardingOpen] = useState(onboarding.dialogPending)
   const canDeclare = useCan("incidents")
 
   function openDeclare() {
+    setDeclaringTest(false)
     setDeclaring(true)
   }
 
@@ -44,8 +46,11 @@ export default function Dashboard() {
     router.patch(dismissOnboardingDialogPath(), {}, { preserveScroll: true, preserveState: true })
   }
 
+  // The onboarding incident is a test incident, so the first run stays out
+  // of the numbers without the installer having to choose anything.
   function declareFromOnboarding() {
     dismissOnboarding()
+    setDeclaringTest(true)
     setDeclaring(true)
   }
 
@@ -85,6 +90,7 @@ export default function Dashboard() {
         form="declare"
         open={declaring}
         onOpenChange={closeDeclare}
+        test={declaringTest}
       />
     </AuthenticatedLayout>
   )

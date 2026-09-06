@@ -12,6 +12,7 @@ class Slack::Messages::WelcomeTest < ActiveSupport::TestCase
 
     declare = blocks.find { |block| block[:type] == "actions" }
     assert_equal Identifiers::DECLARE_INCIDENT_FROM_WELCOME, declare[:elements].first[:action_id]
+    assert_equal "Declare a test incident", declare[:elements].first.dig(:text, :text)
     assert_equal "primary", declare[:elements].first[:style]
     assert(blocks.any? { |block| block[:type] == "context" && block[:elements].first[:text].include?("/ff new") })
   end

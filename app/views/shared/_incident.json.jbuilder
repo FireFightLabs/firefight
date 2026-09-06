@@ -26,6 +26,7 @@ else
 end
 
 json.source incident.source
+json.test incident.is_test
 
 if incident.declared_by
   json.declared_by do

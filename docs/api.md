@@ -96,3 +96,7 @@ once, in the response that minted it, and never in a listing.
 **Namespace gotcha**: `commands_controller.rb`, `interactions_controller.rb`, and `events_controller.rb` also live under `app/controllers/api/v1/`, but they are the **Slack entry points** (inherit `Api::V1::BaseController`, Slack signature verification) — not part of the public API.
 
 `alerts_controller.rb` is a third auth mechanism in the same namespace: the alert ingest endpoint (`POST /api/v1/alerts/:endpoint_path`). It inherits `ActionController::API` directly and authenticates per alert source (secret token verified by the source's provider adapter under `app/adapters/alert_providers/`) — neither Slack signatures nor public-API Bearer keys.
+
+## Test incidents
+
+Every incident payload carries `test`. A test incident (the onboarding walkthrough, `Incident#is_test`) behaves like a real one on every read and write path and is left out of dashboard figures. Outbound webhooks are never sent for one.

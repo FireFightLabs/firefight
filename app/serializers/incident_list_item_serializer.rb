@@ -4,7 +4,8 @@ class IncidentListItemSerializer < BaseSerializer
   attributes(
     id: { type: :string },
     identifier: { type: :string },
-    name: { type: :string }
+    name: { type: :string },
+    is_test: { type: :boolean }
   )
 
   has_one :incident_severity, as: :severity, serializer: SeverityCompactSerializer

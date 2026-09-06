@@ -164,6 +164,14 @@ export function IncidentHeader({
               {incident.type.name}
             </span>
           )}
+          {incident.isTest && (
+            <span
+              className="inline-flex items-center rounded-full border border-dashed border-border bg-transparent px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
+              title="A test incident. It stays out of your numbers."
+            >
+              Test
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <ChannelLink url={channelUrl} label={incident.channelLabel} />

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_06_120001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -742,6 +742,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_120001) do
     t.uuid "source_api_key_id"
     t.string "milestones_noted_through"
     t.string "declared_by_type"
+    t.boolean "is_test", default: false, null: false
     t.index ["declared_at"], name: "index_incidents_on_declared_at"
     t.index ["declared_by_id"], name: "index_incidents_on_declared_by_id"
     t.index ["declared_by_type", "declared_by_id"], name: "index_incidents_on_declared_by_type_and_declared_by_id"
@@ -755,6 +756,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_120001) do
     t.index ["workspace_id", "incident_status_id"], name: "index_incidents_on_workspace_id_and_incident_status_id"
     t.index ["workspace_id", "sequence_number"], name: "index_incidents_on_workspace_id_and_sequence_number", unique: true
     t.index ["workspace_id"], name: "index_incidents_on_workspace_id"
+    t.index ["workspace_id"], name: "index_incidents_on_workspace_id_where_test", where: "is_test"
   end
 
   create_table "inferences", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

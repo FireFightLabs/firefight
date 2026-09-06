@@ -54,12 +54,15 @@ class WorkspaceOnboardingTest < ActiveSupport::TestCase
     assert progress.complete?
   end
 
-  test "only the first incident is tracked" do
+  test "only the first test incident is tracked, never a real one" do
+    real = declare!(test: false)
     first = declare!
     second = declare!
 
+    assert_not @onboarding.tracks?(real)
     assert @onboarding.tracks?(first)
     assert_not @onboarding.tracks?(second)
+    assert_equal first, @onboarding.first_incident
   end
 
   test "the dialog is the installer's, once" do
@@ -74,12 +77,12 @@ class WorkspaceOnboardingTest < ActiveSupport::TestCase
 
   private
 
-  def declare!
+  def declare!(test: true)
     @workspace.incidents.create!(
       declared_by: @installer,
       incident_status: @workspace.incident_statuses.default_status,
       incident_severity: @workspace.incident_severities.first!,
-      name: "First one", is_private: false, declared_at: Time.current, source: Incident::SOURCE_SLACK
+      name: "First one", is_private: false, is_test: test, declared_at: Time.current, source: Incident::SOURCE_SLACK
     )
   end
 end

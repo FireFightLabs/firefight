@@ -1,11 +1,9 @@
-# A workspace's first run. Progress is read off the first incident rather
-# than stored, so a step can never be ticked without the thing having
+# A workspace's first run. Progress is read off the first test incident
+# rather than stored, so a step can never be ticked without the thing having
 # happened. What is stored is what the incident cannot know: the welcome
 # message to update, whether the installer has seen the dialog, and when the
 # loop was closed.
 class WorkspaceOnboarding < ApplicationRecord
-  FIRST_INCIDENT_SEQUENCE = 1
-
   # The three steps, worded once for the Slack welcome message and the
   # dashboard dialog alike.
   STEPS = [
@@ -36,12 +34,14 @@ class WorkspaceOnboarding < ApplicationRecord
   belongs_to :workspace
   belongs_to :installer, class_name: "WorkspaceMembership", optional: true
 
+  # The workspace's first test incident, which is what the welcome message's
+  # declare button and the dashboard dialog create.
   def first_incident
-    workspace.incidents.find_by(sequence_number: FIRST_INCIDENT_SEQUENCE)
+    workspace.incidents.tests.order(:sequence_number).first
   end
 
   def tracks?(incident)
-    incident.sequence_number == FIRST_INCIDENT_SEQUENCE
+    incident.first_test_in_workspace?
   end
 
   # A canceled first incident still counts as taking the loop to its end.

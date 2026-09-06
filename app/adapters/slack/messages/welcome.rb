@@ -23,7 +23,7 @@ module Slack
             elements: [
               {
                 type: "button",
-                text: { type: "plain_text", text: "Declare an incident", emoji: true },
+                text: { type: "plain_text", text: "Declare a test incident", emoji: true },
                 action_id: Identifiers::DECLARE_INCIDENT_FROM_WELCOME,
                 style: "primary"
               }
@@ -54,7 +54,7 @@ module Slack
 
       def self.body(progress)
         done = [ progress.declared, progress.lead_set, progress.resolved ]
-        lines = [ "Three steps to see how it works. Takes about three minutes.", "" ]
+        lines = [ "Three steps to see how it works. Takes about three minutes with a test incident that stays out of your numbers.", "" ]
         WorkspaceOnboarding::STEPS.each_with_index do |step, index|
           lines << "#{mark(done[index])} *#{index + 1}. #{step[:title]}* #{step[:detail]}"
         end

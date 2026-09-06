@@ -5,8 +5,9 @@ class Interactions::DeclareIncidentButtonHandlerTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
   end
 
-  test "opens the incident creation modal from the button's trigger" do
-    Slack::WorkspaceAdapter.any_instance.stubs(:build_modal).returns({ type: "modal" })
+  test "opens the incident creation modal as a test incident from the button's trigger" do
+    Slack::WorkspaceAdapter.any_instance.expects(:build_modal)
+      .with(PlatformAdapter::Modal::INCIDENT_CREATION, metadata: ModalState.encode(test: true), test: true).returns({ type: "modal" })
     Slack::WorkspaceAdapter.any_instance.expects(:open_modal).with(trigger_id: "trigger-1", view: { type: "modal" }).once
 
     result = Interactions::DeclareIncidentButtonHandler.execute(

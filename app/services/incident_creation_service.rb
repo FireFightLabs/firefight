@@ -21,6 +21,10 @@ class IncidentCreationService
     adapter = @workspace.adapter
     topic = "Severity: #{incident.incident_severity.name} | Status: #{incident.incident_status.name}"
     purpose = "Incident response channel for #{incident.identifier}"
+    if incident.is_test?
+      topic = "Test incident | #{topic}"
+      purpose = "Test incident channel for #{incident.identifier}. It stays out of your numbers."
+    end
     adapter.set_channel_metadata(channel_id: incident.channel_id, topic: topic, purpose: purpose)
   end
 
@@ -42,7 +46,7 @@ class IncidentCreationService
   end
 
   def post_first_incident_walkthrough(incident)
-    return { skipped: true } unless incident.first_in_workspace?
+    return { skipped: true } unless incident.first_test_in_workspace?
 
     result = @workspace.adapter.post_first_incident_walkthrough(channel_id: incident.channel_id, incident: incident)
     { message_ts: result[:message_id] }

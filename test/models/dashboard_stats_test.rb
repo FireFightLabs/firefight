@@ -31,7 +31,7 @@ class DashboardStatsTest < ActiveSupport::TestCase
 
   test "mttr computes average for all resolved incidents" do
     workspace = workspaces(:slack_workspace_one)
-    Rails.cache.delete("dashboard_stats/#{workspace.id}/mttr")
+    Rails.cache.delete("dashboard_stats/#{workspace.id}/mttr/real")
     stats = DashboardStats.new(workspace).to_a
 
     resolved = workspace.incidents
@@ -74,5 +74,22 @@ class DashboardStatsTest < ActiveSupport::TestCase
       assert stat.key?(:trendDescription), "Missing :trendDescription"
       assert stat.key?(:detail), "Missing :detail"
     end
+  end
+
+  test "a test incident is left out of every figure" do
+    workspace = workspaces(:slack_workspace_one)
+    Rails.cache.delete("dashboard_stats/#{workspace.id}/mttr/real")
+    before = DashboardStats.new(workspace).to_a.map { |stat| stat[:value] }
+
+    workspace.incidents.create!(
+      declared_by: workspace_memberships(:alice_workspace_one),
+      incident_status: incident_statuses(:investigating_ws1),
+      incident_severity: incident_severities(:critical_ws1),
+      name: "Onboarding test", is_private: false, is_test: true,
+      declared_at: Time.current, source: Incident::SOURCE_DASHBOARD
+    )
+    Rails.cache.delete("dashboard_stats/#{workspace.id}/mttr/real")
+
+    assert_equal before, DashboardStats.new(workspace).to_a.map { |stat| stat[:value] }
   end
 end

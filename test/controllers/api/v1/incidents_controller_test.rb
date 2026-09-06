@@ -114,6 +114,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert data.key?("severity")
     assert data.key?("declared_by")
     assert data.key?("declared_at")
+    assert_equal false, data["test"]
     assert data.key?("custom_fields")
   end
 

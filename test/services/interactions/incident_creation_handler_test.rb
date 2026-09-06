@@ -49,6 +49,16 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
 
   # Visibility ships off, so a workspace that wants private incidents turns it
   # on first. The capability is unchanged, only the default.
+  test "a modal opened for a test incident creates one" do
+    stub_successful_slack_workflow
+    attrs = build_interaction(name: "Onboarding run").resume_attrs.merge(private_metadata: ModalState.encode(test: true))
+
+    Interactions::IncidentCreationHandler.execute(Interaction.new(attrs))
+
+    assert @workspace.incidents.find_by!(name: "Onboarding run").is_test?
+    assert_not @workspace.incidents.find_by!(name: "Onboarding run", is_test: true).nil?
+  end
+
   test "sets is_private when visibility is private" do
     stub_create_channel
     enable_visibility_field!

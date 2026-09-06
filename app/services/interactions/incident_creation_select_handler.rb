@@ -9,7 +9,9 @@ module Interactions
     def self.execute(interaction)
       interaction.workspace.adapter.update_incident_creation_modal(
         view_id: interaction.view["id"],
-        state: interaction.values || {}
+        state: interaction.values || {},
+        private_metadata: interaction.private_metadata,
+        test: interaction.metadata.test
       )
 
       nil

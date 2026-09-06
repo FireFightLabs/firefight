@@ -90,4 +90,13 @@ class ModalStateTest < ActiveSupport::TestCase
     assert_equal "https://slack/p1", result.source_message_link
     assert_nil result.temp_message_ts
   end
+
+  test "test travels only when set and parses back as a boolean" do
+    assert_equal({}, JSON.parse(ModalState.encode))
+    assert_equal({ "test" => true }, JSON.parse(ModalState.encode(test: true)))
+
+    assert_equal true, ModalState.parse(ModalState.encode(test: true)).test
+    assert_equal false, ModalState.parse(ModalState.encode(incident_id: "i")).test
+    assert_equal false, ModalState::EMPTY.test
+  end
 end
