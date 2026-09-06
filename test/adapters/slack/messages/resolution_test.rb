@@ -23,7 +23,7 @@ class Slack::Messages::ResolutionTest < ActiveSupport::TestCase
     button = blocks.find { |block| block[:type] == "actions" }[:elements].first
     assert_equal Identifiers::WRITE_POSTMORTEM, button[:action_id]
     assert_equal @incident.id, button[:value]
-    assert_match "No channel messages yet", blocks.last[:elements].first[:text]
+    assert_match "Drafted from the timeline only", blocks.last[:elements].first[:text]
   end
 
   test "counts the channel messages the draft will draw on" do

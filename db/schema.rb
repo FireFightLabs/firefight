@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_06_130001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_140001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1132,6 +1132,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_130001) do
     t.datetime "dialog_dismissed_at"
     t.uuid "installer_id"
     t.datetime "updated_at", null: false
+    t.integer "walkthrough_step"
     t.string "welcome_message_id"
     t.uuid "workspace_id", null: false
     t.index ["workspace_id"], name: "index_workspace_onboardings_on_workspace_id", unique: true

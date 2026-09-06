@@ -62,6 +62,20 @@ class WorkspaceOnboarding < ApplicationRecord
 
   # The dialog exists to get the first test incident declared. Once one
   # exists, from any surface, there is nothing left for it to say.
+  # Which walkthrough step the first test incident has earned, read off its
+  # state. 1 is declared, 2 has a lead, 3 has channel messages, 4 is
+  # resolved, 5 has its postmortem.
+  WALKTHROUGH_DONE = 5
+
+  def walkthrough_target(incident)
+    return WALKTHROUGH_DONE if incident.postmortem.present? && !incident.postmortem.generating?
+    return 4 if incident.closed?
+    return 3 if incident.incident_transcript_messages.kept.exists?
+    return 2 if incident.lead.present?
+
+    1
+  end
+
   def dialog_pending_for?(membership)
     return false if dialog_dismissed_at.present?
     return false unless installer.present? && installer == membership

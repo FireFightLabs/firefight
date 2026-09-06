@@ -99,11 +99,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def post_first_incident_walkthrough(channel_id:, incident:)
+  def post_first_incident_walkthrough(channel_id:, incident:, step:)
     post_message(
       channel_id: channel_id,
-      text: Slack::Messages::FirstIncidentWalkthrough::FALLBACK_TEXT,
-      blocks: Slack::Messages::FirstIncidentWalkthrough.build(incident)
+      text: Slack::Messages::FirstIncidentWalkthrough.fallback_text(step),
+      blocks: Slack::Messages::FirstIncidentWalkthrough.build(incident, step: step)
     )
   end
 

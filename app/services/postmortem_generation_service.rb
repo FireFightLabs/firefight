@@ -48,6 +48,7 @@ class PostmortemGenerationService
     draft = FirefightAi::PostmortemGenerator.new(@workspace).generate(incident)
     postmortem = Postmortem.complete_generation!(incident, draft, generated_by: generated_by)
     announce(incident, postmortem)
+    OnboardingWalkthroughService.new(@workspace).advance!(incident)
     postmortem
   end
 

@@ -210,4 +210,18 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
       }
     }
   end
+
+  test "the first message in the first test incident's channel wakes the onboarding coach" do
+    workspace = workspaces(:slack_workspace_one)
+    incident = incidents(:active_critical_ws1)
+    incident.update!(is_test: true)
+    onboarding = workspace.create_onboarding!(installer: workspace_memberships(:alice_workspace_one))
+
+    assert_enqueued_with(job: WorkspaceOnboardingProgressJob, args: [ onboarding.id ]) do
+      Events::MessageHandler.execute(
+        workspace,
+        { "event" => { "type" => "message", "channel" => incident.channel_id, "user" => workspace_memberships(:alice_workspace_one).platform_user_id, "text" => "502s", "ts" => "1788700000.000100" } }
+      )
+    end
+  end
 end

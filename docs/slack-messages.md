@@ -172,8 +172,10 @@ Sentence case for titles: "Incident canceled", not "Incident Canceled".
 as the first incident moves. It is the one message where an edit is the right
 call: the reader is already in the channel doing the steps, so nobody needs
 notifying, and a checklist that posted a new message per tick would bury
-itself. `FirstIncidentWalkthrough` posts once under the first incident's quick
-actions and is never edited. `Resolution` carries the postmortem button and a
+itself. `FirstIncidentWalkthrough` is the coach in the first test incident's channel:
+one step per message, posted by `OnboardingWalkthroughService#advance!` as the
+incident earns it (declared, lead set, first message, resolved, postmortem),
+with the last posted step kept on the onboarding row so nothing posts twice. `Resolution` carries the postmortem button and a
 context line naming what the draft is built from, and drops both when the
 incident already has a write-up.
 

@@ -46,7 +46,7 @@ module Slack
       def self.sources_text(incident)
         count = incident.incident_transcript_messages.kept.count
         if count.zero?
-          "Drafted from the timeline. No channel messages yet, so most sections will wait for you."
+          "Drafted from the timeline only. Sections it cannot fill are left empty for you to write."
         else
           "Drafted from the timeline and the #{count} #{'message'.pluralize(count)} in this channel. You edit it in the dashboard."
         end

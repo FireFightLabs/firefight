@@ -85,6 +85,7 @@ module Identifiers
   PREVIEW_SUBSCRIBE_DISABLED = "preview_subscribe_disabled"
   ACCEPT_INCIDENT = "accept_incident"
   CANCEL_INCIDENT = "cancel_incident"
+  RESOLVE_INCIDENT = "resolve_incident"
   SET_INCIDENT_LEAD_SELF = "set_incident_lead_self"
   ROLE_SELECT = "role_select"
 

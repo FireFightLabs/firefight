@@ -301,9 +301,10 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Posted once, under the quick actions of a workspace's first incident.
+  # One step of the coach in a workspace's first test incident channel.
+  # @param step [Integer] 1 to WorkspaceOnboarding::WALKTHROUGH_DONE
   # @return [Hash] { message_id:, channel_id: }
-  def post_first_incident_walkthrough(channel_id:, incident:)
+  def post_first_incident_walkthrough(channel_id:, incident:, step:)
     raise NotImplemented.new(__method__, self.class)
   end
 

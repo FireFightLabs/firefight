@@ -4,6 +4,7 @@ import { AuthenticatedLayout } from "@/components/layout/authenticated-layout";
 import { ActionsSkeleton } from "@/pages/incidents/components/index/actions-skeleton";
 import { AlertsPanel } from "@/pages/incidents/components/index/alerts-panel";
 import { IncidentHeader } from "@/pages/incidents/components/index/incident-header";
+import { TestIncidentBanner } from "@/pages/incidents/components/index/test-incident-banner";
 import { IncidentTimeline } from "@/pages/incidents/components/index/incident-timeline";
 import { IncidentActionsSidebar } from "@/pages/incidents/components/index/incident-actions-sidebar";
 import { IncidentPostmortemCard } from "@/pages/incidents/components/index/incident-postmortem-card";
@@ -75,6 +76,8 @@ export default function IncidentPage() {
             {incident.identifier}
           </span>
         </nav>
+
+        {incident.onboardingWalkthrough && <TestIncidentBanner channelUrl={channelUrl} />}
 
         <IncidentHeader
           incident={incident}

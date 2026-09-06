@@ -61,7 +61,7 @@ module Slack
 
         if progress.complete?
           lines << ""
-          lines << ":tada: You have seen the whole loop. Settings in the dashboard shape it to your team."
+          lines << ":tada: That is the whole loop. Share this channel with your team so they can declare incidents too."
         end
 
         lines.join("\n")

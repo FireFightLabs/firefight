@@ -31,6 +31,7 @@ class InteractionDispatcher
     Identifiers::HOME_ACTION_SELECT => Interactions::HomeActionSelectHandler,
     Identifiers::ACCEPT_INCIDENT => Interactions::AcceptIncidentHandler,
     Identifiers::CANCEL_INCIDENT => Interactions::CancelIncidentButtonHandler,
+    Identifiers::RESOLVE_INCIDENT => Interactions::ResolveIncidentButtonHandler,
     Identifiers::SET_INCIDENT_LEAD_SELF => Interactions::SetLeadSelfHandler,
     Identifiers::UPDATE_INCIDENT_SUMMARY => Interactions::UpdateSummaryButtonHandler,
     Identifiers::ESCALATE_INCIDENT => Interactions::EscalateIncidentButtonHandler,

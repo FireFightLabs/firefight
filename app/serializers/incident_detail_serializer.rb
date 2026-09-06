@@ -27,6 +27,13 @@ class IncidentDetailSerializer < BaseSerializer
     incident.lead
   end
 
+  # The first test incident while it is still open, which is when the page
+  # points the installer at the channel where the walkthrough continues.
+  type :boolean
+  def onboarding_walkthrough
+    incident.is_test? && incident.active? && incident.first_test_in_workspace?
+  end
+
   # What the channel will be called once it exists. Every incident gets one,
   # so a blank channel_name means creation has not finished rather than that
   # this incident has none.
