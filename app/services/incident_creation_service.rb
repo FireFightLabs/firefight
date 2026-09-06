@@ -45,10 +45,6 @@ class IncidentCreationService
     { message_ts: message_ts }
   end
 
-  def post_first_incident_walkthrough(incident)
-    OnboardingWalkthroughService.new(@workspace).advance!(incident)
-  end
-
   def post_announcement(incident)
     return { skipped: true } unless @workspace.incidents_channel_id
 

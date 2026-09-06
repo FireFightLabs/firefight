@@ -25,7 +25,7 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
 
   def post_first_incident_walkthrough(workflow:, step:, input:)
     checkpointed(step) do
-      service(workflow).post_first_incident_walkthrough(workflow.subject)
+      OnboardingWalkthroughService.new(workflow.subject.workspace).advance!(workflow.subject)
     end
   end
 

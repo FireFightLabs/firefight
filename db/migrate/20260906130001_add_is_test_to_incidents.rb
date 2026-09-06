@@ -1,5 +1,5 @@
 # A test incident behaves like a real one everywhere a responder looks and
-# stays out of the numbers. The onboarding incident is one.
+# is not counted in the metrics. The onboarding incident is one.
 class AddIsTestToIncidents < ActiveRecord::Migration[8.1]
   def change
     add_column :incidents, :is_test, :boolean, default: false, null: false

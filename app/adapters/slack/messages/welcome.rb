@@ -1,7 +1,7 @@
 module Slack
   module Messages
     # The message pinned to the top of #incidents on install. It is the
-    # onboarding: three steps, ticked off in place as the first incident moves
+    # onboarding, three steps ticked off in place as the first incident moves
     # through them. Rebuilt from the onboarding stage each time, so the
     # message never says more than the incident record does.
     module Welcome

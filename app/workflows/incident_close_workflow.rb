@@ -30,8 +30,8 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
     end
   end
 
-  # After the resolution message, so "click Write the postmortem above"
-  # points at a button that is already there.
+  # After the resolution message, so the step that points at its button
+  # finds the button already there.
   def post_first_incident_walkthrough(workflow:, step:, input:)
     checkpointed(step) do
       OnboardingWalkthroughService.new(workflow.subject.workspace).advance!(workflow.subject)

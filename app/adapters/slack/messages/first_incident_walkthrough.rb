@@ -45,7 +45,7 @@ module Slack
 
       # A step that asks for a click carries the button, so the responder
       # never has to scroll back to the pinned message to find it. Step 4 is
-      # the exception: it always lands right under the resolution message,
+      # the exception. It always lands right under the resolution message,
       # which already has the button.
       def self.build(incident, step:)
         copy = STEPS.fetch(step)
