@@ -44,6 +44,36 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     assert_equal @incident, inference.inferable
   end
 
+  test "every key is present for strict output, and every section may be null" do
+    schema = FirefightAi::Schemas::Postmortem.new.to_json_schema
+    properties = (schema.dig(:schema, :properties) || schema.dig("schema", "properties")).transform_keys(&:to_s)
+    required = (schema.dig(:schema, :required) || schema.dig("schema", "required")).map(&:to_s)
+
+    assert_equal ([ "title" ] + FirefightAi::Schemas::Postmortem::SECTION_KEYS).sort, required.sort
+    FirefightAi::Schemas::Postmortem::SECTION_KEYS.each do |key|
+      variants = (properties[key][:anyOf] || properties[key]["anyOf"]).map { |variant| (variant[:type] || variant["type"]).to_s }
+      assert_includes variants, "null", key
+    end
+    assert_nil properties["title"][:anyOf] || properties["title"]["anyOf"]
+  end
+
+  test "sections the model returns as null are absent from the draft rather than blank" do
+    stub_ruby_llm_response(ai_result: { "title" => "INC-003 Postmortem: Thin", "introduction" => "Declared and resolved.", "summary" => nil, "impact" => nil })
+
+    draft = @generator.generate(@incident)
+
+    assert_equal [ "introduction" ], draft.sections.keys
+    assert_nil draft.summary
+  end
+
+  test "the prompt says outright when the channel had no messages" do
+    stub_ruby_llm_response
+    prompt = @generator.send(:user_prompt, @incident.to_full_context(workspace: @workspace), nil)
+
+    assert_match "No messages were posted in the incident channel", prompt
+    assert_match "Never infer a cause", @generator.send(:system_prompt)
+  end
+
   test "client errors leave the engine as its own error family" do
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
     RubyLLM.stubs(:chat).raises(RubyLLM::ContextLengthExceededError.new("too long"))
@@ -54,10 +84,10 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
 
   private
 
-  def stub_ruby_llm_response
+  def stub_ruby_llm_response(ai_result: nil)
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
 
-    ai_result = {
+    ai_result ||= {
       "title" => "INC-003 Postmortem: Image upload broken",
       "summary" => "**Problem**: Image uploads returning 500 errors.",
       "introduction" => "On the morning of the incident...",

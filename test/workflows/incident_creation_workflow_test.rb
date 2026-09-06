@@ -26,8 +26,32 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     workflow = IncidentCreationWorkflow.start_inline!(@incident)
 
     assert_equal "succeeded", workflow.state
-    assert_equal 8, workflow.steps.count
+    assert_equal 9, workflow.steps.count
     assert workflow.steps.all? { |s| s.succeeded? || s.skipped? }
+  end
+
+  test "the walkthrough is skipped for every incident but the workspace's first test incident" do
+    stub_successful_slack_workflow
+    Slack::WorkspaceAdapter.any_instance.expects(:post_first_incident_walkthrough).never
+
+    workflow = IncidentCreationWorkflow.start_inline!(@incident)
+
+    assert_equal({ "skipped" => true }, workflow.steps.find_by!(name: "post_first_incident_walkthrough").output)
+  end
+
+  test "the first walkthrough step is posted under the quick actions of the workspace's first test incident" do
+    stub_successful_slack_workflow
+    @workspace.create_onboarding!
+    @incident.update!(is_test: true)
+    Slack::WorkspaceAdapter.any_instance.expects(:post_first_incident_walkthrough)
+      .with(has_entries(incident: @incident, step: 1)).once.returns({ message_id: "1.2", channel_id: "C12345678" })
+
+    workflow = IncidentCreationWorkflow.start_inline!(@incident)
+
+    output = workflow.steps.find_by!(name: "post_first_incident_walkthrough").output
+    assert_equal 1, output["step"]
+    assert_equal "1.2", output["message_ts"]
+    assert_equal 1, @workspace.onboarding.reload.walkthrough_step
   end
 
   test "attach_runbooks auto-attaches matching runbooks on incident creation" do

@@ -9,7 +9,8 @@ class IncidentDetailSerializer < BaseSerializer
     source: { type: :string },
     channel_name: { type: :string, optional: true },
     channel_id: { type: :string, optional: true },
-    is_private: { type: :boolean }
+    is_private: { type: :boolean },
+    is_test: { type: :boolean }
   )
 
   has_one :incident_severity, as: :severity, serializer: SeverityCompactSerializer
@@ -24,6 +25,13 @@ class IncidentDetailSerializer < BaseSerializer
 
   has_one :lead, serializer: ActorCompactSerializer, optional: true do
     incident.lead
+  end
+
+  # True while the first test incident is open. The page then points at
+  # the channel.
+  type :boolean
+  def onboarding_walkthrough
+    incident.is_test? && incident.active? && incident.first_test_in_workspace?
   end
 
   # What the channel will be called once it exists. Every incident gets one,

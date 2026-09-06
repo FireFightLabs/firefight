@@ -138,6 +138,7 @@ Rails.application.routes.draw do
   # Authenticated application routes
   scope :app do
     get "/", to: "dashboard#index", as: :dashboard
+    patch "/onboarding/dialog", to: "workspace_onboardings#dismiss_dialog", as: :dismiss_onboarding_dialog
     post "/workspace-switch", to: "workspace_switches#create", as: :workspace_switch
     get "/settings", to: "settings#index", as: :settings
     get "/settings/roles", to: "settings#roles", as: :settings_roles

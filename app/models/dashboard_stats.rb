@@ -1,3 +1,4 @@
+# Test incidents are excluded from every figure.
 class DashboardStats
   def initialize(workspace)
     @workspace = workspace
@@ -12,7 +13,7 @@ class DashboardStats
   attr_reader :workspace
 
   def active_incidents_stat
-    count = workspace.incidents
+    count = workspace.incidents.real
       .where(incident_status: workspace.incident_statuses.live, deleted_at: nil)
       .count
 
@@ -25,8 +26,8 @@ class DashboardStats
   end
 
   def mttr_stat
-    avg = Rails.cache.fetch("dashboard_stats/#{workspace.id}/mttr", expires_in: 24.hours) do
-      workspace.incidents
+    avg = Rails.cache.fetch("dashboard_stats/#{workspace.id}/mttr/real", expires_in: 24.hours) do
+      workspace.incidents.real
         .where(deleted_at: nil)
         .where.not(resolved_at: nil)
         .pluck(:declared_at, :resolved_at)
@@ -59,7 +60,7 @@ class DashboardStats
   end
 
   def total_incidents_stat
-    count = workspace.incidents
+    count = workspace.incidents.real
       .where(deleted_at: nil)
       .where("declared_at >= ?", beginning_of_month)
       .count
@@ -75,7 +76,7 @@ class DashboardStats
   def critical_incidents_stat
     critical_severity = workspace.incident_severities.find_by(slug: IncidentSeverity::SLUG_CRITICAL)
     count = if critical_severity
-      workspace.incidents
+      workspace.incidents.real
         .where(incident_severity: critical_severity, deleted_at: nil)
         .where("declared_at >= ?", beginning_of_month)
         .count

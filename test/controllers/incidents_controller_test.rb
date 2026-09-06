@@ -45,6 +45,36 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_nil incident.reload.postmortem
   end
 
+  test "a failed generation can be tried again or started blank from the page" do
+    member = workspace_memberships(:alice_workspace_one)
+    incident = Incident.create!(
+      workspace: @workspace,
+      declared_by: member,
+      incident_status: incident_statuses(:resolved_ws1),
+      incident_severity: incident_severities(:critical_ws1),
+      name: "Closed, generation failed",
+      is_private: false,
+      source: Incident::SOURCE_SLACK,
+      resolved_at: 1.hour.ago
+    )
+    Postmortem.start_generation!(incident, by: member).mark_generation_failed!("TerminalError")
+
+    assert_enqueued_with(job: PostmortemGenerationJob, args: [ incident.id ]) do
+      post incident_postmortem_generate_path(incident_id: incident.id)
+    end
+    assert_redirected_to incident_postmortem_path(incident)
+    assert incident.reload.postmortem.generating?
+
+    incident.postmortem.mark_generation_failed!("TerminalError")
+    post incident_postmortem_start_blank_path(incident_id: incident.id)
+
+    assert_redirected_to incident_postmortem_path(incident)
+    postmortem = incident.reload.postmortem
+    assert_nil postmortem.generation_state
+    assert_equal "", postmortem.html_content.to_s
+    assert_equal "#{incident.identifier} Postmortem: #{incident.name}", postmortem.title
+  end
+
   private
 
   def sign_in(user, workspace)

@@ -7,6 +7,10 @@ class InviteCode < ApplicationRecord
 
   scope :active, -> { where(redeemed_at: nil).where("expires_at IS NULL OR expires_at > ?", Time.current) }
 
+  def self.required?
+    Rails.configuration.x.invite_required
+  end
+
   def self.digest_code(raw_code)
     # Codes are case-insensitive. Digest the normalized form.
     Digest::SHA256.hexdigest(raw_code.to_s.strip.upcase)

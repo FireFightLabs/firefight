@@ -36,8 +36,7 @@ module Mcp
         gate = Entitlements.check(workspace, Entitlements::AI)
         return Mcp::ToolDispatcher.error_response(gate.message) if gate.blocked?
 
-        postmortem = Postmortem.start_generation!(incident, by: principal)
-        PostmortemGenerationJob.perform_later(incident.id) if postmortem
+        PostmortemGenerationService.new(workspace).start!(incident, by: principal)
 
         respond(PostmortemPayloads.summary(incident.reload.postmortem))
       end

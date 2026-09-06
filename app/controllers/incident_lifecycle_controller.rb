@@ -26,6 +26,7 @@ class IncidentLifecycleController < InertiaController
 
     incident = IncidentLifecycleService.new(current_workspace).create(
       **submission.creation_attributes,
+      is_test: ActiveModel::Type::Boolean.new.cast(params[:test]) == true,
       declared_by: current_member,
       source: Incident::SOURCE_DASHBOARD
     )

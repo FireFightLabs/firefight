@@ -35,6 +35,7 @@ module Interactions
 
       incident = IncidentLifecycleService.new(workspace).create(
         **form.creation_attributes,
+        is_test: interaction.metadata.test,
         declared_by: member,
         source: Incident::SOURCE_SLACK,
         create_channel_sync: true

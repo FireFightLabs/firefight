@@ -99,6 +99,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
+  def post_first_incident_walkthrough(channel_id:, incident:, step:)
+    post_message(
+      channel_id: channel_id,
+      text: Slack::Messages::FirstIncidentWalkthrough.fallback_text(step),
+      blocks: Slack::Messages::FirstIncidentWalkthrough.build(incident, step: step)
+    )
+  end
+
   def post_incident_announcement(channel_id:, incident:)
     blocks = Slack::Messages::Announcement.build(incident)
     post_message(
@@ -379,9 +387,9 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   def post_postmortem_generation_failed(channel_id:, user_id:, incident:, reason:, retrying:)
     text = if retrying
-      ":warning: Postmortem generation for #{incident.identifier} failed after retries (reason: #{reason}). Try again from the incident page or with `/firefight postmortem`."
+      ":warning: Postmortem generation for #{incident.identifier} failed after retries (reason: #{reason}). Try again from the incident page or with `/ff #{Identifiers::SUBCOMMAND_POSTMORTEM}`."
     else
-      ":warning: Postmortem generation for #{incident.identifier} failed (reason: #{reason}) and won't retry automatically. Try again from the incident page or with `/firefight postmortem`."
+      ":warning: Postmortem generation for #{incident.identifier} failed (reason: #{reason}) and won't retry automatically. Try again from the incident page or with `/ff #{Identifiers::SUBCOMMAND_POSTMORTEM}`."
     end
     post_ephemeral(channel_id: channel_id, user_id: user_id, text: text)
   end

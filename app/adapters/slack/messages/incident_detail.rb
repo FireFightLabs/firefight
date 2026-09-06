@@ -8,11 +8,14 @@ module Slack
     # The channel line is the one real difference. The announcement points at
     # the incident channel. The pinned message is already in it.
     module IncidentDetail
+      TEST_NOTE = ":test_tube: Test incident. Not counted in your metrics.".freeze
+
       def self.blocks(title:, summary:, severity_name:, status_name:, reporter_id:,
-                      lead_id: nil, channel_id: nil, relationship_text: nil, custom_fields_text: nil)
+                      lead_id: nil, channel_id: nil, relationship_text: nil, custom_fields_text: nil, test: false)
         blocks = [
           { type: "header", text: { type: "plain_text", text: ":rotating_light: #{title}", emoji: true } }
         ]
+        blocks << { type: "context", elements: [ { type: "mrkdwn", text: TEST_NOTE } ] } if test
         blocks << { type: "section", text: { type: "mrkdwn", text: "_#{summary}_" } } if summary.present?
         blocks << { type: "divider" }
         blocks << { type: "section", text: { type: "mrkdwn", text: ":fire: *Severity:* #{severity_name}" } }
@@ -35,7 +38,8 @@ module Slack
           lead_id: incident.lead&.platform_user_id,
           channel_id: channel_id,
           relationship_text: Formatting.relationship_summary(incident),
-          custom_fields_text: Formatting.custom_fields_summary(incident)
+          custom_fields_text: Formatting.custom_fields_summary(incident),
+          test: incident.is_test?
         )
       end
     end

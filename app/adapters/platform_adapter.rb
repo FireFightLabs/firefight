@@ -287,6 +287,27 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Posts the onboarding checklist to the announcements channel.
+  # @param stage [Integer] a WorkspaceOnboarding::STAGE_* value
+  # @return [Hash] { message_id:, channel_id: }
+  def post_welcome_message(channel_id:, stage:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws the onboarding checklist for the given stage.
+  # @param stage [Integer] a WorkspaceOnboarding::STAGE_* value
+  # @return [Hash] { success: true }
+  def update_welcome_message(channel_id:, message_id:, stage:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Posts one coaching step in the first test incident's channel.
+  # @param step [Integer] STAGE_DECLARED to STAGE_DONE
+  # @return [Hash] { message_id:, channel_id: }
+  def post_first_incident_walkthrough(channel_id:, incident:, step:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @param escalated_by [#actor_display_name] whoever asked
   # @param escalated_to [Incident::EscalationTarget] whoever was asked
   # @return [Hash] { message_id: ... }

@@ -11,7 +11,9 @@ module Slack
         IncidentSystemField::KEY_VISIBILITY
       ].freeze
 
-      def self.build(workspace:, state: {})
+      TEST_NOTE = ":test_tube: Test incident. It works like a real one and is not counted in your metrics.".freeze
+
+      def self.build(workspace:, state: {}, private_metadata: nil, test: false)
         selected = selections(workspace, state)
 
         blocks = resolve_visible_fields(workspace, selected).filter_map do |form_field|
@@ -30,14 +32,17 @@ module Slack
           end
         end
 
+        blocks.unshift({ type: "context", elements: [ { type: "mrkdwn", text: TEST_NOTE } ] }) if test
+
         {
           type: "modal",
           callback_id: Identifiers::INCIDENT_CREATION_MODAL,
           title: { type: "plain_text", text: "Declare an incident" },
           submit: { type: "plain_text", text: "Declare" },
           close: { type: "plain_text", text: "Cancel" },
+          private_metadata: private_metadata,
           blocks: blocks
-        }
+        }.compact
       end
 
       # What the responder has chosen so far, read off the view state Slack

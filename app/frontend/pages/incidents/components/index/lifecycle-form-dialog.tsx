@@ -171,21 +171,27 @@ const TITLES: Record<LifecycleForm, { title: string; description: string; confir
   },
 }
 
+const TEST_DESCRIPTION = "A test incident works like a real one and is not counted in your metrics."
+
 export function LifecycleFormDialog({
   incidentId,
   form,
   open,
   onOpenChange,
+  test = false,
 }: {
   // Null while declaring, since there is no incident yet.
   incidentId: string | null
   form: LifecycleForm
   open: boolean
   onOpenChange: (open: boolean) => void
+  // Declares a test incident. Declare form only.
+  test?: boolean
 }) {
   const { fields, answers, setAnswers, resolve } = useResolvedForm(incidentId, form, open)
   const [saving, setSaving] = useState(false)
   const copy = TITLES[form]
+  const description = test ? TEST_DESCRIPTION : copy.description
 
   function close() {
     onOpenChange(false)
@@ -212,7 +218,7 @@ export function LifecycleFormDialog({
     if (incidentId) {
       router.patch(path, { answers }, options)
     } else {
-      router.post(path, { answers }, options)
+      router.post(path, { answers, test }, options)
     }
   }
 
@@ -227,7 +233,7 @@ export function LifecycleFormDialog({
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{copy.title}</DialogTitle>
-            <DialogDescription>{copy.description}</DialogDescription>
+            <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
 
           <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto py-4">
@@ -254,13 +260,18 @@ export function LifecycleFormDialog({
             )}
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>
-              Never mind
-            </Button>
-            <Button type="submit" disabled={saving || fields === null || missing}>
-              {copy.confirm}
-            </Button>
+          <DialogFooter className="sm:justify-between sm:items-center">
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              {fields !== null && missing ? "Fill in every field not marked optional to continue." : ""}
+            </p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={close}>
+                Never mind
+              </Button>
+              <Button type="submit" disabled={saving || fields === null || missing}>
+                {copy.confirm}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -69,8 +69,11 @@ class WorkspaceSetupService
     { invited_user: user_id, already_in_channel: true }
   end
 
+  # The message id is kept on the onboarding row for later redraws.
   def post_welcome_message(workspace, channel_id)
-    result = workspace.adapter.post_welcome_message(channel_id: channel_id)
+    onboarding = workspace.onboarding
+    result = workspace.adapter.post_welcome_message(channel_id: channel_id, stage: onboarding&.stage || WorkspaceOnboarding::STAGE_NONE)
+    onboarding&.update!(welcome_message_id: result[:message_id])
 
     Rails.logger.info({
       event: "workspace_setup.welcome_posted",
@@ -81,6 +84,31 @@ class WorkspaceSetupService
     })
 
     result
+  end
+
+  # Completion is recorded before the platform call. A deleted message is
+  # logged and left alone.
+  def refresh_welcome_message(workspace)
+    onboarding = workspace.onboarding
+    return { skipped: true } unless onboarding&.welcome_message_id.present? && workspace.incidents_channel_id.present?
+
+    stage = onboarding.stage
+    onboarding.complete! if stage == WorkspaceOnboarding::STAGE_DONE
+    workspace.adapter.update_welcome_message(
+      channel_id: workspace.incidents_channel_id,
+      message_id: onboarding.welcome_message_id,
+      stage: stage
+    )
+
+    { updated: true, stage: stage }
+  rescue AdapterError => e
+    Rails.logger.warn({
+      event: "workspace_setup.welcome_refresh_failed",
+      workspace_id: workspace.id,
+      message_id: onboarding.welcome_message_id,
+      error: e.message
+    })
+    { updated: false, stage: stage }
   end
 
   def store_channel_id(workspace, channel_id)

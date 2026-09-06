@@ -42,6 +42,7 @@ class Workspace < ApplicationRecord
   has_many :inferences, dependent: :delete_all
   has_many :idempotency_keys, dependent: :delete_all
   has_many :api_keys, dependent: :destroy
+  has_one :onboarding, class_name: "WorkspaceOnboarding", dependent: :destroy
   has_many :workspace_memberships, dependent: :destroy
   has_many :users, through: :workspace_memberships
 
@@ -217,11 +218,14 @@ class Workspace < ApplicationRecord
         workspace.setup_catalogue!
       end
 
+      first_install = workspace.previously_new_record? || workspace.incidents_channel_id.blank?
+      workspace.create_onboarding!(installer: membership) if first_install && workspace.onboarding.nil?
+
       {
         workspace: workspace,
         user: user,
         membership: membership,
-        first_install: workspace.previously_new_record? || workspace.incidents_channel_id.blank?
+        first_install: first_install
       }
     end
   end

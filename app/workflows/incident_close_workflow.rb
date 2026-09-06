@@ -5,6 +5,7 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
   step :update_quick_actions
   step :update_announcement
   step :post_resolution_message
+  step :post_first_incident_walkthrough, depends_on: [ :post_resolution_message ]
   step :post_resolution_announcement_thread
   step :note_milestones
 
@@ -26,6 +27,13 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
         workflow.subject,
         resolved_by_platform_user_id: workflow.context["resolved_by_platform_user_id"]
       )
+    end
+  end
+
+  # After the resolution message, which holds the button step 4 points at.
+  def post_first_incident_walkthrough(workflow:, step:, input:)
+    checkpointed(step) do
+      OnboardingWalkthroughService.new(workflow.subject.workspace).advance!(workflow.subject)
     end
   end
 

@@ -165,6 +165,20 @@ Two exceptions specific to Slack:
 
 Sentence case for titles: "Incident canceled", not "Incident Canceled".
 
+## Messages that are edited in place
+
+`Welcome` is the onboarding checklist in `#incidents`, rebuilt from
+`WorkspaceOnboarding#stage` and updated through `update_welcome_message`
+as the first incident moves. It is the one message where an edit is the right
+call: the reader is already in the channel doing the steps, so nobody needs
+notifying, and a checklist that posted a new message per tick would bury
+itself. `FirstIncidentWalkthrough` is the coach in the first test incident's channel:
+one step per message, posted by `OnboardingWalkthroughService#advance!` as the
+incident earns it (declared, lead set, first message, resolved, postmortem),
+with the last posted step kept on the onboarding row so nothing posts twice. `Resolution` carries the postmortem button and a
+context line naming what the draft is built from, and drops both when the
+incident already has a write-up.
+
 ## Adding a message
 
 1. New module in `app/adapters/slack/messages/`, one per concept, class methods

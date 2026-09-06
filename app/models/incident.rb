@@ -58,6 +58,8 @@ class Incident < ApplicationRecord
   validates :source, presence: true
 
   scope :in_channel, ->(channel_id) { where(channel_id: channel_id) }
+  scope :real, -> { where(is_test: false) }
+  scope :tests, -> { where(is_test: true) }
   scope :active, -> { joins(:incident_status).merge(IncidentStatus.live) }
   scope :closed, -> { joins(:incident_status).merge(IncidentStatus.closed) }
   scope :canceled, -> { joins(:incident_status).merge(IncidentStatus.canceled) }
@@ -132,6 +134,11 @@ class Incident < ApplicationRecord
     incident_status.closed?
   end
 
+  # Only the first test incident gets the onboarding walkthrough.
+  def first_test_in_workspace?
+    is_test? && workspace.incidents.tests.where("sequence_number < ?", sequence_number).none?
+  end
+
   def canceled?
     incident_status.canceled?
   end
@@ -157,8 +164,10 @@ class Incident < ApplicationRecord
   # A postmortem is the write-up of something that happened, so there has to be
   # something to write up. Every surface offering to start one asks this rather
   # than deciding for itself what "over" means.
+  # A failed placeholder is not a postmortem. Try again and Start blank
+  # must get past this.
   def postmortem_blocked_reason
-    return "#{identifier} already has a postmortem." if postmortem.present?
+    return "#{identifier} already has a postmortem." if postmortem.present? && !postmortem.generation_failed?
     return "#{identifier} was canceled, so it has nothing to write up." if canceled?
     return nil if closed?
 

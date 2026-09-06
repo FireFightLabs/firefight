@@ -25,6 +25,14 @@ class Webhooks::DispatchJobTest < ActiveSupport::TestCase
     assert_equal "incident.created", delivery.event_type
   end
 
+  test "a test incident reaches no webhook at all" do
+    @event.incident.update!(is_test: true)
+
+    assert_no_difference -> { WebhookDelivery.count } do
+      Webhooks::DispatchJob.perform_now(@event_hash)
+    end
+  end
+
   test "skips inactive webhooks" do
     inactive = webhooks(:inactive_webhook)
     assert_not inactive.active?

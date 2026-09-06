@@ -130,6 +130,11 @@ class IncidentEvent < ApplicationRecord
   attr_accessor :references
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate PostmortemUpdate], optional: true
   has_one_attached :artifact
+  # Active Storage purges the blob in an after-commit hook that needs the
+  # owner row, which is gone by then. Detach without callbacks and purge the
+  # blob here instead. Prepended so it runs before the attachment's own
+  # dependent destroy.
+  before_destroy :purge_artifact, prepend: true
   has_many :webhook_deliveries, dependent: :delete_all
 
   def milestone?
@@ -257,5 +262,13 @@ class IncidentEvent < ApplicationRecord
       "data" => metadata,
       "occurred_at" => created_at.iso8601(6)
     )
+  end
+
+  def purge_artifact
+    return unless artifact.attached?
+
+    blob = artifact.blob
+    artifact.detach
+    blob.purge_later
   end
 end

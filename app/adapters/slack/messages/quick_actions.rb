@@ -68,6 +68,13 @@ module Slack
           value: incident.id
         }
 
+        result << {
+          type: "button",
+          text: { type: "plain_text", text: ":white_check_mark: Resolve", emoji: true },
+          action_id: Identifiers::RESOLVE_INCIDENT,
+          value: incident.id
+        }
+
         result
       end
     end

@@ -6,11 +6,8 @@ module Slack
     # there's no real incident yet.
     module Announcement
       def self.build(incident)
-        base_url = ENV["APP_URL"]
-        homepage_url = base_url ? "#{base_url}/app/incidents/#{incident.id}" : nil
-
         blocks = IncidentDetail.for_incident(incident, channel_id: incident.channel_id)
-        blocks + footer(homepage_url)
+        blocks + footer(Slack::DashboardUrl.incident(incident))
       end
 
       def self.build_from(title:, summary:, severity_name:, status_name:, type_name: nil, reporter_id:, lead_id: nil, channel_id: nil, relationship_text: nil, custom_fields_text: nil, homepage_url: nil)

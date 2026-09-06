@@ -1,13 +1,49 @@
-# Saves the engine's draft as the incident's postmortem and announces it.
+# Starts, saves and announces postmortem generation for every entry point.
 class PostmortemGenerationService
+  UNAVAILABLE_MESSAGE = "AI features are not available.".freeze
+  UNKNOWN_MEMBER_MESSAGE = "Could not identify your workspace membership.".freeze
+
+  # started is true when a generation is running, whether this call started
+  # it or not. message is what to tell the person.
+  Outcome = Struct.new(:started, :message, keyword_init: true)
+
+  def self.started_message(incident)
+    "Generating postmortem for #{incident.identifier}... This may take a minute."
+  end
+
   def initialize(workspace)
     @workspace = workspace
+  end
+
+  # The guards every Slack entry point runs before starting.
+  def request!(incident, by:)
+    return Outcome.new(started: false, message: UNAVAILABLE_MESSAGE) unless defined?(FirefightAi)
+
+    gate = Entitlements.check(@workspace, Entitlements::AI)
+    return Outcome.new(started: false, message: gate.message) if gate.blocked?
+
+    return Outcome.new(started: true, message: self.class.started_message(incident)) if incident.postmortem&.generating?
+
+    blocked_reason = incident.postmortem_blocked_reason
+    return Outcome.new(started: false, message: blocked_reason) if blocked_reason
+
+    start!(incident, by: by)
+    Outcome.new(started: true, message: self.class.started_message(incident))
+  end
+
+  # Returns the placeholder when this call enqueued the job, nil when one
+  # was already running.
+  def start!(incident, by:)
+    postmortem = Postmortem.start_generation!(incident, by: by)
+    PostmortemGenerationJob.perform_later(incident.id) if postmortem
+    postmortem
   end
 
   def generate!(incident, generated_by:)
     draft = FirefightAi::PostmortemGenerator.new(@workspace).generate(incident)
     postmortem = Postmortem.complete_generation!(incident, draft, generated_by: generated_by)
     announce(incident, postmortem)
+    OnboardingWalkthroughService.new(@workspace).advance!(incident)
     postmortem
   end
 

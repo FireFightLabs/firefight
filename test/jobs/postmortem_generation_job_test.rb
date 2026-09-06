@@ -133,4 +133,20 @@ class PostmortemGenerationJobTest < ActiveSupport::TestCase
       PostmortemGenerationJob.perform_now(@incident.id)
     end
   end
+
+  test "an error the engine did not classify marks the placeholder failed instead of leaving it generating" do
+    Postmortem.start_generation!(@incident, by: @member)
+    PostmortemGenerationService.any_instance.stubs(:generate!).raises(ActiveRecord::RecordInvalid)
+    adapter = mock("adapter")
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+    adapter.expects(:post_postmortem_generation_failed).with(has_entries(reason: "RecordInvalid", retrying: false)).once
+
+    assert_raises(ActiveRecord::RecordInvalid) do
+      PostmortemGenerationJob.perform_now(@incident.id)
+    end
+
+    postmortem = @incident.reload.postmortem
+    assert postmortem.generation_failed?
+    assert_equal "RecordInvalid", postmortem.generation_error
+  end
 end

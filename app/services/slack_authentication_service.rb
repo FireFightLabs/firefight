@@ -8,12 +8,12 @@ class SlackAuthenticationService
   # OIDC sign-in (identity only). Two outcomes (plus the install-gated third):
   #   - signed_in:      workspace exists. Return or create the membership.
   #   - install_needed: no workspace for this team yet, hand off to the
-  #                     onboarding invite-code step before the install callback.
+  #                     install step, or the invite code step first when the
+  #                     gate is on.
   #
-  # Invite gating is scoped to new workspace installs, once a workspace is on
-  # Firefight, any Slack member of that team can auto-provision. Slack is the
-  # source of truth for who belongs. The platform-level invite exists only to
-  # gate workspaces, not individuals.
+  # Invite gating applies only to new workspace installs and only when
+  # InviteCode.required? is true. Members of an existing workspace always
+  # auto-provision.
   def handle_openid_signin(auth_hash)
     team_id   = auth_hash.info.team_id
     team_name = auth_hash.info.team_name
@@ -60,7 +60,7 @@ class SlackAuthenticationService
 
     existing_workspace = Workspace.find_by(platform: :slack, platform_id: team_id)
 
-    if existing_workspace.nil? && !invite_code&.active?
+    if existing_workspace.nil? && InviteCode.required? && !invite_code&.active?
       return AuthOutcome.invite_required(message: INVITE_REQUIRED_MESSAGE)
     end
 
@@ -73,11 +73,14 @@ class SlackAuthenticationService
     end
 
     result = ActiveRecord::Base.transaction do
-      invite_code.redeem!(user) if existing_workspace.nil?
+      invite_code.redeem!(user) if existing_workspace.nil? && InviteCode.required?
       Workspace.process_slack_installation(auth_hash, user: user)
     end
 
-    trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]
+    if result[:first_install]
+      trigger_workspace_setup(result[:workspace], auth_hash.uid)
+      notify_install(result[:workspace], result[:membership])
+    end
 
     message = result[:first_install] ? "Setting up your Firefight workspace..." : "Signed in."
     AuthOutcome.signed_in(
@@ -109,5 +112,11 @@ class SlackAuthenticationService
       workspace,
       context: { installer_user_id: installer_user_id }
     )
+  end
+
+  def notify_install(workspace, membership)
+    return unless InstallNotificationService.configured?
+
+    InstallNotificationJob.perform_later(workspace.id, membership.id)
   end
 end

@@ -1,6 +1,7 @@
 # Interstitial pages between OIDC sign-in and dashboard:
-#   - invite_code: new workspace installer needs to claim an invite before install
-#   - install:     claimed, ready to add Firefight to Slack
+#   - invite_code: claim an invite before install. Redirects to install
+#                  unless InviteCode.required?
+#   - install:     add Firefight to Slack
 #   - reinstall:   an admin of a disconnected workspace reconnecting it
 #   - welcome:     first-install confirmation (letter from founder)
 class OnboardingController < InertiaController
@@ -9,7 +10,7 @@ class OnboardingController < InertiaController
   skip_before_action :require_authentication, except: [ :welcome, :reinstall ]
   def invite_code
     return redirect_to(login_path) if session[:pending_team_id].blank?
-    return redirect_to(onboarding_install_path) if claimed_invite_code.present?
+    return redirect_to(onboarding_install_path) if !InviteCode.required? || claimed_invite_code.present?
 
     render inertia: "onboarding/invite-code", props: {
       teamName: session[:pending_team_name]
@@ -18,7 +19,7 @@ class OnboardingController < InertiaController
 
   def install
     return redirect_to(login_path) if session[:pending_team_id].blank?
-    return redirect_to(onboarding_invite_code_path) if claimed_invite_code.blank? && !reinstalling?
+    return redirect_to(onboarding_invite_code_path) if InviteCode.required? && claimed_invite_code.blank? && !reinstalling?
 
     render inertia: "onboarding/install", props: {
       teamName: session[:pending_team_name]

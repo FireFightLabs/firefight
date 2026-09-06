@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Interactions::HomeContinueHandlerTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
@@ -50,14 +52,41 @@ class Interactions::HomeContinueHandlerTest < ActiveSupport::TestCase
     assert_equal message, result[:errors]["action_select_block"]
   end
 
+  test "postmortem action starts the generation and acknowledges it in the channel" do
+    closed = Incident.create!(
+      workspace: @workspace,
+      declared_by: workspace_memberships(:alice_workspace_one),
+      incident_status: incident_statuses(:resolved_ws1),
+      incident_severity: incident_severities(:critical_ws1),
+      name: "Closed, write it up",
+      is_private: false,
+      channel_id: "C_HOME_WRITE",
+      source: Incident::SOURCE_SLACK,
+      resolved_at: 1.hour.ago
+    )
+    member = workspace_memberships(:alice_workspace_one)
+    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral)
+      .with(channel_id: "C_HOME_WRITE", user_id: member.platform_user_id, text: PostmortemGenerationService.started_message(closed)).once
+
+    result = nil
+    assert_enqueued_with(job: PostmortemGenerationJob, args: [ closed.id ]) do
+      result = Interactions::HomeContinueHandler.execute(
+        build_interaction(selected: Identifiers::HOME_ACTION_POSTMORTEM, channel_id: closed.channel_id, user_id: member.platform_user_id)
+      )
+    end
+
+    assert_equal "clear", result[:response_action]
+    assert closed.reload.postmortem.generating?
+  end
+
   private
 
-  def build_interaction(selected:, channel_id: @incident.channel_id)
+  def build_interaction(selected:, channel_id: @incident.channel_id, user_id: "U12345678")
     Interaction.new(
       platform: Platforms::SLACK,
       type: Interaction::VIEW_SUBMISSION,
       team_id: @workspace.platform_id,
-      user_id: "U12345678",
+      user_id: user_id,
       callback_id: Identifiers::INCIDENT_HOME_MODAL,
       private_metadata: { channel_id: channel_id }.to_json,
       values: {

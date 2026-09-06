@@ -18,15 +18,21 @@ class Postmortem < ApplicationRecord
   GENERATION_FAILED = "failed"
   GENERATION_STATES = [ GENERATION_GENERATING, GENERATION_FAILED ].freeze
 
-  # Section keys and headings used by the AI generator to structure output
+  # Every heading is always rendered. The timeline comes from the incident
+  # record, the rest from the model. An empty section gets the placeholder.
+  TIMELINE_SECTION = "timeline".freeze
+
   SECTION_KEYS = %w[
-    summary introduction deeper_dive impact resolution
+    summary introduction timeline deeper_dive impact resolution
     contributing_factors what_went_well action_items
   ].freeze
+
+  AI_SECTION_KEYS = (SECTION_KEYS - [ TIMELINE_SECTION ]).freeze
 
   SECTION_HEADINGS = {
     "summary" => "Summary",
     "introduction" => "Introduction",
+    "timeline" => "Timeline",
     "deeper_dive" => "Deeper dive",
     "impact" => "Impact",
     "resolution" => "Resolution",
@@ -34,6 +40,8 @@ class Postmortem < ApplicationRecord
     "what_went_well" => "What went well",
     "action_items" => "Action items"
   }.freeze
+
+  EMPTY_SECTION_PLACEHOLDER = "Nothing in the incident record covers this yet. Add what you know.".freeze
 
   belongs_to :incident
   # Polymorphic for the same reason declared_by is: an agent can write one,
@@ -57,11 +65,18 @@ class Postmortem < ApplicationRecord
   # serializes two callers creating the placeholder at once, and the guarded
   # update serializes two callers retrying a failed one.
   # An empty document a person writes by hand, recorded like a generated one.
+  # A failed placeholder is reused instead of blocking a blank document.
   def self.start_blank!(incident, by:)
-    postmortem = create!(
-      incident: incident, generated_by: by, status: STATUS_DRAFT,
+    attrs = {
+      status: STATUS_DRAFT, generation_state: nil, generation_error: nil,
       title: "#{incident.identifier} Postmortem: #{incident.name}", content: { "html" => "" }
-    )
+    }
+    postmortem = incident.postmortem
+    if postmortem&.generation_failed?
+      postmortem.update!(attrs)
+    else
+      postmortem = create!(attrs.merge(incident: incident, generated_by: by))
+    end
     postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: by)
     postmortem
   end
@@ -89,12 +104,8 @@ class Postmortem < ApplicationRecord
   end
 
   def self.complete_generation!(incident, draft, generated_by:)
-    html = SECTION_KEYS.filter_map do |key|
-      body = draft.sections[key]
-      next if body.blank?
-
-      rendered = Commonmarker.to_html(body, options: { parse: { smart: true }, render: { unsafe: true } })
-      "<h2>#{SECTION_HEADINGS[key]}</h2>\n#{rendered}"
+    html = SECTION_KEYS.map do |key|
+      "<h2>#{SECTION_HEADINGS[key]}</h2>\n#{section_html(incident, draft, key)}"
     end.join("\n")
 
     attrs = {
@@ -116,6 +127,14 @@ class Postmortem < ApplicationRecord
     postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: generated_by)
     postmortem
   end
+
+  def self.section_html(incident, draft, key)
+    body = key == TIMELINE_SECTION ? Postmortem::TimelineSection.markdown(incident) : draft.sections[key]
+    return "<p><em>#{EMPTY_SECTION_PLACEHOLDER}</em></p>" if body.blank?
+
+    Commonmarker.to_html(body, options: { parse: { smart: true }, render: { unsafe: true } })
+  end
+  private_class_method :section_html
 
   validates :title, presence: true
   validates :content, presence: true

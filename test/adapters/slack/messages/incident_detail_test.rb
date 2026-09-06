@@ -32,4 +32,18 @@ class Slack::Messages::IncidentDetailTest < ActiveSupport::TestCase
   def channel_line
     ":speech_balloon: *Channel:* <##{@incident.channel_id}>"
   end
+
+  test "a test incident says so under its title, everywhere it is described" do
+    incident = incidents(:active_critical_ws1)
+    incident.update!(is_test: true)
+
+    announcement = Slack::Messages::Announcement.build(incident)
+    quick_actions = Slack::Messages::QuickActions.build(incident)
+
+    [ announcement, quick_actions ].each do |blocks|
+      assert_equal "context", blocks.second[:type]
+      assert_equal Slack::Messages::IncidentDetail::TEST_NOTE, blocks.second[:elements].first[:text]
+    end
+    assert_nil Slack::Messages::Announcement.build(incidents(:active_major_ws1)).find { |block| block.dig(:elements, 0, :text) == Slack::Messages::IncidentDetail::TEST_NOTE }
+  end
 end

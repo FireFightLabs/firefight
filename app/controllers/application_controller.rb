@@ -64,8 +64,16 @@ class ApplicationController < ActionController::Base
 
   def require_authentication
     return redirect_unauthenticated unless user_signed_in?
+    return redirect_without_workspace unless current_workspace
 
     Current.principal = current_membership
+  end
+
+  # Every workspace this user belonged to is gone. Reset the session and
+  # send them to sign in.
+  def redirect_without_workspace
+    reset_session
+    redirect_to login_path, alert: "Your workspace is no longer on Firefight. Sign in again to install it."
   end
 
   def redirect_unauthenticated

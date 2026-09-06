@@ -30,6 +30,13 @@ class PostmortemGenerationJob < ApplicationJob
     end
 
     PostmortemGenerationService.new(incident.workspace).generate!(incident, generated_by: incident.postmortem.generated_by)
+  rescue FirefightAi::TransientError, FirefightAi::TerminalError, ActiveRecord::RecordNotFound
+    raise
+  rescue StandardError => error
+    # Any other error must not leave the placeholder in generating.
+    record_failure(error)
+    notify_failure(error, terminal: true)
+    raise
   end
 
   # The placeholder stays, marked failed, so the page can say what happened

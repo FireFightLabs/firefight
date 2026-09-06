@@ -87,4 +87,48 @@ class PostmortemTest < ActiveSupport::TestCase
     )
     assert_raises(ActiveRecord::RecordNotUnique) { duplicate.save! }
   end
+
+  test "complete_generation! renders every heading, the timeline from the record, and a placeholder where the model had nothing" do
+    member = workspace_memberships(:alice_workspace_one)
+    incident = Incident.create!(
+      workspace: workspaces(:slack_workspace_one), declared_by: member,
+      incident_status: incident_statuses(:resolved_ws1), incident_severity: incident_severities(:minor_ws1),
+      name: "Sparse incident", is_private: false, resolved_at: Time.current, source: Incident::SOURCE_SLACK
+    )
+    incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, by: member)
+    draft = FirefightAi::PostmortemGenerator::Draft.new(
+      title: "INC Postmortem: Sparse", summary: nil,
+      sections: { "introduction" => "Declared and resolved within a minute." }, model: "gpt-4o"
+    )
+
+    postmortem = Postmortem.complete_generation!(incident, draft, generated_by: member)
+
+    html = postmortem.html_content
+    Postmortem::SECTION_HEADINGS.each_value { |heading| assert_includes html, "<h2>#{heading}</h2>" }
+    assert_includes html, "Declared and resolved within a minute."
+    assert_includes html, "resolved the incident"
+    assert_equal Postmortem::SECTION_KEYS.size - 2, html.scan(Postmortem::EMPTY_SECTION_PLACEHOLDER).size
+    assert_nil postmortem.summary
+  end
+
+  test "start_blank! turns a failed placeholder into the blank document" do
+    member = workspace_memberships(:alice_workspace_one)
+    incident = Incident.create!(
+      workspace: workspaces(:slack_workspace_one), declared_by: member,
+      incident_status: incident_statuses(:resolved_ws1), incident_severity: incident_severities(:minor_ws1),
+      name: "Failed then blank", is_private: false, resolved_at: Time.current, source: Incident::SOURCE_SLACK
+    )
+    placeholder = Postmortem.start_generation!(incident, by: member)
+    placeholder.mark_generation_failed!("TerminalError")
+
+    assert_no_difference "Postmortem.count" do
+      Postmortem.start_blank!(incident, by: member)
+    end
+
+    placeholder.reload
+    assert_nil placeholder.generation_state
+    assert_nil placeholder.generation_error
+    assert_equal "", placeholder.html_content.to_s
+    assert_equal "#{incident.identifier} Postmortem: #{incident.name}", placeholder.title
+  end
 end

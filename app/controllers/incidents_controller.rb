@@ -107,14 +107,14 @@ class IncidentsController < InertiaController
 
     member = current_workspace.workspace_memberships.find_by!(user: current_user)
 
-    PostmortemGenerationJob.perform_later(incident.id) if Postmortem.start_generation!(incident, by: member)
+    PostmortemGenerationService.new(current_workspace).start!(incident, by: member)
 
     redirect_to incident_postmortem_path(incident)
   end
 
   def start_blank_postmortem
     incident = current_workspace.incidents.find(params[:incident_id])
-    return redirect_to incident_postmortem_path(incident) if incident.postmortem.present?
+    return redirect_to incident_postmortem_path(incident) if incident.postmortem.present? && !incident.postmortem.generation_failed?
 
     blocked_reason = incident.postmortem_blocked_reason
     return redirect_to incident_path(incident), alert: blocked_reason if blocked_reason

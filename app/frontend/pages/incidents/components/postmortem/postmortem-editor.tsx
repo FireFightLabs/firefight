@@ -45,7 +45,7 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
           if (node.type.name === "heading") {
             return "Heading"
           }
-          return "Start writing, or press '/' for commands..."
+          return "Start writing..."
         },
       }),
       TaskList,

@@ -27,13 +27,23 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     accessorKey: "name",
     header: "Name",
     cell: ({ row }) => (
-      <Link
-        href={incidentPath(row.original.id)}
-        prefetch="hover"
-        className={row.original.name ? "font-medium text-foreground hover:underline" : "italic text-muted-foreground/60 hover:underline"}
-      >
-        {row.original.name || "Untitled"}
-      </Link>
+      <span className="inline-flex items-center gap-2">
+        <Link
+          href={incidentPath(row.original.id)}
+          prefetch="hover"
+          className={row.original.name ? "font-medium text-foreground hover:underline" : "italic text-muted-foreground/60 hover:underline"}
+        >
+          {row.original.name || "Untitled"}
+        </Link>
+        {row.original.isTest && (
+          <span
+            className="inline-flex items-center rounded-full border border-dashed border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+            title="Test incident. Not counted in your metrics."
+          >
+            Test
+          </span>
+        )}
+      </span>
     ),
     enableHiding: false,
   },

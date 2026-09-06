@@ -24,7 +24,7 @@ class EventRouter
       return
     end
 
-    [ Webhooks::EventSubscriber ].each do |subscriber|
+    [ Webhooks::EventSubscriber, Onboarding::EventSubscriber ].each do |subscriber|
       subscriber.handle(event)
     rescue => e
       Rails.logger.error({
