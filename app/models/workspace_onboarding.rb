@@ -7,9 +7,9 @@ class WorkspaceOnboarding < ApplicationRecord
   # The three steps, worded once for the Slack welcome message and the
   # dashboard dialog alike.
   STEPS = [
-    { title: "Declare an incident.", detail: "Firefight opens a channel for it and announces it in #incidents." },
-    { title: "Work it in that channel.", detail: "Set a lead, post what is happening." },
-    { title: "Resolve it.", detail: "Then read the write-up Firefight drafts from what you said." }
+    { title: "Declare an incident.", detail: "Firefight opens a channel for it and announces it in #incidents" },
+    { title: "Work it in that channel.", detail: "Set a lead, post what is happening" },
+    { title: "Resolve it.", detail: "Then read the write-up Firefight drafts from what you said" }
   ].freeze
 
   # The events that can move a step. The subscriber ignores everything else.
