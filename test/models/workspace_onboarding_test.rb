@@ -75,6 +75,14 @@ class WorkspaceOnboardingTest < ActiveSupport::TestCase
     assert_not @onboarding.reload.dialog_pending_for?(@installer)
   end
 
+  test "the dialog goes away once a test incident exists, however it was declared" do
+    assert @onboarding.dialog_pending_for?(@installer)
+
+    declare!
+
+    assert_not @onboarding.dialog_pending_for?(@installer)
+  end
+
   private
 
   def declare!(test: true)

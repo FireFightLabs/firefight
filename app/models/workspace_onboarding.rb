@@ -60,10 +60,13 @@ class WorkspaceOnboarding < ApplicationRecord
     )
   end
 
+  # The dialog exists to get the first test incident declared. Once one
+  # exists, from any surface, there is nothing left for it to say.
   def dialog_pending_for?(membership)
     return false if dialog_dismissed_at.present?
+    return false unless installer.present? && installer == membership
 
-    installer.present? && installer == membership
+    first_incident.nil?
   end
 
   def dismiss_dialog!
