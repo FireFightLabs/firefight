@@ -43,7 +43,7 @@ export function OnboardingDialog({
           {incidentsChannelUrl ? (
             <a
               href={incidentsChannelUrl}
-              className="text-xs text-muted-foreground underline decoration-border underline-offset-[3px] transition-colors hover:text-foreground hover:decoration-foreground"
+              className="whitespace-nowrap text-xs text-muted-foreground underline decoration-border underline-offset-[3px] transition-colors hover:text-foreground hover:decoration-foreground"
             >
               Open #incidents instead
             </a>

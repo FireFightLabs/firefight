@@ -44,17 +44,21 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     assert_equal @incident, inference.inferable
   end
 
-  test "only the title is required of the model, every section may be left out" do
+  test "every key is present for strict output, and every section may be null" do
     schema = FirefightAi::Schemas::Postmortem.new.to_json_schema
-    properties = schema.dig(:schema, :properties) || schema.dig("schema", "properties")
-    required = schema.dig(:schema, :required) || schema.dig("schema", "required")
+    properties = (schema.dig(:schema, :properties) || schema.dig("schema", "properties")).transform_keys(&:to_s)
+    required = (schema.dig(:schema, :required) || schema.dig("schema", "required")).map(&:to_s)
 
-    assert_equal [ "title" ], required.map(&:to_s)
-    assert_equal ([ "title" ] + FirefightAi::Schemas::Postmortem::SECTION_KEYS).sort, properties.keys.map(&:to_s).sort
+    assert_equal ([ "title" ] + FirefightAi::Schemas::Postmortem::SECTION_KEYS).sort, required.sort
+    FirefightAi::Schemas::Postmortem::SECTION_KEYS.each do |key|
+      variants = (properties[key][:anyOf] || properties[key]["anyOf"]).map { |variant| (variant[:type] || variant["type"]).to_s }
+      assert_includes variants, "null", key
+    end
+    assert_nil properties["title"][:anyOf] || properties["title"]["anyOf"]
   end
 
-  test "sections the model leaves out are absent from the draft rather than blank" do
-    stub_ruby_llm_response(ai_result: { "title" => "INC-003 Postmortem: Thin", "introduction" => "Declared and resolved." })
+  test "sections the model returns as null are absent from the draft rather than blank" do
+    stub_ruby_llm_response(ai_result: { "title" => "INC-003 Postmortem: Thin", "introduction" => "Declared and resolved.", "summary" => nil, "impact" => nil })
 
     draft = @generator.generate(@incident)
 

@@ -57,7 +57,7 @@ module FirefightAi
         - Actionable — contributing factors and action items should lead to concrete improvements
         - Clear — write for a technical audience but keep language accessible
 
-        Write only what the incident record below supports. The record is the incident details, the timeline events, the narrative summary of the channel, the actions and the shoutouts. Never infer a cause, an impact, a fix, what went well, or an action item from the title, the severity, or the duration alone. When the record has nothing for a section, leave that section out of your answer entirely. A short incident with little in its record gets a short document, and that is the right answer.
+        Write only what the incident record below supports. The record is the incident details, the timeline events, the narrative summary of the channel, the actions and the shoutouts. Never infer a cause, an impact, a fix, what went well, or an action item from the title, the severity, or the duration alone. When the record has nothing for a section, return null for that section. A short incident with little in its record gets a short document, and that is the right answer.
 
         Use markdown formatting for structure (bold, bullet points, numbered lists).
         For the summary section, use this structure: **Problem**: ... **Impact**: ... **Causes**: ... **Steps to resolve**: ...
