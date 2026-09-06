@@ -51,8 +51,6 @@ export function AgentDialog({
     }
   }
 
-  // The trigger inside the dialog opens it through this same handler, so
-  // opening has to be forwarded, not only closing.
   function changeOpen(next: boolean) {
     if (next) {
       setOpen(true)
