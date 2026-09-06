@@ -1,51 +1,5 @@
 module Slack
   class InstallationMessageBuilder
-    def self.welcome_message_blocks
-      {
-        blocks: [
-          {
-            type: "header",
-            text: {
-              type: "plain_text",
-              text: "Welcome to FireFight!",
-              emoji: true
-            }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "*This is your central incident hub.*\n\nWhen an incident is declared, we'll spin up a dedicated response channel and post an announcement here. Each announcement stays current as the incident evolves, giving you real-time visibility across all ongoing incidents in your organization."
-            }
-          },
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "🔗 Share this channel",
-                  emoji: true
-                },
-                action_id: Identifiers::SHARE_INCIDENTS_CHANNEL,
-                style: "primary"
-              },
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "📢 Preview an announcement",
-                  emoji: true
-                },
-                action_id: Identifiers::PREVIEW_ANNOUNCEMENT
-              }
-            ]
-          }
-        ]
-      }
-    end
-
     # Only the responder who clicked sees this.
     def self.preview_announcement_blocks(user_id)
       preview_blocks = [

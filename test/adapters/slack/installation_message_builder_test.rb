@@ -1,50 +1,6 @@
 require "test_helper"
 
 class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
-  # welcome_message_blocks tests
-
-  test "welcome_message_blocks returns valid Block Kit structure" do
-    result = Slack::InstallationMessageBuilder.welcome_message_blocks
-
-    assert result[:blocks].present?
-    assert result[:blocks].is_a?(Array)
-    assert result[:blocks].length > 0
-  end
-
-  test "welcome_message_blocks includes header block" do
-    result = Slack::InstallationMessageBuilder.welcome_message_blocks
-
-    header = result[:blocks].find { |b| b[:type] == "header" }
-    assert header.present?
-    assert_equal "Welcome to FireFight!", header.dig(:text, :text)
-  end
-
-  test "welcome_message_blocks includes description section" do
-    result = Slack::InstallationMessageBuilder.welcome_message_blocks
-
-    sections = result[:blocks].select { |b| b[:type] == "section" }
-    assert sections.any? { |s| s.dig(:text, :text)&.include?("central incident hub") }
-  end
-
-  test "welcome_message_blocks includes action buttons" do
-    result = Slack::InstallationMessageBuilder.welcome_message_blocks
-
-    actions = result[:blocks].find { |b| b[:type] == "actions" }
-    assert actions.present?
-    assert_equal 2, actions[:elements].length
-
-    # Share button
-    share_button = actions[:elements].find { |e| e[:action_id] == Identifiers::SHARE_INCIDENTS_CHANNEL }
-    assert share_button.present?
-    assert_equal "button", share_button[:type]
-    assert_equal "primary", share_button[:style]
-
-    # Preview button
-    preview_button = actions[:elements].find { |e| e[:action_id] == Identifiers::PREVIEW_ANNOUNCEMENT }
-    assert preview_button.present?
-    assert_equal "button", preview_button[:type]
-  end
-
   # preview_announcement_blocks tests
 
   test "preview_announcement_blocks returns valid Block Kit structure" do
@@ -235,7 +191,6 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
 
   test "all messages use valid block types" do
     messages = [
-    Slack::InstallationMessageBuilder.welcome_message_blocks,
     Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678"),
     Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
     ]
@@ -251,7 +206,6 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
 
   test "all action buttons have required fields" do
     messages = [
-    Slack::InstallationMessageBuilder.welcome_message_blocks,
     Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678"),
     Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
     ]

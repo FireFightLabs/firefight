@@ -33,19 +33,21 @@ module Slack::WorkspaceAdapter::WorkspaceSetup
     }
   end
 
-  def post_welcome_message(channel_id:)
-    translate_errors do
-      message = Slack::InstallationMessageBuilder.welcome_message_blocks
+  def post_welcome_message(channel_id:, progress:)
+    post_message(
+      channel_id: channel_id,
+      text: Slack::Messages::Welcome::FALLBACK_TEXT,
+      blocks: Slack::Messages::Welcome.build(progress)
+    )
+  end
 
-      result = Slack::Client.post_message(
-        workspace: @workspace,
-        channel: channel_id,
-        text: "Welcome to FireFight!",
-        blocks: message[:blocks]
-      )
-
-      { message_id: result[:ts], channel_id: result[:channel] }
-    end
+  def update_welcome_message(channel_id:, message_id:, progress:)
+    update_message(
+      channel_id: channel_id,
+      message_id: message_id,
+      text: Slack::Messages::Welcome::FALLBACK_TEXT,
+      blocks: Slack::Messages::Welcome.build(progress)
+    )
   end
 
   def post_preview_announcement(channel_id:, user_id:)

@@ -31,7 +31,20 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_nil flash[:notice], "a returning sign-in announces nothing"
   end
 
-  test "slack_openid with no workspace kicks off invite-code flow" do
+  test "slack_openid with no workspace sends the installer to the install step" do
+    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
+      info: { email: "installer@example.com", team_id: "T_NEW", team_name: "Brand New Co" }
+    )
+
+    get "/auth/slack_openid/callback"
+
+    assert_redirected_to onboarding_install_path
+    assert_equal "T_NEW", session[:pending_team_id]
+    assert_nil session[:user_id]
+  end
+
+  test "slack_openid with no workspace kicks off invite-code flow while the gate is on" do
+    require_invite!
     OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
       info: { email: "installer@example.com", team_id: "T_NEW", team_name: "Brand New Co" }
     )
@@ -69,7 +82,36 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
 
   # slack, bot install
 
+  test "slack install creates the workspace and owner membership without an invite when the gate is off" do
+    stub_successful_slack_workflow
+    SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
+
+    installer = users(:charlie)
+    team_id   = "T_OPEN_INSTALL"
+
+    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
+      uid: "U_INSTALLER",
+      info: { email: installer.email, team_id: team_id, team_name: "Open Install Co" }
+    )
+    get "/auth/slack_openid/callback"
+    assert_redirected_to onboarding_install_path
+
+    OmniAuth.config.mock_auth[:slack] = mock_slack_auth_hash(
+      extra: { team_info: { "id" => team_id, "name" => "Open Install Co" } }
+    )
+
+    assert_difference -> { Workspace.count }, 1 do
+      get "/auth/slack/callback"
+    end
+
+    workspace = Workspace.find_by(platform: "slack", platform_id: team_id)
+    assert_equal "owner", workspace.workspace_memberships.find_by(user: installer).role
+    assert_redirected_to onboarding_welcome_path
+    assert_not invite_codes(:active_public_beta_code).reload.redeemed?
+  end
+
   test "slack install uses pending_user from session to create workspace + owner membership after invite is claimed" do
+    require_invite!
     stub_successful_slack_workflow
     SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
 
@@ -112,7 +154,8 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert invite_codes(:active_public_beta_code).reload.redeemed?
   end
 
-  test "slack install redirects to login when no invite code is claimed for a new workspace" do
+  test "slack install redirects to login when no invite code is claimed for a new workspace while the gate is on" do
+    require_invite!
     OmniAuth.config.mock_auth[:slack] = mock_slack_auth_hash(
       extra: { team_info: { "id" => "T_DIRECT_INSTALL", "name" => "Direct Install Co" } }
     )

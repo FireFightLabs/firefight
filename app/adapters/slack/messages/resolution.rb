@@ -6,7 +6,7 @@ module Slack
         duration_text = Formatting.format_duration(incident.time_to_resolve)
         emoji = Formatting.severity_emoji(incident.incident_severity)
 
-        [
+        blocks = [
           { type: "section", text: { type: "mrkdwn", text: ":white_check_mark:  *Incident Resolved*" } },
           { type: "divider" },
           { type: "section", text: { type: "mrkdwn", text: summary_text } },
@@ -17,6 +17,39 @@ module Slack
             ]
           }
         ]
+
+        blocks.concat(postmortem_offer(incident)) if incident.postmortem_blocked_reason.nil?
+        blocks
+      end
+
+      # The write-up is offered on every resolution, and the line under the
+      # button says what it will be drafted from, so an empty channel is not
+      # a surprise when the draft comes back with gaps.
+      def self.postmortem_offer(incident)
+        [
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: { type: "plain_text", text: "Write the postmortem", emoji: true },
+                action_id: Identifiers::WRITE_POSTMORTEM,
+                value: incident.id,
+                style: "primary"
+              }
+            ]
+          },
+          { type: "context", elements: [ { type: "mrkdwn", text: sources_text(incident) } ] }
+        ]
+      end
+
+      def self.sources_text(incident)
+        count = incident.incident_transcript_messages.kept.count
+        if count.zero?
+          "Drafted from the timeline. No channel messages yet, so most sections will wait for you."
+        else
+          "Drafted from the timeline and the #{count} #{'message'.pluralize(count)} in this channel. You edit it in the dashboard."
+        end
       end
 
       def self.announcement_thread(incident, resolved_by_platform_user_id:)

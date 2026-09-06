@@ -70,7 +70,7 @@ class Api::V1::PostmortemsController < Api::V1::ApiController
     gate = Entitlements.check(current_workspace, Entitlements::AI)
     raise ActionController::BadRequest, gate.message if gate.blocked?
 
-    PostmortemGenerationJob.perform_later(@incident.id) if Postmortem.start_generation!(@incident, by: Current.principal)
+    PostmortemGenerationService.new(current_workspace).start!(@incident, by: Current.principal)
   end
 
   def render_blocked(reason)

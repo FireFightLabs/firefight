@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_210001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1124,6 +1124,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_210001) do
     t.index ["workspace_id"], name: "index_workspace_memberships_on_workspace_id"
   end
 
+  create_table "workspace_onboardings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "installer_id"
+    t.string "welcome_message_id"
+    t.datetime "dialog_dismissed_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workspace_id"], name: "index_workspace_onboardings_on_workspace_id", unique: true
+  end
+
   create_table "workspaces", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "access_token"
     t.string "avatar_url"
@@ -1262,4 +1273,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_210001) do
   add_foreign_key "webhooks", "workspaces"
   add_foreign_key "workspace_memberships", "users"
   add_foreign_key "workspace_memberships", "workspaces"
+  add_foreign_key "workspace_onboardings", "workspace_memberships", column: "installer_id", on_delete: :nullify
+  add_foreign_key "workspace_onboardings", "workspaces"
 end

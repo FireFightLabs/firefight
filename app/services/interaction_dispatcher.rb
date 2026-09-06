@@ -24,6 +24,8 @@ class InteractionDispatcher
   BLOCK_ACTION_HANDLERS = {
     Identifiers::PREVIEW_ANNOUNCEMENT => Interactions::PreviewAnnouncementHandler,
     Identifiers::SHARE_INCIDENTS_CHANNEL => Interactions::ShareChannelHandler,
+    Identifiers::DECLARE_INCIDENT_FROM_WELCOME => Interactions::DeclareIncidentButtonHandler,
+    Identifiers::WRITE_POSTMORTEM => Interactions::WritePostmortemHandler,
     Identifiers::PREVIEW_HOMEPAGE_DISABLED => Interactions::NoopHandler,
     Identifiers::PREVIEW_SUBSCRIBE_DISABLED => Interactions::NoopHandler,
     Identifiers::HOME_ACTION_SELECT => Interactions::HomeActionSelectHandler,

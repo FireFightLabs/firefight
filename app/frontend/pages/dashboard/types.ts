@@ -13,3 +13,14 @@ export interface DashboardFilters {
   severities: string[]
   statuses: string[]
 }
+
+export interface OnboardingStep {
+  title: string
+  detail: string
+}
+
+export interface DashboardOnboarding {
+  dialogPending: boolean
+  steps: OnboardingStep[]
+  incidentsChannelUrl: string | null
+}

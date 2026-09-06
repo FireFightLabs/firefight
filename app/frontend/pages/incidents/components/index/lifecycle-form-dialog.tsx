@@ -254,13 +254,18 @@ export function LifecycleFormDialog({
             )}
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>
-              Never mind
-            </Button>
-            <Button type="submit" disabled={saving || fields === null || missing}>
-              {copy.confirm}
-            </Button>
+          <DialogFooter className="sm:justify-between sm:items-center">
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              {fields !== null && missing ? "Fill in every field not marked optional to continue." : ""}
+            </p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={close}>
+                Never mind
+              </Button>
+              <Button type="submit" disabled={saving || fields === null || missing}>
+                {copy.confirm}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

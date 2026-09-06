@@ -1,6 +1,7 @@
 class InviteCodesController < ApplicationController
   def create
     return redirect_to(login_path) if session[:pending_team_id].blank?
+    return redirect_to(onboarding_install_path) unless InviteCode.required?
 
     invite_code = InviteCode.find_active_by_code(params[:code])
 

@@ -15,6 +15,7 @@ class EventRouterTest < ActiveSupport::TestCase
 
   test "routes known event type to subscribers" do
     Webhooks::EventSubscriber.expects(:handle).with(@event)
+    Onboarding::EventSubscriber.expects(:handle).with(@event)
     EventRouter.route(@event)
   end
 
@@ -47,6 +48,7 @@ class EventRouterTest < ActiveSupport::TestCase
     EventRouter.route(DomainEvent.new(event_type: IncidentEvent::MESSAGE_PINNED, incident_id: "fake-id", actor_id: nil, data: {}, occurred_at: Time.current))
 
     Webhooks::EventSubscriber.expects(:handle).once
+    Onboarding::EventSubscriber.stubs(:handle)
     EventRouter.route(@event)
   end
 end

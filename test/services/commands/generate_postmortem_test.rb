@@ -94,7 +94,7 @@ class Commands::GeneratePostmortemTest < ActiveSupport::TestCase
     )
 
     assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_includes result[:text], "already been generated"
+    assert_includes result[:text], "already has a postmortem"
   end
 
   private

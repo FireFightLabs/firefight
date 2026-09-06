@@ -246,6 +246,8 @@ Platform clients raise `AdapterError` subclasses directly, so there is one error
 
 A revoked install (`token_revoked`, `account_inactive`, or a refresh token Slack no longer accepts) marks the workspace disconnected (`Workspace::Connection`). The dashboard keeps working and shows a banner asking an admin to reconnect through `/onboarding/reinstall`, which skips the invite gate for a workspace that already exists. The hourly token refresh skips disconnected workspaces. A reinstall clears the flag.
 
+**First run.** The invite gate is off unless `INVITE_REQUIRED` is set, read once into `config.x.invite_required` and asked through `InviteCode.required?` by the install service, the sign-in callback, the onboarding controller and the claim endpoint. A first install creates the workspace's `WorkspaceOnboarding` row with the installer, enqueues `InstallNotificationJob` when `INSTALL_NOTIFICATION_WEBHOOK_URL` is set (a plain JSON POST, never a platform call), and the setup workflow posts the welcome checklist and keeps its message id on that row. Progress is never stored: `WorkspaceOnboarding#progress` reads it off the first incident, and the dashboard dialog is the installer's until they dismiss it.
+
 Services and handlers rescue `AdapterError` subclasses — never platform-specific errors.
 
 Adapters return normalized hashes: `{ channel_id:, channel_name: }`, `{ message_id:, channel_id: }` for anything that posts a message, `{ success: true }` for everything else.
@@ -347,7 +349,7 @@ IncidentEvent commit → ProcessDomainEventJob → EventRouter → Webhooks::Dis
                      → WebhookDelivery (row per attempt) → Webhooks::DeliveryService
 ```
 
-- `EventRouter` maps each `IncidentEvent::*` type to subscribers (`SUBSCRIBERS` table); webhook-worthy events route to `Webhooks::EventSubscriber`, internal-only events map to `[]`. New event types must be added to this table explicitly.
+- `EventRouter` hands every subscribable `IncidentEvent::*` type to each subscriber in turn: `Webhooks::EventSubscriber` fans it out to customer webhooks, and `Onboarding::EventSubscriber` redraws the welcome checklist in `#incidents` when the event moved the workspace's first incident (`WorkspaceOnboarding::PROGRESS_EVENTS`). Internal-only events are named in `INTERNAL_ONLY`. New event types must be added to one of the two lists explicitly.
 - `Webhooks::DispatchJob` finds the workspace's webhooks subscribed to the event type (`triggered_by` scope) and creates a `WebhookDelivery` per webhook. The payload is **snapshotted at dispatch time** (`Webhooks::PayloadRenderer`, shared jbuilder partials in `app/views/shared/`) so retries resend identical bytes.
 - `Webhooks::DeliveryService` sends it: timestamped HMAC signing (scheme `v1`), 7s endpoint timeout, 100KB response cap, and `Webhooks::SsrfProtector` blocks private/internal targets.
 - `WebhookDelinquencyTracker` counts consecutive failures per webhook; sustained failure (threshold 10 over 1h) deactivates the webhook and `Webhooks::DeactivationNotifier` informs the workspace. `Webhooks::CleanupJob` prunes old deliveries.

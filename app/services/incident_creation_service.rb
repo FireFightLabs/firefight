@@ -41,6 +41,13 @@ class IncidentCreationService
     { message_ts: message_ts }
   end
 
+  def post_first_incident_walkthrough(incident)
+    return { skipped: true } unless incident.first_in_workspace?
+
+    result = @workspace.adapter.post_first_incident_walkthrough(channel_id: incident.channel_id, incident: incident)
+    { message_ts: result[:message_id] }
+  end
+
   def post_announcement(incident)
     return { skipped: true } unless @workspace.incidents_channel_id
 

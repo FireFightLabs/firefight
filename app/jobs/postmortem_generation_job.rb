@@ -30,6 +30,14 @@ class PostmortemGenerationJob < ApplicationJob
     end
 
     PostmortemGenerationService.new(incident.workspace).generate!(incident, generated_by: incident.postmortem.generated_by)
+  rescue FirefightAi::TransientError, FirefightAi::TerminalError, ActiveRecord::RecordNotFound
+    raise
+  rescue StandardError => error
+    # Anything else, a save that failed or the channel refusing the
+    # announcement, must not leave the placeholder saying it is still writing.
+    record_failure(error)
+    notify_failure(error, terminal: true)
+    raise
   end
 
   # The placeholder stays, marked failed, so the page can say what happened

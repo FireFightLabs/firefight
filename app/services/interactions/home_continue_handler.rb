@@ -81,21 +81,19 @@ module Interactions
         return { response_action: "errors", errors: { "action_select_block" => "No closed incident found in this channel." } }
       end
 
-      if incident.postmortem.present?
-        return { response_action: "errors", errors: { "action_select_block" => "A postmortem has already been generated for #{incident.identifier}." } }
-      end
-
-      unless defined?(FirefightAi)
-        return { response_action: "errors", errors: { "action_select_block" => "AI features are not available." } }
-      end
-
-      gate = Entitlements.check(workspace, Entitlements::AI)
-      if gate.blocked?
-        return { response_action: "errors", errors: { "action_select_block" => gate.message } }
-      end
-
       member = workspace.workspace_memberships.find_by(platform_user_id: user_id)
-      PostmortemGenerationJob.perform_later(incident.id) if member
+      unless member
+        return { response_action: "errors", errors: { "action_select_block" => PostmortemGenerationService::UNKNOWN_MEMBER_MESSAGE } }
+      end
+
+      outcome = PostmortemGenerationService.new(workspace).request!(incident, by: member)
+      unless outcome.started
+        return { response_action: "errors", errors: { "action_select_block" => outcome.message } }
+      end
+
+      # The modal closes on clear, so the acknowledgement goes to the channel
+      # the way the slash command's does.
+      workspace.adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: outcome.message)
       { response_action: "clear" }
     end
     private_class_method :handle_postmortem

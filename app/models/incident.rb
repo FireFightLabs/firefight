@@ -132,6 +132,10 @@ class Incident < ApplicationRecord
     incident_status.closed?
   end
 
+  def first_in_workspace?
+    sequence_number == WorkspaceOnboarding::FIRST_INCIDENT_SEQUENCE
+  end
+
   def canceled?
     incident_status.canceled?
   end
@@ -157,8 +161,10 @@ class Incident < ApplicationRecord
   # A postmortem is the write-up of something that happened, so there has to be
   # something to write up. Every surface offering to start one asks this rather
   # than deciding for itself what "over" means.
+  # A failed generation left a placeholder, not a postmortem, so it blocks
+  # nothing. Try again and Start blank both have to get past this.
   def postmortem_blocked_reason
-    return "#{identifier} already has a postmortem." if postmortem.present?
+    return "#{identifier} already has a postmortem." if postmortem.present? && !postmortem.generation_failed?
     return "#{identifier} was canceled, so it has nothing to write up." if canceled?
     return nil if closed?
 

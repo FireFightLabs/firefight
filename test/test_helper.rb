@@ -34,6 +34,7 @@ module ActiveSupport
     include InertiaTestHelper
     include EntitlementsTestHelper
     include SessionTestHelper
+    include InviteGateTestHelper
 
     # Add more helper methods to be used by all tests here...
   end

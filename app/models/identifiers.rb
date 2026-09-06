@@ -78,6 +78,8 @@ module Identifiers
   HOME_ACTION_SELECT = "home_action_select"
   SHARE_INCIDENTS_CHANNEL = "share_incidents_channel"
   PREVIEW_ANNOUNCEMENT = "preview_announcement"
+  DECLARE_INCIDENT_FROM_WELCOME = "declare_incident_from_welcome"
+  WRITE_POSTMORTEM = "write_postmortem"
   PREVIEW_HOMEPAGE_DISABLED = "preview_homepage_disabled"
   INCIDENT_HOMEPAGE = "incident_homepage"
   PREVIEW_SUBSCRIBE_DISABLED = "preview_subscribe_disabled"

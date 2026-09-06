@@ -44,6 +44,32 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     assert_equal @incident, inference.inferable
   end
 
+  test "only the title is required of the model, every section may be left out" do
+    schema = FirefightAi::Schemas::Postmortem.new.to_json_schema
+    properties = schema.dig(:schema, :properties) || schema.dig("schema", "properties")
+    required = schema.dig(:schema, :required) || schema.dig("schema", "required")
+
+    assert_equal [ "title" ], required.map(&:to_s)
+    assert_equal ([ "title" ] + FirefightAi::Schemas::Postmortem::SECTION_KEYS).sort, properties.keys.map(&:to_s).sort
+  end
+
+  test "sections the model leaves out are absent from the draft rather than blank" do
+    stub_ruby_llm_response(ai_result: { "title" => "INC-003 Postmortem: Thin", "introduction" => "Declared and resolved." })
+
+    draft = @generator.generate(@incident)
+
+    assert_equal [ "introduction" ], draft.sections.keys
+    assert_nil draft.summary
+  end
+
+  test "the prompt says outright when the channel had no messages" do
+    stub_ruby_llm_response
+    prompt = @generator.send(:user_prompt, @incident.to_full_context(workspace: @workspace), nil)
+
+    assert_match "No messages were posted in the incident channel", prompt
+    assert_match "Never infer a cause", @generator.send(:system_prompt)
+  end
+
   test "client errors leave the engine as its own error family" do
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
     RubyLLM.stubs(:chat).raises(RubyLLM::ContextLengthExceededError.new("too long"))
@@ -54,10 +80,10 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
 
   private
 
-  def stub_ruby_llm_response
+  def stub_ruby_llm_response(ai_result: nil)
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
 
-    ai_result = {
+    ai_result ||= {
       "title" => "INC-003 Postmortem: Image upload broken",
       "summary" => "**Problem**: Image uploads returning 500 errors.",
       "introduction" => "On the morning of the incident...",

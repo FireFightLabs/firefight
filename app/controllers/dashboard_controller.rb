@@ -15,11 +15,23 @@ class DashboardController < InertiaController
         severities: severity_slugs,
         statuses: Array(params[:statuses]).compact_blank
       },
-      severityOptions: SeverityOptionSerializer.many(current_workspace.incident_severities.order(:position))
+      severityOptions: SeverityOptionSerializer.many(current_workspace.incident_severities.order(:position)),
+      onboarding: onboarding_props
     }
   end
 
   private
+
+  # The first-run dialog is the installer's, once. The channel link is the
+  # platform's to build, so the page is handed the finished string.
+  def onboarding_props
+    onboarding = current_workspace.onboarding
+    {
+      dialogPending: onboarding.present? && onboarding.dialog_pending_for?(current_membership),
+      steps: WorkspaceOnboarding::STEPS,
+      incidentsChannelUrl: WorkspaceAdapter.for(current_workspace).channel_url(channel_id: current_workspace.incidents_channel_id)
+    }
+  end
 
   def severity_slugs
     @severity_slugs ||= Array(params[:severities]).compact_blank

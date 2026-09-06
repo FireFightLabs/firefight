@@ -12,6 +12,23 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
 
   # invite_code
 
+  test "invite_code redirects to install when the gate is off" do
+    seed_pending_install("T_OPEN_CO", "Open Co", gate: false)
+
+    get onboarding_invite_code_path
+
+    assert_redirected_to onboarding_install_path
+  end
+
+  test "install renders without a claimed code when the gate is off" do
+    seed_pending_install("T_OPEN_INSTALL_CO", "Open Install Co", gate: false)
+
+    get onboarding_install_path, headers: inertia_headers
+
+    assert_response :success
+    assert_match "Open Install Co", response.body
+  end
+
   test "invite_code redirects to login when pending_team_id is missing" do
     get onboarding_invite_code_path
 
@@ -111,6 +128,7 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "welcome consumes show_welcome_note so it renders exactly once" do
+    require_invite!
     stub_successful_slack_workflow
     SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
 
@@ -136,11 +154,12 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  def seed_pending_install(team_id, team_name)
+  def seed_pending_install(team_id, team_name, gate: true)
+    require_invite! if gate
     OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
       info: { email: "installer@example.com", team_id: team_id, team_name: team_name }
     )
     get "/auth/slack_openid/callback"
-    assert_redirected_to onboarding_invite_code_path
+    assert_redirected_to(gate ? onboarding_invite_code_path : onboarding_install_path)
   end
 end

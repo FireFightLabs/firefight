@@ -2,6 +2,8 @@ require "test_helper"
 require "ostruct"
 
 class SlackAuthenticationServiceTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @service = SlackAuthenticationService.new
     @auth_hash = mock_slack_auth_hash
@@ -268,6 +270,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
   end
 
   test "handle_install returns invite_required when invite code was already redeemed concurrently" do
+    require_invite!
     invite_code = invite_codes(:active_public_beta_code)
     invite_code.update!(redeemed_at: Time.current)
 
@@ -277,11 +280,63 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     assert_equal SlackAuthenticationService::INVITE_REQUIRED_MESSAGE, outcome.message
   end
 
-  test "handle_install returns invite_required when installing a new workspace without invite" do
-    outcome = @service.handle_install(@auth_hash)
+  test "handle_install returns invite_required when installing a new workspace without invite while the gate is on" do
+    require_invite!
+
+    outcome = @service.handle_install(@auth_hash, user: users(:charlie))
 
     assert outcome.invite_required?
     assert_equal SlackAuthenticationService::INVITE_REQUIRED_MESSAGE, outcome.message
+  end
+
+  test "handle_install redeems the invite code when the gate is on" do
+    require_invite!
+    stub_successful_slack_workflow
+    SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
+    invite_code = invite_codes(:active_public_beta_code)
+
+    outcome = @service.handle_install(@auth_hash, user: users(:charlie), invite_code: invite_code)
+
+    assert outcome.signed_in?
+    assert invite_code.reload.redeemed?
+  end
+
+  test "handle_install creates the onboarding row for the installer and pings the webhook when one is configured" do
+    stub_successful_slack_workflow
+    SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
+    InstallNotificationService.stubs(:configured?).returns(true)
+
+    outcome = nil
+    assert_enqueued_with(job: InstallNotificationJob) do
+      outcome = @service.handle_install(@auth_hash, user: users(:charlie))
+    end
+
+    onboarding = outcome.membership.workspace.onboarding
+    assert_equal outcome.membership, onboarding.installer
+    assert_nil onboarding.dialog_dismissed_at
+  end
+
+  test "handle_install sends no ping when no webhook is configured" do
+    stub_successful_slack_workflow
+    SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
+
+    assert_no_enqueued_jobs(only: InstallNotificationJob) do
+      @service.handle_install(@auth_hash, user: users(:charlie))
+    end
+  end
+
+  test "handle_install installs a new workspace without an invite when the gate is off" do
+    stub_successful_slack_workflow
+    SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
+
+    outcome = nil
+    assert_difference -> { Workspace.count }, 1 do
+      outcome = @service.handle_install(@auth_hash, user: users(:charlie))
+    end
+
+    assert outcome.signed_in?
+    assert outcome.first_install?
+    assert_not invite_codes(:active_public_beta_code).reload.redeemed?
   end
 
   test "handle_install returns signed_in outcome without triggering setup on reinstall" do

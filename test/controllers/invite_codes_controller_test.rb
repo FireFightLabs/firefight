@@ -3,6 +3,7 @@ require "test_helper"
 class InviteCodesControllerTest < ActionDispatch::IntegrationTest
   setup do
     OmniAuth.config.test_mode = true
+    require_invite!
   end
 
   teardown do
@@ -36,6 +37,16 @@ class InviteCodesControllerTest < ActionDispatch::IntegrationTest
     post claim_invite_code_path, params: { code: "BETA-ACCESS" }
 
     assert_redirected_to login_path
+    assert_nil session[:invite_code_id]
+  end
+
+  test "create redirects to install and claims nothing when the gate is off" do
+    seed_pending_install_session
+    InviteCode.unstub(:required?)
+
+    post claim_invite_code_path, params: { code: "BETA-ACCESS" }
+
+    assert_redirected_to onboarding_install_path
     assert_nil session[:invite_code_id]
   end
 

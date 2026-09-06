@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Deferred, Head, usePage } from "@inertiajs/react"
+import { Deferred, Head, router, usePage } from "@inertiajs/react"
 import { IconPlus } from "@tabler/icons-react"
 
 import type { Pagination, SharedProps } from "@/types"
@@ -7,11 +7,13 @@ import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { StatCards } from "@/pages/dashboard/components/stat-cards"
 import { StatCardsSkeleton } from "@/pages/dashboard/components/stat-cards-skeleton"
 import { IncidentsTable } from "@/pages/dashboard/components/incidents-table"
-import type { DashboardStat, DashboardFilters } from "@/pages/dashboard/types"
+import { OnboardingDialog } from "@/pages/dashboard/components/onboarding-dialog"
+import type { DashboardStat, DashboardFilters, DashboardOnboarding } from "@/pages/dashboard/types"
 import type { IncidentListItem, SeverityOption } from "@/types/serializers"
 import { Button } from "@/components/ui/button"
 import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
 import { useCan } from "@/lib/permissions"
+import { dismissOnboardingDialogPath } from "@/lib/routes"
 
 interface DashboardPageProps extends SharedProps {
   stats?: DashboardStat[]
@@ -19,11 +21,13 @@ interface DashboardPageProps extends SharedProps {
   pagination: Pagination
   filters: DashboardFilters
   severityOptions: SeverityOption[]
+  onboarding: DashboardOnboarding
 }
 
 export default function Dashboard() {
-  const { stats, incidents, pagination, filters, severityOptions } = usePage<DashboardPageProps>().props
+  const { stats, incidents, pagination, filters, severityOptions, onboarding } = usePage<DashboardPageProps>().props
   const [declaring, setDeclaring] = useState(false)
+  const [onboardingOpen, setOnboardingOpen] = useState(onboarding.dialogPending)
   const canDeclare = useCan("incidents")
 
   function openDeclare() {
@@ -32,6 +36,17 @@ export default function Dashboard() {
 
   function closeDeclare() {
     setDeclaring(false)
+  }
+
+  // Closed for good on every device, so the row is told rather than the browser.
+  function dismissOnboarding() {
+    setOnboardingOpen(false)
+    router.patch(dismissOnboardingDialogPath(), {}, { preserveScroll: true, preserveState: true })
+  }
+
+  function declareFromOnboarding() {
+    dismissOnboarding()
+    setDeclaring(true)
   }
 
   return (
@@ -56,6 +71,14 @@ export default function Dashboard() {
           severityOptions={severityOptions}
         />
       </div>
+
+      <OnboardingDialog
+        open={onboardingOpen}
+        steps={onboarding.steps}
+        incidentsChannelUrl={onboarding.incidentsChannelUrl}
+        onDeclare={declareFromOnboarding}
+        onDismiss={dismissOnboarding}
+      />
 
       <LifecycleFormDialog
         incidentId={null}
