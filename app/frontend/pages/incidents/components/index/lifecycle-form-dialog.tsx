@@ -171,7 +171,7 @@ const TITLES: Record<LifecycleForm, { title: string; description: string; confir
   },
 }
 
-const TEST_DESCRIPTION = "A test incident works like a real one and stays out of your numbers."
+const TEST_DESCRIPTION = "A test incident works like a real one and is not counted in your metrics."
 
 export function LifecycleFormDialog({
   incidentId,

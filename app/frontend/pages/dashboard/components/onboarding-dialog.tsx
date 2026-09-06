@@ -28,7 +28,7 @@ export function OnboardingDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Three steps to see how Firefight works</DialogTitle>
-          <DialogDescription>Takes about three minutes with a test incident that stays out of your numbers.</DialogDescription>
+          <DialogDescription>Takes about three minutes. The test incident is not counted in your metrics.</DialogDescription>
         </DialogHeader>
 
         <ol className="flex flex-col gap-2.5 py-1 pl-5 text-sm leading-relaxed text-foreground/85 list-decimal marker:text-muted-foreground">

@@ -23,7 +23,7 @@ class IncidentCreationService
     purpose = "Incident response channel for #{incident.identifier}"
     if incident.is_test?
       topic = "Test incident | #{topic}"
-      purpose = "Test incident channel for #{incident.identifier}. It stays out of your numbers."
+      purpose = "Test incident channel for #{incident.identifier}. Not counted in your metrics."
     end
     adapter.set_channel_metadata(channel_id: incident.channel_id, topic: topic, purpose: purpose)
   end

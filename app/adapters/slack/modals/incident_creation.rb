@@ -11,7 +11,7 @@ module Slack
         IncidentSystemField::KEY_VISIBILITY
       ].freeze
 
-      TEST_NOTE = ":test_tube: Test incident. It works like a real one and stays out of your numbers.".freeze
+      TEST_NOTE = ":test_tube: Test incident. It works like a real one and is not counted in your metrics.".freeze
 
       def self.build(workspace:, state: {}, private_metadata: nil, test: false)
         selected = selections(workspace, state)

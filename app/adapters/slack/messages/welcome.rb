@@ -54,7 +54,7 @@ module Slack
 
       def self.body(progress)
         done = [ progress.declared, progress.lead_set, progress.resolved ]
-        lines = [ "Three steps to see how it works. Takes about three minutes with a test incident that stays out of your numbers.", "" ]
+        lines = [ "Three steps to see how it works. Takes about three minutes. The test incident is not counted in your metrics.", "" ]
         WorkspaceOnboarding::STEPS.each_with_index do |step, index|
           lines << "#{mark(done[index])} *#{index + 1}. #{step[:title]}* #{step[:detail]}"
         end

@@ -38,7 +38,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
         {row.original.isTest && (
           <span
             className="inline-flex items-center rounded-full border border-dashed border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
-            title="A test incident. It stays out of your numbers."
+            title="Test incident. Not counted in your metrics."
           >
             Test
           </span>

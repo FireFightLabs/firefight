@@ -167,7 +167,7 @@ export function IncidentHeader({
           {incident.isTest && (
             <span
               className="inline-flex items-center rounded-full border border-dashed border-border bg-transparent px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
-              title="A test incident. It stays out of your numbers."
+              title="Test incident. Not counted in your metrics."
             >
               Test
             </span>

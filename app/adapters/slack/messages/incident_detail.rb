@@ -8,7 +8,7 @@ module Slack
     # The channel line is the one real difference. The announcement points at
     # the incident channel. The pinned message is already in it.
     module IncidentDetail
-      TEST_NOTE = ":test_tube: Test incident. It stays out of your numbers.".freeze
+      TEST_NOTE = ":test_tube: Test incident. Not counted in your metrics.".freeze
 
       def self.blocks(title:, summary:, severity_name:, status_name:, reporter_id:,
                       lead_id: nil, channel_id: nil, relationship_text: nil, custom_fields_text: nil, test: false)
