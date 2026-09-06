@@ -69,8 +69,8 @@ class ApplicationController < ActionController::Base
     Current.principal = current_membership
   end
 
-  # A signed-in user whose every workspace is gone has nowhere to be. The
-  # session is dropped so the next sign-in starts clean.
+  # Every workspace this user belonged to is gone. Reset the session and
+  # send them to sign in.
   def redirect_without_workspace
     reset_session
     redirect_to login_path, alert: "Your workspace is no longer on Firefight. Sign in again to install it."

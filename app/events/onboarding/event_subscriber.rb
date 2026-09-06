@@ -1,6 +1,5 @@
-# Keeps the welcome checklist in #incidents in step with the first incident.
-# Only the events that can move a step, and only for the incident the
-# onboarding tracks, turn into work.
+# Enqueues a checklist and coaching refresh when a progress event hits the
+# first test incident.
 class Onboarding::EventSubscriber
   def self.handle(event)
     return unless WorkspaceOnboarding::PROGRESS_EVENTS.include?(event.event_type)

@@ -5,7 +5,7 @@ module Auth
     # Step 1, OIDC sign-in (identity only). Decides where to send the user
     # next via AuthOutcome: signed_in (existing or newly-provisioned member) or
     # install_needed (no workspace for this team yet, sends them to the install
-    # step, behind the invite code step when the gate is on).
+    # step, or the invite code step first when the gate is on).
     def slack_openid
       outcome = SlackAuthenticationService.new.handle_openid_signin(auth_hash)
       apply_outcome(outcome)

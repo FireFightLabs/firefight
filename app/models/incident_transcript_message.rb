@@ -16,8 +16,7 @@ class IncidentTranscriptMessage < ApplicationRecord
 
   scope :kept, -> { where(deleted_at: nil) }
 
-  # The first message in the first test incident's channel is a coaching step
-  # earned, whichever platform it came from.
+  # The first message on the first test incident advances the coaching.
   after_create_commit :nudge_onboarding, if: -> { incident.first_test_in_workspace? }
 
   # Matches the page sort exactly. Comparing posted_at alone would skip whatever

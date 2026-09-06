@@ -28,7 +28,7 @@ class PostmortemSerializer < BaseSerializer
     postmortem.generation_error
   end
 
-  # Polymorphic: a member, an agent or an API key, each naming itself.
+  # generated_by is polymorphic: a member, an agent or an API key.
   type :string
   def generated_by
     postmortem.generated_by.actor_display_name

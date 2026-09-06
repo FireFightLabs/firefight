@@ -130,12 +130,10 @@ class IncidentEvent < ApplicationRecord
   attr_accessor :references
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate PostmortemUpdate], optional: true
   has_one_attached :artifact
-  # Active Storage purges a blob after the commit that removed its attachment,
-  # and by then the event row is gone, so the hook finds no owner and raises.
-  # Detaching without callbacks and purging the blob directly keeps a
-  # workspace destroy from failing after its own commit and keeps the blob
-  # from leaking. Prepended so it runs before the attachment's own dependent
-  # destroy, which has_one_attached registered a line earlier.
+  # Active Storage purges the blob in an after-commit hook that needs the
+  # owner row, which is gone by then. Detach without callbacks and purge the
+  # blob here instead. Prepended so it runs before the attachment's own
+  # dependent destroy.
   before_destroy :purge_artifact, prepend: true
   has_many :webhook_deliveries, dependent: :delete_all
 

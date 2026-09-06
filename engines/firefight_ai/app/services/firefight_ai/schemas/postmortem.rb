@@ -1,12 +1,8 @@
 module FirefightAi
   module Schemas
     class Postmortem < ::RubyLLM::Schema
-      # The sections asked of the model, in reading order. The app renders
-      # them under its own headings, adds the timeline itself, and fills in a
-      # placeholder for any section returned as null. Every section is
-      # nullable rather than optional because strict structured output wants
-      # every key present, and null is how the model says the record has
-      # nothing for it instead of inventing something.
+      # Every section is nullable, not optional. Strict structured output
+      # requires every key present. Null means the record had nothing for it.
       SECTION_KEYS = %w[
         summary introduction deeper_dive impact resolution
         contributing_factors what_went_well action_items

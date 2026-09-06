@@ -1,7 +1,6 @@
 module Interactions
-  # The welcome message's first step. A button click carries a trigger id
-  # just like the slash command does, so it opens the same modal, marked as
-  # a test incident so the first run is not counted in the metrics.
+  # Opens the declare modal from the welcome message, marked as a test
+  # incident.
   class DeclareIncidentButtonHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS

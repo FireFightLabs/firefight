@@ -21,8 +21,7 @@ module ModalState
 
   EMPTY = Result.new.freeze
 
-  # `test` marks a declare dialog that creates a test incident. Encoded only
-  # when true, so every other modal's state is unchanged.
+  # test marks a declare dialog for a test incident. Encoded only when true.
   def self.encode(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil,
                   source_message_text: nil, source_message_link: nil, test: false)
     {

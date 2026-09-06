@@ -1,8 +1,6 @@
 module Slack
   module Messages
-    # The coach in the channel of a workspace's first test incident. One step
-    # at a time, each posted as the previous one is done, so the responder is
-    # never asked to scroll up and work through a list.
+    # Coaching messages for the first test incident, one step per message.
     module FirstIncidentWalkthrough
       COMMANDS_DOCS_URL = "https://firefight.app/docs/incidents/slack-commands/".freeze
       MCP_DOCS_URL = "https://firefight.app/docs/api/mcp-server/".freeze
@@ -43,10 +41,8 @@ module Slack
         }
       }.freeze
 
-      # A step that asks for a click carries the button, so the responder
-      # never has to scroll back to the pinned message to find it. Step 4 is
-      # the exception. It always lands right under the resolution message,
-      # which already has the button.
+      # Steps 1 and 3 carry their button. Step 4 does not, the resolution
+      # message directly above it already has one.
       def self.build(incident, step:)
         copy = STEPS.fetch(step)
         blocks = [

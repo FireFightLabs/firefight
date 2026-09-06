@@ -7,7 +7,7 @@ class Webhooks::DispatchJob < ApplicationJob
   def perform(event_hash)
     event = DomainEvent.from_h(event_hash)
     incident = event.incident
-    # A test incident must never reach the systems a webhook is wired to.
+    # Test incidents never reach webhooks.
     return if incident.is_test?
 
     workspace = incident.workspace

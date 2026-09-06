@@ -185,7 +185,7 @@ export function LifecycleFormDialog({
   form: LifecycleForm
   open: boolean
   onOpenChange: (open: boolean) => void
-  // Declares a test incident. Only meaningful on the declare form.
+  // Declares a test incident. Declare form only.
   test?: boolean
 }) {
   const { fields, answers, setAnswers, resolve } = useResolvedForm(incidentId, form, open)

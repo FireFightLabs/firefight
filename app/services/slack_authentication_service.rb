@@ -8,14 +8,12 @@ class SlackAuthenticationService
   # OIDC sign-in (identity only). Two outcomes (plus the install-gated third):
   #   - signed_in:      workspace exists. Return or create the membership.
   #   - install_needed: no workspace for this team yet, hand off to the
-  #                     onboarding install step (or the invite-code step first,
-  #                     when the gate is on) before the install callback.
+  #                     install step, or the invite code step first when the
+  #                     gate is on.
   #
-  # Invite gating is scoped to new workspace installs and only applies when
-  # InviteCode.required? is true. Once a workspace is on Firefight, any Slack
-  # member of that team can auto-provision. Slack is the source of truth for
-  # who belongs. The platform-level invite exists only to gate workspaces, not
-  # individuals.
+  # Invite gating applies only to new workspace installs and only when
+  # InviteCode.required? is true. Members of an existing workspace always
+  # auto-provision.
   def handle_openid_signin(auth_hash)
     team_id   = auth_hash.info.team_id
     team_name = auth_hash.info.team_name

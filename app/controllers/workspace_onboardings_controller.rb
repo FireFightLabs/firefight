@@ -1,5 +1,5 @@
-# The installer closing the first-run dialog. Stored on the onboarding row so
-# it stays closed on every device, and a no-op for anyone it was not shown to.
+# Dismisses the first-run dialog. Stored on the onboarding row so it stays
+# closed on every device. No-op for anyone but the installer.
 class WorkspaceOnboardingsController < InertiaController
   def dismiss_dialog
     onboarding = current_workspace.onboarding

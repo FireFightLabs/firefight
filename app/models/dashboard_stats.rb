@@ -1,5 +1,4 @@
-# Test incidents are left out of every figure here. They look like real ones
-# everywhere else, which is the point of them.
+# Test incidents are excluded from every figure.
 class DashboardStats
   def initialize(workspace)
     @workspace = workspace

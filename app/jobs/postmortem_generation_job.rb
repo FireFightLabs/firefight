@@ -33,8 +33,7 @@ class PostmortemGenerationJob < ApplicationJob
   rescue FirefightAi::TransientError, FirefightAi::TerminalError, ActiveRecord::RecordNotFound
     raise
   rescue StandardError => error
-    # Anything else, a save that failed or the channel refusing the
-    # announcement, must not leave the placeholder saying it is still writing.
+    # Any other error must not leave the placeholder in generating.
     record_failure(error)
     notify_failure(error, terminal: true)
     raise

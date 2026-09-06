@@ -1,6 +1,5 @@
 module Interactions
-  # The button on the resolution message. Same guards and the same placeholder
-  # as /ff postmortem, so a click and a command are one path with two doors.
+  # Same path as /ff postmortem.
   class WritePostmortemHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE

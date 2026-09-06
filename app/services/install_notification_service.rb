@@ -1,7 +1,6 @@
-# Tells whoever runs this Firefight that a workspace just installed. One JSON
-# POST to a webhook URL, shaped so a Slack incoming webhook renders it as a
-# message and any other listener gets the same fields. Nothing here reaches
-# the installer, so a failure is logged and never surfaced.
+# POSTs a JSON note about a new install to a webhook URL. A Slack incoming
+# webhook renders the text field. Failures are logged, never shown to the
+# installer.
 class InstallNotificationService
   class DeliveryFailed < StandardError; end
 

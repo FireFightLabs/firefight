@@ -287,21 +287,21 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The onboarding checklist pinned to the announcements channel on install.
+  # Posts the onboarding checklist to the announcements channel.
   # @param stage [Integer] a WorkspaceOnboarding::STAGE_* value
   # @return [Hash] { message_id:, channel_id: }
   def post_welcome_message(channel_id:, stage:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Redraws that checklist in place as the first incident moves.
+  # Redraws the onboarding checklist for the given stage.
   # @param stage [Integer] a WorkspaceOnboarding::STAGE_* value
   # @return [Hash] { success: true }
   def update_welcome_message(channel_id:, message_id:, stage:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # One step of the coach in a workspace's first test incident channel.
+  # Posts one coaching step in the first test incident's channel.
   # @param step [Integer] STAGE_DECLARED to STAGE_DONE
   # @return [Hash] { message_id:, channel_id: }
   def post_first_incident_walkthrough(channel_id:, incident:, step:)

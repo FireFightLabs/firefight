@@ -1,5 +1,4 @@
-# Fire and forget. A webhook that is down gets one more try, then the failure
-# is logged and dropped. The install itself never waits on this.
+# One retry, then log and drop. The install never waits on this.
 class InstallNotificationJob < ApplicationJob
   queue_as :default
 

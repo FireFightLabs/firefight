@@ -1,14 +1,10 @@
-# Saves the engine's draft as the incident's postmortem and announces it, and
-# starts a generation for every entry point, so the placeholder and the job
-# are created the same way whether the ask came from a button, a command, the
-# dashboard, the API or an agent.
+# Starts, saves and announces postmortem generation for every entry point.
 class PostmortemGenerationService
   UNAVAILABLE_MESSAGE = "AI features are not available.".freeze
   UNKNOWN_MEMBER_MESSAGE = "Could not identify your workspace membership.".freeze
 
-  # What a person is told after asking. started is false when nothing was
-  # enqueued and the message says why, true when a generation is running,
-  # whether this ask started it or found it already under way.
+  # started is true when a generation is running, whether this call started
+  # it or not. message is what to tell the person.
   Outcome = Struct.new(:started, :message, keyword_init: true)
 
   def self.started_message(incident)
@@ -19,8 +15,7 @@ class PostmortemGenerationService
     @workspace = workspace
   end
 
-  # The guards every Slack door runs before starting, in one place, so a
-  # button, a command and the home menu cannot drift on what they refuse.
+  # The guards every Slack entry point runs before starting.
   def request!(incident, by:)
     return Outcome.new(started: false, message: UNAVAILABLE_MESSAGE) unless defined?(FirefightAi)
 
@@ -36,8 +31,8 @@ class PostmortemGenerationService
     Outcome.new(started: true, message: self.class.started_message(incident))
   end
 
-  # Returns the placeholder when this call is the one that enqueued the job,
-  # nil when a generation was already running.
+  # Returns the placeholder when this call enqueued the job, nil when one
+  # was already running.
   def start!(incident, by:)
     postmortem = Postmortem.start_generation!(incident, by: by)
     PostmortemGenerationJob.perform_later(incident.id) if postmortem

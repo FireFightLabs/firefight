@@ -22,9 +22,8 @@ module Slack
         blocks
       end
 
-      # The write-up is offered on every resolution, and the line under the
-      # button says what it will be drafted from, so an empty channel is not
-      # a surprise when the draft comes back with gaps.
+      # Offered on every resolution. The context line names what the draft
+      # is built from.
       def self.postmortem_offer(incident)
         [
           {

@@ -26,7 +26,7 @@ export function OnboardingDialog({
 }) {
   const declareRef = useRef<HTMLButtonElement>(null)
 
-  // The first thing to click is the first thing focused, not the close cross.
+  // Focus the primary button, not the close cross.
   function focusDeclare(event: Event) {
     event.preventDefault()
     declareRef.current?.focus()

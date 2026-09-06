@@ -40,14 +40,13 @@ export default function Dashboard() {
     setDeclaring(false)
   }
 
-  // Closed for good on every device, so the row is told rather than the browser.
+  // Dismissal is stored server side so it holds on every device.
   function dismissOnboarding() {
     setOnboardingOpen(false)
     router.patch(dismissOnboardingDialogPath(), {}, { preserveScroll: true, preserveState: true })
   }
 
-  // The onboarding incident is a test incident, so the first run stays out
-  // of the numbers without the installer having to choose anything.
+  // The onboarding incident is always a test incident.
   function declareFromOnboarding() {
     dismissOnboarding()
     setDeclaringTest(true)

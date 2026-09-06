@@ -1,17 +1,15 @@
 module Slack
   module Messages
-    # The message pinned to the top of #incidents on install. It is the
-    # onboarding, three steps ticked off in place as the first incident moves
-    # through them. Rebuilt from the onboarding stage each time, so the
-    # message never says more than the incident record does.
+    # The onboarding checklist posted in #incidents. Rebuilt from the
+    # onboarding stage on every update.
     module Welcome
       FALLBACK_TEXT = "Welcome to Firefight. Three steps to see how it works.".freeze
 
       DONE = ":white_check_mark:".freeze
       PENDING = ":white_circle:".freeze
 
-      # The checklist's three steps map onto the stages declared, led and
-      # resolved. Posting messages is coached in the channel, not ticked here.
+      # The checklist ticks declared, led and resolved. Posting messages is
+      # coached in the channel, not ticked here.
       STEP_STAGES = [
         WorkspaceOnboarding::STAGE_DECLARED,
         WorkspaceOnboarding::STAGE_LED,

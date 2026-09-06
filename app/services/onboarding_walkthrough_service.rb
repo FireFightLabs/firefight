@@ -1,17 +1,13 @@
-# The coach in the first test incident's channel. Posts the one step the
-# incident has just earned and remembers it on the onboarding row, so every
-# entry point (creation, lead, messages, resolve, postmortem) can call this
-# and the channel never gets a step twice or a step it has already passed.
+# Posts the next coaching step in the first test incident's channel and
+# records it on the onboarding row.
 class OnboardingWalkthroughService
   def initialize(workspace)
     @workspace = workspace
   end
 
-  # Two callers can arrive together (the close workflow and the resolve
-  # event, for one), so the row is read fresh and the step is claimed with a
-  # conditional update before anything is posted, and released if the post
-  # fails. A canceled incident ends the coaching, there is no postmortem to
-  # talk about.
+  # Callers can overlap (close workflow and resolve event), so the step is
+  # claimed with a conditional update before posting and released if the
+  # post fails. A canceled incident gets no more steps.
   def advance!(incident)
     onboarding = WorkspaceOnboarding.find_by(workspace: @workspace)
     return { skipped: true } unless onboarding&.tracks?(incident) && incident.channel_id.present? && !incident.canceled?

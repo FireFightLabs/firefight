@@ -1,7 +1,5 @@
-# One row per workspace holding everything about its first run: the message
-# in #incidents that tracks progress, whether the installer has seen the
-# dashboard dialog, and when the loop was completed. Its own table so the
-# workspace row stays about the workspace.
+# One row per workspace: welcome message id, dialog dismissal, completion.
+# Kept off the workspace row.
 class CreateWorkspaceOnboardings < ActiveRecord::Migration[8.1]
   def change
     create_table :workspace_onboardings, id: :uuid do |t|

@@ -68,8 +68,6 @@ module Slack
           value: incident.id
         }
 
-        # The way out once it is fixed, so the whole loop is clicks and never
-        # a typed command.
         result << {
           type: "button",
           text: { type: "plain_text", text: ":white_check_mark: Resolve", emoji: true },

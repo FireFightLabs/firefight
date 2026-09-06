@@ -1,6 +1,5 @@
 module Interactions
-  # The Resolve button on the quick actions. Opens the same close dialog as
-  # /ff resolve, so a workspace's required closing fields are still asked.
+  # Opens the same close dialog as /ff resolve.
   class ResolveIncidentButtonHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS

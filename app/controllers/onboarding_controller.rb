@@ -1,8 +1,7 @@
 # Interstitial pages between OIDC sign-in and dashboard:
-#   - invite_code: new workspace installer needs to claim an invite before
-#                  install. Only reachable while InviteCode.required? is true,
-#                  otherwise it sends them straight to install.
-#   - install:     ready to add Firefight to Slack
+#   - invite_code: claim an invite before install. Redirects to install
+#                  unless InviteCode.required?
+#   - install:     add Firefight to Slack
 #   - reinstall:   an admin of a disconnected workspace reconnecting it
 #   - welcome:     first-install confirmation (letter from founder)
 class OnboardingController < InertiaController

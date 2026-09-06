@@ -18,10 +18,8 @@ class Postmortem < ApplicationRecord
   GENERATION_FAILED = "failed"
   GENERATION_STATES = [ GENERATION_GENERATING, GENERATION_FAILED ].freeze
 
-  # The document's sections, in reading order. Every heading is rendered on
-  # every generated document. The timeline is built from the incident record,
-  # the rest is asked of the model, and a section the model had nothing for
-  # is left for a person with the placeholder below.
+  # Every heading is always rendered. The timeline comes from the incident
+  # record, the rest from the model. An empty section gets the placeholder.
   TIMELINE_SECTION = "timeline".freeze
 
   SECTION_KEYS = %w[
@@ -67,8 +65,7 @@ class Postmortem < ApplicationRecord
   # serializes two callers creating the placeholder at once, and the guarded
   # update serializes two callers retrying a failed one.
   # An empty document a person writes by hand, recorded like a generated one.
-  # A failed generation's placeholder becomes the blank document rather than
-  # standing in its way.
+  # A failed placeholder is reused instead of blocking a blank document.
   def self.start_blank!(incident, by:)
     attrs = {
       status: STATUS_DRAFT, generation_state: nil, generation_error: nil,

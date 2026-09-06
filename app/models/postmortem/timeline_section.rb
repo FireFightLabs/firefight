@@ -1,5 +1,4 @@
-# The one section that is never empty. Built from the incident's own events
-# rather than asked of the model, so every line is something that happened.
+# Built from incident events, never from the model, so it is never empty.
 module Postmortem::TimelineSection
   MAX_EVENTS = 200
 
