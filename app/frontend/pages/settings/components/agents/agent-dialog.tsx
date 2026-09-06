@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { whenClosed } from "@/lib/handlers"
 import { gatewayAgentPath, gatewayAgentsPath } from "@/lib/routes"
 import type { Agent } from "@/types/serializers"
 
@@ -52,6 +51,14 @@ export function AgentDialog({
     }
   }
 
+  function changeOpen(next: boolean) {
+    if (next) {
+      setOpen(true)
+    } else {
+      close()
+    }
+  }
+
   function changeName(event: React.ChangeEvent<HTMLInputElement>) {
     const name = event.target.value
     setData(editing ? { ...data, name } : { ...data, name, slug: slugify(name) })
@@ -77,7 +84,7 @@ export function AgentDialog({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={whenClosed(close)}>
+    <Dialog open={isOpen} onOpenChange={changeOpen}>
       {!editing && (
         <DialogTrigger asChild>
           <Button size="sm" className="gap-1.5">
