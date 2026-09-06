@@ -38,4 +38,15 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal false, inertia_props.dig("onboarding", "dialogPending")
   end
+
+  test "a signed-in user with no workspace left is sent back to sign in" do
+    ApplicationController.any_instance.stubs(:current_user).returns(users(:alice))
+    ApplicationController.any_instance.stubs(:current_workspace).returns(nil)
+    ApplicationController.any_instance.stubs(:user_signed_in?).returns(true)
+
+    get dashboard_path
+
+    assert_redirected_to login_path
+    assert_equal "Your workspace is no longer on Firefight. Sign in again to install it.", flash[:alert]
+  end
 end
