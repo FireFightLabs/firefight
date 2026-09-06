@@ -31,11 +31,13 @@ class Slack::Messages::FirstIncidentWalkthroughTest < ActiveSupport::TestCase
     assert_match "`/ff lead`", bodies[1]
     assert_match "`/ff resolve`", bodies[3]
     assert_match "`/ff postmortem`", bodies[4]
-    assert_equal Identifiers::WRITE_POSTMORTEM, buttons[4][:action_id]
+    assert_nil buttons[4]
+    assert_match "just above", bodies[4]
     assert_nil buttons[5]
     assert_match "share <#C_INCIDENTS>", bodies[5]
     assert_match "<#{Slack::Messages::FirstIncidentWalkthrough::COMMANDS_DOCS_URL}|command reference>", bodies[5]
-    assert_no_match(/above|write-up/i, bodies.values.join)
+    assert_no_match(/above/i, bodies.values_at(1, 2, 3, 5).join)
+    assert_no_match(/write-up/i, bodies.values.join)
   end
 
   test "names the channel plainly when the workspace has none stored" do

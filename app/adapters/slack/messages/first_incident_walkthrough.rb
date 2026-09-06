@@ -32,9 +32,8 @@ module Slack
         },
         4 => {
           title: ":white_check_mark:  *Resolved. Step 4 of 4*",
-          body: "Write the postmortem. Click the button or run `/ff postmortem`. Firefight drafts it from the timeline and your messages.",
-          fallback: "Step 4 of 4: write the postmortem.",
-          button: { text: ":clipboard: Write the postmortem", action_id: Identifiers::WRITE_POSTMORTEM }
+          body: "Click *Write the postmortem* in the message just above, or run `/ff postmortem`. Firefight drafts it from the timeline and your messages.",
+          fallback: "Step 4 of 4: write the postmortem."
         },
         5 => {
           title: ":tada:  *That is the whole loop*",
@@ -43,8 +42,10 @@ module Slack
         }
       }.freeze
 
-      # The step that asks for a click carries the button, so the responder
-      # never has to scroll back to the pinned message to find it.
+      # A step that asks for a click carries the button, so the responder
+      # never has to scroll back to the pinned message to find it. Step 4 is
+      # the exception: it always lands right under the resolution message,
+      # which already has the button.
       def self.build(incident, step:)
         copy = STEPS.fetch(step)
         blocks = [
