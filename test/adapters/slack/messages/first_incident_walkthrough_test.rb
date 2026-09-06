@@ -36,6 +36,7 @@ class Slack::Messages::FirstIncidentWalkthroughTest < ActiveSupport::TestCase
     assert_nil buttons[5]
     assert_match "share <#C_INCIDENTS>", bodies[5]
     assert_match "<#{Slack::Messages::FirstIncidentWalkthrough::COMMANDS_DOCS_URL}|command reference>", bodies[5]
+    assert_match "<#{Slack::Messages::FirstIncidentWalkthrough::MCP_DOCS_URL}|Connect one>", bodies[5]
     assert_no_match(/above/i, bodies.values_at(1, 2, 3, 5).join)
     assert_no_match(/write-up/i, bodies.values.join)
   end

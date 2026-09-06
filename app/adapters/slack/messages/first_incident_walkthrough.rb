@@ -5,6 +5,7 @@ module Slack
     # never asked to scroll up and work through a list.
     module FirstIncidentWalkthrough
       COMMANDS_DOCS_URL = "https://firefight.app/docs/incidents/slack-commands/".freeze
+      MCP_DOCS_URL = "https://firefight.app/docs/api/mcp-server/".freeze
 
       SCRIPT = [
         "Customers are seeing 502s on checkout since 14:05.",
@@ -37,8 +38,8 @@ module Slack
         },
         5 => {
           title: ":tada:  *That is the whole loop*",
-          body: "Your postmortem is pinned here and open in the dashboard. Next, share %{channel} with your team from the welcome message there, so they can declare incidents too. Every command is in the <#{COMMANDS_DOCS_URL}|command reference>.",
-          fallback: "That is the whole loop. Share #incidents with your team next, and see the command reference at #{COMMANDS_DOCS_URL}"
+          body: "Your postmortem is pinned here and open in the dashboard. Next, share %{channel} with your team from the welcome message there, so they can declare incidents too. Every command is in the <#{COMMANDS_DOCS_URL}|command reference>. Your AI agents can work incidents as well, over MCP. <#{MCP_DOCS_URL}|Connect one>.",
+          fallback: "That is the whole loop. Share #incidents with your team next. Command reference: #{COMMANDS_DOCS_URL} Connect an AI agent: #{MCP_DOCS_URL}"
         }
       }.freeze
 
