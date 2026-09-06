@@ -4,6 +4,8 @@ module Slack
     # at a time, each posted as the previous one is done, so the responder is
     # never asked to scroll up and work through a list.
     module FirstIncidentWalkthrough
+      COMMANDS_DOCS_URL = "https://firefight.app/docs/incidents/slack-commands/".freeze
+
       SCRIPT = [
         "Customers are seeing 502s on checkout since 14:05.",
         "Rolled back the 14:00 deploy of payments-api.",
@@ -36,8 +38,8 @@ module Slack
         },
         5 => {
           title: ":tada:  *That is the whole loop*",
-          body: "Your postmortem is pinned here and open in the dashboard. Next, share %{channel} with your team from the welcome message there, so they can declare incidents too.",
-          fallback: "That is the whole loop. Share #incidents with your team next."
+          body: "Your postmortem is pinned here and open in the dashboard. Next, share %{channel} with your team from the welcome message there, so they can declare incidents too. Every command is in the <#{COMMANDS_DOCS_URL}|command reference>.",
+          fallback: "That is the whole loop. Share #incidents with your team next, and see the command reference at #{COMMANDS_DOCS_URL}"
         }
       }.freeze
 

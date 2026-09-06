@@ -31,6 +31,7 @@ class Slack::Messages::FirstIncidentWalkthroughTest < ActiveSupport::TestCase
     assert_equal Identifiers::WRITE_POSTMORTEM, buttons[4][:action_id]
     assert_nil buttons[5]
     assert_match "share <#C_INCIDENTS>", bodies[5]
+    assert_match "<#{Slack::Messages::FirstIncidentWalkthrough::COMMANDS_DOCS_URL}|command reference>", bodies[5]
     assert_no_match(/above|write-up/i, bodies.values.join)
   end
 
