@@ -7,18 +7,30 @@ class OnboardingWalkthroughService
     @workspace = workspace
   end
 
+  # Two callers can arrive together (the close workflow and the resolve
+  # event, for one), so the row is read fresh and the step is claimed with a
+  # conditional update before anything is posted, and released if the post
+  # fails.
   def advance!(incident)
-    onboarding = @workspace.onboarding
+    onboarding = WorkspaceOnboarding.find_by(workspace: @workspace)
     return { skipped: true } unless onboarding&.tracks?(incident) && incident.channel_id.present?
 
+    seen = onboarding.walkthrough_step
     target = onboarding.walkthrough_target(incident)
-    return { skipped: true } if target <= onboarding.walkthrough_step.to_i
+    return { skipped: true } if target <= seen.to_i
+    return { skipped: true } unless claim(onboarding, from: seen, to: target)
 
     result = @workspace.adapter.post_first_incident_walkthrough(channel_id: incident.channel_id, incident: incident, step: target)
-    onboarding.update!(walkthrough_step: target)
     { step: target, message_ts: result[:message_id] }
   rescue AdapterError => e
+    claim(onboarding, from: target, to: seen)
     Rails.logger.warn({ event: "onboarding_walkthrough.post_failed", incident_id: incident.id, step: target, error: e.message })
     { skipped: true }
+  end
+
+  private
+
+  def claim(onboarding, from:, to:)
+    WorkspaceOnboarding.where(id: onboarding.id, walkthrough_step: from).update_all(walkthrough_step: to, updated_at: Time.current) > 0
   end
 end

@@ -59,6 +59,15 @@ class OnboardingWalkthroughServiceTest < ActiveSupport::TestCase
     assert_equal({ skipped: true }, @service.advance!(second))
   end
 
+  test "two callers arriving together post the step once" do
+    WorkspaceOnboarding.where(id: @onboarding.id).update_all(walkthrough_step: 1)
+    WorkspaceOnboarding.any_instance.stubs(:walkthrough_step).returns(nil)
+    Slack::WorkspaceAdapter.any_instance.expects(:post_first_incident_walkthrough).never
+
+    assert_equal({ skipped: true }, @service.advance!(@incident))
+    assert_equal 1, WorkspaceOnboarding.find(@onboarding.id).read_attribute_before_type_cast(:walkthrough_step)
+  end
+
   test "a channel that refuses the post is logged and the step is not marked done" do
     Slack::WorkspaceAdapter.any_instance.stubs(:post_first_incident_walkthrough).raises(AdapterError::NotFound.new("channel_not_found"))
 
