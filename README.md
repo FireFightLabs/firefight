@@ -8,7 +8,7 @@
 
 <h4 align="center">
   <a href="https://firefight.app">Website</a> ·
-  <a href="https://firefight.app/docs/">Docs</a> ·
+  <a href="https://firefight.app/docs">Docs</a> ·
   <a href="SELF_HOSTING.md">Self-hosting</a> ·
   <a href="#local-development">Local development</a> ·
   <a href="https://github.com/FireFightLabs/firefight/releases">Releases</a> ·
@@ -101,15 +101,15 @@ It is AGPL-3.0, so you can read every line and run it yourself
 
 ## Documentation
 
-Full documentation is at **[firefight.app/docs](https://firefight.app/docs/)**
+Full documentation is at **[firefight.app/docs](https://firefight.app/docs)**
 
 | | |
 |---|---|
-| [Your first incident](https://firefight.app/docs/getting-started/your-first-incident/) | Start here |
-| [Slack command reference](https://firefight.app/docs/incidents/slack-commands/) | Every `/ff` command |
-| [MCP server](https://firefight.app/docs/api/mcp-server/) | Connecting an agent, and every tool it gets |
-| [REST API](https://firefight.app/docs/api/overview/) | Auth, endpoints, and the OpenAPI document |
-| [The gateway](https://firefight.app/docs/gateway/overview/) | Permissions, approvals, and the activity log |
+| [Your first incident](https://firefight.app/docs/getting-started/your-first-incident) | Start here |
+| [Slack command reference](https://firefight.app/docs/incidents/slack-commands) | Every `/ff` command |
+| [MCP server](https://firefight.app/docs/api/mcp-server) | Connecting an agent, and every tool it gets |
+| [REST API](https://firefight.app/docs/api/overview) | Auth, endpoints, and the OpenAPI document |
+| [The gateway](https://firefight.app/docs/gateway/overview) | Permissions, approvals, and the activity log |
 
 Engineering references for people working on Firefight itself live in [`docs/`](docs/)
 

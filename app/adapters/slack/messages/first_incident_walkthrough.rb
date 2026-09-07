@@ -2,8 +2,8 @@ module Slack
   module Messages
     # Coaching messages for the first test incident, one step per message.
     module FirstIncidentWalkthrough
-      COMMANDS_DOCS_URL = "https://firefight.app/docs/incidents/slack-commands/".freeze
-      MCP_DOCS_URL = "https://firefight.app/docs/api/mcp-server/".freeze
+      COMMANDS_DOCS_URL = "https://firefight.app/docs/incidents/slack-commands".freeze
+      MCP_DOCS_URL = "https://firefight.app/docs/api/mcp-server".freeze
 
       SCRIPT = [
         "Customers are seeing 502s on checkout since 14:05.",
