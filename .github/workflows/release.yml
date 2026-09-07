@@ -23,8 +23,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  tag:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
 
     steps:
       - name: Checkout main
@@ -71,58 +74,49 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # Pushing the tag is what deploys: Northflank's git trigger fires on the tag
-      # push and runs the release workflow (build the tagged commit -> migrate ->
-      # deploy prod). Branch CI is off, so commits to main don't deploy — only tags.
+      # The tag push is the deploy: Northflank builds and ships the tagged commit.
+      # Commits to main on their own deploy nothing.
       - name: Tag the release
         run: |
           git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.tag }}"
           git push origin "${{ steps.v.outputs.tag }}"
 
-      # Self-host distribution image (no cloud gem) for open-source users to pull.
-      # Only built when the repo is public — while private nobody can pull it, and
-      # the multi-arch (arm64-via-QEMU) build adds ~10min for no one. These steps
-      # skip until open-source, then run automatically.
-      - name: Set up QEMU
-        if: github.event.repository.visibility == 'public'
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        if: github.event.repository.visibility == 'public'
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        if: github.event.repository.visibility == 'public'
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
+  # Self-host image for GHCR, public repo only. Each platform builds on its own
+  # native runner in parallel, then the digests merge into one multi-arch tag.
+  image:
+    if: github.event.repository.visibility == 'public'
+    needs: tag
+    uses: docker/github-builder/.github/workflows/build.yml@v1
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      output: image
+      push: true
+      platforms: linux/amd64,linux/arm64
+      cache: true
+      cache-mode: max
+      build-args: |
+        SERVICE_VERSION=${{ needs.tag.outputs.version }}
+      set-meta-labels: true
+      meta-images: ghcr.io/${{ github.repository }}
+      meta-tags: |
+        type=raw,value=${{ needs.tag.outputs.version }}
+        type=raw,value=latest
+    secrets:
+      registry-auths: |
+        - registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract image metadata
-        id: meta
-        if: github.event.repository.visibility == 'public'
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=${{ steps.v.outputs.version }}
-            type=raw,value=latest
+  release:
+    needs: [tag, image]
+    # Draft even when the image job is skipped (private repo), never after a failed build.
+    if: always() && needs.tag.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.image.result)
+    runs-on: ubuntu-latest
 
-      - name: Build and push self-host image
-        if: github.event.repository.visibility == 'public'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            SERVICE_VERSION=${{ steps.v.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
+    steps:
       - name: Draft GitHub release with generated notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -137,11 +131,12 @@ jobs:
           ## Self-host image
 
           ```
-          docker pull ghcr.io/${{ github.repository }}:${{ steps.v.outputs.version }}
+          docker pull ghcr.io/${{ github.repository }}:${{ needs.tag.outputs.version }}
           ```
           NOTES
-          gh release create "${{ steps.v.outputs.tag }}" \
+          gh release create "${{ needs.tag.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
             --draft \
             --generate-notes \
             --notes-file /tmp/upgrade-notes.md \
-            --title "${{ steps.v.outputs.tag }}"
+            --title "${{ needs.tag.outputs.tag }}"
