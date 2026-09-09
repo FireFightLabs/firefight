@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_06_140001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_09_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -612,6 +612,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_140001) do
     t.index ["workspace_id", "slug"], name: "index_incident_statuses_on_workspace_id_and_slug", unique: true
     t.index ["workspace_id"], name: "index_incident_statuses_on_single_default_per_workspace", unique: true, where: "is_default"
     t.index ["workspace_id"], name: "index_incident_statuses_on_workspace_id"
+  end
+
+  create_table "incident_subscriptions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "incident_id", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.uuid "workspace_membership_id", null: false
+    t.index ["incident_id", "workspace_membership_id"], name: "index_incident_subscriptions_on_incident_and_member", unique: true
+    t.index ["incident_id"], name: "index_incident_subscriptions_on_incident_id"
+    t.index ["workspace_id"], name: "index_incident_subscriptions_on_workspace_id"
+    t.index ["workspace_membership_id"], name: "index_incident_subscriptions_on_workspace_membership_id"
   end
 
   create_table "incident_summaries", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1229,6 +1241,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_140001) do
   add_foreign_key "incident_severities", "workspaces"
   add_foreign_key "incident_statuses", "incident_lifecycle_stages"
   add_foreign_key "incident_statuses", "workspaces"
+  add_foreign_key "incident_subscriptions", "incidents"
+  add_foreign_key "incident_subscriptions", "workspace_memberships"
+  add_foreign_key "incident_subscriptions", "workspaces"
   add_foreign_key "incident_summaries", "incidents"
   add_foreign_key "incident_summaries", "inferences"
   add_foreign_key "incident_summaries", "workspaces"

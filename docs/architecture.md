@@ -206,6 +206,7 @@ Encapsulate business logic. Each method is independently callable (from workflow
 
 - `IncidentLifecycleService` — **shared write operations for all entry points** (create, update, close, reopen, assign lead). Both Slack handlers and API controller call this. See [IncidentLifecycleService](#incidentlifecycleservice) above.
 - `IncidentCreationService` — incident creation flow details (channel, metadata, announcements). Called by `IncidentCreationWorkflow`.
+- `IncidentUpdateService` — every message an incident's lifecycle posts. Its four announcement-thread replies (update, resolution, reopen, escalation) also reach each subscriber (`Incident::Subscriptions`) as a DM carrying the same blocks. The service passes `subscriber_user_ids`, the adapter delivers, and a DM that fails is logged and skipped so one bad recipient never silences the thread.
 - `WorkspaceSetupService` — workspace setup flow
 
 Pattern:

@@ -28,6 +28,7 @@ class InteractionDispatcher
     Identifiers::WRITE_POSTMORTEM => Interactions::WritePostmortemHandler,
     Identifiers::PREVIEW_HOMEPAGE_DISABLED => Interactions::NoopHandler,
     Identifiers::PREVIEW_SUBSCRIBE_DISABLED => Interactions::NoopHandler,
+    Identifiers::SUBSCRIBE_INCIDENT => Interactions::SubscribeIncidentHandler,
     Identifiers::HOME_ACTION_SELECT => Interactions::HomeActionSelectHandler,
     Identifiers::ACCEPT_INCIDENT => Interactions::AcceptIncidentHandler,
     Identifiers::CANCEL_INCIDENT => Interactions::CancelIncidentButtonHandler,

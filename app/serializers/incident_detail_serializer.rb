@@ -93,6 +93,10 @@ class IncidentDetailSerializer < BaseSerializer
     incident.role_roster
   end
 
+  has_many :subscribers, serializer: IncidentSubscriberSerializer do
+    incident.subscribers
+  end
+
   has_one :declared_by, serializer: ActorCompactSerializer, optional: true do
     incident.declared_by
   end

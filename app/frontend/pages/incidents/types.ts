@@ -21,6 +21,7 @@ export interface IncidentPageOwnProps {
   channelUrl?: string | null
   linkableIncidents: LinkableIncident[]
   memberChoices: { value: string; label: string }[]
+  subscribed: boolean
 }
 
 export type IncidentPageProps = SharedProps & IncidentPageOwnProps

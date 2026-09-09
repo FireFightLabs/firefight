@@ -24,6 +24,7 @@ class Incident < ApplicationRecord
   include Incident::Metrics
   include Incident::ChannelNaming
   include Incident::Serialization
+  include Incident::Subscriptions
 
   belongs_to :workspace
   # Polymorphic for the same reason IncidentEvent#actor is. An agent can
@@ -96,6 +97,7 @@ class Incident < ApplicationRecord
       :incident_type,
       :declared_by,
       :postmortem,
+      { subscribers: :user },
       incident_role_assignments: [ :incident_role, { workspace_membership: :user } ],
       incident_runbooks: { runbook: :runbook_steps }
     )

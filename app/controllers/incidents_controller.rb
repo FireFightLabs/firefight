@@ -24,6 +24,7 @@ class IncidentsController < InertiaController
       channelUrl: WorkspaceAdapter.for(current_workspace).channel_url(channel_id: incident.channel_id),
       linkableIncidents: linkable_incidents(incident),
       memberChoices: member_choices,
+      subscribed: incident.subscribed?(current_membership),
       hasPostmortem: incident.postmortem.present?,
       postmortemStatus: incident.postmortem&.status,
       postmortemGenerationState: incident.postmortem&.generation_state
