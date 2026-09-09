@@ -32,6 +32,12 @@ export const INCIDENT_RELATIONSHIPS = {
 
 export const LEAD_ROLE_SLUG = "incident_lead" as const
 
+export const CHANGE_KINDS = {
+  "VALUE": "value",
+  "TEXT": "text",
+  "TIME": "time"
+} as const
+
 export const ARCHIVE_CHANNEL_DELAY_CHOICES = [
   {
     "value": "0",

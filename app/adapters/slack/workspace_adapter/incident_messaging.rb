@@ -129,7 +129,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: notification_text(incident), blocks: blocks)
   end
 
-  def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
+  def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil, subscriber_user_ids: [])
     blocks = Slack::Messages::StatusUpdate.build(
       incident,
       message: message,
@@ -139,7 +139,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
       previous_severity_name: previous_severity_name,
       previous_type_name: previous_type_name
     )
-    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: notification_text(incident), blocks: blocks)
+    reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident: incident, text: notification_text(incident), blocks: blocks)
   end
 
   def post_incident_update_reminder(channel_id:, user_id:, incident:)
@@ -197,9 +197,9 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Incident resolved", blocks: blocks)
   end
 
-  def post_resolution_announcement_thread(channel_id:, parent_message_id:, incident:, resolved_by_platform_user_id:)
+  def post_resolution_announcement_thread(channel_id:, parent_message_id:, incident:, resolved_by_platform_user_id:, subscriber_user_ids: [])
     blocks = Slack::Messages::Resolution.announcement_thread(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
-    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident resolved", blocks: blocks)
+    reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident: incident, text: "Incident resolved", blocks: blocks)
   end
 
   def post_related_link_message(channel_id:, source:, target:, linked_by_platform_user_id:)
@@ -222,9 +222,18 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Incident reopened", blocks: blocks)
   end
 
-  def post_reopen_announcement_thread(channel_id:, parent_message_id:, incident:, reopened_by_platform_user_id:, reason: nil)
+  def post_reopen_announcement_thread(channel_id:, parent_message_id:, incident:, reopened_by_platform_user_id:, reason: nil, subscriber_user_ids: [])
     blocks = Slack::Messages::Reopen.announcement_thread(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
-    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident reopened", blocks: blocks)
+    reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident: incident, text: "Incident reopened", blocks: blocks)
+  end
+
+  def post_subscription_notice(channel_id:, user_id:, incident:, state:)
+    post_ephemeral(
+      channel_id: channel_id,
+      user_id: user_id,
+      text: incident.subscription_notice(state),
+      blocks: Slack::Messages::Subscription.notice(incident, state)
+    )
   end
 
   def post_escalation_message(channel_id:, incident:, escalated_by:, escalated_to:, reason: nil)
@@ -234,11 +243,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Incident escalated", blocks: blocks)
   end
 
-  def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by:, escalated_to:, reason: nil)
+  def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by:, escalated_to:, reason: nil, subscriber_user_ids: [])
     blocks = Slack::Messages::Escalation.build(
       incident, escalated_by: escalated_by, escalated_to: escalated_to, reason: reason
     )
-    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: "Incident escalated", blocks: blocks)
+    reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident: incident, text: "Incident escalated", blocks: blocks)
   end
 
   def post_escalation_direct_message(user_id:, incident:, escalated_by:, escalation_event_id:, reason: nil)
@@ -479,5 +488,25 @@ module Slack::WorkspaceAdapter::IncidentMessaging
       action_id: Identifiers::TIMELINE_PAGE,
       value: { incident_id: incident_id, offset: offset }.to_json
     }
+  end
+
+  # A subscriber gets the reply as it went into the thread, wrapped with the
+  # incident's name on top and the ways out underneath, as a direct message.
+  # One person who has left the workspace or blocked the app must not stop the
+  # rest from hearing, so a failed DM is logged and skipped.
+  def reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident:, text:, blocks:)
+    result = post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: text, blocks: blocks)
+    return result if subscriber_user_ids.empty?
+
+    wrapped = Slack::Messages::Subscription.wrap_update(
+      incident, blocks, workspace: @workspace, homepage_url: Slack::DashboardUrl.incident(incident)
+    )
+    subscriber_user_ids.each do |user_id|
+      post_message(channel_id: user_id, text: "#{incident.identifier}: #{text}", blocks: wrapped)
+    rescue AdapterError => e
+      Rails.logger.warn({ event: "slack.subscriber_dm_failed", user_id: user_id, error: e.message }.to_json)
+    end
+
+    result
   end
 end

@@ -24,6 +24,9 @@ module TypescriptConstants
         "RELATED" => IncidentRelationship::RELATED, "DUPLICATE" => IncidentRelationship::DUPLICATE
       }, nil),
       Export.new("LEAD_ROLE_SLUG", IncidentRole::SLUG_INCIDENT_LEAD, nil),
+      Export.new("CHANGE_KINDS", {
+        "VALUE" => IncidentUpdate::CHANGE_KIND_VALUE, "TEXT" => IncidentUpdate::CHANGE_KIND_TEXT, "TIME" => IncidentUpdate::CHANGE_KIND_TIME
+      }, nil),
       Export.new("ARCHIVE_CHANNEL_DELAY_CHOICES", Workspace::ARCHIVE_DELAY_CHOICES.map(&:to_h), nil),
       Export.new("ARCHIVE_CHANNEL_DELAY_NEVER", Workspace::ARCHIVE_DELAY_NEVER, nil),
       Export.new("CONDITION_FIELD_LABELS", IncidentCondition::FIELD_LABELS, nil),

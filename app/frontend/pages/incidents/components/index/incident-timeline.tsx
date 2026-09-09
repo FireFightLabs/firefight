@@ -2,7 +2,6 @@ import { useState } from "react"
 import { Link } from "@inertiajs/react"
 import {
   IconAlertTriangle,
-  IconArrowRight,
   IconBellCheck,
   IconBellRinging,
   IconBook,
@@ -41,6 +40,7 @@ import {
   NoteQuote,
   noteAccent,
 } from "@/pages/incidents/components/index/timeline-note"
+import { TimelineChangeList } from "@/pages/incidents/components/index/timeline-change-list"
 import { TimelineFileAttachment } from "@/pages/incidents/components/index/timeline-file-attachment"
 import { revealAction } from "@/pages/incidents/lib/action-anchor"
 import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
@@ -220,25 +220,6 @@ function EventSubject({ event }: { event: TimelineEvent }) {
   return <span className="font-medium text-foreground">{event.subject.label}</span>
 }
 
-function ChangeList({ changes }: { changes: NonNullable<TimelineEvent["changes"]> }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      {changes.map((change) => (
-        <div key={change.field} className="flex items-center gap-2 text-xs">
-          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-            {change.field}
-          </span>
-          <span className="text-muted-foreground/80 line-through decoration-muted-foreground/40">
-            {change.before}
-          </span>
-          <IconArrowRight className="size-3 text-muted-foreground/60" />
-          <span className="font-medium text-foreground">{change.after}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function ActionCard({ action }: { action: NonNullable<TimelineEvent["action"]> }) {
   const StatusIcon = actionStatusIcons[action.status]
   const statusColor = actionStatusStyles[action.status]
@@ -304,7 +285,7 @@ function EventCard({ event }: { event: TimelineEvent }) {
 
   return (
     <div className="ml-[44px] mt-2.5 rounded-lg border border-border bg-card px-3.5 py-2.5">
-      {event.changes && hasChanges && <ChangeList changes={event.changes} />}
+      {event.changes && hasChanges && <TimelineChangeList changes={event.changes} />}
       {event.action && <ActionCard action={event.action} />}
       {event.pin && hasPin && <PinCard pin={event.pin} withDivider={hasChanges || hasAction} />}
       {event.milestone && (

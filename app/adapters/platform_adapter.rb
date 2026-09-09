@@ -315,8 +315,34 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Every announcement thread reply also reaches each subscriber as a direct
+  # message carrying the same content.
+  # @param subscriber_user_ids [Array<String>] platform user ids to copy
   # @return [Hash] { message_id: ... }
-  def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by:, escalated_to:, reason: nil)
+  def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by:, escalated_to:, reason: nil, subscriber_user_ids: [])
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id: ... }
+  def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil, subscriber_user_ids: [])
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id: ... }
+  def post_resolution_announcement_thread(channel_id:, parent_message_id:, incident:, resolved_by_platform_user_id:, subscriber_user_ids: [])
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id: ... }
+  def post_reopen_announcement_thread(channel_id:, parent_message_id:, incident:, reopened_by_platform_user_id:, reason: nil, subscriber_user_ids: [])
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Tells one person, where they clicked, what their subscription now is, with
+  # the control to change it.
+  # @param state [Symbol] one of Incident::Subscriptions::SUBSCRIBED, ALREADY_SUBSCRIBED, UNSUBSCRIBED
+  # @return [Hash] { success: true }
+  def post_subscription_notice(channel_id:, user_id:, incident:, state:)
     raise NotImplemented.new(__method__, self.class)
   end
 

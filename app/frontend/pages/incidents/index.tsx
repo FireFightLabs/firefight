@@ -9,6 +9,7 @@ import { IncidentTimeline } from "@/pages/incidents/components/index/incident-ti
 import { IncidentActionsSidebar } from "@/pages/incidents/components/index/incident-actions-sidebar";
 import { IncidentPostmortemCard } from "@/pages/incidents/components/index/incident-postmortem-card";
 import { RolesPanel } from "@/pages/incidents/components/index/roles-panel";
+import { SubscribersPanel } from "@/pages/incidents/components/index/subscribers-panel";
 import { RunbooksPanel } from "@/pages/incidents/components/index/runbooks-panel";
 import { TimelineSkeleton } from "@/pages/incidents/components/index/timeline-skeleton";
 import type { IncidentPageProps } from "@/pages/incidents/types";
@@ -27,6 +28,7 @@ export default function IncidentPage() {
     channelUrl,
     linkableIncidents,
     memberChoices,
+    subscribed,
   } = usePage<IncidentPageProps>().props;
   const canEditIncident = useCan("incidents");
   const rolesBlockedReason = canEditIncident
@@ -89,6 +91,11 @@ export default function IncidentPage() {
                 incidentId={incident.id}
                 candidates={memberChoices}
                 blockedReason={rolesBlockedReason}
+              />
+              <SubscribersPanel
+                subscribers={incident.subscribers}
+                subscribed={subscribed}
+                incidentId={incident.id}
               />
               <Deferred data="actions" fallback={<ActionsSkeleton />}>
                 <IncidentActionsSidebar
