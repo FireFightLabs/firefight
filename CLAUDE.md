@@ -33,6 +33,15 @@ preference, it is the working agreement.
   the same message, before they find it.
 - Applies to omissions as much as additions. The bug they cannot see is the one
   you decided not to build.
+- **Never change existing behaviour that was not asked for. Not as a side
+  effect, not to resolve an inconsistency you noticed, not because the new
+  rule "needed a value" for the neighbouring case.** If implementing the ask
+  forces a choice about anything adjacent, keep the adjacent behaviour exactly
+  as it is and ask, before writing it. Flagging the change afterwards in a PR
+  body or a summary does not make it allowed. This has happened once already:
+  a guard against adding actions to a resolved incident was written so that
+  follow-ups became addable during a live incident on the dashboard, which
+  nobody asked for.
 
 ## Documentation (always applies)
 
