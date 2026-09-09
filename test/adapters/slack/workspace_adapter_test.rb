@@ -13,6 +13,18 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     @adapter = Slack::WorkspaceAdapter.new(@workspace)
   end
 
+  # The fallback text is what notifications show, so it names the incident.
+  test "the quick actions message falls back to the incident title" do
+    incident = incidents(:active_critical_ws1)
+    expected = Slack::Mrkdwn.escape(Slack::Messages::IncidentDetail.title_for(incident))
+
+    Slack::Client.expects(:post_message).with(has_entries(text: expected)).returns({ ok: true, ts: "1.1", channel: "C1" })
+    @adapter.post_incident_quick_actions(channel_id: "C1", incident: incident)
+
+    Slack::Client.expects(:update_message).with(has_entries(text: expected)).returns({ ok: true, ts: "1.1", channel: "C1" })
+    @adapter.update_incident_quick_actions(channel_id: "C1", message_id: "1.1", incident: incident)
+  end
+
   # create_channel tests
 
   test "create_channel creates new channel" do

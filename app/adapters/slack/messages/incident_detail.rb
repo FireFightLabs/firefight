@@ -28,9 +28,14 @@ module Slack
         blocks
       end
 
+      # Shared by the header block and the fallback text, so notifications match the header.
+      def self.title_for(incident)
+        "#{incident.identifier} · #{incident.name || 'Untitled Incident'}"
+      end
+
       def self.for_incident(incident, channel_id: nil)
         blocks(
-          title: "#{incident.identifier} · #{incident.name || 'Untitled Incident'}",
+          title: title_for(incident),
           summary: incident.summary,
           severity_name: incident.incident_severity.name,
           status_name: incident.incident_status.name,

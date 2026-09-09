@@ -14,6 +14,7 @@ module Events
 
       incident = workspace.incidents.in_channel(channel_id).recent.first
       return unless incident
+      return if incident.own_pinned_message?(message_ts)
 
       member = workspace.workspace_memberships.find_by(platform_user_id: event["user"])
       permalink = MessagePermalinks.fetch(workspace, channel_id, message_ts)
