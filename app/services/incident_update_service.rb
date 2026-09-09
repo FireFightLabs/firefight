@@ -61,7 +61,8 @@ class IncidentUpdateService
       channel_id: @workspace.incidents_channel_id,
       parent_message_id: incident.announcement_message_ts,
       incident: incident,
-      resolved_by_platform_user_id: resolved_by_platform_user_id
+      resolved_by_platform_user_id: resolved_by_platform_user_id,
+      subscriber_user_ids: incident.subscriber_platform_user_ids
     )
   end
 
@@ -82,7 +83,8 @@ class IncidentUpdateService
       parent_message_id: incident.announcement_message_ts,
       incident: incident,
       reopened_by_platform_user_id: reopened_by_platform_user_id,
-      reason: reason
+      reason: reason,
+      subscriber_user_ids: incident.subscriber_platform_user_ids
     )
   end
 
@@ -107,7 +109,8 @@ class IncidentUpdateService
       incident: incident,
       escalated_by: event.actor,
       escalated_to: escalation_target(event),
-      reason: event.metadata["reason"]
+      reason: event.metadata["reason"],
+      subscriber_user_ids: incident.subscriber_platform_user_ids
     )
   end
 
@@ -151,7 +154,8 @@ class IncidentUpdateService
       updated_by_platform_user_id: updated_by_platform_user_id,
       previous_status_name: previous_status_name,
       previous_severity_name: previous_severity_name,
-      previous_type_name: previous_type_name
+      previous_type_name: previous_type_name,
+      subscriber_user_ids: incident.subscriber_platform_user_ids
     )
   end
 

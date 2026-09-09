@@ -63,6 +63,15 @@ carries the identifier, so they all use the bold section.
 Because one builder often serves both surfaces, this usually means a `scope:`
 argument rather than two methods (see `StatusUpdate.build`).
 
+## The announcement thread has subscribers
+
+Every reply Firefight posts in an incident's announcement thread also goes to
+each subscriber as a DM, block for block. Build the reply once and hand it to
+`reply_and_notify_subscribers`. A message that reads well in the thread reads
+well in a DM, since both open with the incident's title. Never build a second
+variant for the DM. The point of subscribing is to see exactly what the thread
+saw.
+
 ## Emoji and spacing
 
 - **Every title opens with an emoji.** It is the fastest thing to scan for, and

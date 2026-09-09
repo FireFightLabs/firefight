@@ -83,6 +83,7 @@ module Identifiers
   PREVIEW_HOMEPAGE_DISABLED = "preview_homepage_disabled"
   INCIDENT_HOMEPAGE = "incident_homepage"
   PREVIEW_SUBSCRIBE_DISABLED = "preview_subscribe_disabled"
+  SUBSCRIBE_INCIDENT = "subscribe_incident"
   ACCEPT_INCIDENT = "accept_incident"
   CANCEL_INCIDENT = "cancel_incident"
   RESOLVE_INCIDENT = "resolve_incident"

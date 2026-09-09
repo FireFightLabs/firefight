@@ -280,6 +280,8 @@ Rails.application.routes.draw do
     patch "/incidents/:incident_id/actions/:id/complete", to: "incident_actions#complete", as: :complete_incident_action
     post "/incidents/:incident_id/runbooks/:incident_runbook_id/steps/:step_id/claim", to: "incident_runbooks#claim_step", as: :claim_runbook_step
     post "/incidents/:incident_id/runbooks", to: "incident_runbooks#create", as: :incident_runbooks
+    post "/incidents/:incident_id/subscription", to: "incident_subscriptions#create", as: :incident_subscription
+    delete "/incidents/:incident_id/subscription", to: "incident_subscriptions#destroy"
     patch "/incidents/:incident_id/events/:id/dismiss", to: "incident_events#dismiss", as: :dismiss_incident_event
     get "/incidents/declare/form", to: "incident_lifecycle#declare_form", as: :declare_incident_form
     post "/incidents/declare", to: "incident_lifecycle#declare", as: :declare_incident
