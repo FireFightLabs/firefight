@@ -410,4 +410,41 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_equal 7, p1.rank
     assert p1.is_default
   end
+
+  # Placement
+
+  test "place_at! moves a row and derives every rank from the new order" do
+    workspace = workspaces(:slack_workspace_one)
+    minor = incident_severities(:minor_ws1)
+
+    minor.place_at!(1)
+
+    assert_equal [ "minor", "critical", "major", "archived_severity" ], workspace.incident_severities.ordered.pluck(:slug)
+    assert_equal [ 1, 2, 3, 4 ], workspace.incident_severities.ordered.pluck(:position)
+    assert_equal [ 4, 3, 2, 1 ], workspace.incident_severities.ordered.pluck(:rank)
+    assert_equal 4, minor.rank
+  end
+
+  test "place_at! clamps to the ends and refuses anything that is not a whole number" do
+    workspace = workspaces(:slack_workspace_one)
+    critical = incident_severities(:critical_ws1)
+
+    critical.place_at!(0)
+    assert_equal 1, critical.position
+
+    critical.place_at!(50)
+    assert_equal workspace.incident_severities.count, critical.position
+
+    assert_raises(ConfigurableOption::InvalidPosition) { critical.place_at!("top") }
+  end
+
+  test "create_in_list! with a position lands there and renumbers the rest" do
+    workspace = workspaces(:slack_workspace_one)
+
+    created = IncidentSeverity.create_in_list!(workspace, { name: "SEV0", color: "#e5484d" }, position: 1)
+
+    assert_equal 1, created.position
+    assert_equal workspace.incident_severities.count, created.rank
+    assert_equal (1..workspace.incident_severities.count).to_a, workspace.incident_severities.ordered.pluck(:position)
+  end
 end

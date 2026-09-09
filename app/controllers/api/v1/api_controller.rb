@@ -12,7 +12,7 @@ class Api::V1::ApiController < ActionController::API
   rescue_from OptionGuards::Blocked, with: :incident_not_active
   rescue_from IncidentLifecycleService::RoleNotUnassignable, with: :incident_not_active
   rescue_from IncidentFormResolver::ValidationError, with: :form_validation_error
-  rescue_from ActionController::ParameterMissing, with: :bad_request
+  rescue_from ActionController::ParameterMissing, ConfigurableOption::InvalidPosition, with: :bad_request
   rescue_from ApiAuthentication::ForbiddenError, with: :forbidden
   rescue_from AbilityGateway::PendingApproval, with: :pending_approval
   rescue_from Ability::Approval::NotAllowed, with: :approval_not_allowed

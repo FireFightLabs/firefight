@@ -10,6 +10,10 @@
 module ConfigurableOption
   extend ActiveSupport::Concern
 
+  # Raised by place_at! for a position that is not a whole number. The API
+  # answers it as a bad request and MCP as the tool error.
+  class InvalidPosition < ArgumentError; end
+
   included do
     include Positioned
     include OptionGuards
@@ -32,11 +36,11 @@ module ConfigurableOption
     # collision, so the list is renumbered as part of the write rather than by
     # whoever remembered to. Every surface that manages one of these lists
     # calls these two.
-    def create_in_list!(workspace, attributes)
+    def create_in_list!(workspace, attributes, position: nil)
       option = list_for(workspace).new(**attributes)
       option.save_in_position!
       renumber!(workspace)
-      option
+      position.present? ? option.place_at!(position) : option
     end
 
     def renumber!(workspace)
@@ -68,6 +72,21 @@ module ConfigurableOption
     refuse!(deletion_blocked_reason)
     destroy!
     self.class.renumber!(workspace)
+  end
+
+  # Moves this row to the given position, 1 being first, and renumbers the
+  # rest around it through the same reorder the settings screen drags run.
+  # A position past either end lands on that end, so "put it first" and "put
+  # it last" need no count first. Mirrored columns such as a severity's rank
+  # follow, because the reorder derives them from the final order.
+  def place_at!(position)
+    target = Integer(position, exception: false)
+    raise InvalidPosition, "position must be a whole number, 1 being first" if target.nil?
+
+    ids = self.class.list_for(workspace).ordered.pluck(:id) - [ id ]
+    ids.insert(target.clamp(1, ids.size + 1) - 1, id)
+    self.class.reorder!(workspace, ids)
+    reload
   end
 
   private

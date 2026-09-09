@@ -34,11 +34,12 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     tools = rpc("tools/list").dig("result", "tools").index_by { |tool| tool["name"] }
     properties = ->(name) { tools[name].dig("inputSchema", "properties").keys }
 
-    assert_includes properties.call(Mcp::Tools::UPSERT_SEVERITY), "rank"
+    assert_includes properties.call(Mcp::Tools::UPSERT_SEVERITY), "position"
+    assert_not_includes properties.call(Mcp::Tools::UPSERT_SEVERITY), "rank"
     assert_not_includes properties.call(Mcp::Tools::UPSERT_SEVERITY), "lifecycle_stage"
 
     assert_includes properties.call(Mcp::Tools::UPSERT_STATUS), "lifecycle_stage"
-    assert_not_includes properties.call(Mcp::Tools::UPSERT_STATUS), "rank"
+    assert_includes properties.call(Mcp::Tools::UPSERT_STATUS), "position"
 
     assert_not_includes properties.call(Mcp::Tools::UPSERT_INCIDENT_ROLE), "color"
     assert_not_includes properties.call(Mcp::Tools::UPSERT_INCIDENT_ROLE), "default"
@@ -54,22 +55,91 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     assert content.key?("webhooks")
   end
 
-  test "creating a severity puts it at the end of the list" do
+  test "creating a severity without a position puts it at the end of the list, as the least severe" do
     content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
-      name: "SEV0", description: "Everything is on fire", rank: 1, color: "#e5484d"
+      name: "Cosmetic", description: "Nobody noticed", color: "#e5484d"
     }, token: @admin_token)
 
     assert_not is_error, content.inspect
-    severity = @workspace.incident_severities.find_by!(slug: "sev0")
-    assert_equal 1, severity.rank
+    severity = @workspace.incident_severities.find_by!(slug: "cosmetic")
     assert_equal @workspace.incident_severities.maximum(:position), severity.position
-    assert_equal "sev0", content["slug"]
+    assert_equal 1, severity.rank
+    assert_equal "cosmetic", content["slug"]
+  end
+
+  # Position is the one ordering. Rank is derived from it by the same reorder
+  # the settings screen runs, so a new top severity outranks every other and
+  # the rest shift down rather than colliding.
+  test "position 1 puts a new severity at the top and every rank follows" do
+    before = @workspace.incident_severities.ordered.pluck(:slug)
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+      name: "SEV0", description: "Everything is on fire", position: 1, color: "#e5484d"
+    }, token: @admin_token)
+
+    assert_not is_error, content.inspect
+    assert_equal 1, content["position"]
+    assert_equal [ "sev0" ] + before, @workspace.incident_severities.ordered.pluck(:slug)
+    ranks = @workspace.incident_severities.ordered.pluck(:rank)
+    assert_equal ranks.uniq, ranks, "ranks collided: #{ranks.inspect}"
+    assert_equal ranks.sort.reverse, ranks, "rank should fall as position rises"
+    assert_equal @workspace.incident_severities.count, ranks.first
+  end
+
+  test "moving an existing severity re-ranks its neighbours instead of colliding" do
+    last = @workspace.incident_severities.ordered.last
+    total = @workspace.incident_severities.count
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+      slug: last.slug, position: 1
+    }, token: @admin_token)
+
+    assert_not is_error, content.inspect
+    assert_equal 1, last.reload.position
+    assert_equal total, last.rank
+    assert_equal (1..total).to_a, @workspace.incident_severities.ordered.pluck(:position)
+    assert_equal total.downto(1).to_a, @workspace.incident_severities.ordered.pluck(:rank)
+  end
+
+  test "a position past the end lands on the end" do
+    first = @workspace.incident_severities.ordered.first
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+      slug: first.slug, position: 99
+    }, token: @admin_token)
+
+    assert_not is_error, content.inspect
+    assert_equal @workspace.incident_severities.count, first.reload.position
+    assert_equal 1, first.rank
+  end
+
+  test "rank is reported, never taken" do
+    severity = @workspace.incident_severities.ordered.first
+
+    content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+      slug: severity.slug, rank: 1
+    }, token: @admin_token)
+
+    assert_not is_error, content.inspect
+    assert_equal severity.rank, severity.reload.rank
+    assert_equal severity.rank, content["rank"]
+  end
+
+  test "position works the same on the other lists" do
+    content, is_error = call_tool(Mcp::Tools::UPSERT_INCIDENT_TYPE, {
+      name: "Outage", position: 1
+    }, token: @admin_token)
+
+    assert_not is_error, content.inspect
+    assert_equal 1, content["position"]
+    assert_equal "outage", @workspace.incident_types.ordered.first.slug
+    assert_equal (1..@workspace.incident_types.count).to_a, @workspace.incident_types.ordered.pluck(:position)
   end
 
   # The model owns the rule, so every surface reports the same sentence rather
   # than each restating it in its own words.
   test "creating without a name reports what the model refused" do
-    _, is_error, text = call_tool(Mcp::Tools::UPSERT_SEVERITY, { rank: 1 }, token: @admin_token)
+    _, is_error, text = call_tool(Mcp::Tools::UPSERT_SEVERITY, { position: 1 }, token: @admin_token)
 
     assert is_error
     assert_match(/Name can't be blank/, text)

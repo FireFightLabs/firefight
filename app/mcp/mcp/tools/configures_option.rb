@@ -11,7 +11,12 @@ module Mcp
         slug: { type: "string", description: "Slug of the one to change; omit to create a new one" },
         name: { type: "string", description: "What responders see. Required when creating" },
         description: { type: "string", description: "One sentence saying when to use it" },
-        enabled: { type: "boolean", description: "false disables it without deleting, true brings it back" }
+        enabled: { type: "boolean", description: "false disables it without deleting, true brings it back" },
+        position: {
+          type: "integer",
+          description: "Where it sits in the list, 1 being first. Omit to add a new one at the end, " \
+                       "or to leave an existing one where it is. Past either end lands on that end"
+        }
       }.freeze
 
       COLOR_PROPERTY = {
@@ -87,7 +92,7 @@ module Mcp
         attributes = attributes_for(model, args).merge(tool.prepared_attributes(args))
 
         option = ActiveRecord::Base.transaction do
-          record = existing ? update(existing, attributes) : create(model, workspace, attributes)
+          record = existing ? update(existing, attributes, args[:position]) : create(model, workspace, attributes, args[:position])
           apply_state(record, args)
           record
         end
@@ -121,13 +126,14 @@ module Mcp
          .compact
       end
 
-      def self.create(model, workspace, attributes)
-        model.create_in_list!(workspace, attributes)
+      def self.create(model, workspace, attributes, position)
+        model.create_in_list!(workspace, attributes, position: position)
       end
       private_class_method :create
 
-      def self.update(option, attributes)
+      def self.update(option, attributes, position)
         option.update!(attributes)
+        option.place_at!(position) if position.present?
         option
       end
       private_class_method :update

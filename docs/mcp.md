@@ -134,7 +134,7 @@ and the gateway is what tells them apart.
 | Tool | Manages |
 |---|---|
 | `get_workspace_config` | One read behind all of it: severities, statuses with their stage, types, roles, alert sources and webhooks |
-| `upsert_severity` / `delete_severity` | Severities, with `rank` |
+| `upsert_severity` / `delete_severity` | Severities. `position` says how severe, 1 being the most, and `rank` in the response is derived from it |
 | `upsert_status` / `delete_status` | Statuses, with `lifecycle_stage` |
 | `upsert_incident_type` / `delete_incident_type` | Incident types |
 | `upsert_incident_role` / `delete_incident_role` | Incident roles |
@@ -155,7 +155,12 @@ saying how those arguments land as attributes.
 
 **One home per rule.** `ConfigurableOption.create_in_list!` and
 `#destroy_from_list!` own creating and deleting with the renumber that keeps
-positions gapless, and `disable!`, `make_default!` and `destroy_from_list!`
+positions gapless, and `#place_at!` owns moving one row through that same
+renumber. Every list takes `position` on create and update, on MCP and on
+REST. A severity's `rank` is derived from position by the reorder (first in the
+list gets the highest rank) and is never accepted as input: writing it directly
+skipped the renumber, so a new row's rank was overwritten on create and an
+update could leave two severities sharing one rank. and `disable!`, `make_default!` and `destroy_from_list!`
 raise `OptionGuards::Blocked` when a `*_blocked_reason` refuses. The dashboard,
 MCP and REST all call the same methods, so a rule cannot be enforced on one
 surface and forgotten on another. The dashboard still pre-checks so it can name
