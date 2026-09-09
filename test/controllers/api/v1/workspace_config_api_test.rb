@@ -37,15 +37,50 @@ class Api::V1::WorkspaceConfigApiTest < ActionDispatch::IntegrationTest
     assert_not listed["enabled"]
   end
 
-  test "creating a severity puts it at the end of the list" do
+  test "creating a severity without a position puts it at the end of the list" do
     post api_v1_severities_url,
-         params: { name: "SEV0", rank: 1, color: "#e5484d" },
+         params: { name: "Cosmetic", color: "#e5484d" },
          headers: api_headers(token: @admin_token), as: :json
 
     assert_response :created
-    severity = @workspace.incident_severities.find_by!(slug: "sev0")
-    assert_equal 1, severity.rank
+    severity = @workspace.incident_severities.find_by!(slug: "cosmetic")
     assert_equal @workspace.incident_severities.maximum(:position), severity.position
+    assert_equal 1, severity.rank
+  end
+
+  test "position 1 creates a severity at the top, and rank follows the order" do
+    post api_v1_severities_url,
+         params: { name: "SEV0", position: 1, color: "#e5484d" },
+         headers: api_headers(token: @admin_token), as: :json
+
+    assert_response :created
+    assert_equal 1, json_response["position"]
+    assert_equal @workspace.incident_severities.count, json_response["rank"]
+    ranks = @workspace.incident_severities.ordered.pluck(:rank)
+    assert_equal ranks.uniq, ranks
+  end
+
+  test "moving a severity by position re-ranks its neighbours" do
+    last = @workspace.incident_severities.ordered.last
+    total = @workspace.incident_severities.count
+
+    patch api_v1_severity_url(last.slug),
+          params: { position: 1 }, headers: api_headers(token: @admin_token), as: :json
+
+    assert_response :success
+    assert_equal 1, json_response["position"]
+    assert_equal total, json_response["rank"]
+    assert_equal total.downto(1).to_a, @workspace.incident_severities.ordered.pluck(:rank)
+  end
+
+  test "a position that is not a whole number is a bad request" do
+    severity = @workspace.incident_severities.ordered.first
+
+    patch api_v1_severity_url(severity.slug),
+          params: { position: "top" }, headers: api_headers(token: @admin_token), as: :json
+
+    assert_response :bad_request
+    assert_equal 1, severity.reload.position
   end
 
   test "renaming keeps the slug, which stored records point at" do

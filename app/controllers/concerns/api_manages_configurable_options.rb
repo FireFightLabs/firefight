@@ -34,7 +34,7 @@ module ApiManagesConfigurableOptions
     authorize!(option_resource, Ability::Action::ACTION_CREATE)
 
     ActiveRecord::Base.transaction do
-      @option = option_model.create_in_list!(current_workspace, option_attributes)
+      @option = option_model.create_in_list!(current_workspace, option_attributes, position: params[:position])
       apply_state!
     end
 
@@ -46,6 +46,7 @@ module ApiManagesConfigurableOptions
 
     ActiveRecord::Base.transaction do
       @option.update!(option_attributes)
+      @option.place_at!(params[:position]) if params[:position].present?
       apply_state!
     end
 
