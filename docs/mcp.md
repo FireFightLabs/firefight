@@ -140,6 +140,7 @@ and the gateway is what tells them apart.
 | `upsert_incident_role` / `delete_incident_role` | Incident roles |
 | `upsert_alert_source` / `delete_alert_source` | Alert sources, addressed by endpoint path |
 | `upsert_webhook` / `delete_webhook` | Outbound webhooks |
+| `test_webhook` | Queues a test delivery to a webhook: the newest subscribed event, signed as a live one. `Webhook#queue_test_delivery!` is the one home for it, and `test_blocked_reason` for why it cannot send, so the dashboard button and the tool refuse identically |
 | `list_agents`, `upsert_agent`, `rotate_agent_token`, `revoke_agent_token`, `delete_agent` | Agents and their credentials |
 | `list_api_keys`, `upsert_api_key`, `delete_api_key` | Service keys |
 

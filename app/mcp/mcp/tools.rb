@@ -59,6 +59,7 @@ module Mcp
     DELETE_ALERT_SOURCE = "delete_alert_source".freeze
     UPSERT_WEBHOOK = "upsert_webhook".freeze
     DELETE_WEBHOOK = "delete_webhook".freeze
+    TEST_WEBHOOK = "test_webhook".freeze
     LIST_AGENTS = "list_agents".freeze
     UPSERT_AGENT = "upsert_agent".freeze
     ROTATE_AGENT_TOKEN = "rotate_agent_token".freeze
@@ -90,7 +91,7 @@ module Mcp
         GetWorkspaceConfig,
         UpsertSeverity, DeleteSeverity, UpsertStatus, DeleteStatus,
         UpsertIncidentType, DeleteIncidentType, UpsertIncidentRole, DeleteIncidentRole,
-        UpsertAlertSource, DeleteAlertSource, UpsertWebhook, DeleteWebhook,
+        UpsertAlertSource, DeleteAlertSource, UpsertWebhook, DeleteWebhook, TestWebhook,
         ListAgents, UpsertAgent, RotateAgentToken, RevokeAgentToken, DeleteAgent,
         ListApiKeys, UpsertApiKey, DeleteApiKey,
         GetPostmortem, StartPostmortem, UpdatePostmortem, SetPostmortemStatus,

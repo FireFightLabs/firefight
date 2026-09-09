@@ -167,6 +167,76 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     assert_not content.key?("signing_secret")
   end
 
+  test "test_webhook queues a signed delivery of the newest subscribed event" do
+    webhook = webhooks(:active_webhook)
+
+    content, is_error = nil
+    assert_difference -> { webhook.webhook_deliveries.count }, 1 do
+      content, is_error = call_tool(Mcp::Tools::TEST_WEBHOOK, { id: webhook.id })
+    end
+
+    assert_not is_error, content.inspect
+    delivery = webhook.webhook_deliveries.find(content["delivery_id"])
+    assert_equal webhook.latest_subscribed_event, delivery.incident_event
+    assert_equal delivery.event_type, content["event_type"]
+    assert_equal "pending", content["state"]
+    assert_equal webhook.url, content["url"]
+    assert_not content.key?("signing_secret")
+  end
+
+  test "test_webhook says why when nothing the webhook subscribes to has happened" do
+    webhook = Webhook.create!(
+      workspace: @workspace, name: "Canceled only",
+      url: "https://example.com/test", subscribed_events: [ IncidentEvent::INCIDENT_CANCELED ]
+    )
+
+    assert_no_difference -> { WebhookDelivery.count } do
+      _, is_error, text = call_tool(Mcp::Tools::TEST_WEBHOOK, { id: webhook.id })
+
+      assert is_error
+      assert_equal webhook.test_blocked_reason, text
+    end
+  end
+
+  test "test_webhook cannot reach another workspace's webhook" do
+    other = webhooks(:workspace_two_webhook)
+
+    assert_no_difference -> { WebhookDelivery.count } do
+      _, is_error, text = call_tool(Mcp::Tools::TEST_WEBHOOK, { id: other.id })
+
+      assert is_error
+      assert_match(/Not found in this workspace/, text)
+    end
+  end
+
+  test "test_webhook needs webhooks:update, which a key granted only reads lacks" do
+    _, reader = create_service_key(
+      workspace: @workspace, created_by: @membership, name: "Reader",
+      permissions: { Ability::Action::RESOURCE_WEBHOOKS => %w[read] }
+    )
+    _, writer = create_service_key(
+      workspace: @workspace, created_by: @membership, name: "Writer",
+      permissions: { Ability::Action::RESOURCE_WEBHOOKS => %w[read update] }
+    )
+    webhook = webhooks(:active_webhook)
+
+    _, is_error, text = call_tool(Mcp::Tools::TEST_WEBHOOK, { id: webhook.id }, token: reader)
+    assert is_error
+    assert_match(/webhooks:update/, text)
+
+    _, is_error = call_tool(Mcp::Tools::TEST_WEBHOOK, { id: webhook.id }, token: writer)
+    assert_not is_error
+  end
+
+  test "test_webhook is offered as a send, not a destructive or idempotent call" do
+    tool = rpc("tools/list").dig("result", "tools").find { |offered| offered["name"] == Mcp::Tools::TEST_WEBHOOK }
+
+    assert tool, "test_webhook should be offered"
+    assert_not tool.dig("annotations", "destructiveHint")
+    assert_not tool.dig("annotations", "idempotentHint")
+    assert tool.dig("annotations", "openWorldHint")
+  end
+
   test "a key granted alerts can manage alert sources but not agents" do
     _, token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Alerting",

@@ -37,26 +37,10 @@ class WebhooksController < InertiaController
   end
 
   def test
-    # Narrow to the events this webhook actually subscribes to before picking the
-    # most recent one. Picking the newest incident first and only then looking
-    # for a subscribed event inside it finds nothing whenever the latest
-    # workspace activity happens to be an event type the webhook ignores.
-    event = IncidentEvent.joins(:incident)
-      .where(incidents: { workspace_id: current_workspace.id })
-      .where(event_type: @webhook.subscribed_events)
-      .order(created_at: :desc)
-      .first
-
-    if event
-      WebhookDelivery.create!(
-        webhook: @webhook,
-        incident_event: event,
-        event_type: event.event_type
-      )
-      redirect_to developer_webhooks_path, notice: "Test delivery queued"
-    else
-      redirect_to developer_webhooks_path, alert: "No matching events found to test with"
-    end
+    @webhook.queue_test_delivery!
+    redirect_to developer_webhooks_path, notice: "Test delivery queued"
+  rescue Webhook::TestBlocked => e
+    redirect_to developer_webhooks_path, alert: e.message
   end
 
   def activate
