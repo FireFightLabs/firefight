@@ -60,6 +60,18 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
     assert_equal IncidentAction::STATUS_OPEN, action.status
   end
 
+  test "an agent cannot raise an action on an incident that is over, and is told to raise a follow-up" do
+    over = incidents(:resolved_minor_ws1)
+
+    _, is_error, text = call_tool(Mcp::Tools::CREATE_ACTION_ITEM, {
+      incident: over.identifier, description: "Too late", kind: IncidentAction::ACTION_TYPE_ACTION
+    }, token: @agent_token)
+
+    assert is_error
+    assert_match(/Add a follow-up instead/, text)
+    assert_not over.incident_actions.exists?(description: "Too late")
+  end
+
   test "an agent takes an item and holds it under its own name" do
     action = incident_actions(:inc1_followup)
 

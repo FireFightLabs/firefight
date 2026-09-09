@@ -22,6 +22,24 @@ class Api::V1::ActionItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal @other.actor_display_name, listed[open_item.id].dig("assignee", "name")
   end
 
+  test "an action on an incident that is over is refused, and a follow-up is not" do
+    over = incidents(:resolved_minor_ws1)
+
+    post api_v1_incident_action_items_url(over),
+         params: { description: "Too late", kind: IncidentAction::ACTION_TYPE_ACTION },
+         headers: api_headers, as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal "incident_not_active", json_response.dig("error", "type")
+    assert_match(/Add a follow-up instead/, json_response.dig("error", "message"))
+
+    post api_v1_incident_action_items_url(over),
+         params: { description: "Add an alert for this", kind: IncidentAction::ACTION_TYPE_FOLLOWUP },
+         headers: api_headers, as: :json
+
+    assert_response :created
+  end
+
   test "creating an item records the key as having raised it" do
     post api_v1_incident_action_items_url(@incident),
          params: { description: "Drain replica 2", kind: IncidentAction::ACTION_TYPE_ACTION },

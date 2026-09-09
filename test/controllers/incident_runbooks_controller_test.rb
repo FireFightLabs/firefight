@@ -11,6 +11,20 @@ class IncidentRunbooksControllerTest < ActionDispatch::IntegrationTest
     stub_post_message
   end
 
+  test "claiming a step on an incident that is over is refused with the reason as a flash" do
+    over = incidents(:resolved_minor_ws1)
+    stub_update_message
+    attachment = RunbookAttachmentService.new(@workspace).attach(incident: over, runbook: @runbook)
+    step = @runbook.runbook_steps.first
+
+    assert_no_difference -> { over.incident_actions.count } do
+      post claim_runbook_step_path(over, attachment, step)
+    end
+
+    assert_redirected_to incident_path(over)
+    assert_equal over.action_item_blocked_reason(IncidentAction::ACTION_TYPE_ACTION), flash[:alert]
+  end
+
   test "attaching a runbook by hand posts it and confirms" do
     assert_difference "@incident.incident_runbooks.count", 1 do
       post incident_runbooks_path(@incident), params: { slug: @runbook.slug }

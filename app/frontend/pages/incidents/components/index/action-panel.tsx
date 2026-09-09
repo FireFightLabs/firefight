@@ -7,22 +7,21 @@ import { ProgressRail } from "@/pages/incidents/components/index/progress-rail"
 export function ActionPanel({
   title,
   items,
-  canAdd,
+  blockedReason,
   incidentId,
   actionType,
-  disabledTooltip,
   candidates,
   canEdit,
 }: {
   title: string
   items: IncidentAction[]
-  canAdd: boolean
+  blockedReason?: string
   incidentId: string
   actionType: "action" | "followup"
-  disabledTooltip: string
   candidates: InlineChoice[]
   canEdit: boolean
 }) {
+  const canAdd = !blockedReason
   const doneCount = items.filter((item) => item.status === "done").length
   const isEmpty = items.length === 0
 
@@ -32,7 +31,7 @@ export function ActionPanel({
         <span className="text-[12px] text-muted-foreground">
           {title} · None yet
         </span>
-        <AddActionDialog disabled={!canAdd} incidentId={incidentId} actionType={actionType} disabledTooltip={disabledTooltip} />
+        <AddActionDialog disabled={!canAdd} incidentId={incidentId} actionType={actionType} disabledTooltip={blockedReason} />
       </section>
     )
   }
@@ -43,7 +42,7 @@ export function ActionPanel({
         <h3 className="text-[12px] font-semibold uppercase tracking-[0.10em] text-foreground">
           {title}
         </h3>
-        <AddActionDialog disabled={!canAdd} incidentId={incidentId} actionType={actionType} disabledTooltip={disabledTooltip} />
+        <AddActionDialog disabled={!canAdd} incidentId={incidentId} actionType={actionType} disabledTooltip={blockedReason} />
       </header>
       <div className="px-5 pb-2">
         <ProgressRail done={doneCount} total={items.length} />
