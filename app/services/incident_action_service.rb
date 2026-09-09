@@ -4,6 +4,8 @@ class IncidentActionService
   end
 
   def create_action(incident:, created_by:, action_type:, description:, assignee: nil, platform_data: {}, runbook_step: nil)
+    incident.refuse_action_item!(action_type)
+
     action = incident.incident_actions.create!(
       created_by: created_by,
       action_type: action_type,

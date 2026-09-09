@@ -188,6 +188,19 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("it can no longer be assigned a lead")
   end
 
+  # An action is work during the incident, so it needs a live one. A follow-up
+  # is the work that comes after, so it can be added at any point.
+  def action_item_blocked_reason(action_type)
+    return nil if action_type == IncidentAction::ACTION_TYPE_FOLLOWUP
+
+    terminal_blocked_reason("actions can no longer be added to it. Add a follow-up instead")
+  end
+
+  def refuse_action_item!(action_type)
+    blocked_reason = action_item_blocked_reason(action_type)
+    raise NotActive, blocked_reason if blocked_reason
+  end
+
   # Why a responder surface can no longer change this incident, or nil. The
   # lead and role guards each state this rule in their own words, for the same
   # reason. Every change announces itself in a channel that may already be

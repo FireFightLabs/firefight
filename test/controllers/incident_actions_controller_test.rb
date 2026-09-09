@@ -20,6 +20,19 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
+  test "create on an incident that is over is refused with the reason as a flash" do
+    over = incidents(:resolved_minor_ws1)
+
+    assert_no_difference -> { over.incident_actions.count } do
+      post incident_actions_path(incident_id: over.id), params: {
+        action_type: IncidentAction::ACTION_TYPE_ACTION, description: "Too late"
+      }
+    end
+
+    assert_redirected_to incident_path(over)
+    assert_equal over.action_item_blocked_reason(IncidentAction::ACTION_TYPE_ACTION), flash[:alert]
+  end
+
   test "create posts the action and redirects to the incident" do
     stub_post_message
 

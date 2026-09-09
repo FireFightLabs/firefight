@@ -23,6 +23,47 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     stub_get_permalink
   end
 
+  # The service is the floor every entry point stands on, so a closed incident
+  # refuses here whether the request came from Slack, the dashboard, the API
+  # or MCP.
+  test "create_action refuses an action on an incident that is over, and creates nothing" do
+    over = incidents(:resolved_minor_ws1)
+
+    assert_no_difference -> { over.incident_actions.count } do
+      error = assert_raises(Incident::NotActive) do
+        @service.create_action(
+          incident: over, created_by: @member,
+          action_type: IncidentAction::ACTION_TYPE_ACTION, description: "Too late"
+        )
+      end
+      assert_match(/Add a follow-up instead/, error.message)
+    end
+  end
+
+  test "create_action still takes a follow-up on an incident that is over" do
+    stub_post_message
+    over = incidents(:resolved_minor_ws1)
+
+    assert_difference -> { over.incident_actions.followups.count }, 1 do
+      @service.create_action(
+        incident: over, created_by: @member,
+        action_type: IncidentAction::ACTION_TYPE_FOLLOWUP, description: "Add an alert for this"
+      )
+    end
+  end
+
+  test "claiming a runbook step on an incident that is over is refused, since it would create an action" do
+    over = incidents(:resolved_minor_ws1)
+    runbook = @workspace.runbooks.create!(name: "Rollback deploy")
+    step = runbook.runbook_steps.create!(title: "Roll back", position: 1)
+
+    assert_no_difference -> { over.incident_actions.count } do
+      assert_raises(Incident::NotActive) do
+        @service.assign_step(incident: over, runbook_step: step, assignee: @member, assigned_by: @member)
+      end
+    end
+  end
+
   test "create_action creates record and posts message" do
     stub_post_message
 
