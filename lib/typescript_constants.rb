@@ -24,6 +24,9 @@ module TypescriptConstants
         "RELATED" => IncidentRelationship::RELATED, "DUPLICATE" => IncidentRelationship::DUPLICATE
       }, nil),
       Export.new("LEAD_ROLE_SLUG", IncidentRole::SLUG_INCIDENT_LEAD, nil),
+      Export.new("CHANGE_KINDS", {
+        "VALUE" => IncidentUpdate::CHANGE_KIND_VALUE, "TEXT" => IncidentUpdate::CHANGE_KIND_TEXT, "TIME" => IncidentUpdate::CHANGE_KIND_TIME
+      }, nil),
       Export.new("CONDITION_FIELD_LABELS", IncidentCondition::FIELD_LABELS, nil),
       Export.new("CONDITION_OPERATOR_LABELS", IncidentCondition::OPERATOR_LABELS, nil),
       Export.new("ALERT_NORMALIZED_FIELDS", AlertProviders::Base::NORMALIZED_FIELDS, "AlertNormalizedField"),

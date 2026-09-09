@@ -124,20 +124,13 @@ class TimelineEventSerializer < BaseSerializer
     { text: meta[:message_text].presence, permalink: meta[:permalink].presence }
   end
 
-  type "{ field: string; before: string; after: string }[]", optional: true
+  type "{ field: string; label: string; kind: #{IncidentUpdate::CHANGE_KINDS.map(&:inspect).join(" | ")}; before: string | null; after: string | null }[]", optional: true
   def changes
     return nil unless event.eventable.is_a?(IncidentUpdate) && event.changed_fields.any?
 
     current = event.eventable
-    previous = current.previous_update
-
-    event.changed_fields.map do |field|
-      {
-        field: field,
-        before: previous&.display_value_for(field).to_s,
-        after: current.display_value_for(field).to_s
-      }
-    end
+    definitions = event.references&.field_definitions || {}
+    current.changes_since(current.previous_update, field_definitions: definitions).map(&:to_h)
   end
 
   type :string, optional: true

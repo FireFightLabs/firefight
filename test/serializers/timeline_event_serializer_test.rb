@@ -16,10 +16,84 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
     event = incident.timeline_events.find { |e| e.event_type == IncidentEvent::INCIDENT_RESOLVED }
     rendered = TimelineEventSerializer.one(event)
 
-    status_change = rendered[:changes].find { |c| c[:field] == "status" }
+    status_change = rendered[:changes].find { |c| c[:field] == IncidentUpdate::FIELD_STATUS }
     assert_not_nil status_change, "expected status to appear in changes"
     assert_equal initial_status.name, status_change[:before]
     assert_equal new_status.name, status_change[:after]
+  end
+
+  test "changes carry the field's name and kind, and a timestamp arrives unformatted" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    resolved_at = Time.zone.parse("2026-09-09 09:56:45 UTC")
+
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) { }
+    incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, by: member) do
+      incident.update!(incident_status: incident_statuses(:resolved_ws1), resolved_at: resolved_at, summary: "Rolled back.")
+    end
+
+    changes = TimelineEventSerializer.one(timeline_event(incident, IncidentEvent::INCIDENT_RESOLVED))[:changes]
+    by_field = changes.index_by { |change| change[:field] }
+
+    assert_equal "Status", by_field[IncidentUpdate::FIELD_STATUS][:label]
+    assert_equal IncidentUpdate::CHANGE_KIND_VALUE, by_field[IncidentUpdate::FIELD_STATUS][:kind]
+    assert_equal "Resolved at", by_field[IncidentUpdate::FIELD_RESOLVED_AT][:label]
+    assert_equal IncidentUpdate::CHANGE_KIND_TIME, by_field[IncidentUpdate::FIELD_RESOLVED_AT][:kind]
+    assert_nil by_field[IncidentUpdate::FIELD_RESOLVED_AT][:before]
+    assert_equal resolved_at.iso8601, by_field[IncidentUpdate::FIELD_RESOLVED_AT][:after]
+    assert_equal "Summary", by_field[IncidentUpdate::FIELD_SUMMARY][:label]
+    assert_equal IncidentUpdate::CHANGE_KIND_TEXT, by_field[IncidentUpdate::FIELD_SUMMARY][:kind]
+    assert_equal "Rolled back.", by_field[IncidentUpdate::FIELD_SUMMARY][:after]
+  end
+
+  test "a value taken away has no after, and visibility reads as its choice" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    next_update_at = 15.minutes.from_now.change(usec: 0)
+
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) do
+      incident.update!(next_update_at: next_update_at, is_private: true)
+    end
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) do
+      incident.update!(next_update_at: nil, is_private: false)
+    end
+
+    events = incident.timeline_events.select { |event| event.event_type == IncidentEvent::INCIDENT_UPDATED }
+    changes = TimelineEventSerializer.one(events.last)[:changes]
+    by_field = changes.index_by { |change| change[:field] }
+
+    assert_equal "Next update", by_field[IncidentUpdate::FIELD_NEXT_UPDATE_AT][:label]
+    assert_equal next_update_at.iso8601, by_field[IncidentUpdate::FIELD_NEXT_UPDATE_AT][:before]
+    assert_nil by_field[IncidentUpdate::FIELD_NEXT_UPDATE_AT][:after]
+    assert_equal "Visibility", by_field[IncidentUpdate::FIELD_VISIBILITY][:label]
+    assert_equal "Private", by_field[IncidentUpdate::FIELD_VISIBILITY][:before]
+    assert_equal "Everyone (public)", by_field[IncidentUpdate::FIELD_VISIBILITY][:after]
+  end
+
+  test "custom field changes are one row each, named by the field" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    definition = incident_field_definitions(:customer_tier_ws1)
+    enterprise = incident_field_options(:customer_tier_enterprise)
+    pro = incident_field_options(:customer_tier_pro)
+
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) do
+      incident.update!(custom_fields: { definition.slug => enterprise.id })
+    end
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) do
+      incident.update!(custom_fields: { definition.slug => pro.id })
+    end
+
+    events = incident.timeline_events.select { |event| event.event_type == IncidentEvent::INCIDENT_UPDATED }
+    changes = TimelineEventSerializer.one(events.last)[:changes]
+
+    assert_equal 1, changes.size
+    change = changes.first
+    assert_equal "#{IncidentUpdate::FIELD_CUSTOM_FIELDS}.#{definition.slug}", change[:field]
+    assert_equal definition.name, change[:label]
+    assert_equal IncidentUpdate::CHANGE_KIND_VALUE, change[:kind]
+    assert_equal enterprise.label, change[:before]
+    assert_equal pro.label, change[:after]
   end
 
   test "the timeline links each update to the one before it from one load, not a query per row" do
