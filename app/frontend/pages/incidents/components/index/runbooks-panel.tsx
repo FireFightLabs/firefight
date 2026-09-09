@@ -14,6 +14,7 @@ import {
 } from "@/pages/incidents/components/index/attach-runbook-dialog"
 import { RUNBOOK_QUERY_PARAM } from "@/lib/generated/constants"
 import { claimRunbookStepPath, settingsRunbooksPath } from "@/lib/routes"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Runbook = Incident["runbooks"][number]
@@ -67,7 +68,7 @@ function StepRow({
   claimBlockedReason?: string
 }) {
   function claim() {
-    router.post(claimRunbookStepPath(incidentId, runbook.id, step.id), {}, { preserveScroll: true })
+    router.post(claimRunbookStepPath(incidentId, runbook.id, step.id), {}, afterMutation("incident", "timelineEvents"))
   }
 
   return (

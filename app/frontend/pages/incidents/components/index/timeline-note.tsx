@@ -12,6 +12,7 @@ import {
 import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
 import type { TimelineEvent } from "@/pages/incidents/types"
 import { dismissIncidentEventPath } from "@/lib/routes"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 
 export type Milestone = NonNullable<TimelineEvent["milestone"]>
 
@@ -78,15 +79,9 @@ export function DismissNoteAction({
     setConfirming(false)
   }
 
-  // Only the timeline comes back. A full reload would drop the deferred
-  // timeline to its skeleton, collapse the page, and throw the reader to the
-  // top of a long incident.
   function dismiss() {
     setConfirming(false)
-    router.patch(dismissIncidentEventPath(incidentId, event.id), {}, {
-      preserveScroll: true,
-      only: [ "timelineEvents", "flash" ],
-    })
+    router.patch(dismissIncidentEventPath(incidentId, event.id), {}, afterMutation("timelineEvents"))
   }
 
   return (
