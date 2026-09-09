@@ -49,16 +49,13 @@ Two traps that make local and CI disagree:
 
 ## 5. Commit and push
 
-Focused commits. The message explains why the change is right, not what the diff shows. End with:
-
-```
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-Claude-Session: <session url>
-```
+Focused commits. The message explains why the change is right, not what the diff shows. No trailers: no Co-Authored-By, no session link, no tool attribution.
 
 ## 6. Open the PR
 
-The body states what changed, why this approach over the alternative, and a verification section that separates what was checked from what was not. Naming the gap is the point: silence reads as complete.
+Title and body are concise. The title is one line naming the change. The body is one short paragraph saying why, then a bullet list of what changed, with the docs PR linked as a bullet. Nothing else: no headers, no Verification section, no boundary review report, no footer. Look at the last few merged PRs for the shape.
+
+Every check in step 4 still runs before the PR opens. What it found goes into the code, not the body. If something could not be checked, or was left undone, say so in one bullet, because silence reads as complete.
 
 ## 7. Stop
 
