@@ -11,7 +11,7 @@ class IncidentUpdateServiceTest < ActiveSupport::TestCase
     @service = IncidentUpdateService.new(@workspace)
   end
 
-  test "an update reaches the thread and then every subscriber with the same blocks" do
+  test "an update reaches the thread and then every subscriber, named and with the same reply inside" do
     @incident.subscribe!(@alice)
     @incident.subscribe!(@bob)
     calls = []
@@ -26,8 +26,9 @@ class IncidentUpdateServiceTest < ActiveSupport::TestCase
     assert_equal @incident.announcement_message_ts, thread[:thread_ts]
     assert_equal [ @alice.platform_user_id, @bob.platform_user_id ].sort, dms.map { |dm| dm[:channel] }.sort
     dms.each do |dm|
-      assert_equal thread[:blocks], dm[:blocks]
-      assert_equal thread[:text], dm[:text]
+      assert_equal thread[:blocks], dm[:blocks].slice(2, thread[:blocks].size), "the reply itself rides in the DM untouched"
+      assert_includes dm[:blocks].first[:text][:text], @incident.identifier
+      assert_equal "#{@incident.identifier}: #{thread[:text]}", dm[:text]
       assert_nil dm[:thread_ts]
     end
   end

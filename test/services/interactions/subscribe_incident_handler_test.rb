@@ -7,52 +7,53 @@ class Interactions::SubscribeIncidentHandlerTest < ActiveSupport::TestCase
     @alice = workspace_memberships(:alice_workspace_one)
   end
 
-  test "the first click subscribes and says so where the person clicked" do
-    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with(
+  test "the first click subscribes and confirms where the person clicked" do
+    Slack::WorkspaceAdapter.any_instance.expects(:post_subscription_notice).with(
       channel_id: @workspace.incidents_channel_id,
       user_id: @alice.platform_user_id,
-      text: Interactions::SubscribeIncidentHandler.notice(@incident, true)
+      incident: @incident,
+      state: Incident::Subscriptions::SUBSCRIBED
     ).once
 
-    assert_nil Interactions::SubscribeIncidentHandler.execute(build_interaction)
+    assert_nil Interactions::SubscribeIncidentHandler.execute(build_interaction(Identifiers::SUBSCRIBE_INCIDENT))
     assert @incident.subscribed?(@alice)
   end
 
-  test "the second click unsubscribes" do
+  test "a second click says the person is already subscribed and leaves them subscribed" do
     @incident.subscribe!(@alice)
-    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with(
-      has_entries(text: Interactions::SubscribeIncidentHandler.notice(@incident, false))
-    ).once
+    Slack::WorkspaceAdapter.any_instance.expects(:post_subscription_notice)
+      .with(has_entries(state: Incident::Subscriptions::ALREADY_SUBSCRIBED)).once
 
-    Interactions::SubscribeIncidentHandler.execute(build_interaction)
+    Interactions::SubscribeIncidentHandler.execute(build_interaction(Identifiers::SUBSCRIBE_INCIDENT))
 
+    assert @incident.subscribed?(@alice)
+  end
+
+  test "unsubscribe removes the subscription and says so" do
+    @incident.subscribe!(@alice)
+    Slack::WorkspaceAdapter.any_instance.expects(:post_subscription_notice)
+      .with(has_entries(state: Incident::Subscriptions::UNSUBSCRIBED)).once
+
+    assert_nil Interactions::UnsubscribeIncidentHandler.execute(build_interaction(Identifiers::UNSUBSCRIBE_INCIDENT))
     assert_not @incident.subscribed?(@alice)
   end
 
-  test "a failed notice does not undo the subscription" do
-    Slack::WorkspaceAdapter.any_instance.stubs(:post_ephemeral).raises(AdapterError::NotFound, "channel_not_found")
+  test "a notice that cannot be delivered does not undo the click" do
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_subscription_notice).raises(AdapterError::NotFound, "channel_not_found")
 
-    assert_nil Interactions::SubscribeIncidentHandler.execute(build_interaction)
+    assert_nil Interactions::SubscribeIncidentHandler.execute(build_interaction(Identifiers::SUBSCRIBE_INCIDENT))
     assert @incident.subscribed?(@alice)
-  end
-
-  test "the notices are finished sentences with no dashes or semicolons" do
-    [ true, false ].each do |subscribed|
-      text = Interactions::SubscribeIncidentHandler.notice(@incident, subscribed)
-      assert_match(/\.\z/, text)
-      assert_no_match(/[;\u2014]/, text)
-    end
   end
 
   private
 
-  def build_interaction
+  def build_interaction(action_id)
     Interaction.new(
       platform: Platforms::SLACK,
       type: Interaction::BLOCK_ACTIONS,
       team_id: @workspace.platform_id,
       user_id: @alice.platform_user_id,
-      action_id: Identifiers::SUBSCRIBE_INCIDENT,
+      action_id: action_id,
       action_value: @incident.id,
       channel_id: @workspace.incidents_channel_id
     )

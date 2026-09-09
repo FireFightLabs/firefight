@@ -2,6 +2,10 @@ class Incident
   module Subscriptions
     extend ActiveSupport::Concern
 
+    SUBSCRIBED = :subscribed
+    ALREADY_SUBSCRIBED = :already_subscribed
+    UNSUBSCRIBED = :unsubscribed
+
     included do
       has_many :incident_subscriptions, dependent: :destroy
       has_many :subscribers, through: :incident_subscriptions, source: :workspace_membership
@@ -11,30 +15,32 @@ class Incident
       incident_subscriptions.exists?(workspace_membership: member)
     end
 
-    # Both are idempotent, so a double click or a retried request changes
-    # nothing the first one did not. The unique index settles a race between
-    # two clicks that both saw no subscription.
+    # Idempotent, and says whether this call is the one that subscribed, so a
+    # second click can be answered honestly. The unique index settles a race
+    # between two clicks that both saw no subscription.
     def subscribe!(member)
-      incident_subscriptions.find_or_create_by!(workspace_membership: member) do |subscription|
-        subscription.workspace = workspace
+      subscription = incident_subscriptions.find_or_create_by!(workspace_membership: member) do |row|
+        row.workspace = workspace
       end
+      subscription.previously_new_record? ? SUBSCRIBED : ALREADY_SUBSCRIBED
     rescue ActiveRecord::RecordNotUnique
-      incident_subscriptions.find_by!(workspace_membership: member)
+      ALREADY_SUBSCRIBED
     end
 
     def unsubscribe!(member)
       incident_subscriptions.where(workspace_membership: member).destroy_all
+      UNSUBSCRIBED
     end
 
-    # One shared announcement message cannot show each reader their own state, so the
-    # button toggles. Returns whether the member is subscribed afterwards.
-    def toggle_subscription!(member)
-      if subscribed?(member)
-        unsubscribe!(member)
-        false
-      else
-        subscribe!(member)
-        true
+    # What every surface tells the person after a subscribe or unsubscribe.
+    def subscription_notice(state)
+      case state
+      when SUBSCRIBED
+        "You are subscribed to #{identifier}. Every update Firefight posts about it will reach you as a direct message."
+      when ALREADY_SUBSCRIBED
+        "You are already subscribed to #{identifier}."
+      when UNSUBSCRIBED
+        "You are no longer subscribed to #{identifier}."
       end
     end
 
