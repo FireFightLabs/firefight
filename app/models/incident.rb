@@ -253,6 +253,14 @@ class Incident < ApplicationRecord
     inverse_incident_relationships.duplicates.map(&:incident)
   end
 
+
+  # Messages Firefight pinned itself, which the timeline leaves out.
+  def own_pinned_message?(message_id)
+    return false if message_id.blank?
+
+    [ initial_message_ts, postmortem&.message_ts ].compact.include?(message_id)
+  end
+
   private
 
   # One sentence saying why a responder action cannot run on an incident that

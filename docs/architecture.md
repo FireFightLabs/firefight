@@ -194,6 +194,7 @@ Api::V1::EventsController → ProcessEventJob → EventDispatcher → Events::<T
 - `EventDispatcher` routes on `Identifiers::EVENT_*` to handlers in `app/services/events/` (`MessageHandler`, `ReactionAddedHandler`, `PinAddedHandler`, `PinRemovedHandler`, `AppMentionHandler`, `MemberJoinedChannelHandler`). Unknown types are logged and dropped.
 - These handlers power transcript capture (`MessageHandler` → `IncidentTranscriptMessage`), reaction-to-action/followup/shoutout creation, pin timeline events, and AI responses to @mentions.
 - A pin event stores the pinned message's text (`fetch_message` through the adapter) alongside its permalink, so the timeline can quote it. The fetch is decoration: an `AdapterError` leaves `message_text` nil and the pin is still recorded.
+- Pins Firefight makes itself (the quick actions header at channel setup, the postmortem message when generated) are not recorded. `Incident#own_pinned_message?` names those message ids, and `PinAddedHandler` drops the event for them, for both pin and unpin. The timeline lists only pins a person chose to make.
 - Slack does **not** redeliver events after the 200 ack, so `ProcessEventJob` retries transient DB failures itself — a dropped job loses the event.
 
 Events handlers follow the same thinness rules as command/interaction handlers.

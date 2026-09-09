@@ -57,6 +57,34 @@ class Events::PinHandlersTest < ActiveSupport::TestCase
     assert_equal @member, event.actor
   end
 
+  # Only pins people make belong on the timeline.
+  test "does not record Firefight pinning its own quick actions message" do
+    @incident.update!(initial_message_ts: "1234567890.111111")
+
+    assert_no_difference "IncidentEvent.count" do
+      Events::PinAddedHandler.execute(@workspace, pin_payload("pin_added"))
+    end
+  end
+
+  test "does not record Firefight pinning its own postmortem message" do
+    Postmortem.create!(
+      incident: @incident, generated_by: @member, title: "Write-up",
+      status: Postmortem::STATUS_DRAFT, content: { "html" => "<p>draft</p>" }, message_ts: "1234567890.111111"
+    )
+
+    assert_no_difference "IncidentEvent.count" do
+      Events::PinAddedHandler.execute(@workspace, pin_payload("pin_added"))
+    end
+  end
+
+  test "does not record an unpin of Firefight's own message either" do
+    @incident.update!(initial_message_ts: "1234567890.111111")
+
+    assert_no_difference "IncidentEvent.count" do
+      Events::PinRemovedHandler.execute(@workspace, pin_payload("pin_removed"))
+    end
+  end
+
   private
 
   def pin_payload(type)

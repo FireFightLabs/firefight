@@ -783,4 +783,18 @@ class IncidentTest < ActiveSupport::TestCase
 
     assert incident.incident_role_assignments.exists?(incident_role: role, workspace_membership: alice)
   end
+
+  test "own_pinned_message? names the header and postmortem messages Firefight pinned itself" do
+    incident = incidents(:active_critical_ws1)
+    incident.update!(initial_message_ts: "1.100")
+    Postmortem.create!(
+      incident: incident, generated_by: incident.declared_by, title: "Write-up",
+      status: Postmortem::STATUS_DRAFT, content: { "html" => "<p>draft</p>" }, message_ts: "1.200"
+    )
+
+    assert incident.own_pinned_message?("1.100")
+    assert incident.reload.own_pinned_message?("1.200")
+    assert_not incident.own_pinned_message?("1.300")
+    assert_not incident.own_pinned_message?(nil)
+  end
 end

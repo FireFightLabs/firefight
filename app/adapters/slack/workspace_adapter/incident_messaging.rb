@@ -36,7 +36,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     update_message(
       channel_id: channel_id,
       message_id: message_id,
-      text: "#{incident.identifier} - Quick Actions",
+      text: Slack::Mrkdwn.escape(Slack::Messages::IncidentDetail.title_for(incident)),
       blocks: blocks
     )
   end
@@ -94,7 +94,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     blocks = Slack::Messages::QuickActions.build(incident)
     post_message(
       channel_id: channel_id,
-      text: "#{incident.identifier} - Quick Actions",
+      text: Slack::Mrkdwn.escape(Slack::Messages::IncidentDetail.title_for(incident)),
       blocks: blocks
     )
   end
