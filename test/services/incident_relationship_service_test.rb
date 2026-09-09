@@ -103,7 +103,7 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
   end
 
   test "mark_duplicate schedules channel archival when enabled" do
-    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 30)
+    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 15)
 
     assert_enqueued_with(job: ChannelArchivalJob, args: [ @incident1.id ]) do
       @service.mark_duplicate(source: @incident1, canonical: @incident2, created_by: @member)

@@ -134,7 +134,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
 
   test "close schedules channel archival when enabled" do
     resolved_status = @workspace.incident_statuses.closed.first
-    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 30)
+    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 15)
 
     assert_enqueued_with(job: ChannelArchivalJob) do
       @service.change_status(@incident, { incident_status: resolved_status }, changed_by: @member)
@@ -217,7 +217,7 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
 
   test "cancel runs its own workflow and archives without a resolved_at" do
     canceled = @workspace.incident_statuses.canceled.first
-    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 30)
+    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 15)
     SolidWorkflow::Base.any_instance.stubs(:enqueue_ready_steps)
 
     assert_enqueued_with(job: ChannelArchivalJob) do

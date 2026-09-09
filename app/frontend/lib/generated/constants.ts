@@ -32,6 +32,47 @@ export const INCIDENT_RELATIONSHIPS = {
 
 export const LEAD_ROLE_SLUG = "incident_lead" as const
 
+export const ARCHIVE_CHANNEL_DELAY_CHOICES = [
+  {
+    "value": "0",
+    "label": "Immediately"
+  },
+  {
+    "value": "15",
+    "label": "15 minutes"
+  },
+  {
+    "value": "60",
+    "label": "1 hour"
+  },
+  {
+    "value": "360",
+    "label": "6 hours"
+  },
+  {
+    "value": "1440",
+    "label": "24 hours"
+  },
+  {
+    "value": "4320",
+    "label": "3 days"
+  },
+  {
+    "value": "10080",
+    "label": "7 days"
+  },
+  {
+    "value": "43200",
+    "label": "30 days"
+  },
+  {
+    "value": "never",
+    "label": "Never"
+  }
+] as const
+
+export const ARCHIVE_CHANNEL_DELAY_NEVER = "never" as const
+
 export const CONDITION_FIELD_LABELS = {
   "incident_type": "Incident Type",
   "severity": "Severity",

@@ -13,7 +13,7 @@ class WorkspaceSettingsController < InertiaController
   # A blank retention casts to null, which is the workspace choosing to keep
   # everything rather than a value it failed to give.
   def update
-    current_workspace.update!(params.permit(:transcript_access_enabled, :transcript_retention_days))
+    current_workspace.update!(params.permit(:transcript_access_enabled, :transcript_retention_days, :archive_channel_delay))
 
     redirect_to settings_workspace_path, notice: "Workspace settings were updated."
   rescue ActiveRecord::RecordInvalid => e
