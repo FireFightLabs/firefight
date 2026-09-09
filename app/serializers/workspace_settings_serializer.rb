@@ -7,4 +7,9 @@ class WorkspaceSettingsSerializer < BaseSerializer
   def transcript_retention_days
     workspace.transcript_retention_days
   end
+
+  type :string
+  def archive_channel_delay
+    workspace.archive_channel_delay
+  end
 end

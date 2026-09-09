@@ -342,7 +342,7 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
   test "canceling over the API records a cancel and still archives the channel" do
     incident = incidents(:active_critical_ws1)
     canceled = @workspace.incident_statuses.canceled.active.first
-    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 30)
+    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 15)
 
     assert_enqueued_with(job: ChannelArchivalJob) do
       patch api_v1_incident_url(incident), params: { status_id: canceled.id }.to_json, headers: api_headers

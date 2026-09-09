@@ -66,6 +66,53 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_not_equal 0, @workspace.reload.transcript_retention_days
   end
 
+  test "the archive delay is stored as the minutes behind the choice" do
+    patch settings_workspace_path, params: { archive_channel_delay: "1440" }
+
+    assert_redirected_to settings_workspace_path
+    @workspace.reload
+    assert @workspace.archive_channel_enabled
+    assert_equal 1440, @workspace.archive_channel_delay_minutes
+    assert_equal "1440", @workspace.archive_channel_delay
+  end
+
+  # Never turns archiving off without forgetting the delay, so turning it back
+  # on lands on what the workspace had rather than the default.
+  test "never turns archiving off and keeps the delay for later" do
+    @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 360)
+
+    patch settings_workspace_path, params: { archive_channel_delay: Workspace::ARCHIVE_DELAY_NEVER }
+
+    @workspace.reload
+    assert_not @workspace.archive_channel_enabled
+    assert_equal 360, @workspace.archive_channel_delay_minutes
+    assert_equal Workspace::ARCHIVE_DELAY_NEVER, @workspace.archive_channel_delay
+  end
+
+  # An integer column turns junk into 0, which would archive immediately.
+  test "a delay the screen does not offer is refused" do
+    patch settings_workspace_path, params: { archive_channel_delay: "45" }
+
+    assert_equal 60, @workspace.reload.archive_channel_delay_minutes
+    assert_equal [ "is not one of the offered delays" ],
+                 session[:inertia_errors].deep_stringify_keys["archive_channel_delay"]
+
+    patch settings_workspace_path, params: { archive_channel_delay: "soon" }
+
+    assert_equal 60, @workspace.reload.archive_channel_delay_minutes
+  end
+
+  test "the screen says when channels are archived" do
+    @workspace.update!(archive_channel_enabled: false)
+
+    get settings_workspace_path, headers: {
+      "X-Inertia" => "true", "X-Inertia-Version" => InertiaRails.configuration.version.to_s
+    }
+
+    settings = JSON.parse(response.body).dig("props", "settings")
+    assert_equal Workspace::ARCHIVE_DELAY_NEVER, settings["archiveChannelDelay"]
+  end
+
   test "a member without workspace permission cannot turn it on" do
     sign_in(users(:bob), @workspace)
     WorkspaceMembership.any_instance.stubs(:implicitly_permits?).returns(false)

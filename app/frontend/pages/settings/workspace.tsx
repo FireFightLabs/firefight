@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { ARCHIVE_CHANNEL_DELAY_CHOICES } from "@/lib/generated/constants"
 import { settingsWorkspacePath } from "@/lib/routes"
 import type { WorkspaceSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
@@ -24,6 +26,7 @@ export default function Workspace() {
   const { settings } = usePage<WorkspacePageProps>().props
   const [transcriptAccess, setTranscriptAccess] = useState(settings.transcriptAccessEnabled)
   const [retention, setRetention] = useState(retentionText(settings.transcriptRetentionDays))
+  const [archiveDelay, setArchiveDelay] = useState(settings.archiveChannelDelay)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
 
@@ -47,7 +50,11 @@ export default function Workspace() {
     setSaving(true)
     router.patch(
       settingsWorkspacePath(),
-      { transcript_access_enabled: transcriptAccess, transcript_retention_days: retention },
+      {
+        transcript_access_enabled: transcriptAccess,
+        transcript_retention_days: retention,
+        archive_channel_delay: archiveDelay,
+      },
       { preserveScroll: true, onSuccess: succeed, onError: fail, onFinish: finish },
     )
   }
@@ -111,6 +118,48 @@ export default function Workspace() {
                 Leave it empty to keep them for good. What the team worked out survives either
                 way, as timeline notes with the quote and the person, and in the postmortem, so
                 clearing the messages loses the conversation and not the record.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Incident channels</CardTitle>
+            <CardDescription className="mt-1">
+              When an incident is resolved or cancelled, Firefight can archive its channel so it
+              stops taking up room in the sidebar. The messages stay in the channel and the
+              incident keeps its timeline.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            <div className="max-w-prose">
+              <Label htmlFor="archive-channel-delay" className="text-foreground">
+                Archive the channel
+              </Label>
+              <div className="mt-2 flex items-center gap-2">
+                <Select value={archiveDelay} onValueChange={setArchiveDelay}>
+                  <SelectTrigger id="archive-channel-delay" className="w-40">
+                    <SelectValue placeholder="Choose a delay" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ARCHIVE_CHANNEL_DELAY_CHOICES.map((choice) => (
+                      <SelectItem key={choice.value} value={choice.value}>
+                        {choice.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-muted-foreground">after the incident ends</span>
+              </div>
+              {errors.archive_channel_delay && (
+                <p className="mt-2 text-sm text-destructive">{errors.archive_channel_delay}</p>
+              )}
+              <p className="mt-2 text-sm text-muted-foreground">
+                Reopening an incident unarchives its channel. A change here applies to incidents
+                that end after you save, so one that is already resolved keeps the delay it was
+                given.
               </p>
             </div>
           </CardContent>
