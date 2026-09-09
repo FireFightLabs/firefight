@@ -208,6 +208,27 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Ability::Principal::KIND_AGENT, assignee["kind"]
   end
 
+  # The page names the props a mutation can change, so the redirect back is a
+  # partial reload rather than a full visit that would drop the deferred
+  # timeline and actions to their skeletons.
+  test "complete followed by the page's partial reload returns the deferred props" do
+    action = open_action
+    action.update!(assignee: @member, status: IncidentAction::STATUS_IN_PROGRESS)
+    partial_headers = inertia_headers.merge(
+      "X-Inertia-Partial-Component" => "incidents/index",
+      "X-Inertia-Partial-Data" => "actions,timelineEvents"
+    )
+
+    patch complete_incident_action_path(@incident, action), headers: partial_headers
+    assert_redirected_to incident_path(@incident)
+
+    get response.location, headers: partial_headers
+    assert_response :success
+
+    assert_equal %w[actions errors timelineEvents], inertia_props.keys.sort
+    assert_equal IncidentAction::STATUS_DONE, inertia_props.dig("actions", 0, "status")
+  end
+
   private
 
   def open_action

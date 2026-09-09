@@ -17,6 +17,7 @@ import {
 } from "@/components/searchable-multi-select"
 import { whenClosed } from "@/lib/handlers"
 import { incidentInvitePath } from "@/lib/routes"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 
 export function InviteDialog({
   incidentId,
@@ -50,7 +51,7 @@ export function InviteDialog({
     router.post(
       incidentInvitePath(incidentId),
       { member_ids: picked },
-      { preserveScroll: true, onSuccess: close, onFinish: finish },
+      { ...afterMutation("incident", "timelineEvents", "memberChoices"), onSuccess: close, onFinish: finish },
     )
   }
 

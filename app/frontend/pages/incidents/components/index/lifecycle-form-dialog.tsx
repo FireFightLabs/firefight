@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SearchableSelect } from "@/components/searchable-select"
 import { SearchableMultiSelect } from "@/components/searchable-multi-select"
 import { whenClosed } from "@/lib/handlers"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 import {
   declareIncidentFormPath,
   declareIncidentPath,
@@ -208,17 +209,18 @@ export function LifecycleFormDialog({
   function submit(event: React.FormEvent) {
     event.preventDefault()
     setSaving(true)
-    const options = {
-      preserveScroll: true,
+    const callbacks = {
       onSuccess: close,
       onFinish: () => setSaving(false),
     }
     const path = writePath(incidentId, form)
 
+    // Declaring lands on a page this dialog has never seen, so it takes the
+    // whole page rather than a partial reload of the one it is leaving.
     if (incidentId) {
-      router.patch(path, { answers }, options)
+      router.patch(path, { answers }, { ...afterMutation("incident", "timelineEvents"), ...callbacks })
     } else {
-      router.post(path, { answers, test }, options)
+      router.post(path, { answers, test }, { preserveScroll: true, ...callbacks })
     }
   }
 

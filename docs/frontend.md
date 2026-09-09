@@ -67,6 +67,8 @@ Frontend    → useIncidentsTable(data, columns, filters, pagination) → router
 - Filter navigations use `only: ["incidents", "pagination", "filters"]` to skip re-fetching stats
 - MTTR cached per workspace for 24h via `Rails.cache` (key: `dashboard_stats/{workspace_id}/mttr`)
 
+**Deferred props survive mutations only through partial reloads.** A mutation controller that redirects back to the page it came from produces a full Inertia visit, which replaces every prop. Deferred props are absent from that response, so the `Deferred` component falls back to its skeleton and re-fetches them, and the page looks like it reloaded. The incident page avoids this with `afterMutation(...props)` (`app/frontend/pages/incidents/lib/after-mutation.ts`): every mutation passes `only` naming the props it can change, so the redirect becomes a partial reload that merges into the props already on screen. Any new page that defers a prop and mutates in place needs the same treatment.
+
 **Frontend filter navigation** (`useIncidentsTable` hook):
 - Filter/pagination changes call `router.get(dashboardPath(), params, { preserveState: true, preserveScroll: true, only: [...] })`
 - Search input debounced 300ms before triggering navigation
