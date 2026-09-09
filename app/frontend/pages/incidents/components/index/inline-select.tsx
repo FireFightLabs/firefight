@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 
 export type InlineChoice = { value: string; label: string }
 
@@ -42,7 +43,7 @@ export function InlineSelect({
 
     setSaving(true)
     router.patch(path, payload(value), {
-      preserveScroll: true,
+      ...afterMutation("incident", "timelineEvents"),
       onFinish: () => setSaving(false),
     })
   }

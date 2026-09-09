@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { whenClosed } from "@/lib/handlers"
 import { incidentShoutoutPath } from "@/lib/routes"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 
 export function ShoutoutDialog({
   incidentId,
@@ -53,7 +54,7 @@ export function ShoutoutDialog({
     router.post(
       incidentShoutoutPath(incidentId),
       { member_id: member, message: message.trim() },
-      { preserveScroll: true, onSuccess: close, onFinish: finish },
+      { ...afterMutation("incident", "timelineEvents"), onSuccess: close, onFinish: finish },
     )
   }
 

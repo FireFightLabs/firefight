@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { useMemberSearch } from "@/hooks/use-member-search"
 import { incidentActionsPath } from "@/lib/routes"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 
 function memberOptions(members: { id: string; name: string; avatarUrl?: string }[]): SearchableSelectOption[] {
   const unassigned: SearchableSelectOption = { value: "", label: "Unassigned" }
@@ -54,6 +55,7 @@ export function AddActionDialog({
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     post(incidentActionsPath(incidentId), {
+      ...afterMutation("actions", "timelineEvents"),
       onSuccess: () => {
         setOpen(false)
         reset()

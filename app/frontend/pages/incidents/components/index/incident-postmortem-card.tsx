@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { LIFECYCLE_STAGES, type LifecycleStageKey } from "@/lib/constants";
+import { afterMutation } from "@/pages/incidents/lib/after-mutation";
 import {
   incidentPostmortemGeneratePath,
   incidentPostmortemPath,
@@ -42,6 +43,28 @@ export function IncidentPostmortemCard({
   incidentLifecycleStage: LifecycleStageKey;
 }) {
   const canCreate = incidentLifecycleStage === LIFECYCLE_STAGES.CLOSED;
+
+  // Both land on the postmortem page when they succeed. The list of props only
+  // matters when the server sends the reader back here with an alert instead.
+  const postmortemProps = afterMutation(
+    "hasPostmortem",
+    "postmortemStatus",
+    "postmortemGenerationState",
+  );
+
+  function generateDraft() {
+    router.post(incidentPostmortemGeneratePath(incidentId), {}, {
+      ...postmortemProps,
+      onSuccess: () =>
+        toast.success("Generating postmortem. This usually takes under a minute."),
+      onError: () => toast.error("Failed to start generation."),
+    });
+  }
+
+  function startBlank() {
+    router.post(incidentPostmortemStartBlankPath(incidentId), {}, postmortemProps);
+  }
+
   if (hasPostmortem) {
     const status = postmortemStatus ?? "draft";
     const generationLabel =
@@ -121,20 +144,7 @@ export function IncidentPostmortemCard({
         <Button
           size="sm"
           className="h-8 gap-1.5 px-3 text-[12px]"
-          onClick={() => {
-            router.post(
-              incidentPostmortemGeneratePath(incidentId),
-              {},
-              {
-                preserveScroll: true,
-                onSuccess: () =>
-                  toast.success(
-                    "Generating postmortem. This usually takes under a minute.",
-                  ),
-                onError: () => toast.error("Failed to start generation."),
-              },
-            );
-          }}
+          onClick={generateDraft}
         >
           <IconSparkles className="size-3.5" strokeWidth={2} />
           Generate draft
@@ -143,9 +153,7 @@ export function IncidentPostmortemCard({
           variant="ghost"
           size="sm"
           className="h-8 px-2.5 text-[12px] text-muted-foreground"
-          onClick={() =>
-            router.post(incidentPostmortemStartBlankPath(incidentId))
-          }
+          onClick={startBlank}
         >
           Start blank
         </Button>

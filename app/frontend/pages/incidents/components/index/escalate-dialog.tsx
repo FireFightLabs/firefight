@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { whenClosed } from "@/lib/handlers"
 import { incidentEscalatePath } from "@/lib/routes"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 
 export function EscalateDialog({
   incidentId,
@@ -53,7 +54,7 @@ export function EscalateDialog({
     router.post(
       incidentEscalatePath(incidentId),
       { member_id: member, reason: reason.trim() },
-      { preserveScroll: true, onSuccess: close, onFinish: finish },
+      { ...afterMutation("incident", "timelineEvents"), onSuccess: close, onFinish: finish },
     )
   }
 

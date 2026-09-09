@@ -26,6 +26,7 @@ import { EscalateDialog } from "@/pages/incidents/components/index/escalate-dial
 import { InviteDialog } from "@/pages/incidents/components/index/invite-dialog"
 import { ShoutoutDialog } from "@/pages/incidents/components/index/shoutout-dialog"
 import { incidentReopenPath } from "@/lib/routes"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 import { INCIDENT_RELATIONSHIPS } from "@/lib/generated/constants"
 
 // Only one of these is ever open, so they are one piece of state rather than
@@ -101,7 +102,7 @@ export function IncidentMenu({
   }
 
   function reopen() {
-    router.patch(incidentReopenPath(incident.id), {}, { preserveScroll: true })
+    router.patch(incidentReopenPath(incident.id), {}, afterMutation("incident", "timelineEvents"))
   }
 
   return (

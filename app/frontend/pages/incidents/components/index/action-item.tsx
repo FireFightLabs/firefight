@@ -2,6 +2,7 @@ import { router } from "@inertiajs/react"
 import { IconDotsVertical, IconKey, IconRobot, IconUser, type Icon } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,15 +57,15 @@ function ActionMenu({
   candidates: InlineChoice[]
 }) {
   function pickUp() {
-    router.patch(pickUpIncidentActionPath(incidentId, action.id), {}, { preserveScroll: true })
+    router.patch(pickUpIncidentActionPath(incidentId, action.id), {}, afterMutation("actions", "timelineEvents"))
   }
 
   function complete() {
-    router.patch(completeIncidentActionPath(incidentId, action.id), {}, { preserveScroll: true })
+    router.patch(completeIncidentActionPath(incidentId, action.id), {}, afterMutation("actions", "timelineEvents"))
   }
 
   function assign(memberId: string) {
-    router.patch(assignIncidentActionPath(incidentId, action.id), { member_id: memberId }, { preserveScroll: true })
+    router.patch(assignIncidentActionPath(incidentId, action.id), { member_id: memberId }, afterMutation("actions", "timelineEvents"))
   }
 
   return (

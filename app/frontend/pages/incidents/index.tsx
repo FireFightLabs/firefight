@@ -11,29 +11,9 @@ import { IncidentPostmortemCard } from "@/pages/incidents/components/index/incid
 import { RolesPanel } from "@/pages/incidents/components/index/roles-panel";
 import { RunbooksPanel } from "@/pages/incidents/components/index/runbooks-panel";
 import { TimelineSkeleton } from "@/pages/incidents/components/index/timeline-skeleton";
-import type { AttachableRunbook } from "@/pages/incidents/components/index/attach-runbook-dialog";
-import type { LinkableIncident } from "@/pages/incidents/components/index/link-incident-dialog";
-import type {
-  Incident,
-  IncidentAction,
-  TimelineEvent,
-} from "@/pages/incidents/types";
-import type { SharedProps } from "@/types";
+import type { IncidentPageProps } from "@/pages/incidents/types";
 import { useCan } from "@/lib/permissions";
 import { dashboardPath } from "@/lib/routes";
-
-interface IncidentPageProps extends SharedProps {
-  incident: Incident;
-  timelineEvents?: TimelineEvent[];
-  actions?: IncidentAction[];
-  hasPostmortem: boolean;
-  postmortemStatus?: string;
-  postmortemGenerationState?: "generating" | "failed";
-  attachableRunbooks: AttachableRunbook[];
-  channelUrl?: string | null;
-  linkableIncidents: LinkableIncident[];
-  memberChoices: { value: string; label: string }[];
-}
 
 export default function IncidentPage() {
   const {

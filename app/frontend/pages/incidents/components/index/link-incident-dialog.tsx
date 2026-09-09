@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { whenClosed } from "@/lib/handlers"
 import { incidentLinkPath } from "@/lib/routes"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 import { INCIDENT_RELATIONSHIPS } from "@/lib/generated/constants"
 
 export type LinkableIncident = { id: string; identifier: string; name: string | null }
@@ -73,7 +74,7 @@ export function LinkIncidentDialog({
     router.post(
       incidentLinkPath(incidentId),
       { relationship, target_id: target },
-      { preserveScroll: true, onSuccess: close, onFinish: () => setSaving(false) },
+      { ...afterMutation("incident", "linkableIncidents", "timelineEvents"), onSuccess: close, onFinish: () => setSaving(false) },
     )
   }
 

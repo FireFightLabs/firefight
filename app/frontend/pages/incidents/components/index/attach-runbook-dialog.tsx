@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { incidentRunbooksPath } from "@/lib/routes"
+import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 
 export interface AttachableRunbook {
   slug: string
@@ -41,7 +42,7 @@ export function AttachRunbookDialog({
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     post(incidentRunbooksPath(incidentId), {
-      preserveScroll: true,
+      ...afterMutation("incident", "attachableRunbooks", "timelineEvents"),
       onSuccess: () => {
         setOpen(false)
         reset()
