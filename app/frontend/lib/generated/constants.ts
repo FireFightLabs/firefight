@@ -32,6 +32,12 @@ export const INCIDENT_RELATIONSHIPS = {
 
 export const LEAD_ROLE_SLUG = "incident_lead" as const
 
+export const CHANGE_KINDS = {
+  "VALUE": "value",
+  "TEXT": "text",
+  "TIME": "time"
+} as const
+
 export const CONDITION_FIELD_LABELS = {
   "incident_type": "Incident Type",
   "severity": "Severity",

@@ -16,15 +16,31 @@ class IncidentEvent::References
     new(
       members: workspace.workspace_memberships.where(id: member_ids).includes(:user).index_by(&:id),
       runbooks: workspace.runbooks.where(id: runbook_ids).index_by(&:id),
-      incidents: workspace.incidents.where(id: incident_ids).index_by(&:id)
+      incidents: workspace.incidents.where(id: incident_ids).index_by(&:id),
+      field_definitions: field_definitions_for(workspace, events)
     )
   end
 
-  def initialize(members:, runbooks:, incidents:)
+  # Only a timeline with a custom field change loads definitions at all. A
+  # deleted definition still names its old changes, and when a live one has
+  # reused the slug the live one wins: NULL deleted_at sorts last, so it is
+  # the row index_by keeps.
+  def self.field_definitions_for(workspace, events)
+    updates = events.map(&:eventable).grep(IncidentUpdate)
+    return {} unless updates.any? { |update| update.changed_fields.include?(IncidentUpdate::FIELD_CUSTOM_FIELDS) }
+
+    slugs = updates.flat_map { |update| update.custom_fields.keys }.uniq
+    workspace.incident_field_definitions.where(slug: slugs).order(:deleted_at).index_by(&:slug)
+  end
+
+  def initialize(members:, runbooks:, incidents:, field_definitions: {})
     @members = members
     @runbooks = runbooks
     @incidents = incidents
+    @field_definitions = field_definitions
   end
+
+  attr_reader :field_definitions
 
   def member(id) = id && @members[id]
   def runbook(id) = id && @runbooks[id]
