@@ -338,6 +338,14 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Tells one person, where they clicked, what their subscription now is, with
+  # the control to change it.
+  # @param state [Symbol] one of Incident::Subscriptions::SUBSCRIBED, ALREADY_SUBSCRIBED, UNSUBSCRIBED
+  # @return [Hash] { success: true }
+  def post_subscription_notice(channel_id:, user_id:, incident:, state:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [Hash] { message_id: ... }
   def post_escalation_direct_message(user_id:, incident:, escalated_by:, escalation_event_id:, reason: nil)
     raise NotImplemented.new(__method__, self.class)

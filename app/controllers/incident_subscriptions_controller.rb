@@ -3,17 +3,16 @@ class IncidentSubscriptionsController < InertiaController
 
   def create
     incident = find_incident
-    incident.subscribe!(current_membership)
+    state = incident.subscribe!(current_membership)
 
-    redirect_to incident_path(incident),
-      notice: "You are subscribed to #{incident.identifier}. Every update Firefight posts about it will reach you as a direct message."
+    redirect_to incident_path(incident), notice: incident.subscription_notice(state)
   end
 
   def destroy
     incident = find_incident
-    incident.unsubscribe!(current_membership)
+    state = incident.unsubscribe!(current_membership)
 
-    redirect_to incident_path(incident), notice: "You are no longer subscribed to #{incident.identifier}."
+    redirect_to incident_path(incident), notice: incident.subscription_notice(state)
   end
 
   private

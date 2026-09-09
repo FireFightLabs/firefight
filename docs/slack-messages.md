@@ -66,11 +66,19 @@ argument rather than two methods (see `StatusUpdate.build`).
 ## The announcement thread has subscribers
 
 Every reply Firefight posts in an incident's announcement thread also goes to
-each subscriber as a DM, block for block. Build the reply once and hand it to
-`reply_and_notify_subscribers`. A message that reads well in the thread reads
-well in a DM, since both open with the incident's title. Never build a second
-variant for the DM. The point of subscribing is to see exactly what the thread
-saw.
+each subscriber as a DM. Build the reply once and hand it to
+`reply_and_notify_subscribers`, which wraps it with
+`Slack::Messages::Subscription.wrap_update`: the incident's title and channel
+on top, the reply untouched in the middle, and Open channel, Incident homepage
+and Unsubscribe underneath. A thread reply needs no title because the
+announcement sits above it. A DM sits under nothing, which is why the wrapper
+exists and why the reply itself never gets a DM-only variant. The fallback
+text is prefixed with the identifier for the same reason.
+
+Subscription confirmations are ephemeral, built by `Subscription.notice`. Each
+carries an Unsubscribe button, which the shared Subscribe button cannot,
+because a confirmation is seen by one person and the announcement by everyone.
+The shared button only ever subscribes.
 
 ## Emoji and spacing
 

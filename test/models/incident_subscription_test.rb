@@ -7,26 +7,32 @@ class IncidentSubscriptionTest < ActiveSupport::TestCase
     @bob = workspace_memberships(:bob_workspace_one)
   end
 
-  test "subscribing twice leaves one subscription" do
-    @incident.subscribe!(@alice)
-    @incident.subscribe!(@alice)
+  test "the first subscribe subscribes and the second says so, leaving one row" do
+    assert_equal Incident::Subscriptions::SUBSCRIBED, @incident.subscribe!(@alice)
+    assert_equal Incident::Subscriptions::ALREADY_SUBSCRIBED, @incident.subscribe!(@alice)
 
     assert_equal 1, @incident.incident_subscriptions.where(workspace_membership: @alice).count
     assert @incident.subscribed?(@alice)
   end
 
-  test "unsubscribing someone who never subscribed changes nothing" do
+  test "unsubscribing removes the row, and unsubscribing again changes nothing" do
+    @incident.subscribe!(@alice)
+
+    assert_equal Incident::Subscriptions::UNSUBSCRIBED, @incident.unsubscribe!(@alice)
+    assert_not @incident.subscribed?(@alice)
+
     assert_no_difference "IncidentSubscription.count" do
-      @incident.unsubscribe!(@bob)
+      assert_equal Incident::Subscriptions::UNSUBSCRIBED, @incident.unsubscribe!(@alice)
     end
   end
 
-  test "toggle_subscription! flips the state and says where it landed" do
-    assert @incident.toggle_subscription!(@alice)
-    assert @incident.subscribed?(@alice)
-
-    assert_not @incident.toggle_subscription!(@alice)
-    assert_not @incident.subscribed?(@alice)
+  test "each state has a finished sentence naming the incident" do
+    [ Incident::Subscriptions::SUBSCRIBED, Incident::Subscriptions::ALREADY_SUBSCRIBED, Incident::Subscriptions::UNSUBSCRIBED ].each do |state|
+      sentence = @incident.subscription_notice(state)
+      assert_includes sentence, @incident.identifier
+      assert_match(/\.\z/, sentence)
+      assert_no_match(/[;\u2014]/, sentence)
+    end
   end
 
   test "subscriber_platform_user_ids names every subscriber by their platform id" do
@@ -37,7 +43,8 @@ class IncidentSubscriptionTest < ActiveSupport::TestCase
   end
 
   test "a subscription belongs to the incident's workspace and dies with the incident" do
-    subscription = @incident.subscribe!(@alice)
+    @incident.subscribe!(@alice)
+    subscription = @incident.incident_subscriptions.find_by!(workspace_membership: @alice)
     assert_equal @incident.workspace, subscription.workspace
 
     @incident.destroy!
