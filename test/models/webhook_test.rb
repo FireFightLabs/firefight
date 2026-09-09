@@ -159,4 +159,53 @@ class WebhookTest < ActiveSupport::TestCase
     assert_not_nil webhook.webhook_delinquency_tracker
     assert_equal 0, webhook.webhook_delinquency_tracker.consecutive_failures_count
   end
+
+  # Test deliveries
+
+  test "latest_subscribed_event is the newest event of a subscribed type, from any incident" do
+    webhook = Webhook.create!(
+      workspace: workspaces(:slack_workspace_one), name: "Resolved only",
+      url: "https://example.com/test", subscribed_events: [ IncidentEvent::INCIDENT_RESOLVED ]
+    )
+
+    assert_equal incident_events(:inc3_resolved), webhook.latest_subscribed_event
+  end
+
+  test "latest_subscribed_event never crosses into another workspace" do
+    webhook = Webhook.create!(
+      workspace: workspaces(:slack_workspace_one), name: "Created only",
+      url: "https://example.com/test", subscribed_events: [ IncidentEvent::INCIDENT_CREATED ]
+    )
+    other = incident_events(:ws2_inc1_created)
+    assert other.created_at > incident_events(:inc1_created).created_at
+
+    assert_equal workspaces(:slack_workspace_one), webhook.latest_subscribed_event.incident.workspace
+  end
+
+  test "queue_test_delivery! queues one delivery of the newest subscribed event" do
+    webhook = webhooks(:active_webhook)
+
+    delivery = assert_difference -> { webhook.webhook_deliveries.count }, 1 do
+      webhook.queue_test_delivery!
+    end
+
+    assert_equal webhook.latest_subscribed_event, delivery.incident_event
+    assert_equal delivery.incident_event.event_type, delivery.event_type
+    assert delivery.pending?
+  end
+
+  test "test_blocked_reason names why there is nothing to send, and queue_test_delivery! refuses with it" do
+    webhook = Webhook.create!(
+      workspace: workspaces(:slack_workspace_one), name: "Canceled only",
+      url: "https://example.com/test", subscribed_events: [ IncidentEvent::INCIDENT_CANCELED ]
+    )
+
+    assert_match(/No matching events found to test with/, webhook.test_blocked_reason)
+    error = assert_raises(Webhook::TestBlocked) { webhook.queue_test_delivery! }
+    assert_equal webhook.test_blocked_reason, error.message
+  end
+
+  test "test_blocked_reason is nil when a subscribed event exists" do
+    assert_nil webhooks(:active_webhook).test_blocked_reason
+  end
 end

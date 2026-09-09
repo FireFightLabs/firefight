@@ -1,6 +1,10 @@
 class Webhook < ApplicationRecord
   PERMITTED_SCHEMES = %w[ http https ].freeze
 
+  # Raised when test_blocked_reason refuses. Carries the sentence the surface
+  # shows, so a caller renders it without restating the rule.
+  class TestBlocked < StandardError; end
+
   # The one registry for what a customer may subscribe to and what payload
   # each event renders. Adding an event here (plus its jbuilder template and
   # the webhook-events.ts mirror) is the whole job.
@@ -54,6 +58,39 @@ class Webhook < ApplicationRecord
 
   def deactivate!
     update!(active: false)
+  end
+
+  # The newest event in the workspace this webhook subscribes to. Narrowing to
+  # subscribed events before picking the newest finds one whenever any exists.
+  # Picking the newest incident first and only then looking for a subscribed
+  # event inside it finds nothing whenever the latest workspace activity is an
+  # event type the webhook ignores.
+  def latest_subscribed_event
+    IncidentEvent.joins(:incident)
+      .where(incidents: { workspace_id: workspace_id })
+      .where(event_type: subscribed_events)
+      .order(created_at: :desc)
+      .first
+  end
+
+  # Why a test delivery cannot be sent right now, as a sentence, or nil. The
+  # dashboard shows it as a flash and the MCP tool returns it as the error, so
+  # the rule is written once.
+  def test_blocked_reason
+    return if latest_subscribed_event
+
+    "No matching events found to test with. Nothing this webhook subscribes to has happened in this workspace yet."
+  end
+
+  # Queues one delivery of the newest subscribed event against this endpoint,
+  # signed and sent the way a live delivery is. Raises when test_blocked_reason
+  # refuses, so a caller that skipped the pre-check still cannot queue nothing.
+  def queue_test_delivery!
+    reason = test_blocked_reason
+    raise TestBlocked, reason if reason
+
+    event = latest_subscribed_event
+    webhook_deliveries.create!(incident_event: event, event_type: event.event_type)
   end
 
   private

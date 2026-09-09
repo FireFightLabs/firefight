@@ -122,7 +122,8 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
       post test_webhook_url(webhook)
     end
     assert_response :redirect
-    assert_equal "No matching events found to test with", flash[:alert]
+    assert_equal webhook.test_blocked_reason, flash[:alert]
+    assert_match(/No matching events found to test with/, flash[:alert])
   end
 
   test "test delivery ignores events from other workspaces" do

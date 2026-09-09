@@ -13,6 +13,7 @@ module Mcp
     CUSTOM_FIELDS = "#{BASE}/customization/custom-fields.md".freeze
     INCIDENT_FORMS = "#{BASE}/customization/incident-forms.md".freeze
     MCP_SERVER = "#{BASE}/api/mcp-server.md".freeze
+    WEBHOOKS = "#{BASE}/api/webhooks.md".freeze
     PERMISSIONS = "#{BASE}/gateway/permissions.md".freeze
     APPROVALS = "#{BASE}/gateway/approvals.md".freeze
     ACTIVITY = "#{BASE}/gateway/activity.md".freeze
