@@ -797,4 +797,19 @@ class IncidentTest < ActiveSupport::TestCase
     assert_not incident.own_pinned_message?("1.300")
     assert_not incident.own_pinned_message?(nil)
   end
+
+  test "actions need a live incident, follow-ups do not" do
+    live = incidents(:active_critical_ws1)
+    over = incidents(:resolved_minor_ws1)
+
+    assert_nil live.action_item_blocked_reason(IncidentAction::ACTION_TYPE_ACTION)
+    assert_nil live.action_item_blocked_reason(IncidentAction::ACTION_TYPE_FOLLOWUP)
+    assert_equal "#{over.identifier} is closed, so actions can no longer be added to it. Add a follow-up instead.",
+                 over.action_item_blocked_reason(IncidentAction::ACTION_TYPE_ACTION)
+    assert_nil over.action_item_blocked_reason(IncidentAction::ACTION_TYPE_FOLLOWUP)
+
+    error = assert_raises(Incident::NotActive) { over.refuse_action_item!(IncidentAction::ACTION_TYPE_ACTION) }
+    assert_equal over.action_item_blocked_reason(IncidentAction::ACTION_TYPE_ACTION), error.message
+    assert_nothing_raised { over.refuse_action_item!(IncidentAction::ACTION_TYPE_FOLLOWUP) }
+  end
 end

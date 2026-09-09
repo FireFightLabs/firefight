@@ -4,15 +4,15 @@ import { ActionPanel } from "@/pages/incidents/components/index/action-panel"
 
 export function IncidentActionsSidebar({
   actions,
-  canAddAction,
-  canAddFollowup,
+  actionBlockedReason,
+  followupBlockedReason,
   incidentId,
   candidates,
   canEdit,
 }: {
   actions: IncidentAction[]
-  canAddAction: boolean
-  canAddFollowup: boolean
+  actionBlockedReason?: string
+  followupBlockedReason?: string
   incidentId: string
   candidates: InlineChoice[]
   canEdit: boolean
@@ -22,8 +22,8 @@ export function IncidentActionsSidebar({
 
   return (
     <div className="flex flex-col gap-3">
-      <ActionPanel title="Actions" items={actionItems} canAdd={canAddAction} incidentId={incidentId} actionType="action" disabledTooltip="Incident is closed" candidates={candidates} canEdit={canEdit} />
-      <ActionPanel title="Follow-ups" items={followups} canAdd={canAddFollowup} incidentId={incidentId} actionType="followup" disabledTooltip="Available once incident is resolved" candidates={candidates} canEdit={canEdit} />
+      <ActionPanel title="Actions" items={actionItems} blockedReason={actionBlockedReason} incidentId={incidentId} actionType="action" candidates={candidates} canEdit={canEdit} />
+      <ActionPanel title="Follow-ups" items={followups} blockedReason={followupBlockedReason} incidentId={incidentId} actionType="followup" candidates={candidates} canEdit={canEdit} />
     </div>
   )
 }

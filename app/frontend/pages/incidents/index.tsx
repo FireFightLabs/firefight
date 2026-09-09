@@ -28,12 +28,6 @@ export default function IncidentPage() {
     linkableIncidents,
     memberChoices,
   } = usePage<IncidentPageProps>().props;
-  const canAddAction = ["triage", "active"].includes(
-    incident.status.lifecycleStage,
-  );
-  const canAddFollowup = ["closed", "canceled"].includes(
-    incident.status.lifecycleStage,
-  );
   const canEditIncident = useCan("incidents");
   const rolesBlockedReason = canEditIncident
     ? incident.changeBlockedReason
@@ -99,8 +93,8 @@ export default function IncidentPage() {
               <Deferred data="actions" fallback={<ActionsSkeleton />}>
                 <IncidentActionsSidebar
                   actions={actions ?? []}
-                  canAddAction={canAddAction}
-                  canAddFollowup={canAddFollowup}
+                  actionBlockedReason={incident.actionBlockedReason}
+                  followupBlockedReason={incident.followupBlockedReason}
                   incidentId={incident.id}
                   candidates={memberChoices}
                   canEdit={canEditIncident}
@@ -112,6 +106,7 @@ export default function IncidentPage() {
                 attachable={attachableRunbooks}
                 incidentId={incident.id}
                 canEdit={canEditIncident}
+                claimBlockedReason={incident.actionBlockedReason}
               />
               <IncidentPostmortemCard
                 incidentId={incident.id}

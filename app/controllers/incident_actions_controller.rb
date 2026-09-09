@@ -25,6 +25,8 @@ class IncidentActionsController < InertiaController
     end
 
     redirect_to incident_path(incident)
+  rescue Incident::NotActive => e
+    redirect_to incident_path(incident), alert: e.message
   end
 
   # Taking an item yourself and handing it to someone else are different

@@ -37,6 +37,8 @@ class IncidentRunbooksController < InertiaController
     end
 
     redirect_to incident_path(incident)
+  rescue Incident::NotActive => e
+    redirect_to incident_path(incident), alert: e.message
   end
 
   private

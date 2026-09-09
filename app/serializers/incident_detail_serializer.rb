@@ -67,6 +67,18 @@ class IncidentDetailSerializer < BaseSerializer
     incident.shoutout_blocked_reason
   end
 
+  # Adding work and claiming a runbook step share this sentence, since a claim
+  # creates the action behind the step.
+  type :string, optional: true
+  def action_blocked_reason
+    incident.action_item_blocked_reason(IncidentAction::ACTION_TYPE_ACTION)
+  end
+
+  type :string, optional: true
+  def followup_blocked_reason
+    incident.action_item_blocked_reason(IncidentAction::ACTION_TYPE_FOLLOWUP)
+  end
+
   # The chip renders a person, the lead picker needs the row it points at.
   # Matching the chip's name back to a member breaks the moment two people
   # share a display name.

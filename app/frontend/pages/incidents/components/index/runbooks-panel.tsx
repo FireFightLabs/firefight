@@ -15,6 +15,7 @@ import {
 import { RUNBOOK_QUERY_PARAM } from "@/lib/generated/constants"
 import { claimRunbookStepPath, settingsRunbooksPath } from "@/lib/routes"
 import { afterMutation } from "@/pages/incidents/lib/after-mutation"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Runbook = Incident["runbooks"][number]
 
@@ -28,16 +29,43 @@ function progressLabel(runbook: Runbook): string {
   return `${runbook.doneCount} of ${runbook.stepsCount} steps done`
 }
 
+// Claiming a step creates the action behind it, so once the incident can take
+// no more actions the control stays visible and says why.
+function ClaimControl({ onClaim, blockedReason }: { onClaim: () => void; blockedReason?: string }) {
+  if (blockedReason) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="shrink-0 cursor-not-allowed text-[11px] text-muted-foreground/40">Claim</span>
+        </TooltipTrigger>
+        <TooltipContent>{blockedReason}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClaim}
+      className="shrink-0 rounded text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      Claim
+    </button>
+  )
+}
+
 function StepRow({
   step,
   runbook,
   incidentId,
   canEdit,
+  claimBlockedReason,
 }: {
   step: Runbook["steps"][number]
   runbook: Runbook
   incidentId: string
   canEdit: boolean
+  claimBlockedReason?: string
 }) {
   function claim() {
     router.post(claimRunbookStepPath(incidentId, runbook.id, step.id), {}, afterMutation("incident", "timelineEvents"))
@@ -57,13 +85,7 @@ function StepRow({
         {step.assignee && <span className="text-[11px] text-muted-foreground/70">{step.assignee}</span>}
       </span>
       {canEdit && !step.done && !step.assignee && (
-        <button
-          type="button"
-          onClick={claim}
-          className="shrink-0 rounded text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Claim
-        </button>
+        <ClaimControl onClaim={claim} blockedReason={claimBlockedReason} />
       )}
     </li>
   )
@@ -75,10 +97,12 @@ function RunbookEntry({
   runbook,
   incidentId,
   canEdit,
+  claimBlockedReason,
 }: {
   runbook: Runbook
   incidentId: string
   canEdit: boolean
+  claimBlockedReason?: string
 }) {
   const [open, setOpen] = useState(false)
   const Chevron = open ? IconChevronDown : IconChevronRight
@@ -135,6 +159,7 @@ function RunbookEntry({
               runbook={runbook}
               incidentId={incidentId}
               canEdit={canEdit}
+              claimBlockedReason={claimBlockedReason}
             />
           ))}
         </ul>
@@ -148,11 +173,13 @@ export function RunbooksPanel({
   attachable,
   incidentId,
   canEdit,
+  claimBlockedReason,
 }: {
   runbooks: Incident["runbooks"]
   attachable: AttachableRunbook[]
   incidentId: string
   canEdit: boolean
+  claimBlockedReason?: string
 }) {
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">
@@ -173,6 +200,7 @@ export function RunbooksPanel({
               runbook={runbook}
               incidentId={incidentId}
               canEdit={canEdit}
+              claimBlockedReason={claimBlockedReason}
             />
           ))}
         </ul>
