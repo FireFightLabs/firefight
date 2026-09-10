@@ -1,7 +1,8 @@
 # The context a modal carries from open to submit, as one opaque string the
 # platform hands back verbatim: the incident the modal acts on, the runbook
 # attachment when scoped to one, and the coordinates of a temporary
-# "writing..." message that needs cleanup after submit.
+# "writing..." message that needs cleanup after submit, and the handle of
+# an ephemeral prompt to dismiss once the modal it opened is submitted.
 #
 # One encoder and one decoder. Modal builders call `encode`, the interaction
 # parser calls `parse` once at the boundary, and handlers read the typed
@@ -12,9 +13,9 @@ module ModalState
   InvalidError = Class.new(StandardError)
 
   Result = Data.define(:incident_id, :incident_runbook_id, :temp_message_ts, :channel_id,
-                       :source_message_text, :source_message_link, :test) do
+                       :source_message_text, :source_message_link, :prompt_handle, :test) do
     def initialize(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil,
-                   source_message_text: nil, source_message_link: nil, test: false)
+                   source_message_text: nil, source_message_link: nil, prompt_handle: nil, test: false)
       super
     end
   end
@@ -23,7 +24,7 @@ module ModalState
 
   # test marks a declare dialog for a test incident. Encoded only when true.
   def self.encode(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil,
-                  source_message_text: nil, source_message_link: nil, test: false)
+                  source_message_text: nil, source_message_link: nil, prompt_handle: nil, test: false)
     {
       incident_id: incident_id,
       incident_runbook_id: incident_runbook_id,
@@ -31,6 +32,7 @@ module ModalState
       channel_id: channel_id,
       source_message_text: source_message_text,
       source_message_link: source_message_link,
+      prompt_handle: prompt_handle,
       test: (true if test)
     }.compact.to_json
   end
@@ -48,6 +50,7 @@ module ModalState
       channel_id: parsed["channel_id"],
       source_message_text: parsed["source_message_text"],
       source_message_link: parsed["source_message_link"],
+      prompt_handle: parsed["prompt_handle"],
       test: parsed["test"] == true
     )
   rescue JSON::ParserError => e

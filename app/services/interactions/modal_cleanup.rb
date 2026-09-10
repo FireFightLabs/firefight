@@ -17,5 +17,17 @@ module Interactions
     rescue AdapterError => e
       Rails.logger.warn({ event: "interactions.modal_cleanup.delete_temp_failed", error: e.message })
     end
+
+    # Dismisses the ephemeral prompt a reaction posted, identified by
+    # `metadata.prompt_handle`. No-op when absent. Swallows `AdapterError`
+    # for the same reason as above: the item was created, a prompt that
+    # lingers is not worth failing the submission over.
+    def self.dismiss_prompt(workspace, metadata)
+      return if metadata.prompt_handle.blank?
+
+      workspace.adapter.dismiss_prompt(prompt_handle: metadata.prompt_handle)
+    rescue AdapterError => e
+      Rails.logger.warn({ event: "interactions.modal_cleanup.dismiss_prompt_failed", error: e.message })
+    end
   end
 end

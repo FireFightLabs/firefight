@@ -67,6 +67,41 @@ class Interactions::CreateActionItemHandlerTest < ActiveSupport::TestCase
     assert_equal IncidentAction::ACTION_TYPE_FOLLOWUP, item.action_type
   end
 
+  test "takes down the reaction prompt once the item exists" do
+    stub_post_message
+    metadata = ModalState.encode(incident_id: @incident.id, prompt_handle: "https://hooks.slack.com/actions/T123/456/abc")
+    Slack::Client.expects(:delete_original_response).with(response_url: "https://hooks.slack.com/actions/T123/456/abc").returns({ ok: true })
+
+    result = Interactions::CreateActionItemHandler.execute(
+      build_interaction(callback_id: Identifiers::CREATE_ACTION_MODAL, description: "Dismiss me", private_metadata: metadata)
+    )
+
+    assert_equal "clear", result[:response_action]
+    assert @incident.incident_actions.exists?(description: "Dismiss me")
+  end
+
+  test "a prompt that will not dismiss does not fail the submission" do
+    stub_post_message
+    metadata = ModalState.encode(incident_id: @incident.id, prompt_handle: "https://hooks.slack.com/actions/T123/456/abc")
+    Slack::Client.expects(:delete_original_response).raises(AdapterError, "expired")
+
+    result = Interactions::CreateActionItemHandler.execute(
+      build_interaction(callback_id: Identifiers::CREATE_ACTION_MODAL, description: "Still created", private_metadata: metadata)
+    )
+
+    assert_equal "clear", result[:response_action]
+    assert @incident.incident_actions.exists?(description: "Still created")
+  end
+
+  test "a form opened without a prompt dismisses nothing" do
+    stub_post_message
+    Slack::Client.expects(:delete_original_response).never
+
+    Interactions::CreateActionItemHandler.execute(
+      build_interaction(callback_id: Identifiers::CREATE_ACTION_MODAL, description: "From /ff action")
+    )
+  end
+
   test "returns a modal error when the incident is gone" do
     metadata = ModalState.encode(incident_id: SecureRandom.uuid)
 

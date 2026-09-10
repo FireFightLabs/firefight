@@ -109,6 +109,14 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     assert_equal [ "U11111111", "U22222222" ], result[:invited_users]
   end
 
+  test "dismiss_prompt hands the handle to the response_url and translates failures" do
+    Slack::Client.expects(:delete_original_response).with(response_url: "https://hooks.slack.com/actions/T1/2/abc").returns({ ok: true })
+    assert_equal({ ok: true }, @adapter.dismiss_prompt(prompt_handle: "https://hooks.slack.com/actions/T1/2/abc"))
+
+    Slack::Client.expects(:delete_original_response).raises(AdapterError::Unavailable.new("down"))
+    assert_raises(AdapterError) { @adapter.dismiss_prompt(prompt_handle: "https://hooks.slack.com/actions/T1/2/abc") }
+  end
+
   test "open_modal translates TriggerExpiredError to platform-agnostic error" do
     stub_open_modal(raises: AdapterError::TriggerExpired.new("expired"))
     assert_raises(AdapterError::TriggerExpired) do

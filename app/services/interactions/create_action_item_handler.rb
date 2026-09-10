@@ -34,6 +34,7 @@ module Interactions
         assignee: assignee,
         platform_data: platform_data
       )
+      Interactions::ModalCleanup.dismiss_prompt(workspace, metadata)
 
       { response_action: "clear" }
     rescue ActiveRecord::RecordNotFound => e

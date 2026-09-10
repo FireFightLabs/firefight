@@ -92,6 +92,8 @@ Who is acting is resolved once: `Command#principal` / `Interaction#principal` pr
 
 A modal's `private_metadata` is parsed once by `Slack::InteractionParser` into the typed `Interaction#metadata` (`ModalState::Result`). Handlers read `interaction.metadata.incident_id` and friends and never parse the string themselves. Every modal builder encodes with `ModalState.encode`, which is platform-neutral: the string is Firefight's own JSON, the platform only carries it.
 
+Two cleanup coordinates ride in that state so a modal can tidy up after itself. `temp_message_ts` plus `channel_id` name the "writing..." placeholder a slow modal posts, deleted on submit or close through `Interactions::ModalCleanup.delete_temp_message`. `prompt_handle` is the platform's one-off reply token for the button that opened the modal (Slack's `response_url`, parsed onto `Interaction#prompt_handle`). The reaction-to-action prompt is ephemeral, so `chat.delete` cannot reach it, and the only way down is `delete_original` posted to that URL. The from-reaction handler encodes the handle, and `CreateActionItemHandler` calls `ModalCleanup.dismiss_prompt` once the item exists, never on click, so cancelling the form leaves the prompt to retry. `PlatformAdapter#dismiss_prompt(prompt_handle:)` is the contract, `Slack::Client.delete_original_response` the only place that knows the URL's shape and refuses any host but `hooks.slack.com`.
+
 Controllers are the platform-specific boundary — they normalize payloads into platform-agnostic objects before passing to dispatchers.
 
 ### When to enqueue from a handler

@@ -51,6 +51,15 @@ class ModalStateTest < ActiveSupport::TestCase
     assert_nil result.channel_id
   end
 
+  test "prompt_handle round-trips and is omitted when absent" do
+    with_handle = ModalState.parse(ModalState.encode(incident_id: 42, prompt_handle: "https://hooks.slack.com/actions/T1/2/abc"))
+    assert_equal "https://hooks.slack.com/actions/T1/2/abc", with_handle.prompt_handle
+
+    encoded = ModalState.encode(incident_id: 42)
+    refute_includes encoded, "prompt_handle"
+    assert_nil ModalState.parse(encoded).prompt_handle
+  end
+
   test "parse raises InvalidError when raw is nil" do
     assert_raises(ModalState::InvalidError) { ModalState.parse(nil) }
   end

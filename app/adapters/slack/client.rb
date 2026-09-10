@@ -280,6 +280,29 @@ module Slack
       api_get(workspace: workspace, endpoint: "users.info", params: { user: user_id })
     end
 
+    # A block_actions payload carries a one-off `response_url` that stays valid
+    # for 30 minutes. Posting `delete_original` to it is the only way to remove
+    # an ephemeral message, since chat.delete never sees one.
+    # https://api.slack.com/interactivity/handling#message_responses
+    RESPONSE_URL_HOST = "hooks.slack.com"
+
+    def self.delete_original_response(response_url:)
+      uri = URI(response_url)
+      unless uri.scheme == "https" && uri.host.to_s.downcase == RESPONSE_URL_HOST
+        raise AdapterError, "refusing to respond to a non-Slack response_url host=#{uri.host}"
+      end
+
+      request = Net::HTTP::Post.new(uri)
+      request["Content-Type"] = "application/json"
+      request.body = { delete_original: true }.to_json
+
+      response = pool_request(uri, request, endpoint: "response_url.delete_original")
+      status = response.code.to_i
+      raise AdapterError, "Slack response_url returned #{status}: #{response.body.to_s.truncate(200)}" unless status.between?(200, 299)
+
+      { ok: true }
+    end
+
     # Allowlist so the workspace's Bearer token can't leak to a hostile host
     # via a forged `permalink_public` or misrouted URL.
     ALLOWED_DOWNLOAD_HOST_SUFFIX = ".slack.com"
