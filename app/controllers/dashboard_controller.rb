@@ -22,8 +22,7 @@ class DashboardController < InertiaController
 
   private
 
-  # The first-run dialog is the installer's, once. The channel link is the
-  # platform's to build, so the page is handed the finished string.
+  # The first-run dialog is the installer's, once. The channel link is built by the platform.
   def onboarding_props
     onboarding = current_workspace.onboarding
     {
@@ -37,8 +36,7 @@ class DashboardController < InertiaController
     @severity_slugs ||= Array(params[:severities]).compact_blank
   end
 
-  # UI exposes only Active/Closed chips, so "active" must include triage,
-  # triaged incidents are operationally "open now" from a user's perspective.
+  # The UI offers only Active and Closed, so active includes triage.
   def lifecycle_keys
     @lifecycle_keys ||= Array(params[:statuses]).compact_blank.flat_map { |k|
       k == IncidentLifecycleStage::ACTIVE ? [ IncidentLifecycleStage::TRIAGE, IncidentLifecycleStage::ACTIVE ] : k

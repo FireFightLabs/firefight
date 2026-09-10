@@ -26,8 +26,8 @@ interface PayloadKey {
   preview: string
 }
 
-// Flatten a payload into clickable dot-paths (arrays via index 0), so users
-// map fields by picking real keys instead of typing paths blind.
+// Flattens a payload into dot paths (arrays via index 0), so users pick real
+// keys instead of typing paths blind.
 function flattenPayload(node: unknown, prefix = "", depth = 0): PayloadKey[] {
   if (depth > 4) {
     return []

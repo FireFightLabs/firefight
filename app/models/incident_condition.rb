@@ -33,8 +33,7 @@ class IncidentCondition < ApplicationRecord
   validate :conditionable_may_be_hidden
   validate :custom_field_is_answerable_here
 
-  # Shared with the dashboard through lib/typescript_constants.rb, so the
-  # editors and the timeline say the rule the same way.
+  # Shared with the dashboard through lib/typescript_constants.rb.
   FIELD_LABELS = {
     FIELD_INCIDENT_TYPE => "Incident Type",
     FIELD_SEVERITY => "Severity",
@@ -52,8 +51,7 @@ class IncidentCondition < ApplicationRecord
     Incident::VISIBILITY_PUBLIC => "Public"
   }.freeze
 
-  # The rule in words, with names in place of ids: "Severity is one of
-  # Critical, Major". Same wording as the settings screen's conditions column.
+  # Same wording as the settings screen's conditions column.
   def to_sentence
     label = condition_field == FIELD_CUSTOM_FIELD ? incident_field_definition&.name || "Custom field" : FIELD_LABELS[condition_field]
     "#{label} #{OPERATOR_LABELS[operator]} #{value_names.join(", ")}"
@@ -72,21 +70,16 @@ class IncidentCondition < ApplicationRecord
     values.map { |value| names[value] || value }
   end
 
-  # A condition is a second way to hide a field, so it has to respect the same
-  # lock the Visible toggle does. Severity and Status are NOT NULL on incidents,
-  # and a condition that fails to match drops them from the resolved set, which
-  # `validate_submission` reads too. The result was a Declare dialog that asked
-  # for no severity and then refused every submission.
+  # A condition is a second way to hide a field, so it respects the lock the Visible toggle does.
+  # Hiding severity once produced a Declare dialog that refused every submission.
   def conditionable_may_be_hidden
     return unless conditionable.is_a?(IncidentFormField) && conditionable.locked_visible?
 
     errors.add(:base, "#{conditionable.source_name} is always asked for, so it cannot be made conditional.")
   end
 
-  # A condition can only read a custom field the incident could already hold an
-  # answer for. One attached to this form, or to a form that runs before it.
-  # Pointing at a field nobody is ever asked produces a rule that silently never
-  # matches, which reads as the field being broken.
+  # A rule on a field nobody is asked silently never matches, which reads as
+  # the field being broken.
   def custom_field_is_answerable_here
     return unless condition_field == FIELD_CUSTOM_FIELD && incident_field_definition.present?
     return unless conditionable.is_a?(IncidentFormField)

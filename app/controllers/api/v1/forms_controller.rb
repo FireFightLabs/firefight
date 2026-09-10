@@ -1,6 +1,5 @@
-# What a lifecycle form asks responders for, and changing it. A form has no
-# stored row until something about it is changed, so reading one that has never
-# been touched returns the workspace default rather than a not-found.
+# A form has no row until changed, so reading an untouched one returns the
+# workspace default rather than a not-found.
 class Api::V1::FormsController < Api::V1::ApiController
   before_action :set_form, only: %i[show]
 
@@ -10,8 +9,7 @@ class Api::V1::FormsController < Api::V1::ApiController
     render :show
   end
 
-  # Pass either custom_field or system_field to say which one you mean. Sending
-  # conditions replaces the set on that field rather than adding to it.
+  # Pass custom_field or system_field to say which. Sending conditions replaces the set.
   def update
     authorize!(Ability::Action::RESOURCE_FORMS, Ability::Action::ACTION_UPDATE)
 

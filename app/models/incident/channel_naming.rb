@@ -1,4 +1,3 @@
-# Builds the platform channel name for an incident, shaped inc-2026-08-23-title-slug.
 module Incident::ChannelNaming
   extend ActiveSupport::Concern
 

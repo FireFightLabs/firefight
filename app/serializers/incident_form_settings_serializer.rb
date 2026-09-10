@@ -8,9 +8,7 @@ class IncidentFormSettingsSerializer < BaseSerializer
     position: { type: :number }
   )
 
-  # Persisted forms expose their DB id. Code-default forms (no DB row yet)
-  # get a synthetic id (`default:<slug>`), the frontend uses it verbatim,
-  # and mutation controllers translate it back via
+  # Code-default forms get a synthetic `default:<slug>` id, translated back through
   # `Workspace#ensure_incident_form!` on first edit.
   type :string
   def id
@@ -27,8 +25,7 @@ class IncidentFormSettingsSerializer < BaseSerializer
     incident_form.description
   end
 
-  # Custom fields a condition on this form may read, asked for by this form, or
-  # by one that runs before it. Anything else would never be answered.
+  # Fields asked by this form or one before it. Anything else would never be answered.
   type "{ id: string; name: string; options: { id: string; name: string }[] }[]"
   def condition_sources
     return [] unless incident_form.persisted?
@@ -39,8 +36,7 @@ class IncidentFormSettingsSerializer < BaseSerializer
     end
   end
 
-  # Which of the two built-in sources this form asks for. Hiding Incident Type
-  # takes it out of the picker, the same way it takes it out of the dialog.
+  # Hiding Incident Type takes it out of the picker as it does out of the dialog.
   type "string[]"
   def condition_source_system_keys
     return [] unless incident_form.persisted?
@@ -48,8 +44,7 @@ class IncidentFormSettingsSerializer < BaseSerializer
     incident_form.condition_source_system_keys
   end
 
-  # Hidden fields included, greyed out in the editor. Leaving them out is what
-  # made hiding a field a one-way door.
+  # Hidden fields included, greyed out. Leaving them out made hiding a one-way door.
   has_many :fields, serializer: IncidentFormFieldSettingsSerializer do
     incident_form.resolved_fields(include_hidden: true)
   end

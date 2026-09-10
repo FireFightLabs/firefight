@@ -1,7 +1,6 @@
 module Slack
   module Messages
     module Escalation
-      # Identical body used for the in-channel post and the announcement thread.
       def self.build(_incident, escalated_by:, escalated_to:, reason: nil)
         blocks = [
           { type: "header", text: { type: "plain_text", text: ":rotating_light: Incident Escalated", emoji: true } },
@@ -13,9 +12,7 @@ module Slack
         blocks
       end
 
-      # DM sent to the person being escalated to. `variant: :initial` is the
-      # first ping. `variant: :nudge` is the reminder sent if they haven't
-      # acknowledged.
+      # `variant: :nudge` is the reminder sent when they have not acknowledged.
       def self.direct_message(incident, escalated_by:, escalation_event_id:, reason: nil, variant: :initial)
         config = case variant
         when :initial then { header_emoji: ":rotating_light:", header_suffix: "Escalation", body: "*You've been pulled into this incident*" }
@@ -43,8 +40,6 @@ module Slack
         blocks
       end
 
-      # Rewrites the original escalation DM after acknowledgment. Drops the
-      # action buttons and appends a confirmation section.
       def self.dm_after_acknowledgment(original_blocks)
         stripped = (original_blocks || []).reject { |b| b["type"] == "actions" || b[:type] == "actions" }
         stripped + [

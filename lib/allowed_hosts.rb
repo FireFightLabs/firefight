@@ -1,9 +1,5 @@
-# Parses ALLOWED_HOSTS into the list Rails' host authorization enforces.
-#
-# The empty case has to raise rather than return an empty array. Rails reads
-# empty permissions as "no restrictions" and skips the check entirely, so
-# ALLOWED_HOSTS="" would quietly turn DNS rebinding protection off instead of
-# locking the app down. Refusing to boot is the safer failure, and it is loud.
+# Empty must raise. Rails reads empty permissions as no restrictions, so ALLOWED_HOSTS=""
+# would turn DNS rebinding protection off instead of locking the app down.
 module AllowedHosts
   class MissingError < StandardError; end
 

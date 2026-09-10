@@ -1,5 +1,4 @@
-# These tables were dumped into schema.rb without a migration and were never
-# used by the app, so schema:load and migrate produced different databases.
+# Dumped into schema.rb without a migration and never used, so schema:load and migrate disagreed.
 class DropUnusedCatalogTables < ActiveRecord::Migration[8.1]
   TABLES = %i[
     service_dependencies service_environments service_product_areas

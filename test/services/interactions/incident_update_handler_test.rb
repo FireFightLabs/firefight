@@ -3,7 +3,6 @@ require "test_helper"
 class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @workspace.update!(incidents_channel_id: "C_INCIDENTS")
@@ -164,9 +163,7 @@ class Interactions::IncidentUpdateHandlerTest < ActiveSupport::TestCase
     end
   end
 
-  # The modal drops the timer as soon as a closing status is picked, but a
-  # submission from a view that never got that refresh still carries one. It
-  # has to submit cleanly rather than fail on a field the form no longer asks.
+  # A view that never got the refresh dropping the timer still submits one, and must not fail on it.
   test "clears next_update_at when the status closes the incident" do
     stub_all_side_effects
 

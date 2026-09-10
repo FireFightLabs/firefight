@@ -1,5 +1,3 @@
-# Enqueues a checklist and coaching refresh when a progress event hits the
-# first test incident.
 class Onboarding::EventSubscriber
   def self.handle(event)
     return unless WorkspaceOnboarding::PROGRESS_EVENTS.include?(event.event_type)

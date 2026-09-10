@@ -1,9 +1,8 @@
 module Mcp
   module Tools
-    # What the postmortem tools report, and the one lookup they share.
     module PostmortemPayloads
-      # The incident exists and the postmortem does not, which the dispatcher's
-      # generic "Not found in this workspace" would hide.
+      # The dispatcher's generic "Not found in this workspace" would hide that the
+      # incident exists and the postmortem does not.
       def self.with_postmortem(workspace, reference)
         postmortem = IncidentWrite.find!(workspace, reference).postmortem
         unless postmortem

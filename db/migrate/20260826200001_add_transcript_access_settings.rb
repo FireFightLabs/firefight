@@ -1,5 +1,4 @@
-# The transcript gets its own grantable resource, and a grant alone is not
-# enough. The workspace has to have turned access on too.
+# A grant alone is not enough, the workspace has to have turned access on too.
 class AddTranscriptAccessSettings < ActiveRecord::Migration[8.1]
   def up
     add_column :workspaces, :transcript_access_enabled, :boolean, default: false, null: false

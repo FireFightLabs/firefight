@@ -1,8 +1,5 @@
 module Slack
   module Modals
-    # The "Actions" and "Follow-ups" list modals. Both render the same
-    # list-of-items + add-button shape against the same `IncidentAction`
-    # scope. Only the kind (action vs. follow-up) differs.
     module ActionItemsList
       KINDS = {
         action: {
@@ -23,8 +20,7 @@ module Slack
         }
       }.freeze
 
-      # An open item costs four blocks (divider, text, status, controls) and a
-      # completed one costs a line, against Slack's 100-block modal ceiling.
+      # An open item costs four blocks against Slack's 100-block ceiling.
       MAX_OPEN_ITEMS = 20
       MAX_DONE_ITEMS = 10
 

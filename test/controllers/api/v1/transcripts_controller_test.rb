@@ -8,8 +8,7 @@ class Api::V1::TranscriptsControllerTest < ActionDispatch::IntegrationTest
     @workspace.update!(transcript_access_enabled: true)
   end
 
-  # The reason it is its own resource. The full-access fixture key holds every
-  # incident action and predates this, so it must not gain the conversation.
+  # The full-access fixture key predates the transcript resource, so it must not gain the conversation.
   test "a key granted incidents does not also read the transcript" do
     say "found it"
 

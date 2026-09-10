@@ -44,8 +44,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
     body = rpc("tools/list")
     tools = body.dig("result", "tools")
-    # The registry is the wiring, so the server exposes exactly it rather than
-    # a second list that drifts every time a tool is added.
+    # The registry is the wiring, so the server exposes exactly it rather than a second list that drifts.
     assert_equal Mcp::Tools.all.map(&:name_value).sort, tools.map { |tool| tool["name"] }.sort
 
     read_tools, write_tools = tools.partition { |t| t["name"].start_with?("search", "get", "evaluate", "list") }
@@ -392,8 +391,6 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     names = body.dig("result", "tools").map { |t| t["name"] }
     assert_includes names, "new_relic_logs_query"
 
-    # A service key holds only what it was granted, so a newly enabled tool
-    # is neither listed for it nor callable by it.
     _, service_token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Scoped bot",
       permissions: { Ability::Action::RESOURCE_ALERTS => [ Ability::Action::ACTION_READ ] }
@@ -411,8 +408,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
     logged = []
     Rails.logger.stubs(:info).with { |line| logged << line; true }
-    # A connection call goes through the gateway and the log the same way a
-    # static tool does.
+    # A connection call goes through the gateway and the log the same way a static tool does.
     AbilityGateway.expects(:authorize!).with { |args| args[:context][:source] == AbilityGateway::SOURCE_MCP }.yields
       .returns({ "content" => [ { "type" => "text", "text" => "42 rows" } ], "isError" => false })
     body = rpc("tools/call", { name: "new_relic_logs_query", arguments: { query: "SELECT 1" } })

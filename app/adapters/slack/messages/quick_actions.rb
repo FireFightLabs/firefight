@@ -1,16 +1,12 @@
 module Slack
   module Messages
-    # Quick-actions message posted and pinned in the incident channel.
-    # Acts as the channel header: severity, status, lead, custom fields,
-    # plus the action buttons (accept, lead, summary, escalate).
     module QuickActions
       def self.build(incident)
-        # No channel line: this message is pinned inside the channel it would
-        # point at.
+        # No channel line, this message is pinned inside that channel.
         blocks = IncidentDetail.for_incident(incident)
 
-        # Slack rejects an actions block with no elements, so a terminal
-        # incident drops the block and its divider rather than emptying it.
+        # Slack rejects an empty actions block, so a terminal incident drops
+        # the block and its divider.
         actions = buttons(incident)
         if actions.any?
           blocks << { type: "divider" }
@@ -21,8 +17,6 @@ module Slack
       end
 
       def self.buttons(incident)
-        # A resolved or canceled incident is over. Offering Escalate or Make me
-        # Lead on it invites actions that no longer mean anything.
         return [] unless incident.incident_status.incident_lifecycle_stage.open?
 
         result = []
@@ -35,8 +29,7 @@ module Slack
             value: incident.id,
             style: "primary"
           }
-          # The only other way out of triage. Without it the sole exit is to
-          # accept something you do not believe in, then cancel it.
+          # Without this the only exit from triage is to accept, then cancel.
           result << {
             type: "button",
             text: { type: "plain_text", text: ":wastebasket: Cancel incident", emoji: true },

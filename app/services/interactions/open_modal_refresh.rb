@@ -1,10 +1,6 @@
 module Interactions
-  # A control clicked inside a modal changes state the modal is already
-  # showing, and Slack does not redraw it. Without this the row keeps its old
-  # button and the click looks like it did nothing.
-  #
-  # Rebuilds from the same inputs the modal was opened with, so a refreshed
-  # view is identical to a freshly opened one.
+  # Slack does not redraw a modal when a control inside it changes state, so
+  # the view is rebuilt from the inputs it was opened with.
   module OpenModalRefresh
     def self.call(interaction, workspace)
       return if interaction.view_id.blank?

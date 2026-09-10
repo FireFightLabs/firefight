@@ -5,8 +5,6 @@ class CatalogTypeWriteTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
   end
 
-  # create_custom!
-
   test "create_custom! creates custom type with correct slug, position, and kind" do
     type = CatalogType.create_custom!(
       workspace: @workspace, name: "Infrastructure",
@@ -57,8 +55,6 @@ class CatalogTypeWriteTest < ActiveSupport::TestCase
     end
   end
 
-  # update_with_definitions!
-
   test "update_with_definitions! updates type fields" do
     vendor = catalog_types(:custom_vendor_ws1)
     vendor.update_with_definitions!({ name: "Updated Vendor", description: "New description" })
@@ -99,8 +95,6 @@ class CatalogTypeWriteTest < ActiveSupport::TestCase
 
     assert_equal original_name, vendor.reload.name
   end
-
-  # soft_delete!
 
   test "soft_delete! soft-deletes custom types" do
     vendor = catalog_types(:custom_vendor_ws1)

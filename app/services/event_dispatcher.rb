@@ -8,14 +8,8 @@ class EventDispatcher
     Identifiers::EVENT_MEMBER_JOINED => Events::MemberJoinedChannelHandler
   }.freeze
 
-  # Resolves the workspace once and hands it to the handler. Events carry no
-  # way to answer the user, so an unknown or suspended workspace's events are
-  # dropped, and the command and dashboard paths carry the message.
-  #
-  # Error policy, uniform across handlers: an AdapterError is logged and the
-  # event is done (the Slack call already retried inside the client). Anything
-  # else propagates so ProcessEventJob retries with backoff. Handler writes
-  # are idempotent, so a re-run does not duplicate.
+  # Events carry no way to answer the user, so unknown and suspended workspaces are dropped.
+  # An AdapterError ends the event since the client already retried. Anything else propagates so ProcessEventJob retries, handler writes are idempotent.
   def self.dispatch(platform, payload)
     event = payload["event"]
     return unless event

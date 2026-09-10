@@ -1,7 +1,6 @@
 require "test_helper"
 
-# Creating an agent is creating a principal: it gets a name of its own, a token
-# it presents, and nothing else until someone grants it something.
+# An agent is a principal with its own name and token, and nothing else until someone grants it something.
 class AgentsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -42,8 +41,7 @@ class AgentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # Rotation overlaps rather than swaps, so an agent mid-incident keeps running
-  # on the old token until someone revokes it.
+  # Rotation overlaps rather than swaps, so an agent mid-incident keeps running until someone revokes.
   test "rotating leaves the old token working alongside the new one" do
     agent, old_token = create_agent(
       workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one), slug: "rotator"
@@ -70,8 +68,7 @@ class AgentsControllerTest < ActionDispatch::IntegrationTest
     assert agent.mcp_readable?(Ability::Action::RESOURCE_INCIDENTS)
   end
 
-  # A disabled agent still holds its slug and its grants, so it stays on the
-  # list with a way back on.
+  # A disabled agent still holds its slug and grants, so it stays listed with a way back on.
   test "a disabled agent stays on the roster" do
     agent, = create_agent(
       workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one), slug: "pausable"
@@ -122,8 +119,7 @@ class AgentsControllerTest < ActionDispatch::IntegrationTest
     assert_not_nil ApiKey.authenticate(their_token)
   end
 
-  # Agent credentials belong to the agent, not to the workspace's developer
-  # keys, so they are managed in one place rather than two.
+  # Agent credentials are managed on the agent, not with the workspace's developer keys.
   test "an agent's token is not listed among the developer api keys" do
     agent, = create_agent(
       workspace: @workspace, created_by: workspace_memberships(:alice_workspace_one), slug: "hidden_key"

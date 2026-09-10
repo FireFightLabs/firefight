@@ -1,7 +1,6 @@
 require "test_helper"
 
-# The screen that decides whether the conversation is readable at all. A grant
-# says who may ask, and this says whether there is anything to ask for.
+# A grant says who may ask, this screen says whether there is anything to ask for.
 class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -19,8 +18,7 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_nil @workspace.transcript_access_blocked_reason
   end
 
-  # A blank retention is a choice, not an omission, so it stores as keep-forever
-  # rather than being refused or falling back to the default.
+  # A blank retention is a choice, so it stores as keep forever rather than falling back to the default.
   test "clearing the retention keeps conversations for good" do
     patch settings_workspace_path, params: { transcript_retention_days: "" }
 
@@ -49,8 +47,7 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 14, settings["transcriptRetentionDays"]
   end
 
-  # Zero or negative makes the cutoff now, so the next nightly run would purge
-  # every terminal incident's conversation in the workspace.
+  # Zero or negative makes the cutoff now, so the next nightly run would purge every terminal incident's conversation.
   test "a retention that would purge everything is refused" do
     patch settings_workspace_path, params: { transcript_retention_days: 0 }
 
@@ -76,8 +73,7 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "1440", @workspace.archive_channel_delay
   end
 
-  # Never turns archiving off without forgetting the delay, so turning it back
-  # on lands on what the workspace had rather than the default.
+  # Turning archiving off keeps the delay, so turning it back on lands on what the workspace had.
   test "never turns archiving off and keeps the delay for later" do
     @workspace.update!(archive_channel_enabled: true, archive_channel_delay_minutes: 360)
 

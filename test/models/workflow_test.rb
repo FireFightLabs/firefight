@@ -4,7 +4,6 @@ class WorkflowTest < ActiveSupport::TestCase
   test "requires name, workflow_class, subject, and state" do
     workflow = SolidWorkflow::Workflow.new
     assert_not workflow.valid?
-    # Validations may be on specific fields or associations
     assert workflow.errors.any?
   end
 

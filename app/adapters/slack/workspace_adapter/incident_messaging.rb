@@ -1,8 +1,8 @@
 module Slack::WorkspaceAdapter::IncidentMessaging
   extend ActiveSupport::Concern
 
-  # Two blocks per event against Slack's 100-block modal ceiling, leaving room
-  # for the header, the divider, the pager and its caption.
+  # Two blocks per event under Slack's 100-block modal ceiling, with room for
+  # the header, divider and pager.
   TIMELINE_PAGE_SIZE = 45
 
   def post_alert_message(channel_id:, alert:)
@@ -372,9 +372,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  # Slack renders mrkdwn, and AiResponse converts standard markdown on the
-  # way out, so the model only needs to avoid headers and single-asterisk
-  # italics, which collide with mrkdwn bold.
+  # AiResponse converts markdown to mrkdwn on the way out, so the model only
+  # has to avoid headers and single-asterisk italics, which collide with bold.
   AI_OUTPUT_STYLE = <<~STYLE
     Use Slack mrkdwn formatting: *bold*, _italic_, bullet points, and `code` where appropriate.
     Do not use markdown headers (#). Use *bold text* instead.
@@ -414,8 +413,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   def build_timeline_view(incident, offset: 0)
     total_events = incident.incident_events.undismissed.count
-    # Events can be written while a modal sits open, so a stale offset is
-    # clamped back onto the timeline rather than rendering an empty window.
+    # Events can be written while the modal is open, so a stale offset is
+    # clamped instead of rendering an empty page.
     offset = offset.to_i.clamp(0, [ total_events - 1, 0 ].max)
     events = incident.incident_events.undismissed.includes(:eventable).recent.offset(offset).limit(TIMELINE_PAGE_SIZE).reverse
     return nil if events.empty?
@@ -458,8 +457,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   private
 
-  # Push notifications and the channel-list preview show this, never the
-  # blocks, so a cancellation must not announce itself as an update.
+  # Shown in push notifications, where a cancellation must not read as an update.
   def notification_text(incident)
     incident.canceled? ? "Incident canceled" : "Incident updated"
   end
@@ -490,10 +488,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     }
   end
 
-  # A subscriber gets the reply as it went into the thread, wrapped with the
-  # incident's name on top and the ways out underneath, as a direct message.
-  # One person who has left the workspace or blocked the app must not stop the
-  # rest from hearing, so a failed DM is logged and skipped.
+  # A failed DM is logged and skipped so one person who left the workspace or
+  # blocked the app does not stop the rest from hearing.
   def reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident:, text:, blocks:)
     result = post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: text, blocks: blocks)
     return result if subscriber_user_ids.empty?

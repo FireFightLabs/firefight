@@ -1,6 +1,5 @@
-# Describes what an update changed, in the words a responder uses. The
-# timeline card renders these, so a column name never reaches the screen and
-# a timestamp arrives as a timestamp rather than a formatted string.
+# What an update changed, in a responder's words. A column name never
+# reaches the screen and a timestamp stays a timestamp.
 module IncidentUpdate::Changes
   extend ActiveSupport::Concern
 
@@ -39,10 +38,8 @@ module IncidentUpdate::Changes
   Change = Data.define(:field, :label, :kind, :before, :after)
 
   class_methods do
-    # Fields the registry already names take their label from it, so the card
-    # and the forms agree. Resolved on first use: the registry loads the
-    # incident models while it builds, so reading it here at load time would
-    # be a cycle.
+    # Resolved on first use. The registry loads the incident models while it
+    # builds, so reading it at load time would be a cycle.
     def system_field_keys
       @system_field_keys ||= {
         FIELD_STATUS => IncidentSystemField::KEY_STATUS,
@@ -56,9 +53,7 @@ module IncidentUpdate::Changes
     end
   end
 
-  # One entry per changed field, custom fields expanded to one entry each.
-  # `field_definitions` maps slug to IncidentFieldDefinition for the custom
-  # fields this update touched, loaded once per timeline by the caller.
+  # field_definitions is loaded once per timeline by the caller.
   def changes_since(previous, field_definitions: {})
     changed_fields.flat_map do |field|
       if field == FIELD_CUSTOM_FIELDS
@@ -106,8 +101,8 @@ module IncidentUpdate::Changes
     IncidentSystemField::VISIBILITY_CHOICES.find { |choice| choice.value == value }.label
   end
 
-  # The snapshot stores labels, not ids, so a renamed or deleted option still
-  # reads the way it did at the time.
+  # The snapshot stores labels, so a renamed or deleted option still reads
+  # the way it did at the time.
   def custom_field_changes(previous, field_definitions)
     before = previous&.custom_fields || {}
     after = custom_fields

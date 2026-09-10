@@ -1,8 +1,6 @@
 require "test_helper"
 
 class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
-  # preview_announcement_blocks tests
-
   test "preview_announcement_blocks returns valid Block Kit structure" do
     result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
 
@@ -77,12 +75,10 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     assert actions.present?
     assert_equal 2, actions[:elements].length
 
-    # Homepage button
     homepage_button = actions[:elements].find { |e| e[:action_id] == Identifiers::PREVIEW_HOMEPAGE_DISABLED }
     assert homepage_button.present?
     assert_nil homepage_button[:style]
 
-    # Subscribe button
     subscribe_button = actions[:elements].find { |e| e[:action_id] == Identifiers::PREVIEW_SUBSCRIBE_DISABLED }
     assert subscribe_button.present?
   end
@@ -94,8 +90,6 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     metadata_sections = sections.select { |s| s.dig(:text, :text)&.match?(/Severity|Status|Declared by/) }
     assert metadata_sections.length >= 3, "Should have individual sections for severity, status, and reporter"
   end
-
-  # share_channel_modal tests
 
   test "share_channel_modal returns valid modal structure" do
     result = Slack::InstallationMessageBuilder.share_channel_modal("U12345678", "C12345678")
@@ -137,8 +131,6 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     assert_equal "share_target_select", element[:action_id]
   end
 
-  # share_message tests
-
   test "share_message returns valid Block Kit structure" do
     result = Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
 
@@ -172,7 +164,6 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     assert_equal "button", button[:type]
     assert_equal "primary", button[:style]
 
-    # Verify deep link format includes team_id
     assert_includes button[:url], "slack://channel?team=T12345678"
     assert_includes button[:url], "id=C12345678"
   end
@@ -186,8 +177,6 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     expected_url = "slack://channel?team=T77777777&id=C88888888"
     assert_equal expected_url, button[:url]
   end
-
-  # Slack Block Kit validation
 
   test "all messages use valid block types" do
     messages = [
@@ -217,7 +206,7 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
         assert button[:type].present?, "Button missing type"
         assert button[:text].present?, "Button missing text"
 
-        # Buttons must have either action_id or url
+        # Slack requires a button to carry an action_id or a url.
         assert(button[:action_id].present? || button[:url].present?,
                "Button must have action_id or url")
         end

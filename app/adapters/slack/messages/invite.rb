@@ -1,9 +1,6 @@
 module Slack
   module Messages
     module Invite
-      # Everything this says is about people, so it names them rather than
-      # reporting counts alone.
-      # Nobody to invite, said in the vocabulary of the command they ran.
       def self.unresolved(targets)
         unless targets[:had_target_tokens]
           return "No users specified. Try `/ff invite @alice @bob` or `/ff invite` to pick responders from the modal."
@@ -30,9 +27,8 @@ module Slack
         parts.join(" ")
       end
 
-      # The slash command resolves handles to platform ids and never looks up a
-      # member, so a round started there holds ids where one started from the
-      # dashboard holds people. This is the only place that difference reaches.
+      # A round started from Slack holds platform ids, one from the dashboard
+      # holds people.
       def self.mention(person)
         person.is_a?(String) ? "<@#{person}>" : Mrkdwn.mention(person)
       end

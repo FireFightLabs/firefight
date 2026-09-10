@@ -1,11 +1,6 @@
 module Ability
-  # The atomic permissioned unit of the Ability Gateway. System actions are
-  # global rows (workspace_id nil), one per resource and CRUD action below.
-  # Tool actions are workspace-scoped and minted by integrations.
-  #
-  # The resource and action vocabulary lives here because this is the
-  # permission system. API keys, Slack handlers, MCP tools, and the web
-  # dashboard all declare what they authorize in these terms.
+  # System actions are global rows with a nil workspace_id, one per resource
+  # and CRUD action. Tool actions are workspace-scoped and minted by integrations.
   class Action < ApplicationRecord
     KIND_SYSTEM = "system"
     KIND_TOOL = "tool"
@@ -16,9 +11,8 @@ module Ability
     RESOURCE_STATUSES = "statuses"
     RESOURCE_INCIDENT_TYPES = "incident_types"
     RESOURCE_CUSTOM_FIELDS = "custom_fields"
-    # Which fields a responder is asked at each lifecycle moment. Separate
-    # from custom_fields because defining a field and deciding that Name is
-    # required on every declaration are different powers.
+    # Separate from custom_fields, defining a field and deciding what every
+    # declaration must answer are different powers.
     RESOURCE_FORMS = "forms"
     RESOURCE_CATALOG = "catalog"
     RESOURCE_ALERTS = "alerts"
@@ -26,9 +20,8 @@ module Ability
     RESOURCE_RUNBOOKS = "runbooks"
     RESOURCE_APPROVALS = "approvals"
     RESOURCE_INCIDENT_ROLES = "incident_roles"
-    # Its own resource rather than part of incidents, because reading an
-    # incident and reading everything anyone said in its channel are different
-    # asks. Folding it in would have widened every grant already made.
+    # Its own resource, folding it into incidents would have widened every
+    # grant already made.
     RESOURCE_INCIDENT_TRANSCRIPTS = "incident_transcripts"
     RESOURCE_WEBHOOKS = "webhooks"
     RESOURCE_INTEGRATIONS = "integrations"
@@ -36,9 +29,8 @@ module Ability
     RESOURCE_PERMISSIONS = "permissions"
     RESOURCE_WORKSPACE = "workspace"
 
-    # The levers that control access itself. Admins hold them and nobody can
-    # be granted them, so a member or an agent can never mint keys or rewrite
-    # who has what.
+    # Nobody can be granted these, so a member or an agent can never mint keys
+    # or rewrite who has what.
     ADMIN_ONLY_RESOURCES = [
       RESOURCE_INTEGRATIONS, RESOURCE_API_KEYS, RESOURCE_PERMISSIONS, RESOURCE_WORKSPACE
     ].freeze
@@ -109,9 +101,7 @@ module Ability
 
     scope :system_actions, -> { where(kind: KIND_SYSTEM) }
 
-    # The controls that decide access never wait on a rule. Resolving an
-    # approval is the approval mechanism, and a rule that could hold the
-    # Permissions screen could lock the admins out of removing it.
+    # A rule that could hold the Permissions screen could lock admins out of removing it.
     APPROVAL_EXEMPT_RESOURCES = [ RESOURCE_APPROVALS, RESOURCE_PERMISSIONS ].freeze
 
     def self.approval_exempt?(key)
@@ -124,12 +114,10 @@ module Ability
       "#{resource}.#{action}"
     end
 
-    # Every system action key. Lookup self-heals any of them.
     def self.managed_keys
       @managed_keys ||= RESOURCES.product(ACTIONS).map { |resource, action| system_key(resource, action) }.freeze
     end
 
-    # The keys a grant or a permissions matrix may carry.
     def self.grantable_keys
       @grantable_keys ||= GRANTABLE_RESOURCES.product(ACTIONS).map { |resource, action| system_key(resource, action) }.freeze
     end
@@ -146,10 +134,8 @@ module Ability
       RESOURCE_LABELS.fetch(resource, resource.to_s.humanize)
     end
 
-    # A key resolves to the global system action or the workspace's own
-    # tool action. Keys inside the system space self-heal (same rule as
-    # system!, so an unseeded environment can't deny valid actions). Any
-    # other unknown key resolves to nil and the gateway denies it.
+    # System keys self-heal so an unseeded environment cannot deny valid
+    # actions. Any other unknown key resolves to nil and the gateway denies it.
     def self.lookup(key, workspace)
       found = where(workspace_id: [ nil, workspace&.id ]).find_by(key: key)
       return found if found
@@ -157,8 +143,8 @@ module Ability
       system!(key) if managed_keys.include?(key)
     end
 
-    # Lazily materializes a system action so grant writes never race the
-    # seed. Safe under parallel creation via the partial unique index.
+    # Materialized on demand so grant writes never race the seed. The partial
+    # unique index makes parallel creation safe.
     def self.system!(key)
       crud_action = key.split(".").last
       find_or_create_by!(workspace_id: nil, key: key) do |action|
@@ -186,9 +172,8 @@ module Ability
       system? && ADMIN_ONLY_RESOURCES.include?(self.class.resource_of(key))
     end
 
-    # Config ≠ permission: a tool action also needs whatever minted it to be
-    # wired for the requested scope. What "wired" means belongs to the source,
-    # not to the gateway. System actions have no configuration dimension.
+    # A tool action also needs whatever minted it wired for the scope. What
+    # "wired" means belongs to the source, not the gateway.
     def configured_for?(scope)
       return true if system?
 

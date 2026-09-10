@@ -1,14 +1,12 @@
-# The seven actions every configurable option list needs. Guard rules come from
-# the model's *_blocked_reason methods, so a controller only supplies its model,
-# its settings path, and any attributes specific to it.
+# Guard rules come from the model's *_blocked_reason methods, so a controller supplies
+# only its model, its settings path and any extra attributes.
 module ManagesConfigurableOptions
   extend ActiveSupport::Concern
 
   included do
     before_action :set_option, only: [ :update, :disable, :enable, :destroy, :make_default ]
 
-    # The pre-checks below name the rule for a control that should not have
-    # been offered. This catches the same refusal when two people act at once.
+    # Catches the same refusal when two people act at once.
     rescue_from OptionGuards::Blocked, with: :redirect_blocked_reason
   end
 
@@ -34,8 +32,7 @@ module ManagesConfigurableOptions
     redirect_back fallback_location: options_path, inertia: { errors: e.record.errors.to_hash }
   end
 
-  # Renaming leaves the slug alone. It is the stable handle other code and
-  # stored records refer to.
+  # Renaming leaves the slug, the stable handle stored records refer to.
   def update
     attrs = { name: params[:name], description: params[:description], color: params[:color] }.compact
     attrs.delete(:color) unless option_model.colored?
@@ -90,7 +87,6 @@ module ManagesConfigurableOptions
     raise NotImplementedError
   end
 
-  # Attributes beyond the shared ones, for models that need more.
   def create_attributes
     {}
   end

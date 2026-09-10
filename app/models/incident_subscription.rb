@@ -1,5 +1,5 @@
-# One person following one incident from outside its channel. Every reply
-# Firefight posts in the announcement thread reaches them as a direct message.
+# Every reply Firefight posts in the announcement thread reaches the
+# subscriber as a direct message.
 class IncidentSubscription < ApplicationRecord
   belongs_to :workspace
   belongs_to :incident

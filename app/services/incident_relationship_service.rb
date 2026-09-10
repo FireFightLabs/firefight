@@ -19,10 +19,8 @@ class IncidentRelationshipService
     relationship
   end
 
-  # A duplicate is a cancel that names the incident it was a duplicate of.
-  # It records MERGED_INTO rather than INCIDENT_CANCELED so the timeline can
-  # say which incident absorbed it, and it obeys the same rule every cancel
-  # does: a closed incident has to be reopened first.
+  # A duplicate is a cancel that records MERGED_INTO so the timeline can say
+  # which incident absorbed it. A closed incident has to be reopened first, like any cancel.
   def mark_duplicate(source:, canonical:, created_by:)
     canceled_status = @workspace.default_canceled_status
     blocked_reason = source.status_change_blocked_reason(canceled_status)

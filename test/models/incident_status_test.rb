@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentStatusTest < ActiveSupport::TestCase
-  # Basic validations
-
   test "requires name" do
     status = IncidentStatus.new(
       workspace: workspaces(:slack_workspace_one),
@@ -53,11 +51,9 @@ class IncidentStatusTest < ActiveSupport::TestCase
       name: "Test Status",
       slug: "test"
     )
-    # position is required but has no presence validation, just numericality
+    # position has only a numericality validation, so nil still passes.
     assert status.valid?
   end
-
-  # Uniqueness validations
 
   test "slug must be unique within workspace" do
     existing = incident_statuses(:investigating_ws1)
@@ -130,8 +126,6 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert_not_equal ws1_default.workspace_id, ws2_default.workspace_id
   end
 
-  # Associations
-
   test "belongs to workspace" do
     status = incident_statuses(:investigating_ws1)
     assert_instance_of Workspace, status.workspace
@@ -148,8 +142,6 @@ class IncidentStatusTest < ActiveSupport::TestCase
     status = incident_statuses(:investigating_ws1)
     assert_respond_to status, :incidents
   end
-
-  # Scopes
 
   test "active scope excludes deleted statuses" do
     active_statuses = IncidentStatus.active
@@ -202,8 +194,6 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert_equal incident_statuses(:triaging_ws2), ws2_default
   end
 
-  # Methods
-
   test "live? returns true for active stage" do
     status = incident_statuses(:investigating_ws1)
     assert status.live?
@@ -237,8 +227,6 @@ class IncidentStatusTest < ActiveSupport::TestCase
     assert incident_statuses(:canceled_ws1).canceled?
   end
 
-  # Soft deletes
-
   test "soft delete sets deleted_at" do
     status = incident_statuses(:investigating_ws1)
     assert_nil status.deleted_at
@@ -254,8 +242,6 @@ class IncidentStatusTest < ActiveSupport::TestCase
     status.update!(deleted_at: Time.current)
     assert_not_includes IncidentStatus.active.reload, status
   end
-
-  # Fixtures loading
 
   test "workspace one fixtures load correctly" do
     investigating = incident_statuses(:investigating_ws1)

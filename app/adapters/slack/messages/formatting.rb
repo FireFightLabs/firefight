@@ -1,9 +1,5 @@
 module Slack
   module Messages
-    # Shared formatting helpers for incident messages: duration formatting,
-    # before/after diff strings, severity emojis, and custom-field value
-    # rendering. Pure functions, no I/O beyond the definition lookup in
-    # `custom_fields_summary`.
     module Formatting
       def self.format_duration(minutes)
         return "N/A" if minutes.nil?
@@ -87,14 +83,8 @@ module Slack
         ":fire:"
       end
 
-      # Convert standard markdown (what LLMs default to) into Slack mrkdwn.
-      # - **bold**   -> *bold*
-      # - __bold__   -> *bold*
-      # - # / ## / ### headers   -> *bold line*
-      # - [text](url) links      -> <url|text>
-      # Bullet syntax (- and *) is left intact -- Slack renders both.
-      # Single-asterisk italic is NOT converted (would collide with Slack's
-      # *bold* syntax). Ask the LLM to use underscores instead.
+      # Single-asterisk italic is left alone because it collides with mrkdwn
+      # bold. The model is asked to use underscores instead.
       def self.markdown_to_mrkdwn(text)
         return "" if text.nil?
 

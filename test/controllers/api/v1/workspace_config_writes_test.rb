@@ -1,8 +1,6 @@
 require "test_helper"
 
-# The four configuration areas that were read-only or missing over REST. Each
-# calls the same code the MCP tool calls, so a workspace set up through one is
-# indistinguishable from one set up through the other.
+# Each endpoint calls the same code the MCP tool calls.
 class Api::V1::WorkspaceConfigWritesTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -22,8 +20,7 @@ class Api::V1::WorkspaceConfigWritesTest < ActionDispatch::IntegrationTest
     assert_equal %w[eu-west us-east], field.incident_field_options.active.map(&:label)
   end
 
-  # Options are matched by label, so a resend renames rather than replaces and
-  # the incidents already holding one keep pointing at it.
+  # Options are matched by label, so a resend renames rather than replaces.
   test "resending an option list keeps the rows the incidents point at" do
     post api_v1_custom_fields_url,
          params: { name: "Affected region", field_type: "single_select", option_source: IncidentFieldDefinition::OPTION_SOURCE_FIXED, options: %w[eu-west us-east] },
@@ -50,8 +47,7 @@ class Api::V1::WorkspaceConfigWritesTest < ActionDispatch::IntegrationTest
     assert_equal [ "Drain the primary", "Promote the replica" ], runbook.runbook_steps.order(:position).map(&:title)
   end
 
-  # Steps are only touched when they are sent, so changing a summary must not
-  # silently clear the procedure.
+  # Steps are only touched when sent, so changing a summary must not clear the procedure.
   test "changing a summary leaves the steps alone" do
     post api_v1_runbooks_url,
          params: { name: "Database failover", steps: [ { title: "Drain the primary" } ] },

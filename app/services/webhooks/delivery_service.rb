@@ -50,9 +50,8 @@ class Webhooks::DeliveryService
 
   private
 
-  # Renders the payload once and stores it on the delivery row. Subsequent
-  # retries reuse the exact same bytes so the signature matches and the
-  # consumer sees an immutable payload regardless of incident state drift.
+  # Rendered once and stored, so retries reuse the same bytes and the signature
+  # still matches after the incident has moved on.
   def signed_payload
     return @delivery.signed_payload if @delivery.signed_payload.present?
 
@@ -78,8 +77,7 @@ class Webhooks::DeliveryService
     }
   end
 
-  # Signing input is "<scheme>:<timestamp>:<body>". Consumers must verify
-  # the timestamp is within their freshness window before HMAC-comparing.
+  # Consumers must check the timestamp is fresh before comparing the HMAC.
   def signature(payload, timestamp)
     OpenSSL::HMAC.hexdigest("SHA256", @webhook.signing_secret, "#{SIGNATURE_SCHEME}:#{timestamp}:#{payload}")
   end

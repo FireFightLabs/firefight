@@ -1,6 +1,5 @@
 module Interactions
-  # The action and follow-up modals submit here. The callback_id names the
-  # kind, and that is the only thing the two kinds ever differed on.
+  # The callback_id is the only thing the action and follow-up modals differ on.
   class CreateActionItemHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE

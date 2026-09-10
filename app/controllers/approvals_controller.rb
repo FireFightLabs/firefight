@@ -1,6 +1,4 @@
-# Resolution side of the approvals inbox (the page itself is
-# settings#approvals). The model enforces role-at-click-time and
-# self-approval rules on top of the gateway's answer.
+# The model enforces role at click time and self-approval on top of the gateway's answer.
 class ApprovalsController < InertiaController
   authorizes Ability::Action::RESOURCE_APPROVALS, update: %i[approve deny]
 

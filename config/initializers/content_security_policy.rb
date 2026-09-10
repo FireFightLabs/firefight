@@ -1,9 +1,3 @@
-# Be sure to restart your server when you modify this file.
-
-# Define an application-wide content security policy.
-# See the Securing Rails Applications Guide for more information:
-# https://guides.rubyonrails.org/security.html#content-security-policy-header
-
 Rails.application.configure do
   config.content_security_policy do |policy|
     policy.default_src :self
@@ -21,8 +15,7 @@ Rails.application.configure do
     end
   end
 
-  # Report violations without enforcing. Review violations in browser DevTools
-  # (Network tab, CSP reports) before switching to enforcement by removing this line.
+  # Report only until the violations seen in browser CSP reports are cleared.
   config.content_security_policy_report_only = true
 
   config.content_security_policy_nonce_generator = ->(_request) { SecureRandom.base64(16) }

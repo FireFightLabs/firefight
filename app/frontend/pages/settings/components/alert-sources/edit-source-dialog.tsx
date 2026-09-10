@@ -63,8 +63,8 @@ export function EditSourceDialog({
   })
   const mappings = rowListOps<SeverityMapping>(form.data.mappings, (rows) => form.setData("mappings", rows))
 
-  // A server error outlives the state that produced it, so without this the
-  // message sits next to a field the user has already corrected.
+  // A server error outlives the value that caused it, so it is cleared once the
+  // field changes.
   const { data: formData, clearErrors } = form
   useEffect(() => {
     clearErrors()

@@ -1,9 +1,3 @@
-# Interstitial pages between OIDC sign-in and dashboard:
-#   - invite_code: claim an invite before install. Redirects to install
-#                  unless InviteCode.required?
-#   - install:     add Firefight to Slack
-#   - reinstall:   an admin of a disconnected workspace reconnecting it
-#   - welcome:     first-install confirmation (letter from founder)
 class OnboardingController < InertiaController
   # Onboarding runs before a workspace exists or targets a new one.
   skip_before_action :block_suspended_workspace
@@ -26,8 +20,7 @@ class OnboardingController < InertiaController
     }
   end
 
-  # Reconnecting a workspace that already exists needs no invite code, only
-  # an admin of that workspace. The install callback finds the existing
+  # Reconnecting needs no invite code, only an admin. The install callback finds the
   # workspace by team id and refreshes its tokens in place.
   def reinstall
     return redirect_to(dashboard_path, alert: "You need admin access to reconnect Slack.") unless current_membership&.admin_access?
@@ -38,9 +31,7 @@ class OnboardingController < InertiaController
     redirect_to onboarding_install_path
   end
 
-  # show_welcome_note is set in the auth callback on first install only and is
-  # consumed here so the founder's letter renders exactly once. Direct visits
-  # after onboarding (or refreshes) fall through to the dashboard.
+  # Set in the auth callback on first install and consumed here, so the founder's letter renders exactly once.
   def welcome
     return redirect_to(dashboard_path) unless session.delete(:show_welcome_note)
 
@@ -52,8 +43,7 @@ class OnboardingController < InertiaController
 
   private
 
-  # The pending team is one Firefight already knows and the signed-in user
-  # administers, so this is a reconnect rather than a first install.
+  # The pending team is one Firefight knows and the user administers, so this is a reconnect.
   def reinstalling?
     return false unless user_signed_in?
 

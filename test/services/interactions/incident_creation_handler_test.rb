@@ -47,8 +47,7 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     assert_includes button[:text][:text], "Join incident channel"
   end
 
-  # Visibility ships off, so a workspace that wants private incidents turns it
-  # on first. The capability is unchanged, only the default.
+  # Visibility ships off, a workspace that wants private incidents turns it on first.
   test "a modal opened for a test incident creates one" do
     stub_successful_slack_workflow
     attrs = build_interaction(name: "Onboarding run").resume_attrs.merge(private_metadata: ModalState.encode(test: true))

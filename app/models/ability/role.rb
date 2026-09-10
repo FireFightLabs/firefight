@@ -1,7 +1,5 @@
 module Ability
-  # A workspace-defined bundle of actions, granted to principals as one
-  # unit. Distinct from IncidentRole (incident staffing), this is the
-  # permission-bundle side of the Ability Gateway.
+  # A permission bundle, not to be confused with IncidentRole.
   class Role < ApplicationRecord
     include Sluggable
 
@@ -17,9 +15,7 @@ module Ability
 
       after_commit :bust_holder_caches
 
-    # Replaces the set's contents in one write, so the caller states what the
-    # set covers rather than diffing it. Scopes already pinned to a member
-    # action survive, since they are the set's own overrides.
+    # Scopes already pinned to a member action survive, they are the set's own overrides.
     def sync_actions!(action_ids)
       transaction do
         role_actions.where.not(action_id: action_ids).destroy_all

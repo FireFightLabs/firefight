@@ -1,5 +1,4 @@
-# A workspace's model for one purpose, or for every purpose with
-# AiPurpose::ANY. Operator data, never set from the dashboard.
+# Operator data, never set from the dashboard.
 class AiModelOverride < ApplicationRecord
   belongs_to :workspace
 

@@ -43,8 +43,6 @@ class DashboardStats
     }
   end
 
-  # Formats a total minute count into a short duration string:
-  # 45 → "45m", 95 → "1h 35m", 2753 → "1d 21h"
   def format_minutes(minutes)
     return "#{minutes}m" if minutes < 60
 

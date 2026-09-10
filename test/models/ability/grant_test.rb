@@ -71,8 +71,7 @@ module Ability
       end
     end
 
-    # Expiry used to be cleared here, because the matrix was a separate copy
-    # that could not express one. It reads the grants now, so it does not.
+    # Expiry used to be cleared here because the matrix was a separate copy that could not express one.
     test "syncing a service key's permissions leaves an expiry alone" do
       grant = Grant.create!(workspace: @workspace, principal: @key,
                             action: Action.system!("runbooks.read"), expires_at: 1.day.from_now)

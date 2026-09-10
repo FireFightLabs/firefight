@@ -25,10 +25,8 @@ module FirefightAi
 
     private
 
-    # Wrap the two paths that touch the LLM so a failure (rate limit, timeout,
-    # transient provider error) degrades to "no summary this time" rather than
-    # killing the consumer (catchup, postmortem). Cache hits (paths 1 + 2) are
-    # NOT wrapped, they don't touch the LLM and must not be swallowed.
+    # LLM failures degrade to no summary rather than killing the caller. Cache hits are
+    # not wrapped, they never touch the LLM.
     def safe_full_generate(incident)
       full_generate(incident)
     rescue StandardError => e
@@ -74,10 +72,8 @@ module FirefightAi
       upsert_summary(incident, response, inference, up_to_ts: latest_ts)
     end
 
-    # Returns [delta_top_level_messages, affected_threads, latest_ts].
-    # affected_threads is [{ parent:, replies: }, ...] with the FULL thread
-    # (parent + all replies, not just new ones) for any thread that received
-    # a new reply since summary_up_to_ts. New top-level messages stay separate.
+    # affected_threads carries the full thread for any thread that got a new reply
+    # since summary_up_to_ts. New top-level messages stay separate.
     def compute_delta(incident, summary_up_to_ts)
       delta = incident.incident_transcript_messages.kept
                 .where("message_id > ?", summary_up_to_ts)
@@ -109,8 +105,7 @@ module FirefightAi
         { parent: parent, replies: replies }
       end
 
-      # Use the max message_id (lex-ordered), since the next refresh's
-      # `where("message_id > ?", ...)` filter compares against this column.
+      # The max message_id, lexically ordered, since the next refresh filters on message_id > this.
       latest_ts = delta.map(&:message_id).max || summary_up_to_ts
       [ top_level, affected, latest_ts ]
     end

@@ -1,6 +1,5 @@
-# Whether and when Firefight archives an incident's channel once the incident
-# is over. Stored as an enabled flag plus a delay in minutes, and offered to
-# the settings screen as one choice, since never is one of the answers.
+# Stored as an enabled flag plus a delay, offered to the settings screen as
+# one choice since never is one of the answers.
 module Workspace::ChannelArchival
   extend ActiveSupport::Concern
 
@@ -26,9 +25,8 @@ module Workspace::ChannelArchival
     validate :archive_channel_delay_offered
   end
 
-  # The one value the screen reads and writes: a delay in minutes as a string,
-  # or never. Turning archiving off keeps the stored delay, so turning it back
-  # on lands on what the workspace had before.
+  # Turning archiving off keeps the stored delay, so turning it back on lands
+  # on what the workspace had before.
   def archive_channel_delay
     archive_channel_enabled ? archive_channel_delay_minutes.to_s : ARCHIVE_DELAY_NEVER
   end
@@ -44,8 +42,7 @@ module Workspace::ChannelArchival
 
   private
 
-  # An integer column turns junk into 0, which is immediate archiving, so the
-  # delay has to be one the screen offers before it is stored.
+  # An integer column turns junk into 0, which is immediate archiving.
   def archive_channel_delay_offered
     return unless archive_channel_enabled
     return if ARCHIVE_DELAY_MINUTES.include?(archive_channel_delay_minutes)

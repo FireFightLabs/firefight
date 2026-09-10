@@ -1,14 +1,12 @@
 class AddRoleToCatalogAttributeDefinitions < ActiveRecord::Migration[8.1]
   def up
-    # Which job an attribute does for alert routing (members, manager,
-    # notification_channel). One attribute per role per type.
+    # One attribute per role per type.
     add_column :catalog_attribute_definitions, :role, :string
     add_index :catalog_attribute_definitions, [ :catalog_type_id, :role ],
               unique: true, where: "role IS NOT NULL",
               name: "index_catalog_attribute_definitions_on_type_and_role"
 
-    # Existing workspaces were routed through these exact slugs, so tagging
-    # them keeps routing behavior identical on deploy.
+    # Existing workspaces were routed through these exact slugs, so tagging them keeps routing identical.
     execute <<~SQL
       UPDATE catalog_attribute_definitions
       SET role = 'members'

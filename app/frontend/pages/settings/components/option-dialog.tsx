@@ -26,9 +26,8 @@ interface OptionRecord {
 
 export type OptionDialogState<T> = { mode: "create" } | { mode: "edit"; option: T } | null
 
-// Owns both halves of the create/edit pair so a tab renders one dialog rather
-// than two near-identical ones, and derives its wording from the noun so the
-// four screens cannot drift apart.
+// Owns both create and edit so a tab renders one dialog, and derives wording
+// from the noun so the four screens cannot drift apart.
 export function OptionDialog<T extends OptionRecord>({
   state,
   onClose,
@@ -84,8 +83,8 @@ export function OptionDialog<T extends OptionRecord>({
     setProcessing(true)
 
     const params = { ...draft, ...extraParams }
-    // Called on router, never pulled off it. Router.patch pulled into a
-    // variable loses its binding and throws on this.visit.
+    // Called on router, never pulled off it. A detached router.patch loses its
+    // binding and throws on this.visit.
     const options = {
       preserveScroll: true,
       onSuccess: onClose,

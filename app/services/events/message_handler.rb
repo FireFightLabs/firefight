@@ -29,12 +29,8 @@ module Events
       message_ts = event["ts"]
       member = workspace.workspace_memberships.find_by(platform_user_id: event["user"])
 
-      # Skip transcript ingest for bot messages -- they're better captured by
-      # the structured timeline (our own bot's announcements) or by
-      # integration-specific event handlers (Datadog alerts, PagerDuty acks).
-      # Including bot prose in the transcript pollutes the Layer 2 narrative
-      # summary. File uploads from bots still flow through handle_files so
-      # archival + timeline events work.
+      # Bot messages are already captured by the timeline or integration handlers,
+      # and their prose pollutes the narrative summary. Their files still flow through handle_files.
       unless event["bot_id"].present? || event["app_id"].present?
         incident.incident_transcript_messages.create!(
           workspace: workspace,
@@ -91,8 +87,8 @@ module Events
       thread_ts = event["thread_ts"] || message_ts
 
       files.each do |file|
-        # Slack redelivers an event it did not get an answer to in time, so
-        # the file id is the identity of the share, not the delivery.
+        # Slack redelivers an event it did not get an answer to in time, so the
+        # file id is the identity of the share, not the delivery.
         next if file_already_recorded?(incident, file["id"])
 
         permalink = message_permalink_for(workspace, channel_id, message_ts, file)

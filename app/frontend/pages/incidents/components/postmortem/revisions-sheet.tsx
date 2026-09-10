@@ -67,7 +67,7 @@ export function RevisionsSheet({
       return null
     }
     const olderHtml = selectedRevision.htmlContent
-    // revisions are newest-first. The "next" version is the previous index, or the live editor content
+    // Revisions are newest first, so the next version is the previous index or the live editor content.
     const newerHtml = selectedIndex === 0 ? currentHtml : (revisions[selectedIndex - 1]?.htmlContent ?? currentHtml)
     try {
       return HtmlDiff.execute(olderHtml, newerHtml)

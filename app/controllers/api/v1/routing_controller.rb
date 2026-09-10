@@ -1,6 +1,4 @@
-# A dry run of alert routing against hypothetical alert fields. Nothing is
-# created and nobody is notified, so this is the safe way to ask what a rule
-# change would do before making it.
+# A dry run. Nothing is created and nobody is notified.
 class Api::V1::RoutingController < Api::V1::ApiController
   def evaluate
     authorize!(Ability::Action::RESOURCE_POLICIES, Ability::Action::ACTION_READ)

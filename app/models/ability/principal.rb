@@ -1,7 +1,5 @@
 module Ability
-  # The three kinds of thing a grant can attach to, addressed the same way
-  # from the dashboard, the API and MCP: a kind and an id. The kind is
-  # matched against a fixed list rather than constantized from input.
+  # The kind is matched against a fixed list rather than constantized from input.
   module Principal
     KIND_USER = "user"
     KIND_AGENT = "agent"
@@ -17,9 +15,8 @@ module Ability
       end
     end
 
-    # A principal as a rule or an approval stores it: kind plus id. A bare
-    # string is a person, which is how approvers were written before agents
-    # could be named.
+    # A bare string is a person, which is how approvers were written before
+    # agents could be named.
     def self.reference(value)
       return { "kind" => KIND_USER, "id" => value.to_s } if value.is_a?(String)
 
@@ -41,7 +38,6 @@ module Ability
       nil
     end
 
-    # Everyone who can hold a grant, with their grants loaded.
     def self.all(workspace)
       associations = { ability_grants: [ :action, { role: :role_actions } ] }
       memberships = workspace.workspace_memberships.includes(:user, associations)

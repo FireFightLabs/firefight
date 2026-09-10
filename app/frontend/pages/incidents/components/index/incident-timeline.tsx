@@ -140,7 +140,7 @@ function dotAccent(event: TimelineEvent): DotAccent {
 }
 
 // A machine's row wears its own mark instead of the event's, since who acted
-// is the thing a reader needs first.
+// is what a reader needs first.
 const MACHINE_ICONS: Partial<Record<ActorCompact["kind"], Icon>> = {
   [PRINCIPAL_KINDS.AGENT]: IconRobot,
   [PRINCIPAL_KINDS.API_KEY]: IconKey,
@@ -172,8 +172,7 @@ function EventDot({ event }: { event: TimelineEvent }) {
   )
 }
 
-// The note's statement already names the person, so the chip would say it
-// twice. The avatar alone attributes it and keeps the sentence readable.
+// The statement already names the person, so the avatar alone attributes it.
 function NoteStatement({ event }: { event: TimelineEvent }) {
   const person = event.person
   const milestone = event.milestone
@@ -182,9 +181,8 @@ function NoteStatement({ event }: { event: TimelineEvent }) {
     return null
   }
 
-  // flex-1 with a zero basis keeps the statement on the same line as the stem
-  // and lets a long one wrap inside itself, rather than the whole avatar and
-  // sentence dropping to a line of their own.
+  // flex-1 with a zero basis keeps the statement beside the stem and lets a long
+  // one wrap inside itself instead of dropping below the avatar.
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
       {person && (

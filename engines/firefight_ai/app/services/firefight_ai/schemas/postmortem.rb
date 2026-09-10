@@ -1,8 +1,7 @@
 module FirefightAi
   module Schemas
     class Postmortem < ::RubyLLM::Schema
-      # Every section is nullable, not optional. Strict structured output
-      # requires every key present. Null means the record had nothing for it.
+      # Nullable, not optional. Strict structured output needs every key present.
       SECTION_KEYS = %w[
         summary introduction deeper_dive impact resolution
         contributing_factors what_went_well action_items

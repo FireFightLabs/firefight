@@ -15,8 +15,8 @@ class Alert < ApplicationRecord
   belongs_to :alert_group, optional: true
   belongs_to :matched_policy_rule, class_name: "PolicyRule", optional: true
 
-  # Uniqueness of (alert_source_id, external_id) is enforced by the DB index.
-  # The ingest path relies on RecordNotUnique as its idempotency check.
+  # Uniqueness per source is the DB index. Ingest relies on RecordNotUnique
+  # as its idempotency check.
   validates :external_id, presence: true
   validates :fingerprint, presence: true
   validates :status, inclusion: { in: STATUSES }
@@ -24,8 +24,7 @@ class Alert < ApplicationRecord
 
   scope :open_status, -> { where(status: STATUS_FIRING) }
 
-  # The alert listing the settings page and MCP search share: newest first,
-  # with everything the row needs preloaded. Filters chain on top.
+  # Shared by the settings page and MCP search. Filters chain on top.
   scope :listing, -> { includes(:alert_source, :incident, matched_policy_rule: :policy).order(last_seen_at: :desc) }
   scope :from_source, ->(source) { where(alert_source: source) }
   scope :matched_by, ->(rule_id) { where(matched_policy_rule_id: rule_id) }
@@ -58,8 +57,8 @@ class Alert < ApplicationRecord
     update!(status: STATUS_RESOLVED, resolved_at: now, last_seen_at: now)
   end
 
-  # The routing episode. These columns move together, so the alert owns the
-  # moves and `pending` keeps one meaning: nothing has been applied yet.
+  # The routing columns move together, so the alert owns the moves and
+  # pending always means nothing has been applied yet.
 
   MAX_ROUTING_ATTEMPTS = 10
 
@@ -77,8 +76,8 @@ class Alert < ApplicationRecord
     update!(routing_state: ROUTING_UNMATCHED, routed_at: Time.current)
   end
 
-  # Written outside the routing transaction, which has rolled back, so the
-  # attempt count survives for the sweep to read.
+  # Written outside the rolled-back routing transaction so the attempt count
+  # survives for the sweep.
   def record_routing_failure!
     attempts = routing_attempts + 1
     state = attempts >= MAX_ROUTING_ATTEMPTS ? ROUTING_FAILED : ROUTING_PENDING

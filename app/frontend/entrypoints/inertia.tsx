@@ -7,9 +7,8 @@ void createInertiaApp({
     const pages = import.meta.glob<ResolvedComponent>('../pages/**/*.tsx', {
       eager: true,
     })
-    // Pages contributed by the proprietary cloud engine. The directory is
-    // populated by the cloud build and absent on self-hosted builds, where
-    // the glob matches nothing there.
+    // Cloud engine pages. The directory only exists in cloud builds, so the
+    // glob matches nothing on self-hosted.
     const cloudPages = import.meta.glob<ResolvedComponent>('../cloud_pages/**/*.tsx', {
       eager: true,
     })
@@ -35,8 +34,8 @@ void createInertiaApp({
     },
   },
 }).catch((error) => {
-  // Only Inertia pages carry the #app root, so a missing one means this
-  // entrypoint was loaded on a page that does not use Inertia.
+  // Only Inertia pages carry the #app root, so a missing one means this loaded
+  // on a page that does not use Inertia.
   if (document.getElementById("app")) {
     throw error
   } else {

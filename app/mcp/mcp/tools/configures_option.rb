@@ -1,11 +1,7 @@
 module Mcp
   module Tools
-    # The four configurable option lists take the same seven operations, so the
-    # work of upserting one lives here once. The tools stay separate because
-    # their payloads do not match: a status needs a lifecycle stage, a severity
-    # needs a rank, and only some are colored or defaultable. One tool with a
-    # kind argument would carry four fields that each apply to some kinds and
-    # not others, which an agent reading the schema cannot tell apart.
+    # One tool per list rather than a kind argument, because a shared schema would carry
+    # fields that apply to some kinds only, which an agent reading it cannot tell apart.
     module ConfiguresOption
       SHARED_PROPERTIES = {
         slug: { type: "string", description: "Slug of the one to change; omit to create a new one" },
@@ -36,10 +32,8 @@ module Mcp
       end
 
       module ClassMethods
-        # `extra` describes the fields only this list has, and `prepare` says
-        # how they land as attributes. They are separate because a list can
-        # take an argument in its own vocabulary, the way a status takes a
-        # stage key for the stage it belongs to.
+        # extra describes the fields only this list has, prepare maps them onto
+        # attributes since a list can take an argument in its own vocabulary.
         def configures_option(model, resource:, extra: {}, guidance: "", prepare: nil)
           define_singleton_method(:option_model) { model }
           define_singleton_method(:extra_properties) { extra }
@@ -64,8 +58,7 @@ module Mcp
           upserts resource, scope: ->(workspace) { model.list_for(workspace) }
         end
 
-        # Deleting refuses while anything points at the option, which is the
-        # same rule the settings screen shows as a tooltip.
+        # Same rule the settings screen shows as a tooltip.
         def deletes_option(model, resource:)
           define_singleton_method(:option_model) { model }
 
@@ -84,8 +77,7 @@ module Mcp
         end
       end
 
-      # One transaction, so a call that renames and then hits a rule the model
-      # refuses leaves the name alone rather than half-applying.
+      # One transaction, so a rename followed by a refused rule leaves the name alone.
       def self.upsert(tool, workspace, args)
         model = tool.option_model
         existing = tool.upsert_target(workspace, args)
@@ -145,8 +137,7 @@ module Mcp
       end
       private_class_method :attributes_for
 
-      # Each of these is its own operation on the model, with its own rule,
-      # rather than a column on the write.
+      # Each is its own operation on the model with its own rule, not a column on the write.
       def self.apply_state(option, args)
         toggle_enabled(option, args[:enabled]) unless args[:enabled].nil?
         make_default(option) if args[:default] && option.class.defaultable?

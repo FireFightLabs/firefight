@@ -1,9 +1,5 @@
 module Slack
   module Messages
-    # Status-update messages, posted both inline in the incident channel
-    # and as a thread reply on the announcement. The two variants only
-    # differ in their header line, so `build` takes a `scope:` of
-    # `:inline` or `:announcement`.
     module StatusUpdate
       def self.build(incident, message:, updated_by_platform_user_id:, scope:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
         field_lines = [
@@ -13,11 +9,8 @@ module Slack
         type_text = Formatting.type_diff_text(previous_type_name, incident.incident_type&.name)
         field_lines << type_text if type_text
 
-        # A cancellation posts through the same path as any status change, so
-        # the wording follows the stage rather than calling it an update. It
-        # also ends the incident, so in the announcement thread it takes the
-        # header block that Resolved and Reopened use rather than the smaller
-        # title an ordinary update gets.
+        # A cancellation ends the incident, so it must not read as an update
+        # and takes the header block Resolved and Reopened use.
         canceled = incident.canceled?
         icon = canceled ? ":wastebasket:" : ":memo:"
         noun = canceled ? "Incident canceled" : "Incident updated"

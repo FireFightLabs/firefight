@@ -45,9 +45,6 @@ module Slack::WorkspaceAdapter::IncidentModals
     end
   end
 
-  # Refreshes the open incident-creation modal with new dispatch context
-  # (severity / type selected via dispatch_action) without losing other
-  # user-entered values.
   def update_incident_creation_modal(view_id:, state: {}, private_metadata: nil, test: false)
     translate_errors do
       view = Slack::Modals::IncidentCreation.build(workspace: @workspace, state: state, private_metadata: private_metadata, test: test)
@@ -56,8 +53,6 @@ module Slack::WorkspaceAdapter::IncidentModals
     end
   end
 
-  # Refreshes the open update modal after its status select dispatches, so the
-  # fields on it match the status the responder has just picked.
   def update_incident_update_modal(view_id:, incident:, state: {}, private_metadata: nil)
     translate_errors do
       view = Slack::Modals::IncidentUpdate.build(incident, private_metadata: private_metadata, state: state)
@@ -66,8 +61,6 @@ module Slack::WorkspaceAdapter::IncidentModals
     end
   end
 
-  # Patches the home modal's help section based on the selected command,
-  # preserving everything else about the open view.
   def update_home_modal(view:, selected_command:)
     translate_errors do
       help_text = Slack::Modals::Home.command_help(selected_command)
@@ -97,16 +90,12 @@ module Slack::WorkspaceAdapter::IncidentModals
     end
   end
 
-  # Push-vs-open dispatch: open as a top-level modal when invoked directly,
-  # or push onto an existing stack when invoked from another modal (e.g.
-  # the actions list).
   def open_action_item_modal(kind:, trigger_id:, incident:, private_metadata: nil, push: false)
     view = Slack::Modals::ActionItemsForm.build(incident, kind: kind, private_metadata: private_metadata)
     push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
   end
 
-  # Skip opening the link modal when there's nothing in the workspace to
-  # link to. The build returns nil in that case.
+  # The build returns nil when there is nothing in the workspace to link to.
   def open_link_incident_modal(trigger_id:, incident:, private_metadata: nil, default_type: IncidentRelationship::RELATED)
     view = Slack::Modals::Link.build(incident, private_metadata: private_metadata, default_type: default_type)
     return unless view

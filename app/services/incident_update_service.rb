@@ -88,8 +88,6 @@ class IncidentUpdateService
     )
   end
 
-  # An escalation event holds who asked, who was asked and why, so each of
-  # these reads it rather than being handed the same three values again.
   def post_escalation_message(incident, event:)
     @workspace.adapter.post_escalation_message(
       channel_id: incident.channel_id,

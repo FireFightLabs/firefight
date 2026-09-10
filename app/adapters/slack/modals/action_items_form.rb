@@ -1,7 +1,5 @@
 module Slack
   module Modals
-    # The "Create action" and "Create follow-up" modals. Same shape, only
-    # the title, callback_id, and emoji hint differ by kind.
     module ActionItemsForm
       KINDS = {
         action: {
@@ -19,8 +17,7 @@ module Slack
       def self.build(incident, kind:, private_metadata: nil)
         cfg = KINDS.fetch(kind)
         metadata = private_metadata || ModalState.encode(incident_id: incident.id)
-        # Launched from a reaction, the caller carries the source message text
-        # so the description can start from it.
+        # A reaction carries the source message so the description starts from it.
         initial_description = ModalState.parse(metadata).source_message_text
 
         description_element = {

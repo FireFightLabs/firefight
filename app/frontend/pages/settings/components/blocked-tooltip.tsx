@@ -3,8 +3,7 @@ import type { ReactNode } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 // A disabled control swallows pointer events, so the tooltip rides on a span.
-// Renders children bare when there is no reason, so callers can pass a
-// *_blocked_reason straight through.
+// Children render bare when there is no reason.
 export function Blocked({
   reason,
   side = "left",

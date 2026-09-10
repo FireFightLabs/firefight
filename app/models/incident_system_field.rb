@@ -1,15 +1,5 @@
-# Registry of system fields the code depends on.
-#
-# A system field is a built-in incident attribute (severity, status, lead,
-# ...) that:
-#   - is always defined here in code,
-#   - appears by default on the form-slugs listed in its `forms:` map,
-#   - has its visibility/required-mode/position OVERRIDDEN by per-workspace
-#     `IncidentFormField` rows (DB overlay). Absence of a DB row = default.
-#
-# Adding a new system field needs no migration. Register it here with the
-# `forms:` map, and every workspace's form editor + Slack modal picks it up
-# automatically.
+# A workspace's IncidentFormField rows override visibility, required mode and position.
+# Adding a field here needs no migration.
 class IncidentSystemField
   KEY_NAME = "name"
   KEY_SUMMARY = "summary"
@@ -21,14 +11,8 @@ class IncidentSystemField
   KEY_NEXT_UPDATE = "next_update"
   KEY_MESSAGE = "message"
 
-  # `name` is the short handle for prose: flash messages, "Severity is
-  # required", the settings row. `label`, `hint`, and `placeholder` are what a
-  # responder actually reads above and inside the input, and are rendered
-  # identically by Slack and by the form editor's preview. Keeping them here
-  # rather than in the Slack adapter is what stops the two surfaces drifting.
-  # How a ship mode from the registry lands on an IncidentFormField row. The
-  # one table the resolver's unpersisted default and the form service's
-  # materialized row both read, so the two can never disagree.
+  # How a ship mode lands on an IncidentFormField row. The resolver's unpersisted
+  # default and the form service's stored row both read this, so they cannot disagree.
   SHIPS_AS = {
     IncidentFormField::REQUIRED_MODE_AVAILABLE => { visibility_mode: IncidentFormField::VISIBILITY_MODE_HIDDEN, required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL },
     IncidentFormField::REQUIRED_MODE_OPTIONAL => { visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE, required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL },
@@ -36,9 +20,10 @@ class IncidentSystemField
     IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED => { visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE, required_mode: IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED }
   }.freeze
 
+  # label, hint and placeholder live here rather than in the Slack adapter because
+  # Slack and the form editor preview must render them identically.
   Definition = Struct.new(:key, :name, :label, :hint, :placeholder, :field_type, :forms, keyword_init: true) do
-    # Returns the default required_mode for this field on the given form slug,
-    # or nil if the field doesn't appear on that form by default.
+    # nil when the field does not appear on that form by default.
     def required_mode_for(form_slug)
       forms[form_slug.to_s]
     end
@@ -47,8 +32,7 @@ class IncidentSystemField
       forms.key?(form_slug.to_s)
     end
 
-    # The row attributes this field ships with on a form, position included,
-    # or nil when it does not appear there by default.
+    # nil when the field does not appear on that form by default.
     def default_overlay_for(form_slug)
       mode = required_mode_for(form_slug)
       return nil unless mode
@@ -61,9 +45,7 @@ class IncidentSystemField
     end
   end
 
-  # Listed in the order they should appear by default on each form. The
-  # resolver iterates this list, picks definitions that apply to the
-  # form slug, and uses encounter order as the default position.
+  # Order here is the default position on every form.
   DEFINITIONS = [
     Definition.new(
       key: KEY_MESSAGE,
@@ -93,11 +75,8 @@ class IncidentSystemField
       hint: "Give a short description of what is happening.",
       placeholder: "Write something",
       field_type: IncidentFieldDefinition::TYPE_TEXT,
-      # Required on declare because the channel is named from it once, at
-      # creation, and cannot be renamed later. A blank name leaves a permanent
-      # inc-<date>-untitled channel and "Untitled Incident" everywhere the
-      # incident is referred to. The API already requires it and alerts derive
-      # it from the alert title, so this is the only path that let it through.
+      # Required on declare because the channel is named from it once and cannot
+      # be renamed. A blank name leaves a permanent inc-<date>-untitled channel.
       forms: {
         IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_REQUIRED,
         IncidentForm::SLUG_RESOLVE => IncidentFormField::REQUIRED_MODE_OPTIONAL
@@ -110,8 +89,7 @@ class IncidentSystemField
       hint: "Categorize the incident to improve reporting and routing.",
       placeholder: "Select a type",
       field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
-      # Off by default on both. Categorizing is worth having, but not at the
-      # cost of a longer dialog before a workspace has decided it wants it.
+      # Off by default so the dialog stays short until a workspace wants categories.
       forms: {
         IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_AVAILABLE,
         IncidentForm::SLUG_UPDATE => IncidentFormField::REQUIRED_MODE_AVAILABLE
@@ -164,8 +142,7 @@ class IncidentSystemField
       label: "Who should be able to see this incident?",
       hint: "Public incidents are visible to everyone in the workspace. Private incidents are only accessible to invited members.",
       field_type: IncidentFieldDefinition::TYPE_SINGLE_SELECT,
-      # Off by default: most workspaces run every incident public, and the
-      # ones that do not can turn this on.
+      # Off by default, most workspaces run every incident public.
       forms: {
         IncidentForm::SLUG_DECLARE => IncidentFormField::REQUIRED_MODE_AVAILABLE
       }
@@ -184,10 +161,7 @@ class IncidentSystemField
 
   DEFINITIONS_BY_KEY = DEFINITIONS.index_by(&:key).freeze
 
-  # What the two fixed-choice system fields offer. They live here for the same
-  # reason label, hint and placeholder do. Both surfaces read them, and a copy
-  # kept in one of them is a copy that drifts. The workspace's own records
-  # answer the rest (statuses, severities, types, people).
+  # The fixed choices live here so Slack and the form editor read one copy.
   Choice = Data.define(:value, :label)
 
   VISIBILITY_CHOICES = [
@@ -207,8 +181,7 @@ class IncidentSystemField
 
   DEFAULT_NEXT_UPDATE_MINUTES = "15".freeze
 
-  # The fixed choices for a key, or nil when the answers come from the
-  # workspace's own records instead.
+  # nil when the answers come from the workspace's own records.
   def self.choices_for(key)
     case key
     when KEY_VISIBILITY then VISIBILITY_CHOICES
@@ -228,8 +201,6 @@ class IncidentSystemField
     DEFINITIONS_BY_KEY.key?(key)
   end
 
-  # Default system fields for a given form slug, in default-position order.
-  # The resolver applies DB overrides on top of this list.
   def self.defaults_for(form_slug)
     DEFINITIONS.select { |d| d.appears_on?(form_slug) }
   end

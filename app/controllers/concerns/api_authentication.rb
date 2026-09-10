@@ -21,10 +21,8 @@ module ApiAuthentication
     api_key.touch_last_used!
   end
 
-  # Personal tokens resolve to the human principal (member-level reads),
-  # service keys to themselves (their grants). Write-risk actions get a
-  # write-ahead ledger row, finalized by the around_action once the
-  # controller action completes.
+  # Personal tokens resolve to their human, service keys to their own grants. Write-risk
+  # actions get a write-ahead ledger row, finalized by the around_action.
   def authorize!(resource, action)
     @ability_authorization = AbilityGateway.authorize!(
       principal: Current.principal,
@@ -37,8 +35,7 @@ module ApiAuthentication
     raise ForbiddenError, "API key lacks '#{action}' permission on '#{resource}'"
   end
 
-  # Binds an approval to the exact request body without putting the body
-  # (potential PII) into the ledger. An approved retry must be byte-identical.
+  # Binds an approval to the exact body without putting it in the ledger. An approved retry must be byte-identical.
   def request_binding_params
     return {} if request.raw_post.blank?
 

@@ -15,8 +15,8 @@ class IncidentFieldDefinitionService
         position: next_position
       )
 
-      # Built rather than synced so the "at least one enabled option"
-      # validation sees them on the same save that creates the definition.
+      # Built rather than synced so the "at least one enabled option" validation
+      # sees them on the same save that creates the definition.
       Array(attrs[:options]).each_with_index do |option, index|
         definition.incident_field_options.build(
           label: option[:label].to_s.strip,
@@ -31,9 +31,8 @@ class IncidentFieldDefinitionService
 
   def update(definition, attrs)
     ActiveRecord::Base.transaction do
-      # Saved after the options are synced, so the "at least one enabled
-      # option" rule sees the incoming list rather than the empty one a field
-      # switching to a fixed list still has.
+      # Saved after the options are synced, so the "at least one enabled option"
+      # rule sees the incoming list rather than the empty one a field switching to a fixed list still has.
       definition.assign_attributes(
         name: attrs[:name],
         description: attrs[:description],
@@ -47,9 +46,6 @@ class IncidentFieldDefinitionService
     end
   end
 
-  # Every surface names a field the same way, by slug, and hands the same
-  # shape in. Mapping that shape onto attributes belongs here rather than once
-  # per entry point.
   def upsert!(existing, args)
     attrs = definition_attributes(args, existing)
 
@@ -76,9 +72,8 @@ class IncidentFieldDefinitionService
     @workspace.catalog_types.active.find_by!(slug: args[:catalog_type].to_s).id
   end
 
-  # Labels are the only handle an agent has, so an incoming label that
-  # already exists reuses that option's row rather than replacing it. That
-  # is what keeps a rename from orphaning the incidents pointing at it.
+  # Labels are the only handle an agent has, so a label that already exists
+  # reuses that option's row. Replacing it would orphan the incidents pointing at it.
   def option_params(args, existing)
     return existing_option_params(existing) unless args.key?(:options)
 

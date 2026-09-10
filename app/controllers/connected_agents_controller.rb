@@ -1,6 +1,4 @@
-# OAuth connections (MCP clients authorized via the consent screen) listed on
-# the API-keys page. Revoking kills the application's tokens and grants for
-# this member only.
+# OAuth connections from MCP clients. Revoking kills the application's tokens and grants for this member only.
 class ConnectedAgentsController < InertiaController
   def destroy
     application = Doorkeeper::Application.find(params[:id])

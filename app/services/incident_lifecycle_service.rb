@@ -18,13 +18,8 @@ class IncidentLifecycleService
     incident
   end
 
-  # Every status change enters here. Which verb runs is decided once, from
-  # the stage the incident is in and the stage it is going to, so the API,
-  # the update modal and the close, cancel and reopen commands can no longer
-  # disagree about what a transition means. The verbs below are private.
-  #
-  # attrs may carry the usual incident columns plus :lead. Absent a status,
-  # the change is a plain update.
+  # The verb is chosen once from the current and target stage, so the API, the update
+  # modal and the commands cannot disagree about what a transition means.
   def change_status(incident, attrs, changed_by:, message: nil)
     new_status = attrs[:incident_status] || incident.incident_status
     blocked_reason = incident.status_change_blocked_reason(new_status)
@@ -56,14 +51,8 @@ class IncidentLifecycleService
     })
   end
 
-  # Escalation writes an event, asks someone to pick the incident up, and
-  # schedules a chase if they do not. The guard lives here rather than on the
-  # event, so every entry point inherits it instead of remembering it.
-  #
-  # `escalated_to` is a member, or the platform id of someone the platform
-  # knows. Both are legitimate, since escalating to a person is not what makes
-  # them a member. The event carries who and why, so the workflow and the chase
-  # need nothing but its id.
+  # The guard lives here rather than on the event so every entry point inherits it.
+  # escalated_to is a member or a platform id, escalating to a person does not make them a member.
   def escalate(incident, escalated_to:, reason:, changed_by:)
     blocked_reason = incident.escalation_blocked_reason
     raise Incident::NotActive, blocked_reason if blocked_reason
@@ -80,10 +69,8 @@ class IncidentLifecycleService
     event
   end
 
-  # Takes role => member (a nil member clears the role) and applies every
-  # change in one pass, so a modal that touches several roles announces once.
-  # The lead keeps its own path, which already updates the channel topic,
-  # quick actions and announcement.
+  # Applies every role change in one pass so a modal touching several roles
+  # announces once. The lead keeps its own path, which also updates the topic and quick actions.
   def assign_roles(incident, assignments, changed_by:)
     applied = assignments.reject { |role, member| incident.role_holder(role) == member }
     return applied if applied.empty?
@@ -148,9 +135,7 @@ class IncidentLifecycleService
   def close(incident, attrs, changed_by:)
     lead = attrs.delete(:lead)
 
-    # Lead first: the same save closes the incident, and `lead=` refuses once
-    # the status has landed. The tracked diff is taken across the whole block,
-    # so the order changes nothing about what is recorded.
+    # Lead first, the same save closes the incident and lead= refuses once the status has landed.
     incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, by: changed_by) do
       incident.lead = lead if lead
       incident.update!(attrs)
@@ -166,11 +151,8 @@ class IncidentLifecycleService
     end
   end
 
-  # A canceled incident was never an incident, so it deliberately does not get
-  # what closing gets: no resolved_at, which keeps it out of time-to-resolve, no
-  # postmortem, which gates on the closed stage, and no close workflow, since
-  # there is nothing to follow up. The channel still archives, because a channel
-  # for a false positive is pure noise.
+  # A canceled incident was never an incident, so no resolved_at, no postmortem
+  # and no close workflow. The channel still archives since a false positive's channel is noise.
   def cancel(incident, attrs, changed_by:, message: nil)
     previous_status_name = incident.incident_status.name
 
@@ -248,8 +230,7 @@ class IncidentLifecycleService
     )
   end
 
-  # The timeline names the person, never the platform id. A target who is not
-  # yet a member still gets a name and avatar from the platform.
+  # The timeline names the person, never the platform id, even for a target who is not yet a member.
   def escalation_target(person)
     return Incident::EscalationTarget.for_member(person) if person.is_a?(WorkspaceMembership)
 

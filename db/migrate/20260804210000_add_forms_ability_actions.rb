@@ -3,16 +3,14 @@ class AddFormsAbilityActions < ActiveRecord::Migration[8.1]
     self.table_name = "api_keys"
   end
 
-  # Ability::Action.lookup returning nil denies everyone, admins included, so
-  # the rows for a new resource have to exist before the tools that name it.
+  # A missing Ability::Action denies everyone, admins included, so the rows must exist before the tools that name them.
   def up
     Ability::Action.sync_system_actions!
 
     read_action = Ability::Action.find_by(workspace_id: nil, key: "#{Ability::Action::RESOURCE_FORMS}.#{Ability::Action::ACTION_READ}")
     return unless read_action
 
-    # Reading a form's configuration used to sit under custom_fields, so a key
-    # granted that keeps it rather than silently losing get_form.
+    # Reading a form used to sit under custom_fields, so a key granted that keeps get_form.
     MigrationApiKey.where(workspace_membership_id: nil).where.not(permissions: {}).find_each do |key|
       next unless key.permissions[Ability::Action::RESOURCE_CUSTOM_FIELDS]&.include?(Ability::Action::ACTION_READ)
 

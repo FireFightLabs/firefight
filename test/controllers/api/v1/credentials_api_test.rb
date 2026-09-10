@@ -1,7 +1,6 @@
 require "test_helper"
 
-# Agents and service keys over REST. Both authorize as admin-only resources, so
-# an admin's personal token reaches them and no machine ever can.
+# Both authorize as admin-only resources, so an admin's personal token reaches them and no machine ever can.
 class Api::V1::CredentialsApiTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)

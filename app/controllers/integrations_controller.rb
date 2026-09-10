@@ -68,8 +68,7 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path
   end
 
-  # Narrowing an existing connection to one environment, or widening it back.
-  # The credentials stay put. Only which environment they answer for moves.
+  # Moves which environment the connection answers for. The credentials stay put.
   def retarget_environment
     requested = params[:environment_id].presence
     verified = environment_id_param
@@ -83,10 +82,8 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path, alert: "This connection already has credentials for that environment."
   end
 
-  # Full-page navigation (not an Inertia visit): hands the browser to the
-  # provider's install or consent screen. Nothing is persisted until the
-  # customer comes back authorized, so abandoning that screen leaves no
-  # half-connected row behind.
+  # A full-page navigation to the provider. Nothing is persisted until the customer
+  # returns authorized, so abandoning it leaves no half-connected row.
   def oauth_start
     provider = IntegrationProvider.find(params[:provider].to_s)
     return redirect_to integrations_path, alert: "Unknown integration." if provider.nil?
@@ -138,9 +135,7 @@ class IntegrationsController < InertiaController
 
   private
 
-  # Install-first without OAuth discovery: the provider's app is installed on
-  # the customer's account and the callback brings back an installation id,
-  # not tokens. Server-to-server tokens are minted from it at call time.
+  # The callback brings back an installation id, not tokens. Server-to-server tokens are minted from it at call time.
   def native_install_start(provider)
     state = SecureRandom.hex(16)
     install_url = Integrations::NativePack.for(provider.key)&.install_url(state: state)
@@ -167,12 +162,8 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path
   end
 
-  # Keyed on the slug rather than the provider so one provider can back
-  # several accounts (two AWS accounts, two PlanetScale orgs), each with its
-  # own credentials and its own action keys. Reconnecting under the default
-  # name revives the existing connection rather than colliding on its slug.
-  # Separating environments is a different axis: one connection, one
-  # IntegrationEnvironment per environment, grants scoped to it.
+  # Keyed on the slug so one provider can back several accounts with their own credentials.
+  # Reconnecting under the default name revives the existing row.
   def connect!(provider, name, environment_id)
     integration = current_workspace.integrations.find_or_initialize_by(slug: Integration.slug_for(name))
     raise NameTaken if integration.persisted? && integration.provider != provider.key
@@ -190,15 +181,12 @@ class IntegrationsController < InertiaController
     @integration = current_workspace.integrations.where(deleted_at: nil).find(params[:id])
   end
 
-  # Native integrations execute through their pack, so only MCP kinds carry a
-  # server URL. The block defers reading it, so a native connect never
-  # demands a URL param it will not store.
+  # Only MCP kinds carry a server URL. The block defers reading it so a native connect never demands one.
   def settings_for(kind)
     kind == Integration::KIND_NATIVE ? {} : { "server_url" => yield }
   end
 
-  # Arrives on a full-page URL, so it is confirmed to be one of this
-  # workspace's environments before it can bind credentials to a catalog entry.
+  # Arrives on a full-page URL, so it is checked against this workspace's environments before binding credentials.
   def environment_id_param
     id = params[:environment_id].presence
     id if id && current_workspace.environment_entries.exists?(id: id)

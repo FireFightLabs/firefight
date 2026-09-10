@@ -7,17 +7,14 @@ module SolidWorkflow
       BACKOFF_LINEAR = "linear"
       BACKOFF_FIXED = "fixed"
 
-      # Decided from the exception itself, at the one place it exists, so
-      # the retry policy never depends on how last_error was formatted.
+      # Decided from the exception itself, so the policy never depends on how last_error was formatted.
       def should_retry?(error)
         return false if terminal_error?(error)
         attempts < max_attempts
       end
 
-      # Terminal errors are never retried, the next attempt produces the
-      # same outcome. The class list is engine config so host apps register
-      # their own (see SolidWorkflow.terminal_error_classes). A subclass of a
-      # listed class counts, since it means the same thing.
+      # Terminal errors are never retried. The list is engine config so hosts register their
+      # own, and a subclass of a listed class counts.
       def terminal_error?(error)
         ancestors = error.class.ancestors.map(&:name)
         SolidWorkflow.terminal_error_classes.any? { |klass| ancestors.include?(klass) }
@@ -67,10 +64,8 @@ module SolidWorkflow
 
       private
 
-      # Manual retry/skip on a step of a failed workflow must bring the
-      # workflow back to running, otherwise orchestration short-circuits on
-      # completed? and the step sits pending forever. Siblings cancelled by
-      # the failure go back to pending so the revived run can complete.
+      # A retry or skip on a failed workflow must bring it back to running, otherwise orchestration stops
+      # on completed? and the step sits pending forever. Cancelled siblings go back to pending so the revived run can complete.
       def revive_workflow!
         return unless workflow.transition!(:running, from: :failed)
 
@@ -98,8 +93,7 @@ module SolidWorkflow
         end
 
         base = base.is_a?(Array) ? base.min : base
-        # ±25% jitter so a fleet of steps that fail at the same instant
-        # don't all retry at the same instant.
+        # Jitter so steps that fail together do not retry together.
         jittered = base + (rand - 0.5) * base * 0.5
         jittered.clamp(1.0, 300.0).seconds
       end

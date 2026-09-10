@@ -56,8 +56,7 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
     assert_nil submission(IncidentForm::SLUG_RESOLVE, { "summary" => "All better" }).message
   end
 
-  # The workspace opted out of update reminders by taking the field off the
-  # form, so a submission must not quietly clear what the incident holds.
+  # Taking the field off the form is opting out of reminders, so a submission must not clear what the incident holds.
   test "next update is left alone when the form does not ask for it" do
     attrs = submission(IncidentForm::SLUG_UPDATE, {}, visible: [ "status" ]).attributes
 

@@ -13,8 +13,7 @@ class Slack::Messages::InviteTest < ActiveSupport::TestCase
     assert_includes text, "<@U2> is already in this channel."
   end
 
-  # A round started from the dashboard holds members, one started from the
-  # slash command holds platform ids, and both mention correctly.
+  # A round from the dashboard holds members, one from the slash command holds platform ids.
   test "mentions a member the same as a platform id" do
     member = workspace_memberships(:alice_workspace_one)
     text = summary(already_in_channel: [ member ])

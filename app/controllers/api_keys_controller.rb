@@ -3,9 +3,8 @@ class ApiKeysController < InertiaController
 
   before_action :set_api_key, only: [ :update, :destroy, :abilities ]
 
-  # Personal tokens are self-service (any member can mint their own, GitHub
-  # PAT style). Service keys carry workspace-wide scopes and are the
-  # gateway's api_keys resource.
+  # Any member mints their own personal token. Service keys carry workspace grants
+  # and are the gateway's api_keys resource.
   def create
     personal = params[:kind] == KIND_PERSONAL
     return unless personal || authorize_web!(Ability::Action::RESOURCE_API_KEYS, Ability::Action::ACTION_CREATE)
@@ -32,9 +31,8 @@ class ApiKeysController < InertiaController
     redirect_back fallback_location: developer_api_keys_path, alert: e.message
   end
 
-  # Only touch fields the client explicitly passes. Omitting `active` would
-  # otherwise write nil into a NOT NULL column, and permissions are grants now,
-  # so they are replaced separately rather than assigned as an attribute.
+  # Only fields the client sends. Omitting `active` would write nil into a NOT NULL
+  # column, and permissions are grants, replaced separately.
   def update
     attrs = {}
     attrs[:name] = params[:name] if params.key?(:name)
@@ -58,8 +56,7 @@ class ApiKeysController < InertiaController
     redirect_to developer_api_keys_path
   end
 
-  # The grant preview, what this key can actually do, as resolved by the
-  # gateway, the debugging answer to "why was this call denied?"
+  # What the key can do as the gateway resolves it, the answer to why a call was denied.
   def abilities
     if @api_key.personal?
       render json: { principal: @api_key.principal.principal_label, mode: KIND_PERSONAL,
@@ -78,8 +75,7 @@ class ApiKeysController < InertiaController
     "abilities" => Ability::Action::ACTION_READ
   }.freeze
 
-  # A member reaches only their own personal tokens. Anything done to a
-  # service key is authorized as the api_keys resource.
+  # A member reaches only their own personal tokens. Service keys are authorized as the api_keys resource.
   def set_api_key
     scope = current_workspace.api_keys.where(deleted_at: nil)
     scope = scope.where(workspace_membership_id: current_membership.id) unless current_membership.admin_access?

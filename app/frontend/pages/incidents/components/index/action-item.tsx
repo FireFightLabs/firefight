@@ -23,8 +23,8 @@ import {
   pickUpIncidentActionPath,
 } from "@/lib/routes"
 
-// A machine holding an item wears its own mark, since who has the work is the
-// first thing a reader checks.
+// A machine holding an item wears its own mark, since who has the work is what
+// a reader checks first.
 const KIND_ICONS: Partial<Record<ActorCompact["kind"], Icon>> = {
   [PRINCIPAL_KINDS.AGENT]: IconRobot,
   [PRINCIPAL_KINDS.API_KEY]: IconKey,
@@ -45,8 +45,8 @@ function AssigneeMark({ assignee }: { assignee: ActorCompact }) {
   )
 }
 
-// Taking it yourself and handing it over are separate events, which is why
-// they are separate items rather than one picker that happens to include you.
+// Taking it yourself and handing it over are separate events, so they are
+// separate items rather than one picker.
 function ActionMenu({
   action,
   incidentId,

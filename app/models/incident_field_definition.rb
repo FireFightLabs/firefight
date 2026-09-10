@@ -36,10 +36,8 @@ class IncidentFieldDefinition < ApplicationRecord
     TYPE_CATALOG_MULTI_REFERENCE
   ].freeze
 
-  # Which option sources each field type accepts. The validation reads this
-  # map and the settings page ships it to the field dialog, so the rule and
-  # the picker cannot drift. A new field type offers nothing until it has a
-  # row here.
+  # Validation and the field dialog both read this, so the rule and the
+  # picker cannot drift.
   OPTION_SOURCES_BY_FIELD_TYPE = {
     TYPE_TEXT => [ OPTION_SOURCE_NONE ],
     TYPE_NUMBER => [ OPTION_SOURCE_NONE ],
@@ -50,24 +48,21 @@ class IncidentFieldDefinition < ApplicationRecord
     TYPE_CATALOG_MULTI_REFERENCE => [ OPTION_SOURCE_CATALOG ]
   }.freeze
 
-  # Seven field types, but only three things a stored value can be, a pointer
-  # at one of this field's own options, a pointer at a catalog entry, or a
-  # scalar the responder typed. Everything that reads or writes a value
-  # dispatches on this rather than re-deriving it from the type and source.
+  # A stored value is one of three things whatever the field type. Everything
+  # reading or writing a value dispatches on this.
   STORAGE_OPTION = :option
   STORAGE_CATALOG_ENTRY = :catalog_entry
   STORAGE_SCALAR = :scalar
 
-  # Slack caps a select at 100 options and fails the whole views.open beyond
-  # that, taking the entire form down rather than just this field.
+  # Slack caps a select at 100 options and fails the whole views.open beyond that.
   MAX_OPTIONS = 100
 
   belongs_to :workspace
   belongs_to :catalog_type, optional: true
 
   has_many :incident_form_fields, dependent: :restrict_with_error
-  # Ordered on the association so `includes` preloads in display order. Calling
-  # .ordered downstream would build a fresh relation and discard the preload.
+  # Ordered here so includes preloads in display order. Calling .ordered
+  # downstream would discard the preload.
   has_many :incident_field_options, -> { ordered }, dependent: :destroy, inverse_of: :incident_field_definition
   has_many :incident_field_values, dependent: :restrict_with_error
 
@@ -90,9 +85,7 @@ class IncidentFieldDefinition < ApplicationRecord
     :incident_form_fields
   end
 
-  # The only supported way to hand definitions to a settings serializer.
-  # Attaches option usage counts and value counts for the whole list in a fixed
-  # number of queries rather than per row.
+  # Attaches usage and value counts for the whole list in a fixed number of queries.
   def self.for_settings(relation)
     definitions = relation
       .ordered
@@ -123,8 +116,6 @@ class IncidentFieldDefinition < ApplicationRecord
     MULTI_VALUED_TYPES.include?(field_type)
   end
 
-  # Whether the field offers a curated set to pick from, however that set is
-  # sourced.
   def selectable?
     self.class.selectable?(field_type)
   end
@@ -139,8 +130,7 @@ class IncidentFieldDefinition < ApplicationRecord
     catalog_options? ? STORAGE_CATALOG_ENTRY : STORAGE_OPTION
   end
 
-  # The column a submitted entry lands in. Owned here because the shape is this
-  # field's business, not the incident's.
+  # The column a submitted entry lands in.
   def value_attributes_for(entry)
     case storage_kind
     when STORAGE_OPTION        then { incident_field_option_id: entry }
@@ -150,12 +140,8 @@ class IncidentFieldDefinition < ApplicationRecord
     end
   end
 
-  # Id => label for whatever this field currently offers, in display order.
-  # Disabled and archived rows drop out, so they stop being submittable
-  # without disturbing the incidents already holding them. Serializers,
-  # jbuilders, and the resolver all read from here rather than rebuilding the
-  # list. The method filters options in Ruby, so a preloaded association
-  # survives without a query per row.
+  # Disabled and archived rows drop out without disturbing the incidents
+  # holding them. Filters in Ruby so a preloaded association survives.
   def selectable_values
     case storage_kind
     when STORAGE_OPTION
@@ -178,9 +164,8 @@ class IncidentFieldDefinition < ApplicationRecord
 
   attr_writer :value_count
 
-  # Detaching a field from every form does not unmake the incidents that were
-  # declared with it. Those values are history, and the association refuses to
-  # cascade them away, so this has to say no before the screen offers to.
+  # Values on incidents are history and the association refuses to cascade
+  # them, so this says no before the screen offers to.
   def deletion_blocked_reason
     return super if super
     return if value_count.zero?
@@ -189,8 +174,8 @@ class IncidentFieldDefinition < ApplicationRecord
       "Disable it instead, which keeps the history and stops it being collected again."
   end
 
-  # field_type and option_source decide how stored values are interpreted, so
-  # changing them once incidents hold values silently reinterprets history.
+  # Changing the type or source once incidents hold values silently
+  # reinterprets history.
   def shape_change_blocked_reason
     return if value_count.zero?
 
@@ -198,8 +183,7 @@ class IncidentFieldDefinition < ApplicationRecord
       "so its field type and option source cannot be changed. Disable it and add a new field instead."
   end
 
-  # Rows carrying an id are updated in place, so a rename never changes what
-  # incidents point at.
+  # Rows with an id update in place, so a rename never changes what incidents point at.
   def sync_options!(options_params)
     incoming = Array(options_params)
 
@@ -264,8 +248,8 @@ class IncidentFieldDefinition < ApplicationRecord
     existing&.disabled_at || Time.current
   end
 
-  # The foreign key is the real stop, but it raises InvalidForeignKey with no
-  # sentence a user can read, so the blocked reason is checked first.
+  # The foreign key raises InvalidForeignKey with nothing a user can read,
+  # so the blocked reason is checked first.
   def remove_options_absent_from!(incoming)
     keep_ids = incoming.filter_map { |params| params[:id].presence }
     removed = incident_field_options.where.not(id: keep_ids).to_a

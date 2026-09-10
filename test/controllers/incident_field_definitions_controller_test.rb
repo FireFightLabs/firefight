@@ -198,9 +198,7 @@ class IncidentFieldDefinitionsControllerTest < ActionDispatch::IntegrationTest
     }
   end
 
-  # Detaching a field from every form does not unmake the incidents declared
-  # with it, and the association refuses to cascade those values away, so the
-  # delete used to be offered and then blow up.
+  # The association refuses to cascade incident values away, so the delete used to be offered and then blow up.
   test "a field holding incident values cannot be deleted even with no form using it" do
     definition = @workspace.incident_field_definitions.create!(
       name: "Open ended text", slug: "open_ended_text",

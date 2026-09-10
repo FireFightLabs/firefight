@@ -1,10 +1,7 @@
 module Slack
   module Messages
-    # What a subscriber sees: the confirmation after a click, and the wrapper
-    # around every thread reply that reaches them as a DM.
     module Subscription
-      # The confirmation is ephemeral, so its button is the one place in Slack
-      # where a person can change their own subscription.
+      # This button is the only place in Slack to change one's own subscription.
       def self.notice(incident, state)
         [
           { type: "section", text: { type: "mrkdwn", text: incident.subscription_notice(state) } },
@@ -12,9 +9,8 @@ module Slack
         ]
       end
 
-      # A thread reply sits under the announcement, which names the incident.
-      # A DM sits under nothing, so it gets the name on top and the ways out
-      # underneath. The reply itself is untouched in between.
+      # A DM has no announcement above it, so it gets the incident's name on
+      # top and the ways out underneath.
       def self.wrap_update(incident, blocks, workspace:, homepage_url:)
         heading = [
           { type: "section", text: { type: "mrkdwn", text: heading_text(incident) } },

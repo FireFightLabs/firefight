@@ -12,8 +12,7 @@ class IncidentUpdate < ApplicationRecord
   include Recordable
   include Changes
 
-  # Set by Incident#timeline_events from one ordered load, so a timeline
-  # never runs a query per update to find what came before it.
+  # Set by Incident#timeline_events from one ordered load, never a query per update.
   attr_accessor :previous_update
   records Incident, recorder: :created_by
 

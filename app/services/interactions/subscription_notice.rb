@@ -1,7 +1,5 @@
 module Interactions
-  # Answers a subscribe or unsubscribe click where the person clicked. The
-  # click already landed, so a notice that cannot be delivered is logged and
-  # never undoes it.
+  # The click already landed, so a notice that cannot be delivered is logged and never undoes it.
   module SubscriptionNotice
     def self.post(workspace, incident, interaction, state)
       workspace.adapter.post_subscription_notice(

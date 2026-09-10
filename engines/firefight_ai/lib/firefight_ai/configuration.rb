@@ -1,9 +1,6 @@
 module FirefightAi
   class Configuration
-    # Every credential and endpoint RubyLLM accepts, one per provider. The
-    # initializer fills these from env vars of the same name upcased
-    # (ANTHROPIC_API_KEY, BEDROCK_REGION, OLLAMA_API_BASE) and the engine
-    # hands them to RubyLLM as they are.
+    # Filled by the initializer from env vars of the same name upcased, handed to RubyLLM as is.
     PROVIDER_SETTINGS = %i[
       openai_api_key openai_api_base openai_organization_id openai_project_id
       anthropic_api_key anthropic_api_base
@@ -22,9 +19,7 @@ module FirefightAi
 
     attr_accessor :default_model, :default_provider, :provider_settings, :request_timeout
 
-    # The deploy-level kill switch for milestone noting, so a bad prompt or a
-    # cost surprise is turned off everywhere without a release. Entitlement
-    # and credits still gate it per workspace underneath.
+    # Deploy-level kill switch for milestone noting. Entitlement and credits still gate per workspace.
     attr_writer :milestones_enabled
 
     def initialize

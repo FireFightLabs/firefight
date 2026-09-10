@@ -1,8 +1,6 @@
 module Integrations
-  # GitHub App API access: the install URL customers are sent to, app JWTs,
-  # and the server-to-server installation tokens every pack call runs with.
-  # Tokens are minted from the installation id captured at connect and cached
-  # on the environment row until close to expiry.
+  # Installation tokens are minted from the installation id captured at
+  # connect and cached on the environment row until close to expiry.
   class GithubApp
     class Error < Integrations::Error; end
 
@@ -57,9 +55,8 @@ module Integrations
         token
       end
 
-      # GitHub accepts the App's client id as the JWT issuer, so the same
-      # INTEGRATION_GITHUB_CLIENT_ID that serves OAuth serves signing. Only
-      # the private key is extra.
+      # GitHub accepts the App's client id as the JWT issuer, so the OAuth
+      # client id serves signing too.
       def app_jwt
         oauth = IntegrationProvider.oauth_client(PROVIDER_KEY)
         if oauth[:client_id].blank? || oauth[:private_key].blank?

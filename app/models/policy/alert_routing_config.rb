@@ -1,11 +1,9 @@
-# Grouping knobs for the alert_routing domain live in domain_config. This is
-# the single place that knows the keys and defaults, so ingest, serialization,
-# and the settings writer can never disagree.
+# The only place that knows the domain_config keys and defaults.
 module Policy::AlertRoutingConfig
   extend ActiveSupport::Concern
 
-  # Grouping defaults belong to the routing contract, not to AlertGroup, so
-  # the policy engine never loads an alert model to validate a knob.
+  # Kept here rather than on AlertGroup so the policy engine never loads an
+  # alert model to validate a knob.
   DEFAULT_WINDOW_MINUTES = 10
   WINDOW_MINUTES_RANGE = (5..10_080).freeze # 5 minutes to 7 days
   DEFAULT_CONTENT_MATCH_FIELDS = [ "service" ].freeze
@@ -23,8 +21,7 @@ module Policy::AlertRoutingConfig
     Array(domain_config["content_match_fields"].presence || DEFAULT_CONTENT_MATCH_FIELDS)
   end
 
-  # Partial-update semantics for the settings form: nil leaves a knob
-  # untouched, an empty match_fields list reverts to the default.
+  # nil leaves a knob untouched, an empty match_fields list reverts to the default.
   def domain_config_merging(window_minutes: nil, match_fields: nil)
     config = domain_config.dup
     config["grouping_window_minutes"] = window_minutes.to_i if window_minutes.present?
@@ -39,8 +36,7 @@ module Policy::AlertRoutingConfig
 
   private
 
-  # Validated at write time so ingest never has to defend against nonsense
-  # values.
+  # Validated at write time so ingest never defends against nonsense values.
   def alert_routing_domain_config
     return unless domain == Policy::DOMAIN_ALERT_ROUTING && domain_config.present?
 

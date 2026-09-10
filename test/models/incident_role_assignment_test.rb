@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentRoleAssignmentTest < ActiveSupport::TestCase
-  # Associations
-
   test "belongs to incident" do
     assignment = incident_role_assignments(:bob_comms_ws1_inc1)
     assert_instance_of Incident, assignment.incident
@@ -28,7 +26,6 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
   end
 
   test "assigned_by is optional" do
-    # Use a role that's not yet assigned to this incident
     assignment = IncidentRoleAssignment.new(
       incident: incidents(:manual_incident_ws1),
       incident_role: incident_roles(:incident_lead_ws1),
@@ -37,8 +34,6 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
     assert_nil assignment.assigned_by
     assert assignment.valid?
   end
-
-  # Validations
 
   test "incident_role_id must be unique per incident" do
     existing = incident_role_assignments(:bob_lead_ws1_inc2)
@@ -52,18 +47,13 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
   end
 
   test "same incident_role can be assigned to different incidents" do
-    # incident_lead_ws1 is assigned to active_major_ws1 and resolved_minor_ws1
-    # Now assign it to manual_incident_ws1 (which has no lead yet)
     assignment = IncidentRoleAssignment.new(
       incident: incidents(:manual_incident_ws1),
       incident_role: incident_roles(:incident_lead_ws1),
       workspace_membership: workspace_memberships(:bob_workspace_one)
     )
-    # Should be valid - same role can be used across different incidents
     assert assignment.valid?
   end
-
-  # Scopes
 
   test "recent scope orders by assigned_at descending" do
     assignments = IncidentRoleAssignment.recent.to_a
@@ -71,10 +61,7 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
     assert_equal assigned_times.sort.reverse, assigned_times
   end
 
-  # Callbacks
-
   test "auto-sets assigned_at on create" do
-    # Use a role that isn't already assigned to this incident
     assignment = IncidentRoleAssignment.new(
       incident: incidents(:active_major_ws1),
       incident_role: incident_roles(:communications_lead_ws1),
@@ -99,8 +86,6 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
     assert_equal custom_time.to_i, assignment.assigned_at.to_i
   end
 
-  # Fixtures loading
-
   test "workspace one fixtures load correctly" do
     assignment = incident_role_assignments(:bob_comms_ws1_inc1)
     assert_equal incidents(:active_critical_ws1), assignment.incident
@@ -111,7 +96,6 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
 
   test "multiple roles can be assigned to same incident" do
     inc1_assignments = IncidentRoleAssignment.where(incident: incidents(:active_critical_ws1))
-    # Only has communications lead now
     assert_equal 1, inc1_assignments.count
 
     roles = inc1_assignments.map(&:incident_role)
@@ -121,14 +105,12 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
   test "same role can be assigned to different people in different incidents" do
     lead_role = incident_roles(:incident_lead_ws1)
 
-    # Alice is lead for inc3 (resolved_minor_ws1)
     inc3_lead = IncidentRoleAssignment.find_by(
       incident: incidents(:resolved_minor_ws1),
       incident_role: lead_role
     )
     assert_equal workspace_memberships(:alice_workspace_one), inc3_lead.workspace_membership
 
-    # Bob is lead for inc2 (active_major_ws1)
     inc2_lead = IncidentRoleAssignment.find_by(
       incident: incidents(:active_major_ws1),
       incident_role: lead_role

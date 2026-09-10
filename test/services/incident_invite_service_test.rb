@@ -7,8 +7,7 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
     @service = IncidentInviteService.new(@workspace)
   end
 
-  # A caller that knows someone as a member should not have to look up their
-  # platform account first.
+  # A caller that knows someone as a member should not have to look up their platform account first.
   test "invites a member through their platform account" do
     member = workspace_memberships(:bob_workspace_one)
     Slack::Client.expects(:invite_to_channel).returns({ ok: true })

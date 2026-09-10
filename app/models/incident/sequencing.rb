@@ -1,10 +1,3 @@
-# Incident::Sequencing - Sequential numbering and identifier generation
-#
-# Handles workspace-scoped sequential incident numbers with row-level locking
-# to prevent race conditions during concurrent incident creation.
-#
-# Generates identifiers in format: INC-001, INC-002, etc.
-#
 module Incident::Sequencing
   extend ActiveSupport::Concern
 
@@ -15,13 +8,11 @@ module Incident::Sequencing
 
   private
 
-  # Sequential number generation with row-level locking
   def assign_sequence_number
     return if sequence_number.present?
 
     Incident.transaction do
-      # Get max sequence number without lock (aggregate functions can't be locked)
-      # Lock is on the workspace to prevent race conditions during sequential number assignment
+      # The workspace row is the lock, an aggregate cannot be locked itself.
       workspace.lock!
       max_seq = workspace.incidents.maximum(:sequence_number) || 0
       self.sequence_number = max_seq + 1

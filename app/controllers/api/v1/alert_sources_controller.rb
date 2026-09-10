@@ -1,5 +1,4 @@
-# The endpoint path is the handle, fixed once the source exists so whatever is
-# already posting to it keeps working.
+# The endpoint path is fixed once the source exists, so whatever posts to it keeps working.
 class Api::V1::AlertSourcesController < Api::V1::ApiController
   before_action :set_alert_source, only: %i[update destroy]
 

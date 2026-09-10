@@ -46,9 +46,7 @@ module Interactions
       workspace.adapter.form_error_response(IncidentSystemField::KEY_SUMMARY, "Something went wrong. Please close this modal and try again.")
     end
 
-    # Slack hands over a platform user id, so the person may not have a
-    # membership row yet. Only this entry point knows that, which is why the
-    # shared submission hands back the raw value rather than a member.
+    # Slack hands over a platform user id, so the person may not have a membership row yet.
     def self.resolve_lead(workspace, form)
       lead_user_id = form.lead_value
       return [ nil, nil ] if lead_user_id.blank?

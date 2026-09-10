@@ -77,9 +77,8 @@ class Interactions::InviteRespondersHandlerTest < ActiveSupport::TestCase
     )
   end
 
-  # The modal has always encoded its metadata. The handler read it as a bare id
-  # and every invite failed. The old test asserted the handler's shape, not the
-  # modal's, which is how it shipped.
+  # The handler read the modal's encoded metadata as a bare id and every invite failed. The old test
+  # asserted the handler's shape, not the modal's.
   test "the handler accepts exactly what the modal sends" do
     view = Slack::Modals::Invite.build(@incident)
 

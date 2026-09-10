@@ -7,8 +7,7 @@ class Slack::MrkdwnTest < ActiveSupport::TestCase
     assert_equal "<@#{member.platform_user_id}>", Slack::Mrkdwn.mention(member)
   end
 
-  # A machine has no Slack account, so an empty <@> would render as a broken
-  # mention where its name belongs.
+  # A machine has no Slack account, so an empty <@> would render as a broken mention.
   test "names a machine instead of rendering an empty mention" do
     agent = workspaces(:slack_workspace_one).agents.create!(name: "Support agent", slug: "support_agent")
 

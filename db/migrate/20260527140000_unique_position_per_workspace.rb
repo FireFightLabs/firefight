@@ -8,9 +8,7 @@ class UniquePositionPerWorkspace < ActiveRecord::Migration[8.1]
 
   def up
     TABLES.each do |table|
-      # Renumber any per-workspace duplicates (legacy data from races) so
-      # the unique index can be created. Order existing rows by id and
-      # assign 1..N within each workspace.
+      # Legacy duplicates from races are renumbered so the unique index can be created.
       execute(<<~SQL)
         UPDATE #{table} AS t
         SET position = ranked.new_position

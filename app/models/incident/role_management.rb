@@ -1,12 +1,8 @@
 module Incident::RoleManagement
   extend ActiveSupport::Concern
 
-  # A role names who is accountable, not who is working, so there is one holder
-  # per role per incident and assigning replaces whoever held it. Parallel
-  # effort is carried by actions and follow-ups, which are many by design.
-  # Every role the workspace configured, held or not, minus the lead, which has
-  # its own place in the header. A role nobody holds still has to be listed, or
-  # there is no way to fill it.
+  # One holder per role per incident, assigning replaces whoever held it.
+  # A seat nobody holds is still listed, or there is no way to fill it.
   RoleSeat = Data.define(:incident_role, :workspace_membership)
 
   def role_roster
@@ -23,9 +19,8 @@ module Incident::RoleManagement
     role_assignment_for(role)&.workspace_membership
   end
 
-  # Both directions refuse on an incident that is over, because both announce.
-  # Filling the lead DMs the person and rewrites the channel topic, and every
-  # other role change posts to the channel, which may already be archived.
+  # Refused on an incident that is over because every role change announces
+  # itself in a channel that may already be archived.
   def assign_role!(role, workspace_membership, assigned_by: nil)
     refuse_role_change!(role)
 
@@ -44,10 +39,7 @@ module Incident::RoleManagement
     incident_role_assignments.reset
   end
 
-  # Reads don't materialize the role row, they just return nil when no
-  # assignment exists. One definition of "the lead", read off the loaded
-  # assignments when the caller preloaded them and by one joined query
-  # otherwise, so serializers and tools never re-derive it by hand.
+  # Read off the loaded assignments when preloaded, one joined query otherwise.
   def lead
     lead_assignment&.workspace_membership
   end
@@ -61,16 +53,14 @@ module Incident::RoleManagement
   end
 
   def lead=(workspace_membership)
-    # Lazy-materialize the lead role on first assignment so workspaces never
-    # need it seeded.
+    # Created on first assignment so workspaces never need it seeded.
     assign_role!(workspace.ensure_incident_role!(IncidentRole::SLUG_INCIDENT_LEAD), workspace_membership)
   end
 
   private
 
-  # Refuses rather than reports. A blocked reason a caller has to remember to
-  # ask for is advisory, and forgetting to ask is how this reached the API and
-  # MCP twice over.
+  # Raises rather than returning a reason. Forgetting to ask for a reason is
+  # how this reached the API and MCP twice.
   def refuse_role_change!(role)
     blocked_reason = role_assignment_blocked_reason(role)
     raise Incident::NotActive, blocked_reason if blocked_reason

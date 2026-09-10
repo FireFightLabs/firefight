@@ -42,8 +42,7 @@ class Api::V1::ApprovalRulesController < Api::V1::ApiController
     @rule = current_workspace.approval_rules.find(params[:id])
   end
 
-  # Approvers arrive as { kind, id } objects or, for people, bare ids, which
-  # strong parameters cannot express in one declaration.
+  # Approvers arrive as { kind, id } objects or bare ids for people, which strong parameters cannot express.
   def rule_attributes
     changes = params.permit(:enabled, :approver_role, :self_approval, :notify, :agents_may_approve, abilities: [], risk_levels: [], environments: []).to_h
     changes[:approvers] = Array(params[:approvers]).map { |value| value.respond_to?(:to_unsafe_h) ? value.to_unsafe_h : value } if params.key?(:approvers)

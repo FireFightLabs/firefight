@@ -11,8 +11,7 @@ class Api::V1::CommandsController < Api::V1::BaseController
       return render_response(Command.ephemeral(command.workspace.suspension_message))
     end
 
-    # Who is acting is resolved once, by the command's own principal, on the
-    # way through the dispatcher.
+    # Who is acting is resolved once, by the dispatcher.
     result = CommandDispatcher.dispatch(command)
     render_response(result)
   rescue StandardError => e
@@ -37,10 +36,8 @@ class Api::V1::CommandsController < Api::V1::BaseController
     end
   end
 
-  # APP_HOST falls back to the request host so the install link is always
-  # generated even if the env var is missing, the outer rescue would
-  # otherwise swallow ENV.fetch's KeyError and the user would see the
-  # generic "something went wrong" message instead of the install link.
+  # Falls back to the request host so the install link renders without APP_HOST.
+  # ENV.fetch raising here would be swallowed by the outer rescue into a generic error.
   def unknown_workspace_message
     host = ENV["APP_HOST"].presence || request.host
     install_url = "https://#{host}/onboarding/install"

@@ -1,5 +1,4 @@
-# The write-up of an incident, over REST. Creating one is refused until the
-# incident is resolved, which the incident itself decides.
+# Creating one is refused until the incident is resolved, which the incident decides.
 class Api::V1::PostmortemsController < Api::V1::ApiController
   before_action :set_incident
   before_action :set_postmortem, only: %i[show update]
@@ -10,8 +9,7 @@ class Api::V1::PostmortemsController < Api::V1::ApiController
     render :show
   end
 
-  # Passing generate drafts it from the incident, which takes a moment, so the
-  # response comes back with a generation_state to poll on.
+  # Generating takes a moment, so the response carries a generation_state to poll.
   def create
     authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE)
 
@@ -24,8 +22,7 @@ class Api::V1::PostmortemsController < Api::V1::ApiController
     render :show, status: :created
   end
 
-  # Sending html replaces the body rather than appending to it, and every
-  # version is kept.
+  # Sending html replaces the body. Every version is kept.
   def update
     authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE)
 
@@ -44,8 +41,7 @@ class Api::V1::PostmortemsController < Api::V1::ApiController
 
   private
 
-  # A body replaces the whole document, so the caller says which version it
-  # read. Reading first was already the advice, this makes it the contract.
+  # A body replaces the whole document, so the caller must say which version it read.
   def render_missing_version
     render json: error_response(
       "version_required",

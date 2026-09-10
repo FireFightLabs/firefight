@@ -1,15 +1,14 @@
 class PostmortemGenerationJob < ApplicationJob
   queue_as :default
 
-  # Transient: retry with backoff, then notify the requester so they aren't
-  # left with a silent "generating..." ephemeral that never resolves.
+  # After the retries the requester is told, so they are not left with a
+  # "generating..." ephemeral that never resolves.
   retry_on FirefightAi::TransientError, wait: :polynomially_longer, attempts: 3 do |job, error|
     job.cleanup_in_progress!
     job.notify_failure(error, terminal: false)
   end
 
-  # Terminal: retrying produces the same outcome. Don't burn tokens on retry.
-  # Notify and stop.
+  # Retrying a terminal error produces the same outcome and burns tokens.
   discard_on FirefightAi::TerminalError do |job, error|
     job.record_failure(error)
     job.notify_failure(error, terminal: true)
@@ -17,8 +16,8 @@ class PostmortemGenerationJob < ApplicationJob
 
   discard_on ActiveRecord::RecordNotFound
 
-  # The postmortem records who started it, so the job is not told a second time.
-  # That copy could only disagree, and it could not name an agent at all.
+  # The postmortem records who started it. A copy on the job could only disagree
+  # and could not name an agent at all.
   def perform(incident_id)
     incident = Incident.find(incident_id)
     return unless incident.postmortem&.generating?
@@ -33,14 +32,13 @@ class PostmortemGenerationJob < ApplicationJob
   rescue FirefightAi::TransientError, FirefightAi::TerminalError, ActiveRecord::RecordNotFound
     raise
   rescue StandardError => error
-    # Any other error must not leave the placeholder in generating.
+    # Nothing may leave the placeholder in generating.
     record_failure(error)
     notify_failure(error, terminal: true)
     raise
   end
 
-  # The placeholder stays, marked failed, so the page can say what happened
-  # and offer a retry instead of showing an empty incident.
+  # The placeholder stays, marked failed, so the page can offer a retry.
   def record_failure(error)
     incident_id, = arguments
     postmortem = Incident.find_by(id: incident_id)&.postmortem
@@ -51,9 +49,7 @@ class PostmortemGenerationJob < ApplicationJob
     record_failure(FirefightAi::TransientError.new("retries exhausted"))
   end
 
-  # Whoever asked for it hears that it failed. An agent has no account to be
-  # messaged at, so there is nobody to tell and the failure is on the record
-  # either way.
+  # An agent has no account to message, the failure is on the record either way.
   def notify_failure(error, terminal:)
     incident_id, = arguments
     incident = Incident.find_by(id: incident_id)

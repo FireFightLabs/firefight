@@ -47,8 +47,7 @@ class AlertSettingsSerializer < BaseSerializer
     alert.matched_policy_rule&.priority
   end
 
-  # The alert source the matched rule's policy is scoped to. null means the
-  # workspace default policy matched.
+  # null means the workspace default policy matched.
   type :string, optional: true
   def matched_rule_source_id
     alert.matched_policy_rule&.policy&.scoped_to_id

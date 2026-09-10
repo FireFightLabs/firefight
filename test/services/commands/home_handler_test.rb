@@ -5,8 +5,6 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
   end
 
-  # Subcommand routing
-
   test "routes 'new' subcommand to DeclareIncident" do
     command = build_command("new")
 
@@ -14,8 +12,6 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
 
     Commands::HomeHandler.execute(command)
   end
-
-  # Placeholder subcommands
 
   test "routes 'summary' subcommand to UpdateSummary" do
     command = build_command("summary")
@@ -97,8 +93,6 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
     assert_includes response[:text], "resolved incident channel"
   end
 
-  # Aliases
-
   test "routes 'action' to ListActions" do
     command = build_command("action")
 
@@ -155,8 +149,6 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
     Commands::HomeHandler.execute(command)
   end
 
-  # Unknown subcommand
-
   test "returns error for unknown subcommand" do
     command = build_command("notacommand")
     response = Commands::HomeHandler.execute(command)
@@ -184,8 +176,6 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
     assert_not_includes response[:text], "Did you mean"
   end
 
-  # Case insensitivity
-
   test "handles uppercase subcommands" do
     command = build_command("NEW")
 
@@ -202,8 +192,6 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
     Commands::HomeHandler.execute(command)
   end
 
-  # Subcommand with extra args
-
   test "routes correctly when subcommand has additional arguments" do
     command = build_command("new production database down")
 
@@ -211,8 +199,6 @@ class Commands::HomeHandlerTest < ActiveSupport::TestCase
 
     Commands::HomeHandler.execute(command)
   end
-
-  # Error handling
 
   test "returns error message when handler raises" do
     command = build_command("new")

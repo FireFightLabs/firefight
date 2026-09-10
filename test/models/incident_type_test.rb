@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentTypeTest < ActiveSupport::TestCase
-  # Validations
-
   test "requires name" do
     type = IncidentType.new(
       workspace: workspaces(:slack_workspace_one),
@@ -55,8 +53,6 @@ class IncidentTypeTest < ActiveSupport::TestCase
     assert type.valid?
   end
 
-  # Associations
-
   test "belongs to workspace" do
     type = incident_types(:service_outage_ws1)
     assert_instance_of Workspace, type.workspace
@@ -67,8 +63,6 @@ class IncidentTypeTest < ActiveSupport::TestCase
     type = incident_types(:service_outage_ws1)
     assert_respond_to type, :incidents
   end
-
-  # Scopes
 
   test "active scope excludes deleted types" do
     active_types = IncidentType.active
@@ -82,8 +76,6 @@ class IncidentTypeTest < ActiveSupport::TestCase
     positions = types.map(&:position)
     assert_equal positions.sort, positions
   end
-
-  # Soft deletes
 
   test "soft delete sets deleted_at" do
     type = incident_types(:service_outage_ws1)
@@ -100,8 +92,6 @@ class IncidentTypeTest < ActiveSupport::TestCase
     type.update!(deleted_at: Time.current)
     assert_not_includes IncidentType.active.reload, type
   end
-
-  # Fixtures
 
   test "workspace one fixtures load correctly" do
     outage = incident_types(:service_outage_ws1)

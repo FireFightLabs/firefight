@@ -1,7 +1,5 @@
-# Inertia returns JSON props (skipping the HTML layout) when X-Inertia headers
-# are present. Use these in tests that only check controller behavior, such as
-# redirects, session state and props, so the full layout never renders. That
-# layout needs a built Vite manifest, which CI does not produce.
+# With X-Inertia headers the controller returns JSON props and skips the layout, which needs a
+# built Vite manifest that CI does not produce.
 module InertiaTestHelper
   def inertia_headers
     {

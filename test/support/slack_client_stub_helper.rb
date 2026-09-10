@@ -1,24 +1,11 @@
-# Test helper for stubbing Slack::Client API calls using Mocha
-#
-# Mocha automatically unstubs methods after each test, providing thread-safe
-# test isolation for parallel execution.
-#
-# IMPORTANT: Do not nest these stub calls! Call them sequentially instead:
-#   stub_create_channel
-#   stub_set_channel_topic
-#   # test code here
+# Mocha unstubs after each test, so parallel tests stay isolated. Do not nest these stubs, call them one after another.
 module SlackClientStubHelper
-  # Stub Slack::Client.create_channel
-  #
-  # @param result [Hash] Result to return
-  # @param raises [Class] Exception class to raise (optional)
   def stub_create_channel(result: nil, raises: nil)
     if raises
       Slack::Client.stubs(:create_channel).raises(raises)
     elsif result
       Slack::Client.stubs(:create_channel).returns(result)
     else
-      # Return a fixed result for incidents channel
       Slack::Client.stubs(:create_channel).returns(
         channel: { id: "C12345678", name: "incidents", is_channel: true, is_private: false }
       )

@@ -1,13 +1,9 @@
-# /api/v1/* endpoints are protected by Slack signature verification, not rate limited by IP
-# since Slack sends webhooks from a rotating pool of IPs across their infrastructure.
-
-# Throttle the OAuth entry point to prevent abuse of the Slack OAuth flow.
+# /api/v1 is not throttled by IP. Slack signs those requests and sends them from a rotating IP pool.
 Rack::Attack.throttle("auth by ip", limit: 20, period: 60.seconds) do |req|
   req.ip if req.path.start_with?("/auth/")
 end
 
-# Throttle invite code claim attempts. Not a brute-force defense (digest space is
-# infeasible). It protects against race-to-redeem if a code is leaked publicly.
+# Not a brute-force defence, the digest space is too large. It limits a race to redeem a leaked code.
 Rack::Attack.throttle("invite_code_claim by ip", limit: 10, period: 60.seconds) do |req|
   req.ip if req.path == "/invite-code/claim" && req.post?
 end

@@ -10,7 +10,7 @@ class Webhooks::DeliveryServiceTest < ActiveSupport::TestCase
       event_type: @event.event_type
     )
     @delivery.save!(validate: true)
-    # Reset state since after_create_commit enqueues delivery job
+    # after_create_commit already enqueued the delivery job.
     @delivery.update_columns(state: "pending")
   end
 

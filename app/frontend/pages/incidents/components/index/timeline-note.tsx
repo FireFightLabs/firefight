@@ -18,8 +18,8 @@ export type Milestone = NonNullable<TimelineEvent["milestone"]>
 
 export type NoteAccent = "emerald" | "amber" | "rose" | "neutral"
 
-// Colour carries meaning only where a kind changes how the incident reads.
-// Everything else stays neutral so the timeline does not turn into a rainbow.
+// Colour only where a kind changes how the incident reads, so the timeline
+// does not turn into a rainbow.
 export const noteAccent: Record<Milestone["kind"], NoteAccent> = {
   hypothesis: "neutral",
   finding: "neutral",
@@ -34,8 +34,8 @@ export const noteAccent: Record<Milestone["kind"], NoteAccent> = {
 export function NoteQuote({ milestone, withDivider }: { milestone: Milestone; withDivider: boolean }) {
   return (
     <div className={withDivider ? "mt-2 border-t border-border pt-2" : ""}>
-      {/* Flush with the tag row beneath it. The AI-noted label already says
-          this is quoted, so a rule and an indent only break the alignment. */}
+      {/* Flush with the tag row. The AI-noted label already says this is quoted,
+          so a rule and an indent only break the alignment. */}
       {milestone.quote && (
         <blockquote className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
           {milestone.quote}

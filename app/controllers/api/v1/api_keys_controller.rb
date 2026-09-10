@@ -1,8 +1,5 @@
-# Authorizes as api_keys, which is admin-only and ungrantable, so an admin's
-# personal token reaches this and no machine ever can.
-#
-# Personal tokens are left out on purpose. They belong to the person who minted
-# them, not to the workspace.
+# Authorized as api_keys, admin-only and ungrantable, so no machine ever reaches this.
+# Personal tokens are left out, they belong to the person, not the workspace.
 class Api::V1::ApiKeysController < Api::V1::ApiController
   before_action :set_api_key, only: %i[update destroy]
 

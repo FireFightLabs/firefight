@@ -1,5 +1,4 @@
-# OAuth discovery documents MCP clients use to find the authorization server
-# (RFC 8414) and to learn this resource requires it (RFC 9728).
+# Discovery documents for MCP clients, RFC 8414 and RFC 9728.
 class Oauth::MetadataController < ActionController::API
   def authorization_server
     render json: {

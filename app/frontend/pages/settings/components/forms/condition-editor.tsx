@@ -40,8 +40,8 @@ const OPERATOR_NOT_ONE_OF = "not_one_of"
 
 const operatorLabels: Record<string, string> = CONDITION_OPERATOR_LABELS
 
-// One row per thing a condition can read. Custom fields come from the form,
-// which only offers those a responder could already have answered.
+// Custom fields come from the form, which only offers those a responder could
+// already have answered.
 interface ConditionSource {
   key: string
   conditionField: string

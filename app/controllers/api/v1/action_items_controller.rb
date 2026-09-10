@@ -1,6 +1,5 @@
-# The work an incident generates, as data. Creating, taking and finishing an
-# item all go through IncidentActionService, so an item raised over the API is
-# indistinguishable from one raised by a button in Slack.
+# Every write goes through IncidentActionService, so an item raised over the API
+# matches one raised from Slack.
 class Api::V1::ActionItemsController < Api::V1::ApiController
   before_action :set_incident
   before_action :set_action_item, only: [ :update ]
@@ -25,9 +24,7 @@ class Api::V1::ActionItemsController < Api::V1::ApiController
     render :show, status: :created
   end
 
-  # One call covers taking an item, handing it over and finishing it, because
-  # from the caller's side each is the same sentence: this item now looks like
-  # this. Which event gets recorded is the service's decision, not the body's.
+  # One call covers taking, handing over and finishing. The service decides which event is recorded.
   def update
     authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE)
 

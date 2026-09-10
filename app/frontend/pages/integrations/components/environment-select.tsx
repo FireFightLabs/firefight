@@ -8,8 +8,7 @@ import {
 } from "@/components/ui/select"
 
 // "Unrestricted" is the absence of an environment id, but a Select needs a
-// non-empty value to represent it. One sentinel, converted in one place, so
-// no caller has to remember which empty-ish value the server expects.
+// non-empty value. One sentinel, converted in one place.
 export const ALL_ENVIRONMENTS = "all"
 
 export function toEnvironmentId(value: string) {

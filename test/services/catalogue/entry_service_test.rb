@@ -6,8 +6,6 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
     @service = Catalogue::EntryService.new(@workspace)
   end
 
-  # Create
-
   test "create creates entry with validated attributes" do
     team_type = catalog_types(:team_ws1)
 
@@ -94,8 +92,6 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
     assert_nil CatalogEntry.find_by(slug: "transactional_entry")
   end
 
-  # Update
-
   test "update updates entry name and attributes" do
     auth_service = catalog_entries(:auth_service)
 
@@ -121,8 +117,6 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
     assert_equal original_slug, auth_service.reload.slug
   end
 
-  # Delete
-
   test "delete soft-deletes entry and destroys relationships" do
     auth_service = catalog_entries(:auth_service)
     assert auth_service.outgoing_relationships.exists?
@@ -133,8 +127,6 @@ class Catalogue::EntryServiceTest < ActiveSupport::TestCase
     assert_not_nil auth_service.reload.deleted_at
     assert_not auth_service.outgoing_relationships.exists?
   end
-
-  # Member attributes
 
   test "create resolves a member by the email they sign in with" do
     membership = workspace_memberships(:alice_workspace_one)

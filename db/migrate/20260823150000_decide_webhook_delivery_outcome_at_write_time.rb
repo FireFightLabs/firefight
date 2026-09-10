@@ -1,6 +1,5 @@
-# "completed" meant both a 2xx and a 5xx, with the 2xx rule re-derived in
-# Ruby and in the React sheet. The outcome is now decided once, where the
-# response is known, and stored as succeeded or failed.
+# completed meant both 2xx and 5xx, with the rule re-derived in Ruby and React.
+# Now decided once where the response is known.
 class DecideWebhookDeliveryOutcomeAtWriteTime < ActiveRecord::Migration[8.1]
   def up
     execute <<~SQL

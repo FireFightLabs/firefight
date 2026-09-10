@@ -1,7 +1,5 @@
 require "test_helper"
 
-# The kinds of thing the catalog holds, over MCP. Entries were already
-# reachable, the shape they sit in was not.
 class McpCatalogTypeToolsTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -27,8 +25,7 @@ class McpCatalogTypeToolsTest < ActionDispatch::IntegrationTest
     assert_equal "team", content["attributes"].last["reference_type"]
   end
 
-  # The same rule the rest of the configuration tools follow, so a resend does
-  # not orphan whatever the entries already hold.
+  # The same rule the other configuration tools follow, so a resend does not orphan what entries hold.
   test "resending an attribute under a new name renames rather than replacing it" do
     call_tool(Mcp::Tools::UPSERT_CATALOG_TYPE, {
       name: "Datastore", attributes: [ { name: "Engine", attribute_type: CatalogAttributeDefinition::TYPE_TEXT } ]

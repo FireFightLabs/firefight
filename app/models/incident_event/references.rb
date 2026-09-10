@@ -1,8 +1,5 @@
-# The records an incident's events point at through metadata: members the
-# incident was escalated to, who took a role, who said what an AI note quotes
-# or who dismissed one, runbooks that were attached, incidents that were
-# linked or merged. Loaded once per timeline so the serializer never queries
-# per row.
+# The records events point at through metadata, loaded once per timeline so
+# the serializer never queries per row.
 class IncidentEvent::References
   def self.for(incident, events)
     metadata = events.map { |event| event.metadata.to_h }
@@ -21,10 +18,8 @@ class IncidentEvent::References
     )
   end
 
-  # Only a timeline with a custom field change loads definitions at all. A
-  # deleted definition still names its old changes, and when a live one has
-  # reused the slug the live one wins: NULL deleted_at sorts last, so it is
-  # the row index_by keeps.
+  # A deleted definition still names its old changes. When a live one reuses
+  # the slug it wins, NULL deleted_at sorts last so index_by keeps it.
   def self.field_definitions_for(workspace, events)
     updates = events.map(&:eventable).grep(IncidentUpdate)
     return {} unless updates.any? { |update| update.changed_fields.include?(IncidentUpdate::FIELD_CUSTOM_FIELDS) }

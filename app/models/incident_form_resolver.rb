@@ -1,18 +1,5 @@
-# Resolves the effective field list for an incident form by merging
-# code-defined system field defaults with per-workspace DB overlay rows.
-#
-# Source of truth:
-#   - Defaults come from `IncidentSystemField.defaults_for(form_slug)`,
-#     they always exist, the code depends on them, no migration is needed
-#     when a new system field is added.
-#   - DB rows in `incident_form_fields` are overlays:
-#     * a row with the same `system_field_key` as a default OVERRIDES the
-#       default's required_mode / visibility_mode / position / conditions
-#       (visibility_mode: hidden removes the field from the resolved set)
-#     * a row with `field_source_kind: custom` APPENDS a workspace-defined
-#       custom field
-#
-# `validate_submission` then validates raw params against the resolved set.
+# An overlay row sharing a default's system_field_key overrides it, hidden removes it,
+# and a custom row appends a workspace field.
 class IncidentFormResolver
   TERMINAL_STAGE_BY_FORM = {
     IncidentForm::SLUG_RESOLVE => IncidentLifecycleStage::CLOSED,
@@ -32,11 +19,8 @@ class IncidentFormResolver
     @workspace = workspace
   end
 
-  # include_hidden is for the form editor, which has to show a hidden field to
-  # let anyone turn it back on. Every runtime caller leaves it false, so a
-  # hidden field never reaches a responder.
-  # `form:` is for callers that already hold the row, so resolving does not go
-  # and fetch the record it was called on.
+  # include_hidden is for the form editor, which must list a hidden field so it can
+  # be turned back on. Runtime callers leave it false.
   def fields_for(incident, form_slug)
     resolve(form_slug, context: IncidentConditionEvaluator.context_for(incident))
   end
@@ -44,8 +28,7 @@ class IncidentFormResolver
   def resolve(lifecycle_event, context: {}, include_hidden: false, form: nil)
     raise ArgumentError, "Unknown form slug: #{lifecycle_event}" unless IncidentForm::DEFAULTS_BY_SLUG.key?(lifecycle_event)
 
-    # IncidentForm rows are optional, they exist only when an admin has
-    # customized the form. Fall back to code defaults when no row exists.
+    # An IncidentForm row exists only once an admin has customized the form.
     form ||= @workspace.incident_forms.find_by(lifecycle_event: lifecycle_event)
     db_rows = form ? form.incident_form_fields.includes(:incident_conditions, incident_field_definition: [ :incident_field_options, :catalog_type ]).to_a : []
 
@@ -62,18 +45,12 @@ class IncidentFormResolver
     merged = merged.filter_map { |field| keep(field, lifecycle_event, include_hidden) }
     merged.sort_by!(&:position)
 
-    # The editor lists every field that can apply, conditions included, because
-    # that is the configuration. Responders get the ones that apply right now.
-    #
-    # Skipping this when the context happened to be empty is what made a
-    # conditional field show on the first render of the Declare modal, before
-    # anything had been chosen for its condition to read. An unanswered
-    # condition does not match, so its field stays hidden until it does.
+    # An unanswered condition does not match, which keeps a conditional field
+    # off the first render of the Declare modal.
     return merged if include_hidden
 
-    # A locked field is asked for on every incident, so a condition can never
-    # take it away. Writing one is refused, and any that predate that rule are
-    # ignored here rather than left able to break declaring.
+    # A locked field is asked on every incident, so a condition can never remove
+    # it. Writing one is refused, and older ones are ignored here.
     merged.select do |field|
       next false if moot_for_context?(field, context)
 
@@ -81,11 +58,8 @@ class IncidentFormResolver
     end
   end
 
-  # Kept for backwards compatibility with callers that still bust the cache
-  # after mutating form fields. The resolver no longer caches (queries are
-  # small and per-modal-open), but the no-op keeps the API stable.
+  # Kept for callers that still bust the cache. The resolver no longer caches.
   def self.bust_cache(_form)
-    # no-op
   end
 
   def validate_submission(lifecycle_event, raw_params, context: {})
@@ -122,8 +96,7 @@ class IncidentFormResolver
       system_attrs: system_attrs,
       custom_fields: custom_fields,
       errors: errors,
-      # Which system fields were put in front of the responder, so a caller can
-      # tell "blanked on the form" from "never asked" without resolving again.
+      # Lets a caller tell "blanked on the form" from "never asked".
       visible_system_keys: visible_fields.select(&:system?).map(&:system_field_key).to_set
     }
   end
@@ -135,10 +108,8 @@ class IncidentFormResolver
     result
   end
 
-  # Validates just the custom-field portion of a submission, for entry points
-  # that carry system attributes as dedicated params (the REST API). Raises
-  # ValidationError on unknown fields, missing required fields, and invalid
-  # values, and returns the validated fields keyed by slug.
+  # For entry points that carry system attributes as dedicated params, such as
+  # the REST API.
   def validate_custom_fields!(lifecycle_event, raw_fields, context: {})
     fields = raw_fields.transform_keys(&:to_s)
     errors = []
@@ -164,17 +135,12 @@ class IncidentFormResolver
 
   private
 
-  # Builds an unpersisted IncidentFormField that represents a code-default
-  # system field. Downstream consumers iterate the same `IncidentFormField`
-  # interface whether the field came from defaults or DB. We don't set
-  # `incident_form` because the form itself may not be persisted either.
   def hidden?(form_field)
     form_field.visibility_mode == IncidentFormField::VISIBILITY_MODE_HIDDEN
   end
 
-  # Decides one field's fate. Hidden means an admin turned it off. Unanswerable
-  # means it is configured but has nothing to ask, which the editor still shows
-  # so the configuration explains itself.
+  # Hidden means an admin turned it off. Unanswerable means it is configured
+  # but has nothing to ask, which the editor still shows so the setup explains itself.
   def keep(field, lifecycle_event, include_hidden)
     return nil if hidden?(field) && !include_hidden
 
@@ -186,11 +152,8 @@ class IncidentFormResolver
     field
   end
 
-  # A field the answers so far have made pointless. Distinct from
-  # `unanswerable_reason`, which is about how the workspace is configured and
-  # so belongs in the editor. This reads what the responder has just picked and
-  # changes from one submission to the next, which is why it sits with the
-  # condition match and never reaches the editor.
+  # Unlike unanswerable_reason, which is about configuration, this changes
+  # with each submission and never reaches the editor.
   def moot_for_context?(field, context)
     return false unless field.system?
 
@@ -200,10 +163,8 @@ class IncidentFormResolver
     end
   end
 
-  # An incident being closed or canceled is not waiting on anything, and
-  # Incident::Lifecycle clears next_update_at for a terminal stage regardless.
-  # Asking for a time that is then discarded reads as a bug to the responder
-  # who picked it.
+  # Incident::Lifecycle clears next_update_at for a terminal stage, so asking
+  # for a time that is then discarded reads as a bug to the responder.
   def ending_incident?(context)
     return false if context[:status].blank?
 
@@ -214,12 +175,8 @@ class IncidentFormResolver
     @terminal_status_ids ||= @workspace.incident_statuses.terminal.pluck(:id).to_set
   end
 
-  # Why a configured field cannot be put to a responder, or nil if it can.
-  #
-  # This has to live here rather than in the Slack block builders, because
-  # `validate_submission` reads the same resolved set, a field suppressed only
-  # at render is still demanded on submit, which produces a modal that can
-  # never be submitted and names a field it never showed.
+  # Lives here rather than in the Slack block builders because validate_submission reads
+  # the same set, and a field suppressed only at render would still be demanded on submit.
   def unanswerable_reason(field, lifecycle_event)
     if field.system?
       case field.system_field_key
@@ -297,9 +254,8 @@ class IncidentFormResolver
     end
   end
 
-  # Cardinality first, then what the entries have to be. A select and a catalog
-  # reference differ only in where the allowed set comes from, which the
-  # definition answers with selectable_values.
+  # A select and a catalog reference differ only in where the allowed set comes
+  # from, which selectable_values answers.
   def validate_custom_value!(defn, value, errors)
     return validate_scalar!(defn, value, errors) unless defn.selectable?
 

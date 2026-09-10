@@ -1,8 +1,6 @@
 require "test_helper"
 
 class ApiKeyTest < ActiveSupport::TestCase
-  # Token generation
-
   test "generate_token produces token with ff_ prefix" do
     token = ApiKey.generate_token
     assert token.start_with?("ff_")
@@ -21,8 +19,6 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_equal raw_token.first(12), api_key.token_prefix
     assert_equal Digest::SHA256.hexdigest(raw_token), api_key.token_digest
   end
-
-  # Principals
 
   test "personal token resolves to the human principal; service key to itself" do
     membership = workspace_memberships(:alice_workspace_one)
@@ -114,8 +110,6 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_nil ApiKey.authenticate(raw)
   end
 
-  # Authentication
-
   test "authenticate returns api_key for valid token" do
     api_key = ApiKey.authenticate("ff_test_full_access_token_123456")
     assert_not_nil api_key
@@ -142,8 +136,6 @@ class ApiKeyTest < ActiveSupport::TestCase
   test "authenticate returns nil for soft-deleted key" do
     assert_nil ApiKey.authenticate("ff_test_deleted_token_1234567890")
   end
-
-  # Permissions
 
   test "has_permission? returns true for granted permission" do
     key = api_keys(:full_access_key)
@@ -192,8 +184,7 @@ class ApiKeyTest < ActiveSupport::TestCase
                  key.granted_permissions.transform_values(&:sort))
   end
 
-  # The bug this replaced, a grant made on the Permissions screen used to be
-  # reconciled away the next time the key was saved for any reason.
+  # A grant made on the Permissions screen used to be reconciled away on the key's next save.
   test "a grant made outside the matrix survives an unrelated save and shows up ticked" do
     key = api_keys(:read_only_key)
     Ability::Grant.create!(workspace: key.workspace, principal: key,
@@ -224,9 +215,6 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_not key.has_permission?(Ability::Action::RESOURCE_SEVERITIES, Ability::Action::ACTION_CREATE)
   end
 
-
-  # Soft delete
-
   test "soft_delete! sets deleted_at" do
     key = api_keys(:full_access_key)
     key.soft_delete!
@@ -239,8 +227,6 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_not_includes ApiKey.active, key
   end
 
-  # Expiration
-
   test "expired? returns true for expired key" do
     assert api_keys(:expired_key).expired?
   end
@@ -252,8 +238,6 @@ class ApiKeyTest < ActiveSupport::TestCase
   test "expired? returns false when expires_at is nil" do
     assert_not api_keys(:read_only_key).expired?
   end
-
-  # Last used tracking
 
   test "touch_last_used! updates last_used_at" do
     key = api_keys(:full_access_key)

@@ -1,12 +1,6 @@
 require "test_helper"
 
 class IncidentConditionTest < ActiveSupport::TestCase
-  # :incident_types is load-bearing, not decoration. The resolver marks the
-  # Incident Type field unanswerable when a workspace has no types, which drops
-  # it out of the condition sources these tests assert on, and leaves
-  # `incident_types.active.first` nil. Without it declared here the class passes
-  # only when some other test class happens to have loaded the table first.
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @form_field = incident_form_fields(:declare_name_field_ws1)
@@ -25,8 +19,6 @@ class IncidentConditionTest < ActiveSupport::TestCase
 
     assert_equal "Severity is not one of #{critical.name}, #{major.name}", condition.to_sentence
   end
-
-  # Validations
 
   test "valid condition" do
     condition = IncidentCondition.new(
@@ -107,8 +99,6 @@ class IncidentConditionTest < ActiveSupport::TestCase
     assert_includes condition.errors[:values], "must be an array"
   end
 
-  # Custom field validations
-
   test "valid custom_field condition with a supported field definition" do
     definition = incident_field_definitions(:customer_tier_ws1)
     IncidentFormService.new(@workspace).add_custom_field(@form_field.incident_form, definition)
@@ -124,8 +114,7 @@ class IncidentConditionTest < ActiveSupport::TestCase
     assert condition.valid?
   end
 
-  # A rule pointing at a field nobody is ever asked never matches, which reads
-  # as the field being broken rather than the rule being wrong.
+  # A rule on a field nobody is asked never matches, which reads as the field being broken.
   test "a custom field on no form cannot drive a condition" do
     definition = @workspace.incident_field_definitions.create!(
       name: "Blast radius", slug: "blast_radius", position: 90,
@@ -145,8 +134,7 @@ class IncidentConditionTest < ActiveSupport::TestCase
     assert_match(/is not asked for on the/, condition.errors.full_messages.to_sentence)
   end
 
-  # Declare runs before Resolve, so a Resolve condition may read what was
-  # answered at declare time. The reverse is not true.
+  # Declare runs before Resolve, so a Resolve condition may read a declare answer, not the reverse.
   test "a later form can read an earlier form's custom field" do
     definition = incident_field_definitions(:customer_tier_ws1)
     declare = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
@@ -217,8 +205,6 @@ class IncidentConditionTest < ActiveSupport::TestCase
     assert_includes IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES, IncidentFieldDefinition::TYPE_CATALOG_MULTI_REFERENCE
   end
 
-  # Constants
-
   test "condition fields include incident_type and severity" do
     assert_includes IncidentCondition::CONDITION_FIELDS, IncidentCondition::FIELD_INCIDENT_TYPE
     assert_includes IncidentCondition::CONDITION_FIELDS, IncidentCondition::FIELD_SEVERITY
@@ -229,10 +215,8 @@ class IncidentConditionTest < ActiveSupport::TestCase
     assert_includes IncidentCondition::OPERATORS, IncidentCondition::OPERATOR_NOT_ONE_OF
   end
 
-  # A condition is a second way to hide a field, and it used to bypass the lock
-  # the Visible toggle respects. Severity dropped out of the Declare form, took
-  # itself out of validate_submission with it, and every declaration then failed
-  # on a nil severity. The editor already refused this. The MCP tool did not.
+  # A condition used to bypass the lock the Visible toggle respects. Severity dropped out of Declare
+  # and every declaration failed on a nil severity. The editor refused this, the MCP tool did not.
   test "a locked field cannot be made conditional" do
     workspace = workspaces(:slack_workspace_one)
     form = workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
@@ -266,16 +250,13 @@ class IncidentConditionTest < ActiveSupport::TestCase
     assert_includes resolved.map(&:system_field_key), IncidentSystemField::KEY_SEVERITY
   end
 
-  # Hiding a field takes it out of the picker, the same way it takes it out of
-  # the dialog. Offering it anyway produced a rule reading an answer nobody is
-  # asked to give.
+  # Offering a hidden field produced a rule reading an answer nobody is asked to give.
   test "a hidden field is not offered as a condition source" do
     form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
     service = IncidentFormService.new(@workspace)
     row = service.ensure_system_field!(form, IncidentSystemField::KEY_INCIDENT_TYPE)
 
-    # Incident Type ships off, so turn it on before proving that turning it off
-    # removes it.
+    # Incident Type ships off, so turn it on before proving that turning it off removes it.
     service.update_field(row,
       visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
       required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)

@@ -1,5 +1,4 @@
-# One incident role and whoever holds it. Every configured role is serialized,
-# held or not, so the panel can offer an empty one rather than hiding it.
+# Every configured role is serialized, held or not, so the panel can offer an empty one.
 class IncidentRoleAssignmentSerializer < BaseSerializer
   object_as :seat
 

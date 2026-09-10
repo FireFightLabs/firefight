@@ -1,11 +1,10 @@
 class CreateIncidentSummaries < ActiveRecord::Migration[8.1]
   def change
     create_table :incident_summaries, id: :uuid do |t|
-      # One summary per incident. Upsert into this row
+      # One per incident, upserted.
       t.references :incident, type: :uuid, null: false, foreign_key: true, index: { unique: true }
       t.references :workspace, type: :uuid, null: false, foreign_key: true
 
-      # Links to the Inference row that produced this summary (cost attribution)
       t.references :inference, type: :uuid, foreign_key: true
 
       t.text :content, null: false
@@ -15,7 +14,7 @@ class CreateIncidentSummaries < ActiveRecord::Migration[8.1]
 
       t.timestamps
 
-      # Retention purge + uninstall scan by workspace
+      # Retention purge and uninstall scan by workspace.
       t.index [ :workspace_id, :generated_at ]
     end
   end

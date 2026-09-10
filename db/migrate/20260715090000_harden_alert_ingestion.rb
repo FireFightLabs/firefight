@@ -1,7 +1,6 @@
 class HardenAlertIngestion < ActiveRecord::Migration[8.1]
   def up
-    # Collapse any pre-existing duplicate open alerts (keep the freshest) so
-    # the partial unique index below can be created.
+    # Duplicate open alerts are collapsed so the partial unique index can be created.
     execute <<~SQL
       UPDATE alerts SET status = 'resolved', resolved_at = NOW()
       WHERE id IN (
@@ -12,17 +11,15 @@ class HardenAlertIngestion < ActiveRecord::Migration[8.1]
       )
     SQL
 
-    # The DB backstop for fingerprint dedup, at most one open alert per
-    # (source, fingerprint). Concurrent inserts lose with RecordNotUnique and
-    # fold into the record_firing! path.
+    # At most one open alert per source and fingerprint. Concurrent inserts lose with
+    # RecordNotUnique and fold into record_firing!.
     add_index :alerts, [ :alert_source_id, :fingerprint ], unique: true,
               where: "status = 'firing'", name: "index_alerts_on_open_fingerprint"
 
-    # The sweep job's exact shape. Stays near-empty.
+    # The sweep job's exact shape.
     add_index :alerts, :received_at, where: "routing_state = 'pending'",
               name: "index_alerts_on_pending_received_at"
 
-    # The recent-alerts page, workspace-scoped, newest first.
     add_index :alerts, [ :workspace_id, :last_seen_at ]
 
     add_column :alerts, :routing_attempts, :integer, default: 0, null: false

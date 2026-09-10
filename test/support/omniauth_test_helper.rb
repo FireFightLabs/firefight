@@ -1,11 +1,6 @@
-# Test helper for creating OmniAuth mock data
 module OmniauthTestHelper
-  # Create a mock Slack OAuth response hash
-  #
-  # @param overrides [Hash] Custom values to override defaults
-  # @return [OmniAuth::AuthHash] Mock OAuth hash
   def mock_slack_auth_hash(overrides = {})
-    # Use unique team_id by default to avoid parallel test conflicts
+    # A unique team_id keeps parallel tests from colliding.
     team_id = overrides.dig(:extra, :team_info, "id") || "T#{SecureRandom.hex(8)}"
 
     defaults = {
@@ -54,12 +49,10 @@ module OmniauthTestHelper
 
     merged = deep_merge_hashes(defaults, overrides)
 
-    # Convert to OmniAuth::AuthHash-like structure with dot notation access
     OmniAuth::AuthHash.new(merged)
   end
 
-  # Create a mock Slack OIDC auth hash (different shape than OAuth v2:
-  # uid is `sub`, no nested authed_user, custom claims for team).
+  # OIDC differs from OAuth v2, uid is `sub`, there is no nested authed_user and team comes from custom claims.
   def mock_slack_openid_auth_hash(overrides = {})
     team_id = overrides.dig(:info, :team_id) || "T#{SecureRandom.hex(8)}"
 
@@ -94,11 +87,6 @@ module OmniauthTestHelper
     OmniAuth::AuthHash.new(deep_merge_hashes(defaults, overrides))
   end
 
-  # Create a mock Slack interaction payload
-  #
-  # @param type [String] Interaction type (block_actions, view_submission, etc.)
-  # @param overrides [Hash] Custom values to override defaults
-  # @return [Hash] Mock interaction payload
   def mock_slack_interaction_payload(type:, overrides: {}, team_id: "T12345678")
     base = {
       "type" => type,

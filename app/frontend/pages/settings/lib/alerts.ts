@@ -89,9 +89,8 @@ export interface TestResult {
   resolution?: { invite: string[]; notify: string | null; notes: string[] } | null
 }
 
-// One value for "which rule was tested and how did it go", so a slow
-// response for a rule the user has since moved on from cannot be shown
-// against the wrong row.
+// One value for which rule was tested and how it went, so a slow response for
+// a rule the user moved on from cannot show against the wrong row.
 export type RuleTest =
   | { status: "pending"; ruleId: string; sample: string }
   | { status: "done"; ruleId: string; sample: string; result: TestResult }
@@ -131,8 +130,8 @@ export async function sendRoutingTest(
   }
 }
 
-// Derive a sample alert that should satisfy a rule's own conditions, so a
-// per-rule test exercises the real first-match evaluation with plausible input.
+// A sample that satisfies the rule's own conditions, so a per-rule test runs
+// the real first-match evaluation.
 export function sampleFieldsFor(conditions: RuleCondition[]): Record<string, string> {
   const fields: Record<string, string> = {}
   for (const condition of conditions) {
@@ -147,8 +146,8 @@ export function sampleFieldsFor(conditions: RuleCondition[]): Record<string, str
   return fields
 }
 
-// A regex pattern used verbatim as a field value generally won't match itself,
-// so a derived sample would mislead. Those rules need the custom tester.
+// A regex used verbatim as a value generally won't match itself, so a derived
+// sample would mislead.
 export function needsCustomSample(conditions: RuleCondition[]): boolean {
   return conditions.some((condition) => condition.operator === "matches_regex")
 }

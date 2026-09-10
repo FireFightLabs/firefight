@@ -1,5 +1,4 @@
-# Approval rules are part of Permissions. The same admins who hand out
-# abilities decide which of them wait for a second look.
+# Part of Permissions. The admins who hand out abilities decide which wait for a second look.
 class ApprovalRulesController < InertiaController
   authorizes Ability::Action::RESOURCE_PERMISSIONS, create: :create, update: %i[update move_up move_down], delete: :destroy
   before_action :set_rule, only: [ :update, :destroy, :move_up, :move_down ]
@@ -40,8 +39,7 @@ class ApprovalRulesController < InertiaController
     @rule = current_workspace.approval_rules.find(params[:id])
   end
 
-  # The dialog sends the whole rule, with environments by id. An
-  # enable/disable toggle sends only `enabled`.
+  # The dialog sends the whole rule with environments by id. A toggle sends only `enabled`.
   def rule_attributes
     PolicyRule::ApprovalRuleChanges.attributes(
       workspace: current_workspace, existing: @rule,

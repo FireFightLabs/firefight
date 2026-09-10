@@ -1,10 +1,9 @@
-# Value object returned by `SlackAuthenticationService` describing what should
-# happen after an OAuth or OIDC callback. The controller maps the outcome to
-# session writes + redirects without knowing the decision logic.
+# What happens after an OAuth or OIDC callback. The controller maps it to
+# session writes and redirects without knowing the decision logic.
 class AuthOutcome
   attr_reader :type, :membership, :user, :team_id, :team_name, :message, :first_install
 
-  # message is optional, a plain returning sign-in needs no announcing.
+  # A plain returning sign-in needs no message.
   def self.signed_in(membership:, message: nil, first_install: false)
     new(:signed_in, membership: membership, message: message, first_install: first_install)
   end

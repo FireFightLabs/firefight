@@ -13,9 +13,8 @@ class TimelineEventSerializer < BaseSerializer
     event.event_type
   end
 
-  # Mirrors ActorCompactSerializer. The generator only resolves a serializer
-  # reference for a has_one, and person is built by hand for people this
-  # workspace no longer has a membership row for.
+  # Mirrors ActorCompactSerializer. The generator only resolves a has_one, and person
+  # is built by hand for people with no membership row.
   ACTOR_TYPE = "{ name: string; initials: string; avatarUrl?: string; kind: #{ActorCompactSerializer::KIND_UNION} }"
 
   type :string
@@ -28,9 +27,7 @@ class TimelineEventSerializer < BaseSerializer
     event.automated?
   end
 
-  # A machine that acts in an incident is marked as one on its own row, so
-  # nobody reads an agent's work as a colleague's. Absent when nobody acted,
-  # which is what an automated entry looks like.
+  # Marks a machine as one. Absent when nobody acted, which is what an automated entry looks like.
   type ActorCompactSerializer::KIND_UNION, optional: true
   def actor_kind
     event.actor&.actor_kind
@@ -99,8 +96,6 @@ class TimelineEventSerializer < BaseSerializer
                    "quote: string | null; permalink: string | null; " \
                    "dismissedAt: string | null; dismissedBy: string | null }".freeze
 
-  # Everything the row needs to render the note, the quote card and the
-  # dismissed group, read from what the noting pass stored.
   type MILESTONE_TYPE, optional: true
   def milestone
     return nil unless event.milestone?
@@ -150,9 +145,8 @@ class TimelineEventSerializer < BaseSerializer
     meta = event.metadata.to_h.with_indifferent_access
     blob = event.artifact.attached? ? event.artifact.blob : nil
 
-    # The blob describes what downloadUrl actually returns, so it wins over the
-    # Slack metadata. Events recorded before that metadata was captured carry
-    # only a details key, and would otherwise render with no name or size.
+    # The blob describes what downloadUrl returns, so it wins. Older events carry only
+    # a details key and would render with no name or size.
     name = blob&.filename.to_s.presence || meta[:file_name].presence
     permalink = meta[:permalink].presence
     download = artifact_path(event)
@@ -175,8 +169,7 @@ class TimelineEventSerializer < BaseSerializer
     IncidentEvent::MILESTONE_NOTED
   ].freeze
 
-  # A note whose author has left the workspace still says who dismissed it,
-  # and a machine that dismissed one never had a member row to resolve.
+  # The author may have left the workspace, and a machine never had a member row.
   def dismissed_by_name(meta)
     return nil if meta[:dismissed_at].blank?
 
@@ -193,8 +186,7 @@ class TimelineEventSerializer < BaseSerializer
     ActorCompactSerializer.one(member)
   end
 
-  # Someone Slack knows but this workspace no longer has a membership for.
-  # Still a person, so the chip renders them as one.
+  # Someone with no membership row, still a person, so the chip renders one.
   def named_person(name, avatar_url)
     return nil if name.blank?
 

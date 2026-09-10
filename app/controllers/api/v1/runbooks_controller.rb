@@ -12,8 +12,7 @@ class Api::V1::RunbooksController < Api::V1::ApiController
     authorize!(Ability::Action::RESOURCE_RUNBOOKS, Ability::Action::ACTION_READ)
   end
 
-  # Steps and conditions are only touched when they are sent, so changing a
-  # summary never silently clears the procedure.
+  # Steps and conditions are only touched when sent, so changing a summary never clears the procedure.
   def create
     authorize!(Ability::Action::RESOURCE_RUNBOOKS, Ability::Action::ACTION_CREATE)
 

@@ -1,8 +1,6 @@
 require "test_helper"
 
 class WebhookTest < ActiveSupport::TestCase
-  # Subscribable events
-
   test "every subscribable event renders a payload" do
     Webhook::SUBSCRIBABLE_EVENTS.each do |event_type|
       template = Webhook::SUBSCRIBABLE_EVENT_TEMPLATES.fetch(event_type)
@@ -10,8 +8,6 @@ class WebhookTest < ActiveSupport::TestCase
              "#{event_type} is subscribable but has no payload template"
     end
   end
-
-  # Associations
 
   test "belongs to workspace" do
     webhook = webhooks(:active_webhook)
@@ -23,8 +19,6 @@ class WebhookTest < ActiveSupport::TestCase
     webhook = webhooks(:active_webhook)
     assert_instance_of WebhookDelinquencyTracker, webhook.webhook_delinquency_tracker
   end
-
-  # Validations
 
   test "requires name" do
     webhook = Webhook.new(workspace: workspaces(:slack_workspace_one), url: "https://example.com")
@@ -70,8 +64,6 @@ class WebhookTest < ActiveSupport::TestCase
     assert webhook.valid?
   end
 
-  # Token generation
-
   test "auto-generates signing_secret on create" do
     webhook = Webhook.create!(
       workspace: workspaces(:slack_workspace_one),
@@ -81,8 +73,6 @@ class WebhookTest < ActiveSupport::TestCase
     assert_not_nil webhook.signing_secret
     assert_equal 32, webhook.signing_secret.length
   end
-
-  # Normalization
 
   test "normalizes subscribed_events to only permitted values" do
     webhook = Webhook.new(
@@ -113,8 +103,6 @@ class WebhookTest < ActiveSupport::TestCase
     assert_equal "https://example.com", webhook.url
   end
 
-  # Scopes
-
   test "active scope returns only active webhooks" do
     active = Webhook.active.where(workspace: workspaces(:slack_workspace_one))
     assert_includes active, webhooks(:active_webhook)
@@ -134,8 +122,6 @@ class WebhookTest < ActiveSupport::TestCase
     assert_not_includes matches, webhooks(:active_webhook)
   end
 
-  # Activate / deactivate
-
   test "deactivate! sets active to false" do
     webhook = webhooks(:active_webhook)
     webhook.deactivate!
@@ -148,8 +134,6 @@ class WebhookTest < ActiveSupport::TestCase
     assert webhook.reload.active?
   end
 
-  # Delinquency tracker auto-creation
-
   test "creates delinquency tracker on create" do
     webhook = Webhook.create!(
       workspace: workspaces(:slack_workspace_one),
@@ -159,8 +143,6 @@ class WebhookTest < ActiveSupport::TestCase
     assert_not_nil webhook.webhook_delinquency_tracker
     assert_equal 0, webhook.webhook_delinquency_tracker.consecutive_failures_count
   end
-
-  # Test deliveries
 
   test "latest_subscribed_event is the newest event of a subscribed type, from any incident" do
     webhook = Webhook.create!(

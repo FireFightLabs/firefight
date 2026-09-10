@@ -1,11 +1,9 @@
-# The dashboard's gate into the Ability Gateway, the role AuthorizedDispatch
-# plays for Slack and ApiAuthentication for REST.
+# The dashboard's gate into the Ability Gateway, as AuthorizedDispatch is for Slack and ApiAuthentication for REST.
 module WebAuthorization
   extend ActiveSupport::Concern
 
-  # The including controller registers authorize_web_action! itself, after
-  # its authentication guard, so an anonymous request is sent to sign in
-  # rather than to the gateway.
+  # The including controller registers authorize_web_action! after its authentication
+  # guard, so an anonymous request goes to sign in, not the gateway.
   included do
     class_attribute :authorized_actions, default: {}.freeze
     around_action :finalize_web_authorization
@@ -42,8 +40,7 @@ module WebAuthorization
     authorize_web!(resource, crud_action)
   end
 
-  # For the cases a static mapping cannot express (a personal token versus a
-  # service key). Redirects and returns false when the gateway refuses.
+  # For cases a static mapping cannot express. Redirects and returns false when refused.
   def authorize_web!(resource, crud_action)
     @web_authorization = AbilityGateway.authorize!(
       principal: current_membership,
@@ -62,8 +59,7 @@ module WebAuthorization
     false
   end
 
-  # Binds an approval to this exact request: the same route, the same record,
-  # the same body. The body itself stays out of the ledger.
+  # Binds an approval to this exact request, route, record and body. The body stays out of the ledger.
   def web_authorization_params
     {
       "method" => request.request_method,

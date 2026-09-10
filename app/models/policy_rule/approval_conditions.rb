@@ -1,7 +1,5 @@
-# The approval rule dialog asks three questions (which abilities, which risk
-# levels, which environments) and this is the mapping between those answers
-# and the generic condition list the rule engine evaluates. An empty answer
-# means no condition, so the rule matches everything on that axis.
+# Maps the dialog's answers to the condition list the rule engine evaluates.
+# An empty answer means no condition, so the rule matches everything on that axis.
 module PolicyRule::ApprovalConditions
   FIELD_ACTION_KEY = "action_key"
   FIELD_RISK_LEVEL = "risk_level"

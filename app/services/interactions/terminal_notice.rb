@@ -1,10 +1,6 @@
 module Interactions
-  # Tells a responder why a button did nothing.
-  #
-  # The quick actions message drops Escalate and Make me Lead once an incident
-  # is over, but a Slack client can still be showing the version that had them.
-  # A click on one of those is a real click, so it gets a real answer rather
-  # than silence.
+  # A Slack client can still show quick actions the incident no longer offers,
+  # so a click on one gets an answer rather than silence.
   module TerminalNotice
     def self.post(workspace, incident, user_id, reason)
       workspace.adapter.post_ephemeral(

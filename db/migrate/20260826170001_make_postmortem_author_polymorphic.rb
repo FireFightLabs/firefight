@@ -1,6 +1,4 @@
-# An agent that worked an incident should be able to write it up, and the
-# record should say the agent did. Everything that exists was written by a
-# person, since nothing else could until now.
+# Everything existing was written by a person, nothing else could until now.
 class MakePostmortemAuthorPolymorphic < ActiveRecord::Migration[8.1]
   def up
     add_column :postmortems, :generated_by_type, :string

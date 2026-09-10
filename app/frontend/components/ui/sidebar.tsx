@@ -69,8 +69,6 @@ function SidebarProvider({
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
 
-  // The uncontrolled fallback. openProp and setOpenProp take over whenever a
-  // caller passes them.
   const [_open, _setOpen] = React.useState(defaultOpen)
   const open = openProp ?? _open
   const setOpen = React.useCallback(
@@ -82,7 +80,7 @@ function SidebarProvider({
         _setOpen(openState)
       }
 
-      // So the sidebar comes back the same way on the next page load.
+      // Persisted so the sidebar reopens the same way on the next page load.
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
     },
     [setOpenProp, open]
@@ -92,7 +90,6 @@ function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
 
-  // Cmd/Ctrl+B toggles from anywhere on the page.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
@@ -108,8 +105,7 @@ function SidebarProvider({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [toggleSidebar])
 
-  // Rendered onto data-state, which is what the group-data-[state=...] Tailwind
-  // variants below key off.
+  // Goes onto data-state, which the group-data-[state=...] variants below key off.
   const state = open ? "expanded" : "collapsed"
 
   const contextValue = React.useMemo<SidebarContextProps>(
@@ -213,7 +209,7 @@ function Sidebar({
       data-side={side}
       data-slot="sidebar"
     >
-      {/* This is what handles the sidebar gap on desktop */}
+      {/* Holds the sidebar's space on desktop */}
       <div
         data-slot="sidebar-gap"
         className={cn(
@@ -232,8 +228,7 @@ function Sidebar({
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
-          // floating and inset sit away from the edge, so they pad rather than
-          // carry a border.
+          // floating and inset sit away from the edge, so they pad instead of a border.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
@@ -606,8 +601,7 @@ function SidebarMenuSkeleton({
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean
 }) {
-  // Uneven widths, so a stack of these reads as menu labels loading rather
-  // than as identical bars.
+  // Random widths so a stack reads as labels loading, not identical bars.
   const width = React.useMemo(() => {
     return `${Math.floor(Math.random() * 40) + 50}%`
   }, [])

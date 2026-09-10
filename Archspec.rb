@@ -1,22 +1,10 @@
-# Architecture rules, checked by `bundle exec archspec check` (part of bin/ci).
-# archspec_todo.yml is empty and stays empty: a new violation means the code
-# is in the wrong place. Any violation fails the build.
-#
-# The rules encode the boundaries documented in CLAUDE.md and
-# docs/architecture.md: platform code stays inside adapters, entry points stay
-# thin and never share code sideways, models own domain logic without reaching
-# into services, and the engines stay generic.
-#
-# File components stay disjoint, each file belongs to exactly one, because
-# consumer allowlists check every component a referencing file belongs to.
-# Dir.glob computes the lists below, so new files land in the right component
-# without editing this file.
+# archspec_todo.yml stays empty, a new violation means the code is in the wrong place.
+# Each file belongs to exactly one component because consumer allowlists check every component
+# a referencing file belongs to. Dir.glob builds the lists, so new files need no edit here.
 
 todo "archspec_todo.yml"
 
 ignore "engines/*/test/**/*.rb"
-
-# --- Components -------------------------------------------------------------
 
 DISPATCHER_FILES = %w[
   app/services/command_dispatcher.rb
@@ -26,8 +14,7 @@ DISPATCHER_FILES = %w[
   app/services/handler_authorization.rb
 ].freeze
 
-# The Slack webhook entry points: they verify signatures and normalize raw
-# payloads through the parsers, so they are allowed to know Slack exists.
+# The webhook entry points verify signatures and normalize raw payloads, so they may know Slack exists.
 SLACK_ENTRY_FILES = %w[
   app/controllers/api/v1/base_controller.rb
   app/controllers/api/v1/commands_controller.rb
@@ -56,8 +43,7 @@ component :services, in: plain_services + %w[app/services/webhooks/**/*.rb app/s
 component :models, in: "app/models/**/*.rb"
 component :serializers, in: "app/serializers/**/*.rb"
 
-# The factory is the port-selection point, the one file outside a platform
-# directory allowed to name platform adapters.
+# The one file outside a platform directory allowed to name platform adapters.
 PLATFORM_FACTORY_FILES = %w[app/adapters/workspace_adapter.rb].freeze
 
 plain_adapters = Dir.chdir(__dir__) { Dir.glob("app/adapters/*.rb") }.sort - PLATFORM_FACTORY_FILES
@@ -74,8 +60,6 @@ component :events_pipeline, in: "app/events/**/*.rb"
 component :solid_workflow_engine, in: "engines/solid_workflow/**/*.rb"
 component :firefight_ai_engine, in: "engines/firefight_ai/**/*.rb"
 
-# Namespace and constant components, for boundaries that are names rather
-# than folders.
 component :slack_namespace, namespace: "Slack"
 component :slack_client, constants: %w[Slack::Client]
 component :solid_workflow_namespace, namespace: "SolidWorkflow"
@@ -85,23 +69,12 @@ component :integration_clients,
           constants: %w[Integrations::McpClient Integrations::OauthClient Integrations::GithubApp
                         Integrations::CloneManager Integrations::Http]
 
-# --- Platform containment (what a Teams adapter depends on) ------------------
-
-# Slack-specific code lives in app/adapters/slack. The only outside consumers
-# are the Slack webhook controllers and the OAuth install flow. Handlers
-# naming Slack::Modals, the Interaction model parsing Slack::PrivateMetadata,
-# and friends are grandfathered debt, not precedent.
+# Handlers naming Slack::Modals and the like are grandfathered debt, not precedent.
 slack_namespace.can_only_be_used_by :slack_adapter, :slack_entry_controllers, :slack_auth, :platform_factory
 
-# The raw API client never leaves Slack adapter code, not even for the entry
-# controllers or the factory.
 slack_client.can_only_be_used_by :slack_adapter, :slack_namespace
 
-# --- Layer hierarchy (thin entry points) ------------------------------------
-
-# Controller -> Dispatcher -> Handler -> Service. Handlers are reached through
-# dispatch (HomeHandler sub-routes to leaf commands), never called sideways
-# from controllers, MCP, jobs, or services.
+# Handlers are reached through dispatch only, HomeHandler sub-routes to leaf commands.
 handlers.can_only_be_used_by :dispatchers, :handlers
 
 handlers.cannot_use :controllers, :api_controllers, :serializers
@@ -113,54 +86,33 @@ jobs.cannot_use :controllers, :api_controllers, :serializers
 models.cannot_call :render, :redirect_to, :params, :session, :cookies, :flash, receiver: :none
 services.cannot_call :render, :redirect_to, :session, :cookies, :flash, receiver: :none
 
-# --- Thick models, services for coordination only ---------------------------
-
-# Models own their domain logic and never reach up. Commit hooks enqueueing
-# jobs are the documented event-bus pattern, so jobs stay allowed.
+# Commit hooks enqueueing jobs are the event-bus pattern, so jobs stay allowed.
 models.cannot_use :controllers, :api_controllers, :dispatchers, :handlers, :serializers, :adapters
 models.cannot_use :services
 
-# --- Four entry points, one write path --------------------------------------
-
-# Slack, API, MCP, and the dashboard all normalize input and call shared
-# services. They never reference each other, so shared behavior has nowhere
-# to live but a service or a model.
+# Entry points never reference each other, so shared behaviour has nowhere to live but a service or model.
 mcp.cannot_use :controllers, :api_controllers, :handlers, :dispatchers, :serializers
 api_controllers.cannot_use :mcp, :handlers
 
-# Snapshots are written by models and services, never inline at an entry
-# point. The postmortem paths in incidents_controller are grandfathered.
+# The postmortem paths in incidents_controller are grandfathered.
 controllers.cannot_call :record_change!
 api_controllers.cannot_call :record_change!
 mcp.cannot_call :record_change!
 
-# --- Governance -------------------------------------------------------------
-
-# One authorization chokepoint: the dispatchers, the API auth concern, and
-# MCP. No inline permission checks growing in models, services, or jobs.
+# One authorization chokepoint, no inline permission checks in models, services or jobs.
 ability_gateway.can_only_be_used_by :dispatchers, :mcp, :controllers, :api_controllers, :models
 
-# The invocation ledger is written by the gateway (a model) and read by the
-# governance pages. Nothing else touches it.
+# Written by the gateway, read by the governance pages.
 ability_ledger.can_only_be_used_by :ability_gateway, :models, :controllers, :serializers
 
-# --- Engines ----------------------------------------------------------------
-
-# SolidWorkflow knows nothing about the app. Zero references, locked.
 solid_workflow_engine.cannot_use :models, :services, :controllers, :api_controllers, :adapters,
                                  :slack_adapter, :handlers, :dispatchers, :jobs, :workflows,
                                  :serializers, :mcp, :events_pipeline, :firefight_ai_engine
 
-# The app touches the engine only where workflows are defined.
 solid_workflow_namespace.can_only_be_used_by :workflows, :solid_workflow_engine
 
-# The AI engine reads models and returns results. Delivery, jobs, and
-# platform calls live in the app, so the constants it references stay frozen
-# at models alone.
+# Delivery, jobs and platform calls live in the app, the engine only reads models and returns results.
 firefight_ai_engine.can_only_use :models, :firefight_ai_engine
 
-# --- Integrations isolation -------------------------------------------------
-
-# Provider clients and credential shapes stay behind the integrations layer,
-# so a provider swap never touches an entry point.
+# Provider clients and credential shapes stay behind the integrations layer.
 integration_clients.can_only_be_used_by :integrations_layer

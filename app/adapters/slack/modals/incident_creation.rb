@@ -1,9 +1,7 @@
 module Slack
   module Modals
-    # The declare dialog. Re-rendered by Slack every time one of its dispatching
-    # selects changes, so conditions can read what the responder has picked so
-    # far. `state` is the view's values as Slack sends them back, which is why
-    # adding another source is a block change rather than a signature change.
+    # `state` is the view's values as Slack sends them back on each dispatch,
+    # so conditions can read what the responder has picked so far.
     module IncidentCreation
       DISPATCHING = [
         IncidentSystemField::KEY_SEVERITY,
@@ -45,8 +43,6 @@ module Slack
         }.compact
       end
 
-      # What the responder has chosen so far, read off the view state Slack
-      # returns with every dispatch.
       def self.selections(workspace, state)
         severity_slug = FieldBlocks.picked(state, IncidentSystemField::KEY_SEVERITY)
         type_slug = FieldBlocks.picked(state, IncidentSystemField::KEY_INCIDENT_TYPE)

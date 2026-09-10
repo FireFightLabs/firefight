@@ -1,8 +1,6 @@
 class NormalizeOptionDescriptions < ActiveRecord::Migration[8.1]
-  # Brings descriptions written before NormalizedDescription in line, so old and
-  # new rows read the same in Slack, the dashboard and the API. Mirrors the
-  # concern: capitalize a first word that is entirely lowercase, then terminate
-  # the sentence.
+  # Old descriptions are normalized the way NormalizedDescription does on save, so old
+  # and new rows read the same.
   TABLES = %w[
     incident_severities
     incident_statuses
@@ -38,8 +36,7 @@ class NormalizeOptionDescriptions < ActiveRecord::Migration[8.1]
     end
   end
 
-  # A no-op rather than a raise, the pre-normalization text is not recoverable,
-  # and normalized descriptions are valid input for the old code too.
+  # Not a raise, the original text is unrecoverable and normalized text is valid for the old code.
   def down
   end
 end

@@ -59,7 +59,7 @@ export function AlertSourcesTab({
         handleCopy(data.token, `token-${source.id}`)
       }
     } catch {
-      // leave the button unchanged. The user can retry
+      // The button stays as it was and the user can retry.
     }
   }
 

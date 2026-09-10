@@ -1,7 +1,5 @@
 module Interactions
-  # The Subscribe button on the announcement and on an unsubscribe notice.
-  # Subscribing is all it does. A second click is answered, never undone,
-  # since a shared button must not mean two things.
+  # A second click is answered, never undone, since a shared button must not mean two things.
   class SubscribeIncidentHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ

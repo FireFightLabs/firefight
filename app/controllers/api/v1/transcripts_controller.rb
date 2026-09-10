@@ -1,5 +1,4 @@
-# What people said in an incident's channel, gated by its own resource and by
-# the workspace having turned access on.
+# Gated by its own resource and by the workspace having turned access on.
 class Api::V1::TranscriptsController < Api::V1::ApiController
   def index
     authorize!(Ability::Action::RESOURCE_INCIDENT_TRANSCRIPTS, Ability::Action::ACTION_READ)

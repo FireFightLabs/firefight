@@ -1,6 +1,5 @@
 module Mcp
-  # Public product-doc URLs surfaced to agents via server instructions, tool
-  # descriptions, and error messages. The .md URLs return raw markdown.
+  # The .md URLs return raw markdown.
   module Docs
     BASE = "https://firefight.app/docs".freeze
     INDEX = "https://firefight.app/llms.txt".freeze

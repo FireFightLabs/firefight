@@ -7,10 +7,10 @@ import {
   type ApproverRole,
 } from "@/lib/generated/constants"
 
-// Pure mapping between the approval rule dialog's form state and the
-// ApprovalRule serializer/params shapes. No React in here.
+// Pure mapping between the approval rule dialog's form state and ApprovalRule
+// params. No React in here.
 
-// Who decides: everyone with the owner role, everyone with admin or owner,
+// Who decides. Everyone with the owner role, everyone with admin or owner,
 // or the principals the rule names.
 export type ApproverChoice = ApproverRole | "named"
 
@@ -135,9 +135,8 @@ export function describeApprovers(rule: ApprovalRule, principals: Principal[]): 
   return isApproverRole(rule.role) ? ROLE_LABELS[rule.role].toLowerCase() : rule.role
 }
 
-// Whether any enabled rule would hold this ability somewhere. Environments
-// are ignored on purpose. A rule scoped to production still marks the ability,
-// since that is what an admin handing it out needs to know.
+// Environments are ignored on purpose. A rule scoped to production still marks
+// the ability, since that is what an admin handing it out needs to know.
 export function requiresApproval(action: AbilityActionOption, rules: ApprovalRule[]): boolean {
   if (action.approvalExempt) {
     return false

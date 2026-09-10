@@ -1,18 +1,10 @@
 module Slack
   module Modals
-    # Shared field-block builders used by the incident form modals (declare,
-    # update, resolve, cancel). Each method returns one Slack Block Kit
-    # `input` block. `build_system` and `build_custom` are the dispatchers
-    # that pick the right per-type builder.
-    #
-    # Every field handed here renders. Deciding that a field has nothing to ask
-    # belongs to IncidentFormResolver, which is also what `validate_submission`
-    # reads. Suppressing a field here alone leaves submission demanding one the
-    # responder was never shown.
+    # Every field handed here renders. Suppressing one here alone would leave
+    # validate_submission demanding a field the responder never saw.
     module FieldBlocks
-      # The selects that re-render their modal when they change. A dispatching
-      # select carries a named action id so the handler can tell the dispatch
-      # apart from a submission. Every other input is `field_<key>_input`.
+      # Selects that re-render the modal on change carry a named action id so
+      # the handler can tell a dispatch from a submission.
       DISPATCH_ACTION_IDS = {
         IncidentSystemField::KEY_SEVERITY => Identifiers::INCIDENT_CREATION_SEVERITY_SELECT,
         IncidentSystemField::KEY_INCIDENT_TYPE => Identifiers::INCIDENT_CREATION_TYPE_SELECT,
@@ -20,8 +12,6 @@ module Slack
         IncidentSystemField::KEY_STATUS => Identifiers::INCIDENT_UPDATE_STATUS_SELECT
       }.freeze
 
-      # One owner for the block and action ids every builder, submission
-      # parser and error anchor agrees on.
       def self.block_id(key)
         "field_#{key}_block"
       end
@@ -34,17 +24,12 @@ module Slack
         dispatching.include?(key) ? DISPATCH_ACTION_IDS.fetch(key) : input_id(key)
       end
 
-      # The option a responder has picked in a dispatching select, read off
-      # the view state Slack sends back with the dispatch.
       def self.picked(state, key)
         (state.presence || {}).dig(block_id(key), DISPATCH_ACTION_IDS.fetch(key), "selected_option", "value")
       end
 
-      # `dispatching` names the system keys whose select re-renders the modal.
-      # `selected` holds what the responder has picked so far, by system key,
-      # as the option value (severity, type and status by slug, visibility by
-      # its value). `terminal_stage` narrows the status select on the resolve
-      # and cancel forms.
+      # `selected` is keyed by system key and holds option values (slugs for
+      # severity, type and status, the raw value for visibility).
       def self.build_system(workspace, form_field, incident: nil, dispatching: [], selected: {}, terminal_stage: nil)
         key = form_field.system_field_key
         dispatch = dispatching.include?(key)
@@ -86,8 +71,6 @@ module Slack
         end
       end
 
-      # Both lists are the registry's, rendered into Block Kit here. The words
-      # a responder reads are the same ones the dashboard shows.
       VISIBILITY_OPTIONS = IncidentSystemField::VISIBILITY_CHOICES.map do |choice|
         { text: { type: "plain_text", text: choice.label }, value: choice.value }
       end.freeze
@@ -138,9 +121,7 @@ module Slack
         }
       end
 
-      # The update itself, written by a responder. Unlike every other field
-      # here it lands on the IncidentUpdate rather than the Incident, because an
-      # incident collects many messages over its life.
+      # The only field here that lands on the IncidentUpdate, not the Incident.
       def self.message_block(form_field)
         {
           type: "input",
@@ -246,8 +227,7 @@ module Slack
           hint: copy_hint(IncidentSystemField::KEY_SEVERITY)
         }.compact
         block[:dispatch_action] = true if dispatch
-        # The chosen severity explains itself better than a static hint can, so
-        # it takes over once there is one to show.
+        # The chosen severity's description replaces the static hint.
         block[:hint] = { type: "plain_text", text: selected_severity.description } if selected_severity.description.present?
         block
       end
@@ -289,9 +269,8 @@ module Slack
         block
       end
 
-      # On a terminal form the only sensible answers are the statuses in the
-      # stage that transition moves to. Offering the full list would let a
-      # responder resolve an incident into Investigating.
+      # A terminal form only offers the target stage's statuses, otherwise a
+      # responder could resolve an incident into Investigating.
       def self.status_block(workspace, form_field, incident: nil, stage: nil, dispatch: false, selected_status_slug: nil)
         statuses = workspace.incident_statuses.active.ordered
         statuses = statuses.in_stage(stage) if stage
@@ -301,8 +280,8 @@ module Slack
           option
         end
 
-        # The pick wins over what the incident still holds, so the re-render a
-        # dispatch triggers does not snap the select back to the old status.
+        # The pick wins over the stored status so a dispatch re-render does not
+        # snap the select back.
         current_slug = selected_status_slug.presence || incident&.incident_status&.slug
         initial_status = current_slug && status_options.find { |o| o[:value] == current_slug }
 
@@ -348,9 +327,6 @@ module Slack
         wrap_input(defn, element, optional: optional)
       end
 
-      # One builder for every field that picks from a set. A fixed list and a
-      # catalog type differ only in where selectable_values reads from, and
-      # single versus multi only in which Block Kit keys carry the selection.
       def self.select_custom_block(defn, optional:, current_value:)
         options = custom_field_options(defn)
 
@@ -378,14 +354,13 @@ module Slack
         end
       end
 
-      # Responder-facing copy lives in IncidentSystemField so the Slack modal
-      # and the form editor's preview render the same words.
+      # Copy comes from IncidentSystemField so Slack and the form editor preview
+      # show the same words.
       def self.copy_label(key)
         { type: "plain_text", text: IncidentSystemField.fetch(key).label }
       end
 
-      # nil when the field carries no hint, so the caller's compact drops the
-      # key rather than sending Slack an empty plain_text element.
+      # nil so the caller's compact drops the key, Slack rejects an empty hint.
       def self.copy_hint(key)
         hint = IncidentSystemField.fetch(key).hint
         return nil if hint.blank?

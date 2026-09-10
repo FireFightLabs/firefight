@@ -31,8 +31,8 @@ interface OptionRowProps {
   defaultSelectable?: boolean
   // Cells between the name and the Default column.
   children?: ReactNode
-  // Turns the name into a button. Opt-in, for lists whose rows carry content
-  // worth reading rather than only settings worth editing.
+  // Turns the name into a button. Opt in, for lists whose rows carry content
+  // worth reading.
   onSelect?: () => void
   onToggleEnabled: () => void
   onEdit: () => void

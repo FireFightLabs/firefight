@@ -1,7 +1,6 @@
 module Slack
   module Messages
-    # Digest message for an alert, posted once and updated in place as the
-    # alert re-fires or resolves (never one message per firing).
+    # Posted once and updated in place as the alert re-fires or resolves.
     module Alert
       def self.build(alert)
         emoji = alert.firing? ? ":rotating_light:" : ":white_check_mark:"

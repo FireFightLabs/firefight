@@ -1,7 +1,5 @@
 class IncidentInviteService
-  # What one invite round did, holding the people it was asked about rather
-  # than the platform ids it derived from them. A caller that named members
-  # gets members back and never has to reverse the mapping.
+  # Holds the people as the caller named them, never the platform ids derived from them.
   Result = Data.define(:invited, :already_in_channel, :failed)
   Failure = Data.define(:person, :error)
 
@@ -10,8 +8,7 @@ class IncidentInviteService
     @adapter = workspace.adapter
   end
 
-  # `people` are members, platform user ids, or a mix, so a caller that knows
-  # someone as a member never has to reach for their platform account.
+  # people may be members, platform user ids, or a mix.
   def invite!(incident:, people:)
     blocked_reason = incident.invite_blocked_reason
     raise Incident::NotActive, blocked_reason if blocked_reason
@@ -46,8 +43,7 @@ class IncidentInviteService
 
   private
 
-  # Two references can name one person, and the platform is what decides that,
-  # so the round is deduped by the account it will be asked about.
+  # Two references can name one person, so dedupe by the platform account.
   def distinct(people)
     Array(people).compact.uniq { |person| platform_user_id(person) }
   end

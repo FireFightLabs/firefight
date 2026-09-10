@@ -17,9 +17,8 @@ interface AuthenticatedLayoutProps {
   title?: string;
 }
 
-// Slack has told Firefight the install is gone. Everything already recorded
-// stays readable, so the page keeps working and asks an admin to reconnect
-// rather than locking anyone out.
+// Slack said the install is gone. Recorded data stays readable, so the page
+// keeps working and asks an admin to reconnect instead of locking anyone out.
 function DisconnectedBanner() {
   const { currentWorkspace, currentUserIsAdmin } = usePage().props;
 

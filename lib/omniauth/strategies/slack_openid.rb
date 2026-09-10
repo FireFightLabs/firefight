@@ -10,13 +10,8 @@ module OmniAuth
       end
     end
 
-    # Slack sign-in strategy. Uses OAuth v2 with an empty bot `scope` and
-    # `user_scope=openid,profile,email`. This triggers Slack's native
-    # workspace picker and consent screen, returns user identity only,
-    # and does NOT install a bot.
-    #
-    # Pairs with the regular `slack` strategy. This one establishes user
-    # identity, the other handles bot installation.
+    # OAuth v2 with an empty bot scope and user_scope openid,profile,email, which shows Slack's
+    # workspace picker and returns identity only. The `slack` strategy installs the bot.
     class SlackOpenid < OmniAuth::Strategies::OAuth2
       option :name, "slack_openid"
 

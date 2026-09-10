@@ -1,6 +1,5 @@
-# Authorizes as permissions, which is admin-only and ungrantable, so an agent
-# can never create or re-credential another agent whatever it holds. The MCP
-# tools are the siblings of these.
+# Authorized as permissions, admin-only and ungrantable, so an agent can never
+# create or re-credential another agent.
 class Api::V1::AgentsController < Api::V1::ApiController
   before_action :set_agent, only: %i[update destroy rotate revoke_token]
 
@@ -10,8 +9,7 @@ class Api::V1::AgentsController < Api::V1::ApiController
     @agents = agent_scope.ordered.includes(:api_keys, ability_grants: :action)
   end
 
-  # One token comes with the agent, since an agent without a credential can do
-  # nothing and making that a second call is a call everyone forgets.
+  # A token is minted with the agent, since one without a credential can do nothing.
   def create
     authorize!(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_CREATE)
 
@@ -35,8 +33,7 @@ class Api::V1::AgentsController < Api::V1::ApiController
     render :show
   end
 
-  # An overlap, not a swap. The old token keeps working until it is revoked, so
-  # the agent stays up while its configuration is updated.
+  # An overlap, not a swap. The old token works until revoked, so the agent stays up while its config is updated.
   def rotate
     authorize!(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_UPDATE)
 

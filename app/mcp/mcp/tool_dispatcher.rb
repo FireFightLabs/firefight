@@ -1,8 +1,6 @@
 module Mcp
-  # The single seam every MCP tool call flows through. Telemetry plus the
-  # AbilityGateway (grants, ledger, approvals). Each tool declares what it
-  # authorizes as. approval_id rides outside the digested params so an
-  # approved retry matches the original request.
+  # Every MCP tool call flows through here. approval_id rides outside the
+  # digested params so an approved retry matches the original request.
   class ToolDispatcher
     APPROVAL_ID_ARG = :approval_id
 
@@ -20,8 +18,7 @@ module Mcp
         params: args.except(APPROVAL_ID_ARG),
         context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] }
       ) do
-        # Most tools only need the workspace. Tools acting AS someone
-        # (approval resolution) opt into receiving the principal.
+        # Tools acting as someone (approval resolution) opt into receiving the principal.
         if tool.respond_to?(:perform_with_principal)
           tool.perform_with_principal(workspace: workspace, principal: server_context[:principal], args: args)
         else

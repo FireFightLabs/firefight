@@ -16,9 +16,8 @@ class IncidentDetailSerializer < BaseSerializer
   has_one :incident_severity, as: :severity, serializer: SeverityCompactSerializer
   has_one :incident_status, as: :status, serializer: StatusCompactSerializer
 
-  # Nested serializer output goes through the association DSL so the
-  # generator emits a sibling import. A bare `type :Name` is treated as a
-  # hand-written custom type and the import dangles.
+  # Nested output goes through the association DSL so the generator emits an import.
+  # A bare `type :Name` is treated as hand-written and the import dangles.
   has_one :type, serializer: IncidentTypeCompactSerializer, optional: true do
     incident.incident_type
   end
@@ -27,31 +26,26 @@ class IncidentDetailSerializer < BaseSerializer
     incident.lead
   end
 
-  # True while the first test incident is open. The page then points at
-  # the channel.
+  # True while the first test incident is open, the page then points at the channel.
   type :boolean
   def onboarding_walkthrough
     incident.is_test? && incident.active? && incident.first_test_in_workspace?
   end
 
-  # What the channel will be called once it exists. Every incident gets one,
-  # so a blank channel_name means creation has not finished rather than that
-  # this incident has none.
+  # Every incident gets a channel, so a blank channel_name means creation has not finished.
   type :string
   def channel_label
     incident.channel_name.presence || incident.generated_channel_name
   end
 
-  # The sentence a blocked control shows instead of vanishing. Nil while the
-  # incident can still be changed.
+  # The sentence a blocked control shows instead of vanishing. Nil while changes are allowed.
   type :string, optional: true
   def change_blocked_reason
     incident.change_blocked_reason
   end
 
-  # Each participation control shows its own sentence rather than vanishing,
-  # because they are blocked for different reasons: an incident that is over,
-  # or one whose channel is still being created.
+  # Each control shows its own sentence, since they are blocked for different reasons,
+  # an incident that is over or a channel still being created.
   type :string, optional: true
   def escalation_blocked_reason
     incident.escalation_blocked_reason
@@ -67,8 +61,7 @@ class IncidentDetailSerializer < BaseSerializer
     incident.shoutout_blocked_reason
   end
 
-  # Adding work and claiming a runbook step share this sentence, since a claim
-  # creates the action behind the step.
+  # Shared with claiming a runbook step, since a claim creates the action behind it.
   type :string, optional: true
   def action_blocked_reason
     incident.action_item_blocked_reason(IncidentAction::ACTION_TYPE_ACTION)
@@ -79,16 +72,13 @@ class IncidentDetailSerializer < BaseSerializer
     incident.action_item_blocked_reason(IncidentAction::ACTION_TYPE_FOLLOWUP)
   end
 
-  # The chip renders a person, the lead picker needs the row it points at.
-  # Matching the chip's name back to a member breaks the moment two people
-  # share a display name.
+  # The lead picker needs the member id. Matching the chip's name breaks when two people share a display name.
   type :string, optional: true
   def lead_id
     incident.lead&.id
   end
 
-  # The lead has its own field, so this covers the rest of the roster. Every
-  # configured role appears, whether or not anyone holds it.
+  # Every configured role appears, held or not. The lead has its own field.
   has_many :roles, serializer: IncidentRoleAssignmentSerializer do
     incident.role_roster
   end

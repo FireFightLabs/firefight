@@ -1,7 +1,5 @@
-# Slack and the dashboard have no retry. The API and MCP park a call and let
-# the caller re-issue it with the approval id, but a person who clicked a
-# button cannot, so the request is stored when it parks and replayed once
-# someone approves.
+# A person who clicked a button cannot re-issue a parked call the way API and
+# MCP callers can, so the request is stored when it parks and replayed on approval.
 class ApprovalResumption
   KIND_INTERACTION = "interaction"
   KIND_COMMAND = "command"
@@ -20,9 +18,8 @@ class ApprovalResumption
     approval.update!(resume_payload: WebRequestReplay.payload_for(request, membership).merge(kind: KIND_WEB))
   end
 
-  # An approval admits exactly one execution, so a job that runs twice must not
-  # replay the request again. Re-entering the gateway on a consumed approval
-  # would not match it and would park a fresh one.
+  # An approval admits one execution. Re-entering the gateway on a consumed
+  # approval would park a fresh one, so a job that runs twice must not replay.
   def self.resume!(approval)
     payload = approval.resume_payload
     return if payload.blank? || approval.consumed_at.present?
@@ -38,8 +35,8 @@ class ApprovalResumption
     notify(approval, payload, "#{approver_name(approval)} approved your request, but Firefight couldn't finish it. Please try again.")
   end
 
-  # The replayed controller's own flash is the outcome: its notice on
-  # success, its alert when a guard refused.
+  # The replayed controller's own flash is the outcome, its notice on success,
+  # its alert when a guard refused.
   def self.resume_web!(approval, payload)
     result = WebRequestReplay.call(approval, payload)
     if result.success?
@@ -86,7 +83,7 @@ class ApprovalResumption
   private_class_method :approver_name
 
   # A chat request is answered where it was made. A dashboard request has no
-  # page to answer on any more, so the requester gets a direct message.
+  # page left, so the requester gets a direct message.
   def self.notify(approval, payload, text)
     return if payload.blank?
 

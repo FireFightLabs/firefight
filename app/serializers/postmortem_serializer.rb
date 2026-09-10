@@ -28,7 +28,7 @@ class PostmortemSerializer < BaseSerializer
     postmortem.generation_error
   end
 
-  # generated_by is polymorphic: a member, an agent or an API key.
+  # Polymorphic, a member, an agent or an API key.
   type :string
   def generated_by
     postmortem.generated_by.actor_display_name
@@ -44,8 +44,7 @@ class PostmortemSerializer < BaseSerializer
     postmortem.updated_at.utc.iso8601
   end
 
-  # What the editor sends back when it saves, so a rewrite from an agent while
-  # somebody is typing is refused rather than silently winning.
+  # Sent back on save so a rewrite from an agent while somebody is typing is refused.
   type :number
   def version
     postmortem.content_version

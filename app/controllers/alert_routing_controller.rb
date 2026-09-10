@@ -11,8 +11,7 @@ class AlertRoutingController < InertiaController
     end
   end
 
-  # Route tester: pure evaluation with a full trace, zero side effects.
-  # Mirrors ingest resolution, the source's policy with workspace fallback.
+  # Evaluation only, resolving the policy the same way ingest does. No side effects.
   def test
     routed = tester.evaluate(params.fetch(:fields, {}).to_unsafe_h)
     return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless routed
@@ -26,9 +25,7 @@ class AlertRoutingController < InertiaController
     }
   end
 
-  # Delivers one labeled test message to the resolved notify target so the
-  # user can verify the bot can actually reach it. Re-evaluates server-side.
-  # The client never picks the destination.
+  # Re-evaluated server side so the client never picks the destination.
   def send_test
     routed = tester.evaluate(params.fetch(:fields, {}).to_unsafe_h)
     return render json: { error: "No alert routing policy configured" }, status: :unprocessable_entity unless routed

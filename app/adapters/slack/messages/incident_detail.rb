@@ -1,12 +1,7 @@
 module Slack
   module Messages
-    # The block of incident facts that both the announcement in #incidents and
-    # the pinned message in the incident channel are built around. They used to
-    # build it separately and had already drifted. The same person was the
-    # Reporter in one and Declared by in the other.
-    #
-    # The channel line is the one real difference. The announcement points at
-    # the incident channel. The pinned message is already in it.
+    # Shared by the announcement and the pinned message. They used to build
+    # this separately and drifted.
     module IncidentDetail
       TEST_NOTE = ":test_tube: Test incident. Not counted in your metrics.".freeze
 
@@ -28,7 +23,7 @@ module Slack
         blocks
       end
 
-      # Shared by the header block and the fallback text, so notifications match the header.
+      # Used for the fallback text too, so notifications match the header.
       def self.title_for(incident)
         "#{incident.identifier} · #{incident.name || 'Untitled Incident'}"
       end

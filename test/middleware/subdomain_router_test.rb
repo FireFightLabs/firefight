@@ -128,9 +128,7 @@ class SubdomainRouterTest < ActiveSupport::TestCase
   end
 
   test "prefix boundary is enforced" do
-    # /api/v1/incidents_secret should not match /api/v1/incidents
-    # Both are under /api/v1 prefix so on api subdomain they'd both pass,
-    # but the boundary check matters on app subdomain where /app prefix is used.
+    # /apple must not match the /app prefix.
     assert_blocked "app.firefight.app", "/apple"
     assert_blocked "app.firefight.app", "/authentic"
     assert_blocked "app.firefight.app", "/mcp-console"

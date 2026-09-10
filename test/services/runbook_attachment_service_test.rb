@@ -135,7 +135,7 @@ class RunbookAttachmentServiceTest < ActiveSupport::TestCase
   test "attach does not raise when the same runbook is inserted concurrently" do
     stub_post_message
     existing = @incident.incident_runbooks.create!(runbook: @runbook, workspace: @workspace)
-    # Stand in for the row landing between the existence check and the insert.
+    # Stands in for a row landing between the existence check and the insert.
     @incident.incident_runbooks.stubs(:find_by).returns(nil)
 
     result = @service.attach(incident: @incident, runbook: @runbook, attached_by: @member)

@@ -1,7 +1,5 @@
-# One actor, wherever the dashboard shows one. The lead, a role holder,
-# whoever declared the incident. They all render the same chip, so they all
-# serialize the same way, and an agent is an actor too, with a name and no
-# face, which the optional avatar already allows for.
+# Every actor renders the same chip, so every actor serializes the same way. An agent
+# has a name and no face, which the optional avatar allows.
 class ActorCompactSerializer < BaseSerializer
   object_as :actor
 
@@ -24,9 +22,7 @@ class ActorCompactSerializer < BaseSerializer
 
   KIND_UNION = Ability::Principal::KINDS.map(&:inspect).join(" | ")
 
-  # What the reader is looking at, so a chip can mark a machine as one rather
-  # than passing it off as a colleague. Typed as the kinds themselves, so a
-  # frontend lookup keyed by kind needs no cast.
+  # Marks a machine as one. Typed as the kinds so a frontend lookup needs no cast.
   type KIND_UNION
   def kind
     actor.actor_kind

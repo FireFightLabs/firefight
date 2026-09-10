@@ -1,9 +1,6 @@
 module Integrations
-  # Reconciles integration_tools with what the executor's discovery returns.
-  # Same semantics for every kind, new tools arrive disabled (the admin
-  # allowlists), changed schemas update in place, vanished tools are marked
-  # removed but never deleted and never flipped off (their action rows,
-  # grants and the admin's allowlist stay, the config check stops calls).
+  # Vanished tools are marked removed, never deleted or flipped off, so their grants
+  # and allowlist survive a return. The config check stops calls meanwhile.
   class DiscoveryService
     def self.sync!(integration)
       seen = integration.executor.tool_definitions(integration).map do |definition|

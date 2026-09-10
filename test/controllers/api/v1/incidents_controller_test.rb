@@ -3,14 +3,11 @@ require "test_helper"
 class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
 
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @severity = @workspace.incident_severities.active.first
     @status = @workspace.incident_statuses.default_status
   end
-
-  # Authentication
 
   test "a member's personal token participates in incidents but cannot configure the workspace" do
     membership = workspace_memberships(:bob_workspace_one)
@@ -47,16 +44,12 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
-  # Permissions
-
   test "returns 403 when key lacks create permission" do
     post api_v1_incidents_url,
       params: { idempotency_key: "test", name: "Test", severity_id: @severity.id }.to_json,
       headers: api_headers(token: "ff_test_read_only_token_12345678")
     assert_response :forbidden
   end
-
-  # Index
 
   test "lists incidents for the workspace" do
     get api_v1_incidents_url, headers: api_headers
@@ -99,8 +92,6 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # Show
-
   test "shows incident details" do
     incident = incidents(:active_critical_ws1)
     get api_v1_incident_url(incident), headers: api_headers
@@ -133,8 +124,6 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
     get api_v1_incident_url(ws2_incident), headers: api_headers
     assert_response :not_found
   end
-
-  # Create
 
   test "creates incident with required fields" do
     stub_successful_slack_workflow
@@ -310,8 +299,6 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
         headers: api_headers
     end
   end
-
-  # Update
 
   test "updates incident name and summary" do
     incident = incidents(:active_critical_ws1)
@@ -526,8 +513,6 @@ class Api::V1::IncidentsControllerTest < ActionDispatch::IntegrationTest
       headers: api_headers
     assert_response :not_found
   end
-
-  # Error format
 
   test "error responses include request_id" do
     get api_v1_incident_url("nonexistent-id"), headers: api_headers

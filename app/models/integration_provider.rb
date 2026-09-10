@@ -1,6 +1,4 @@
-# The curated catalog behind Configure -> Integrations. Pure registry data
-# (config/integration_providers.yml). Connecting any entry goes through the
-# generic MCP connector.
+# Registry data from config/integration_providers.yml.
 class IntegrationProvider
   REGISTRY_PATH = Rails.root.join("config/integration_providers.yml")
 
@@ -12,8 +10,7 @@ class IntegrationProvider
         key: raw.fetch("key"), name: raw.fetch("name"), category: raw.fetch("category"),
         mark: raw.fetch("mark"), color: raw.fetch("color"),
         description: raw.fetch("description"), server_url: raw["server_url"].to_s,
-        # kind: native marks a provider that executes through a first-party
-        # pack (Integrations::NativePack) instead of an MCP server.
+        # kind: native runs through Integrations::NativePack instead of an MCP server.
         kind: raw["kind"] || Integration::KIND_MCP
       )
     end.freeze
@@ -23,8 +20,7 @@ class IntegrationProvider
     all.find { |entry| entry.key == key }
   end
 
-  # Section name => tagline, for the gallery headings. Registry data so a
-  # provider in a new category needs no code change.
+  # Registry data, so a provider in a new category needs no code change.
   def self.categories
     @categories ||= registry.fetch("categories", {}).freeze
   end
@@ -34,13 +30,8 @@ class IntegrationProvider
   end
   private_class_method :registry
 
-  # Providers whose OAuth server needs a pre-registered app (e.g. GitHub,
-  # which has no dynamic registration) read a Firefight-wide client id and
-  # secret from the environment (Infisical injects these as env vars), named
-  #   INTEGRATION_<KEY>_CLIENT_ID / INTEGRATION_<KEY>_CLIENT_SECRET
-  # e.g. INTEGRATION_GITHUB_CLIENT_ID. One app per provider serves every
-  # workspace. The resulting tokens are per-workspace. Absent = fall back to
-  # dynamic registration, else the token path.
+  # Providers without dynamic registration, such as GitHub, read one Firefight-wide app from
+  # INTEGRATION_<KEY>_CLIENT_ID and _CLIENT_SECRET. Tokens are still per workspace.
   def self.oauth_client(key)
     prefix = "INTEGRATION_#{key.to_s.upcase}"
     client_id = ENV["#{prefix}_CLIENT_ID"].presence ||
@@ -50,13 +41,11 @@ class IntegrationProvider
     { client_id: client_id,
       client_secret: ENV["#{prefix}_CLIENT_SECRET"].presence ||
                      Rails.application.credentials.dig(:integrations, key.to_sym, :client_secret),
-      # Set for providers whose app must be installed before its tokens reach
-      # anything (GitHub). Connecting then starts at the provider's install
-      # screen instead of a bare authorize page.
+      # Set when the app must be installed before its tokens reach anything,
+      # so connecting starts at the install screen.
       app_slug: ENV["#{prefix}_APP_SLUG"].presence ||
                 Rails.application.credentials.dig(:integrations, key.to_sym, :app_slug),
-      # PEM for providers whose server-to-server tokens are minted with a
-      # signed app JWT (GitHub App installation tokens).
+      # PEM for providers that mint server tokens from a signed app JWT.
       private_key: ENV["#{prefix}_PRIVATE_KEY"].presence ||
                    Rails.application.credentials.dig(:integrations, key.to_sym, :private_key) }
   end

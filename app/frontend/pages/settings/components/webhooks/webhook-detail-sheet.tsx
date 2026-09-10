@@ -31,8 +31,8 @@ import {
 } from "@/components/ui/table";
 import { eventLabel } from "@/pages/settings/lib/webhook-events";
 
-// One place decides what each delivery state looks like. The server decides
-// the state, so the sheet never recomputes it from the response code.
+// The server decides the delivery state, so the sheet never recomputes it
+// from the response code.
 const DELIVERY_OUTCOME: Record<
   WebhookDelivery["state"],
   { label: (code: number | undefined) => string; className: string }
@@ -71,8 +71,8 @@ export function WebhookDetailSheet({
   const [secretError, setSecretError] = useState<string | null>(null);
   const webhookId = webhook?.id;
 
-  // A secret held in component state must not outlive the sheet it was asked
-  // for, or the next webhook opens showing the previous one's.
+  // A secret must not outlive the sheet it was asked for, or the next webhook
+  // opens showing the previous one's.
   useEffect(() => {
     setSecret(null);
     setSecretError(null);
@@ -110,7 +110,7 @@ export function WebhookDetailSheet({
   }, [webhookId]);
 
   // preserveState keeps the sheet open, so the new attempt appears in the list
-  // the person is already looking at instead of dropping them back to the page.
+  // already on screen.
   const replayDelivery = useCallback(
     (deliveryId: string) => {
       if (!webhookId) {

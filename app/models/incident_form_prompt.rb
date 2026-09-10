@@ -1,18 +1,8 @@
-# What a lifecycle form is asking, ready for a surface that renders its own
-# inputs rather than being handed Block Kit.
-#
-# The resolver decides which fields a responder sees. This adds the part Slack
-# gets from its own pickers: the choices behind each select, and the value the
-# incident already holds. Slack asks the workspace for a users_select and a
-# static_select of statuses. A browser has to be told.
-#
-# It reads the same `resolve(slug, context:)` that `validate_submission` reads,
-# so a field cannot be rendered here and rejected there, or the reverse.
+# Reads the same resolve that validate_submission reads, so a field cannot be
+# rendered here and rejected there.
 class IncidentFormPrompt
   # Answering one of these changes which fields the form asks for, so the
-  # surface re-resolves instead of guessing. Status drives Next Update through
-  # `moot_for_context?`, and every one of them can drive a custom field's
-  # condition.
+  # surface re-resolves.
   DISPATCHING_KEYS = [
     IncidentSystemField::KEY_STATUS,
     IncidentSystemField::KEY_SEVERITY,
@@ -23,8 +13,8 @@ class IncidentFormPrompt
   Choice = Data.define(:value, :label)
   Field = Data.define(:key, :label, :hint, :placeholder, :input, :required, :dispatches, :choices, :value)
 
-  # Every input a browser has to render. Mapped from the field's type rather
-  # than passed through, so the frontend switches on a closed set.
+  # Mapped from the field type rather than passed through, so the frontend
+  # switches on a closed set.
   INPUT_TEXT = "text"
   INPUT_LONG_TEXT = "long_text"
   INPUT_NUMBER = "number"
@@ -49,8 +39,7 @@ class IncidentFormPrompt
     end
   end
 
-  # The context the fields were resolved against. Validating a submission has
-  # to read the same one, or a field is shown and then rejected.
+  # Validation must read the same context, or a field is shown and then rejected.
   def context
     IncidentConditionEvaluator.context_for(@incident, workspace: @workspace, answers: @answers)
   end
@@ -98,9 +87,8 @@ class IncidentFormPrompt
     end
   end
 
-  # A terminal form offers only the statuses its transition targets. Everything
-  # else offers the live ones plus whatever the incident currently holds, so a
-  # reopened incident's own status is never missing from its own form.
+  # A terminal form offers only its target stage. Others offer the live ones
+  # plus the current one, so a reopened incident's status is never missing.
   def status_choices
     stage = IncidentFormResolver::TERMINAL_STAGE_BY_FORM[@form_slug]
     return slug_choices(@workspace.incident_statuses.active.in_stage(stage).ordered) if stage
@@ -112,8 +100,7 @@ class IncidentFormPrompt
     scope.map { |record| Choice.new(value: record.slug, label: record.name) }
   end
 
-  # The dashboard picks a person from the workspace roster, where Slack opens
-  # its own users_select. Ids rather than slugs, since a membership has none.
+  # Ids rather than slugs, a membership has none.
   def member_choices
     @workspace.workspace_memberships.includes(:user).map do |member|
       Choice.new(value: member.id, label: member.display_name)

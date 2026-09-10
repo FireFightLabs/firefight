@@ -1,6 +1,4 @@
-# A relationship carried two identities: the attribute definition it belongs
-# to and a string copy of that definition's slug. Only the definition is
-# written by the app, so the copy and the position column it never used go.
+# Only the definition is written by the app, so the slug copy and the unused position column go.
 class KeyCatalogRelationshipsOnTheirDefinition < ActiveRecord::Migration[8.1]
   def up
     execute "DELETE FROM catalog_entry_relationships WHERE catalog_attribute_definition_id IS NULL"

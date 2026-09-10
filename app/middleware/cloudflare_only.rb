@@ -1,17 +1,8 @@
 require "ipaddr"
 require "net/http"
 
-# Optional middleware that rejects requests not coming from Cloudflare's edge.
-#
-# Enabled when CLOUDFLARE_ONLY is set to:
-#   - "behind_lb" (default). The app is behind a load balancer with no source
-#     IP filtering of its own. Checks the last X-Forwarded-For entry, which
-#     is the IP that connected to the LB (should be a Cloudflare edge).
-#   - "direct". The app is exposed to the internet and Cloudflare proxies
-#     directly to it. Checks REMOTE_ADDR.
-#
-# /up is exempt, health checks come from non-Cloudflare sources (LB or
-# uptime monitors).
+# CLOUDFLARE_ONLY is "behind_lb" (checks X-Forwarded-For) or "direct" (checks REMOTE_ADDR).
+# /up stays open because health checks come from the LB or uptime monitors.
 class CloudflareOnly
   HEALTH_CHECK_PATH = "/up".freeze
   IPV4_URL = "https://www.cloudflare.com/ips-v4".freeze
@@ -33,10 +24,8 @@ class CloudflareOnly
 
   private
 
-  # Returns true if any IP in the X-Forwarded-For chain is a Cloudflare edge.
-  # behind_lb mode: scan the whole chain since Hetzner LB doesn't append the
-  # connecting IP. The Cloudflare edge appears somewhere in the chain.
-  # direct mode: check REMOTE_ADDR.
+  # The whole X-Forwarded-For chain is scanned because the Hetzner LB does
+  # not append the connecting IP.
   def from_cloudflare?(env)
     case @mode
     when "behind_lb"

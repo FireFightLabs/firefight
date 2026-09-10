@@ -1,7 +1,6 @@
 class IncidentConditionEvaluator
-  # The one place the shape of a condition context is defined. Every caller
-  # builds through here so a condition means the same thing wherever it is
-  # evaluated.
+  # Every caller builds through here so a condition means the same thing
+  # wherever it is evaluated.
   def self.context(incident_type: nil, severity: nil, status: nil, visibility: nil, custom_fields: nil)
     {
       incident_type: incident_type,
@@ -12,14 +11,8 @@ class IncidentConditionEvaluator
     }.compact
   end
 
-  # What the incident will hold once the answers in front of the responder are
-  # submitted, over whatever it already holds. Every surface asks through here,
-  # because a form rendered against one context and validated against another
-  # shows a field and then rejects it.
-  #
-  # `answers` is keyed the way a form is, system field key for the built-ins and
-  # slug for a custom field. Declaring passes no incident, so it names the
-  # workspace instead.
+  # Answers win over what the incident holds. A form rendered against one context
+  # and validated against another shows a field and then rejects it.
   def self.context_for(incident, workspace: nil, answers: {})
     answers = (answers || {}).stringify_keys
     workspace ||= incident&.workspace
@@ -33,7 +26,6 @@ class IncidentConditionEvaluator
     )
   end
 
-  # An answer names a record by slug. Absent one, whatever the incident holds.
   def self.answered_id(workspace, answers, association, key, stored_id)
     slug = answers[key]
     return stored_id if slug.blank?
@@ -51,8 +43,7 @@ class IncidentConditionEvaluator
   end
   private_class_method :answered_visibility
 
-  # Nothing answered means nothing to look up, which keeps the common
-  # context_for(incident) call free of extra queries.
+  # Keeps the common context_for(incident) call free of extra queries.
   def self.answered_custom_fields(workspace, answers)
     return {} if answers.empty?
 

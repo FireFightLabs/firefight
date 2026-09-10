@@ -74,8 +74,7 @@ class IncidentEventsControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  # timelineEvents is a deferred prop, so it only arrives on the follow-up
-  # partial reload the page makes for it.
+  # timelineEvents is deferred, it only arrives on the page's follow-up partial reload.
   def timeline_headers
     inertia_headers.merge(
       "X-Inertia-Partial-Data" => "timelineEvents",

@@ -13,8 +13,8 @@ class CommandDispatcher
     Commands::DeclareIncident
   end
 
-  # /ff routes through HomeHandler, so the authorization to check belongs to
-  # the command the subcommand names, not to the sub-dispatcher in front of it.
+  # The authorization belongs to the command the subcommand names, not to
+  # HomeHandler in front of it.
   def self.authorizing_handler(command)
     handler = find(command)
     return handler unless handler.respond_to?(:handler_for)
@@ -46,9 +46,8 @@ class CommandDispatcher
     Command.ephemeral(expired_message(command))
   end
 
-  # Slack's trigger_id lives three seconds. The hint echoes exactly what the
-  # person typed, aliases and all, so `/ff resolve` is never told to retry
-  # `/ff close`.
+  # Echoes exactly what the person typed, aliases and all, so /ff resolve is
+  # never told to retry /ff close.
   def self.expired_message(command)
     typed = "/#{command.command_name} #{command.text}".strip
     "This command has expired. Please try `#{typed}` again."

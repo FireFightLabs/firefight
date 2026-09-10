@@ -1,9 +1,8 @@
 class ChannelArchivalJob < ApplicationJob
   queue_as :default
 
-  # expected_resolved_at guards against archiving after a reopen-and-resolve
-  # cycle. A canceled incident has no resolved_at to compare, so it passes nil
-  # and leans on the terminal? and channel_archived_at guards instead.
+  # expected_resolved_at guards against archiving after a reopen and resolve
+  # cycle. A canceled incident has none, so it passes nil and relies on the other guards.
   def perform(incident_id, expected_resolved_at = nil)
     incident = Incident.find_by(id: incident_id)
     return unless incident
@@ -24,8 +23,7 @@ class ChannelArchivalJob < ApplicationJob
   rescue AdapterError::AlreadyArchived
     incident.update!(channel_archived_at: Time.current, channel_archived_by: "system")
   rescue AdapterError::AuthRevoked
-    # Notifier was already fired inside the adapter. Re-raise so SolidQueue
-    # surfaces the failure instead of silently swallowing a broken integration.
+    # The adapter already notified. Re-raise so SolidQueue surfaces the failure.
     raise
   rescue AdapterError => e
     Rails.logger.error({

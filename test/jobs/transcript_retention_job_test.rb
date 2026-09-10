@@ -1,8 +1,7 @@
 require "test_helper"
 
-# The transcript is scaffolding. What was worked out in it survives as timeline
-# milestones and, where one exists, as the postmortem, so purging drops the
-# messages and not the memory.
+# What was worked out in the transcript survives as timeline milestones and the postmortem,
+# so purging drops the messages and not the memory.
 class TranscriptRetentionJobTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -37,8 +36,6 @@ class TranscriptRetentionJobTest < ActiveSupport::TestCase
     assert_not IncidentTranscriptMessage.exists?(message.id)
   end
 
-  # The whole point of purging the raw messages rather than the incident. What
-  # was worked out in the conversation lives on the timeline with the quote.
   test "the milestones survive the purge, with their quotes" do
     message = transcript_message
     note = @incident.incident_events.create!(

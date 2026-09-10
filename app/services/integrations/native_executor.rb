@@ -1,7 +1,5 @@
 module Integrations
-  # Everything kind: native knows about talking to its provider, all of it
-  # delegated to the registered Integrations::NativePack. Same contract as
-  # McpExecutor, so callers never branch on kind.
+  # Same contract as McpExecutor, so callers never branch on kind.
   class NativeExecutor
     def self.call(tool:, environment_row:, arguments:)
       pack = NativePack.fetch!(tool.integration)

@@ -1,5 +1,4 @@
 module Interactions
-  # Same path as /ff postmortem.
   class WritePostmortemHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE

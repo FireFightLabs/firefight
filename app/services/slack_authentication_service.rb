@@ -1,19 +1,11 @@
-# Orchestrates Slack auth callbacks. Returns AuthOutcome describing what the
-# controller should do next. Decision logic lives here. HTTP concerns stay in
-# the controller. State changes happen on the models.
+# Decides what the controller does next after a Slack auth callback. HTTP stays
+# in the controller, state changes on the models.
 class SlackAuthenticationService
   INVITE_REQUIRED_MESSAGE   = "Public beta access currently requires an invite code.".freeze
   WORKSPACE_MISMATCH_MESSAGE = "Workspace mismatch. Please sign in again with the workspace you want to connect.".freeze
 
-  # OIDC sign-in (identity only). Two outcomes (plus the install-gated third):
-  #   - signed_in:      workspace exists. Return or create the membership.
-  #   - install_needed: no workspace for this team yet, hand off to the
-  #                     install step, or the invite code step first when the
-  #                     gate is on.
-  #
   # Invite gating applies only to new workspace installs and only when
-  # InviteCode.required? is true. Members of an existing workspace always
-  # auto-provision.
+  # InviteCode.required? is true. Members of an existing workspace always auto-provision.
   def handle_openid_signin(auth_hash)
     team_id   = auth_hash.info.team_id
     team_name = auth_hash.info.team_name
@@ -36,16 +28,8 @@ class SlackAuthenticationService
     AuthOutcome.signed_in(membership: membership, message: "Welcome to #{workspace.name}.")
   end
 
-  # Bot install callback. Wraps the existing workspace install flow and returns
-  # an AuthOutcome so the controller has a uniform interface.
-  #
-  # @param user [User, nil] The installer, already identified by the prior OIDC
-  #   sign-in. Required for first-install. We never derive identity from the
-  #   install auth_hash's user_info (brittle and not the user who signed in).
-  # @param pending_team_id [String, nil] The Slack team_id captured during the
-  #   prior OIDC step. If provided and does not match the auth_hash's team_id,
-  #   the install is rejected, prevents bypassing invite gating by signing in
-  #   for team A and redirecting the bot install to team B.
+  # user comes from the prior OIDC sign-in, never the install auth_hash. pending_team_id must
+  # match the auth_hash team, or someone could sign in to team A and install into team B past the invite gate.
   def handle_install(auth_hash, user: nil, invite_code: nil, pending_team_id: nil)
     team_id = auth_hash.extra.team_info["id"]
 

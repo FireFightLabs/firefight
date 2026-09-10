@@ -62,7 +62,6 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, statu
         !isVisible && "opacity-40",
       )}
     >
-      {/* Field name + description + input preview */}
       <div className="flex items-start gap-2">
         {canManage && (
           <button
@@ -128,7 +127,6 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, statu
         </div>
       )}
 
-      {/* Controls below the field content */}
       {canManage && (
         <div className="mt-3 flex items-center gap-4 pl-6">
           <label className="flex items-center gap-1.5 cursor-pointer">

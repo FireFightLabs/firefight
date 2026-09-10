@@ -1,7 +1,5 @@
-# Who an escalation is aimed at. Usually a member, but the platform may know
-# someone this workspace has no membership row for, and escalating to a person
-# is not what makes them a billable member. It answers the same questions any
-# actor does, so a message names it without asking which kind it is.
+# The platform may know someone with no membership row, and escalating to
+# them must not make them a billable member. Answers like any actor.
 class Incident::EscalationTarget
   attr_reader :member, :platform_user_id, :actor_display_name, :avatar_url
 
@@ -21,8 +19,7 @@ class Incident::EscalationTarget
     )
   end
 
-  # Rebuilt from what a workflow or a job carried, which is the metadata the
-  # escalation event already stores.
+  # Rebuilt from the metadata the escalation event stores.
   def self.from_metadata(workspace, metadata)
     metadata = metadata.to_h.with_indifferent_access
     member = workspace.workspace_memberships.find_by(id: metadata[:escalated_to_member_id])

@@ -7,9 +7,8 @@ class LifecycleStageSerializer < BaseSerializer
     description: { type: :string }
   )
 
-  # Only an open stage can hold the workspace default, since a new incident has
-  # to start there. Drives whether the settings screen offers the Default
-  # control for the stage at all.
+  # Only an open stage can hold the default, since a new incident starts there.
+  # Decides whether the Default control is offered.
   type :boolean
   def open
     lifecycle_stage.open?

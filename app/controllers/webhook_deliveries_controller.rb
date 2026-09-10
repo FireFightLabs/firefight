@@ -1,6 +1,5 @@
 class WebhookDeliveriesController < InertiaController
-  # Replaying sends the customer's endpoint another live request, so it is
-  # the same authority as configuring the webhook.
+  # Replaying sends the endpoint another live request, the same authority as configuring the webhook.
   authorizes Ability::Action::RESOURCE_WEBHOOKS, update: :replay
 
   def replay

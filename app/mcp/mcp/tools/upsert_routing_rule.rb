@@ -62,8 +62,7 @@ module Mcp
         workspace.alert_sources.find_by!(name: args[:source].to_s)
       end
 
-      # Side-effect-free (runs before authorization). Looks up the existing
-      # policy/rule without materializing anything.
+      # Runs before authorization, so it must not materialize anything.
       def self.existing_rule(workspace, args)
         return nil if args[:priority].blank?
 

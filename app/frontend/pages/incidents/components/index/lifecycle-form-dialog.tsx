@@ -29,8 +29,7 @@ import type { IncidentFormSlug } from "@/lib/generated/constants"
 
 export type LifecycleForm = IncidentFormSlug
 
-// Declaring has no incident behind it, so it reads and writes its own pair of
-// paths. Everything else about the form is identical.
+// Declaring has no incident yet, so it has its own pair of paths.
 function readPath(incidentId: string | null, form: LifecycleForm) {
   return incidentId ? incidentFormPath(incidentId, form) : declareIncidentFormPath()
 }
@@ -51,9 +50,8 @@ function initialAnswers(fields: IncidentPromptField[]): Answers {
   return answers
 }
 
-// Which fields the form asks for is the server's answer, never the browser's.
-// A dispatching field changing means re-resolving, because a condition or a
-// terminal status can add or drop questions.
+// The server decides which fields the form asks. A dispatching field changing
+// means re-resolving, since a condition or a terminal status can add or drop questions.
 function useResolvedForm(incidentId: string | null, form: LifecycleForm, open: boolean) {
   const [fields, setFields] = useState<IncidentPromptField[] | null>(null)
   const [answers, setAnswers] = useState<Answers>({})
@@ -181,7 +179,7 @@ export function LifecycleFormDialog({
   onOpenChange,
   test = false,
 }: {
-  // Null while declaring, since there is no incident yet.
+  // Null while declaring.
   incidentId: string | null
   form: LifecycleForm
   open: boolean
@@ -215,8 +213,8 @@ export function LifecycleFormDialog({
     }
     const path = writePath(incidentId, form)
 
-    // Declaring lands on a page this dialog has never seen, so it takes the
-    // whole page rather than a partial reload of the one it is leaving.
+    // Declaring lands on a page this dialog has never seen, so it takes a whole
+    // visit rather than a partial reload.
     if (incidentId) {
       router.patch(path, { answers }, { ...afterMutation("incident", "timelineEvents"), ...callbacks })
     } else {

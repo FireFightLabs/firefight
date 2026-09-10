@@ -133,8 +133,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
     pendingApprovalsCount,
   } = usePage<SharedProps>().props
 
-  // The cloud engine shares this path when it is loaded, so self-hosted
-  // builds never grow a Billing item.
+  // Only the cloud engine sets this path, so self-hosted builds never get Billing.
   const billingItem: SidebarNavItem = { title: "Billing", url: cloudBillingPath ?? "", icon: IconCreditCard }
   const sectionsWithBilling = cloudBillingPath
     ? navSections.map((section) =>

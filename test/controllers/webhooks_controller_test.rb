@@ -9,8 +9,6 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     sign_in(@user, @workspace)
   end
 
-  # Authentication
-
   test "redirects to login when not authenticated" do
     ApplicationController.any_instance.unstub(:current_user)
     ApplicationController.any_instance.unstub(:current_workspace)
@@ -19,8 +17,6 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
     assert_redirected_to login_path
   end
-
-  # Create
 
   test "creates a new webhook" do
     assert_difference -> { Webhook.count }, 1 do
@@ -40,8 +36,6 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     assert webhook.active?
   end
 
-  # Update
-
   test "updates webhook name" do
     patch webhook_url(@webhook), params: {
       webhook: { name: "Updated Name" }
@@ -50,16 +44,12 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Updated Name", @webhook.reload.name
   end
 
-  # Destroy
-
   test "destroys webhook" do
     assert_difference -> { Webhook.count }, -1 do
       delete webhook_url(@webhook)
     end
     assert_response :redirect
   end
-
-  # Activate / deactivate
 
   test "activates an inactive webhook" do
     inactive = webhooks(:inactive_webhook)
@@ -73,8 +63,6 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
     assert_not @webhook.reload.active?
   end
-
-  # Test delivery
 
   test "sends test delivery" do
     assert_difference -> { WebhookDelivery.count }, 1 do
@@ -147,8 +135,6 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     assert_equal @workspace, delivery.incident_event.incident.workspace
   end
 
-  # Sample payload
-
   test "returns sample payload info for valid event type" do
     get sample_payload_webhooks_url, params: { event_type: "incident.created" }
     assert_response :success
@@ -158,8 +144,6 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
     get sample_payload_webhooks_url, params: { event_type: "invalid.event" }
     assert_response :unprocessable_entity
   end
-
-  # Replay
 
   test "replay creates a new delivery against the same webhook + event" do
     original = webhook_deliveries(:errored_delivery)
@@ -203,8 +187,6 @@ class WebhooksControllerTest < ActionDispatch::IntegrationTest
       post replay_webhook_delivery_url(other_webhook, original)
     end
   end
-
-  # Workspace scoping
 
   test "does not find webhook from different workspace" do
     other_webhook = webhooks(:workspace_two_webhook)

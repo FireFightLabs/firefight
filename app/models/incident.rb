@@ -1,8 +1,6 @@
 class Incident < ApplicationRecord
-  # Raised when an incident is asked to do something it cannot: one that is
-  # over, or one whose channel has not been opened yet. Carries the sentence
-  # the surface shows, so a dispatcher can render it without knowing which
-  # rule refused.
+  # Carries the sentence the surface shows, so a dispatcher can render it
+  # without knowing which rule refused.
   class NotActive < StandardError; end
 
   VISIBILITY_PUBLIC = "public"
@@ -27,9 +25,7 @@ class Incident < ApplicationRecord
   include Incident::Subscriptions
 
   belongs_to :workspace
-  # Polymorphic for the same reason IncidentEvent#actor is. An agent can
-  # declare an incident, and saying a person did it would be a lie the ledger
-  # exists to prevent.
+  # Polymorphic because an agent can declare an incident.
   belongs_to :declared_by, polymorphic: true, optional: true
   belongs_to :source_api_key, class_name: "ApiKey", optional: true
   belongs_to :incident_status
@@ -65,8 +61,7 @@ class Incident < ApplicationRecord
   scope :closed, -> { joins(:incident_status).merge(IncidentStatus.closed) }
   scope :canceled, -> { joins(:incident_status).merge(IncidentStatus.canceled) }
   scope :terminal, -> { joins(:incident_status).merge(IncidentStatus.terminal) }
-  # Closing stamps resolved_at. Canceling stamps nothing, so the cancel itself
-  # is the last write and updated_at is the closest thing to an end.
+  # Canceling stamps nothing, so updated_at is the closest thing to an end.
   scope :ended_before, ->(cutoff) {
     terminal.where("COALESCE(incidents.resolved_at, incidents.updated_at) <= ?", cutoff)
   }
@@ -103,9 +98,8 @@ class Incident < ApplicationRecord
     )
   }
 
-  # The declarer is polymorphic, so its own associations cannot ride along on
-  # includes. Everyone reading a list of incidents names the declarer, so the
-  # people among them get their users in one query rather than one each.
+  # The declarer is polymorphic, so includes cannot preload its user. This
+  # loads them in one query instead of one per incident.
   def self.preload_declarers(incidents)
     Principal.preload_users(incidents.map(&:declared_by))
     incidents
@@ -145,8 +139,7 @@ class Incident < ApplicationRecord
     incident_status.canceled?
   end
 
-  # Over, however it ended. Resolved and canceled differ in what they mean, but
-  # not in whether anyone is still working the incident.
+  # Over, however it ended.
   def terminal?
     closed? || canceled?
   end
@@ -163,11 +156,8 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("shoutouts can no longer be posted to it") || channelless_blocked_reason("post one")
   end
 
-  # A postmortem is the write-up of something that happened, so there has to be
-  # something to write up. Every surface offering to start one asks this rather
-  # than deciding for itself what "over" means.
-  # A failed placeholder is not a postmortem. Try again and Start blank
-  # must get past this.
+  # Every surface offering to start a postmortem asks this rather than deciding
+  # what "over" means. A failed placeholder is not a postmortem, so retrying gets past it.
   def postmortem_blocked_reason
     return "#{identifier} already has a postmortem." if postmortem.present? && !postmortem.generation_failed?
     return "#{identifier} was canceled, so it has nothing to write up." if canceled?
@@ -176,8 +166,7 @@ class Incident < ApplicationRecord
     "#{identifier} is still open. A postmortem can be written once it is resolved."
   end
 
-  # The one rule the status machine refuses: an incident that is over cannot
-  # swap between closed and canceled. Reopen it, then close or cancel.
+  # An incident that is over cannot swap between closed and canceled without reopening.
   def status_change_blocked_reason(new_status)
     return nil unless terminal?
     return nil if incident_status.incident_lifecycle_stage_id == new_status.incident_lifecycle_stage_id
@@ -190,8 +179,7 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("it can no longer be assigned a lead")
   end
 
-  # An action is work during the incident, so it needs a live one. A follow-up
-  # is the work that comes after, so it can be added at any point.
+  # An action is work during the incident, a follow-up is work after it.
   def action_item_blocked_reason(action_type)
     return nil if action_type == IncidentAction::ACTION_TYPE_FOLLOWUP
 
@@ -203,26 +191,21 @@ class Incident < ApplicationRecord
     raise NotActive, blocked_reason if blocked_reason
   end
 
-  # Why a responder surface can no longer change this incident, or nil. The
-  # lead and role guards each state this rule in their own words, for the same
-  # reason. Every change announces itself in a channel that may already be
-  # archived. Surfaces ask for the sentence rather than deciding what terminal
-  # means for themselves.
+  # Every change announces itself in a channel that may already be archived.
+  # Surfaces ask for this sentence rather than deciding what terminal means.
   def change_blocked_reason
     terminal_blocked_reason("it can no longer be changed")
   end
 
-  # Named after the role rather than the verb. A workspace renames these, and
-  # the same sentence has to cover clearing a role as well as filling one.
+  # Named after the role rather than the verb, since the sentence covers
+  # clearing a role as well as filling one.
   def role_assignment_blocked_reason(role)
     return lead_assignment_blocked_reason if role.slug == IncidentRole::SLUG_INCIDENT_LEAD
 
     terminal_blocked_reason("its #{role.name} can no longer be changed")
   end
 
-  # The timeline, with each update snapshot linked to the one before it from
-  # a single ordered load. "Before" is defined by the same order the
-  # timeline renders, never by a per-row timestamp query.
+  # "Before" is the order the timeline renders, never a per-row timestamp query.
   def timeline_events
     events = incident_events.chronological.with_attached_artifact.includes(:actor, eventable: nil).to_a
     updates = events.map(&:eventable).grep(IncidentUpdate)
@@ -237,8 +220,7 @@ class Incident < ApplicationRecord
     events
   end
 
-  # Every attached runbook renders the state of its own steps, so they share
-  # one load rather than querying per attachment.
+  # One load shared by every attached runbook, instead of a query per attachment.
   def runbook_step_actions
     @runbook_step_actions ||= incident_actions.active
       .where.not(runbook_step_id: nil)
@@ -268,7 +250,6 @@ class Incident < ApplicationRecord
     inverse_incident_relationships.duplicates.map(&:incident)
   end
 
-
   # Messages Firefight pinned itself, which the timeline leaves out.
   def own_pinned_message?(message_id)
     return false if message_id.blank?
@@ -278,18 +259,15 @@ class Incident < ApplicationRecord
 
   private
 
-  # One sentence saying why a responder action cannot run on an incident that
-  # is over, or nil when it can. Every entry point renders this rather than
-  # deciding the rule again.
+  # Every entry point renders this rather than deciding the rule again.
   def terminal_blocked_reason(clause)
     return nil unless terminal?
 
     "#{identifier} is #{canceled? ? "canceled" : "closed"}, so #{clause}."
   end
 
-  # Asking someone, bringing someone in and thanking someone all post in the
-  # incident channel, which the creation workflow opens a moment after the
-  # incident exists.
+  # These all post in the incident channel, which the creation workflow opens
+  # a moment after the incident exists.
   def channelless_blocked_reason(clause)
     return nil if channel_id.present?
 

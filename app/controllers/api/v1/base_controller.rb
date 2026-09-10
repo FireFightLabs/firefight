@@ -1,10 +1,7 @@
 class Api::V1::BaseController < ActionController::API
-  # Verify Slack signature on all requests by default
-  # Controllers can skip with: skip_before_action :verify_slack_signature!
   before_action :verify_slack_signature!
 
-  # Registered first so the more specific handlers below take precedence
-  # (Rails matches rescue_from handlers last-defined-first).
+  # Registered first so the specific handlers below win, Rails matches rescue_from last-defined-first.
   rescue_from StandardError, with: :server_error
   rescue_from ActiveRecord::RecordNotFound, with: :not_found
   rescue_from ActionController::ParameterMissing, with: :bad_request

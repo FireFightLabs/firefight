@@ -1,8 +1,5 @@
-# Builds a real git repository in a tempdir for clone-manager and code-tool
-# tests: two commits by distinct authors so blame has history, a nested file
-# for path handling, and a secrets-shaped file for denylist coverage. Tests
-# stub CloneManager.remote_url to point at the returned path. Git clones
-# happily from a local directory.
+# A real git repo in a tempdir. Two commits by different authors so blame has history, a nested file
+# for path handling, and a secrets-shaped file for denylist coverage. Tests point CloneManager.remote_url at it.
 module FixtureRepo
   FIRST_AUTHOR = [ "Ada Payments", "ada@example.com" ].freeze
   SECOND_AUTHOR = [ "Grace Retries", "grace@example.com" ].freeze
@@ -60,8 +57,7 @@ module FixtureRepo
     raise "fixture repo git #{args.first} failed: #{stderr}" unless status.success?
   end
 
-  # The standard clone-tool test rig: a fixture repo, a scratch clone root,
-  # and CloneManager pointed at both. Yields [fixture_path, clone_root].
+  # Yields [fixture_path, clone_root] with CloneManager pointed at both.
   def self.with_clone_env
     fixture = create!
     clone_root = Dir.mktmpdir("clone-root")

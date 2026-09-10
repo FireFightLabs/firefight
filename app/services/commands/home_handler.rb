@@ -1,11 +1,8 @@
 module Commands
-  # Sub-dispatcher for /ff. Routes a subcommand to the command that owns it.
-  # The table is also what CommandDispatcher reads to find the leaf whose
-  # authorization the Ability Gateway checks, so routing has one source.
+  # CommandDispatcher reads the same table to find the leaf the gateway authorizes.
   class HomeHandler
     extend HandlerAuthorization
-    # Only reached directly for a subcommand nothing owns, which just prints
-    # a suggestion.
+    # Only reached directly for a subcommand nothing owns.
     authorizes_nothing
 
     SUBCOMMAND_HANDLERS = {
@@ -43,7 +40,6 @@ module Commands
 
     SUBCOMMANDS = SUBCOMMAND_HANDLERS.keys.freeze
 
-    # Bare /ff opens the home modal, same as `/ff home`.
     def self.handler_for(subcommand)
       return Commands::OpenHome if subcommand.blank?
 
@@ -57,7 +53,7 @@ module Commands
 
       Command.ephemeral(unknown_message(subcommand))
     rescue Incident::NotActive, AdapterError::TriggerExpired
-      # Refusals and expiry have their own replies in CommandDispatcher.
+      # These have their own replies in CommandDispatcher.
       raise
     rescue => e
       Rails.logger.error({

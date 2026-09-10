@@ -1,6 +1,4 @@
-# A workspace's first run. Progress is read off the first test incident,
-# never stored. Stored: the welcome message id, the last coaching step
-# posted, dialog dismissal, completion.
+# Progress is read off the first test incident, never stored.
 class WorkspaceOnboarding < ApplicationRecord
   # Shared by the Slack welcome message and the dashboard dialog.
   STEPS = [
@@ -9,7 +7,6 @@ class WorkspaceOnboarding < ApplicationRecord
     { title: "Resolve it.", detail: "Firefight drafts the postmortem for you" }
   ].freeze
 
-  # Events that can move the first test incident a stage on.
   PROGRESS_EVENTS = [
     IncidentEvent::INCIDENT_CREATED,
     IncidentEvent::LEAD_ASSIGNED,
@@ -18,7 +15,6 @@ class WorkspaceOnboarding < ApplicationRecord
     IncidentEvent::POSTMORTEM_GENERATED
   ].freeze
 
-  # How far the first test incident has got. Every surface reads this.
   STAGE_NONE = 0
   STAGE_DECLARED = 1
   STAGE_LED = 2
@@ -42,7 +38,7 @@ class WorkspaceOnboarding < ApplicationRecord
     incident ? stage_of(incident) : STAGE_NONE
   end
 
-  # A canceled incident counts as done. There is nothing to write up.
+  # A canceled incident counts as done, there is nothing to write up.
   def stage_of(incident)
     return STAGE_DONE if incident.canceled? || (incident.postmortem.present? && !incident.postmortem.generating?)
     return STAGE_RESOLVED if incident.closed?

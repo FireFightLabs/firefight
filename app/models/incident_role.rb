@@ -4,16 +4,14 @@ class IncidentRole < ApplicationRecord
   NOUN = "role".freeze
   SLUG_INCIDENT_LEAD = "incident_lead"
 
-  # The lead role is referenced by slug throughout the codebase (lead
-  # assignment, serializers, UI), so every workspace gets a real row for it.
+  # The lead role is referenced by slug throughout, so every workspace gets a real row.
   DEFAULTS = [
     { name: "Incident Lead", slug: SLUG_INCIDENT_LEAD, position: 1, description: "Coordinates incident response and makes decisions." }
   ].freeze
 
   DEFAULTS_BY_SLUG = DEFAULTS.index_by { |d| d[:slug] }.freeze
 
-  # Assignments are join records, so they follow the role. Deleting a role in
-  # use is stopped by deletion_blocked_reason, not by the association.
+  # Deleting a role in use is stopped by deletion_blocked_reason, not the association.
   has_many :incident_role_assignments, dependent: :destroy
   has_many :incidents, through: :incident_role_assignments
 
@@ -43,8 +41,7 @@ class IncidentRole < ApplicationRecord
     super
   end
 
-  # An incident that has had a lead keeps one. Handing over is a reassignment,
-  # never a gap in who is accountable.
+  # An incident that has had a lead keeps one, handing over is a reassignment.
   def unassign_blocked_reason
     return "The Incident Lead cannot be cleared. Assign someone else instead." if system?
 

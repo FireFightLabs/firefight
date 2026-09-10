@@ -4,9 +4,8 @@ module Positioned
   MAX_POSITION_RETRIES = 5
 
   class_methods do
-    # Renumbers the workspace's rows to 1..N in the order given. Ids missing
-    # from ordered_ids keep their relative order at the end, so a partial list
-    # cannot silently drop rows, and ids from another workspace are ignored.
+    # Ids missing from ordered_ids keep their order at the end, so a partial
+    # list cannot drop rows. Ids from another workspace are ignored.
     def reorder!(workspace, ordered_ids)
       scope = where(workspace_id: workspace.id)
       known = scope.order(:position).pluck(:id)
@@ -15,14 +14,14 @@ module Positioned
       return if final.empty?
 
       transaction do
-        # The unique [workspace_id, position] index rules out writing final
-        # positions in place, so park every row out of range first.
+        # The unique index on position rules out writing final positions in
+        # place, so park every row out of range first.
         scope.update_all("position = -position - 1")
         scope.update_all(position_assignment_sql(final))
       end
     end
 
-    # Extended by models that mirror the ordering into another column.
+    # Overridden by models that mirror the ordering into another column.
     def position_columns(index, _total)
       { position: index + 1 }
     end
@@ -41,10 +40,8 @@ module Positioned
     end
   end
 
-  # Assigns the next position within the record's workspace scope and saves.
-  # Relies on a unique [workspace_id, position] index as the race-stop and
-  # retries on RecordNotUnique. Without retry, two concurrent admin clicks
-  # could both read max=N and try to write position=N+1.
+  # The unique index on position is the race stop. Two concurrent clicks can
+  # both read max N and try N+1, so the loser retries.
   def save_in_position!
     attempts = 0
     begin
@@ -53,9 +50,8 @@ module Positioned
       save!
     rescue ActiveRecord::RecordNotUnique
       raise if attempts >= MAX_POSITION_RETRIES
-      # The index that fired may be the slug's, not the position's. Revalidate
-      # so a name collision lost in a race reports on the name instead of
-      # retrying into a 500.
+      # The index that fired may be the slug's. Revalidate so a name collision
+      # reports on the name instead of retrying into a 500.
       raise ActiveRecord::RecordInvalid.new(self) unless valid?
 
       retry

@@ -53,8 +53,7 @@ module Mcp
         }.compact
       end
 
-      # Membership UUIDs are opaque to MCP clients. Resolve display names in
-      # one query and emit { id, name } pairs in their place.
+      # Membership ids are opaque to MCP clients, so names are resolved in one query.
       def self.member_names_for(workspace, entries)
         ids = entries.flat_map do |entry|
           entry.catalog_type.member_attribute_slugs.flat_map { |key| Array(entry.entry_attributes[key]) }

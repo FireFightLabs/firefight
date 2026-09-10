@@ -1,5 +1,3 @@
-# One person following the incident. The membership id keys the row, the
-# chip inside renders the same way every other person on the page does.
 class IncidentSubscriberSerializer < BaseSerializer
   object_as :membership
 

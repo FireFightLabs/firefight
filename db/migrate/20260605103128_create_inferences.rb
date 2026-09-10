@@ -24,13 +24,13 @@ class CreateInferences < ActiveRecord::Migration[8.1]
 
       t.datetime :created_at, null: false
 
-      # Time-series queries (daily/weekly trends per workspace)
+      # Daily and weekly trends per workspace.
       t.index [ :workspace_id, :created_at ]
 
-      # Cost-per-feature aggregations
+      # Cost per feature.
       t.index [ :workspace_id, :feature, :created_at ]
 
-      # Per-incident (or per-postmortem, etc.) cost lookups via the polymorphic anchor
+      # Cost per incident or postmortem through the polymorphic anchor.
       t.index [ :workspace_id, :inferable_type, :inferable_id ]
     end
   end

@@ -1,24 +1,18 @@
-# Load custom strategies and helpers
 require Rails.root.join("lib", "omniauth", "strategies", "slack")
 require Rails.root.join("lib", "omniauth", "strategies", "slack_openid")
 require Rails.root.join("lib", "slack", "manifest_reader")
 
-# Read bot scopes from Slack manifest (used for the install step only)
 slack_scopes = Slack::ManifestReader.scopes_for_environment(Rails.env)
 
 slack_client_id     = ENV["SLACK_CLIENT_ID"]     || Rails.application.credentials.dig(:slack, :client_id)
 slack_client_secret = ENV["SLACK_CLIENT_SECRET"] || Rails.application.credentials.dig(:slack, :client_secret)
 
 Rails.application.config.middleware.use OmniAuth::Builder do
-  # Step 1, identity only (Slack shows its native workspace picker).
-  # Used for every dashboard sign-in. No bot scopes, no install.
+  # Identity only, used for every dashboard sign-in. Slack shows its own workspace picker.
   provider :slack_openid, slack_client_id, slack_client_secret
 
-  # Step 2, bot install. Only triggered when a user without an existing
-  # workspace explicitly chooses to install Firefight. The team_id is read
-  # from session (set by the OIDC handler) so the picker is skipped.
-  # Only bot scopes are requested here, user identity was already established
-  # by the :slack_openid provider in step 1.
+  # Bot install, only when a user with no workspace chooses to install. The team_id from the
+  # OIDC step skips the picker, and identity was already established there.
   provider :slack, slack_client_id, slack_client_secret,
     scope: slack_scopes[:bot_scope],
     setup: ->(env) {
@@ -27,13 +21,11 @@ Rails.application.config.middleware.use OmniAuth::Builder do
     }
 end
 
-# Configure OmniAuth
 OmniAuth.config.allowed_request_methods = [ :get, :post ]
 OmniAuth.config.silence_get_warning = true
 OmniAuth.config.on_failure = proc { |env|
   OmniAuth::FailureEndpoint.new(env).redirect_to_failure
 }
 
-# Silence OmniAuth's strategy-level debug chatter ("Setup endpoint detected…")
-# during tests. Gets its own logger so we don't lower Rails.logger globally.
+# Own logger so tests silence OmniAuth without lowering Rails.logger.
 OmniAuth.config.logger = Logger.new(IO::NULL) if Rails.env.test?

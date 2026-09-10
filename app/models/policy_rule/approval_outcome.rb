@@ -1,6 +1,4 @@
-# Outcome vocabulary + write-time validation for the approvals domain. Which
-# role or which named people must approve, where they are asked, and whether
-# the requester may approve their own request. One approver decides (v1).
+# Outcome vocabulary and write-time validation for approvals. One approver decides.
 module PolicyRule::ApprovalOutcome
   REQUIRE_KEY = "require"
   SUPPORTED_COUNT = 1
@@ -50,8 +48,7 @@ module PolicyRule::ApprovalOutcome
     errors
   end
 
-  # Every named approver must be a principal of this workspace, and a
-  # machine can only be named when the rule says agents may decide.
+  # A machine can only be named when the rule says agents may decide.
   def self.approver_errors(requirement, workspace)
     approvers = requirement["approvers"]
     return [] if approvers.nil?

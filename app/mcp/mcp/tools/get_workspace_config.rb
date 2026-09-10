@@ -1,8 +1,7 @@
 module Mcp
   module Tools
-    # One read behind every configuration tool. An agent asked to change how a
-    # workspace is set up needs the slugs before it can name anything, and
-    # seven separate list tools would be seven calls to answer one question.
+    # An agent needs the slugs before it can name anything, and separate list
+    # tools would be several calls to answer one question.
     class GetWorkspaceConfig < Base
       tool_name GET_WORKSPACE_CONFIG
       authorize_as Ability::Action::RESOURCE_INCIDENTS

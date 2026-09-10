@@ -1,10 +1,5 @@
-# One routing evaluation for a scope, an alert source or the workspace: the
-# scope's effective policy, the fields it exposes to rules, the
-# catalog-enriched context, and the evaluation itself. Ingest, the route
-# tester, the test-message sender, and MCP's dry run all route through here,
-# so a change to what rules can see happens in one place.
-#
-# Pure lookups, no writes and no platform calls.
+# Ingest, the route tester, the test sender and MCP's dry run all route through here,
+# so what rules can see changes in one place. No writes, no platform calls.
 class Alert::Router
   Result = Struct.new(:policy, :fields, :context, :evaluation, keyword_init: true) do
     def matched?
@@ -29,8 +24,7 @@ class Alert::Router
     @scope = scope
   end
 
-  # nil when the scope has no enabled policy, so callers answer "not
-  # configured" instead of evaluating against nothing.
+  # nil when the scope has no enabled policy, so callers answer "not configured".
   def policy
     return @policy if defined?(@policy)
 

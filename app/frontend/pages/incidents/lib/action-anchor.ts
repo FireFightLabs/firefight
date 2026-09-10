@@ -5,8 +5,8 @@ export function actionAnchorId(actionId: string) {
   return `action-${actionId}`
 }
 
-// A timeline entry about an action item points at the item in the sidebar:
-// scroll it into view and flash it, so the reader can see where it is now.
+// Scrolls the sidebar item into view and flashes it, so the reader sees where
+// the action is now.
 export function revealAction(actionId: string) {
   const element = document.getElementById(actionAnchorId(actionId))
   if (!element) {

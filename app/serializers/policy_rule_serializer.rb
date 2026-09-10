@@ -1,8 +1,7 @@
 class PolicyRuleSerializer < BaseSerializer
   object_as :rule
 
-  # Union types built from the model constants so the generated TS carries
-  # the real operator/action/target vocabulary instead of plain string.
+  # Built from the model constants so the generated TS carries the real vocabulary.
   OPERATOR_UNION = PolicyRule::OPERATORS.map(&:inspect).join(" | ")
   ACTION_UNION = PolicyRule::AlertRoutingOutcome::ACTIONS.map(&:inspect).join(" | ")
   NOTIFY_TARGET_UNION = PolicyRule::AlertRoutingOutcome::NOTIFY_TARGET_TYPES.map(&:inspect).join(" | ")

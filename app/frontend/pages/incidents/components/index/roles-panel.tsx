@@ -3,8 +3,7 @@ import type { Incident } from "@/pages/incidents/types"
 import { InlineSelect, type InlineChoice } from "@/pages/incidents/components/index/inline-select"
 import { assignIncidentRolePath } from "@/lib/routes"
 
-// Clearing a role is picking nobody, so the picker carries an entry for it
-// rather than hiding the option behind a separate control.
+// Clearing a role is picking nobody, so the picker carries an entry for it.
 const UNASSIGNED = ""
 
 function Holder({ member }: { member: Incident["roles"][number]["member"] }) {

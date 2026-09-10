@@ -1,8 +1,6 @@
 require "test_helper"
 
-# An agent running an incident the way a person does: open it, say what it
-# finds, move it, close it. Everything here goes through the same forms and the
-# same services the Slack modal and the dashboard use.
+# Everything here goes through the same forms and services the Slack modal and the dashboard use.
 class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -31,9 +29,6 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # The scenario: something arrives, an agent decides it is an incident, opens
-  # one, works it, and closes it.
-
   test "an agent declares an incident and is recorded as having declared it" do
     content, is_error = call_tool(Mcp::Tools::DECLARE_INCIDENT, {
       answers: { name: "Checkout failing for EU", severity: severity_slug }
@@ -47,8 +42,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
     assert_equal incident.identifier, content["identifier"]
   end
 
-  # declared_by is polymorphic now, so a service key can be recorded as the
-  # declarer too. Before, only a person could, and a key had to borrow one.
+  # declared_by is polymorphic, before that a key had to borrow a person.
   test "a service key is recorded as declaring, not a person it borrowed" do
     key, token = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Triage bot",
@@ -64,8 +58,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
     assert_equal "api_key", incident.declared_by.actor_kind
   end
 
-  # The point of agents: one takes part under its own name, with only the
-  # abilities it was granted, and the record says the agent did it.
+  # An agent takes part under its own name with only the abilities it was granted.
   test "an agent declares under its own name, not a person's" do
     agent, token = create_agent(
       workspace: @workspace, created_by: @membership, name: "Support agent", slug: "support_agent",
@@ -110,8 +103,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
     assert_nil @workspace.incidents.find_by(name: "Should never exist")
   end
 
-  # Rotation moves the credential, never the identity: the same agent keeps
-  # its grants and stays the actor on everything it does next.
+  # Rotation moves the credential, never the identity.
   test "an agent keeps its identity across a token rotation" do
     agent, = create_agent(
       workspace: @workspace, created_by: @membership, name: "Rotator", slug: "rotator",
@@ -192,9 +184,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
     assert_match(/already active/, text)
   end
 
-  # The resolver is the same one Slack and the dashboard read, so an agent
-  # cannot write a field this workspace never asked for.
-
+  # The resolver is the same one Slack and the dashboard read.
   test "an answer the form never asked for is refused" do
     _, is_error, text = call_tool(Mcp::Tools::POST_INCIDENT_UPDATE, {
       incident: @incident.identifier,

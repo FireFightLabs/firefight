@@ -1,10 +1,7 @@
 # Slack's single gate into the Ability Gateway, the role Mcp::ToolDispatcher
-# plays for tools and the API controllers play for REST. Handlers declare what
-# they authorize as. This resolves the acting principal and runs the call
-# through the gateway.
+# plays for tools and the API controllers play for REST.
 module AuthorizedDispatch
-  # Raised when the platform never gave us an identity to authorize as. The
-  # dispatchers refuse the call rather than running it unattributed.
+  # The dispatchers refuse a call with no identity rather than running it unattributed.
   class PrincipalUnresolved < StandardError; end
 
   UNRESOLVED_MESSAGE = "Firefight couldn't verify your workspace account. Please try again in a moment."
@@ -26,8 +23,7 @@ module AuthorizedDispatch
     ) { yield }
   end
 
-  # The acting membership, provisioned on demand so a first-time caller is a
-  # principal like anyone else. nil when the platform lookup fails.
+  # Provisioned on demand so a first-time caller is a principal like anyone else.
   def self.resolve_principal(subject)
     WorkspaceMemberProvisioner.find_or_provision!(
       workspace: subject.workspace, platform_user_id: subject.user_id, adapter: subject.workspace.adapter

@@ -1,7 +1,5 @@
 class IncidentEvent < ApplicationRecord
-  # Raised when something that is not an AI-noted milestone is asked to be
-  # dismissed. Dismissal is error correction on a note, never a way to hide
-  # what a person did.
+  # Dismissal is error correction on an AI note, never a way to hide what a person did.
   class NotDismissable < StandardError; end
 
   INCIDENT_CREATED = "incident.created"
@@ -34,8 +32,7 @@ class IncidentEvent < ApplicationRecord
   RUNBOOK_APPLIED = "runbook.applied"
   MILESTONE_NOTED = "milestone.noted"
 
-  # What a milestone note is about. The extractor picks one per note and the
-  # timeline colours the entry from it.
+  # The extractor picks one per note and the timeline colours the entry from it.
   MILESTONE_HYPOTHESIS = "hypothesis"
   MILESTONE_FINDING = "finding"
   MILESTONE_ROOT_CAUSE = "root_cause"
@@ -95,9 +92,8 @@ class IncidentEvent < ApplicationRecord
     MILESTONE_NOTED => "noted"
   }.freeze
 
-  # Only events backed by a Recordable snapshot appear here. Action-only events
-  # (pins, file shares, escalations, relationships) carry their payload in
-  # `metadata` and have no eventable.
+  # Only events backed by a Recordable snapshot. Action-only events carry
+  # their payload in metadata and have no eventable.
   UPDATE_TYPE_MAP = {
     INCIDENT_CREATED     => IncidentUpdate::CREATED,
     INCIDENT_UPDATED     => IncidentUpdate::UPDATED,
@@ -121,8 +117,7 @@ class IncidentEvent < ApplicationRecord
     end
   end
 
-  # What the timeline calls an event nobody performed: a rule, a workflow, or
-  # the bot acting on the workspace's configuration.
+  # What the timeline calls an event nobody performed.
   AUTOMATED_ACTOR_NAME = "Firefight"
 
   belongs_to :incident
@@ -131,9 +126,7 @@ class IncidentEvent < ApplicationRecord
   delegated_type :eventable, types: %w[IncidentUpdate IncidentActionUpdate PostmortemUpdate], optional: true
   has_one_attached :artifact
   # Active Storage purges the blob in an after-commit hook that needs the
-  # owner row, which is gone by then. Detach without callbacks and purge the
-  # blob here instead. Prepended so it runs before the attachment's own
-  # dependent destroy.
+  # owner row, gone by then. Prepended to run before the attachment's own destroy.
   before_destroy :purge_artifact, prepend: true
   has_many :webhook_deliveries, dependent: :delete_all
 
@@ -145,9 +138,8 @@ class IncidentEvent < ApplicationRecord
     metadata.to_h["dismissed_at"].present?
   end
 
-  # Error correction, not deletion. The row stays, and the dashboard files it
-  # under the day's dismissed notes. Any principal may dismiss, so the name is
-  # always stored and the member id only when a person did it.
+  # The row stays and the dashboard files it under dismissed notes. Any
+  # principal may dismiss, so the name is stored and the member id only for a person.
   def dismiss!(by:)
     raise NotDismissable, "Only AI-noted milestones can be dismissed." unless milestone?
 
@@ -168,8 +160,7 @@ class IncidentEvent < ApplicationRecord
   validate :eventable_matches_event_type
 
   scope :chronological, -> { order(created_at: :asc) }
-  # A dismissed note was a wrong reading. It stays on the row so the
-  # correction is visible in the dashboard, and every other surface skips it.
+  # A dismissed note stays on the row for the dashboard, every other surface skips it.
   scope :undismissed, -> { where("metadata->>'dismissed_at' IS NULL") }
   scope :recent, -> { order(created_at: :desc) }
   scope :updates, -> { where(eventable_type: "IncidentUpdate") }
@@ -194,16 +185,13 @@ class IncidentEvent < ApplicationRecord
     actor&.actor_display_name || AUTOMATED_ACTOR_NAME
   end
 
-  # The full sentence, for text surfaces (Slack, AI context, webhooks). The
-  # dashboard renders the stem and the subject separately so the subject can
-  # be a link or a person.
+  # For text surfaces. The dashboard renders stem and subject separately so
+  # the subject can be a link or a person.
   def description
     [ description_stem, subject_label ].compact.join(" ")
   end
 
-  # Role events name the role, since they carry no snapshot to render a
-  # before/after from, and "assigned an incident role" on its own leaves out
-  # the fact a reader wants.
+  # Role events name the role, they carry no snapshot to render a before and after from.
   def description_stem
     role_name = metadata.to_h["role_name"]
     return EVENT_DESCRIPTIONS[event_type] if role_name.blank?
@@ -215,8 +203,7 @@ class IncidentEvent < ApplicationRecord
     end
   end
 
-  # The thing the sentence is about, read from what the writer stored, so no
-  # surface has to resolve an id to say what happened.
+  # Read from what the writer stored, so no surface has to resolve an id.
   def subject_label
     meta = metadata.to_h
     case event_type
@@ -231,9 +218,8 @@ class IncidentEvent < ApplicationRecord
     end
   end
 
-  # Every consumer renders at, description and by, so a milestone says what it
-  # needs to inside its sentence. Handing over kind and said_by as their own
-  # keys would ship data nothing reads.
+  # A milestone says what it needs to inside its sentence, kind and said_by
+  # as their own keys would ship data nothing reads.
   def to_context_hash
     { type: event_type, at: created_at.iso8601, by: actor_name, description: description }
   end

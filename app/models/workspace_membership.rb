@@ -15,7 +15,6 @@ class WorkspaceMembership < ApplicationRecord
   has_many :oauth_access_tokens, class_name: "Doorkeeper::AccessToken",
            foreign_key: :resource_owner_id, dependent: :delete_all
 
-
   validates :platform_user_id, presence: true
   validates :platform_user_id, uniqueness: { scope: :workspace_id }
   validates :role, presence: true
@@ -26,7 +25,7 @@ class WorkspaceMembership < ApplicationRecord
     user.name
   end
 
-  # Actor interface (shared with ApiKey) for polymorphic event/snapshot attribution.
+  # Actor interface shared with ApiKey.
   def actor_display_name = display_name
   def actor_kind = Ability::Principal::KIND_USER
 
@@ -34,24 +33,12 @@ class WorkspaceMembership < ApplicationRecord
     admin_role? || owner_role?
   end
 
-  # Incident participation is member-level authority. Responding to an
-  # incident is what a member is for, so declaring, updating, closing and
-  # staffing one needs no grant, and it must read the same whether the
-  # member is clicking a button in Slack, calling the API with a personal
-  # token, or driving MCP. Configuring the workspace stays admin territory.
+  # Responding to an incident needs no grant, from Slack, a personal token or
+  # MCP alike. Configuring the workspace stays admin territory.
   PARTICIPATION = { Ability::Action::RESOURCE_INCIDENTS => [ Ability::Action::ACTION_CREATE, Ability::Action::ACTION_UPDATE ].freeze }.freeze
 
-  # Member-level authority: humans read everything in their workspace and
-  # participate in incidents. Admins additionally hold every system write,
-  # mirroring the settings rule (mutations are admin territory). Personal
-  # tokens and OAuth connections inherit exactly this, so an admin's agent
-  # can write config with the admin's authority, still ledgered and
-  # approval-gated. Admins hold every catalogued ability, including the tools
-  # an integration mints. Enabling a capability on a connection is itself the
-  # deliberate decision, so it takes effect without a second grant step.
-  # Approval policies still gate the risky ones. Anything reaching another
-  # system stays an explicit grant for members, as it does for API keys and
-  # agents.
+  # Admins hold every catalogued ability including integration tools, since enabling one on a
+  # connection is already the deliberate step. For members anything reaching another system stays an explicit grant.
   def implicitly_allowed?(action)
     return true if admin_access?
     return false unless action.system?
@@ -59,9 +46,8 @@ class WorkspaceMembership < ApplicationRecord
     implicitly_permits?(*action.key.split("."))
   end
 
-  # The same rule expressed over a resource/action pair, for callers holding
-  # those rather than an Ability::Action. ApiKey's personal-token path reads
-  # it, so the two can never drift.
+  # The same rule for callers holding a resource and action rather than an
+  # Ability::Action. ApiKey's personal-token path reads it.
   def implicitly_permits?(resource, crud_action)
     return true if admin_access?
     return false if Ability::Action::ADMIN_ONLY_RESOURCES.include?(resource.to_s)
@@ -79,12 +65,7 @@ class WorkspaceMembership < ApplicationRecord
   scope :admins, -> { where(role: :admin) }
   scope :members, -> { where(role: :member) }
 
-  # Finds a member from whatever identifier a caller holds. Email is the one
-  # people can type and the one that survives a platform move, so it is what
-  # machine-facing surfaces ask for. ids are accepted because our own pickers
-  # and API reads hand them back. Resolves only, never provisions. Creating a
-  # member is a billable act and belongs to a deliberate flow, not to a write
-  # that happens to name someone.
+  # Never provisions, creating a member is billable and belongs to a deliberate flow.
   def self.resolve(reference)
     return nil if reference.blank?
 
@@ -94,10 +75,8 @@ class WorkspaceMembership < ApplicationRecord
       joins(:user).find_by(users: { email: reference.downcase })
   end
 
-  # The same lookup for a caller that was handed a name and cannot carry on
-  # without it. A reference matching nobody is a mistake worth saying out loud
-  # rather than a silent nil. Naming nobody is still a legitimate answer, so a
-  # blank reference resolves to no member rather than raising.
+  # A reference matching nobody raises. A blank reference means nobody and
+  # resolves to nil.
   def self.resolve!(reference)
     return nil if reference.blank?
 
@@ -105,15 +84,12 @@ class WorkspaceMembership < ApplicationRecord
       raise(ActiveRecord::RecordNotFound, "No workspace member matches #{reference.inspect}")
   end
 
-  # Locks the workspace so "am I the first member" and the insert that answers
-  # it are one serialized step. Two people completing the install in the same
-  # moment would otherwise both read an empty workspace and both become owner,
-  # which hands workspace administration to whoever happened to race.
+  # Locks the workspace so "am I the first member" and the insert are one
+  # step. Two installs finishing at once would otherwise both become owner.
   def self.find_or_create_from_omniauth!(user, workspace, auth_hash)
     transaction do
-      # Locks a separate instance on purpose. workspace.with_lock reloads, and
-      # reload clears previously_new_record?, which the install flow reads
-      # afterwards to decide whether to seed a brand new workspace.
+      # A separate instance on purpose. with_lock reloads, which clears
+      # previously_new_record? that the install flow reads afterwards.
       Workspace.lock.find(workspace.id)
       create_from_omniauth!(user, workspace, auth_hash)
     end

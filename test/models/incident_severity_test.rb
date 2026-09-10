@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentSeverityTest < ActiveSupport::TestCase
-  # Basic validations
-
   test "requires name" do
     severity = IncidentSeverity.new(
       workspace: workspaces(:slack_workspace_one),
@@ -43,7 +41,7 @@ class IncidentSeverityTest < ActiveSupport::TestCase
       slug: "test",
       rank: 1
     )
-    # position is required but has no presence validation, just numericality
+    # position has only a numericality validation, so nil still passes.
     assert severity.valid?
   end
 
@@ -81,8 +79,6 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     )
     assert severity.valid?
   end
-
-  # Uniqueness validations
 
   test "slug must be unique within workspace" do
     existing = incident_severities(:critical_ws1)
@@ -155,8 +151,6 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_not_equal ws1_default.workspace_id, ws2_default.workspace_id
   end
 
-  # Associations
-
   test "belongs to workspace" do
     severity = incident_severities(:critical_ws1)
     assert_instance_of Workspace, severity.workspace
@@ -167,8 +161,6 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     severity = incident_severities(:critical_ws1)
     assert_respond_to severity, :incidents
   end
-
-  # Scopes
 
   test "active scope excludes deleted severities" do
     active_severities = IncidentSeverity.active
@@ -202,8 +194,6 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_equal incident_severities(:p1_ws2), ws2_default
   end
 
-  # Default severity
-
   test "make_default! demotes the incumbent in the same transaction" do
     incumbent = incident_severities(:minor_ws1)
     promoted = incident_severities(:critical_ws1)
@@ -229,8 +219,6 @@ class IncidentSeverityTest < ActiveSupport::TestCase
       IncidentSeverity.where(id: other.id).update_all(is_default: true)
     end
   end
-
-  # Deletability
 
   test "with_usage_counts attaches the count without an extra query per row" do
     workspace = workspaces(:slack_workspace_one)
@@ -277,8 +265,6 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     end
     assert_includes severity.errors[:base], "Cannot delete record because dependent incidents exist"
   end
-
-  # Comparison methods
 
   test "more_severe_than? returns true when rank is higher" do
     critical = incident_severities(:critical_ws1)
@@ -346,24 +332,15 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_not critical.less_severe_than?(same_rank)
   end
 
-  # Rank comparisons across different naming conventions
-
   test "ranks work correctly with different naming conventions" do
-    # Workspace one uses: Critical (5), Major (3), Minor (1)
-    # Workspace two uses: P0 (10), P1 (7), P2 (4), P3 (1)
-
     critical_ws1 = incident_severities(:critical_ws1)
     p0_ws2 = incident_severities(:p0_ws2)
     p1_ws2 = incident_severities(:p1_ws2)
 
-    # P0 (rank 10) should be more severe than Critical (rank 5)
     assert p0_ws2.more_severe_than?(critical_ws1)
 
-    # P1 (rank 7) should be more severe than Critical (rank 5)
     assert p1_ws2.more_severe_than?(critical_ws1)
   end
-
-  # Soft deletes
 
   test "soft delete sets deleted_at" do
     severity = incident_severities(:critical_ws1)
@@ -380,8 +357,6 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     severity.update!(deleted_at: Time.current)
     assert_not_includes IncidentSeverity.active.reload, severity
   end
-
-  # Fixtures loading
 
   test "workspace one fixtures load correctly" do
     critical = incident_severities(:critical_ws1)
@@ -410,8 +385,6 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_equal 7, p1.rank
     assert p1.is_default
   end
-
-  # Placement
 
   test "place_at! moves a row and derives every rank from the new order" do
     workspace = workspaces(:slack_workspace_one)

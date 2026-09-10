@@ -8,8 +8,8 @@ export type { IncidentAction } from "@/types/serializers"
 export type { TimelineEvent } from "@/types/serializers"
 export type TimelineChange = NonNullable<TimelineEvent["changes"]>[number]
 
-// What the incident page receives beyond the shared props. Kept apart from
-// SharedProps so a partial reload can be typed against exactly these keys.
+// Kept apart from SharedProps so a partial reload can be typed against exactly
+// these keys.
 export interface IncidentPageOwnProps {
   incident: IncidentDetail
   timelineEvents?: TimelineEvent[]

@@ -5,8 +5,7 @@ class Api::V1::StatusesController < Api::V1::ApiController
 
   private
 
-  # A status belongs to one lifecycle stage, which is what decides whether it
-  # means the incident is live, closed or canceled.
+  # The stage decides whether a status means live, closed or canceled.
   def extra_attributes
     return {} if params[:lifecycle_stage].blank?
 

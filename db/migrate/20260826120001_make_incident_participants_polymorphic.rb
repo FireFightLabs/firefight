@@ -1,7 +1,4 @@
-# An agent takes part in an incident as itself: it opens action items, claims
-# them, links incidents and thanks people. Every column naming a participant
-# has to hold a machine as readily as a person, which is what declared_by
-# already does.
+# Every column naming a participant must hold an agent as readily as a person.
 class MakeIncidentParticipantsPolymorphic < ActiveRecord::Migration[8.1]
   COLUMNS = {
     incident_actions: %i[created_by assignee],
@@ -10,8 +7,7 @@ class MakeIncidentParticipantsPolymorphic < ActiveRecord::Migration[8.1]
     shoutouts: %i[from_member to_member]
   }.freeze
 
-  # A polymorphic column cannot carry a foreign key, since the id it holds may
-  # point at a membership, an agent, or a service key.
+  # A polymorphic column cannot carry a foreign key.
   FOREIGN_KEYS = {
     incident_actions: %i[created_by_id assignee_id],
     incident_action_updates: %i[created_by_id assignee_id],

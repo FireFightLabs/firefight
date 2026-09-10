@@ -12,8 +12,6 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
     @service = WorkspaceSetupService.new(@workspace)
   end
 
-  # create_incidents_channel tests
-
   test "create_incidents_channel creates new channel successfully" do
     stub_create_channel
 
@@ -56,8 +54,6 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
     Rails.logger = original_logger
   end
 
-  # set_channel_metadata tests
-
   test "set_channel_metadata sets topic and purpose" do
     stub_set_channel_topic
       stub_set_channel_purpose
@@ -85,8 +81,6 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
 
     Rails.logger = original_logger
   end
-
-  # invite_user tests
 
   test "invite_user invites user to channel" do
     stub_invite_to_channel
@@ -150,8 +144,6 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
     Rails.logger = original_logger
   end
 
-  # post_welcome_message tests
-
   test "post_welcome_message posts message to channel" do
     stub_post_message
     result = @service.post_welcome_message(@workspace, "C12345678")
@@ -213,8 +205,6 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
     Rails.logger = original_logger
   end
 
-  # store_channel_id tests
-
   test "store_channel_id saves channel ID to workspace" do
     result = @service.store_channel_id(@workspace, "C12345678")
 
@@ -243,7 +233,6 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
   end
 
   test "store_channel_id handles save errors" do
-    # Make workspace invalid
     @workspace.platform_id = nil
 
     assert_raises(ActiveRecord::RecordInvalid) do
@@ -251,35 +240,27 @@ class WorkspaceSetupServiceTest < ActiveSupport::TestCase
     end
   end
 
-  # Integration test
-
   test "full workspace setup flow creates channel and sets metadata" do
     stub_create_channel
       stub_set_channel_topic
         stub_set_channel_purpose
           stub_invite_to_channel
             stub_post_message
-            # Create channel
             create_result = @service.create_incidents_channel(@workspace)
             channel_id = create_result[:channel_id]
 
-            # Set metadata
             metadata_result = @service.set_channel_metadata(@workspace, channel_id)
             assert metadata_result[:success]
 
-            # Post welcome
             welcome_result = @service.post_welcome_message(@workspace, channel_id)
             assert welcome_result[:message_id].present?
 
-            # Invite user
             invite_result = @service.invite_user(@workspace, channel_id, "U12345678")
             assert_equal "U12345678", invite_result[:invited_user]
 
-            # Store channel
             store_result = @service.store_channel_id(@workspace, channel_id)
             assert_equal channel_id, store_result[:channel_id]
 
-            # Verify workspace was updated
             @workspace.reload
             assert_equal channel_id, @workspace.incidents_channel_id
   end

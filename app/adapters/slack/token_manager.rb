@@ -18,8 +18,8 @@ module Slack
         true
       else
         log_error("workspace", workspace.platform_id, response["error"])
-        # The refresh token is dead, so every hourly retry would fail the
-        # same way. The workspace needs a reinstall, not another attempt.
+        # A dead refresh token fails every hourly retry the same way, only a
+        # reinstall helps.
         workspace.mark_disconnected!(Workspace::Connection::DISCONNECTED_REFRESH_FAILED) if response["error"] == "invalid_refresh_token"
         false
       end

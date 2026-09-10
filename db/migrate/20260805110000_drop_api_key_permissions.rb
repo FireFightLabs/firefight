@@ -1,7 +1,5 @@
 class DropApiKeyPermissions < ActiveRecord::Migration[8.1]
-  # Grants are already what every check reads. This column was a second copy
-  # projected onto them on every save, which silently reconciled away any grant
-  # made outside the API Keys screen.
+  # Grants are what every check reads. This column was a copy that reconciled away grants made elsewhere.
   def up
     remove_column :api_keys, :permissions
   end

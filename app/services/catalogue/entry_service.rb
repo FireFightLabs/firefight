@@ -23,10 +23,8 @@ module Catalogue
       end
     end
 
-    # External-sync entry point: when source + external_id identify an existing
-    # entry, update it. otherwise create. Lets integrations push the same
-    # entry repeatedly without duplicating (keyed on [workspace, source,
-    # external_id], enforced by a unique index).
+    # Integrations push the same entry repeatedly, keyed on workspace, source and
+    # external_id (unique index), so a match updates instead of duplicating.
     def upsert(type:, name:, raw_attributes:, source: nil, external_id: nil)
       if source.present? && external_id.present?
         existing = type.catalog_entries.active.find_by(source: source, external_id: external_id)
@@ -54,11 +52,8 @@ module Catalogue
 
     private
 
-    # A member value names a person by email, platform user id, or the
-    # membership id our own reads and pickers hand back. A value naming nobody
-    # fails the write rather than persisting nil, which the dashboard renders
-    # as "Not set" and nobody notices. Runs outside the transaction because
-    # provisioning calls the platform adapter.
+    # A value naming nobody fails the write rather than persisting a nil nobody notices.
+    # Runs outside the transaction because provisioning calls the platform adapter.
     def provision_member_attributes(entry, raw_attrs)
       definitions = entry.catalog_type.catalog_attribute_definitions.index_by(&:slug)
 
@@ -99,10 +94,8 @@ module Catalogue
       resolved.map { |_reference, membership| membership.id }
     end
 
-    # Provisioning is the dashboard's alone. There a human picked a name out of
-    # the live platform list, so creating the membership is the point. A write
-    # arriving over the API or MCP names someone who must already be here,
-    # because a catalog push is no place to mint a billable member.
+    # Only the dashboard provisions, where a human picked from the live platform list.
+    # An API or MCP write must name an existing member, a catalog push is no place to mint a billable one.
     def resolve_member(value)
       existing = @workspace.workspace_memberships.resolve(value)
       return existing if existing

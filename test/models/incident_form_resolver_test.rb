@@ -6,8 +6,6 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     @resolver = IncidentFormResolver.new(@workspace)
   end
 
-  # Resolve
-
   test "resolve returns visible fields for a lifecycle event" do
     fields = @resolver.resolve(IncidentForm::SLUG_DECLARE)
 
@@ -41,8 +39,6 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
       @resolver.resolve("nonexistent")
     end
   end
-
-  # validate_submission, system fields
 
   test "valid submission with system fields returns no errors" do
     result = @resolver.validate_submission(IncidentForm::SLUG_DECLARE, {
@@ -80,8 +76,6 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert result[:errors].any? { |e| e.include?("Severity") && e.include?("required") }
   end
 
-  # validate_submission, custom fields
-
   test "valid catalog_multi_reference value accepted" do
     entry = catalog_entries(:auth_service)
 
@@ -112,8 +106,6 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert result[:errors].any? { |e| e.include?("Affected Services") && e.include?("array") }
   end
 
-  # validate_submission, unknown fields
-
   test "unknown fields are rejected" do
     result = @resolver.validate_submission(IncidentForm::SLUG_DECLARE, {
       "severity" => "critical",
@@ -122,8 +114,6 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
 
     assert result[:errors].any? { |e| e.include?("Unknown fields") && e.include?("unknown_field") }
   end
-
-  # validate_submission, symbol keys
 
   test "symbol keys are normalized to strings" do
     result = @resolver.validate_submission(IncidentForm::SLUG_DECLARE, {
@@ -135,8 +125,6 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_equal "critical", result[:system_attrs]["severity"]
     assert_equal "Test", result[:system_attrs]["name"]
   end
-
-  # validate_submission!
 
   test "validate_submission! raises on errors" do
     assert_raises(IncidentFormResolver::ValidationError) do
@@ -152,8 +140,6 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_equal "critical", result[:system_attrs]["severity"]
   end
 
-  # Resolve form
-
   test "resolve form returns different fields for different lifecycle events" do
     declare_fields = @resolver.resolve(IncidentForm::SLUG_DECLARE)
     resolve_fields = @resolver.resolve(IncidentForm::SLUG_RESOLVE)
@@ -164,13 +150,8 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_not_equal declare_keys, resolve_keys
   end
 
-  # ============================================================================
-  # UNANSWERABLE FIELDS
-  #
-  # Every one of these used to be suppressed in the Slack block builder alone,
-  # which left validate_submission demanding a field the modal never rendered.
-  # ============================================================================
-
+  # Unanswerable fields used to be suppressed in the Slack block builder alone, which left
+  # validate_submission demanding a field the modal never rendered.
   test "a status an override row materialized is still dropped while the stage holds one status" do
     fixtures_workspace_has_one_canceled_status
 
@@ -235,11 +216,8 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_match(/at least one option/, field.inactive_reason)
   end
 
-  # Conditions
-
-  # The Declare modal opens before anything has been chosen, so the context is
-  # empty. Treating that as "no filtering" showed every conditional field on
-  # first render and then hid it once a type was picked.
+  # The Declare modal opens with an empty context. Treating that as no filtering showed every
+  # conditional field on first render and hid it once a type was picked.
   test "a conditional field is hidden until its condition is met" do
     form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
     definition = @workspace.incident_field_definitions.create!(
@@ -322,11 +300,8 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     assert_includes slugs(editor), "affected_region"
   end
 
-  # The channel is named from the incident name once, at creation, and cannot
-  # be renamed later. The API already requires it and alerts derive it from the
-  # alert title, so Slack was the only path that let a blank through.
-  # Asserted on the registry, since this workspace's fixtures carry an override
-  # row for name and an override is meant to win.
+  # The channel is named from the incident name once, at creation. Slack was the only path that let a
+  # blank through. Asserted on the registry because this workspace's fixtures carry an override row for name.
   test "name ships required on declare" do
     definition = IncidentSystemField.fetch(IncidentSystemField::KEY_NAME)
 
@@ -334,8 +309,7 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
                  definition.required_mode_for(IncidentForm::SLUG_DECLARE)
   end
 
-  # What a brand new workspace is asked, before anyone configures anything.
-  # Everything else stays listed in the editor, switched off.
+  # What a brand new workspace is asked before anyone configures anything.
   test "the shipped forms ask for a deliberate set" do
     expected = {
       IncidentForm::SLUG_DECLARE => [ "Name", "Severity", "Summary" ],

@@ -1,7 +1,5 @@
-# First-match-wins rule evaluation. Pure (no side effects) and returns a full
-# trace, so the same call powers routing, the route-tester UI, and future
-# read-only MCP tools. Domain consumers interpret the outcome. Evaluation
-# never does.
+# First match wins. No side effects and a full trace, so the same call powers
+# routing and the route tester. Domain consumers interpret the outcome.
 module Policy::Evaluation
   extend ActiveSupport::Concern
 
@@ -78,8 +76,7 @@ module Policy::Evaluation
     { field: field, operator: operator, value: value, actual: actual, matched: matched }
   end
 
-  # Timeout guards against ReDoS from user-authored patterns. Invalid patterns
-  # are also rejected at write time by PolicyRule validation.
+  # The timeout guards against ReDoS from user-authored patterns.
   def regex_match?(pattern, actual)
     Regexp.new(pattern, timeout: REGEX_TIMEOUT_SECONDS).match?(actual)
   rescue RegexpError, Regexp::TimeoutError

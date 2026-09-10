@@ -27,8 +27,7 @@ class Interactions::RunbookStepHandlersTest < ActiveSupport::TestCase
     stub_update_message
   end
 
-  # The dispatcher turns this into an ephemeral notice, so the handler lets
-  # the model's refusal through rather than swallowing it.
+  # The dispatcher turns the refusal into an ephemeral notice, so the handler must not swallow it.
   test "claiming a step once the incident is over raises the refusal for the dispatcher to explain" do
     @incident.update!(incident_status: incident_statuses(:resolved_ws1))
 

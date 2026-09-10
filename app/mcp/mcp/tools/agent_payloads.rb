@@ -1,8 +1,7 @@
 module Mcp
   module Tools
-    # Minting a credential alongside the agent is one operation, since an agent
-    # without one can do nothing and leaving it to a second call is a step
-    # everyone forgets.
+    # The credential is minted with the agent, leaving it to a second call is a
+    # step everyone forgets.
     module AgentPayloads
       def self.create(workspace, principal, args)
         ActiveRecord::Base.transaction do
@@ -23,8 +22,7 @@ module Mcp
         ).last
       end
 
-      # A token records the membership that asked for it. Only an admin's own
-      # token reaches these tools, so the principal is always a person.
+      # Only an admin's own token reaches these tools, so the principal is always a person.
       def self.creator_for(principal)
         principal.is_a?(WorkspaceMembership) ? principal : principal.on_behalf_of
       end

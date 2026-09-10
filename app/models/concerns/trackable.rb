@@ -61,16 +61,14 @@ module Trackable
     public_send(self.class.trackable_incident_via)
   end
 
-  # Reduce associations to their primary key so `belongs_to` swaps register as
-  # changes, AR objects themselves are reference-distinct on every reload.
+  # Associations reduce to their primary key so a belongs_to swap registers
+  # as a change. AR objects differ by reference on every reload.
   def tracked_snapshot
     snapshot_attributes.transform_values { |v| v.respond_to?(:id) ? v.id : v }
   end
 
-  # diff_ignores keeps platform plumbing (channel ids, message timestamps)
-  # out of changed_fields. Those columns are written by jobs and workflow
-  # steps outside record_change!, so on a stale instance they would surface
-  # as a change made by whoever records the next event.
+  # Platform plumbing columns are written outside record_change!, so on a
+  # stale instance they would surface as a change by whoever records next.
   def diff_keys(before, after)
     aliases = self.class.trackable_diff_aliases
     ignores = self.class.trackable_diff_ignores

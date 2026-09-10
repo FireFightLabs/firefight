@@ -38,8 +38,8 @@ interface RunbooksTabProps {
   canManage: boolean
 }
 
-// The incident timeline links a runbook by id. The page opens that runbook's
-// sheet straight away so the link lands on the runbook, not on the list.
+// The incident timeline links a runbook by id, so the page opens that sheet
+// straight away.
 function runbookFromUrl(runbooks: RunbookSettings[]): RunbookSettings | null {
   const requested = new URLSearchParams(window.location.search).get(RUNBOOK_QUERY_PARAM)
   if (!requested) {

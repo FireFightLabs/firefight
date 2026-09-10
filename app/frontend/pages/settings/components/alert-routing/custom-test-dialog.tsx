@@ -41,7 +41,7 @@ export function CustomTestDialog({
   disabled: boolean
   alertSourceId: string | null
   // Sending posts to Slack, so only a viewer who may change routing gets it.
-  // Running the dry run stays open to everyone.
+  // The dry run stays open to everyone.
   canSend: boolean
 }) {
   const [open, setOpen] = useState(false)

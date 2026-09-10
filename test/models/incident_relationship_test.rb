@@ -9,8 +9,6 @@ class IncidentRelationshipTest < ActiveSupport::TestCase
     @member = workspace_memberships(:alice_workspace_one)
   end
 
-  # Validations
-
   test "requires relationship_type" do
     rel = IncidentRelationship.new(
       incident: @incident1,
@@ -30,8 +28,7 @@ class IncidentRelationshipTest < ActiveSupport::TestCase
     assert_includes rel.errors[:relationship_type], "is not included in the list"
   end
 
-  # The surfaces show the sentence, the constraint is what makes it true even
-  # for a writer that skips validation.
+  # The constraint is what makes the sentence true even for a writer that skips validation.
   test "refuses to link an incident to itself" do
     rel = IncidentRelationship.new(
       incident: @incident1,
@@ -102,8 +99,6 @@ class IncidentRelationshipTest < ActiveSupport::TestCase
     assert rel.valid?
   end
 
-  # Associations
-
   test "belongs to incident" do
     rel = IncidentRelationship.create!(
       incident: @incident1,
@@ -133,8 +128,6 @@ class IncidentRelationshipTest < ActiveSupport::TestCase
     assert rel.valid?
   end
 
-  # Scopes
-
   test "related scope filters by type" do
     related = IncidentRelationship.create!(
       incident: @incident1,
@@ -160,8 +153,6 @@ class IncidentRelationshipTest < ActiveSupport::TestCase
 
     assert_includes IncidentRelationship.duplicates, duplicate
   end
-
-  # Constants
 
   test "RELATIONSHIP_TYPES contains all types" do
     assert_equal %w[duplicate related], IncidentRelationship::RELATIONSHIP_TYPES.sort

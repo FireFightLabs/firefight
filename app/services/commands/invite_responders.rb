@@ -6,7 +6,7 @@ module Commands
     def self.execute(command)
       return Command.ephemeral("This command must be run from an active incident channel.") unless command.incident
 
-      # No invitees in the text → open the picker modal. Must stay sync. trigger_id expires in 3s.
+      # Must stay sync, trigger_id expires in 3s.
       adapter = command.workspace.adapter
       unless adapter.people_targets?(command.text)
         adapter.open_modal(trigger_id: command.trigger_id, view: adapter.build_modal(PlatformAdapter::Modal::INVITE, command.incident))

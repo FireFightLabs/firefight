@@ -14,10 +14,9 @@ export type SharedProps = PageProps & {
   availableWorkspaces?: CurrentWorkspace[]
   currentUserIsAdmin?: boolean
   pendingApprovalsCount?: number
-  // One flag per Ability::Action resource: whether the viewer may change it.
+  // One flag per Ability::Action resource, whether the viewer may change it.
   currentUserCan?: Record<string, boolean>
-  // Shared by the proprietary cloud engine when it is loaded, absent on
-  // self-hosted builds.
+  // Set by the cloud engine when loaded, absent on self-hosted builds.
   cloudBillingPath?: string
 }
 

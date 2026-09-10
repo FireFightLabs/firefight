@@ -1,22 +1,5 @@
-# Contract every platform-specific workspace adapter must satisfy.
-#
-# `WorkspaceAdapter.for(workspace)` returns a concrete subclass
-# (`Slack::WorkspaceAdapter` today, `Teams::WorkspaceAdapter` planned).
-# Services and workflows depend only on this contract, never on the
-# concrete adapter class.
-#
-# Vocabulary:
-#   - `channel_id` is an opaque platform-specific conversation identifier.
-#   - `message_id` is an opaque platform-specific message identifier, Slack's
-#     `ts`, a Teams message id, and so on.
-#   - `parent_message_id` identifies the parent message when threading.
-#   - `user_id` is an opaque platform-specific user identifier.
-#   - `view` is an opaque platform-specific modal or form descriptor. Callers
-#     obtain one from the platform's own `Modals::X.build(...)` helpers.
-#
-# Errors: every method raises `AdapterError` (or a subclass) when the
-# platform call fails. Subclasses use `translate_errors` to convert
-# platform-specific errors into the shared `AdapterError` hierarchy.
+# Services and workflows depend on this contract, never on a concrete adapter.
+# Every id and view is opaque to callers, and every method raises AdapterError on failure.
 class PlatformAdapter
   class NotImplemented < NotImplementedError
     def initialize(method_name, adapter_class)
@@ -27,8 +10,6 @@ class PlatformAdapter
   def initialize(workspace)
     @workspace = workspace
   end
-
-  # Channel lifecycle
 
   # @return [Hash] { channel_id:, channel_name: }
   def create_channel(name:, is_private: false)
@@ -65,8 +46,6 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Messaging
-
   # @return [Hash] { message_id: ..., channel_id: ... }
   def post_message(channel_id:, text:, blocks:)
     raise NotImplemented.new(__method__, self.class)
@@ -82,15 +61,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Removes an ephemeral prompt once the flow it started has finished.
-  # `prompt_handle` is the opaque token the platform attached to the button
-  # click (Slack's `response_url`), carried through the modal's metadata.
+  # Takes down an ephemeral prompt. The handle is the token the platform
+  # attached to the button click, carried through the modal's metadata.
   # @return [Hash] { ok: true }
   def dismiss_prompt(prompt_handle:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The modals the app opens, by kind.
   module Modal
     INCIDENT_CREATION = :incident_creation
     INCIDENT_CREATED = :incident_created
@@ -111,75 +88,64 @@ class PlatformAdapter
     HOME = :home
   end
 
-  # Builds the platform's view for a modal kind. Positional arguments are the
-  # domain objects the modal shows (an incident, a runbook, a role list).
-  # `metadata:` is an encoded ModalState carried back on submission.
+  # Positional arguments are the domain objects the modal shows. `metadata:` is
+  # an encoded ModalState handed back on submission.
   # @return [Object] an opaque view for open_modal, push_modal, update_modal
   #   or form_update_response
   def build_modal(kind, *args, metadata: nil, **options)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Reads a submitted incident form (declare, update, resolve, cancel) out of
-  # the platform's submission payload.
   # @return [Object] responds to system_attrs, custom_fields, errors,
   #   first_error_field_key, includes_system_key?
   def parse_form_submission(form_slug:, values:, incident: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The submission response that keeps the modal open and marks one field
-  # (a system field key or a custom field key) with a message.
+  # Keeps the modal open with a message on one field, system or custom.
   # @return [Hash]
   def form_error_response(field_key, message)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The submission response that replaces the open modal with another view.
+  # Replaces the open modal with another view.
   # @return [Hash]
   def form_update_response(view)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Whether free text names people in the platform's own way (mentions,
-  # handles, ids), so a command can decide between acting and opening a picker.
+  # Whether free text names people (mentions, handles, ids), so a command can
+  # choose between acting and opening a picker.
   # @return [Boolean]
   def people_targets?(text)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Turns mentions, handles and ids in free text into platform user ids.
   # @return [Hash] { user_ids: [String], unresolved_handles: [String], had_target_tokens: Boolean }
   def resolve_people(text)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Posts an approval request where approvers will see it.
   # @return [Hash] { message_id: String, channel_id: String }
   def post_approval_request(approval:, channel_id:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Posts an approval request to one person, outside any channel.
   # @return [Hash] { message_id: String, channel_id: String }
   def post_approval_request_to_user(approval:, user_id:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Rewrites a posted approval request once it is decided.
   # @return [Hash] { success: true }
   def mark_approval_resolved(approval:, channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Everyone the platform knows in this workspace, split into the ids it
-  # returned as active and the ids it says are deactivated.
   # @return [Hash] { active_ids: Set, deactivated_ids: Set }
   def member_directory
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # A private message from Firefight to one person, outside any channel.
   # @return [Hash] { success: true }
   def post_direct_message(user_id:, text:)
     raise NotImplemented.new(__method__, self.class)
@@ -205,13 +171,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # @return [Hash] { permalink: "https://..." }
-  # A URL that opens the incident's channel in the platform's own client.
   # @return [String, nil] nil when the incident has no channel.
   def channel_url(channel_id:)
     raise NotImplementedError
   end
 
+  # @return [Hash] { permalink: "https://..." }
   def get_message_permalink(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end
@@ -238,7 +203,6 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The item's own message, carrying the controls a responder acts on.
   # @return [Hash] { message_id: ... }
   def post_action_message(channel_id:, action:)
     raise NotImplemented.new(__method__, self.class)
@@ -259,7 +223,7 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Posted when an item is handed to someone who has no message of their own to
+  # Posted when an item is handed to someone with no message of their own to
   # act on. Becomes that item's message.
   # @return [Hash] { message_id: ... }
   def post_action_handover_notice(channel_id:, action:, reassigned_by:, link: nil)
@@ -272,16 +236,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Everyone who was pulled into the incident channel, and everyone who was
-  # already there, reported back to whoever asked.
   # @param result [IncidentInviteService::Result]
   # @return [Hash] { success: true }
   def post_invite_summary(channel_id:, user_id:, result:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Nobody in what they typed resolved to a person, said in the vocabulary of
-  # the command they ran.
   # @param targets [Hash] { user_ids:, unresolved_handles:, had_target_tokens: }
   # @return [Hash] { success: true }
   def post_invite_unresolved(channel_id:, user_id:, targets:)
@@ -295,21 +255,18 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Posts the onboarding checklist to the announcements channel.
   # @param stage [Integer] a WorkspaceOnboarding::STAGE_* value
   # @return [Hash] { message_id:, channel_id: }
   def post_welcome_message(channel_id:, stage:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Redraws the onboarding checklist for the given stage.
   # @param stage [Integer] a WorkspaceOnboarding::STAGE_* value
   # @return [Hash] { success: true }
   def update_welcome_message(channel_id:, message_id:, stage:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Posts one coaching step in the first test incident's channel.
   # @param step [Integer] STAGE_DECLARED to STAGE_DONE
   # @return [Hash] { message_id:, channel_id: }
   def post_first_incident_walkthrough(channel_id:, incident:, step:)
@@ -323,8 +280,6 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Every announcement thread reply also reaches each subscriber as a direct
-  # message carrying the same content.
   # @param subscriber_user_ids [Array<String>] platform user ids to copy
   # @return [Hash] { message_id: ... }
   def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by:, escalated_to:, reason: nil, subscriber_user_ids: [])
@@ -346,8 +301,6 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Tells one person, where they clicked, what their subscription now is, with
-  # the control to change it.
   # @param state [Symbol] one of Incident::Subscriptions::SUBSCRIBED, ALREADY_SUBSCRIBED, UNSUBSCRIBED
   # @return [Hash] { success: true }
   def post_subscription_notice(channel_id:, user_id:, incident:, state:)
@@ -363,8 +316,6 @@ class PlatformAdapter
   def post_escalation_nudge_direct_message(user_id:, incident:, escalated_by:, escalation_event_id:, reason: nil)
     raise NotImplemented.new(__method__, self.class)
   end
-
-  # Modals / forms
 
   # @param view [Hash] Opaque platform-specific view descriptor.
   # @return [Hash] { success: true }
@@ -384,21 +335,16 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Tells the requester, privately, that a postmortem generation failed.
   # @return [Hash] { success: true }
   def post_postmortem_generation_failed(channel_id:, user_id:, incident:, reason:, retrying:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Generated text
-
-  # Prompt instruction describing the markup this platform renders.
+  # Prompt instruction naming the markup this platform renders.
   # @return [String]
   def ai_output_style
     raise NotImplemented.new(__method__, self.class)
   end
-
-  # Users / directory
 
   # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, timezone: }
   def get_user_info(user_id:)

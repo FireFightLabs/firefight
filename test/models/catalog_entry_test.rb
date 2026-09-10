@@ -33,8 +33,6 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_equal 0, queries
   end
 
-  # Basic validations
-
   test "requires name" do
     entry = CatalogEntry.new(
       workspace: workspaces(:slack_workspace_one),
@@ -78,8 +76,6 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_includes entry.errors[:workspace], "must match the catalog type's workspace"
   end
 
-  # Scopes
-
   test "active scope excludes deleted entries" do
     deleted = catalog_entries(:deleted_entry)
     active_entries = CatalogEntry.active
@@ -95,8 +91,6 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_equal names.sort, names
   end
 
-  # Entry attributes
-
   test "entry_attributes returns the jsonb attributes hash" do
     auth = catalog_entries(:auth_service)
     attrs = auth.entry_attributes
@@ -109,8 +103,6 @@ class CatalogEntryTest < ActiveSupport::TestCase
     entry = CatalogEntry.new
     assert_equal({}, entry.entry_attributes)
   end
-
-  # Assign validated attributes, splitting
 
   test "assign_validated_attributes! splits scalar vs reference attrs" do
     auth = catalog_entries(:auth_service)
@@ -134,8 +126,6 @@ class CatalogEntryTest < ActiveSupport::TestCase
     end
     assert_match(/Unknown attribute key/, error.message)
   end
-
-  # Assign validated attributes, type validations
 
   test "assign_validated_attributes! validates select values in options" do
     auth = catalog_entries(:auth_service)
@@ -252,8 +242,6 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_equal "3000", scalar["port"]
   end
 
-  # Assign validated attributes, required fields
-
   test "assign_validated_attributes! enforces required fields" do
     acme = catalog_entries(:vendor_acme)
 
@@ -273,8 +261,6 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_equal "new@example.com", scalar["contact_email"]
   end
 
-  # Sync references
-
   test "sync_references! creates new relationships" do
     auth = catalog_entries(:auth_service)
     platform_team = catalog_entries(:platform_team)
@@ -290,7 +276,6 @@ class CatalogEntryTest < ActiveSupport::TestCase
   test "sync_references! updates existing relationships" do
     auth = catalog_entries(:auth_service)
 
-    # Create a new team entry to point to
     new_team = CatalogEntry.create!(
       workspace: workspaces(:slack_workspace_one),
       catalog_type: catalog_types(:team_ws1),
@@ -312,8 +297,6 @@ class CatalogEntryTest < ActiveSupport::TestCase
 
     assert_not auth.outgoing_relationships.where(catalog_attribute_definition: catalog_attribute_definitions(:service_owner_team)).exists?
   end
-
-  # Soft delete
 
   test "soft_delete! sets deleted_at" do
     entry = catalog_entries(:platform_team)
@@ -339,8 +322,6 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_not platform_team.incoming_relationships.exists?
   end
 
-  # Slug immutability
-
   test "slug cannot be changed after creation" do
     entry = catalog_entries(:platform_team)
     entry.slug = "renamed_slug"
@@ -348,15 +329,11 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_includes entry.errors[:slug], "cannot be changed after creation"
   end
 
-  # Search scope
-
   test "search scope filters by name" do
     results = CatalogEntry.search("auth")
     assert_includes results, catalog_entries(:auth_service)
     assert_not_includes results, catalog_entries(:platform_team)
   end
-
-  # External identity validations
 
   test "external identity valid when both external_id and source present" do
     entry = CatalogEntry.new(

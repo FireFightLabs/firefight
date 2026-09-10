@@ -17,10 +17,8 @@ class IncidentFormService
     end
   end
 
-  # A system field has no DB row until an admin changes something about it, so
-  # the editor addresses it by `default:<key>` until one exists. Creating it on
-  # first edit keeps the code defaults as the single source of truth, a row
-  # only ever means "this workspace overrode something".
+  # A system field has no row until an admin changes it, so the editor addresses
+  # it by default:<key>. A row only ever means the workspace overrode something.
   def ensure_system_field!(form, system_field_key)
     existing = form.incident_form_fields.find_by(
       field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_SYSTEM,
@@ -66,11 +64,8 @@ class IncidentFormService
     move(form_field, 1)
   end
 
-  # A system field the workspace has never customized has no row to carry a
-  # position, so the editor addresses it by `default:<key>` and dragging it
-  # materializes one, the same way editing it does. Skipping those ids instead
-  # meant reordering a form made only of code defaults saved nothing while
-  # still reporting success.
+  # Dragging a never-customized system field materializes its row, the same as
+  # editing it. Skipping those ids saved nothing while still reporting success.
   def reorder(form, ordered_ids)
     ActiveRecord::Base.transaction do
       Array(ordered_ids).each_with_index do |id, index|
@@ -81,10 +76,6 @@ class IncidentFormService
     end
   end
 
-  # Changing what one lifecycle form asks for, from the shape every surface
-  # hands in. A system field has no row until something about it is changed and
-  # a custom field has none until it is attached, so both are materialized here
-  # rather than making a caller create one first.
   def upsert_field!(args)
     form = @workspace.ensure_incident_form!(form_slug(args))
     form_field = resolve_field(form, args)
@@ -108,9 +99,8 @@ class IncidentFormService
     slug
   end
 
-  # A system field has no row until something about it is changed, and a
-  # custom field has none until it is attached, so both are materialized
-  # here rather than making the agent create one first.
+  # A system field has no row until changed and a custom field none until
+  # attached, so both are materialized here rather than by the caller.
   def resolve_field(form, args)
     if args[:system_field].present?
       ensure_system_field!(form, args[:system_field].to_s)
@@ -143,9 +133,8 @@ class IncidentFormService
     end
   end
 
-  # Raises rather than skipping, an id the form does not recognize means the
-  # page is stale or the payload is wrong, and silently dropping it is what
-  # produced a "Field order updated" toast over an order that never changed.
+  # An unknown id means a stale page or a bad payload. Skipping it silently
+  # produced a success toast over an order that never changed.
   def field_for_reorder(form, id)
     return ensure_system_field!(form, id.delete_prefix(IncidentFormField::SYNTHETIC_PREFIX)) if id.start_with?(IncidentFormField::SYNTHETIC_PREFIX)
 

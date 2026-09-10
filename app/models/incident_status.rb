@@ -8,8 +8,6 @@ class IncidentStatus < ApplicationRecord
 
   belongs_to :incident_lifecycle_stage
 
-  # The one place that knows how a status maps to its lifecycle stage. Every
-  # stage filter goes through here, so the join is never retyped elsewhere.
   scope :in_stage, ->(keys) { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: keys }) }
 
   scope :triage, -> { in_stage(IncidentLifecycleStage::TRIAGE) }
@@ -32,10 +30,8 @@ class IncidentStatus < ApplicationRecord
     )
   end
 
-  # Statuses are grouped by stage in the UI but share one position sequence, so
-  # a drag inside a stage renumbers the workspace with the other stages held put.
-  # Which stage it belongs to is the thing that makes a status mean anything,
-  # so it travels with the status wherever one is reported.
+  # Statuses share one position sequence across stages, so a drag inside a
+  # stage renumbers the workspace with the other stages held put.
   def config_extras
     { lifecycle_stage: incident_lifecycle_stage.key }
   end
@@ -59,8 +55,8 @@ class IncidentStatus < ApplicationRecord
     triage? || active?
   end
 
-  # Every stage has to keep at least one usable status, or an incident reaching
-  # that stage has nothing to move into.
+  # Every stage keeps at least one usable status, or an incident reaching it
+  # has nothing to move into.
   def last_enabled_in_stage?
     return false unless enabled?
 

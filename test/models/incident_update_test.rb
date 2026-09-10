@@ -18,8 +18,6 @@ class IncidentUpdateTest < ActiveSupport::TestCase
     )
   end
 
-  # Associations
-
   test "has one incident_event as eventable" do
     update = create_update(update_type: IncidentUpdate::CREATED)
 
@@ -77,8 +75,6 @@ class IncidentUpdateTest < ActiveSupport::TestCase
     assert_equal type, update.incident_type
   end
 
-  # Validations
-
   test "requires update_type" do
     update = IncidentUpdate.new(**snapshot_attributes)
     assert_not update.valid?
@@ -97,8 +93,6 @@ class IncidentUpdateTest < ActiveSupport::TestCase
       assert update.valid?, "#{type} should be valid"
     end
   end
-
-  # Scopes
 
   test "ordered scope orders by created_at ascending" do
     first = create_update(update_type: IncidentUpdate::CREATED, created_at: 2.hours.ago)
@@ -125,8 +119,6 @@ class IncidentUpdateTest < ActiveSupport::TestCase
     assert_equal 1, @incident.incident_updates.by_type(IncidentUpdate::CREATED).count
     assert_equal 1, @incident.incident_updates.by_type(IncidentUpdate::UPDATED).count
   end
-
-  # Constants
 
   test "UPDATE_TYPES contains all types" do
     expected = %w[created updated closed reopened lead_assigned accepted canceled]

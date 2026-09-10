@@ -1,14 +1,5 @@
-# A demo workflow, kept as a worked example of:
-# - Data passing between steps via input/output
-# - Parallel step execution (calculate_sum and calculate_product run in parallel)
-# - Dependencies (combine_results waits for both calculations)
-# - Idempotency helpers
-#
-# Subject: Any model with a `calculation_result` jsonb field
-#
-# Usage:
-#   workflow = ExampleCalculationWorkflow.start!(subject, context: { numbers: [1, 2, 3, 4, 5] })
-#
+# Demo workflow kept as a worked example of parallel steps, dependencies and
+# idempotency helpers. The subject needs a calculation_result jsonb column.
 class ExampleCalculationWorkflow < SolidWorkflow::Base
   workflow_name "example.calculation.v1"
 
@@ -44,7 +35,6 @@ class ExampleCalculationWorkflow < SolidWorkflow::Base
       sum: sum
     })
 
-    # Simulate some work
     sleep(0.1)
 
     { sum: sum, operation: "sum" }
@@ -60,7 +50,6 @@ class ExampleCalculationWorkflow < SolidWorkflow::Base
       product: product
     })
 
-    # Simulate some work
     sleep(0.1)
 
     { product: product, operation: "product" }
@@ -88,7 +77,6 @@ class ExampleCalculationWorkflow < SolidWorkflow::Base
     result
   end
 
-  # Writes nothing to the database, the result lives in the step output.
   def store_result(workflow:, step:, input:)
     combined = input["combine_results"]
 

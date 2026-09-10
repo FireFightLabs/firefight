@@ -1,12 +1,9 @@
-# Usage counting and the *_blocked_reason rules, for any workspace-configurable
-# list a settings screen manages. ConfigurableOption bundles this with
-# positioning and the shared validations. Models with their own shape
-# (custom fields keyed by `key`, runbooks with nested steps) include it alone.
+# Usage counting and the *_blocked_reason rules. ConfigurableOption bundles
+# this with positioning, models with their own shape include it alone.
 module OptionGuards
   extend ActiveSupport::Concern
 
   class_methods do
-    # The association that blocks deletion and drives the usage count.
     def usage_association
       :incidents
     end
@@ -26,10 +23,8 @@ module OptionGuards
     deleted_at.nil?
   end
 
-  # Soft delete is a method, not a column callers write. Disabled rows stay
-  # listed on the settings screen so an admin can enable them again.
-  # Raised when one of the *_blocked_reason rules refuses. Carries the sentence
-  # the surface shows, so a caller renders it without knowing which rule it was.
+  # Carries the sentence the surface shows, so a caller renders it without
+  # knowing which rule refused.
   class Blocked < StandardError; end
 
   def disable!
@@ -41,8 +36,8 @@ module OptionGuards
     update!(deleted_at: nil)
   end
 
-  # Reads the count attached by with_usage_counts, falling back to a query so a
-  # caller that forgot the scope gets a correct answer, not a permissive one.
+  # Falls back to a query so a caller that forgot with_usage_counts gets a
+  # correct answer, not a permissive one.
   def usage_count
     has_attribute?(:usage_count) ? self[:usage_count].to_i : public_send(self.class.usage_association).count
   end
@@ -67,7 +62,6 @@ module OptionGuards
     self.class::NOUN
   end
 
-  # What the usage count counts, when it is not incidents.
   def usage_noun
     self.class.const_defined?(:USAGE_NOUN) ? self.class::USAGE_NOUN : "incident"
   end

@@ -7,14 +7,11 @@ class CreateIncidentSeverities < ActiveRecord::Migration[8.1]
       t.string :slug, null: false # "sev1", "critical", "p0"
       t.text :description
 
-      # Severity ranking (higher = more severe)
       t.integer :rank, null: false # 1=lowest severity, 5=highest severity
 
-      # Ordering and defaults
       t.integer :position, null: false, default: 0 # For UI ordering
       t.boolean :is_default, default: false # Default severity for new incidents
 
-      # UI configuration
       t.string :color # Hex color code like "#DC143C"
 
       t.timestamps

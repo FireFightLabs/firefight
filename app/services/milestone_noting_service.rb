@@ -1,14 +1,11 @@
-# Turns the incident's channel transcript into timeline notes, once, after the
-# incident is over. Coordinates the engine call, the adapter lookups that give
-# each note its link, and the event writes.
+# Turns the channel transcript into timeline notes once the incident is over.
 class MilestoneNotingService
   def initialize(workspace)
     @workspace = workspace
   end
 
-  # Returns the events written, which is an empty list whenever the pass is
-  # off, blocked, or has nothing new to read. A note is decoration on an
-  # incident that already ended, so none of those are failures.
+  # Returns the events written, empty when the pass is off, blocked or has nothing
+  # new. A note is decoration on an ended incident, so none of those are failures.
   def note!(incident)
     return [] unless FirefightAi.configuration.milestones_enabled?
     return [] unless Entitlements.allows?(@workspace, Entitlements::AI)
@@ -40,10 +37,8 @@ class MilestoneNotingService
     @extractor ||= FirefightAi::MilestoneExtractor.new(@workspace)
   end
 
-  # The watermark moves whether or not the model found anything, so a pass
-  # after a reopen reads only what was said since. Permalinks are fetched
-  # before the transaction opens. They are adapter calls, and a slow one must
-  # not hold a write open.
+  # The watermark moves even when nothing was found, so a pass after a reopen reads only what
+  # was said since. Permalinks are fetched before the transaction so a slow one never holds a write open.
   def write!(incident, milestones, messages)
     sources = messages.index_by(&:message_id)
     noted = noted_message_ids(incident)
@@ -70,10 +65,8 @@ class MilestoneNotingService
       .to_set
   end
 
-  # The note carries the person and the quote it was read from, so no surface
-  # has to resolve an id or call Slack to render the row. created_at is the
-  # source message's time, which is what puts the note where the conversation
-  # was rather than where the inference ran.
+  # The note carries the person and the quote so no surface has to call Slack to
+  # render it. created_at is the source message's time, placing the note where the conversation was.
   def event_attributes(milestone, source, incident)
     member = source.workspace_membership
 

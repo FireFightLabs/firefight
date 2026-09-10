@@ -1,10 +1,7 @@
 module Slack
   module Modals
-    # The "View runbook" modal. Every step with its full instruction, plus a
-    # person picker per step, which is where a lead hands work out rather than
-    # reaching for a control on each row in the channel.
     module RunbookDetail
-      # Three blocks per step against Slack's 100-block modal ceiling.
+      # Three blocks per step against Slack's 100-block ceiling.
       MAX_STEPS = 45
 
       def self.build(incident_runbook)

@@ -3,7 +3,6 @@ require "test_helper"
 class Interactions::EscalateIncidentHandlerTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @workspace.update!(incidents_channel_id: "C_INCIDENTS")

@@ -6,8 +6,7 @@ module Commands
     def self.execute(command)
       incident = command.workspace.incidents.closed.in_channel(command.channel_id).first
       unless incident
-        # A canceled incident is finished, so "must be run from a closed
-        # channel" reads like a mistake. Name the real reason instead.
+        # For a canceled incident "must be run from a closed channel" reads like a mistake.
         canceled = command.workspace.incidents.canceled.in_channel(command.channel_id).first
         return Command.ephemeral("#{canceled.identifier} was canceled, so it has no postmortem to write.") if canceled
 
@@ -16,8 +15,7 @@ module Commands
       member = command.workspace.workspace_memberships.find_by(platform_user_id: command.user_id)
       return Command.ephemeral(PostmortemGenerationService::UNKNOWN_MEMBER_MESSAGE) unless member
 
-      # The same placeholder the dashboard creates, so a second request from
-      # either surface while one runs is a no-op rather than a second job.
+      # Shares the dashboard's placeholder, so a second request while one runs is a no-op.
       Command.ephemeral(PostmortemGenerationService.new(command.workspace).request!(incident, by: member).message)
     end
   end

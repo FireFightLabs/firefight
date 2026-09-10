@@ -13,8 +13,6 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     stub_set_channel_purpose
   end
 
-  # Reading the form
-
   test "the form is the resolver's answer, not the controller's" do
     get incident_form_path(@incident, IncidentForm::SLUG_UPDATE)
     assert_response :success
@@ -40,8 +38,6 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :bad_request
   end
-
-  # Declaring
 
   test "the declare form is the workspace's Declare form" do
     get declare_incident_form_path
@@ -75,9 +71,7 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_not @workspace.incidents.find_by!(name: "Real one").is_test?
   end
 
-  # Severity is fixed_required on every workspace's Declare form. Name is not,
-  # this one has it configured optional, which is the point of asking the
-  # resolver rather than assuming.
+  # Severity is fixed_required everywhere. Name is configured optional here, so the resolver decides.
   test "declaring without a required answer creates nothing" do
     assert_no_difference "@workspace.incidents.count" do
       post declare_incident_path, params: { answers: declare_answers.except(:severity) }
@@ -85,8 +79,6 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
 
     assert_match(/required/i, flash[:alert])
   end
-
-  # Writing
 
   test "resolving closes the incident and records it once" do
     assert_difference -> { @incident.incident_events.where(event_type: IncidentEvent::INCIDENT_RESOLVED).count }, 1 do
@@ -123,8 +115,7 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_not @incident.reload.terminal?
   end
 
-  # The resolver owns what a form asks. A key it did not ask for is refused
-  # here for the same reason Slack refuses it, from the same call.
+  # The resolver owns what a form asks, so the dashboard refuses the same keys Slack does.
   test "a field the form never asked for is refused rather than written" do
     patch incident_lifecycle_path(@incident, IncidentForm::SLUG_CANCEL),
           params: { answers: { summary: "Not real" } }
@@ -133,9 +124,7 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_not @incident.reload.canceled?
   end
 
-  # A field the responder's own answers made applicable has to survive the
-  # submit. Validating against the stored incident instead of the answers made
-  # the form show it and then refuse it as an unknown field.
+  # Validating against the stored incident instead of the answers showed the field and then refused it.
   test "a field a submitted answer brings into scope is accepted, not rejected" do
     critical = @workspace.incident_severities.active.find_by!(slug: "critical")
     @incident.update!(incident_severity: @workspace.incident_severities.active.where.not(id: critical.id).first)
@@ -155,8 +144,6 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_equal "sent", @incident.custom_fields["exec_comms"]
   end
 
-  # Reopening
-
   test "reopening a closed incident puts it back on the default live status" do
     IncidentLifecycleService.new(@workspace).change_status(
       @incident, { incident_status: @workspace.incident_statuses.closed.active.first }, changed_by: @member
@@ -173,8 +160,6 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "#{@incident.identifier} is already active.", flash[:alert]
   end
-
-  # Roles
 
   test "assigning a role names who holds it now" do
     role = incident_roles(:communications_lead_ws1)
@@ -205,8 +190,6 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_equal @member, @incident.reload.role_holder(lead_role)
   end
 
-  # Relationships
-
   test "linking names both incidents on the timeline" do
     other = incidents(:active_major_ws1)
 
@@ -224,8 +207,6 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert @incident.reload.canceled?
     assert_equal other, @incident.duplicate_of
   end
-
-  # What a blocked control shows
 
   test "a live incident blocks nothing" do
     assert_nil @incident.change_blocked_reason
@@ -259,8 +240,6 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_equal @incident.reload.change_blocked_reason, inertia_props.dig("incident", "changeBlockedReason")
   end
 
-  # The channel control
-
   test "an incident with no channel yet still names the one it will get" do
     incident = @workspace.incidents.create!(
       declared_by: @member, incident_status: @workspace.incident_statuses.default_status,
@@ -284,8 +263,6 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_includes inertia_props["channelUrl"], "C123"
   end
 
-  # Scoping
-
   test "another workspace's incident is not reachable" do
     other = incidents(:active_p0_ws2)
 
@@ -294,8 +271,7 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  # The database has always refused this. The model says why, so the dashboard
-  # shows a sentence rather than a 500.
+  # The database has always refused this. The model says why, so the dashboard shows a sentence, not a 500.
   test "linking an incident to itself is refused with the reason" do
     post incident_link_path(@incident),
          params: { target_id: @incident.id, relationship: IncidentRelationship::RELATED }
@@ -307,10 +283,7 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  # Exactly what each form asks for in the fixture workspace. Reading them off
-  # the resolver rather than hardcoding would hide the thing being tested.
-  # What the fixture workspace's Declare form asks for. Anything it does not
-  # ask for is refused as an unknown field, so this stays exact.
+  # Exactly what the fixture workspace's Declare form asks for. Anything else is refused as unknown.
   def declare_answers
     {
       name: "Checkout is failing",

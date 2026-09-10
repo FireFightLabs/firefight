@@ -19,9 +19,7 @@ class IncidentRunbooksController < InertiaController
     redirect_to incident_path(incident), notice: "#{runbook.runbook.name} was attached."
   end
 
-  # Claiming a step creates the action item behind it, or hands over the one
-  # that already exists. The service decides which, so this never has to know
-  # whether anyone has touched the step before.
+  # Creates the action behind the step or hands over the existing one. The service decides which.
   def claim_step
     incident = current_workspace.incidents.find(params[:incident_id])
     incident_runbook = incident.incident_runbooks.find(params[:incident_runbook_id])

@@ -1,6 +1,5 @@
-// Update/remove/append mechanics for the editable row lists in the alert
-// settings dialogs. Stateless on purpose: composes with useState, form
-// setData, or controlled props.
+// Row list mechanics for the alert settings dialogs. Stateless on purpose, so
+// they compose with useState, form setData or controlled props.
 
 export interface RowListItem {
   rowId: string

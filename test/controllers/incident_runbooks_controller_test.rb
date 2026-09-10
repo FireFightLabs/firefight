@@ -62,8 +62,6 @@ class IncidentRunbooksControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes offered, @runbook.slug
   end
 
-  # Working a step from the page
-
   test "claiming a step creates the action item behind it and assigns it" do
     stub_update_message
     stub_get_permalink

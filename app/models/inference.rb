@@ -41,8 +41,7 @@ class Inference < ApplicationRecord
     end
   end
 
-  # The provider the ledger records. An explicit provider (a model the
-  # registry does not know) wins, otherwise the registry says.
+  # An explicit provider wins, for a model the registry does not know.
   def self.provider_for(model, provider: nil)
     return provider.to_s if provider.present?
 

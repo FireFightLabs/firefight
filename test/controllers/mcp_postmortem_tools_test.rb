@@ -1,8 +1,6 @@
 require "test_helper"
 
-# Writing up an incident from the same connection that worked it. An agent
-# could declare, run and close one and then not write it up, which left the
-# loop open.
+# An agent could declare, run and close an incident and then not write it up, which left the loop open.
 class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -39,7 +37,7 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
     assert_match(/canceled/, text)
   end
 
-  # The whole point: the agent that worked it writes it up, under its own name.
+  # The agent that worked it writes it up, under its own name.
   test "an agent starts a blank postmortem and is recorded as its author" do
     resolve!
 
@@ -110,8 +108,7 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
     assert_equal @agent.name, content["written_by"]
   end
 
-  # An agent that read the document, then a person who edited it before the
-  # agent wrote. The agent loses, not the person.
+  # An agent read the document, a person edited it before the agent wrote. The agent loses.
   test "an agent writing against a replaced version is refused rather than winning" do
     resolve!
     call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier }, token: @agent_token)

@@ -12,8 +12,7 @@ class IncidentAction < ApplicationRecord
   STATUSES = [ STATUS_OPEN, STATUS_IN_PROGRESS, STATUS_DONE ].freeze
 
   belongs_to :incident
-  # Polymorphic because an agent takes part as itself, never on a person's
-  # behalf. Both hold a WorkspaceMembership, an Agent or an ApiKey.
+  # Polymorphic because an agent takes part as itself.
   belongs_to :created_by, polymorphic: true
   belongs_to :assignee, polymorphic: true, optional: true
   belongs_to :runbook_step, optional: true
@@ -21,14 +20,13 @@ class IncidentAction < ApplicationRecord
 
   validates :action_type, inclusion: { in: ACTION_TYPES }
   validates :status, inclusion: { in: STATUSES }
-  # The service derives in_progress from having an assignee. The pair is a
-  # model invariant so no future writer can store the contradiction.
+  # in_progress and having an assignee always agree.
   validate :status_matches_assignee
   validates :description, presence: true
 
   scope :active, -> { where(deleted_at: nil) }
-  # Interaction payloads carry ids from whoever clicked, so a lookup that
-  # crosses workspaces is a lookup that writes to another tenant.
+  # Interaction payloads carry ids from whoever clicked, so an unscoped lookup
+  # could write to another tenant.
   scope :in_workspace, ->(workspace) { joins(:incident).where(incidents: { workspace_id: workspace.id }) }
   scope :actions, -> { where(action_type: ACTION_TYPE_ACTION) }
   scope :followups, -> { where(action_type: ACTION_TYPE_FOLLOWUP) }
@@ -36,8 +34,6 @@ class IncidentAction < ApplicationRecord
   scope :completed, -> { where(status: STATUS_DONE) }
   scope :recent, -> { order(created_at: :desc) }
 
-  # Nobody has taken it, so taking it is the next move. Both entry points ask
-  # rather than each spelling out what an untaken item looks like.
   def claimable?
     open? && !assigned?
   end
@@ -46,8 +42,6 @@ class IncidentAction < ApplicationRecord
     completion_blocked_reason.nil?
   end
 
-  # A sentence or nil, so an entry point reports the rule rather than
-  # restating it.
   def completion_blocked_reason
     return nil unless done?
 
@@ -70,8 +64,7 @@ class IncidentAction < ApplicationRecord
     runbook_step_id.present?
   end
 
-  # Where a reader should look to see this item in the context it came from.
-  # A url is already absolute. A message_ts needs the adapter to resolve one.
+  # A url is already absolute, a message_ts needs the adapter to resolve one.
   OriginReference = Data.define(:label, :url, :message_ts)
 
   def origin_reference
@@ -86,8 +79,6 @@ class IncidentAction < ApplicationRecord
     OriginReference.new(label: "View #{action_type == ACTION_TYPE_FOLLOWUP ? 'follow-up' : 'action'}", url: nil, message_ts: message_ts)
   end
 
-  # Both actors are polymorphic, so the people among them get their users
-  # preloaded and the machines are left alone.
   def self.with_actors(actions)
     Principal.preload_users(actions.flat_map { |action| [ action.created_by, action.assignee ] })
     actions

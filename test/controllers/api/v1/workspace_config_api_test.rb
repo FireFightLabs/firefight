@@ -1,7 +1,6 @@
 require "test_helper"
 
-# Configuring the workspace over REST, matching the MCP tools. The option lists
-# share one concern, so severities stand in for the shape and the others are
+# The option lists share one concern, so severities stand in for the shape and the others are
 # checked where they differ.
 class Api::V1::WorkspaceConfigApiTest < ActionDispatch::IntegrationTest
   setup do
@@ -12,8 +11,7 @@ class Api::V1::WorkspaceConfigApiTest < ActionDispatch::IntegrationTest
     )
   end
 
-  # The endpoint promised these two things before it could be written to, and
-  # adding writes must not move either.
+  # The endpoint promised these two things before it could be written to, adding writes must not move either.
   test "a listing keeps its collection name and leaves disabled entries out" do
     severity = @workspace.incident_severities.active.where(is_default: false).first
     severity.disable!

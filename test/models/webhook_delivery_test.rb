@@ -3,8 +3,6 @@ require "test_helper"
 class WebhookDeliveryTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-  # Associations
-
   test "belongs to webhook" do
     delivery = webhook_deliveries(:completed_delivery)
     assert_instance_of Webhook, delivery.webhook
@@ -15,8 +13,6 @@ class WebhookDeliveryTest < ActiveSupport::TestCase
     delivery = webhook_deliveries(:completed_delivery)
     assert_instance_of IncidentEvent, delivery.incident_event
   end
-
-  # State
 
   test "default state is pending" do
     delivery = WebhookDelivery.new
@@ -43,8 +39,6 @@ class WebhookDeliveryTest < ActiveSupport::TestCase
     assert_not delivery.failed?
   end
 
-  # Scopes
-
   test "stale scope finds deliveries older than threshold" do
     old_delivery = webhook_deliveries(:completed_delivery)
     old_delivery.update_columns(created_at: 8.days.ago)
@@ -56,8 +50,6 @@ class WebhookDeliveryTest < ActiveSupport::TestCase
     delivery = webhook_deliveries(:completed_delivery)
     assert_not_includes WebhookDelivery.stale, delivery
   end
-
-  # Delivery enqueue
 
   test "enqueues delivery job after create" do
     assert_enqueued_with(job: Webhooks::DeliveryJob) do

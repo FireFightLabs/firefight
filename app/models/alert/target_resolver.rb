@@ -1,12 +1,5 @@
-# Resolves outcome targets against the catalog at fire time, never stored,
-# so routing follows catalog reorgs. Resolution is pure lookups and soft-fails:
-# every miss is a note, never an exception. The incident must always win.
-#
-# owning_team: alert.service -> service entry -> owner-team reference -> team.
-# A team's people come from the attributes tagged with the Members and
-# Manager roles. Its channel comes from the Notification channel role, the
-# service's own first (specific wins), then the team's. Roles, never slugs,
-# so a workspace can name its attributes anything.
+# Resolved at fire time so routing follows catalog reorgs. Every miss is a note, never an
+# exception, the incident must always win. Attributes are found by role so a workspace can name them anything.
 class Alert::TargetResolver
   def initialize(workspace, fields)
     @workspace = workspace
@@ -16,12 +9,10 @@ class Alert::TargetResolver
 
   attr_reader :notes
 
-  # invite targets -> deduped WorkspaceMemberships
   def memberships_for(targets)
     Array(targets).flat_map { |target| target_memberships(target.with_indifferent_access) }.uniq
   end
 
-  # notify target -> a postable conversation (channel id or member platform id)
   def channel_for(target)
     return nil if target.blank?
 

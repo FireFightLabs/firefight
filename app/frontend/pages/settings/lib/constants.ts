@@ -1,5 +1,4 @@
-// Column tooltips shared across the option settings screens. The wording is the
-// same on every list, so it is written once and reworded once.
+// Column tooltips shared across the option settings screens, worded once.
 
 export const slugColumnHint = (noun: string) =>
   `How this ${noun} is identified in API responses and webhook payloads. Renaming it does not change the slug, so your integrations keep working.`

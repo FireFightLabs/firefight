@@ -29,8 +29,8 @@ function progressLabel(runbook: Runbook): string {
   return `${runbook.doneCount} of ${runbook.stepsCount} steps done`
 }
 
-// Claiming a step creates the action behind it, so once the incident can take
-// no more actions the control stays visible and says why.
+// Claiming a step creates an action, so once the incident takes no more the
+// control stays visible and says why.
 function ClaimControl({ onClaim, blockedReason }: { onClaim: () => void; blockedReason?: string }) {
   if (blockedReason) {
     return (
@@ -91,8 +91,8 @@ function StepRow({
   )
 }
 
-// Collapsed by default. Two attached runbooks of seven steps each would push
-// everything below them off the page.
+// Collapsed by default. Two runbooks of seven steps would push everything
+// below them off the page.
 function RunbookEntry({
   runbook,
   incidentId,
@@ -126,8 +126,7 @@ function RunbookEntry({
         </button>
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-[13px] leading-snug text-foreground">
-            {/* The same target the timeline's runbook entry opens, so a
-                runbook is one click from wherever it is named. */}
+            {/* The same target the timeline's runbook entry opens. */}
             <Link
               href={settingsRunbooksPath({ [RUNBOOK_QUERY_PARAM]: runbook.runbookId })}
               className="truncate hover:underline"

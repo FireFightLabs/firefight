@@ -1,17 +1,13 @@
 module Integrations
-  # The client half of the MCP OAuth story (we already ship the server half
-  # on /mcp). Discover the remote server's authorization metadata, obtain a
-  # client (a pre-registered one when the provider needs it, or dynamic
-  # registration when the server supports it), run PKCE, exchange and
-  # refresh tokens.
+  # OAuth client for remote MCP servers. Uses a pre-registered client when the
+  # provider needs one, dynamic registration otherwise.
   class OauthClient
     class Error < Integrations::Error; end
 
     REFRESH_MARGIN = 60.seconds
 
     class << self
-      # Always PKCE. Install-first providers (GitHub) connect through their
-      # native pack and never reach this client.
+      # Install-first providers such as GitHub never reach this client.
       def begin_flow(server_url:, redirect_uri:, client_id: nil)
         metadata = discover(server_url)
         client_id ||= register(metadata, redirect_uri)
@@ -34,10 +30,8 @@ module Integrations
           token_endpoint: metadata[:token_endpoint] }
       end
 
-      # A credential set is a closed shape owned here. Exchange produces it,
-      # refresh consumes and reproduces it, stale? reads it. Callers persist
-      # it verbatim and never index into it, so the keys stay private to this
-      # class.
+      # The credential shape is private to this class. Callers persist it
+      # verbatim and never index into it.
       def exchange(token_endpoint:, code:, verifier:, client_id:, redirect_uri:, resource:, client_secret: nil)
         token = token_request(token_endpoint,
                               grant_type: "authorization_code", code: code, redirect_uri: redirect_uri,
@@ -68,8 +62,8 @@ module Integrations
         expires_at.present? && expires_at <= REFRESH_MARGIN.from_now
       end
 
-      # Resource metadata (RFC 9728) names the authorization server. The
-      # authorization server metadata (RFC 8414) names the endpoints.
+      # RFC 9728 resource metadata names the authorization server, RFC 8414
+      # server metadata names the endpoints.
       def discover(server_url)
         server_uri = URI.parse(server_url.to_s)
         raise Error, "invalid MCP server URL" unless server_uri.is_a?(URI::HTTP)
@@ -93,9 +87,8 @@ module Integrations
 
       private
 
-      # RFC 8414 places the metadata at the origin with the issuer's path
-      # inserted after the well-known segment (GitHub does this). Some servers
-      # use the simpler issuer-suffix form or OIDC discovery. Try each.
+      # Servers differ on where the metadata lives (RFC 8414 path insertion as
+      # GitHub does, issuer suffix, or OIDC discovery), so try each.
       def authorization_server_metadata(issuer)
         issuer_uri = URI.parse(issuer.to_s)
         origin = origin_of(issuer_uri)

@@ -1,27 +1,23 @@
 Rails.application.routes.draw do
-  # Redirect to localhost from 127.0.0.1 to use same IP address with Vite server.
-  # Development only, in production this catch-all 301s the internal health
-  # check (Northflank probes http://127.0.0.1:3000/up), marking the pod unhealthy.
+  # Keeps the browser on the same host as the Vite server. Development only, in production
+  # this would 301 the Northflank health probe at 127.0.0.1 and mark the pod unhealthy.
   if Rails.env.development?
     constraints(host: "127.0.0.1") do
       get "(*path)", to: redirect { |params, req| "#{req.protocol}localhost:#{req.port}/#{params[:path]}" }
     end
   end
 
-  # Health check
   get "up" => "rails/health#show", as: :rails_health_check
 
-  # API routes
   namespace :api do
     namespace :v1 do
       post "commands", to: "commands#create"
       post "interactions", to: "interactions#create"
       post "events", to: "events#create"
 
-      # Alert ingest (per-source secret auth via provider adapter)
+      # Authenticated by the source's own secret through its provider adapter.
       post "alerts/:endpoint_path", to: "alerts#create", as: :alert_ingest
 
-      # Public API (Bearer token auth)
       resources :incidents, only: [ :index, :show, :create, :update ] do
         resources :timeline, only: [ :index ], controller: "timeline" do
           member do
@@ -31,8 +27,7 @@ Rails.application.routes.draw do
         resources :action_items, only: [ :index, :create, :update ]
         resource :postmortem, only: [ :show, :create, :update ], controller: "postmortems"
         resources :transcript, only: [ :index ], controller: "transcripts"
-        # Taking part in an incident rather than moving it: everything a person
-        # can do from Slack short of changing the status.
+        # Everything a person can do from Slack short of changing the status.
         member do
           post :escalate, to: "incident_participation#escalate"
           post :invite, to: "incident_participation#invite"
@@ -41,8 +36,7 @@ Rails.application.routes.draw do
           post "runbook_steps/claim", to: "incident_participation#claim_runbook_step", as: :claim_runbook_step
         end
       end
-      # Configuring the workspace over REST, matching the MCP tools. Options are
-      # addressed by slug, which is the handle stored records refer to.
+      # Mirrors the MCP tools. Options are addressed by slug, the handle stored records refer to.
       resources :severities, only: [ :index, :create, :update, :destroy ]
       resources :statuses, only: [ :index, :create, :update, :destroy ]
       resources :incident_types, only: [ :index, :create, :update, :destroy ]
@@ -58,8 +52,7 @@ Rails.application.routes.draw do
       end
       resources :custom_fields, only: [ :index, :create, :update, :destroy ]
       resources :forms, only: [ :show, :update ]
-      # Routing rules belong to a scope, either the workspace or one alert
-      # source, and are addressed by their priority within it.
+      # Routing rules belong to the workspace or one alert source and are addressed by priority within it.
       resources :routing_rules, only: [ :index, :create, :update, :destroy ]
       post "routing/evaluate", to: "routing#evaluate", as: :evaluate_routing
       resources :runbooks, only: [ :index, :show, :create, :update, :destroy ]
@@ -97,9 +90,8 @@ Rails.application.routes.draw do
     end
   end
 
-  # OAuth 2.1 provider for MCP clients: authorize/token/revoke from Doorkeeper,
-  # discovery metadata (RFC 8414/9728) and dynamic client registration
-  # (RFC 7591) are ours. No application-management UI is exposed.
+  # Doorkeeper handles authorize, token and revoke. Discovery metadata (RFC 8414, 9728) and
+  # dynamic client registration (RFC 7591) are ours.
   use_doorkeeper do
     skip_controllers :applications, :authorized_applications
   end
@@ -108,34 +100,29 @@ Rails.application.routes.draw do
   get "/.well-known/oauth-protected-resource", to: "oauth/metadata#protected_resource"
   get "/.well-known/oauth-protected-resource/mcp", to: "oauth/metadata#protected_resource"
 
-  # MCP server (stateless Streamable HTTP, Bearer ApiKey auth)
+  # Stateless Streamable HTTP, so only POST is served.
   post "/mcp", to: "mcp#create", as: :mcp
   match "/mcp", to: "mcp#method_not_allowed", via: [ :get, :delete, :put, :patch ]
 
-  # Public routes
   root to: "sessions#new"
   get "/login", to: "sessions#new", as: :login
   delete "/logout", to: "sessions#destroy", as: :logout
   post "/invite-code/claim", to: "invite_codes#create", as: :claim_invite_code
 
-  # OmniAuth callbacks, explicit per-strategy so each maps to its own action.
   get "/auth/slack_openid/callback", to: "auth/omniauth_callbacks#slack_openid", as: :slack_openid_callback
   get "/auth/slack/callback",        to: "auth/omniauth_callbacks#slack",        as: :slack_install_callback
   get "/auth/failure",               to: "auth/omniauth_callbacks#failure"
 
-  # OmniAuth start endpoints. The OmniAuth middleware intercepts these before
-  # Rails routing, these declarations exist only so we get named path helpers.
-  # The redirect target is a safety net in case the middleware is misconfigured.
+  # OmniAuth middleware answers these before routing. They exist for the named path helpers,
+  # the redirect only fires if the middleware is misconfigured.
   get "/auth/slack_openid", to: redirect("/login"), as: :sign_in_with_slack
   get "/auth/slack",        to: redirect("/login"), as: :install_slack_app
 
-  # Onboarding pages between OIDC sign-in and dashboard access
   get "/onboarding/invite-code", to: "onboarding#invite_code", as: :onboarding_invite_code
   get "/onboarding/install", to: "onboarding#install", as: :onboarding_install
   get "/onboarding/reinstall", to: "onboarding#reinstall", as: :onboarding_reinstall
   get "/onboarding/welcome", to: "onboarding#welcome", as: :onboarding_welcome
 
-  # Authenticated application routes
   scope :app do
     get "/", to: "dashboard#index", as: :dashboard
     patch "/onboarding/dialog", to: "workspace_onboardings#dismiss_dialog", as: :dismiss_onboarding_dialog
@@ -219,8 +206,7 @@ Rails.application.routes.draw do
         post :rotate
       end
     end
-    # An agent's tokens are its own business, managed where the agent is rather
-    # than alongside the workspace's developer keys.
+    # Agent tokens are managed on the agent, not with the workspace's developer keys.
     delete "/gateway/agents/:agent_id/tokens/:id", to: "agent_tokens#destroy", as: :gateway_agent_token
     get "/gateway/activity", to: "settings#activity", as: :gateway_activity
     get "/gateway/approvals", to: "settings#approvals", as: :gateway_approvals
@@ -329,7 +315,7 @@ Rails.application.routes.draw do
 
     get "/settings/members", to: "settings#members", as: :settings_members
 
-    # The gateway and developer screens used to live under /settings.
+    # The gateway and developer screens used to live under /settings, the redirects keep old links working.
     get "/settings/workspace", to: "workspace_settings#show", as: :settings_workspace
     patch "/settings/workspace", to: "workspace_settings#update"
     get "/settings/permissions", to: redirect("/app/gateway/permissions")
@@ -339,17 +325,13 @@ Rails.application.routes.draw do
     get "/settings/api-keys", to: redirect("/app/developer/api-keys")
   end
 
-  # Targets for `config.exceptions_app`, which is how Rails reaches these once
-  # it stops rendering its own debug pages.
+  # Targets for `config.exceptions_app`.
   match "/404", to: "errors#not_found", via: :all
   match "/422", to: "errors#unprocessable", via: :all
   match "/500", to: "errors#server_error", via: :all
 
-  # Last route wins nothing above it. Turning an unmatched path into a real
-  # action rather than a RoutingError is what gives development the same styled
-  # page production gets.
-  # Rails-internal paths (Active Storage blobs, direct uploads, representations)
-  # are drawn after this file, so an unconstrained catch-all would shadow them.
+  # A real action instead of a RoutingError gives development the same styled page as production.
+  # Active Storage routes are drawn after this file, so the catch-all must skip /rails/.
   match "*path", to: "errors#not_found", via: :all,
         constraints: ->(req) { !req.path.start_with?("/rails/") }
 end

@@ -1,7 +1,6 @@
 class EventRouter
-  # Every event type is either subscribable (webhooks receive it) or named
-  # internal here, so a new type is a deliberate decision, never a silent
-  # drop. The test asserts the two lists cover EVENT_TYPES exactly.
+  # Every event type is subscribable or listed here, and a test asserts the
+  # two lists cover EVENT_TYPES exactly, so a new type is never a silent drop.
   INTERNAL_ONLY = [
     IncidentEvent::MESSAGE_PINNED,
     IncidentEvent::MESSAGE_UNPINNED,
@@ -10,9 +9,8 @@ class EventRouter
     IncidentEvent::ESCALATION_NUDGED,
     IncidentEvent::ALERT_ATTACHED,
     IncidentEvent::ALERT_RESOLVED,
-    # Retired: bulk-apply became step-by-step claiming (#286) and nothing
-    # emits this any more. Listed so the coverage assertion stays exact; a
-    # revival needs an emitter before it needs a subscription.
+    # Nothing emits this since bulk-apply became step-by-step claiming.
+    # Listed so the coverage assertion stays exact.
     IncidentEvent::RUNBOOK_APPLIED
   ].freeze
 

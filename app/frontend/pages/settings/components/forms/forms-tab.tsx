@@ -56,7 +56,6 @@ function iconForForm(slug: string) {
   }
 }
 
-
 function iconTintForForm(slug: string) {
   switch (slug) {
     case "declare":
@@ -70,8 +69,6 @@ function iconTintForForm(slug: string) {
       return "bg-cyan-500/12 text-cyan-700 dark:text-cyan-300"
   }
 }
-
-
 
 interface FormsTabProps {
   forms: IncidentFormSettings[]
@@ -109,10 +106,9 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, statu
 
   const { ordered: orderedFields, onDragEnd } = useOptimisticOrder(selectedForm?.fields ?? [])
 
-
   function handleUpdateField(field: IncidentFormFieldSettings, next: Partial<Pick<IncidentFormFieldSettings, "visibilityMode" | "requiredMode">>) {
-    // A default field has no row yet, so the id is synthetic and the form has
-    // to come along for the backend to know which one to materialize.
+    // A default field has no row yet, so the form comes along for the backend
+    // to materialize one.
     router.patch(incidentFormFieldPath(field.id), {
       incident_form_id: selectedForm?.id,
       visibility_mode: next.visibilityMode ?? field.visibilityMode,
@@ -123,8 +119,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, statu
   }
 
   // A default field has no row yet, so the form comes along for the backend to
-  // materialize one. Returning early instead meant conditions on a system field
-  // saved nothing and said nothing.
+  // materialize one. Returning early saved nothing and said nothing.
   function handleUpdateConditions(field: IncidentFormFieldSettings, conditions: IncidentConditionSettings[]) {
     router.patch(incidentFormFieldPath(field.id), {
       incident_form_id: selectedForm?.id,

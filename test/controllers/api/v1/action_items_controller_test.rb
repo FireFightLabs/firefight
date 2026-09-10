@@ -62,8 +62,7 @@ class Api::V1::ActionItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal IncidentAction::STATUS_IN_PROGRESS, action.status
   end
 
-  # Omitting the assignee means "I am taking this", which is the button a
-  # person presses rather than a separate endpoint.
+  # Omitting the assignee means I am taking this, the button a person presses rather than a separate endpoint.
   test "an assignee of nobody means the key takes the item itself" do
     action = incident_actions(:inc1_followup)
 

@@ -49,10 +49,8 @@ export function ConnectDialog({
   existingNames: string[];
   onDismiss: () => void;
 }) {
-  // The form is keyed on the provider, so picking a different tile mounts a
-  // fresh form seeded from that provider instead of resetting seven fields by
-  // hand. The last provider is kept so the content stays put through the
-  // close animation.
+  // Keyed on the provider so a different tile mounts a fresh form. The last provider
+  // is kept so the content stays put through the close animation.
   const [shownProvider, setShownProvider] = useState(provider);
   if (provider && provider !== shownProvider) {
     setShownProvider(provider);
