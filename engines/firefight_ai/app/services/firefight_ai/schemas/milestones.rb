@@ -1,8 +1,7 @@
 module FirefightAi
   module Schemas
     class Milestones < ::RubyLLM::Schema
-      # The one array this schema returns. The extractor reads the response by
-      # this key, so it lives here rather than as a string on both sides.
+      # The extractor reads the response by this key.
       ROOT_KEY = "milestones".freeze
 
       description "The genuine milestones of an incident's investigation, read from its channel transcript"

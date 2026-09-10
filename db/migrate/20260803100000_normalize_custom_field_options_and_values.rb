@@ -32,9 +32,7 @@ class NormalizeCustomFieldOptionsAndValues < ActiveRecord::Migration[8.1]
     add_foreign_key :incident_field_values, :incidents, on_delete: :cascade
     add_foreign_key :incident_field_values, :incident_field_definitions
 
-    # The whole point of the table, an option or catalog entry that an incident
-    # points at cannot be deleted out from under it by the database, not by a
-    # check someone remembered to write.
+    # An option or catalog entry an incident points at cannot be deleted out from under it.
     add_foreign_key :incident_field_values, :incident_field_options, on_delete: :restrict
     add_foreign_key :incident_field_values, :catalog_entries, on_delete: :restrict
 
@@ -51,8 +49,7 @@ class NormalizeCustomFieldOptionsAndValues < ActiveRecord::Migration[8.1]
       unique: true, where: "catalog_entry_id IS NOT NULL",
       name: "index_incident_field_values_unique_catalog_entry"
 
-    # Text, number, and link fields hold one value per incident. Selects are
-    # excluded so multi-select can write several rows.
+    # Selects are excluded so multi-select can write several rows.
     add_index :incident_field_values, [ :incident_id, :incident_field_definition_id ],
       unique: true,
       where: "incident_field_option_id IS NULL AND catalog_entry_id IS NULL",

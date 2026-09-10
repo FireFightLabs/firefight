@@ -18,25 +18,21 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     assert result[:membership].present?
     assert result[:first_install]
 
-    # Verify workspace was created
     workspace = result[:workspace]
     assert_equal "slack", workspace.platform
     assert_equal @auth_hash.extra.team_info["id"], workspace.platform_id
     assert_equal "Test Workspace", workspace.name
 
-    # Verify user was created
     user = result[:user]
     assert_equal "test@example.com", user.email
     assert_equal "Test User", user.name
 
-    # Verify membership was created
     membership = result[:membership]
     assert_equal user.id, membership.user_id
     assert_equal workspace.id, membership.workspace_id
   end
 
   test "process_oauth_callback returns existing workspace for reinstall" do
-    # Create existing workspace first
     team_id = "T#{SecureRandom.hex(8)}"
     existing_workspace = Workspace.create!(
     platform: "slack",
@@ -47,7 +43,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     incidents_channel_id: "C12345678"
     )
 
-    # Use auth_hash with matching team_id
     auth_hash = mock_slack_auth_hash(
     extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
     )
@@ -71,7 +66,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
   end
 
   test "process_oauth_callback does not trigger workflow for reinstall" do
-    # Create existing workspace with channel already set up
     team_id = "T#{SecureRandom.hex(8)}"
     Workspace.create!(
     platform: "slack",
@@ -94,7 +88,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
   end
 
   test "process_oauth_callback treats workspace without incidents_channel_id as first install" do
-    # Create workspace without incidents channel
     team_id = "T#{SecureRandom.hex(8)}"
     existing_workspace = Workspace.create!(
     platform: "slack",
@@ -135,7 +128,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
   end
 
   test "process_oauth_callback updates existing user with new auth info" do
-    # Create existing user
     existing_user = User.create!(
     email: "test@example.com",
     name: "Old Name"
@@ -144,7 +136,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     stub_successful_slack_workflow
     result = @service.process_oauth_callback(@auth_hash)
 
-    # User should be updated with new name
     existing_user.reload
     assert_equal "Test User", existing_user.name
     assert_equal existing_user.id, result[:user].id
@@ -171,9 +162,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     end
   end
 
-  # handle_openid_signin, signed_in + install_needed. No invite gate here.
-  # Installs are gated in handle_install.
-
+  # No invite gate on sign-in, installs are gated in handle_install.
   test "handle_openid_signin returns install_needed when workspace doesn't exist" do
     auth_hash = mock_slack_openid_auth_hash(
       info: { email: "newuser@example.com", team_id: "T_DOES_NOT_EXIST", team_name: "Brand New Co" }
@@ -220,8 +209,6 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       assert_equal "Welcome to #{workspace.name}.", outcome.message
     end
   end
-
-  # handle_install, wraps install path in AuthOutcome
 
   test "handle_install returns signed_in outcome and triggers setup on first install" do
     stub_successful_slack_workflow

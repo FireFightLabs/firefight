@@ -3,8 +3,6 @@ require "test_helper"
 class IncidentEventTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-  # Associations
-
   test "belongs to incident" do
     event = incident_events(:inc1_created)
     assert_instance_of Incident, event.incident
@@ -25,8 +23,6 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_nil event.actor
     assert event.valid?
   end
-
-  # Validations
 
   test "requires event_type" do
     event = IncidentEvent.new(
@@ -112,8 +108,6 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_includes event.errors[:eventable], "must be nil for event_type=#{IncidentEvent::MESSAGE_PINNED}"
   end
 
-  # Scopes
-
   test "chronological scope orders by created_at ascending" do
     events = IncidentEvent.chronological.to_a
     created_times = events.map(&:created_at)
@@ -125,8 +119,6 @@ class IncidentEventTest < ActiveSupport::TestCase
     created_times = events.map(&:created_at)
     assert_equal created_times.sort.reverse, created_times
   end
-
-  # update_type_map
 
   test "update_type_for maps lifecycle event types to IncidentUpdate update_types" do
     assert_equal IncidentUpdate::CREATED, IncidentEvent.update_type_for(IncidentEvent::INCIDENT_CREATED)
@@ -140,8 +132,6 @@ class IncidentEventTest < ActiveSupport::TestCase
       IncidentEvent.update_type_for(IncidentEvent::MESSAGE_PINNED)
     end
   end
-
-  # Constants
 
   test "EVENT_TYPES constant contains all event types" do
     expected_types = [
@@ -166,8 +156,6 @@ class IncidentEventTest < ActiveSupport::TestCase
     assert_equal "incident.resolved", IncidentEvent::INCIDENT_RESOLVED
   end
 
-  # Event descriptions
-
   test "description returns human-readable text for each event type" do
     IncidentEvent::EVENT_TYPES.each do |event_type|
       event = IncidentEvent.new(event_type: event_type)
@@ -182,8 +170,6 @@ class IncidentEventTest < ActiveSupport::TestCase
         "EVENT_DESCRIPTIONS should include #{event_type}"
     end
   end
-
-  # Delegated types + changed_fields
 
   test "eventable is optional (action events carry only metadata)" do
     event = IncidentEvent.new(
@@ -288,8 +274,6 @@ class IncidentEventTest < ActiveSupport::TestCase
     event = incident_events(:inc1_lead_assigned)
     assert_equal [], event.changed_fields
   end
-
-  # Fixtures loading
 
   test "workspace one fixtures load correctly" do
     event = incident_events(:inc1_created)

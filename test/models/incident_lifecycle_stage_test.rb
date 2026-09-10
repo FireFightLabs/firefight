@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentLifecycleStageTest < ActiveSupport::TestCase
-  # Validations
-
   test "requires key" do
     stage = IncidentLifecycleStage.new(name: "Test", description: "desc", position: 99)
     assert_not stage.valid?
@@ -39,8 +37,6 @@ class IncidentLifecycleStageTest < ActiveSupport::TestCase
     assert_includes stage.errors[:position], "can't be blank"
   end
 
-  # Predicates
-
   test "triage? returns true for triage stage" do
     assert incident_lifecycle_stages(:triage).triage?
     assert_not incident_lifecycle_stages(:active).triage?
@@ -68,20 +64,14 @@ class IncidentLifecycleStageTest < ActiveSupport::TestCase
     assert_not incident_lifecycle_stages(:canceled).open?
   end
 
-  # Constants
-
   test "KEYS contains all four stages" do
     assert_equal %w[active canceled closed triage], IncidentLifecycleStage::KEYS.sort
   end
-
-  # Associations
 
   test "has many incident_statuses" do
     active_stage = incident_lifecycle_stages(:active)
     assert_includes active_stage.incident_statuses, incident_statuses(:investigating_ws1)
   end
-
-  # Fixtures
 
   test "all four stages exist" do
     assert_equal 4, IncidentLifecycleStage.count

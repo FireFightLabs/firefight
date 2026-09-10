@@ -1,7 +1,5 @@
-# One reference attribute's value on one entry. The attribute definition is
-# the relationship's identity: which attribute it fills, and therefore what
-# key it renders under. The unique index on (source, definition) is what
-# keeps a single-valued reference single.
+# The unique index on source and definition is what keeps a single-valued
+# reference single.
 class CatalogEntryRelationship < ApplicationRecord
   belongs_to :workspace
   belongs_to :source_entry, class_name: "CatalogEntry"

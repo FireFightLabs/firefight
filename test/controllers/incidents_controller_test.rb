@@ -3,7 +3,6 @@ require "test_helper"
 class IncidentsControllerTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
 
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @user = users(:alice)
@@ -94,8 +93,7 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert declared_by["initials"].present?
   end
 
-  # Serializing must not reach for the declarer per row. Dropping declared_by
-  # from with_list_associations makes this fail.
+  # Dropping declared_by from with_list_associations makes this fail.
   test "the incidents table names who declared each one from the preload" do
     seen = []
     counter = ->(_, _, _, _, payload) { seen << payload[:sql] unless payload[:name].in?([ "SCHEMA", "TRANSACTION" ]) }

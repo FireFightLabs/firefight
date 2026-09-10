@@ -8,10 +8,7 @@ class AbilityRolesController < InertiaController
     redirect_to gateway_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
 
-  # `action_ids` is the set's full contents, not a delta, so an absent or
-  # empty list empties it. Guarding on the key being present would make
-  # unticking the last ability depend on how an empty array survives
-  # serialization, which is not something this should rest on.
+  # `action_ids` is the full set, not a delta, so an absent or empty list empties it.
   def update
     current_workspace.ability_roles.find(params[:id]).sync_actions!(permitted_action_ids)
 
@@ -20,8 +17,7 @@ class AbilityRolesController < InertiaController
     redirect_to gateway_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
 
-  # Revoking the set revokes it everywhere it was granted, which is the point
-  # of granting a set rather than its actions one by one.
+  # Destroying the set revokes it everywhere it was granted.
   def destroy
     current_workspace.ability_roles.find(params[:id]).destroy!
     redirect_to gateway_permissions_path

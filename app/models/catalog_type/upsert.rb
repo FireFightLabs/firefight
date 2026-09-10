@@ -1,10 +1,5 @@
-# Creating or changing a catalog type from the shape a script or an agent hands
-# in: its name and the attributes every entry under it carries. Attributes are
-# matched by slug rather than id, so resending a list renames rather than
-# replaces and the entries already holding a value keep it, and a reference
-# attribute names the type it points at by slug rather than by id. Attributes
-# are only touched when they are sent, so changing a description does not clear
-# the shape.
+# Attributes match by slug, so resending a list renames rather than replaces
+# and entries keep their values. Attributes are only touched when sent.
 class CatalogType::Upsert
   def initialize(workspace)
     @workspace = workspace
@@ -32,9 +27,8 @@ class CatalogType::Upsert
     { name: args[:name], description: args[:description], icon: args[:icon], color: args[:color] }.compact
   end
 
-  # The id is what sync matches on, so a slug that already exists resolves to
-  # it. Anything unmatched is new, and anything left out is removed, which the
-  # in-use guards refuse when an entry still depends on it.
+  # Sync matches on id, so an existing slug resolves to its id. Anything left
+  # out is removed, which the in-use guards refuse.
   def definition_params(type, args)
     existing = type.catalog_attribute_definitions.index_by(&:slug)
 

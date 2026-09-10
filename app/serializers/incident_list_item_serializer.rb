@@ -16,7 +16,7 @@ class IncidentListItemSerializer < BaseSerializer
     incident.lead&.user&.name
   end
 
-  # A name, like `lead`. The table shows text, not chips.
+  # A name, the table shows text rather than chips.
   type :string, optional: true
   def declared_by
     incident.declared_by&.actor_display_name

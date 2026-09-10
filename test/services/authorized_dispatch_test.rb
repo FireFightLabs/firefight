@@ -7,8 +7,7 @@ class AuthorizedDispatchTest < ActiveSupport::TestCase
     @incident = incidents(:active_critical_ws1)
   end
 
-  # Every route the two dispatchers can reach has to say what it authorizes as,
-  # or a handler could be added that quietly runs ungated.
+  # Otherwise a handler could be added that quietly runs ungated.
   test "every dispatchable handler declares an authorization" do
     handlers = InteractionDispatcher::VIEW_SUBMISSION_HANDLERS.values +
                InteractionDispatcher::BLOCK_ACTION_HANDLERS.values +

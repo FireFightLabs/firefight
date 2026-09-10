@@ -36,8 +36,7 @@ module Mcp
         )
       end
 
-      # Every role the workspace configured, held or not, so an agent can see
-      # what it may assign without a second call.
+      # Unheld roles are included so an agent sees what it may assign without a second call.
       def self.roles(incident)
         holders = incident.incident_role_assignments.includes(:workspace_membership).index_by(&:incident_role_id)
 
@@ -51,8 +50,7 @@ module Mcp
         end
       end
 
-      # The work, with the ids the write tools take. Without these an agent
-      # can see that an item exists and has no way to name it.
+      # Ids are included so an agent can name an item to the write tools.
       def self.action_items(incident)
         incident.incident_actions.active.order(:created_at).map do |action|
           {

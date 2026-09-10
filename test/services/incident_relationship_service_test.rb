@@ -3,7 +3,6 @@ require "test_helper"
 class IncidentRelationshipServiceTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
@@ -11,8 +10,6 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
     @incident1 = incidents(:active_critical_ws1)
     @incident2 = incidents(:active_major_ws1)
   end
-
-  # Link related
 
   test "link_related creates relationship" do
     assert_difference "IncidentRelationship.count", 1 do
@@ -57,8 +54,6 @@ class IncidentRelationshipServiceTest < ActiveSupport::TestCase
       @service.link_related(source: @incident2, target: @incident1, created_by: @member)
     end
   end
-
-  # Mark duplicate
 
   test "mark_duplicate creates relationship" do
     assert_difference "IncidentRelationship.count", 1 do

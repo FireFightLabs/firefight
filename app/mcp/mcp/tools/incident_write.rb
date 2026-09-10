@@ -1,8 +1,5 @@
 module Mcp
   module Tools
-    # The shape every incident-write tool shares: find the incident, validate
-    # the answers against the form this workspace configured, hand them to the
-    # lifecycle service, report what the incident looks like now.
     module IncidentWrite
       def self.find!(workspace, reference)
         incident = GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), reference.to_s)

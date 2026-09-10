@@ -35,8 +35,8 @@ export function AgentRowActions({
     onManageTokens(agent)
   }
 
-  // An overlap, not a swap. The old token keeps working until it is revoked,
-  // so the agent stays up while its config is updated.
+  // An overlap, not a swap. The old token works until revoked, so the agent
+  // stays up while its config is updated.
   function rotate() {
     router.post(rotateGatewayAgentPath(agent.id), {}, { preserveScroll: true })
   }

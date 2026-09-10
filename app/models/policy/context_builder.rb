@@ -1,12 +1,5 @@
-# Enriches a raw field hash with catalog-resolved context before policy
-# evaluation. For each field naming a catalog system type (service, team,
-# environment, functionality) it resolves the entry by slug and merges:
-#   - one relationship hop: related entries keyed by their type's system_key
-#     (e.g. service "auth_service" --owner_team--> team "platform_team"
-#      adds "team" => "platform_team")
-#   - the entry's scalar attributes as "<field>.<attribute>"
-#     (e.g. "service.tier" => "Critical")
-# Explicit input fields are never overwritten.
+# A field naming a system type gains one relationship hop keyed by system_key and its
+# scalar attributes as "<field>.<attribute>". Input fields are never overwritten.
 class Policy::ContextBuilder
   def self.build(workspace:, fields:)
     context = Policy.normalize_context(fields)

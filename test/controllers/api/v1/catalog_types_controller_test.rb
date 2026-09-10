@@ -1,8 +1,6 @@
 require "test_helper"
 
-# The kinds of thing the catalog holds, over REST. The API is the substrate
-# every other surface is built on, so it carries the same writes the dashboard
-# has rather than reading only.
+# The API carries the same writes the dashboard has, not reads only.
 class Api::V1::CatalogTypesControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)

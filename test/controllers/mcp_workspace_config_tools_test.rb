@@ -1,8 +1,6 @@
 require "test_helper"
 
-# Configuring a workspace the way a person does on the settings screens, but
-# from Claude Code. Every tool goes through the same model operations the
-# screen calls, so a list changed here behaves as if it had been dragged.
+# Every tool goes through the same model operations the settings screens call.
 class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -28,8 +26,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # The whole reason these are separate tools rather than one with a kind
-  # argument: their payloads are not the same, and the schema has to say so.
+  # Separate tools rather than one with a kind argument, because the payloads differ and the schema must say so.
   test "each list asks for its own fields and nothing it has no use for" do
     tools = rpc("tools/list").dig("result", "tools").index_by { |tool| tool["name"] }
     properties = ->(name) { tools[name].dig("inputSchema", "properties").keys }
@@ -67,9 +64,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     assert_equal "cosmetic", content["slug"]
   end
 
-  # Position is the one ordering. Rank is derived from it by the same reorder
-  # the settings screen runs, so a new top severity outranks every other and
-  # the rest shift down rather than colliding.
+  # Rank is derived from position by the same reorder the settings screen runs, so ranks never collide.
   test "position 1 puts a new severity at the top and every rank follows" do
     before = @workspace.incident_severities.ordered.pluck(:slug)
 
@@ -136,8 +131,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     assert_equal (1..@workspace.incident_types.count).to_a, @workspace.incident_types.ordered.pluck(:position)
   end
 
-  # The model owns the rule, so every surface reports the same sentence rather
-  # than each restating it in its own words.
+  # The model owns the rule, so every surface reports the same sentence.
   test "creating without a name reports what the model refused" do
     _, is_error, text = call_tool(Mcp::Tools::UPSERT_SEVERITY, { position: 1 }, token: @admin_token)
 
@@ -145,7 +139,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     assert_match(/Name can't be blank/, text)
   end
 
-  # Renaming leaves the slug alone, because stored records point at it.
+  # Stored records point at the slug.
   test "renaming keeps the slug" do
     severity = @workspace.incident_severities.active.first
 
@@ -240,8 +234,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     assert_nil @workspace.incident_severities.find_by(slug: "sneaky")
   end
 
-  # An agent granted the resource reaches it. Whether to grant it is the
-  # workspace's call, not the tool's.
+  # Whether to grant it is the workspace's call, not the tool's.
   test "an agent granted severities can change them" do
     _, token = create_agent(
       workspace: @workspace, created_by: @membership, name: "Config agent", slug: "config_agent",

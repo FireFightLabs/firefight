@@ -99,8 +99,7 @@ class CatalogueController < InertiaController
 
   private
 
-  # The role dropdown's choices, with the attribute types each role fits, so
-  # the dialog offers a role only where the model would accept it.
+  # Each role lists the attribute types it fits, so the dialog offers a role only where the model accepts it.
   def attribute_role_options
     CatalogAttributeDefinition::ROLE_LABELS.map do |value, label|
       {
@@ -111,17 +110,15 @@ class CatalogueController < InertiaController
     end
   end
 
-  # An invalid attribute definition carries its errors on name, slug and
-  # attribute_type, which are field names on the type itself, so left alone they
-  # render against the type's own inputs. Move them to base, named.
+  # An invalid attribute definition's errors are on name, slug and attribute_type, which
+  # would render against the type's own inputs. Moved to base, named.
   def type_errors(record)
     return record.errors.to_hash if record.is_a?(CatalogType)
 
     { base: attribute_definition_errors(record) }
   end
 
-  # The slug is generated from the name and has no input of its own, so its
-  # errors are the name's errors wearing a name nobody recognises.
+  # The slug has no input of its own, so its errors would show against nothing.
   def attribute_definition_errors(definition)
     return [ "Every attribute needs a name" ] if definition.name.blank?
 

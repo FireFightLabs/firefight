@@ -13,8 +13,6 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     @adapter = Slack::WorkspaceAdapter.new(@workspace)
   end
 
-  # create_incidents_channel tests
-
   test "create_incidents_channel creates new channel" do
     stub_create_channel
     result = @adapter.create_incidents_channel
@@ -65,8 +63,6 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     end
   end
 
-  # post_welcome_message tests
-
   test "post_welcome_message posts to channel" do
     stub_post_message
     result = @adapter.post_welcome_message(channel_id: "C12345678", stage: WorkspaceOnboarding::STAGE_NONE)
@@ -90,8 +86,6 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     @adapter.update_welcome_message(channel_id: "C12345678", message_id: "123.456", stage: WorkspaceOnboarding::STAGE_NONE)
   end
 
-  # post_preview_announcement tests
-
   test "post_preview_announcement posts ephemeral message" do
     stub_post_ephemeral
     result = @adapter.post_preview_announcement(
@@ -103,7 +97,6 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
   end
 
   test "post_preview_announcement includes user_id in blocks" do
-    # Verify post_ephemeral is called with user_id in blocks
     Slack::Client.expects(:post_ephemeral).with do |**args|
       blocks_json = args[:blocks].to_json
       blocks_json.include?("U87654321")
@@ -114,8 +107,6 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
       user_id: "U87654321"
     )
   end
-
-  # open_share_modal tests
 
   test "open_share_modal opens modal with trigger_id" do
     stub_open_modal
@@ -128,10 +119,7 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     assert result[:success]
   end
 
-  # post_share_messages tests
-
   test "post_share_messages posts to all target conversations" do
-    # Verify post_message is called 3 times (once per conversation)
     Slack::Client.expects(:post_message).times(3).returns({ ok: true, ts: "123.456" })
 
     result = @adapter.post_share_messages(
@@ -145,7 +133,6 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
   end
 
   test "post_share_messages handles partial failures gracefully" do
-    # Stub to succeed on 1st call, fail on 2nd, succeed on 3rd
     Slack::Client.stubs(:post_message)
       .returns({ ok: true, ts: "123.1" })
       .then.raises(AdapterError.new("not_in_channel"))
@@ -186,7 +173,6 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
   end
 
   test "post_share_messages includes team_id in deep link" do
-    # Verify post_message is called with team_id in deep link
     Slack::Client.expects(:post_message).with do |**args|
       blocks_json = args[:blocks].to_json
       blocks_json.include?("slack://channel?team=#{@workspace.platform_id}")
@@ -199,8 +185,6 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     )
   end
 
-  # find_existing_channel tests (tested indirectly through create_incidents_channel)
-
   test "find_existing_channel returns channel by name" do
     channels = [
     { id: "C11111111", name: "general" },
@@ -209,7 +193,6 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
     ]
 
     stub_list_conversations(channels: channels)
-      # Use create_incidents_channel with error to trigger find_existing_channel
       stub_create_channel(raises: AdapterError::ChannelExists.new("exists"))
       result = @adapter.create_incidents_channel
 

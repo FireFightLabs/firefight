@@ -6,8 +6,7 @@ class IncidentLifecycleStage < ApplicationRecord
 
   KEYS = [ TRIAGE, ACTIVE, CLOSED, CANCELED ].freeze
 
-  # The four global rows, defined once for the migration-era seed and
-  # db/seeds.rb alike. Idempotent.
+  # Shared by the migration-era seed and db/seeds.rb.
   DEFAULTS = [
     { key: TRIAGE, name: "Triage", description: "Potential incident under investigation, not yet confirmed as active.", position: 1 },
     { key: ACTIVE, name: "Active", description: "Confirmed incident actively being worked by responders.", position: 2 },

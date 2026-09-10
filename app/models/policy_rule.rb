@@ -15,7 +15,7 @@ class PolicyRule < ApplicationRecord
 
   belongs_to :policy
 
-  # Outcome contracts per policy domain. Domains without a contract accept any object.
+  # Domains without a contract accept any object.
   OUTCOME_VALIDATORS = {
     Policy::DOMAIN_ALERT_ROUTING => PolicyRule::AlertRoutingOutcome,
     Policy::DOMAIN_APPROVALS => PolicyRule::ApprovalOutcome
@@ -25,8 +25,8 @@ class PolicyRule < ApplicationRecord
   validate :conditions_are_well_formed
   validate :outcome_matches_domain_contract
 
-  # Two-step through a temporary priority to satisfy the unique index. A nil
-  # neighbour means the rule is already at that end, which is not an error.
+  # Two steps through a temporary priority to satisfy the unique index. A
+  # nil neighbour means the rule is already at that end.
   def swap_priority_with!(other)
     return unless other
 

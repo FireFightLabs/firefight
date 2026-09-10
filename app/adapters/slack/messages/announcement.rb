@@ -1,9 +1,7 @@
 module Slack
   module Messages
-    # Announcement posted to the #incidents channel when an incident is
-    # declared. `build` derives the message from an Incident. `build_from`
-    # accepts a plain hash and is used for the install-time preview when
-    # there's no real incident yet.
+    # `build_from` takes a plain hash for the install-time preview, when there
+    # is no incident yet.
     module Announcement
       def self.build(incident)
         blocks = IncidentDetail.for_incident(incident, channel_id: incident.channel_id)

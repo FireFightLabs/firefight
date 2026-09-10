@@ -33,7 +33,7 @@ const HEALTH_LABEL: Record<
 };
 
 // Only an MCP connection discovers its tools from a server, so only it names
-// the transport. A native pack's capabilities are fixed and need no suffix.
+// the transport.
 const KIND_SUFFIX: Record<Integration["kind"], string> = {
   [INTEGRATION_KINDS.MCP]: " · via MCP",
   [INTEGRATION_KINDS.HTTP]: "",
@@ -62,8 +62,8 @@ export function ConnectedCard({
   const writeEnabledCount = availableTools.filter(
     (tool) => tool.enabled && !tool.readOnly,
   ).length;
-  // "Reads only" is a target state, so it is a no-op once every read is on
-  // and no write is.
+  // "Reads only" is a target state, so it is a no-op once every read is on and
+  // no write is.
   const readsOnlyAlreadySet =
     writeEnabledCount === 0 &&
     availableTools.every((tool) => !tool.readOnly || tool.enabled);

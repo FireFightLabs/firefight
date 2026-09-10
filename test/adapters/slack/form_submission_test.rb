@@ -24,10 +24,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
   end
 
   test "reads severity regardless of which action_id the modal builder used" do
-    # The declare modal builder uses the dispatch action_id
-    # (`incident_creation_severity_select`). The submission parser must not
-    # require knowing that name, it should accept whatever action key sits
-    # under the severity block.
+    # The parser must accept whatever action key sits under the severity block, not the builder's action_id.
     values = {
       "field_severity_block" => {
         "some_other_action_id" => { "selected_option" => { "value" => "major" } }
@@ -78,8 +75,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
   end
 
   test "parses an update submission with incident context falling back to current values" do
-    # No severity slug in the submission, context should fall back to the
-    # existing incident's severity so condition evaluation still works.
+    # Without a severity slug, context falls back to the incident's severity so conditions still evaluate.
     values = {
       "field_status_block" => {
         "field_status_input" => { "selected_option" => { "value" => "monitoring" } }
@@ -137,8 +133,7 @@ class Slack::FormSubmissionTest < ActiveSupport::TestCase
     ).parse
 
     assert_empty result.errors
-    # Declare ships asking for name, severity and summary. Incident type and
-    # visibility are offered in the editor but off until a workspace wants them.
+    # Incident type and visibility are offered in the editor but off until a workspace wants them.
     assert result.includes_system_key?(IncidentSystemField::KEY_SEVERITY)
     assert_not result.includes_system_key?(IncidentSystemField::KEY_VISIBILITY)
   end

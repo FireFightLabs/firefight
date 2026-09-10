@@ -1,10 +1,5 @@
 module Slack
   module Messages
-    # Messages for incident action items (and their close cousins,
-    # follow-ups). `created`, `picked_up`, and `completed` are the lifecycle
-    # posts in the channel. `from_reaction` is the "would you like to create
-    # an action from this message" prompt triggered by the :boom: /
-    # :arrow_forward: reaction.
     module Action
       KIND_DISPLAY = {
         IncidentAction::ACTION_TYPE_FOLLOWUP => { emoji: ":arrow_forward:", label: "follow-up" },
@@ -75,9 +70,8 @@ module Slack
         }
       end
 
-      # Editing a message notifies nobody, so a handover has to post. This one
-      # carries the controls and becomes the item's own message, for an item
-      # that has none yet.
+      # Editing a message notifies nobody, so a handover posts. This one
+      # becomes the item's own message when it has none yet.
       def self.handed_over(action, reassigned_by)
         emoji, label = display(action)
 
@@ -88,9 +82,8 @@ module Slack
         ) + [ controls(action) ]
       end
 
-      # The same handover for an item that already has a message. It points at
-      # that one rather than carrying a second set of controls that nothing
-      # would keep up to date.
+      # Points at the item's existing message instead of carrying a second set
+      # of controls nothing would keep up to date.
       def self.handover_notice(action, reassigned_by, link: nil)
         emoji, label = display(action)
 
@@ -113,9 +106,7 @@ module Slack
         )
       end
 
-      # Something happened to an item and the channel has moved on. Title, what
-      # it was, then attribution, with the link demoted to the footer so it
-      # never competes with what was done.
+      # The link sits in the footer so it never competes with what was done.
       def self.notice(action, title:, footer:, link: nil)
         footer += "  ·  <#{link.url}|#{link.label}>" if link
 

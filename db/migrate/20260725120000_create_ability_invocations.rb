@@ -2,9 +2,7 @@ class CreateAbilityInvocations < ActiveRecord::Migration[8.1]
   def change
     create_table :ability_invocations, id: :uuid, default: -> { "gen_random_uuid()" } do |t|
       t.uuid :workspace_id, null: false
-      # Principal stored as values (type/id + label), with no FK. The ledger must
-      # stay readable after the principal is deleted and portable to another
-      # store.
+      # No FK, the ledger must stay readable after the principal is deleted.
       t.string :principal_type, null: false
       t.uuid :principal_id, null: false
       t.string :principal_label, null: false

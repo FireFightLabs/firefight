@@ -1,5 +1,4 @@
-# A command from any platform, built before a handler sees it.
-# Despite living in app/models, this is a plain object with no table behind it.
+# A plain object with no table behind it.
 class Command
   include ActiveModel::Model
   include ActiveModel::Validations
@@ -36,14 +35,12 @@ class Command
     @workspace ||= Workspace.find_by(id: workspace_id)
   end
 
-
-  # What the approval digest is bound to. Deterministic and replayable. A
-  # resumed command rebuilds the same hash, so the approval matches.
+  # What the approval digest is bound to. A resumed command rebuilds the
+  # same hash, so the approval matches.
   def authorization_params
     { command: command_name, subcommand: subcommand, text: text }.compact
   end
 
-  # The attrs a resumed dispatch is rebuilt from, once an approval clears.
   def resume_attrs
     {
       platform: platform, workspace_id: workspace_id, user_id: user_id,
@@ -71,7 +68,6 @@ class Command
     args.first
   end
 
-  # "/firefight" → "firefight", "/ff" → "ff"
   def command_name
     metadata[:command]&.to_s&.delete_prefix("/")
   end

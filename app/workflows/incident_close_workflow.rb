@@ -30,7 +30,7 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
     end
   end
 
-  # After the resolution message, which holds the button step 4 points at.
+  # Runs after the resolution message, which holds the button step 4 points at.
   def post_first_incident_walkthrough(workflow:, step:, input:)
     checkpointed(step) do
       OnboardingWalkthroughService.new(workflow.subject.workspace).advance!(workflow.subject)
@@ -46,9 +46,8 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
     end
   end
 
-  # Last, so the channel has already been told the incident is over. The pass
-  # reads the transcript and writes what the team worked out onto the
-  # timeline. Nothing is posted, and a build without the AI engine skips it.
+  # Runs last so the channel has already been told the incident is over.
+  # A build without the AI engine skips it.
   def note_milestones(workflow:, step:, input:)
     return unless defined?(FirefightAi)
 

@@ -50,10 +50,8 @@ export function conditionSummary(
     .join(" AND ")
 }
 
-// What the Conditions column says. The server decides how a runbook reaches
-// incidents, and attachMode comes from the same rule automatic attachment
-// uses. This only renders it. A runbook that never attaches on its own says
-// so, which beats an empty cell.
+// The server decides how a runbook reaches incidents, this only renders it.
+// A runbook that never attaches on its own says so, which beats an empty cell.
 export function attachSummary(
   runbook: { conditions?: IncidentConditionSettings[] | null; attachMode: "always" | "conditional" | "manual" },
   incidentTypes: IncidentTypeSettings[],

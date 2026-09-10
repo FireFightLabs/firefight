@@ -24,9 +24,6 @@ module Workspace::IncidentDefaults
     { name: "Third Party", slug: "third_party", position: 5, color: "#10B981", description: "Vendor or external dependency outage affecting your systems." }
   ].freeze
 
-  # Forms are defined in IncidentForm::DEFAULTS and materialized on
-  # demand via Workspace#ensure_incident_form!. No seeding required.
-
   def setup_incident_configuration!
     transaction do
       create_default_severities!
@@ -45,11 +42,8 @@ module Workspace::IncidentDefaults
     })
   end
 
-  # Kept as a no-op for backwards compatibility (older migrations call it).
-  # Forms now come from `IncidentForm::DEFAULTS` and need no per-workspace
-  # rows. See `Workspace#ensure_incident_form!` for lazy materialization.
+  # Older migrations call it. Forms need no per-workspace rows any more.
   def setup_incident_forms!
-    # no-op
   end
 
   private

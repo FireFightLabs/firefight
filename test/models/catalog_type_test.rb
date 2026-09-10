@@ -1,8 +1,6 @@
 require "test_helper"
 
 class CatalogTypeTest < ActiveSupport::TestCase
-  # Basic validations
-
   test "requires name" do
     ct = CatalogType.new(
       workspace: workspaces(:slack_workspace_one),
@@ -59,8 +57,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_includes ct.errors[:kind], "is not included in the list"
   end
 
-  # Slug uniqueness
-
   test "slug must be unique within workspace" do
     existing = catalog_types(:custom_vendor_ws1)
     duplicate = CatalogType.new(
@@ -84,8 +80,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
     )
     assert ct.valid?
   end
-
-  # System key validations
 
   test "system key required for system types" do
     ct = CatalogType.new(
@@ -125,8 +119,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_includes duplicate.errors[:system_key], "has already been taken"
   end
 
-  # Reserved slugs
-
   test "custom types cannot use reserved slugs" do
     CatalogType::RESERVED_SLUGS.each do |reserved_slug|
       ct = CatalogType.new(
@@ -140,8 +132,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
       assert_includes ct.errors[:slug], "is reserved for system types"
     end
   end
-
-  # System fields immutable on update
 
   test "system type slug is immutable on update" do
     team = catalog_types(:team_ws1)
@@ -163,8 +153,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert vendor.valid?
   end
 
-  # Kind helpers
-
   test "system? returns true for system types" do
     assert catalog_types(:team_ws1).system?
   end
@@ -180,8 +168,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
   test "custom? returns false for system types" do
     assert_not catalog_types(:team_ws1).custom?
   end
-
-  # Scopes
 
   test "active scope excludes deleted types" do
     vendor = catalog_types(:custom_vendor_ws1)
@@ -204,8 +190,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
     assert_equal 1, service_type.entry_count
     assert_equal 0, functionality_type.entry_count
   end
-
-  # Soft delete
 
   test "soft_delete! rejects system types" do
     team = catalog_types(:team_ws1)
@@ -247,9 +231,7 @@ class CatalogTypeTest < ActiveSupport::TestCase
   test "soft_delete! cleans up relationships for affected entries" do
     service_type = catalog_types(:service_ws1)
 
-    # The service_ws1 type has auth_service, which has the auth_service_owner relationship
-    # We can't soft delete a system type, so test with a custom type that has relationships instead.
-    # Create a custom type setup with relationships for this test.
+    # A system type cannot be soft deleted, so a custom type carries the relationships here.
     workspace = workspaces(:slack_workspace_one)
     custom_type = CatalogType.create!(
       workspace: workspace, name: "Deletable", slug: "deletable",
@@ -269,8 +251,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
     custom_type.soft_delete!
     assert_not CatalogEntryRelationship.exists?(rel.id)
   end
-
-  # Sync attribute definitions
 
   test "sync_attribute_definitions! creates new definitions" do
     vendor = catalog_types(:custom_vendor_ws1)
@@ -305,7 +285,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
   test "sync_attribute_definitions! rejects removal of definitions used by entries" do
     vendor = catalog_types(:custom_vendor_ws1)
 
-    # vendor_name_attr (contact_email) is used by vendor_acme entry
     error = assert_raises(ActiveRecord::RecordNotDestroyed) do
       vendor.sync_attribute_definitions!([
         { id: catalog_attribute_definitions(:vendor_tier).id, name: "Tier", attribute_type: CatalogAttributeDefinition::TYPE_SELECT, config: { "options" => [ "Gold", "Silver", "Bronze" ] } }
@@ -313,8 +292,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
     end
     assert_match(/Contact Email/, error.message)
   end
-
-  # Reference entry options
 
   test "reference_entry_options returns entries from referenced types" do
     service_type = catalog_types(:service_ws1)
@@ -340,8 +317,6 @@ class CatalogTypeTest < ActiveSupport::TestCase
     deleted_entry_ids = options.map { |o| o[:id] }
     assert_not_includes deleted_entry_ids, catalog_entries(:deleted_entry).id
   end
-
-  # Schema evolution guards
 
   test "reference_type_id cannot be changed on existing reference attribute" do
     service_type = catalog_types(:service_ws1)

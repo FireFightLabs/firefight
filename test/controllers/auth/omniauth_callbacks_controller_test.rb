@@ -11,8 +11,6 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     OmniAuth.config.test_mode = false
   end
 
-  # slack_openid, OIDC sign-in
-
   test "slack_openid signs in an existing member and redirects to dashboard" do
     workspace = workspaces(:slack_workspace_one)
     alice     = users(:alice)
@@ -79,8 +77,6 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_equal workspace.id,           session[:workspace_id]
     assert_equal "member",               new_membership.role
   end
-
-  # slack, bot install
 
   test "slack install creates the workspace and owner membership without an invite when the gate is off" do
     stub_successful_slack_workflow
@@ -190,10 +186,8 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
       info: { email: alice.email, team_id: workspace.platform_id, team_name: workspace.name }
     )
 
-    # Direct contract: reset_session must be called on sign-in to mitigate
-    # session fixation. (A cookie-rotation probe doesn't work reliably across
-    # inertia_rails versions, 3.21+ skips Set-Cookie when no session writes
-    # occur during an unauth render, so there's no pre-state to compare.)
+    # reset_session on sign-in guards against session fixation. A cookie-rotation probe is unreliable,
+    # inertia_rails 3.21+ skips Set-Cookie when nothing writes to the session.
     Auth::OmniauthCallbacksController.any_instance.expects(:reset_session).at_least_once
 
     get "/auth/slack_openid/callback"
@@ -201,8 +195,6 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to dashboard_path
     assert_equal alice.id, session[:user_id]
   end
-
-  # failure
 
   test "failure with csrf_detected redirects to login with specific alert" do
     get "/auth/failure?message=csrf_detected"

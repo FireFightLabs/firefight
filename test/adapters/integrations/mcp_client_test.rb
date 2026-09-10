@@ -30,7 +30,6 @@ module Integrations
 
       assert_equal [ { "name" => "pr.list" } ], tools
       assert_equal 3, call, "initialize, initialized notification, then tools/list"
-      # the session id captured from initialize is used by the http layer via @session_id
       assert_equal "sess-123", @client.instance_variable_get(:@session_id)
     end
 

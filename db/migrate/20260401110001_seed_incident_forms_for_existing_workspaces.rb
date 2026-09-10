@@ -8,6 +8,6 @@ class SeedIncidentFormsForExistingWorkspaces < ActiveRecord::Migration[8.1]
   end
 
   def down
-    # Keep seeded forms for existing workspaces.
+    # Seeded forms are kept on rollback.
   end
 end

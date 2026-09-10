@@ -16,7 +16,6 @@ class CreateIncidentRoleAssignments < ActiveRecord::Migration[8.1]
       t.index :incident_role_id
     end
 
-    # Foreign key constraints
     add_foreign_key :incident_role_assignments, :incidents
     add_foreign_key :incident_role_assignments, :incident_roles
     add_foreign_key :incident_role_assignments, :workspace_memberships

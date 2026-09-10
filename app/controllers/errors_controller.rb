@@ -1,7 +1,5 @@
-# Renders the branded error pages. Reached two ways: `exceptions_app` routes
-# here when Rails handles an exception itself, and the catch-all route sends an
-# unmatched URL to `not_found` so a mistyped path is a styled page rather than a
-# routing error in any environment.
+# Reached through `exceptions_app` and the catch-all route, so a mistyped path is a
+# styled page in every environment.
 class ErrorsController < InertiaController
   # Error pages render for everyone, suspended or not.
   skip_before_action :block_suspended_workspace
@@ -20,8 +18,7 @@ class ErrorsController < InertiaController
 
   private
 
-  # A missing API path must not answer with a page, and an image or script that
-  # 404s only needs the status.
+  # An API path must not answer with a page, and a missing image or script only needs the status.
   def respond_with_error(component, status)
     respond_to do |format|
       format.html { render inertia: component, props: { signedIn: user_signed_in? }, status: status }

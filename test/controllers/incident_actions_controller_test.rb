@@ -139,8 +139,6 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     ApplicationController.any_instance.stubs(:user_signed_in?).returns(true)
   end
 
-  # Working an item from the page
-
   test "picking up an unassigned item takes it and starts it" do
     action = open_action
 
@@ -198,8 +196,7 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  # An agent has no user behind it, so the page has to render an item a
-  # machine holds without trying to load one.
+  # An agent has no user behind it, so the page must render an item a machine holds.
   test "the incident page renders an item held by an agent" do
     agent = @workspace.agents.create!(name: "Support agent", slug: "support_agent")
     action = open_action
@@ -221,9 +218,8 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Ability::Principal::KIND_AGENT, assignee["kind"]
   end
 
-  # The page names the props a mutation can change, so the redirect back is a
-  # partial reload rather than a full visit that would drop the deferred
-  # timeline and actions to their skeletons.
+  # The page names the props a mutation can change, so the redirect back is a partial reload that
+  # keeps the deferred timeline and actions instead of dropping them to skeletons.
   test "complete followed by the page's partial reload returns the deferred props" do
     action = open_action
     action.update!(assignee: @member, status: IncidentAction::STATUS_IN_PROGRESS)

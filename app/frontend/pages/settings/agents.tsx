@@ -43,8 +43,8 @@ export default function AgentsPage() {
   const [deleting, setDeleting] = useState<Agent | null>(null)
   const [showingTokens, setShowingTokens] = useState<Agent | null>(null)
 
-  // Lifted out of flash so the dialog survives re-renders. Rails clears flash
-  // on the next request, and this token is never shown again.
+  // Lifted out of flash so the dialog survives re-renders. Rails clears flash on
+  // the next request and the token is never shown again.
   useEffect(() => {
     if (flash?.api_key_token) {
       setRevealedToken(flash.api_key_token)

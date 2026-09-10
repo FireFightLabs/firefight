@@ -7,8 +7,7 @@ FirefightAi.configure do |config|
   config.default_model = ENV["FIREFIGHT_AI_MODEL"]
   config.default_provider = ENV["FIREFIGHT_AI_PROVIDER"]
 
-  # Unset means on. Only an explicit false, 0, or off turns milestone
-  # noting off across every workspace.
+  # Unset means on. Only an explicit false, 0 or off turns milestones off for every workspace.
   config.milestones_enabled = ENV["AI_MILESTONES_ENABLED"].blank? ||
     ActiveModel::Type::Boolean.new.cast(ENV["AI_MILESTONES_ENABLED"])
 end

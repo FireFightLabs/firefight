@@ -2,8 +2,8 @@ export function csrfToken(): string {
   return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? ""
 }
 
-// JSON request with the CSRF header. Parses the response body (null when
-// unparsable). Network failures still throw so callers decide how to degrade.
+// The body parses to null when unparsable. Network failures still throw so
+// callers decide how to degrade.
 type JsonRequestInit = Omit<RequestInit, "body"> & { body?: unknown }
 
 export async function requestJson<T>(

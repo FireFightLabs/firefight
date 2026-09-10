@@ -1,9 +1,6 @@
 require "test_helper"
 
-# An agent doing the work of an incident rather than only opening and closing
-# one: raising items, taking them, finishing them, pulling people in, and
-# saying thank you. Every tool goes through the same service the Slack button
-# and the dashboard use.
+# Every tool goes through the same service the Slack button and the dashboard use.
 class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -182,8 +179,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
     assert_equal @agent, shoutout.from_member
   end
 
-  # The point of escalation from an agent: it has gone as far as it can and
-  # needs a named human.
+  # Escalation from an agent means it has gone as far as it can and needs a named human.
   test "an agent escalates to a person and the chase is scheduled" do
     assert_enqueued_with(job: EscalationAcknowledgementReminderJob) do
       _, is_error = call_tool(Mcp::Tools::ESCALATE_INCIDENT, {
@@ -230,8 +226,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
     assert_match(/Not found in this workspace/, text)
   end
 
-  # The guard lives on the incident and the service refuses, so a surface that
-  # never thought to ask still cannot post into a channel that is gone.
+  # The guard lives on the incident and the service refuses, so no surface can post into a channel that is gone.
   test "an incident that is over refuses an invite and a shoutout" do
     close_incident
 

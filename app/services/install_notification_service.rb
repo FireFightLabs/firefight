@@ -1,6 +1,5 @@
-# POSTs a JSON note about a new install to a webhook URL. A Slack incoming
-# webhook renders the text field. Failures are logged, never shown to the
-# installer.
+# A Slack incoming webhook renders the text field. Failures are logged, never
+# shown to the installer.
 class InstallNotificationService
   class DeliveryFailed < StandardError; end
 

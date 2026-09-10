@@ -1,13 +1,9 @@
 class CollapseDefaultIncidentFormsAndLeadRole < ActiveRecord::Migration[8.1]
   disable_ddl_transaction!
 
-  # After flipping IncidentForm and IncidentRole (lead) to code-defaults +
-  # DB overlay, the rows seeded by previous workspace setup are no-op
-  # overlays. Delete the ones that match defaults exactly. Preserve any
-  # that represent real customizations (renamed, repositioned, or carrying
-  # custom field rows / role assignments that would be orphaned).
+  # Seeded rows that restate the code default are deleted. Renamed, repositioned or
+  # referenced ones are kept.
   def up
-    # --- IncidentForm cleanup ----------------------------------------------
     IncidentForm.find_each do |form|
       defaults = IncidentForm.defaults_for(form.slug)
       next unless defaults
@@ -20,7 +16,6 @@ class CollapseDefaultIncidentFormsAndLeadRole < ActiveRecord::Migration[8.1]
       form.destroy
     end
 
-    # --- IncidentRole (lead) cleanup --------------------------------------
     IncidentRole.where(slug: IncidentRole::SLUG_INCIDENT_LEAD).find_each do |role|
       defaults = IncidentRole.defaults_for(role.slug)
       next unless defaults
@@ -35,6 +30,5 @@ class CollapseDefaultIncidentFormsAndLeadRole < ActiveRecord::Migration[8.1]
   end
 
   def down
-    # No-op.
   end
 end

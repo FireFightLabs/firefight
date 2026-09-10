@@ -19,8 +19,7 @@ class IncidentsController < InertiaController
         )
       },
       attachableRunbooks: attachable_runbooks(incident),
-      # The platform owns what a link to its own channel looks like, so the
-      # page is handed the finished URL rather than assembling one.
+      # The platform owns what a channel link looks like.
       channelUrl: WorkspaceAdapter.for(current_workspace).channel_url(channel_id: incident.channel_id),
       linkableIncidents: linkable_incidents(incident),
       memberChoices: member_choices,
@@ -31,8 +30,7 @@ class IncidentsController < InertiaController
     }
   end
 
-  # Everything else still open or recently closed, for linking and marking a
-  # duplicate. Capped, since the picker searches rather than scrolls.
+  # Capped, the picker searches rather than scrolls.
   def linkable_incidents(incident)
     current_workspace.incidents
       .where(deleted_at: nil)
@@ -42,8 +40,7 @@ class IncidentsController < InertiaController
       .map { |other| { id: other.id, identifier: other.identifier, name: other.name } }
   end
 
-  # Who a role can be handed to. The lead picker and the roles panel both read
-  # this rather than each fetching the roster.
+  # Read by both the lead picker and the roles panel.
   def member_choices
     current_workspace.workspace_memberships.includes(:user)
       .map { |member| { value: member.id, label: member.display_name } }

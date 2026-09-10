@@ -14,7 +14,6 @@ module Slack
       user_scopes = Array(oauth_config["user"]).join(",")
       bot_scopes = Array(oauth_config["bot"]).join(",")
 
-      # Combine for OmniAuth (user scopes + bot scopes)
       combined_scopes = [ user_scopes, bot_scopes ].reject(&:empty?).join(",")
 
       {
@@ -24,9 +23,8 @@ module Slack
       }
     end
 
-    # Deployments keep a manifest per environment, since each one is a separate
-    # Slack app with its own URLs. Anyone else has the template, which carries
-    # the same scopes.
+    # Each deployment is a separate Slack app with its own URLs, so one manifest per
+    # environment. The template carries the same scopes.
     def self.manifest_for(env)
       [ "#{env}.yml", "template.yml" ]
         .map { |name| Rails.root.join("config", "slack_manifests", name) }

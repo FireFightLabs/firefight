@@ -1,8 +1,7 @@
 module Mcp
   module Tools
-    # Validating a form submission is the same three steps wherever it arrives
-    # from, and the context has to be the one the fields were resolved against
-    # or a field the agent's own answers brought into scope is refused.
+    # The context has to be the one the fields were resolved against, or a field
+    # the agent's own answers brought into scope is refused.
     module FormAnswers
       def self.validate!(workspace, incident:, form_slug:, answers:)
         context = IncidentFormPrompt.new(

@@ -55,8 +55,7 @@ class IncidentFormPromptTest < ActiveSupport::TestCase
     assert_equal IncidentSystemField::DEFAULT_NEXT_UPDATE_MINUTES, next_update.value
   end
 
-  # The resolver drops Next Update once the picked status ends the incident.
-  # The prompt has to re-ask it rather than deciding for itself.
+  # The resolver drops Next Update once the picked status ends the incident, the prompt re-asks rather than deciding.
   test "picking a terminal status drops the next update question" do
     assert field(IncidentForm::SLUG_UPDATE, IncidentSystemField::KEY_NEXT_UPDATE)
 

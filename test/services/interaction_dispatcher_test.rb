@@ -19,8 +19,6 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     InteractionDispatcher.dispatch(interaction)
   end
 
-  # view_submission routing
-
   test "routes share_incidents_channel_modal to ShareModalSubmissionHandler" do
     interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL)
     assert_equal Interactions::ShareModalSubmissionHandler, InteractionDispatcher.find(interaction)
@@ -50,8 +48,6 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: "unknown_modal")
     assert_equal Interactions::UnknownHandler, InteractionDispatcher.find(interaction)
   end
-
-  # block_actions routing
 
   test "routes preview_announcement to PreviewAnnouncementHandler" do
     interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::PREVIEW_ANNOUNCEMENT)
@@ -153,8 +149,6 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::UnknownHandler, InteractionDispatcher.find(interaction)
   end
 
-  # shortcut routing
-
   test "routes create_incident_shortcut to CreateIncidentShortcutHandler" do
     interaction = Interaction.new(type: Interaction::SHORTCUT, callback_id: Identifiers::CREATE_INCIDENT_SHORTCUT)
     assert_equal Interactions::CreateIncidentShortcutHandler, InteractionDispatcher.find(interaction)
@@ -165,21 +159,15 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     assert_equal Interactions::UnknownHandler, InteractionDispatcher.find(interaction)
   end
 
-  # view_closed routing
-
   test "routes view_closed to ViewClosedHandler" do
     interaction = Interaction.new(type: Interaction::VIEW_CLOSED)
     assert_equal Interactions::ViewClosedHandler, InteractionDispatcher.find(interaction)
   end
 
-  # unknown type routing
-
   test "routes unknown type to UnknownHandler" do
     interaction = Interaction.new(type: "some_new_type")
     assert_equal Interactions::UnknownHandler, InteractionDispatcher.find(interaction)
   end
-
-  # dispatch (end-to-end)
 
   test "dispatch calls handler and returns result" do
     interaction = Interaction.new(type: Interaction::VIEW_CLOSED)
@@ -192,8 +180,6 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     result = InteractionDispatcher.dispatch(interaction)
     assert_equal "clear", result[:response_action]
   end
-
-  # member provisioning
 
   test "dispatch provisions member before calling handler" do
     workspace = Workspace.create!(

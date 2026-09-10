@@ -13,13 +13,11 @@ class CatalogAttributeDefinition < ApplicationRecord
     TYPE_SLACK_CHANNEL, TYPE_WORKSPACE_MEMBER, TYPE_WORKSPACE_MEMBERS
   ].freeze
 
-  # The types whose values are workspace membership ids. Member pickers and
-  # name resolution both key off this list.
+  # Values are workspace membership ids.
   MEMBER_TYPES = [ TYPE_WORKSPACE_MEMBER, TYPE_WORKSPACE_MEMBERS ].freeze
 
-  # Which job an attribute does for alert routing. Routing asks for the role,
-  # never for a slug, so a workspace can name its attributes anything. Each
-  # role only fits the attribute types whose values it reads.
+  # Routing asks for the role, never a slug, so a workspace can name its
+  # attributes anything.
   ROLE_MEMBERS = "members"
   ROLE_MANAGER = "manager"
   ROLE_NOTIFICATION_CHANNEL = "notification_channel"
@@ -58,8 +56,7 @@ class CatalogAttributeDefinition < ApplicationRecord
   def reference? = attribute_type == TYPE_REFERENCE
   def select? = attribute_type == TYPE_SELECT
 
-  # What a reference attribute points at. Callers that write a type name it by
-  # slug rather than by id, so reading one back has to answer in the same terms.
+  # Writers name the type by slug, so reading one back answers in the same terms.
   def reference_type
     return nil unless reference? && reference_type_id.present?
 

@@ -20,13 +20,11 @@ class SolidWorkflow::RunStepJobTest < ActiveSupport::TestCase
     workflow = ExampleCalculationWorkflow.start!(user)
     step = workflow.steps.find_by(name: "fetch_numbers")
 
-    # First execution
     job1 = SolidWorkflow::RunStepJob.new
     job1.perform(step.id)
     step.reload
     first_output = step.output
 
-    # Second execution (should exit early)
     job2 = SolidWorkflow::RunStepJob.new
     job2.perform(step.id)
     step.reload
@@ -69,7 +67,6 @@ class SolidWorkflow::RunStepJobTest < ActiveSupport::TestCase
     claimed_count = 0
     threads = []
 
-    # Simulate 3 workers trying to claim same step
     3.times do
     threads << Thread.new do
       job = SolidWorkflow::RunStepJob.new
@@ -127,7 +124,6 @@ class SolidWorkflow::RunStepJobTest < ActiveSupport::TestCase
   test "handles errors and marks step as failed" do
     user = User.create!(name: "Test User", email: "test@example.com")
 
-    # Create a failing workflow class
     failing_workflow_class = Class.new(SolidWorkflow::Base) do
     step :failing_step
 
@@ -136,7 +132,6 @@ class SolidWorkflow::RunStepJobTest < ActiveSupport::TestCase
       end
     end
 
-    # Register it
     SolidWorkflow::Base.registry["TestFailingWorkflow"] = failing_workflow_class
 
     workflow = SolidWorkflow::Workflow.create!(

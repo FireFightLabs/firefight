@@ -4,8 +4,8 @@ import type { ActorCompact } from "@/types/serializers"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { PRINCIPAL_KINDS } from "@/lib/generated/constants"
 
-// A machine gets the same chip a person does, marked so nobody reads an
-// agent's work as a colleague's.
+// A machine gets the same chip as a person, marked so an agent's work is not
+// read as a colleague's.
 const MACHINE_ICONS: Partial<Record<ActorCompact["kind"], Icon>> = {
   [PRINCIPAL_KINDS.AGENT]: IconRobot,
   [PRINCIPAL_KINDS.API_KEY]: IconKey,

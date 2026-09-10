@@ -35,7 +35,6 @@ import { ConnectedAgentsCard } from "@/pages/settings/components/api-keys/connec
 import type { ConnectedAgent } from "@/pages/settings/api-keys"
 import { whenClosed } from "@/lib/handlers"
 
-
 function formatRelative(iso: string | null | undefined, now: number) {
   if (!iso) {
     return "Never"
@@ -60,15 +59,15 @@ interface ApiKeysTabProps {
 }
 
 export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: ApiKeysTabProps) {
-  // `flash` (not `props.flash`), Inertia Rails 3.17+ exposes flash natively on the page.
-  // Custom keys flow through `flash.inertia[:key]` on the server (see ApiKeysController#create).
+  // Custom flash keys arrive through flash.inertia[:key] on the server, see
+  // ApiKeysController#create.
   const { flash } = usePage()
   const [editingKey, setEditingKey] = useState<ApiKeyType | null>(null)
   const [abilitiesKey, setAbilitiesKey] = useState<ApiKeyType | null>(null)
   const [revealedToken, setRevealedToken] = useState<string | null>(null)
 
-  // Lift the just-created token from flash into local state so the modal stays
-  // open across re-renders. Flash itself is cleared by Rails on the next request.
+  // Lifted out of flash so the dialog survives re-renders. Rails clears flash on
+  // the next request.
   useEffect(() => {
     if (flash?.api_key_token) {
       setRevealedToken(flash.api_key_token)

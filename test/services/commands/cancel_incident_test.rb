@@ -3,7 +3,6 @@ require "test_helper"
 class Commands::CancelIncidentTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
@@ -63,8 +62,7 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
     Commands::CancelIncident.execute(command)
     result = Commands::CancelIncident.execute(command)
 
-    # Command#incident only finds incidents in a live status, so a second
-    # cancel cannot record a second event.
+    # Command#incident only finds incidents in a live status, so a second cancel cannot record a second event.
     assert_match "must be run from an incident channel", result[:text]
     assert_equal 1, @incident.incident_events.where(event_type: IncidentEvent::INCIDENT_CANCELED).count
   end
@@ -93,8 +91,7 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
   test "the editor shows status on cancel even when responders will not be asked" do
     editor = IncidentFormResolver.new(@workspace).resolve(IncidentForm::SLUG_CANCEL, include_hidden: true)
 
-    # Configuration has to explain what Slack does. A field that can appear must
-    # be visible here, or its appearance later is inexplicable.
+    # A field that can appear in Slack must be visible in the editor, or its appearance is inexplicable.
     assert_includes editor.map(&:system_field_key), IncidentSystemField::KEY_STATUS
   end
 

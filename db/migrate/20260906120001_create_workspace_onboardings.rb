@@ -1,4 +1,3 @@
-# One row per workspace: welcome message id, dialog dismissal, completion.
 # Kept off the workspace row.
 class CreateWorkspaceOnboardings < ActiveRecord::Migration[8.1]
   def change

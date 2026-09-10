@@ -16,16 +16,16 @@ class CreateIncidentTranscriptMessages < ActiveRecord::Migration[8.1]
 
       t.timestamps
 
-      # Idempotent ingest: Slack Events retries cannot dup
+      # Slack Events retries must not duplicate a message.
       t.index [ :workspace_id, :incident_id, :slack_ts ], unique: true, name: "index_transcript_messages_on_workspace_incident_slack_ts"
 
-      # Summary generator reads messages chronologically per incident
+      # The summary generator reads chronologically per incident.
       t.index [ :incident_id, :posted_at ]
 
-      # Retention purge + uninstall queries scan by workspace and age
+      # Retention purge and uninstall scan by workspace and age.
       t.index [ :workspace_id, :created_at ]
 
-      # Admin redact-by-user lookups
+      # Admin redact-by-user lookups.
       t.index [ :workspace_id, :slack_user_id ]
     end
   end

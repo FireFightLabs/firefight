@@ -1,11 +1,6 @@
 module AlertProviders
-  # Generic webhook adapter. Verification is a shared-secret token compare
-  # (Authorization: Bearer <token> or X-Firefight-Token header, every tool
-  # can set one of those). Field extraction uses dot-path lookups into the
-  # payload (numeric segments index into arrays), overridable per source via
-  # config["field_map"] (e.g. { "title" => "alert.name" }). When
-  # config["items_path"] points at an array (e.g. "alerts" for Alertmanager),
-  # each element is normalized as its own alert with its own payload slice.
+  # Fields are dot-path lookups a source overrides through config["field_map"].
+  # config["items_path"] naming an array turns each element into its own alert.
   class Generic < Base
     DEFAULT_FIELD_MAP = {
       "external_id" => "id",
@@ -57,8 +52,8 @@ module AlertProviders
       fields
     end
 
-    # A payload where no mapped field resolved is noise, not an alert. The
-    # controller turns an empty item list into a diagnosable 422.
+    # No mapped field resolving means noise, not an alert. The controller
+    # turns an empty item list into a 422.
     def self.recognized?(fields)
       fields.except("status").any?
     end

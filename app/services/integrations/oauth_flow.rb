@@ -1,5 +1,4 @@
 module Integrations
-  # The one-click connect handshake.
   module OauthFlow
     Error = OauthClient::Error
 

@@ -3,7 +3,6 @@ require "test_helper"
 class Webhooks::DispatchJobTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-
   setup do
     @event = incident_events(:inc1_created)
     @event_hash = {
@@ -53,8 +52,7 @@ class Webhooks::DispatchJobTest < ActiveSupport::TestCase
       "occurred_at" => event.created_at.iso8601(6)
     }
 
-    # active_webhook subscribes to incident.created, incident.resolved, incident.updated
-    # lead.assigned is not in its subscribed_events, so no new deliveries should be created
+    # lead.assigned is not among active_webhook's subscribed events.
     assert_no_difference -> { WebhookDelivery.count } do
       Webhooks::DispatchJob.perform_now(event_hash)
     end
@@ -63,7 +61,6 @@ class Webhooks::DispatchJobTest < ActiveSupport::TestCase
   test "does not create deliveries for other workspace webhooks" do
     Webhooks::DispatchJob.perform_now(@event_hash)
 
-    # workspace_two_webhook should not get a delivery for ws1 incident
     assert_not WebhookDelivery.exists?(webhook: webhooks(:workspace_two_webhook), incident_event: @event)
   end
 end

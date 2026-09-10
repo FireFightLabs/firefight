@@ -1,6 +1,5 @@
 module Slack
   class InstallationMessageBuilder
-    # Only the responder who clicked sees this.
     def self.preview_announcement_blocks(user_id)
       preview_blocks = [
         {

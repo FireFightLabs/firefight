@@ -1,16 +1,7 @@
-# Owns the alert pipeline after the controller has verified + normalized:
-# persist-first (unique indexes = idempotency), fingerprint dedup, flap
-# handling, grouping, policy routing, incident creation/attachment via
-# IncidentLifecycleService, and throttled Slack digest updates.
-#
-# Concurrency invariants:
-# - At most one open alert per (source, fingerprint): partial unique index.
-#   Losers of the insert race fold into the record_firing! path.
-# - Routing runs under a row-lock CAS on routing_state, so a duplicate
-#   delivery, an overlapping sweep, and the inline path never double-apply.
-# - Grouping takes a per-signature advisory lock inside that transaction, so
-#   a storm of distinct alerts creates exactly one incident.
-# - Slack calls happen after the routing transaction commits.
+# At most one open alert per source and fingerprint, insert losers fold into record_firing!.
+# Routing is a row lock CAS on routing_state so duplicate deliveries and sweeps never double-apply.
+# Grouping takes a per-signature advisory lock so a storm creates one incident.
+# Slack calls run after the routing transaction commits.
 class AlertIngestService
   NOTIFY_MIN_INTERVAL = 60.seconds
 
@@ -32,37 +23,33 @@ class AlertIngestService
       return handle_resolved(fingerprint, now)
     end
 
-    # Dedup: a firing for an already-open fingerprint is one indexed UPDATE.
-    # No new row, no new incident, no new channel.
+    # A firing for an open fingerprint is one indexed update, no new row or incident.
     if (open_alert = @source.alerts.open_status.find_by(fingerprint: fingerprint))
       open_alert.record_firing!(now)
       notify_digest(open_alert)
       return open_alert
     end
 
-    # Flap: re-fire shortly after resolving reopens the same alert instead of
-    # minting a new one.
+    # A re-fire shortly after resolving reopens the same alert instead of minting a new one.
     if (flapped = recently_resolved(fingerprint, now))
       reopen(flapped, now)
       return flapped
     end
 
     alert, created = persist(fields, payload, fingerprint, now)
-    # Only the request that won the insert routes inline. Losers leave it to
-    # the winner (or the sweep, whose CAS makes retries safe).
+    # Only the insert winner routes inline. Losers leave it to the winner or the sweep.
     route(alert) if created && alert.routing_state == Alert::ROUTING_PENDING
     alert
   end
 
-  # Routing failures leave the alert pending for the sweep job (until
-  # MAX_ROUTING_ATTEMPTS, then failed). The alert row itself is already safe,
-  # so ingestion never surfaces a 500 for a routing problem.
+  # A routing failure leaves the alert pending for the sweep (failed after
+  # MAX_ROUTING_ATTEMPTS), so ingestion never returns a 500 for a routing problem.
   def route(alert)
     deferred_notification = nil
 
     begin
       alert.with_lock do
-        # CAS: a duplicate delivery or an overlapping sweep already routed it.
+        # A duplicate delivery or an overlapping sweep may already have routed it.
         next unless alert.routing_state == Alert::ROUTING_PENDING
 
         result = router.route(alert.fields)
@@ -80,9 +67,8 @@ class AlertIngestService
       return
     end
 
-    # The outcome is committed. A failure from here is a notification problem,
-    # not a routing one, so the alert stays routed rather than going back to
-    # pending and being applied twice by the sweep.
+    # Committed by now. A failure here is a notification problem, so the alert
+    # stays routed instead of going back to pending and being applied twice by the sweep.
     deferred_notification&.call
   rescue StandardError => e
     Rails.logger.error({ event: "alert_notification.failed", alert_id: alert.id, error: e.message }.to_json)
@@ -108,9 +94,8 @@ class AlertIngestService
       .first
   end
 
-  # A flap onto a closed incident is a fresh episode. Detach and re-route so
-  # the regression is visible somewhere, instead of editing a digest in a
-  # closed (possibly archived) channel.
+  # A flap onto a closed incident is a fresh episode. Detach and re-route so the
+  # regression is visible instead of editing a digest in a closed channel.
   def reopen(alert, now)
     alert.record_firing!(now)
 
@@ -136,12 +121,11 @@ class AlertIngestService
     )
     [ alert, true ]
   rescue ActiveRecord::RecordNotUnique
-    # Same external_id: byte-identical redelivery, already counted.
+    # Same external_id, a byte-identical redelivery already counted.
     if (duplicate = @source.alerts.find_by(external_id: external_id))
       [ duplicate, false ]
     else
-      # Lost the open-fingerprint insert race, the winner's row is
-      # authoritative. Count this firing there.
+      # Lost the open-fingerprint insert race, count this firing on the winner's row.
       winner = @source.alerts.open_status.find_by!(fingerprint: fingerprint)
       winner.record_firing!(now)
       notify_digest(winner)
@@ -149,9 +133,8 @@ class AlertIngestService
     end
   end
 
-  # Must be unique per item within a batched delivery (Alertmanager posts
-  # arrays), yet stable across redeliveries of the same body, so hash the
-  # normalized fields together with the item payload.
+  # Unique per item within a batched delivery (Alertmanager posts arrays) yet
+  # stable across redeliveries, so hash the normalized fields with the item payload.
   def fallback_external_id(fields, payload)
     Digest::SHA256.hexdigest("#{payload.to_json}\n#{fields.to_json}")
   end
@@ -164,8 +147,8 @@ class AlertIngestService
     router.policy
   end
 
-  # DB writes happen here, inside the routing transaction. Anything that
-  # talks to Slack is returned as a deferred callable and runs after commit.
+  # DB writes only, inside the routing transaction. Anything that talks to Slack
+  # comes back as a deferred callable and runs after commit.
   def apply_outcome(alert, outcome)
     case outcome["action"]
     when ACTION_DROP
@@ -192,7 +175,7 @@ class AlertIngestService
   end
 
   # Transaction-scoped advisory lock so concurrent same-signature alerts
-  # serialize through the group lookup + incident creation.
+  # serialize through group lookup and incident creation.
   def lock_signature!(alert)
     key = Zlib.crc32("alert_grouping:#{@workspace.id}:#{content_signature(alert)}")
     sql = ActiveRecord::Base.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(?)::text", key ])
@@ -243,10 +226,7 @@ class AlertIngestService
     record_incident_event(alert, IncidentEvent::ALERT_ATTACHED, unresolved_targets: unresolved_targets)
   end
 
-  # notify_only posts the digest without an incident: to a channel, a member
-  # (DM via their platform user id), or the owning team's channel resolved
-  # from the catalog at fire time. Skips when a digest message already exists
-  # (sweep retries after a partial failure must not double-post).
+  # Skips when a digest already exists so a sweep retry after a partial failure cannot double-post.
   def notify_channel(alert, outcome)
     return if alert.channel_message_id.present?
 
@@ -294,13 +274,9 @@ class AlertIngestService
     alert.incident.incident_events.create!(event_type: event_type, metadata: metadata)
   end
 
-  # Slack digest throttling: one message per alert that gets updated, never a
-  # post per firing. Status transitions (attach/resolve) bypass the interval.
-  # The send is claimed with one conditional UPDATE on last_notified_at (the
-  # same CAS shape as routing), so concurrent firings race on an indexed
-  # write instead of queuing behind a row lock for the Slack call. The claim
-  # sticking even when the send fails means a storm into a broken channel
-  # doesn't retry on every delivery.
+  # Status transitions bypass the interval. The send is claimed with a conditional UPDATE on
+  # last_notified_at so concurrent firings race on an indexed write instead of holding a row lock
+  # through the Slack call. The claim sticks when the send fails, so a storm into a broken channel does not retry on every delivery.
   def notify_digest(alert, force: false)
     channel_id = alert.incident&.channel_id || alert.channel_id
     return if channel_id.blank?

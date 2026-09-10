@@ -1,8 +1,5 @@
-# The route tester's server side: a dry run that shows who would be invited
-# and notified, and "Send test message", which re-evaluates the policy,
-# resolves the notify target server-side, and posts one labeled message
-# through the adapter. A service because it crosses into the platform
-# adapter, for channel names on preview and for the delivery itself.
+# Server side of the route tester. A service because it reaches the platform
+# adapter, for channel names on preview and for the test delivery itself.
 class AlertRoutingTestService
   Result = Struct.new(:sent, :notify, :error, keyword_init: true)
 
@@ -11,13 +8,11 @@ class AlertRoutingTestService
     @scope = scope
   end
 
-  # nil when the scope has no enabled policy.
   def evaluate(raw_fields)
     Alert::Router.new(@workspace, @scope).route(raw_fields)
   end
 
-  # Target resolution as ingest would do it, plus a best-effort channel name
-  # for display. Nothing is posted.
+  # Resolves the target as ingest would. Nothing is posted.
   def preview(routed)
     resolver = Alert::TargetResolver.new(@workspace, routed.fields)
     invitees = resolver.memberships_for(routed.outcome["invite"]).map { |membership| membership.user.name }

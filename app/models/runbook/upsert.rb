@@ -1,7 +1,5 @@
-# Creating or changing a runbook from the shape every surface hands in: its
-# name, its summary, its steps and the conditions that attach it. Steps and
-# conditions are only touched when they are sent, so a caller changing a
-# summary does not silently clear the procedure.
+# Steps and conditions are only touched when sent, so changing a summary
+# does not silently clear the procedure.
 class Runbook::Upsert
   def initialize(workspace)
     @workspace = workspace

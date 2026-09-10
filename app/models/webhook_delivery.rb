@@ -4,9 +4,8 @@ class WebhookDelivery < ApplicationRecord
   belongs_to :webhook
   belongs_to :incident_event
 
-  # Decided once, where the response is known. succeeded is a 2xx, failed is
-  # any other response or a failure to send at all, and the two in between are
-  # the queue. No reader has to recompute the outcome from other columns.
+  # Decided once where the response is known, so no reader recomputes the
+  # outcome from other columns.
   enum :state, { pending: "pending", in_progress: "in_progress", succeeded: "succeeded", failed: "failed" }, default: :pending
 
   scope :ordered, -> { order(created_at: :desc, id: :desc) }
@@ -24,12 +23,8 @@ class WebhookDelivery < ApplicationRecord
     )
   end
 
-  # Creates a fresh delivery against the same webhook + event so the replay has
-  # its own audit row and attempt counter, carrying the original bytes so a
-  # replay sends what was sent before rather than re-rendering an event that
-  # may have drifted since. A row that never rendered one falls back to
-  # rendering at delivery. The new row's after_create_commit enqueues
-  # Webhooks::DeliveryJob.
+  # A fresh row so the replay has its own audit trail, carrying the original
+  # bytes so it sends what was sent before rather than re-rendering.
   def replay!
     self.class.create!(
       webhook: webhook,

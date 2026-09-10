@@ -57,24 +57,22 @@ export function OptionsTable<T extends ConfigurableOption>({
   reorderParams?: Record<string, string>
   // Omitted for lists without a workspace default, which drops the column.
   onMakeDefault?: (id: string) => void
-  // Keeps the Default column in place but drops its controls, for a table whose
-  // rows can never hold the default. Alignment stays consistent with the tables
-  // beside it rather than the column vanishing.
+  // Keeps the Default column but drops its controls, so tables beside each
+  // other stay aligned.
   defaultSelectable?: boolean
-  // Explains the Default column when one table alone does not make its scope
-  // obvious, as with statuses split across a card per lifecycle stage.
+  // Explains the Default column where one table alone does not make its scope
+  // obvious, as with statuses split across a card per stage.
   defaultHeaderHint?: string
-  // Sizes columns from the header rather than from content, so sibling tables
-  // rendered one above another line up instead of each measuring its own rows.
+  // Sizes columns from the header, so sibling tables stacked vertically line up.
   fixedLayout?: boolean
-  // Turns each name into a button. Omitted by lists whose rows are settings
-  // rather than content, which leaves the name as plain text.
+  // Turns each name into a button. Omitted where rows are settings rather
+  // than content.
   onSelect?: (option: T) => void
   onToggleEnabled: (option: T) => void
   onEdit: (option: T) => void
   onDelete: (option: T) => void
-  // For a viewer the gateway would refuse: no drag handle, no switches, no
-  // default picker, no row menu. The list still reads the same.
+  // For a viewer the gateway would refuse. No drag handle, switches, default
+  // picker or row menu.
   readOnly?: boolean
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
@@ -152,7 +150,7 @@ export function OptionsTable<T extends ConfigurableOption>({
 }
 
 // The radio group only exists when there is a default to pick, and
-// table-row-group overrides its own grid display when it becomes the tbody.
+// table-row-group overrides its grid display when it becomes the tbody.
 function Rows({
   options,
   onMakeDefault,

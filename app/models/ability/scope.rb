@@ -1,17 +1,13 @@
 module Ability
-  # Grant scope semantics, pinned by the gateway design. A scope is a hash
-  # of dimension => allowed catalog-entry ids. A missing dimension means
-  # unrestricted. An empty array is invalid (never a way to say "all").
-  # A request matches when its value for every scoped dimension is in the
-  # grant's list.
+  # A scope maps dimension to allowed catalog-entry ids. A missing dimension
+  # means unrestricted, an empty array is invalid and never means all.
   module Scope
     DIMENSION_ENVIRONMENT = "environment"
     DIMENSION_SERVICE = "service"
     DIMENSIONS = [ DIMENSION_ENVIRONMENT, DIMENSION_SERVICE ].freeze
 
-    # An empty environment list means unrestricted, which is spelled as the
-    # dimension being absent. Ids that are not the workspace's own
-    # environments are dropped rather than trusted.
+    # Unrestricted is spelled as the dimension being absent. Ids outside the
+    # workspace's own environments are dropped.
     def self.for_environments(workspace, environment_ids)
       ids = workspace.environment_entries.where(id: Array(environment_ids).map(&:to_s).reject(&:blank?)).pluck(:id)
       ids.any? ? { DIMENSION_ENVIRONMENT => ids } : {}

@@ -41,7 +41,7 @@ export function GrantRow({
   }
 
   // The environment scope rides along because an absent environment_ids reads
-  // as "no environments", which would silently widen the grant.
+  // as no environments, which would silently widen the grant.
   function reschedule(value: string) {
     router.patch(
       abilityGrantPath(grant.id),

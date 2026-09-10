@@ -1,7 +1,5 @@
 module FirefightAi
-  # Reads an incident's channel transcript once and returns the milestones of
-  # the investigation: what was theorised, found, decided, and fixed. Returns
-  # data. Writing them onto the timeline is the app's job.
+  # Returns the milestones read from the transcript. Writing them to the timeline is the app's job.
   class MilestoneExtractor
     FEATURE = "milestones"
 
@@ -9,9 +7,7 @@ module FirefightAi
     # a missing one buys.
     MIN_CONFIDENCE = 0.7
 
-    # Roughly four characters to a token. The transcript is trimmed from the
-    # oldest end because the summary already covers what gets cut, and the
-    # decisive part of an incident is at the end.
+    # Trimmed from the oldest end, the summary covers what gets cut and the decisive part is at the end.
     MAX_INPUT_TOKENS = 60_000
     CHARS_PER_TOKEN = 4
 
@@ -19,17 +15,14 @@ module FirefightAi
 
     Milestone = Data.define(:kind, :statement, :message_id, :confidence)
 
-    # The ledger row for the pass that produced the last result, so the caller
-    # can point each note it writes back at the inference it came from.
+    # The ledger row for the last pass, so each note can point at its inference.
     attr_reader :last_inference
 
     def initialize(workspace)
       @workspace = workspace
     end
 
-    # messages: the transcript rows to read, oldest first.
-    # summary:  the incident's IncidentSummary, or nil.
-    # timeline: the sentences already on the timeline, so nothing is re-noted.
+    # timeline is the sentences already there, so nothing is re-noted.
     def extract(incident, messages:, summary: nil, timeline: [])
       return [] if messages.empty?
 
@@ -62,9 +55,7 @@ module FirefightAi
       end
     end
 
-    # Newest messages win the budget. Dropping from the front keeps the
-    # transcript contiguous, so the model never reads a stitched-together
-    # conversation.
+    # Dropping from the front keeps the transcript contiguous, so the model never reads a stitched conversation.
     def within_budget(messages)
       budget = MAX_INPUT_TOKENS * CHARS_PER_TOKEN
       kept = []

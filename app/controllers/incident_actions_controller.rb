@@ -29,10 +29,8 @@ class IncidentActionsController < InertiaController
     redirect_to incident_path(incident), alert: e.message
   end
 
-  # Taking an item yourself and handing it to someone else are different
-  # events, which is why Slack has two buttons and so does this. The service
-  # owns the difference, including that a handover announces and taking your
-  # own work does not.
+  # Taking and handing over are different events, which is why there are two buttons.
+  # The service owns the difference.
   def pick_up
     act(:claimable?, :pick_up_action, picked_up_by: current_member)
   end
@@ -67,8 +65,7 @@ class IncidentActionsController < InertiaController
     current_workspace.workspace_memberships.find_by!(user: current_user)
   end
 
-  # The picker offers people already here under their membership id and
-  # everyone else under their platform id, so both have to resolve.
+  # The picker offers members by membership id and everyone else by platform id, so both must resolve.
   def resolve_assignee
     return nil if params[:assignee_id].blank?
 

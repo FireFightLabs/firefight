@@ -25,9 +25,8 @@ class RunbookAttachmentService
     existing = incident.incident_runbooks.find_by(runbook: runbook)
     return existing if existing
 
-    # Creation and update workflows can both evaluate the same incident
-    # concurrently. The loser of the unique-index race takes the found row and
-    # leaves the announcement to the winner.
+    # Creation and update workflows can race on the same incident. The loser
+    # takes the found row and leaves the announcement to the winner.
     incident_runbook = incident.incident_runbooks.create_or_find_by!(runbook: runbook) do |record|
       record.workspace = @workspace
       record.attached_by = attached_by

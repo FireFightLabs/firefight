@@ -1,8 +1,6 @@
 module Interactions
-  # The status select on the update dialog dispatches so the modal re-renders
-  # against what the responder has just picked. A status that ends the incident
-  # takes the next update timer off the form rather than asking for a time that
-  # is then discarded.
+  # A status that ends the incident takes the next update timer off the form
+  # rather than asking for a time that is then discarded.
   class IncidentUpdateSelectHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS

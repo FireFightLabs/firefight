@@ -4,7 +4,6 @@ class WorkflowStepTest < ActiveSupport::TestCase
   test "requires name and status" do
     step = SolidWorkflow::Step.new
     assert_not step.valid?
-    # Validations may be on specific fields or associations
     assert step.errors.any?
   end
 

@@ -140,11 +140,6 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
     assert_empty content
   end
 
-  # The tests above run on a personal token, which carries its human's
-  # authority and so never touches a grant. A service key is the path where
-  # scopes actually decide, and it is the one the permissions screen has to be
-  # able to issue.
-
   test "a service key scoped to forms can read and configure them" do
     @token = service_token(Ability::Action::RESOURCE_FORMS => [ Ability::Action::ACTION_READ, Ability::Action::ACTION_UPDATE ])
 
@@ -159,8 +154,7 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
     assert_not write_error
   end
 
-  # Defining a custom field and deciding what every responder is asked are
-  # separate powers, so one grant must not buy the other.
+  # Defining a custom field and deciding what every responder is asked are separate powers.
   test "a service key scoped to custom fields cannot configure a form" do
     @token = service_token(Ability::Action::RESOURCE_CUSTOM_FIELDS => [ Ability::Action::ACTION_READ, Ability::Action::ACTION_UPDATE ])
 

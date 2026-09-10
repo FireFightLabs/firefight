@@ -13,10 +13,8 @@ import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 
 export type InlineChoice = { value: string; label: string }
 
-// A badge or cell that changes what it shows. One field, one request, no
-// dialog. Anything that needs the workspace's configured questions asked goes
-// through the lifecycle form instead, which is why this only ever sends a
-// single key.
+// Sends a single key only. Anything needing the workspace's configured questions
+// goes through the lifecycle form.
 export function InlineSelect({
   trigger,
   choices,
@@ -48,8 +46,7 @@ export function InlineSelect({
     })
   }
 
-  // Inert rather than absent, and it says why. A control that vanishes leaves
-  // the reader working out what happened to it.
+  // Inert rather than absent, and it says why.
   if (blockedReason) {
     return (
       <Tooltip>

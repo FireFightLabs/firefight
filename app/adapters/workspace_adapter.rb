@@ -2,15 +2,11 @@ class WorkspaceAdapter
   class UnsupportedPlatformError < StandardError; end
 
 
-  # The one way to reach a platform. Every caller asks for the workspace's
-  # adapter here rather than naming Slack or Teams itself.
-  #
-  #   adapter = WorkspaceAdapter.for(workspace)
-  #   result = adapter.create_incidents_channel
   def self.refresh_expiring_credentials(buffer:)
     Slack::WorkspaceAdapter.refresh_expiring_credentials(buffer: buffer)
   end
 
+  # The one way to reach a platform. Callers never name Slack or Teams.
   def self.for(workspace)
     case workspace.platform
     when Platforms::SLACK

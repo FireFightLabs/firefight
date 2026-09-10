@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentActionTest < ActiveSupport::TestCase
-  # Associations
-
   test "belongs to incident" do
     action = incident_actions(:inc1_action_open)
     assert_instance_of Incident, action.incident
@@ -26,8 +24,6 @@ class IncidentActionTest < ActiveSupport::TestCase
     assert_nil action.assignee
     assert action.valid?
   end
-
-  # Validations
 
   test "requires description" do
     action = IncidentAction.new(
@@ -59,8 +55,6 @@ class IncidentActionTest < ActiveSupport::TestCase
     assert_not action.valid?
     assert_includes action.errors[:status], "is not included in the list"
   end
-
-  # Scopes
 
   test "active scope excludes soft-deleted actions" do
     active_actions = IncidentAction.active
@@ -98,8 +92,6 @@ class IncidentActionTest < ActiveSupport::TestCase
     assert_equal created_times.sort.reverse, created_times
   end
 
-  # Methods
-
   test "open? returns true for open status" do
     action = incident_actions(:inc1_action_open)
     assert action.open?
@@ -130,8 +122,6 @@ class IncidentActionTest < ActiveSupport::TestCase
     assert_not action.assigned?
   end
 
-  # Constants
-
   test "ACTION_TYPES constant contains action types" do
     assert_equal [ "action", "followup" ], IncidentAction::ACTION_TYPES
   end
@@ -150,8 +140,6 @@ class IncidentActionTest < ActiveSupport::TestCase
     assert_equal "in_progress", IncidentAction::STATUS_IN_PROGRESS
     assert_equal "done", IncidentAction::STATUS_DONE
   end
-
-  # Fixtures loading
 
   test "workspace one fixtures load correctly" do
     action = incident_actions(:inc1_action_open)

@@ -1,21 +1,12 @@
-# The chokepoint every privileged operation routes through: resolve the
-# principal's grants, decide, ledger, execute. Convergence here IS the
-# safety property. API controllers, MCP dispatch, and (later) agent tool
-# calls all pass through this one method.
-#
-# Ledger policy: denials are always recorded, and so is every allowed call
-# that either changes something or reaches another system, as a write-ahead
-# row finalized after the call. Reads of Firefight's own data are left out.
-# They run at request volume and the request log already covers them.
+# Denials are always ledgered. Allowed calls that change something or reach another
+# system are ledgered as a write-ahead row finalized after the call.
 class AbilityGateway
   SOURCE_API = "api"
   SOURCE_MCP = "mcp"
   SOURCE_SLACK = "slack"
   SOURCE_WEB = "web"
   SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB ].freeze
-  # Entry points where a human acts directly, rather than through a key or
-  # an agent. A second chat platform joins this list, nothing else in the
-  # gateway changes.
+  # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 
   class Denied < StandardError
@@ -36,8 +27,8 @@ class AbilityGateway
     end
   end
 
-  # Handle returned to callers that finalize after their own execution
-  # (e.g. the API layer's around_action). No-ops when nothing was ledgered.
+  # For callers that finalize after their own execution, such as the API's
+  # around_action. No-ops when nothing was ledgered.
   class Authorization
     def initialize(invocation)
       @invocation = invocation
@@ -62,12 +53,8 @@ class AbilityGateway
     end
   end
 
-  # With a block: authorizes, executes the block, finalizes the ledger row,
-  # returns the block's result. Without a block: returns an Authorization
-  # handle the caller must finalize. Raises Denied (after ledgering the
-  # denial) when no grant covers the action, or PendingApproval when an
-  # approval policy matches and no usable approval accompanies the call
-  # (pass context[:approval_id] on the retry after it is approved).
+  # Without a block, returns an Authorization the caller must finalize. On
+  # PendingApproval, the retry passes context[:approval_id] once approved.
   def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
     action = Ability::Action.lookup(action_key, workspace)
 
@@ -83,9 +70,8 @@ class AbilityGateway
 
     invocation = nil
     claimed = true
-    # One transaction, so the allow row only survives when this call holds the
-    # approval. A retry that loses the race rolls its allow row back and is
-    # ledgered as a denial instead of looking like a crash mid-execution.
+    # One transaction, so a retry that loses the race for the approval rolls
+    # its allow row back and is ledgered as a denial.
     Ability::Invocation.transaction do
       if ledger_execution?(action, principal, context)
         invocation = record!(decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil,
@@ -128,10 +114,7 @@ class AbilityGateway
       Ability::Resolver.resolve(principal).covers?(action_key, scope)
   end
 
-  # Returns the usable approval when one is required and supplied, nil when
-  # no policy matches. Raises PendingApproval (creating or re-surfacing the
-  # pending record) or Denied (the supplied approval was denied). The caller
-  # claims the approval together with the allow ledger row.
+  # The caller claims the returned approval together with the allow ledger row.
   def self.approval_gate!(principal:, action:, action_key:, workspace:, scope:, params:, context:)
     requirement = approval_requirement(workspace, action, action_key, scope, context)
     return nil unless requirement
@@ -164,8 +147,8 @@ class AbilityGateway
     record!(decision: Ability::Invocation::DECISION_PENDING, completed_at: Time.current,
             principal: principal, action: action, action_key: action_key,
             workspace: workspace, scope: scope, params: params, context: context, approval: approval)
-    # Approvers are told from here, the one place approvals are parked, not
-    # from a model callback that would fire on any row write.
+    # Approvers are told from here, not from a model callback that would fire
+    # on any row write.
     ActiveRecord.after_all_transactions_commit do
       AbilityApprovalNotificationJob.perform_later(approval_id: approval.id)
     end
@@ -188,15 +171,8 @@ class AbilityGateway
     result.outcome&.dig(PolicyRule::ApprovalOutcome::REQUIRE_KEY)
   end
 
-  # Anything that leaves Firefight is recorded, reads included: "what did an
-  # agent touch in our systems" is the question the ledger exists to answer.
-  # Reads of our own data are not, since they run at request volume and the
-  # request log already covers them.
-  #
-  # Incident participation by a person is the other exemption: record_change!
-  # already writes the IncidentEvent timeline, and ledgering it twice buries
-  # the rows the ledger exists for. A person changing configuration is
-  # recorded, which is what makes the ledger the audit log.
+  # Anything that leaves Firefight is recorded, reads included. Reads of our own data are
+  # covered by the request log, and a person's incident participation by record_change!.
   def self.ledger_execution?(action, principal, context)
     return true if action.kind == Ability::Action::KIND_TOOL
     return false if incident_participation?(action, principal, context)

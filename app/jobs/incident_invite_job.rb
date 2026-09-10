@@ -1,7 +1,5 @@
-# resolve_invitees can be slow on large workspaces, when the command contains
-# unresolved @handles it falls back to a paginated users.list lookup. Running
-# the full resolve + invite + summary flow async keeps the slash command
-# response well under Slack's 3s budget regardless of workspace size.
+# Unresolved @handles fall back to a paginated users.list lookup, too slow for
+# Slack's 3s command budget on a large workspace.
 class IncidentInviteJob < ApplicationJob
   queue_as :default
 

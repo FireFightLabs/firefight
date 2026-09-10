@@ -3,7 +3,6 @@ class AddSourceToIncidents < ActiveRecord::Migration[8.1]
     add_column :incidents, :source, :string
     add_column :incidents, :source_api_key_id, :uuid
 
-    # Backfill existing incidents as slack-sourced
     execute "UPDATE incidents SET source = 'slack' WHERE source IS NULL"
 
     change_column_null :incidents, :source, false

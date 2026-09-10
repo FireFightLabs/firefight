@@ -8,13 +8,12 @@ class ApiKey < ApplicationRecord
 
   belongs_to :workspace
   belongs_to :created_by, class_name: "WorkspaceMembership"
-  # Personal token: acts with this human's authority. nil = service key.
+  # Set on a personal token, nil on a service key.
   belongs_to :on_behalf_of, class_name: "WorkspaceMembership",
              foreign_key: :workspace_membership_id, optional: true, inverse_of: :personal_api_keys
-  # An agent's credential. The token is rotatable, the agent is not, so grants
-  # and the ledger stay attached to the agent across a rotation.
+  # The token rotates, the agent does not, so grants and the ledger stay
+  # attached across a rotation.
   belongs_to :agent, optional: true, inverse_of: :api_keys
-
 
   validates :name, presence: true
   validates :token_digest, presence: true, uniqueness: true
@@ -28,7 +27,6 @@ class ApiKey < ApplicationRecord
   scope :active, -> { where(active: true, deleted_at: nil) }
   scope :not_expired, -> { where("expires_at IS NULL OR expires_at > ?", Time.current) }
   scope :ordered, -> { order(created_at: :desc) }
-  # A service key stands for nobody but itself: no human behind it, no agent.
   scope :service, -> { where(workspace_membership_id: nil, agent_id: nil) }
   scope :for_agents, -> { where.not(agent_id: nil) }
 
@@ -64,7 +62,6 @@ class ApiKey < ApplicationRecord
     [ api_key, raw_token ]
   end
 
-  # Usable right now, read from a loaded row rather than re-queried.
   def live?
     active? && !deleted? && !expired?
   end
@@ -77,10 +74,8 @@ class ApiKey < ApplicationRecord
     !personal?
   end
 
-  # Who this request is authorized AS: the human behind a personal token,
-  # or the key itself for a service key.
-  # The token is the credential. This is who it is. An agent's token acts as
-  # the agent, a personal token as the person, and a service key as itself.
+  # An agent's token acts as the agent, a personal token as the person, a
+  # service key as itself.
   def principal
     agent || on_behalf_of || self
   end
@@ -89,22 +84,16 @@ class ApiKey < ApplicationRecord
     has_permission?(resource, Ability::Action::ACTION_READ)
   end
 
-  # Personal tokens carry the member's authority exactly, so the rule lives on
-  # the membership and is read from here rather than restated.
-  # Service keys resolve against their ability grants.
+  # A personal token carries the member's authority exactly, so the rule
+  # lives on the membership rather than being restated here.
   def has_permission?(resource, action)
     return on_behalf_of.implicitly_permits?(resource, action) if personal?
 
     Ability::Resolver.resolve(self).covers?(Ability::Action.system_key(resource, action))
   end
 
-  # The permissions matrix, derived from the grants it edits rather than stored
-  # alongside them. There is no second copy to drift out of step, and a grant
-  # made on the Permissions screen shows up here ticked instead of being
-  # silently reconciled away.
-  #
-  # Expired grants are included. The switch says what was granted, and when it
-  # lapses is the Permissions screen's business.
+  # Derived from the grants rather than stored, so there is no second copy to
+  # drift. Expired grants are included, lapsing is the Permissions screen's business.
   def granted_permissions
     ability_grants.includes(:action).each_with_object({}) do |grant, matrix|
       key = grant.action&.key
@@ -115,8 +104,7 @@ class ApiKey < ApplicationRecord
     end
   end
 
-  # Replaces this key's system-action grants with the matrix. Tool actions from
-  # integrations are outside the matrix, so they are left alone.
+  # Tool actions from integrations are outside the matrix and left alone.
   def replace_permissions!(matrix)
     Ability::Grant.replace_system_grants!(principal: self, workspace: workspace, matrix: matrix)
   end
@@ -127,15 +115,13 @@ class ApiKey < ApplicationRecord
     update_column(:last_used_at, Time.current)
   end
 
-  # Actor interface (shared with WorkspaceMembership) for polymorphic
-  # event/snapshot attribution. API keys are integrations, not people, so
-  # they have no platform_user_id (no Slack DM target).
+  # Actor interface shared with WorkspaceMembership. No platform_user_id,
+  # a key is not a person to DM.
   def actor_display_name = name
   def actor_kind = Ability::Principal::KIND_API_KEY
   def platform_user_id = nil
 
-  # A token stands for exactly one principal. Both set would make `principal`
-  # silently pick one and hide the other.
+  # Both set would make principal silently pick one.
   def one_identity_only
     return if workspace_membership_id.blank? || agent_id.blank?
 

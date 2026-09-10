@@ -1,12 +1,11 @@
-# Re-runs a dashboard request parked behind an approval through the router,
-# as the requester, carrying the approval so the gateway admits it.
+# Re-runs a parked dashboard request as the requester, carrying the approval
+# so the gateway admits it.
 class WebRequestReplay
   ENV_KEY = "firefight.web_replay".freeze
 
   Result = Struct.new(:success?, :message, keyword_init: true)
 
-  # The body is kept byte for byte, in its original encoding, so the replay
-  # parses to the same parameters and carries the same digest.
+  # The body is kept byte for byte so the replay carries the same digest.
   def self.payload_for(request, membership)
     {
       path: request.path,

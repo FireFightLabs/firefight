@@ -37,16 +37,14 @@ class IncidentFormServiceTest < ActiveSupport::TestCase
       required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL
     )
 
-    # Severity is NOT NULL on incidents, so a form that hides it can never be
-    # submitted. Visibility is locked wherever required is.
+    # Severity is NOT NULL on incidents, so a form that hides it can never be submitted.
     form_field.reload
     assert_equal IncidentFormField::VISIBILITY_MODE_VISIBLE, form_field.visibility_mode
     assert_equal IncidentFormField::REQUIRED_MODE_FIXED_REQUIRED, form_field.required_mode
   end
 
-  # Dragging a system field the workspace never customized sends a synthetic
-  # id. Those used to be skipped, so reordering the Update form, which is
-  # almost all code defaults, saved nothing and still said it had.
+  # Dragging a never-customized system field sends a synthetic id. Those used to be skipped, so
+  # reordering the Update form saved nothing and still said it had.
   test "reorder positions default system fields by materializing them" do
     workspace = workspaces(:slack_workspace_one)
     form = workspace.ensure_incident_form!(IncidentForm::SLUG_UPDATE)

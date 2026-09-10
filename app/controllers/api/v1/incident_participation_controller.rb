@@ -1,6 +1,3 @@
-# Taking part in an incident rather than changing its status. Every one of
-# these is something a person can do from Slack, reachable by whatever is
-# holding the key.
 class Api::V1::IncidentParticipationController < Api::V1::ApiController
   before_action :set_incident
   before_action :authorize_update

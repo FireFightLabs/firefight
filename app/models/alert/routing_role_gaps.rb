@@ -1,8 +1,5 @@
-# The routing role gaps the workspace's alert rules would trip over: a rule
-# targets a team, but no attribute on the Team type is tagged with the role
-# the resolver needs. The alert routing page shows these as warnings and the
-# MCP evaluate_routing tool returns them, the same gap the resolver notes at
-# fire time.
+# A rule targets a team but no attribute on the Team type is tagged with the
+# role the resolver needs. The routing page and MCP show these as warnings.
 class Alert::RoutingRoleGaps
   def self.for(workspace)
     new(workspace).sentences

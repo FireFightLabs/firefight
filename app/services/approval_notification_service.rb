@@ -1,7 +1,5 @@
-# Surfaces a pending approval wherever the rule said to ask, the incidents
-# channel, a direct message to each approver, or both. Every message posted is
-# remembered on the approval so the decision can be reflected in place.
-# Workspaces without a channel still resolve approvals from the dashboard.
+# Every message posted is remembered on the approval so the decision can be
+# reflected in place. Workspaces without a channel still resolve approvals from the dashboard.
 class ApprovalNotificationService
   def self.post!(approval)
     workspace = approval.workspace

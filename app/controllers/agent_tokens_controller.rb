@@ -1,5 +1,4 @@
-# Rotation leaves two tokens live at once, so the old one needs a way out that
-# does not touch the agent or its grants.
+# Rotation leaves two tokens live, so the old one needs a way out that leaves the agent and its grants alone.
 class AgentTokensController < InertiaController
   authorizes Ability::Action::RESOURCE_PERMISSIONS, delete: :destroy
 

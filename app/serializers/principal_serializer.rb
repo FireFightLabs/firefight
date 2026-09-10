@@ -21,8 +21,7 @@ class PrincipalSerializer < BaseSerializer
     principal.implicit_authority.to_s
   end
 
-  # Set grants and single-action grants share a row shape so the UI lists
-  # them together. What it covers is a label plus a count, not a kind check.
+  # Set grants and single-action grants share a row shape. What it covers is a label plus a count.
   type "{ id: string; kind: string; targetId: string; label: string; riskLevel: string | null; " \
        "actionCount: number; environmentIds: string[]; expiresAt: string | null; expired: boolean }[]"
   def grants

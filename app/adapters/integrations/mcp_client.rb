@@ -1,9 +1,6 @@
 module Integrations
-  # Streamable-HTTP MCP client for consuming external MCP servers. Servers
-  # like GitHub's are session-based. Initialize returns an Mcp-Session-Id
-  # that every later request must echo, and the spec requires a
-  # notifications/initialized before other calls. Handles plain JSON and
-  # single-event SSE bodies.
+  # Initialize returns an Mcp-Session-Id every later request must echo, and
+  # the spec requires notifications/initialized before other calls.
   class McpClient
     class Error < Integrations::Error; end
 
@@ -59,7 +56,7 @@ module Integrations
       body.fetch("result", {})
     end
 
-    # Notifications have no id and expect no result body (202 Accepted).
+    # Notifications have no id and get a bodiless 202.
     def notify(method)
       response = post({ jsonrpc: "2.0", method: method })
       capture_session(response)

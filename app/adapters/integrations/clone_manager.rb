@@ -1,14 +1,8 @@
 require "open3"
 
 module Integrations
-  # Warm local clones of customer repositories, and the only place git is
-  # spoken. Callers get semantic operations (show_file, grep, blame). argv
-  # construction, exit-code quirks, and wire-format parsing all live here so
-  # the untrusted-input safety reasoning has exactly one home. Repo content
-  # is untrusted. Git runs with hooks disabled and prompts off, arguments
-  # are exec'd as arrays (never a shell), content is read only through git
-  # object commands, and the installation token rides a per-invocation
-  # header so it is never written into the clone's config.
+  # Repo content is untrusted, so git runs with hooks and prompts off and arguments as arrays,
+  # never a shell. The installation token rides a per-call header, never the clone's config.
   class CloneManager
     class Error < Integrations::Error; end
 
@@ -25,10 +19,8 @@ module Integrations
         Pathname.new(ENV["REPO_CLONE_ROOT"].presence || Rails.root.join("tmp/repo_clones"))
       end
 
-      # Yields the clone's path with an exclusive lock held, so eviction or a
-      # concurrent fetch can never rip the directory out from under a read.
-      # This serializes tool calls per repo. When parallel investigations
-      # need concurrent reads, this is the lock to split.
+      # Exclusive lock so eviction or a concurrent fetch cannot remove the
+      # directory under a read. This serializes tool calls per repo.
       def with_repo(environment_row:, repo:)
         dir = repo_dir(environment_row.integration.workspace_id, repo)
         FileUtils.mkdir_p(dir.dirname)
@@ -50,8 +42,7 @@ module Integrations
         git!(dir, "show", "HEAD:#{path}")
       end
 
-      # Chomped "path:line:snippet" reference lines. Zero matches is an
-      # answer (git grep exits 1), not a failure.
+      # git grep exits 1 on zero matches, which is an answer, not a failure.
       def grep(dir, pattern, path_prefix = nil)
         args = [ "grep", "-nE", "--no-color", "-e", pattern, "--" ]
         args << path_prefix if path_prefix.present?
@@ -69,10 +60,7 @@ module Integrations
 
       private
 
-      # git with the safety rails on: no hooks, no prompts, no system config,
-      # arguments exec'd directly. Auth is a per-invocation header, never
-      # persisted state. ok_statuses admits exit codes that are answers, not
-      # failures.
+      # ok_statuses admits exit codes that are answers, not failures.
       def git!(dir, *args, environment_row: nil, ok_statuses: [ 0 ])
         command = [ "git", "-c", "core.hooksPath=", "-c", "gc.auto=0" ]
         command += [ "-c", auth_header(environment_row) ] if environment_row
@@ -90,10 +78,8 @@ module Integrations
         raise
       end
 
-      # Freshness is gated on when we last FETCHED, never on when the clone
-      # was last used - a hot repo mid-investigation must keep refreshing.
-      # FETCH_HEAD is git's own record of the last fetch. A fresh clone has
-      # none, so the .git directory's ctime stands in for it.
+      # Freshness is the last fetch, never last use, so a hot repo keeps
+      # refreshing. A fresh clone has no FETCH_HEAD, so .git's ctime stands in.
       def fetch_if_stale!(dir, environment_row)
         return if last_fetched_at(dir) > STALE_AFTER.ago
 
@@ -157,8 +143,8 @@ module Integrations
         root.join(workspace_id.to_s, repo.gsub("/", "__"))
       end
 
-      # Both bookkeeping files live NEXT TO the clone, never inside it - the
-      # working tree holds only the untrusted repo's own content.
+      # Bookkeeping lives next to the clone, never inside it, so the working
+      # tree holds only the untrusted repo's content.
       def used_marker(dir)
         Pathname.new("#{dir}.last_used")
       end
@@ -177,8 +163,8 @@ module Integrations
         { "GIT_TERMINAL_PROMPT" => "0", "GIT_CONFIG_NOSYSTEM" => "1", "HOME" => root.to_s }
       end
 
-      # Auth values must never surface in an error a caller might persist or
-      # show. Strip anything header-shaped from git's stderr.
+      # Strip anything header-shaped so the token never lands in an error a
+      # caller might persist or show.
       def sanitize(stderr)
         stderr.to_s.gsub(/Authorization: \S+ \S+/, "Authorization: [redacted]").strip.presence || "unknown git error"
       end

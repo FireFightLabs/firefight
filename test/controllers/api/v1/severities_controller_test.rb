@@ -13,7 +13,6 @@ class Api::V1::SeveritiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "returns 403 without read permission on severities" do
-    # Use a key that has no severities permission
     key_without_perm = api_keys(:inactive_key)
     key_without_perm.update_columns(active: true)
     key_without_perm.replace_permissions!({ "incidents" => [ "read" ] })

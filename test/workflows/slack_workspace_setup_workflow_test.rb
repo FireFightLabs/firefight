@@ -11,8 +11,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     )
   end
 
-  # Successful workflow execution
-
   test "workflow completes successfully with new channel" do
     stub_successful_slack_workflow
     workflow = SlackWorkspaceSetupWorkflow.start_inline!(
@@ -23,7 +21,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     assert_equal "succeeded", workflow.state
     assert workflow.completed?
 
-    # Verify workspace was updated
     @workspace.reload
     assert @workspace.incidents_channel_id.present?
   end
@@ -31,7 +28,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
   test "workflow executes all steps in correct order" do
     executed_steps = []
 
-    # Track step execution with a mock service
     stub_service = Class.new do
       define_method(:create_incidents_channel) do |workspace|
         executed_steps << :create_incidents_channel
@@ -59,7 +55,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       end
     end
 
-    # Stub WorkspaceSetupService.new to return our mock service
     WorkspaceSetupService.stubs(:new).returns(stub_service.new)
 
     workflow = SlackWorkspaceSetupWorkflow.start_inline!(
@@ -69,7 +64,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
 
     assert_equal "succeeded", workflow.state
 
-    # Verify all steps executed
     assert_equal 5, executed_steps.length
     assert_includes executed_steps, :create_incidents_channel
     assert_includes executed_steps, :set_channel_metadata
@@ -77,26 +71,20 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     assert_includes executed_steps, :invite_user
     assert_includes executed_steps, :store_channel_id
 
-    # Verify dependency order is respected
     create_idx = executed_steps.index(:create_incidents_channel)
     metadata_idx = executed_steps.index(:set_channel_metadata)
     welcome_idx = executed_steps.index(:post_welcome_message)
     invite_idx = executed_steps.index(:invite_user)
     store_idx = executed_steps.index(:store_channel_id)
 
-    # create_incidents_channel must be first
     assert_equal 0, create_idx
 
-    # set_channel_metadata depends on create_incidents_channel
     assert create_idx < metadata_idx
 
-    # post_welcome_message depends on set_channel_metadata
     assert metadata_idx < welcome_idx
 
-    # invite_installer depends on post_welcome_message
     assert welcome_idx < invite_idx
 
-    # store_channel_id depends on create_incidents_channel (can run anytime after)
     assert create_idx < store_idx
   end
 
@@ -106,7 +94,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     stub_set_channel_purpose
     stub_post_message
 
-    # Verify invite_to_channel is called with the correct user_id
     Slack::Client.expects(:invite_to_channel).with do |**args|
       args[:users] == "U99999999"
     end.returns({ ok: true })
@@ -118,8 +105,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
 
     assert_equal "succeeded", workflow.state
   end
-
-  # Workflow with existing channel
 
   test "workflow skips invitation if channel already existed" do
     invitation_attempted = false
@@ -133,7 +118,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     stub_set_channel_purpose
     stub_post_message
 
-    # Track if invitation was attempted
     Slack::Client.stubs(:invite_to_channel).returns do
       invitation_attempted = true
       { ok: true }
@@ -148,8 +132,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     assert_not invitation_attempted, "Should not invite if channel existed"
   end
 
-  # Error handling
-
   test "workflow fails if channel creation fails" do
     stub_create_channel(raises: AdapterError.new("permission_denied"))
     workflow = SlackWorkspaceSetupWorkflow.start_inline!(
@@ -157,8 +139,7 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       context: { installer_user_id: "U12345678" }
     )
 
-    # When step fails with retries enabled, workflow is running and step is pending (scheduled for retry)
-    # To test immediate failure, check that the step failed and is scheduled for retry
+    # With retries on, a failed step goes back to pending and the workflow stays running.
     step = workflow.steps.find_by(name: "create_incidents_channel")
     assert step.pending? || step.failed?
     assert step.last_error.present?
@@ -167,7 +148,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
   test "workflow fails if setting metadata fails" do
     stub_create_channel
     stub_set_channel_topic
-    # Stub purpose to fail
     Slack::Client.stubs(:set_channel_purpose).raises(AdapterError.new("permission_denied"))
 
     workflow = SlackWorkspaceSetupWorkflow.start_inline!(
@@ -175,7 +155,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       context: { installer_user_id: "U12345678" }
     )
 
-    # Check that the metadata step failed and has error
     step = workflow.steps.find_by(name: "set_channel_metadata")
     assert step.pending? || step.failed?
     assert step.last_error.present?
@@ -192,7 +171,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       context: { installer_user_id: "U12345678" }
     )
 
-    # Check that the welcome message step failed and has error
     step = workflow.steps.find_by(name: "post_welcome_message")
     assert step.pending? || step.failed?
     assert step.last_error.present?
@@ -203,7 +181,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     stub_set_channel_topic
     stub_set_channel_purpose
     stub_post_message
-    # Invitation fails but workflow should handle gracefully
     stub_invite_to_channel(raises: AdapterError.new("user_not_found"))
 
     workflow = SlackWorkspaceSetupWorkflow.start_inline!(
@@ -211,13 +188,10 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
       context: { installer_user_id: "U12345678" }
     )
 
-    # Invitation step should have failed
     step = workflow.steps.find_by(name: "invite_installer")
     assert step.pending? || step.failed?
     assert step.last_error.present? if step.failed?
   end
-
-  # Step dependencies
 
   test "set_channel_metadata depends on create_incidents_channel" do
     workflow_class = SlackWorkspaceSetupWorkflow
@@ -251,13 +225,9 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
     assert store_step[:depends_on].include?("create_incidents_channel")
   end
 
-  # Workflow name
-
   test "workflow has correct name" do
     assert_equal "slack.workspace_setup.v1", SlackWorkspaceSetupWorkflow.workflow_name
   end
-
-  # Context validation
 
   test "workflow requires installer_user_id in context" do
     stub_successful_slack_workflow
@@ -268,8 +238,6 @@ class SlackWorkspaceSetupWorkflowTest < ActiveSupport::TestCase
 
     assert_equal "succeeded", workflow.state
   end
-
-  # Integration with workspace
 
   test "workflow stores channel_id on workspace" do
     stub_successful_slack_workflow

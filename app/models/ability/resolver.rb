@@ -1,8 +1,6 @@
 module Ability
-  # Resolves a principal to its effective grant set, the union of direct
-  # action grants and role-bundle actions, each carrying its scope. Cached
-  # per principal. Busted immediately on any grant/role write so a revoke
-  # takes effect on the next call, the TTL is only a safety net.
+  # Cached per principal and busted on any grant or role write, so a revoke
+  # takes effect on the next call. The TTL is only a safety net.
   class Resolver
     CACHE_PREFIX = "ability/resolved/v1/"
     CACHE_TTL = 1.hour
@@ -20,9 +18,8 @@ module Ability
       end
     end
 
-    # Written rather than fetched because the TTL depends on what was computed:
-    # a grant expiring in ten minutes must not sit in an hour-long cache, or it
-    # keeps working for fifty minutes after it lapsed.
+    # Written rather than fetched because the TTL depends on the result. A
+    # grant expiring in ten minutes must not sit in an hour-long cache.
     def self.resolve(principal)
       key = cache_key(principal.class.polymorphic_name, principal.id)
       by_key = Rails.cache.read(key)

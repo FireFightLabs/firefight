@@ -52,9 +52,8 @@ class Api::V1::IncidentsController < Api::V1::ApiController
           resource_id: @incident.id
         )
       rescue ActiveRecord::RecordNotUnique
-        # A concurrent request with the same key committed first. Only this
-        # insert is rescued so any other unique violation still surfaces as
-        # the error it is instead of a replay.
+        # A concurrent request with the same key committed first. Only this insert is
+        # rescued so other unique violations still surface.
         lost_key_race = true
         raise ActiveRecord::Rollback
       end
@@ -86,9 +85,8 @@ class Api::V1::IncidentsController < Api::V1::ApiController
     @lifecycle_service ||= IncidentLifecycleService.new(current_workspace)
   end
 
-  # Every field in the body lands in one request. The lifecycle service
-  # decides from the status what kind of change this is (update, close,
-  # cancel, reopen, accept) and the other fields ride along with it.
+  # The lifecycle service decides from the status what kind of change this is,
+  # the other fields ride along.
   def resolve_and_apply_update
     attrs = {}
     attrs[:name] = params[:name] if params.key?(:name)
@@ -100,9 +98,8 @@ class Api::V1::IncidentsController < Api::V1::ApiController
 
     if params.key?(:lead_id)
       lead = params[:lead_id].present? ? current_workspace.workspace_memberships.find(params[:lead_id]) : nil
-      # A lead on its own keeps the dedicated lead event and announcement. Next
-      # to other fields it rides inside that change. Clearing the lead goes
-      # through the role rules, which refuse it with the reason.
+      # A lead alone keeps its own event and announcement. With other fields it rides inside
+      # that change. Clearing goes through the role rules, which refuse it with a reason.
       return lifecycle_service.assign_role(@incident, lead_role, lead, changed_by: changed_by) if attrs.empty? || lead.nil?
 
       attrs[:lead] = lead

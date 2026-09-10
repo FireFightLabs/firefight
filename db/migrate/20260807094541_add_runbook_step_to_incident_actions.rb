@@ -2,7 +2,7 @@ class AddRunbookStepToIncidentActions < ActiveRecord::Migration[8.1]
   def change
     add_reference :incident_actions, :runbook_step, type: :uuid, foreign_key: true, index: false
 
-    # Stops two responders claiming the same row at once from both winning.
+    # Two responders claiming the same step at once cannot both win.
     add_index :incident_actions, [ :incident_id, :runbook_step_id ],
               unique: true,
               where: "runbook_step_id IS NOT NULL AND deleted_at IS NULL",

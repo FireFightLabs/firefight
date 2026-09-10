@@ -15,11 +15,8 @@ module SolidWorkflow
         end
       end
 
-      # Cascades transitive parent inputs forward so a late step has the
-      # full chain of upstream parameters available without re-querying the
-      # DB, supports replay/idempotency even if the source records mutate
-      # later. Capped so a runaway chain becomes observable instead of
-      # silently bloating the input column.
+      # Parent inputs are copied forward so replay survives later mutation.
+      # Capped so a runaway chain is visible instead of silently bloating the column.
       MAX_INPUT_BYTES = 64_000
 
       def populate_input_data(all_steps, step_map: nil)

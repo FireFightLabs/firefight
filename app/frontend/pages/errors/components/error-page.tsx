@@ -5,7 +5,6 @@ import { AuthLayout } from "@/components/auth/auth-layout";
 import { CardHeader } from "@/components/auth/card-header";
 import { dashboardPath, loginPath } from "@/lib/routes";
 
-// Shared by every error status so a 404 and a 500 differ only in their words.
 export function ErrorPage({
   code,
   title,

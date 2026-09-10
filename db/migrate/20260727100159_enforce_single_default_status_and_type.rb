@@ -1,8 +1,7 @@
 class EnforceSingleDefaultStatusAndType < ActiveRecord::Migration[8.1]
   TABLES = %w[incident_statuses incident_types].freeze
 
-  # Same invariant severities just got, only a model validation stood between a
-  # workspace and two defaults, so any update_all could produce them.
+  # Only a model validation guarded one default per workspace, so a raw write could produce two.
   def up
     TABLES.each do |table|
       execute <<~SQL

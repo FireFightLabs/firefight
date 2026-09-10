@@ -3,7 +3,6 @@ require "test_helper"
 class IncidentLifecycleServiceTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
@@ -11,8 +10,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     @service = IncidentLifecycleService.new(@workspace)
     stub_successful_slack_workflow
   end
-
-  # Create
 
   test "create creates incident and starts workflow" do
     severity = @workspace.incident_severities.active.first
@@ -82,8 +79,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     assert_nil incident.channel_id
   end
 
-  # Update
-
   test "update records change with INCIDENT_UPDATED event" do
     assert_difference -> { @incident.incident_events.count }, 1 do
       @service.change_status(@incident, { summary: "Updated via service" }, changed_by: @member)
@@ -110,8 +105,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     update = IncidentUpdate.find_by!(incident: @incident, update_type: IncidentUpdate::UPDATED)
     assert_equal "Status update", update.message
   end
-
-  # Close
 
   test "close records change with INCIDENT_RESOLVED event" do
     resolved_status = @workspace.incident_statuses.closed.first
@@ -150,8 +143,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     assert_equal lead, @incident.reload.lead
   end
 
-  # Reopen
-
   test "reopen records change with INCIDENT_REOPENED event" do
     close_incident!
 
@@ -183,8 +174,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
       @service.change_status(@incident, { incident_status: default_status }, changed_by: @member)
     end
   end
-
-  # Transitions
 
   test "change_status decides the verb from the stage the incident is in and the one it is going to" do
     closed = @workspace.incident_statuses.closed.first
@@ -233,8 +222,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     assert_equal lead, @incident.reload.lead
   end
 
-  # Assign lead
-
   test "assign_lead records change with LEAD_ASSIGNED event" do
     lead = workspace_memberships(:bob_workspace_one)
 
@@ -253,8 +240,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
       @service.assign_lead(@incident, lead, changed_by: @member)
     end
   end
-
-  # Escalate
 
   test "escalate records the event, starts the workflow, and schedules the chase" do
     target = workspace_memberships(:bob_workspace_one)
@@ -317,8 +302,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     assert_equal "#{@incident.identifier} is closed, so it can no longer be escalated.", error.message
   end
 
-  # Assign roles
-
   test "assign_role assigns a custom role and records a ROLE_ASSIGNED event" do
     role = incident_roles(:communications_lead_ws1)
 
@@ -371,8 +354,6 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
       @service.assign_roles(@incident, { role => @member }, changed_by: @member)
     end
   end
-
-  # Workflow context
 
   test "update passes changed_by platform_user_id in workflow context" do
     SolidWorkflow::Base.any_instance.stubs(:enqueue_ready_steps)

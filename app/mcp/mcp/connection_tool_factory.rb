@@ -1,15 +1,12 @@
 module Mcp
-  # Exposes a workspace's allowlisted connection tools through Firefight's
-  # own MCP server. The same registry, outward. Every call flows through
-  # AbilityGateway (grant + config + approvals + ledger) and then the
-  # integration's executor with the resolved environment's credentials.
+  # Exposes a workspace's allowlisted connection tools through Firefight's own
+  # MCP server. Every call flows through AbilityGateway, then the integration's executor.
   class ConnectionToolFactory
     ENVIRONMENT_ARG = :environment
     APPROVAL_ID_ARG = :approval_id
 
-    # Lists only what the principal could actually call, so a narrowly
-    # scoped service key never receives an inventory of the workspace's
-    # connections. Calls are still authorized individually in invoke.
+    # Lists only what the principal could call, so a narrowly scoped service key
+    # never sees an inventory of the workspace's connections. invoke still authorizes each call.
     def self.tools_for(workspace, principal)
       resolved = Ability::Resolver.resolve(principal)
 
@@ -52,8 +49,7 @@ module Mcp
       scope = environment_entry ? { "environment" => environment_entry.id } : {}
       arguments = args.except(ENVIRONMENT_ARG, APPROVAL_ID_ARG).transform_keys(&:to_s)
 
-      # Same telemetry as a static tool, so connection calls show up in the
-      # mcp.tool_call log and the span like everything else the server does.
+      # Same telemetry as a static tool.
       OpenTelemetry::Trace.current_span.add_attributes({ "firefight.mcp.tool" => tool.action_key })
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       result = AbilityGateway.authorize!(
@@ -85,10 +81,8 @@ module Mcp
       ToolDispatcher.error_response("Upstream tool failed: #{e.message}")
     end
 
-    # When the connection is wired per environment and none was named, the
-    # deny is really "pick one" - so say which. Slugs are catalog data any
-    # member can read, and naming one still has to pass the grant and config
-    # checks, so nothing is disclosed that the caller could not already see.
+    # A deny for a missing environment really means "pick one", so name them.
+    # Slugs are catalog data any member can read, so nothing is disclosed.
     def self.environment_hint(tool)
       integration = tool.integration
       return "" if integration.resolve_environment(nil).present?
@@ -105,8 +99,6 @@ module Mcp
       "#{base} (via the #{tool.integration.name} connection; governed by the Ability Gateway)"
     end
 
-    # The remote schema plus Firefight's routing args, which environment's
-    # credentials to use, and the approval retry handle.
     def self.augmented_schema(tool)
       schema = (tool.params_schema.presence || { "type" => "object" }).deep_dup
       schema["properties"] = (schema["properties"] || {}).merge(

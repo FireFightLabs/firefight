@@ -239,8 +239,7 @@ class AbilityGatewayTest < ActiveSupport::TestCase
     end.approval
     approval.approve!(by: @membership)
 
-    # The second caller holds a copy that still reads as usable, the way a
-    # concurrent request would, and only the claim statement decides.
+    # A copy that still reads as usable, the way a concurrent request would, only the claim statement decides.
     stale_copy = Ability::Approval.find(approval.id)
     Ability::Approval.stubs(:find_by).returns(stale_copy)
     @workspace.ability_approvals.stubs(:find_by).returns(stale_copy)

@@ -1,7 +1,5 @@
 module Mcp
   module Tools
-    # The shapes the gateway tools answer with, shared so a grant reads the
-    # same whether it came back from granting it or from listing a principal.
     module GatewayPayloads
       def grant_payload(grant)
         {

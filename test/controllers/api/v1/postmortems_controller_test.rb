@@ -75,8 +75,7 @@ class Api::V1::PostmortemsControllerTest < ActionDispatch::IntegrationTest
     assert_nil @incident.reload.postmortem
   end
 
-  # An agent that read the document, then a person who edited it before the
-  # agent wrote. The agent loses, not the person.
+  # An agent read the document, a person edited it before the agent wrote. The agent loses.
   test "a body sent against a version somebody has replaced is refused" do
     postmortem = started_postmortem
     stale = postmortem.content_version
@@ -91,8 +90,7 @@ class Api::V1::PostmortemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "<p>Typed by a person</p>", postmortem.reload.html_content
   end
 
-  # The refusal must not hand back the version that won, or a client can adopt
-  # it and overwrite on its next write the work it was just refused for.
+  # Handing back the winning version would let a client adopt it and overwrite the work it was refused for.
   test "a refusal does not hand back the version that beat it" do
     postmortem = started_postmortem
     stale = postmortem.content_version

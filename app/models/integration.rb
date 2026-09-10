@@ -1,7 +1,5 @@
-# A connected provider instance: credentials per environment, tools that
-# mint gateway actions. kind selects the executor. mcp consumes any external
-# MCP server, native runs a first-party Integrations::NativePack. http packs
-# follow.
+# kind selects the executor. mcp consumes any external MCP server, native
+# runs a first-party Integrations::NativePack.
 class Integration < ApplicationRecord
   include Sluggable
 
@@ -23,7 +21,6 @@ class Integration < ApplicationRecord
                    unless: :deleted?
   validate :slug_immutable, on: :update
 
-
   scope :active, -> { where(disabled_at: nil, deleted_at: nil) }
 
   def operational?
@@ -34,9 +31,7 @@ class Integration < ApplicationRecord
     kind == KIND_NATIVE
   end
 
-  # The per-kind facade for talking to the provider (call, tool_definitions,
-  # check_health!). The one place the kinds diverge. Everything downstream
-  # stays executor-agnostic.
+  # The one place the kinds diverge.
   def executor
     case kind
     when KIND_MCP then Integrations::McpExecutor
@@ -54,16 +49,8 @@ class Integration < ApplicationRecord
     settings["server_url"]
   end
 
-  # The environment is derived, never asserted. An explicit entry id must
-  # match a wired row. No entry resolves to the global row, or to the single
-  # wired environment when that is unambiguous.
-  # Bulk allowlisting. Each row is saved on its own because enabling one
-  # mints its Ability::Action in an after_save, and update_all would skip
-  # that, leaving capabilities that look enabled but can never be granted.
-  #
-  # reads_only turns the read tools on *and the write ones off*, so it is a
-  # statement of what the connection may do rather than an additive step
-  # that quietly leaves earlier write grants in place.
+  # Saved row by row because enabling one mints its Ability::Action in an after_save that
+  # update_all would skip. reads_only turns the write tools off rather than adding anything.
   def set_all_tools!(enabled, reads_only: false)
     transaction do
       tools.available.each do |tool|
@@ -82,8 +69,8 @@ class Integration < ApplicationRecord
 
   private
 
-  # Action keys derive from the slug. Renaming would orphan grants,
-  # policies, and ledger rows referencing the old keys.
+  # Action keys derive from the slug, renaming would orphan grants, policies
+  # and ledger rows.
   def slug_immutable
     errors.add(:slug, "cannot be changed after creation") if slug_changed?
   end

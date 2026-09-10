@@ -2,8 +2,8 @@ import { useState } from "react"
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react"
 import type { TimelineChange } from "@/pages/incidents/types"
 
-// Long text shows the current version only. Striking a paragraph beside its
-// replacement reads badly, so the previous version waits behind a toggle.
+// Striking a paragraph beside its replacement reads badly, so the previous
+// version waits behind a toggle.
 export function TimelineTextChange({ change }: { change: TimelineChange }) {
   const [showingPrevious, setShowingPrevious] = useState(false)
 

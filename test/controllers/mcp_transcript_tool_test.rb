@@ -1,9 +1,7 @@
 require "test_helper"
 
-# Reading what people said in an incident channel. Two things have to be true
-# before a single message comes back: the caller holds the transcript ability,
-# which is separate from incidents on purpose, and the workspace has turned
-# access on.
+# The caller needs the transcript ability, kept separate from incidents on purpose, and the
+# workspace must have turned access on.
 class McpTranscriptToolTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -16,8 +14,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
     )
   end
 
-  # The reason it is its own resource. A key granted incidents before this
-  # existed must not silently gain the conversation.
+  # A key granted incidents before this existed must not silently gain the conversation.
   test "a key granted every incident action still cannot read the transcript" do
     say "found it, the pooler ran out"
     _, token = create_service_key(
@@ -46,7 +43,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
     assert_equal [ "found it, the pooler ran out" ], content["messages"].map { |m| m["text"] }
   end
 
-  # A grant is not enough. The workspace has to have decided.
+  # A grant is not enough, the workspace has to have decided.
   test "a workspace that has not turned access on refuses even an admin" do
     @workspace.update!(transcript_access_enabled: false)
     say "found it"
@@ -80,8 +77,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
     assert_equal [ "message 1", "message 2" ], earlier["messages"].map { |m| m["text"] }
   end
 
-  # A cursor that always came back meant a caller walking the conversation
-  # never learned it had reached the start.
+  # A cursor that always came back meant a caller never learned it had reached the start.
   test "the first page of a short conversation offers nothing before it" do
     say "all there is"
 
@@ -90,8 +86,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
     assert_nil content["more_before"]
   end
 
-  # Slack stamps to the millisecond, so two people typing at once share a
-  # posted_at. Paging on that alone would drop whichever one the cursor was not.
+  # Slack stamps to the millisecond, so two people typing at once share a posted_at.
   test "messages said in the same instant survive paging" do
     same = 2.minutes.ago
     say "later", at: 1.minute.ago, message_id: "1700000000.0003"
@@ -119,8 +114,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
     assert_equal 1, content["messages"].size
   end
 
-  # Scrubbing happens on the way in, so a redacted message is marked as one
-  # rather than looking like what was typed.
+  # Scrubbing happens on the way in, so a redacted message is marked rather than looking typed.
   test "a redacted message says it was redacted" do
     IncidentTranscriptMessage.create!(
       workspace: @workspace, incident: @incident, message_id: "1700000000.9999",

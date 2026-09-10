@@ -1,6 +1,5 @@
-# Per-environment wiring for an integration, encrypted credentials + config
-# + the enabled flag. "Configured for prod" (this row) and "permitted in
-# prod" (a grant) are separate facts. The gateway requires both.
+# "Configured for prod" is this row, "permitted in prod" is a grant. The
+# gateway requires both.
 class IntegrationEnvironment < ApplicationRecord
   HEALTH_UNKNOWN = "unknown"
   HEALTH_HEALTHY = "healthy"
@@ -25,8 +24,6 @@ class IntegrationEnvironment < ApplicationRecord
     {}
   end
 
-  # Headers for outbound calls: either an explicit headers map or a bare
-  # authorization value.
   def request_headers
     creds = credentials_hash
     return creds["headers"] if creds["headers"].is_a?(Hash)
@@ -35,8 +32,7 @@ class IntegrationEnvironment < ApplicationRecord
     {}
   end
 
-  # OAuth credential sets are produced and read by Integrations::OauthClient.
-  # This row owns storing them and nothing else looks inside.
+  # Produced and read by Integrations::OauthClient, nothing else looks inside.
   def oauth
     credentials_hash[OAUTH_KEY]
   end
@@ -46,16 +42,13 @@ class IntegrationEnvironment < ApplicationRecord
     oauth_credentials
   end
 
-  # The native install-first path (GitHub App): no OAuth credentials come
-  # back, only the installation id that server-to-server tokens are minted
-  # from at call time.
+  # The install-first path, such as a GitHub App. Only an installation id
+  # comes back, tokens are minted from it at call time.
   def store_installation!(installation_id)
     update!(base_config: base_config.merge("installation_id" => installation_id.to_s))
   end
 
-  # Adapters own the shape of what they cache (minted tokens and the like).
-  # This row owns writing it, same as store_oauth!. Nothing else touches the
-  # credentials column directly.
+  # Adapters own the shape of what they cache, this row owns writing it.
   def store_credential!(key, value)
     update!(credentials: credentials_hash.merge(key => value).to_json)
   end

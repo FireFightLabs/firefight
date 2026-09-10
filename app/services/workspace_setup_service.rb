@@ -1,5 +1,5 @@
-# The steps that stand a new workspace up, each one callable on its own so the
-# setup workflow, an admin action, and the console all drive the same code.
+# Each step is callable on its own so the setup workflow, an admin action and
+# the console drive the same code.
 class WorkspaceSetupService
   INCIDENTS_CHANNEL_DESCRIPTION = "FireFight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
 
@@ -40,8 +40,7 @@ class WorkspaceSetupService
     { success: true }
   end
 
-  # A channel that was already there predates this install, so its members are
-  # not ours to add to.
+  # A channel that predates this install has members that are not ours to add to.
   def invite_user(workspace, channel_id, user_id, skip_if_channel_existed: false)
     if skip_if_channel_existed
       Rails.logger.info({
@@ -69,7 +68,6 @@ class WorkspaceSetupService
     { invited_user: user_id, already_in_channel: true }
   end
 
-  # The message id is kept on the onboarding row for later redraws.
   def post_welcome_message(workspace, channel_id)
     onboarding = workspace.onboarding
     result = workspace.adapter.post_welcome_message(channel_id: channel_id, stage: onboarding&.stage || WorkspaceOnboarding::STAGE_NONE)
@@ -86,8 +84,7 @@ class WorkspaceSetupService
     result
   end
 
-  # Completion is recorded before the platform call. A deleted message is
-  # logged and left alone.
+  # Completion is recorded before the platform call. A deleted message is logged and left alone.
   def refresh_welcome_message(workspace)
     onboarding = workspace.onboarding
     return { skipped: true } unless onboarding&.welcome_message_id.present? && workspace.incidents_channel_id.present?

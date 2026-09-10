@@ -19,8 +19,8 @@ class IncidentTranscriptMessage < ApplicationRecord
   # The first message on the first test incident advances the coaching.
   after_create_commit :nudge_onboarding, if: -> { incident.first_test_in_workspace? }
 
-  # Matches the page sort exactly. Comparing posted_at alone would skip whatever
-  # else was said in the same instant as the cursor.
+  # Comparing posted_at alone would skip whatever else was said in the same
+  # instant as the cursor.
   scope :before_cursor, ->(cursor) {
     where(
       "(incident_transcript_messages.posted_at, incident_transcript_messages.message_id) < (?, ?)",
@@ -28,10 +28,8 @@ class IncidentTranscriptMessage < ApplicationRecord
     )
   }
 
-  # A conversation reads newest last, but the part worth reading is the end, so
-  # a page is taken backwards from the cursor and reversed. One row more than
-  # asked for is read, which is how more_before knows whether to hand back a
-  # cursor or say the start has been reached.
+  # Pages are taken backwards from the cursor and reversed. One extra row is
+  # read so more_before knows whether the start has been reached.
   def self.page(before: nil, limit: nil)
     size = (limit.presence || DEFAULT_MESSAGES).to_i.clamp(1, MAX_MESSAGES)
     scope = kept.order(posted_at: :desc, message_id: :desc).includes(:workspace_membership)

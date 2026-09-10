@@ -31,8 +31,7 @@ class ModalOpenerTest < ActiveSupport::TestCase
     end
   end
 
-  # The placeholder id comes back as :message_id, and reading the wrong key made
-  # this cleanup a silent no-op that left an orphaned message in the channel.
+  # The placeholder id comes back as :message_id. Reading the wrong key made this a silent no-op.
   test "deletes the placeholder when the trigger expires" do
     stub_post_message
     stub_open_modal(raises: AdapterError::TriggerExpired.new("expired"))

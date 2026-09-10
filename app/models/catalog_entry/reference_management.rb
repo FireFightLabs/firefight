@@ -29,9 +29,8 @@ module CatalogEntry::ReferenceManagement
 
   private
 
-  # The dashboard holds entry ids, an agent holds slugs. The id lookup is
-  # guarded because a slug reaching a uuid column raises out of the driver
-  # before the missing-entry message below can be reported.
+  # The id lookup is guarded because a slug reaching a uuid column raises
+  # out of the driver before the missing-entry message can be reported.
   def resolve_reference_target!(attr_def, target_reference)
     reference = target_reference.to_s
     scope = CatalogEntry.where(

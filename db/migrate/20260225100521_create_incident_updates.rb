@@ -3,7 +3,7 @@ class CreateIncidentUpdates < ActiveRecord::Migration[8.1]
     create_table :incident_updates, id: :uuid do |t|
       t.references :incident, type: :uuid, null: false, foreign_key: true
 
-      # State snapshot (mirrors incidents table)
+      # A snapshot, mirrors the incidents columns.
       t.uuid :workspace_id, null: false
       t.references :declared_by, type: :uuid, null: false, foreign_key: { to_table: :workspace_memberships }
       t.references :incident_status, type: :uuid, null: false, foreign_key: true
@@ -27,7 +27,6 @@ class CreateIncidentUpdates < ActiveRecord::Migration[8.1]
       t.datetime :next_update_at
       t.datetime :deleted_at
 
-      # Update-specific fields
       t.string :update_type, null: false
       t.references :created_by, type: :uuid, null: true, foreign_key: { to_table: :workspace_memberships }
       t.text :message

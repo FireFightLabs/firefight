@@ -16,16 +16,14 @@ module FirefightAi
     yield configuration
   end
 
-  # What a purpose runs on. A provider only travels with a model the registry
-  # cannot place on its own (a Bedrock or Ollama deployment).
+  # A provider only travels with a model the registry cannot place, Bedrock or Ollama.
   ModelChoice = Data.define(:model, :provider) do
     def provider_name
       Inference.provider_for(model, provider: provider)
     end
   end
 
-  # Resolved at call time: this file loads before the host's autoloader
-  # knows AiPurpose.
+  # Resolved at call time, this file loads before the autoloader knows AiPurpose.
   def env_prefix(purpose)
     {
       AiPurpose::POSTMORTEM => "POSTMORTEM_AI",
@@ -44,9 +42,8 @@ module FirefightAi
     }.fetch(purpose)
   end
 
-  # Most specific first: workspace override for the purpose, workspace
-  # override for any purpose, the purpose's env var, the deployment default,
-  # the built-in fallback.
+  # Most specific first, workspace override for the purpose, for any purpose, the
+  # purpose's env var, the deployment default, the fallback.
   def model_for(purpose, workspace: nil)
     override = workspace && workspace.ai_model_overrides.for_purpose(purpose).min_by { |row| row.purpose == purpose ? 0 : 1 }
     return ModelChoice.new(model: override.model, provider: override.provider.presence) if override
@@ -62,8 +59,7 @@ module FirefightAi
     ModelChoice.new(model: fallback_model(purpose), provider: nil)
   end
 
-  # A chat on the chosen model. A model the registry does not know needs its
-  # provider named, and RubyLLM then trusts the id as given.
+  # A model the registry does not know needs its provider named. RubyLLM then trusts the id.
   def chat(choice)
     return RubyLLM.chat(model: choice.model) if choice.provider.blank?
 

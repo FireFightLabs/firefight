@@ -6,8 +6,7 @@ class IncidentRunbookSerializer < BaseSerializer
     incident_runbook.id
   end
 
-  # The attachment's id above identifies this incident's copy. This is the
-  # runbook itself, which is what the settings screen opens.
+  # The runbook itself rather than this incident's attachment. The settings screen opens it.
   type :string
   def runbook_id
     incident_runbook.runbook_id
@@ -38,9 +37,7 @@ class IncidentRunbookSerializer < BaseSerializer
     incident_runbook.runbook.runbook_steps.size
   end
 
-  # Each step with whoever is on it. The panel cannot offer a step to claim
-  # without listing the steps, and the state comes from the action item the
-  # step created rather than from the step itself.
+  # State comes from the action item the step created, not the step itself.
   type "{ id: string; title: string; instruction: string | null; assignee: string | null; done: boolean }[]"
   def steps
     actions = incident_runbook.actions_by_step

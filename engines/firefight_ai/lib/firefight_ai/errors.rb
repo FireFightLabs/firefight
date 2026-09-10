@@ -1,6 +1,6 @@
 module FirefightAi
   class Error < StandardError
-    # The client error's own name, e.g. "ContextLengthExceededError".
+    # The client error's own name, such as ContextLengthExceededError.
     attr_reader :reason
 
     def initialize(message = nil, reason: nil)
@@ -9,11 +9,10 @@ module FirefightAi
     end
   end
 
-  # Worth retrying: the provider was busy, slow, or briefly unavailable.
+  # Worth retrying, the provider was busy, slow, or briefly unavailable.
   class TransientError < Error; end
 
-  # Retrying gives the same answer: bad request, auth, billing, context size,
-  # unknown model.
+  # Retrying gives the same answer, bad request, auth, billing, context size, unknown model.
   class TerminalError < Error; end
 
   TRANSIENT_CLIENT_ERRORS = [

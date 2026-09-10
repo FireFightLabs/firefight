@@ -1,6 +1,4 @@
-# Every Inertia page is an authenticated app surface unless it says
-# otherwise. The public ones (sign-in, onboarding, error pages) opt out
-# explicitly, so a new controller cannot forget the guard.
+# Every page is authenticated unless it opts out, so a new controller cannot forget the guard.
 class InertiaController < ApplicationController
   include WebAuthorization
 
@@ -21,8 +19,7 @@ class InertiaController < ApplicationController
 
   private
 
-  # Which settings the viewer may change, one flag per resource, so a page
-  # offers exactly the controls the gateway would admit.
+  # One flag per resource, so a page offers exactly the controls the gateway would admit.
   def manageable_resources
     return Ability::Action::RESOURCES.index_with(true) if current_membership.admin_access?
 

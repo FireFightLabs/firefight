@@ -17,8 +17,8 @@ interface DataTableProps<TData> {
   onRowClick?: (record: TData) => void
 }
 
-// A row that navigates still holds real links, so a click that landed on one
-// is left to the link and never fires the row twice.
+// A click that landed on a link inside a navigating row is left to the link,
+// so the row never fires twice.
 function rowClickHandler<TData>(row: Row<TData>, onRowClick?: (record: TData) => void) {
   if (!onRowClick) {
     return undefined

@@ -21,8 +21,8 @@ class Api::V1::ApprovalsController < Api::V1::ApiController
 
   private
 
-  # The model decides who may: a person holding the role or named on the
-  # rule, or a machine named on a rule that lets agents decide.
+  # The model decides who may resolve, a person with the role or named on the rule,
+  # or an agent the rule allows.
   def resolve(decision)
     authorize!(Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE)
     @approval = current_workspace.ability_approvals.find(params[:id])

@@ -82,8 +82,7 @@ module Ability
       assert grant.reload.persisted?, "the row stays so the screen can show it lapsed"
     end
 
-    # The cache lives an hour. Without capping it against the soonest expiry a
-    # grant lapsing in ten minutes would keep working for the other fifty.
+    # The cache lives an hour. Uncapped, a grant lapsing in ten minutes would keep working for fifty.
     test "the cache never outlives the next expiry" do
       Grant.create!(workspace: @workspace, principal: @key,
                     action: Action.system!("runbooks.read"), expires_at: 10.minutes.from_now)
@@ -104,7 +103,7 @@ module Ability
       assert_equal Resolver::CACHE_TTL, Resolver.cache_ttl_for(@key)
     end
 
-    # What the expiry is for, the gateway itself refuses once it lapses.
+    # What the expiry is for.
     test "the gateway denies a call once the grant expires" do
       Grant.create!(workspace: @workspace, principal: @key,
                     action: Action.system!("runbooks.create"), expires_at: 1.hour.from_now)

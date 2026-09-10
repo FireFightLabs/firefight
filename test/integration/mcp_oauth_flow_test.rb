@@ -3,7 +3,6 @@ require "test_helper"
 class McpOauthFlowTest < ActionDispatch::IntegrationTest
   include OmniauthTestHelper
 
-
   REDIRECT_URI = "http://localhost:33418/callback".freeze
 
   setup do
@@ -73,17 +72,14 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
     client_id = register_client
     sign_in_alice
 
-    # Consent screen renders for the signed-in member
     get oauth_authorization_path(authorize_params(client_id))
     assert_response :success
     assert_includes response.body, "Claude Code"
 
-    # Authorize → redirect back to the client with a code
     post oauth_authorization_path, params: authorize_params(client_id)
     assert_response :redirect
     code = Rack::Utils.parse_query(URI.parse(response.location).query).fetch("code")
 
-    # Public-client token exchange with the PKCE verifier
     post oauth_token_path, params: {
       grant_type: "authorization_code", code: code, redirect_uri: REDIRECT_URI,
       client_id: client_id, code_verifier: @verifier
@@ -94,7 +90,6 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
     refresh_token = token_body.fetch("refresh_token")
     assert_equal "mcp:read", token_body["scope"]
 
-    # The token works against MCP as the consenting member
     post mcp_path,
          params: { jsonrpc: "2.0", id: 1, method: "tools/call",
                    params: { name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { limit: 1 } } }.to_json,
@@ -104,13 +99,11 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
     assert_not result["isError"]
     assert result.dig("structuredContent", "incidents").any?
 
-    # Refresh rotates the token
     post oauth_token_path, params: { grant_type: "refresh_token", refresh_token: refresh_token, client_id: client_id }
     assert_response :success
     rotated = JSON.parse(response.body).fetch("access_token")
     assert_not_equal access_token, rotated
 
-    # It shows under connected agents, and revoking kills access on the next call
     get developer_api_keys_url, headers: { "X-Inertia" => "true", "X-Inertia-Version" => InertiaRails.configuration.version }
     agents = JSON.parse(response.body).dig("props", "connectedAgents")
     assert_equal [ "Claude Code" ], agents.map { |a| a["name"] }
@@ -198,8 +191,7 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
     assert_redirected_to login_path
   end
 
-  # Rails.env.local? is true under test, so the SSL rule never fires here.
-  # Call it the way production would to prove loopback clients still register.
+  # Rails.env.local? is true under test, so the SSL rule never fires here. Called the way production would.
   test "a loopback redirect URI is exempt from the HTTPS requirement" do
     Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))
     forces_ssl = Doorkeeper.config.force_ssl_in_redirect_uri
@@ -210,8 +202,7 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
     assert forces_ssl.call(URI("http://claude.localhost.example.com/callback"))
   end
 
-  # The registration rate limit itself relies on Rails' rate_limit + the
-  # production cache store. The null store in test can't exercise it.
+  # The registration rate limit needs the production cache store, the null store cannot exercise it.
   test "registration rejects invalid client metadata" do
     post oauth_register_path, params: { client_name: "Bad", redirect_uris: [] }, as: :json
 

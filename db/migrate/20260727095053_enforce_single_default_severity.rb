@@ -1,7 +1,5 @@
 class EnforceSingleDefaultSeverity < ActiveRecord::Migration[8.1]
-  # Only a model validation guarded "one default per workspace", so any
-  # update_all or raw write could produce two. Now that the settings screen can
-  # move the default around, make the invariant real in the database.
+  # Only a model validation guarded one default per workspace, so a raw write could produce two.
   def up
     execute <<~SQL
       UPDATE incident_severities

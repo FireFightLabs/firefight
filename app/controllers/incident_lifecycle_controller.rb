@@ -1,22 +1,17 @@
-# The dashboard's half of the incident lifecycle. Slack opens a modal built
-# from the workspace's configured form, this renders the same form as HTML and
-# posts it back. Both arrive at IncidentFormSubmission holding the same
-# validated hashes, so neither surface can ask for something the other refuses.
+# Slack and this render the same configured form and both land in IncidentFormSubmission,
+# so neither can ask for something the other refuses.
 class IncidentLifecycleController < InertiaController
   authorizes Ability::Action::RESOURCE_INCIDENTS,
     read: %i[form declare_form],
     create: :declare,
     update: %i[update assign_role reopen link]
 
-  # The form as it stands given what has been answered so far. Re-fetched when
-  # a dispatching field changes, because which fields apply is the resolver's
-  # answer and never the browser's.
+  # Re-fetched when a dispatching field changes, since which fields apply is the resolver's answer, never the browser's.
   def form
     render json: { fields: IncidentPromptFieldSerializer.many(prompt(find_incident).fields) }
   end
 
-  # Declaring has no incident yet, so it reads the same Declare form Slack
-  # opens with nothing to prefill from.
+  # Declaring has no incident yet, so the Declare form has nothing to prefill.
   def declare_form
     render json: { fields: IncidentPromptFieldSerializer.many(prompt(nil, IncidentForm::SLUG_DECLARE).fields) }
   end
@@ -54,8 +49,7 @@ class IncidentLifecycleController < InertiaController
     redirect_to incident_path(incident), alert: e.message
   end
 
-  # One role at a time, cleared by omitting the member. The model owns whether
-  # a role may change on this incident, so this never re-derives the rule.
+  # Cleared by omitting the member. The model owns whether a role may change.
   def assign_role
     incident = find_incident
     role = current_workspace.incident_roles.active.find_by!(slug: params.require(:role))
@@ -68,8 +62,7 @@ class IncidentLifecycleController < InertiaController
     redirect_to incident_path(incident), alert: e.message
   end
 
-  # Not form-driven, the same as Slack. A reopened incident lands on the
-  # workspace's default live status and carries the reason as its message.
+  # Not form driven, same as Slack. Lands on the default live status with the reason as its message.
   def reopen
     incident = find_incident
     return redirect_to(incident_path(incident), alert: "#{incident.identifier} is already active.") unless incident.terminal?
@@ -118,9 +111,8 @@ class IncidentLifecycleController < InertiaController
     IncidentFormPrompt.new(current_workspace, incident: incident, form_slug: slug, answers: answers)
   end
 
-  # Validated against the context the fields were resolved against, never
-  # against what the incident currently holds. Reading the stored one meant a
-  # field the responder had just made applicable was shown and then rejected.
+  # Validated against the context the fields were resolved for, not the stored one,
+  # which showed a newly applicable field and then rejected it.
   def validated_submission(incident, slug)
     validated = IncidentFormResolver.new(current_workspace)
       .validate_submission!(slug, answers, context: prompt(incident, slug).context)
@@ -142,10 +134,8 @@ class IncidentLifecycleController < InertiaController
     slug
   end
 
-  # Every key the workspace could ask about, scalars and the multi-valued
-  # custom fields that arrive as lists. The resolver then rejects anything
-  # this form did not actually ask for, so a permitted key is still not a
-  # writable one.
+  # Every key the workspace could ask. The resolver rejects anything this form did not
+  # ask for, so a permitted key is still not a writable one.
   def answers
     raw = params[:answers]
     return {} if raw.blank?

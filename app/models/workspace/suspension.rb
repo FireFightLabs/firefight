@@ -1,5 +1,4 @@
-# Set manually from the console. Every entry point refuses a suspended
-# workspace with the message for its reason.
+# Set manually from the console.
 module Workspace::Suspension
   extend ActiveSupport::Concern
 

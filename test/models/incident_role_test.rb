@@ -1,8 +1,6 @@
 require "test_helper"
 
 class IncidentRoleTest < ActiveSupport::TestCase
-  # Basic validations
-
   test "requires name" do
     role = IncidentRole.new(
       workspace: workspaces(:slack_workspace_one),
@@ -29,7 +27,7 @@ class IncidentRoleTest < ActiveSupport::TestCase
       name: "Test Role",
       slug: "test"
     )
-    # position is required but has no presence validation, just numericality
+    # position has only a numericality validation, so nil still passes.
     assert role.valid?
   end
 
@@ -42,8 +40,6 @@ class IncidentRoleTest < ActiveSupport::TestCase
     )
     assert role.valid?
   end
-
-  # Uniqueness validations
 
   test "slug must be unique within workspace" do
     existing = incident_roles(:incident_lead_ws1)
@@ -68,8 +64,6 @@ class IncidentRoleTest < ActiveSupport::TestCase
     assert ws2_role.valid?
   end
 
-  # Associations
-
   test "belongs to workspace" do
     role = incident_roles(:incident_lead_ws1)
     assert_instance_of Workspace, role.workspace
@@ -85,8 +79,6 @@ class IncidentRoleTest < ActiveSupport::TestCase
     role = incident_roles(:incident_lead_ws1)
     assert_respond_to role, :incidents
   end
-
-  # Scopes
 
   test "active scope excludes deleted roles" do
     active_roles = IncidentRole.active
@@ -112,8 +104,6 @@ class IncidentRoleTest < ActiveSupport::TestCase
     assert_not_includes incident_leads, incident_roles(:comms_lead_ws2)
   end
 
-  # Soft deletes
-
   test "soft delete sets deleted_at" do
     role = incident_roles(:incident_lead_ws1)
     assert_nil role.deleted_at
@@ -129,8 +119,6 @@ class IncidentRoleTest < ActiveSupport::TestCase
     role.update!(deleted_at: Time.current)
     assert_not_includes IncidentRole.active.reload, role
   end
-
-  # Fixtures loading
 
   test "workspace one MVP fixture loads correctly" do
     incident_lead = incident_roles(:incident_lead_ws1)

@@ -25,8 +25,6 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     @adapter.update_incident_quick_actions(channel_id: "C1", message_id: "1.1", incident: incident)
   end
 
-  # create_channel tests
-
   test "create_channel creates new channel" do
     stub_create_channel(result: { channel: { id: "C_NEW", name: "inc-001-test", is_channel: true } })
     result = @adapter.create_channel(name: "inc-001-test")
@@ -41,8 +39,6 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
       @adapter.create_channel(name: "existing-channel")
     end
   end
-
-  # set_channel_metadata tests
 
   test "set_channel_metadata sets topic and purpose" do
     stub_set_channel_topic
@@ -63,8 +59,6 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     @adapter.set_channel_metadata(channel_id: "C12345678", topic: "custom topic", purpose: "custom purpose")
   end
 
-  # post_message tests
-
   test "post_message posts to channel and returns message_id" do
     stub_post_message
     result = @adapter.post_message(channel_id: "C12345678", text: "hello", blocks: [])
@@ -72,16 +66,12 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     assert_equal "1234567890.123456", result[:message_id]
   end
 
-  # pin_message tests
-
   test "pin_message pins message in channel" do
     stub_pin_message
     result = @adapter.pin_message(channel_id: "C12345678", message_id: "1234567890.123456")
 
     assert result[:success]
   end
-
-  # invite_user tests
 
   test "invite_user invites user to channel" do
     stub_invite_to_channel
@@ -166,8 +156,6 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
       @adapter.invite_user(channel_id: "C1", user_id: "U1")
     end
   end
-
-  # get_user_info tests
 
   test "get_user_info returns normalized user data from Slack" do
     stub_get_user_info

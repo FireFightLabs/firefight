@@ -1,6 +1,4 @@
 module Interactions
-  # The "Add action" and "Add follow-up" buttons on the action list modals.
-  # The action_id names the kind.
   class OpenActionItemFormHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS

@@ -91,8 +91,7 @@ module Interactions
         return { response_action: "errors", errors: { "action_select_block" => outcome.message } }
       end
 
-      # The modal closes on clear, so the acknowledgement is posted to the
-      # channel.
+      # The modal closes on clear, so the acknowledgement goes to the channel.
       workspace.adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: outcome.message)
       { response_action: "clear" }
     end

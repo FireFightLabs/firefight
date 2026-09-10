@@ -4,7 +4,6 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
   test "linear workflow executes steps sequentially" do
     user = User.create!(name: "Test User", email: "test@example.com")
 
-    # Create linear workflow
     linear_workflow = Class.new(SolidWorkflow::Base) do
     step :step1
     step :step2, depends_on: [ :step1 ]
@@ -28,7 +27,6 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     workflow.steps.create!(name: "step2", status: :pending, depends_on: [ "step1" ], position: 1, max_attempts: 5)
     workflow.steps.create!(name: "step3", status: :pending, depends_on: [ "step2" ], position: 2, max_attempts: 5)
 
-    # Execute inline
     workflow_instance = linear_workflow.new
     workflow.reload
 
@@ -71,7 +69,6 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     assert_equal 5, workflow.steps.count
     assert_equal 5, workflow.steps.succeeded.count
 
-    # Verify outputs flowed correctly
     fetch_numbers = workflow.steps.find_by(name: "fetch_numbers")
     assert_equal [ 1, 2, 3 ], fetch_numbers.output["numbers"]
 
@@ -117,7 +114,6 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
 
     step = workflow.steps.first
 
-    # First attempt
     job = SolidWorkflow::RunStepJob.new
     job.perform(step.id)
 
@@ -125,7 +121,6 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     assert_equal 1, step.attempts
     assert step.pending? # Retried
 
-    # Second attempt (max reached)
     step.update!(status: :pending, run_at: nil)
     job.perform(step.id)
 
@@ -133,7 +128,6 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     assert_equal 2, step.attempts
     assert step.failed?
 
-    # Orchestrate to update workflow state
     workflow.enqueue_next_steps
     workflow.reload
     assert workflow.failed?
@@ -143,13 +137,11 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
 
-    # Cancel workflow before any steps run
     workflow.cancel!(reason: "Test cancellation", by: "test")
 
     workflow.reload
     assert workflow.cancelled?
 
-    # Try to run a step
     step = workflow.steps.first
     job = SolidWorkflow::RunStepJob.new
     job.perform(step.id)
@@ -162,16 +154,13 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
 
-    # Pause workflow
     workflow.pause!
 
     workflow.reload
     assert workflow.paused?
 
-    # Try to orchestrate
     workflow.enqueue_next_steps
 
-    # No steps should be running
     assert_equal 0, workflow.steps.running.count
   end
 
@@ -179,11 +168,9 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
 
-    # Pause
     workflow.pause!
     assert workflow.paused?
 
-    # Resume
     workflow.resume!
     assert workflow.running?
   end
@@ -192,11 +179,9 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     user = User.create!(name: "Test User", email: "test@example.com")
     workflow = ExampleCalculationWorkflow.start!(user)
 
-    # Mark first step as skipped
     fetch_numbers = workflow.steps.find_by(name: "fetch_numbers")
     fetch_numbers.skip!(reason: "Test skip")
 
-    # Dependent steps should still be ready
     workflow.reload
     steps = workflow.steps.reload.to_a
     step_map = steps.index_by(&:name)
@@ -214,13 +199,11 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     workflow.reload
     combine_results = workflow.steps.find_by(name: "combine_results")
 
-    # Verify input contains all dependency outputs
     assert_equal 3, combine_results.input.keys.size
     assert_includes combine_results.input.keys, "fetch_numbers"
     assert_includes combine_results.input.keys, "calculate_sum"
     assert_includes combine_results.input.keys, "calculate_product"
 
-    # Verify correct data
     assert_equal [ 5, 10, 15 ], combine_results.input["fetch_numbers"]["numbers"]
     assert_equal 30, combine_results.input["calculate_sum"]["sum"]
     assert_equal 750, combine_results.input["calculate_product"]["product"]
@@ -261,10 +244,8 @@ class WorkflowExecutionTest < ActiveSupport::TestCase
     )
     end
 
-    # First orchestration
     workflow.enqueue_next_steps
 
-    # Only 1 step should have input populated
     steps_with_input = workflow.steps.reload.count { |s| s.input.present? }
     assert_operator steps_with_input, :<=, 1
   end

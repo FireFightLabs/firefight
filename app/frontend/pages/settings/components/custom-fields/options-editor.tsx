@@ -25,8 +25,8 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Blocked } from "@/pages/settings/components/blocked-tooltip"
 
-// A row keeps its id across a rename, which is what stops a rename from
-// orphaning the incidents pointing at it. Unsaved rows have no id yet.
+// A row keeps its id across a rename, which stops the rename orphaning the
+// incidents pointing at it. Unsaved rows have no id yet.
 export interface OptionDraft {
   key: string
   id?: string

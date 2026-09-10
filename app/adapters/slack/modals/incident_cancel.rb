@@ -1,8 +1,7 @@
 module Slack
   module Modals
-    # Only reached when a workspace has attached fields to the Cancel form.
-    # With none attached the command cancels outright rather than opening an
-    # empty dialog.
+    # Only reached when the Cancel form has fields. With none the command
+    # cancels outright.
     module IncidentCancel
       def self.build(incident, private_metadata: nil)
         TerminalForm.build(

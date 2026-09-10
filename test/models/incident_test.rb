@@ -21,8 +21,6 @@ class IncidentTest < ActiveSupport::TestCase
     assert_not AlertGroup.exists?(group.id)
   end
 
-  # Basic validations
-
   test "requires sequence_number" do
     incident = Incident.new(
       workspace: workspaces(:slack_workspace_one),
@@ -31,7 +29,6 @@ class IncidentTest < ActiveSupport::TestCase
       incident_severity: incident_severities(:minor_ws1),
       identifier: "INC-999"
     )
-    # Skip callbacks and directly set to nil to test validation
     incident.define_singleton_method(:assign_sequence_number) { }
     incident.sequence_number = nil
     assert_not incident.valid?
@@ -46,7 +43,6 @@ class IncidentTest < ActiveSupport::TestCase
       incident_severity: incident_severities(:minor_ws1),
       sequence_number: 999
     )
-    # Skip callbacks and directly set to nil to test validation
     incident.define_singleton_method(:generate_identifier) { }
     incident.identifier = nil
     assert_not incident.valid?
@@ -60,14 +56,11 @@ class IncidentTest < ActiveSupport::TestCase
       incident_status: incident_statuses(:investigating_ws1),
       incident_severity: incident_severities(:minor_ws1)
     )
-    # Skip callbacks and directly set to nil to test validation
     incident.define_singleton_method(:set_declared_at) { }
     incident.declared_at = nil
     assert_not incident.valid?
     assert_includes incident.errors[:declared_at], "can't be blank"
   end
-
-  # Uniqueness validations
 
   test "sequence_number must be unique within workspace" do
     existing = incidents(:active_critical_ws1)
@@ -84,7 +77,6 @@ class IncidentTest < ActiveSupport::TestCase
   end
 
   test "sequence_number can be same across different workspaces" do
-    # Use sequence number 5 which exists in ws1 but not in ws2
     ws1_incident = incidents(:manual_incident_ws1)
     assert_equal 5, ws1_incident.sequence_number
 
@@ -114,7 +106,6 @@ class IncidentTest < ActiveSupport::TestCase
       sequence_number: 999,
       identifier: existing.identifier
     )
-    # Skip callback to prevent auto-generation
     duplicate.define_singleton_method(:generate_identifier) { }
     assert_not duplicate.valid?
     assert_includes duplicate.errors[:identifier], "has already been taken"
@@ -133,8 +124,6 @@ class IncidentTest < ActiveSupport::TestCase
     )
     assert ws2_incident.valid?
   end
-
-  # Associations
 
   test "belongs to workspace" do
     incident = incidents(:active_critical_ws1)
@@ -191,8 +180,6 @@ class IncidentTest < ActiveSupport::TestCase
     assert_respond_to incident, :assigned_members
   end
 
-  # Relationships
-
   test "related_incidents returns bidirectional related incidents" do
     incident1 = incidents(:active_critical_ws1)
     incident2 = incidents(:active_major_ws1)
@@ -235,8 +222,6 @@ class IncidentTest < ActiveSupport::TestCase
     assert_empty source.duplicates
   end
 
-  # Scopes
-
   test "active scope returns only incidents with live status" do
     active_incidents = Incident.active
 
@@ -260,7 +245,6 @@ class IncidentTest < ActiveSupport::TestCase
     workspace = workspaces(:slack_workspace_one)
     incidents_by_severity = workspace.incidents.by_severity.to_a
 
-    # Critical (rank 5) should come before Major (rank 3) which comes before Minor (rank 1)
     critical_incident = incidents(:active_critical_ws1)
     major_incident = incidents(:active_major_ws1)
     minor_incident = incidents(:resolved_minor_ws1)
@@ -379,8 +363,6 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal 2, result[:pagination][:perPage]
   end
 
-  # Methods
-
   test "active? returns true for incidents with live status" do
     incident = incidents(:active_critical_ws1)
     assert incident.active?
@@ -429,8 +411,6 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal incident.resolved_at.utc.iso8601, item[:resolvedAt]
   end
 
-  # Sequencing
-
   test "auto-assigns sequence_number on create" do
     incident = Incident.create!(
       workspace: workspaces(:slack_workspace_one),
@@ -470,7 +450,6 @@ class IncidentTest < ActiveSupport::TestCase
       installed_at: Time.current
     )
 
-    # Create required incident status and severity for new workspace
     status = IncidentStatus.create!(
       workspace: workspace,
       incident_lifecycle_stage: incident_lifecycle_stages(:active),
@@ -518,8 +497,6 @@ class IncidentTest < ActiveSupport::TestCase
     incident = incidents(:active_critical_ws1)
     assert_match(/^INC-\d{3}$/, incident.identifier)
   end
-
-  # Lifecycle
 
   test "auto-sets declared_at on create" do
     incident = Incident.new(
@@ -632,14 +609,11 @@ class IncidentTest < ActiveSupport::TestCase
   test "transition from canceled to active clears resolved_at if present" do
     incident = incidents(:active_critical_ws1)
     incident.update!(incident_status: incident_statuses(:canceled_ws1))
-    # Manually set resolved_at to test clearing
     incident.update_column(:resolved_at, Time.current)
 
     incident.update!(incident_status: incident_statuses(:investigating_ws1))
     assert_nil incident.resolved_at
   end
-
-  # Role management
 
   test "lead returns nil when no incident lead assigned" do
     incident = incidents(:active_critical_ws1)
@@ -676,8 +650,6 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal member, incident.lead
   end
 
-  # Fixtures loading
-
   test "workspace one fixtures load correctly" do
     incident = incidents(:active_critical_ws1)
     assert_equal "INC-001", incident.identifier
@@ -711,8 +683,6 @@ class IncidentTest < ActiveSupport::TestCase
     assert_equal "P0", incident.incident_severity.name
     assert_equal "Triaging", incident.incident_status.name
   end
-
-  # Lead assignment guard
 
   test "assigns a lead while the incident is live" do
     incident = incidents(:active_critical_ws1)

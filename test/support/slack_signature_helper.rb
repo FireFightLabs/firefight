@@ -1,11 +1,4 @@
-# Test helper for generating valid Slack request signatures
 module SlackSignatureHelper
-  # Generate a valid Slack signature for a request body
-  #
-  # @param body [String] The request body (raw POST data)
-  # @param timestamp [Integer] Unix timestamp (defaults to current time)
-  # @param signing_secret [String] Slack signing secret (defaults to test constant)
-  # @return [Hash] Headers to include in the request
   def generate_slack_signature(body:, timestamp: Time.now.to_i, signing_secret: SlackConstants::SIGNING_SECRET)
     sig_basestring = "#{SlackConstants::SIGNATURE_VERSION}:#{timestamp}:#{body}"
     signature = "#{SlackConstants::SIGNATURE_VERSION}=" +
@@ -17,10 +10,6 @@ module SlackSignatureHelper
     }
   end
 
-  # Generate Slack slash command request with valid signature
-  #
-  # @param params [Hash] Command parameters
-  # @return [Hash] { body: String, headers: Hash }
   def slack_command_request(params = {})
     default_params = {
       token: "test-token",
@@ -44,10 +33,6 @@ module SlackSignatureHelper
     { body: body, headers: headers }
   end
 
-  # Generate Slack interaction request with valid signature
-  #
-  # @param payload [Hash] Interaction payload
-  # @return [Hash] { body: String, headers: Hash }
   def slack_interaction_request(payload = {})
     default_payload = {
       type: "view_submission",

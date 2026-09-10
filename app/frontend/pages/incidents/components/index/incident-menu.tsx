@@ -29,8 +29,8 @@ import { incidentReopenPath } from "@/lib/routes"
 import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 import { INCIDENT_RELATIONSHIPS } from "@/lib/generated/constants"
 
-// Only one of these is ever open, so they are one piece of state rather than
-// three that could contradict each other.
+// Only one is ever open, so one piece of state rather than three that could
+// contradict each other.
 type OpenDialog =
   | { kind: "lifecycle"; form: LifecycleForm }
   | { kind: "link"; relationship: Relationship }
@@ -47,8 +47,7 @@ const ESCALATE: OpenDialog = { kind: "escalate" }
 const INVITE: OpenDialog = { kind: "invite" }
 const SHOUTOUT: OpenDialog = { kind: "shoutout" }
 
-// A control the model has refused stays visible and says why, rather than
-// vanishing and leaving the reader to guess.
+// A control the model refused stays visible and says why, instead of vanishing.
 function MenuItem({
   label,
   dialog,
@@ -93,8 +92,8 @@ export function IncidentMenu({
   members: SearchableSelectOption[]
 }) {
   const [dialog, setDialog] = useState<OpenDialog | null>(null)
-  // The model decides this, not a stage list kept here. An incident that can
-  // no longer be changed is one that has to be reopened first.
+  // The model decides this. An incident that can no longer be changed has to
+  // be reopened first.
   const terminal = Boolean(incident.changeBlockedReason)
 
   function close() {

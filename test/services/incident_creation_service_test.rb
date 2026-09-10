@@ -22,8 +22,6 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
     @service = IncidentCreationService.new(@workspace)
   end
 
-  # create_channel
-
   test "create_channel creates channel and updates incident" do
     stub_create_channel(result: { channel: { id: "C_NEW", name: "inc-test", is_channel: true } })
 
@@ -47,8 +45,6 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
     assert_equal "C_FALLBACK", @incident.channel_id
   end
 
-  # set_channel_metadata
-
   test "set_channel_metadata sets topic and purpose" do
     @incident.update!(channel_id: "C_INC")
 
@@ -65,8 +61,6 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
 
     assert result[:success]
   end
-
-  # post_quick_actions_message
 
   test "post_quick_actions_message posts and pins message" do
     @incident.update!(channel_id: "C_INC")
@@ -90,8 +84,6 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
 
     assert_equal "existing.ts", result[:message_ts]
   end
-
-  # post_announcement
 
   test "post_announcement posts to incidents channel" do
     @incident.update!(channel_id: "C_INC")
@@ -130,8 +122,6 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
     assert_equal "existing.ts", result[:message_ts]
   end
 
-  # invite_declarer
-
   test "invite_declarer invites user to incident channel" do
     @incident.update!(channel_id: "C_INC")
     stub_invite_to_channel
@@ -140,8 +130,6 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
 
     assert_equal @member.platform_user_id, result[:invited_user]
   end
-
-  # create_incident_event
 
   test "create_incident_event creates event with incident update" do
     assert_difference [ "IncidentEvent.count", "IncidentUpdate.count" ], 1 do

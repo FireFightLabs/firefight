@@ -1,6 +1,4 @@
-# Taking part in an incident from the dashboard rather than moving it. The
-# same services Slack and the API call, so the timeline cannot tell where the
-# action came from.
+# The same services Slack and the API call, so the timeline cannot tell where an action came from.
 class IncidentParticipationController < InertiaController
   authorizes Ability::Action::RESOURCE_INCIDENTS, update: %i[escalate invite shoutout]
 
@@ -40,8 +38,7 @@ class IncidentParticipationController < InertiaController
 
   private
 
-  # Counting rather than naming, because the picker only offers people this
-  # workspace already has and the reader just watched themselves pick them.
+  # Counts rather than names, the reader just picked these people.
   def invite_notice(result, members)
     invited = result.invited.size
     return "Everyone you picked is already in the channel." if invited.zero? && result.failed.empty?

@@ -2,10 +2,8 @@ module Auth
   class OmniauthCallbacksController < ApplicationController
     skip_before_action :verify_authenticity_token, only: [ :slack, :slack_openid ]
 
-    # Step 1, OIDC sign-in (identity only). Decides where to send the user
-    # next via AuthOutcome: signed_in (existing or newly-provisioned member) or
-    # install_needed (no workspace for this team yet, sends them to the install
-    # step, or the invite code step first when the gate is on).
+    # Sign-in only, no bot install. AuthOutcome decides between signed in and the install
+    # step, or the invite code step first when the gate is on.
     def slack_openid
       outcome = SlackAuthenticationService.new.handle_openid_signin(auth_hash)
       apply_outcome(outcome)
@@ -14,11 +12,8 @@ module Auth
       redirect_to login_path, alert: "Sign-in failed. Please try again."
     end
 
-    # Step 2, bot install. Creates the workspace + owner membership.
-    # The installer's identity was established in step 1 (OIDC) and stashed in
-    # session as `pending_user_id`. We pass that user through so the install
-    # callback doesn't re-derive identity from the bot install's auth_hash
-    # (whose user_info / email fetch is brittle and not required here).
+    # Bot install, creating the workspace and owner membership. The installer's identity comes
+    # from the sign-in step as `pending_user_id`, since the install auth_hash's user info is brittle.
     def slack
       outcome = SlackAuthenticationService.new.handle_install(
         auth_hash,
@@ -58,7 +53,6 @@ module Auth
       User.find_by(id: id) if id
     end
 
-    # Maps an AuthOutcome to the right HTTP response. Keeps actions thin.
     def apply_outcome(outcome)
       return sign_in_and_redirect(outcome)       if outcome.signed_in?
       return start_install_and_redirect(outcome) if outcome.install_needed?
@@ -68,7 +62,7 @@ module Auth
     end
 
     def sign_in_and_redirect(outcome)
-      # Capture return_to before reset_session wipes the session.
+      # Captured before reset_session wipes it.
       return_to = safe_return_to(session[:return_to])
       reset_session
       session[:user_id]      = outcome.membership.user_id
@@ -119,9 +113,8 @@ module Auth
       }
     end
 
-    # Session + auth_hash context that helps diagnose install failures without
-    # leaking tokens or emails. Wrapped in a rescue because auth_hash may be nil
-    # on some pre-callback failures and session access can raise mid-error.
+    # Diagnostic context without tokens or emails. Rescued because auth_hash may be nil
+    # and session access can raise mid-error.
     def auth_failure_context
       hash = auth_hash
       {

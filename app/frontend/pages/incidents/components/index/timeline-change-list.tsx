@@ -3,8 +3,7 @@ import type { TimelineChange } from "@/pages/incidents/types"
 import { TimelineTextChange } from "@/pages/incidents/components/index/timeline-text-change"
 import { TimelineValueChange } from "@/pages/incidents/components/index/timeline-value-change"
 
-// One row per changed field. The label column is fixed so values line up
-// down the card, and a hairline separates rows instead of a chip per label.
+// The label column is fixed so values line up down the card.
 export function TimelineChangeList({ changes }: { changes: TimelineChange[] }) {
   return (
     <div className="-my-1 flex flex-col">

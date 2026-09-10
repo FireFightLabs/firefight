@@ -1,6 +1,6 @@
 class IncidentFieldOption < ApplicationRecord
-  # Slack caps a plain_text option label at 75 characters and fails the whole
-  # views.open when one is longer, so the limit is enforced at the source.
+  # Slack caps an option label at 75 characters and fails the whole
+  # views.open when one is longer.
   MAX_LABEL_LENGTH = 75
 
   belongs_to :incident_field_definition
@@ -16,8 +16,7 @@ class IncidentFieldOption < ApplicationRecord
   scope :active, -> { where(disabled_at: nil) }
   scope :ordered, -> { order(:position, :created_at) }
 
-  # Two queries for any number of definitions, so a list of N fields does not
-  # pay 2N.
+  # Two queries for any number of definitions.
   def self.usage_counts_for(definitions)
     definitions = Array.wrap(definitions)
     return {} if definitions.empty?
@@ -61,9 +60,8 @@ class IncidentFieldOption < ApplicationRecord
     disabled_at.nil?
   end
 
-  # Always preloaded by IncidentFieldOption.preload_usage_counts. Falling back
-  # to a per-option query here is how the settings page silently went back to
-  # N+1 once, so a missing preload raises instead.
+  # A missing preload raises. Falling back to a query is how the settings
+  # page silently went back to N+1 once.
   def usage_count
     raise "usage counts were not preloaded for option #{id}" if @usage_count.nil?
 

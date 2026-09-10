@@ -1,6 +1,5 @@
 class BackfillIncidentLeadRoles < ActiveRecord::Migration[8.1]
-  # The lead role used to be a code default rendered as an unpersisted row and
-  # only written on first assignment. The settings screen now sorts and reorders
+  # The lead role used to be an unpersisted code default. The settings screen now sorts
   # by id, so every workspace needs a real row.
   def up
     execute <<~SQL
@@ -21,8 +20,7 @@ class BackfillIncidentLeadRoles < ActiveRecord::Migration[8.1]
     SQL
   end
 
-  # Only the rows nothing depends on, the old code materialized the lead role on
-  # first assignment, so an unassigned one is exactly what it would not have had.
+  # Only unassigned rows, which the old code would not have persisted.
   def down
     execute <<~SQL
       DELETE FROM incident_roles r

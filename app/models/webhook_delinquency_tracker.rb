@@ -6,8 +6,7 @@ class WebhookDelinquencyTracker < ApplicationRecord
 
   DEACTIVATION_REASON = "delinquency_threshold"
 
-  # Returns true when this delivery tipped the webhook into deactivation, so
-  # the caller can tell someone.
+  # True when this delivery tipped the webhook into deactivation.
   def record_delivery(delivery)
     if delivery.succeeded?
       reset

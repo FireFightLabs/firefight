@@ -5,8 +5,8 @@ class Slack::Messages::IncidentDetailTest < ActiveSupport::TestCase
     @incident = incidents(:active_critical_ws1)
   end
 
-  # These two used to build the same layout separately, and had drifted. The
-  # same person was the Reporter in one and Declared by in the other.
+  # These two used to build the same layout separately and had drifted, the same person was
+  # Reporter in one and Declared by in the other.
   test "the announcement and the pinned message describe the incident identically" do
     announcement = detail_lines(Slack::Messages::Announcement.build(@incident))
     pinned = detail_lines(Slack::Messages::QuickActions.build(@incident))
@@ -21,8 +21,7 @@ class Slack::Messages::IncidentDetailTest < ActiveSupport::TestCase
 
   private
 
-  # Everything up to the trailing divider, which is where the two messages
-  # legitimately diverge into their own buttons.
+  # Everything up to the trailing divider, where the two messages diverge into their own buttons.
   def detail_lines(blocks)
     blocks
       .take_while { |block| block[:type] != "actions" }

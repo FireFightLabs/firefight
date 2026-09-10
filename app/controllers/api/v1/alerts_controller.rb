@@ -1,6 +1,5 @@
-# Alert ingest endpoint. Authenticated per-source (endpoint_path + secret via
-# the provider adapter), not via Slack signatures or public-API Bearer keys.
-# So it inherits neither BaseController nor ApiController.
+# Authenticated per source through the provider adapter, not by Slack signature
+# or Bearer key, so it inherits neither BaseController nor ApiController.
 class Api::V1::AlertsController < ActionController::API
   def create
     source = AlertSource.enabled.find_by(endpoint_path: params[:endpoint_path])

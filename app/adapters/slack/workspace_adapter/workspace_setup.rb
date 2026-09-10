@@ -1,7 +1,6 @@
 module Slack::WorkspaceAdapter::WorkspaceSetup
   extend ActiveSupport::Concern
 
-  # Returns :channel_id, :channel_name and :already_existed.
   def create_incidents_channel
     translate_errors do
       result = Slack::Client.create_channel(
@@ -73,7 +72,7 @@ module Slack::WorkspaceAdapter::WorkspaceSetup
     )
   end
 
-  # Returns :shared_count and :failed_count, since a share can partly fail.
+  # A share can partly fail, so both counts come back.
   def post_share_messages(user_id:, channel_id:, target_conversations:)
     share_message = Slack::InstallationMessageBuilder.share_message(
       user_id,

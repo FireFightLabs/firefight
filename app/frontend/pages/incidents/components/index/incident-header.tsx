@@ -20,9 +20,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { assignIncidentRolePath } from "@/lib/routes"
 import { LEAD_ROLE_SLUG } from "@/lib/generated/constants"
 
-// The badge itself is the affordance. A responder clicking it is asking to
-// change the incident, and the workspace's Update form is what asks how. Once
-// the incident is over the badge stays put and says why it no longer opens.
+// Clicking the badge opens the workspace's Update form. Once the incident is
+// over it stays put and says why it no longer opens.
 function EditableBadge({
   blockedReason,
   onEdit,
@@ -59,8 +58,7 @@ function EditableBadge({
 }
 
 // Every incident gets a channel, so no URL means creation has not finished or
-// it failed. Hiding the control would hide the second one, which is why this
-// stays put and says so instead.
+// failed. The control stays put and says so rather than hiding.
 function ChannelLink({ url, label }: { url?: string | null; label: string }) {
   const shared =
     "h-8 gap-2 border-primary/30 bg-primary/10 px-3 font-mono text-[12px] text-primary"
@@ -108,19 +106,16 @@ export function IncidentHeader({
   channelUrl?: string | null
   linkable: LinkableIncident[]
   canEdit: boolean
-  // Everyone in the workspace. The lead picker and every participation dialog
-  // offer the same people, so they read the same list.
+  // Everyone in the workspace, the same list the lead picker and every
+  // participation dialog offer.
   members: { value: string; label: string }[]
 }) {
   const declared = new Date(incident.declaredAt)
-  // Severity and status are questions on the workspace's Update form, and
-  // Slack asks the whole form for either. So the badges open that form rather
-  // than writing one field on their own, which would skip whatever else the
-  // workspace requires. The lead has its own dedicated modal in Slack, so it
-  // gets a dropdown here for the same reason.
+  // Slack asks the whole Update form to change severity or status, so the badges open that
+  // form rather than writing one field. The lead has its own modal in Slack, so it gets a dropdown.
   const [updating, setUpdating] = useState(false)
-  // The model owns why an incident can no longer be changed. Working it out
-  // from the lifecycle stage here would be the same rule written twice.
+  // The model owns why an incident can no longer be changed. Deriving it here
+  // from the stage would be the same rule twice.
   const blockedReason = canEdit ? incident.changeBlockedReason : "You do not have permission to change incidents."
 
   function openUpdate() {

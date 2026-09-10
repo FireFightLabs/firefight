@@ -60,7 +60,6 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     team: { id: @workspace.platform_id }
     )
 
-    # Tamper with signature
     request_data[:headers]["X-Slack-Signature"] = "v0=invalid_signature"
 
     InteractionDispatcher.expects(:dispatch).never
@@ -200,9 +199,6 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
        headers: request_data[:headers]
 
     assert_response :success
-
-    # Verify the payload was parsed correctly (check logs in actual implementation)
-    # When incident creation is implemented, this will create the incident
   end
 
   test "should handle private_metadata in view_submission" do
@@ -232,10 +228,7 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  # Phase 7 Interactive Component Tests
-
   test "should handle preview_announcement button click" do
-    # Set up workspace with incidents channel
     @workspace.update!(incidents_channel_id: "C12345678")
 
     payload = {
@@ -251,7 +244,6 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
 
     request_data = slack_interaction_request(payload)
 
-    # Stub the Slack API call
     stub_post_ephemeral
     post api_v1_interactions_url,
          params: request_data[:body],
@@ -426,7 +418,6 @@ class Api::V1::InteractionsControllerTest < ActionDispatch::IntegrationTest
        params: request_data[:body],
        headers: request_data[:headers]
 
-    # Should log but not crash
     assert_response :success
   end
 end

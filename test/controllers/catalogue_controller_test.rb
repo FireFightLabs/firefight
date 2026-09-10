@@ -7,8 +7,6 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     sign_in(@user, @workspace)
   end
 
-  # Regression, attribute config persistence
-
   test "create_type persists select config from frontend-shaped payload" do
     assert_difference -> { CatalogType.count }, 1 do
       post "/app/catalogue/types", params: {
@@ -92,8 +90,6 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     assert tier_def.required
   end
 
-  # Regression, icon persistence
-
   test "create_type persists icon" do
     post "/app/catalogue/types", params: {
       name: "Pipeline",
@@ -105,8 +101,6 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     type = CatalogType.find_by!(slug: "pipeline")
     assert_equal "box", type.icon
   end
-
-  # Regression, validation error shape
 
   test "update_type returns field level errors when the type is invalid" do
     type = catalog_types(:custom_vendor_ws1)
@@ -201,8 +195,6 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Gold", entry.reload.entry_attributes["tier"]
     assert_equal [ "Tier must be one of: Gold, Silver, Bronze" ], session["inertia_errors"][:base]
   end
-
-  # Member picker
 
   test "search_members offers a member already here under their membership id, once" do
     alice = workspace_memberships(:alice_workspace_one)

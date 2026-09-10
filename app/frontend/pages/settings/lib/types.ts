@@ -54,8 +54,8 @@ export interface CatalogTypeOption {
   icon?: string
 }
 
-// Re-exported from the generated serializer types. Hand-writing these once
-// let them drift: the list rendered a field that no longer existed.
+// Re-exported from the generated serializer types. Hand-written copies drifted,
+// the list rendered a field that no longer existed.
 export type {
   IncidentFieldDefinitionSettings,
   IncidentFormFieldSettings,

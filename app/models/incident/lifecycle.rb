@@ -1,9 +1,3 @@
-# Incident::Lifecycle - Status transitions and lifecycle management
-#
-# Handles incident lifecycle state changes:
-# - Auto-setting declared_at timestamp on creation
-# - Stage-driven timestamp side effects (resolved_at, next_update_at)
-#
 module Incident::Lifecycle
   extend ActiveSupport::Concern
 
@@ -21,10 +15,8 @@ module Incident::Lifecycle
   def apply_lifecycle_side_effects
     apply_resolved_at
 
-    # An incident that is over is never waiting on a next update, whichever
-    # save put it there. Checked on every save rather than only on a status
-    # change, so a write that sets a reminder on an already-terminal incident
-    # cannot leave one behind.
+    # Checked on every save, not only a status change, so a write that sets a
+    # reminder on an already-terminal incident cannot leave one behind.
     self.next_update_at = nil if next_update_at.present? && terminal?
   end
 

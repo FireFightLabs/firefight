@@ -1,8 +1,6 @@
 module Interactions
-  # The message shortcut behind the :boom: and :arrow_forward: reactions.
-  # Opens the matching form with the source message carried along so the
-  # description starts from it, and the prompt's handle so the submit
-  # handler can take the prompt down once the item exists.
+  # Carries the source message so the description starts from it, and the
+  # prompt's handle so the submit handler can take the prompt down.
   class CreateActionItemFromReactionHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS

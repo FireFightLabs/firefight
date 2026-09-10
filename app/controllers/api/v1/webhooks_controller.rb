@@ -1,5 +1,4 @@
-# The signing secret never leaves through here. It is read on demand from the
-# dashboard, so it is not sitting in every listing waiting to be scraped.
+# The signing secret is read on demand from the dashboard, never listed here.
 class Api::V1::WebhooksController < Api::V1::ApiController
   before_action :set_webhook, only: %i[update destroy]
 

@@ -3,9 +3,8 @@ import { CHANGE_KINDS } from "@/lib/generated/constants"
 import { formatDateTime } from "@/lib/formatters"
 import type { TimelineChange } from "@/pages/incidents/types"
 
-// A short value reads inline: the old value struck, an arrow, the new value.
-// A value set for the first time drops the strike and the arrow, and a value
-// taken away ends in a word rather than an arrow pointing at nothing.
+// A first value drops the strike and the arrow. A removed value ends in a word
+// rather than an arrow pointing at nothing.
 export function TimelineValueChange({ change }: { change: TimelineChange }) {
   const isTime = change.kind === CHANGE_KINDS.TIME
   const before = isTime && change.before ? formatDateTime(change.before) : change.before

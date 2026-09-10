@@ -36,8 +36,7 @@ const STATUS_VARIANT: Record<string, "default" | "destructive" | "secondary" | "
   expired: "outline",
 }
 
-// A dashboard request is bound to its route, which reads better than the
-// digest. Anything else shows as it was recorded.
+// A dashboard request is bound to its route, which reads better than the digest.
 function describeParams(params: Record<string, unknown>): string {
   if (typeof params.method === "string" && typeof params.path === "string") {
     return `${params.method} ${params.path}`

@@ -12,8 +12,7 @@ class IncidentActionSerializer < BaseSerializer
     status: { type: '"open" | "in_progress" | "done"' }
   )
 
-  # Whoever holds it, person or machine. The row marks a machine as one, so
-  # it ships the same actor shape every other surface renders.
+  # Person or machine, shipped as the actor shape every surface renders.
   has_one :assignee, serializer: ActorCompactSerializer, optional: true do
     action.assignee
   end

@@ -1,5 +1,4 @@
-# For option lists where exactly one row is the workspace default. The default
-# cannot be deleted or disabled, and a disabled row cannot be promoted.
+# The default cannot be deleted or disabled, and a disabled row cannot be promoted.
 module DefaultableOption
   extend ActiveSupport::Concern
 
@@ -13,8 +12,7 @@ module DefaultableOption
     end
   end
 
-  # Promoting one demotes the incumbent in the same transaction. A partial
-  # unique index backs this up, since the model validation alone cannot stop an
+  # A partial unique index backs this up, validation alone cannot stop an
   # update_all or a raw write.
   def make_default!
     refuse!(default_blocked_reason)

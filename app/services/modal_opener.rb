@@ -1,9 +1,5 @@
-# Opens one of the incident modals from a command or a button.
-#
-# A placeholder message goes into the channel first so the channel shows that
-# something is happening while the responder is in the dialog, and its id rides
-# in the modal's private metadata so the submission handler can delete it.
-#
+# A placeholder goes into the channel first so it shows something is happening
+# while the responder is in the dialog. Its id rides in the modal's metadata for cleanup.
 class ModalOpener
   MODALS = {
     cancel:   { emoji: ":wastebasket:",     doing: "canceling the incident",             modal: PlatformAdapter::Modal::INCIDENT_CANCEL },

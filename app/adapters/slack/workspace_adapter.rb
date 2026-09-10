@@ -74,7 +74,7 @@ module Slack
       )
     end
 
-    # Posting to a user id opens (or reuses) the direct message with them.
+    # A user id as channel opens or reuses the DM with them.
     def post_approval_request_to_user(approval:, user_id:)
       post_approval_request(approval: approval, channel_id: user_id)
     end
@@ -200,10 +200,8 @@ module Slack
       end
     end
 
-    # Deep link rather than a web URL, and it carries the team so a browser
-    # signed into several workspaces lands in the right one. Without it Slack
-    # opens whichever workspace was last used, where the channel does not
-    # exist.
+    # A deep link carrying the team, otherwise a browser signed into several
+    # workspaces opens the last used one, where the channel does not exist.
     def channel_url(channel_id:)
       return nil if channel_id.blank?
 
@@ -306,7 +304,7 @@ module Slack
       Slack::HandleResolver.new(@workspace).resolve(text)
     end
 
-    # chat.postMessage to a user id opens (or reuses) the app's DM with them.
+    # A user id as channel opens or reuses the DM with them.
     def post_direct_message(user_id:, text:)
       translate_errors do
         Slack::Client.post_message(workspace: @workspace, channel: user_id, text: text)
@@ -314,10 +312,8 @@ module Slack
       end
     end
 
-    # One users.list call, split the way a picker needs it, the people to offer,
-    # and the ids the platform says are deactivated. Someone in neither list is
-    # someone the platform did not return, which is not the same as gone, so a
-    # caller can keep them.
+    # Someone in neither set was not returned by Slack, which is not the same
+    # as deactivated, so a caller may keep them.
     def member_directory
       translate_errors do
         humans = Slack::Client.list_users(workspace: @workspace)
@@ -337,9 +333,8 @@ module Slack
       end
     end
 
-    # Cached briefly: this backs pickers and display-name lookups that can be
-    # hit several times per settings interaction, and conversations.list is
-    # Tier 2 rate limited.
+    # Cached because pickers hit this several times per interaction and
+    # conversations.list is Tier 2 rate limited.
     def list_channels
       Rails.cache.fetch("slack:channels:#{@workspace.id}", expires_in: 1.minute) do
         translate_errors do
@@ -354,8 +349,6 @@ module Slack
 
     private
 
-    # Slack::Client already raises AdapterError. The adapter's only job here
-    # is the side effect a revoked install needs.
     def translate_errors
       yield
     rescue AdapterError::AuthRevoked => e

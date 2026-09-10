@@ -1,13 +1,10 @@
-# Posts the next coaching step in the first test incident's channel and
-# records it on the onboarding row.
 class OnboardingWalkthroughService
   def initialize(workspace)
     @workspace = workspace
   end
 
   # Callers can overlap (close workflow and resolve event), so the step is
-  # claimed with a conditional update before posting and released if the
-  # post fails. A canceled incident gets no more steps.
+  # claimed with a conditional update before posting and released if the post fails.
   def advance!(incident)
     onboarding = WorkspaceOnboarding.find_by(workspace: @workspace)
     return { skipped: true } unless onboarding&.tracks?(incident) && incident.channel_id.present? && !incident.canceled?

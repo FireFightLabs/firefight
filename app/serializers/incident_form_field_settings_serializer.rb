@@ -8,9 +8,7 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     required_mode: { type: :string }
   )
 
-  # Persisted overlay rows use their DB id. Unpersisted code-default fields
-  # are given a synthetic id (`default:<key>`) so the frontend can key,
-  # render, and detect them.
+  # Unpersisted default fields get a synthetic `default:<key>` id so the frontend can key and detect them.
   type :string
   def id
     form_field.id || "#{IncidentFormField::SYNTHETIC_PREFIX}#{form_field.system_field_key}"
@@ -36,8 +34,7 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     source_definition.name
   end
 
-  # What a responder reads above and inside the input. The editor renders these
-  # verbatim so its preview matches the Slack modal rather than paraphrasing it.
+  # Rendered verbatim so the editor preview matches the Slack modal.
   type :string
   def label
     form_field.system? ? source_definition.label : source_definition.name
@@ -58,9 +55,7 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     form_field.inactive_reason
   end
 
-  # A system field's identifier comes from the code registry, which keys its
-  # definitions rather than slugging them. Only workspace-defined fields have a
-  # slug column.
+  # System fields are keyed by the code registry. Only workspace fields have a slug column.
   type :string
   def slug
     form_field.system? ? form_field.system_field_key : source_definition.slug
@@ -71,23 +66,20 @@ class IncidentFormFieldSettingsSerializer < BaseSerializer
     source_definition.field_type
   end
 
-  # Whether the row renders as a select. The model classifies field types, so
-  # the form editor never keeps its own list of which ones are selects.
+  # The model classifies field types, so the editor keeps no list of which are selects.
   type :boolean
   def selectable
     IncidentFieldDefinition.selectable?(source_definition.field_type)
   end
 
-  # A system field is a code Definition, not an IncidentFieldDefinition, so the
-  # option-related attributes below have no meaning for one.
+  # A system field is a code Definition, so the option attributes below have no meaning for one.
   type :string, optional: true
   def option_source
     form_field.system? ? IncidentFieldDefinition::OPTION_SOURCE_NONE : source_definition.option_source
   end
 
-  # selectable_values filters in Ruby, so the settings page preload survives.
-  # Catalog-backed fields stay empty here, the form editor names the catalog
-  # type instead of listing its entries.
+  # Filtered in Ruby so the settings preload survives. Catalog-backed fields stay empty,
+  # the editor names the catalog type instead.
   type "{ id: string; name: string }[]", optional: true
   def options
     return [] if form_field.system?

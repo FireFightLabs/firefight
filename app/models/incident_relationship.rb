@@ -8,8 +8,8 @@ class IncidentRelationship < ApplicationRecord
   belongs_to :created_by, polymorphic: true, optional: true
 
   validates :relationship_type, presence: true, inclusion: { in: RELATIONSHIP_TYPES }
-  # Mirrors the chk_no_self_reference constraint. Without it the database
-  # refuses the row as a 500 rather than a sentence.
+  # Mirrors the chk_no_self_reference constraint, which would refuse the row
+  # as a 500 rather than a sentence.
   validate :not_itself
   validate :incidents_in_same_workspace
   validate :no_duplicate_loop, if: -> { relationship_type == DUPLICATE }

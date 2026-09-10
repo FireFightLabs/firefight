@@ -1,13 +1,10 @@
-# An AI agent as a first-class principal. It takes part in incidents under its
-# own name, with only the abilities it was granted, never the permissions of
-# whoever created or triggered it. Its tokens are rotatable credentials, so
-# grants and the ledger stay attached to the agent rather than to a secret.
+# Holds only the abilities it was granted, never the permissions of whoever
+# created it. Tokens rotate, so grants and the ledger attach to the agent.
 class Agent < ApplicationRecord
   include Principal
 
   belongs_to :workspace
-  # Plural because rotation runs two at once, the new one minted and put in
-  # place before the old one is revoked.
+  # Plural because rotation mints the new one before revoking the old.
   has_many :api_keys, dependent: :destroy, inverse_of: :agent
 
   validates :name, presence: true
@@ -17,8 +14,6 @@ class Agent < ApplicationRecord
   scope :active, -> { where(enabled: true, deleted_at: nil) }
   scope :ordered, -> { order(:name) }
 
-  # An agent with no live token cannot do anything, which is what the screen
-  # says instead of implying it is working.
   def live_api_keys
     api_keys.select(&:live?).sort_by(&:created_at).reverse
   end

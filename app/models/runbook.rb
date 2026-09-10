@@ -32,23 +32,18 @@ class Runbook < ApplicationRecord
   ATTACH_ALWAYS = "always"
   ATTACH_CONDITIONAL = "conditional"
   ATTACH_MANUAL = "manual"
-  # The settings page opens this runbook's sheet when the key names it, which
-  # is how the incident timeline links a runbook.
+  # The settings page opens a runbook's sheet when this key names it.
   QUERY_PARAM = "runbook"
 
-  # How this runbook reaches incidents. No conditions means no automatic
-  # attachment, because a runbook that lands on every incident should be a
-  # decision rather than the consequence of leaving a form empty. Reaching
-  # every incident is what always_attach is for. matching and the settings
-  # screen both read this, so the rule cannot drift between them.
+  # No conditions means no automatic attachment. Landing on every incident
+  # should be a decision, which is what always_attach is for.
   def attach_mode
     return ATTACH_CONDITIONAL if incident_conditions.any?
 
     always_attach? ? ATTACH_ALWAYS : ATTACH_MANUAL
   end
 
-  # Why an automatic attachment happened, in the words the settings screen
-  # uses for the rule, so the timeline can say it.
+  # In the settings screen's words, so the timeline can say it.
   def attach_reason
     case attach_mode
     when ATTACH_ALWAYS then "Attached to every incident."
@@ -66,10 +61,8 @@ class Runbook < ApplicationRecord
     end
   end
 
-  # Steps keep their identity across edits. Incident actions reference a step
-  # by id, so recreating the rows on every save would unclaim every step in
-  # every live incident. A step missing from the payload is soft-deleted, which
-  # keeps the actions that already point at it readable.
+  # Incident actions reference a step by id, so recreating rows on save would
+  # unclaim every step in every live incident. A missing step is soft-deleted.
   def sync_steps!(steps_params)
     transaction do
       live = runbook_steps.index_by(&:id)

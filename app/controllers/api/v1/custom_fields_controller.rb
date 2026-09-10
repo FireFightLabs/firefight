@@ -6,8 +6,7 @@ class Api::V1::CustomFieldsController < Api::V1::ApiController
     @custom_fields = current_workspace.incident_field_definitions.active.ordered
   end
 
-  # Options are matched by label, so resending a list renames rather than
-  # replaces, and the incidents already holding an option keep pointing at it.
+  # Options match by label, so resending a list renames rather than replaces and incidents keep their option.
   def create
     authorize!(Ability::Action::RESOURCE_CUSTOM_FIELDS, Ability::Action::ACTION_CREATE)
 

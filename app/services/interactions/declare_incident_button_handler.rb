@@ -1,6 +1,4 @@
 module Interactions
-  # Opens the declare modal from the welcome message, marked as a test
-  # incident.
   class DeclareIncidentButtonHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS

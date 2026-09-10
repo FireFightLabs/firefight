@@ -10,8 +10,6 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     OmniAuth.config.test_mode = false
   end
 
-  # invite_code
-
   test "invite_code redirects to install when the gate is off" do
     seed_pending_install("T_OPEN_CO", "Open Co", gate: false)
 
@@ -56,8 +54,6 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_nil session[:invite_code_id]
   end
-
-  # install
 
   test "install redirects to login when pending_team_id is missing" do
     get onboarding_install_path
@@ -105,8 +101,6 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     assert_match "Install Co", response.body
   end
 
-  # welcome
-
   test "welcome redirects to login when user is not signed in" do
     get onboarding_welcome_path
 
@@ -121,18 +115,17 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     )
     get "/auth/slack_openid/callback"
     assert_redirected_to dashboard_path
-    # show_welcome_note is only set on first install, not on regular sign-in.
 
     get onboarding_welcome_path
     assert_redirected_to dashboard_path
   end
 
+  # show_welcome_note is only set on first install, not on a regular sign-in.
   test "welcome consumes show_welcome_note so it renders exactly once" do
     require_invite!
     stub_successful_slack_workflow
     SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
 
-    # First install path sets show_welcome_note and redirects to /onboarding/welcome.
     OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
       uid: "U_FRESH", info: { email: users(:charlie).email, team_id: "T_WELCOME_TEST", team_name: "Welcome Co" }
     )
@@ -147,7 +140,6 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     get onboarding_welcome_path, headers: inertia_headers
     assert_response :success
 
-    # Second visit redirects, the flag was consumed.
     get onboarding_welcome_path
     assert_redirected_to dashboard_path
   end

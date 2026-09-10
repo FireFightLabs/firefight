@@ -1,9 +1,7 @@
 module Slack
   module Modals
-    # Resolve and Cancel are the same dialog over a different form. The fields
-    # come from the resolver either way, and the two differ only in wording and
-    # in which lifecycle stage the transition targets, which is what scopes the
-    # status options.
+    # Resolve and Cancel differ only in wording and in the target stage, which
+    # scopes the status options.
     module TerminalForm
       def self.build(incident, form_slug:, callback_id:, title:, submit:, close:, private_metadata: nil)
         workspace = incident.workspace

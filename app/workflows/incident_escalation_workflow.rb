@@ -21,8 +21,7 @@ class IncidentEscalationWorkflow < SolidWorkflow::Base
 
   private
 
-  # Everything an escalation message says is already on its event: who asked,
-  # who was asked, and why. Carrying copies in the context would let them drift.
+  # Read from the event, copies in the context would drift.
   def event(workflow)
     @event ||= workflow.subject.incident_events.find(workflow.context["escalation_event_id"])
   end

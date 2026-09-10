@@ -1,8 +1,8 @@
 module Mcp
   module Tools
     class TestWebhook < Base
-      # Each call queues another delivery and the endpoint is somebody else's
-      # server, so this is neither idempotent nor closed-world.
+      # Each call queues another delivery to somebody else's server, so this is
+      # neither idempotent nor closed-world.
       SENDS = {
         read_only_hint: false, destructive_hint: false,
         idempotent_hint: false, open_world_hint: true

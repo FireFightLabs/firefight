@@ -50,8 +50,7 @@ module Interactions
     end
     private_class_method :submitted_selections
 
-    # Only a role that someone actually holds can be cleared, so leaving an
-    # always-empty block empty is not an error.
+    # Leaving an always-empty block empty is not a clear.
     def self.clearing_blocked?(incident, role)
       role.unassign_blocked_reason.present? && incident.role_holder(role).present?
     end

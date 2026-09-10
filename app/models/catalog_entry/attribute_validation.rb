@@ -37,8 +37,8 @@ module CatalogEntry::AttributeValidation
     [ scalar, reference ]
   end
 
-  # Messages land on :base already naming their attribute, so they read the same
-  # in the dialog, the API's errors array and RecordInvalid#message.
+  # Messages land on :base already naming their attribute, so every surface
+  # reads them the same.
   def validate_scalars!(scalar_attrs, definitions)
     definitions.each do |attr_def|
       next if attr_def.reference?

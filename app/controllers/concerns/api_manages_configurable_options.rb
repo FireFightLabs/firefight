@@ -1,7 +1,5 @@
-# The same operations the settings screen and the MCP tools use, calling the
-# same model methods, so a list changed here behaves as if it had been dragged.
-# A controller supplies its model, its gateway resource, and any attributes
-# specific to it.
+# Shares the settings screen's model methods, so a list changed here behaves as if dragged.
+# A controller supplies its model, its resource and any extra attributes.
 module ApiManagesConfigurableOptions
   extend ActiveSupport::Concern
 
@@ -17,9 +15,7 @@ module ApiManagesConfigurableOptions
     end
   end
 
-  # Disabled entries stay out by default, which is the contract this endpoint
-  # already had. A caller managing the list asks for them, since re-enabling
-  # one means seeing it first.
+  # Disabled entries are out by default, the contract this endpoint had. Re-enabling one means seeing it first.
   def index
     authorize!(option_resource, Ability::Action::ACTION_READ)
 
@@ -61,16 +57,14 @@ module ApiManagesConfigurableOptions
     head :no_content
   end
 
-  # The collection keeps the name it has always had, so adding writes never
-  # moves a reader's response shape.
+  # The collection keeps its name so adding writes never moves a reader's response shape.
   def collection_key
     controller_name
   end
 
   private
 
-  # Each of these is its own operation on the model, with its own rule, rather
-  # than a column on the write.
+  # Each is its own model operation with its own rule, not a column on the write.
   def apply_state!
     toggle_enabled! unless params[:enabled].nil?
     make_default! if ActiveModel::Type::Boolean.new.cast(params[:default])
@@ -84,8 +78,7 @@ module ApiManagesConfigurableOptions
     @option.make_default! if option_model.defaultable?
   end
 
-  # Renaming leaves the slug alone. It is the stable handle stored records
-  # refer to.
+  # Renaming leaves the slug, the stable handle stored records refer to.
   def option_attributes
     attributes = { name: params[:name], description: params[:description] }
     attributes[:color] = params[:color] if option_model.colored? && params[:color].present?

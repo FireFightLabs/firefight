@@ -1,8 +1,6 @@
 module Ability
-  # The mutable in-flight gate for a call that matched an approval policy.
-  # Bound to the exact request via a digest, "approved" provably means this
-  # call with these params in this scope, never the action in general. An
-  # approval is consumed by exactly one execution.
+  # Bound to the exact request by a digest, so "approved" means this call
+  # with these params, never the action in general. Consumed by exactly one execution.
   class Approval < ApplicationRecord
     STATUS_PENDING = "pending"
     STATUS_APPROVED = "approved"
@@ -28,8 +26,7 @@ module Ability
       Digest::SHA256.hexdigest(JSON.generate([ action_key, canonical(params), canonical(scope) ]))
     end
 
-    # Deterministic serialization: same request → same digest regardless of
-    # key ordering or symbol/string keys.
+    # Same digest regardless of key order or symbol versus string keys.
     def self.canonical(value)
       case value
       when Hash then value.map { |k, v| [ k.to_s, canonical(v) ] }.sort_by(&:first)
@@ -50,9 +47,7 @@ module Ability
       update!(status: STATUS_EXPIRED, resolved_at: Time.current) if pending?
     end
 
-    # One statement, so two callers racing for the same approval cannot both
-    # win. Checking consumed_at and then writing it leaves a window where both
-    # read nil, and an approval admits exactly one execution.
+    # One statement, so two callers racing for the same approval cannot both win.
     def claim
       now = Time.current
       claimed = self.class.where(id: id, status: STATUS_APPROVED, consumed_at: nil).update_all(consumed_at: now, updated_at: now)
@@ -81,10 +76,8 @@ module Ability
       principal_type == candidate.class.polymorphic_name && principal_id == candidate.id
     end
 
-    # Named approvers replace the role. The rule picked people, so the role
-    # is only how the request is described. Without names, the role decides,
-    # and a role is something only a person holds. A machine decides only
-    # when it was named and the rule said agents may.
+    # Named approvers replace the role. A machine decides only when it was
+    # named and the rule said agents may.
     def named_approvers?
       approver_ids.present?
     end
@@ -108,8 +101,7 @@ module Ability
       end
     end
 
-    # Everyone who should be asked, the named principals or every member
-    # who holds the required role. Machines are asked nothing, they poll.
+    # Machines are asked nothing, they poll.
     def approvers
       return named_approver_records if named_approvers?
 
@@ -151,11 +143,8 @@ module Ability
       principal if principal.is_a?(WorkspaceMembership)
     end
 
-    # A parked chat request carries the payload that produced it, because a
-    # person cannot retry a click the way the API and MCP callers retry a
-    # call. Replay is enqueued here, after the decision commits, rather than
-    # from a model callback, so creating or editing a row elsewhere never
-    # triggers platform traffic on its own.
+    # A person cannot retry a click the way API callers retry a call, so the parked payload is
+    # replayed. Enqueued after commit so editing a row elsewhere never triggers platform traffic.
     def resume_parked_request
       return if resume_payload.blank?
 
@@ -164,10 +153,8 @@ module Ability
       end
     end
 
-    # Approver re-validated at click time, still pending and holds the
-    # required role now. Self-approval is allowed by default, the human
-    # confirming their own agent's exact proposal IS the safety mechanism.
-    # Policies opt into four-eyes with require.self_approval: false.
+    # Self-approval is allowed by default, the human confirming their own agent's proposal
+    # is the safety mechanism. Policies opt into four-eyes with require.self_approval: false.
     def resolve!(new_status, principal)
       raise NotAllowed, "approval is no longer pending" unless pending?
       raise NotAllowed, approver_requirement_message unless approver?(principal)

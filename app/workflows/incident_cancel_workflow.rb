@@ -1,9 +1,5 @@
-# What a cancel does in the channel, and nothing more. A canceled incident
-# was never an incident, so it gets the announcement that it is over and
-# the archival that follows, never the runbook attachment a status update
-# runs. Each lifecycle event owns its own step list, so anything added
-# later (an AI investigation, a notification) is declared on the events
-# that want it rather than skipped on the ones that do not.
+# A canceled incident was never an incident, so it gets the closing
+# announcement and archival, never the runbook attachment an update runs.
 class IncidentCancelWorkflow < SolidWorkflow::Base
   workflow_name "incident.cancel.v1"
 
@@ -38,9 +34,8 @@ class IncidentCancelWorkflow < SolidWorkflow::Base
     end
   end
 
-  # Last, so the channel has already been told the incident is over. The pass
-  # reads the transcript and writes what the team worked out onto the
-  # timeline. Nothing is posted, and a build without the AI engine skips it.
+  # Runs last so the channel has already been told the incident is over.
+  # A build without the AI engine skips it.
   def note_milestones(workflow:, step:, input:)
     return unless defined?(FirefightAi)
 

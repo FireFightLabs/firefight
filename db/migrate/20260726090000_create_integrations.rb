@@ -18,7 +18,7 @@ class CreateIntegrations < ActiveRecord::Migration[8.1]
 
     create_table :integration_environments, id: :uuid, default: -> { "gen_random_uuid()" } do |t|
       t.uuid :integration_id, null: false
-      # nil = not environment-scoped (e.g. GitHub), the "global" row.
+      # nil means not environment-scoped, the global row.
       t.uuid :catalog_entry_id
       t.text :credentials
       t.jsonb :base_config, default: {}, null: false

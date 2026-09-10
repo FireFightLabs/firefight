@@ -1,7 +1,5 @@
 module Mcp
   module Tools
-    # What every action-item tool needs and none of them should spell out
-    # twice.
     module ActionItemWrite
       def self.find!(workspace, incident_reference, action_id)
         IncidentWrite.find!(workspace, incident_reference)

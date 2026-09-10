@@ -1,6 +1,5 @@
-# Projects the incident_field_values rows into the flat `key => value` hash
-# every entry point already speaks. Assignment is deferred to after_save
-# because a new incident has no id to hang value rows off yet.
+# Assignment is deferred to after_save because a new incident has no id to
+# hang value rows off yet.
 module Incident::CustomFields
   extend ActiveSupport::Concern
 

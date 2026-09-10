@@ -26,9 +26,8 @@ class ApplicationController < ActionController::Base
     @current_workspace = current_user && resolve_current_workspace
   end
 
-  # A request replayed after an approval carries its requester in the Rack
-  # env, which nothing on the wire can set, so it runs as that person
-  # without a session and without a form token.
+  # A replayed request carries its requester in the Rack env, which nothing on the wire
+  # can set, so it runs as that person without a session or form token.
   def replayed_membership
     return @replayed_membership if defined?(@replayed_membership)
 
@@ -40,10 +39,8 @@ class ApplicationController < ActionController::Base
     super || replayed_membership.present?
   end
 
-  # Resolve through the user's memberships so session[:workspace_id] can never
-  # grant access to a workspace they don't belong to. Falls back to the most
-  # recently joined membership (session is fresh, or points at a workspace they
-  # have since left) and self-heals the session.
+  # Resolved through the user's memberships so session[:workspace_id] can never grant
+  # access elsewhere. Falls back to the newest membership and repairs the session.
   def resolve_current_workspace
     workspace = current_user.workspaces.find_by(id: session[:workspace_id]) ||
                 current_user.workspace_memberships.order(joined_at: :desc).first&.workspace
@@ -69,8 +66,7 @@ class ApplicationController < ActionController::Base
     Current.principal = current_membership
   end
 
-  # Every workspace this user belonged to is gone. Reset the session and
-  # send them to sign in.
+  # Every workspace this user belonged to is gone.
   def redirect_without_workspace
     reset_session
     redirect_to login_path, alert: "Your workspace is no longer on Firefight. Sign in again to install it."

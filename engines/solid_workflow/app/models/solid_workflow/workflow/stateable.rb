@@ -20,11 +20,8 @@ module SolidWorkflow
 
       TERMINAL_STATES = %w[succeeded failed cancelled].freeze
 
-      # Every state change goes through one guarded statement, so two writers
-      # racing for the same workflow (the sweeper against the orchestrator, a
-      # cancel against a completing step) cannot both win. Returns false when
-      # the row was no longer in one of the `from` states, which callers treat
-      # as "someone else got there first".
+      # One guarded statement, so two racing writers such as the sweeper against the orchestrator
+      # cannot both win. Returns false when the row already left the `from` states.
       def transition!(new_state, from:, **columns)
         now = Time.current
         attributes = columns.merge(

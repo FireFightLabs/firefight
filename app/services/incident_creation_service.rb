@@ -63,8 +63,7 @@ class IncidentCreationService
     { message_ts: result[:message_id] }
   end
 
-  # An agent has no account on the platform, so there is nobody to put in the
-  # room. It still declared the incident, and the timeline says so.
+  # An agent has no platform account, so there is nobody to put in the room.
   def invite_declarer(incident)
     platform_user_id = incident.declared_by&.platform_user_id
     return { skipped: true } if platform_user_id.blank?
@@ -74,9 +73,8 @@ class IncidentCreationService
     { invited_user: platform_user_id, already_in_channel: true }
   end
 
-  # Alert-routed incidents: put the resolved responders in the room. They are
-  # invited, not assigned. Leadership is taken via the existing quick action,
-  # never imposed on someone who has not acknowledged.
+  # Responders are invited, not assigned. Leadership is taken via the quick
+  # action, never imposed on someone who has not acknowledged.
   def invite_members(incident, membership_ids)
     return { skipped: true } if membership_ids.blank?
 

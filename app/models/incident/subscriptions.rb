@@ -15,9 +15,8 @@ class Incident
       incident_subscriptions.exists?(workspace_membership: member)
     end
 
-    # Idempotent, and says whether this call is the one that subscribed, so a
-    # second click can be answered honestly. The unique index settles a race
-    # between two clicks that both saw no subscription.
+    # Says whether this call is the one that subscribed, so a second click is
+    # answered honestly. The unique index settles a race between two clicks.
     def subscribe!(member)
       subscription = incident_subscriptions.find_or_create_by!(workspace_membership: member) do |row|
         row.workspace = workspace
@@ -32,7 +31,6 @@ class Incident
       UNSUBSCRIBED
     end
 
-    # What every surface tells the person after a subscribe or unsubscribe.
     def subscription_notice(state)
       case state
       when SUBSCRIBED

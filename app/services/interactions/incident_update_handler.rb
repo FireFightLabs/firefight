@@ -30,8 +30,7 @@ module Interactions
       attrs = form.attributes
       message = form.message
 
-      # The modal offers every enabled status, so a responder picking a closed
-      # or canceled one gets the real close or cancel, not a silent update.
+      # Picking a closed or canceled status gets the real close or cancel, not a silent update.
       IncidentLifecycleService.new(workspace).change_status(
         incident,
         attrs,
@@ -49,9 +48,7 @@ module Interactions
       workspace.adapter.form_error_response(IncidentSystemField::KEY_STATUS, "Something went wrong. Please close this modal and try again.")
     end
 
-    # Only called when the responder asked for a reminder, so a blank
-    # next_update_at here means the save cleared it. The incident is over and
-    # nobody is waiting on a next update.
+    # A blank next_update_at here means the save cleared it because the incident is over.
     def self.schedule_next_update_reminder(incident)
       next_update_at = incident.next_update_at
       return if next_update_at.blank?

@@ -1,6 +1,6 @@
 class IncidentFormField < ApplicationRecord
-  # A system field with no override row has no id, so the editor addresses it
-  # by "default:<key>" until editing or reordering materializes one.
+  # A system field with no override row has no id, so the editor addresses
+  # it by "default:<key>" until one is created.
   SYNTHETIC_PREFIX = "default:".freeze
 
   FIELD_SOURCE_KIND_SYSTEM = "system"
@@ -11,7 +11,7 @@ class IncidentFormField < ApplicationRecord
   VISIBILITY_MODE_HIDDEN = "hidden"
   VISIBILITY_MODES = [ VISIBILITY_MODE_VISIBLE, VISIBILITY_MODE_HIDDEN ].freeze
 
-  # Registry value meaning "belongs on this form, but off until enabled".
+  # Belongs on this form but off until enabled.
   REQUIRED_MODE_AVAILABLE = "available"
 
   REQUIRED_MODE_OPTIONAL = "optional"
@@ -21,9 +21,8 @@ class IncidentFormField < ApplicationRecord
 
   belongs_to :incident_form
 
-  # Why a configured field still will not reach responders. Set by the resolver,
-  # which knows the workspace and the form. A default field carries no
-  # incident_form, so it cannot work this out for itself.
+  # Set by the resolver. A default field carries no incident_form, so it
+  # cannot work this out for itself.
   attr_accessor :inactive_reason
 
   belongs_to :incident_field_definition, optional: true
@@ -47,9 +46,8 @@ class IncidentFormField < ApplicationRecord
     field_source_kind == FIELD_SOURCE_KIND_CUSTOM
   end
 
-  # A field the incident cannot be written without. Hiding one produces a form
-  # that always fails to submit, so visibility is locked wherever required is.
-  # incidents.incident_status_id and incident_severity_id are both NOT NULL.
+  # Status and severity are NOT NULL on incidents, so hiding one produces a
+  # form that always fails to submit.
   def locked_visible?
     locked_required?
   end

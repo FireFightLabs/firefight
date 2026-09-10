@@ -8,8 +8,8 @@ import {
   type OutcomeAction,
 } from "@/pages/settings/lib/alerts"
 
-// Pure mapping between the rule dialog's form state and the PolicyRule
-// serializer/params shapes. No React in here.
+// Pure mapping between the rule dialog's form state and PolicyRule params.
+// No React in here.
 
 export const NONE_SEVERITY = "none"
 
@@ -91,7 +91,7 @@ function notifyPayload(data: RuleFormData) {
       notify: {
         type: TARGET_CHANNEL,
         channel_id: data.notifyChannel.trim(),
-        // Display-only label captured at config time. The ID stays canonical.
+        // Display-only label captured at config time. The id stays canonical.
         ...(data.notifyChannelName.trim() ? { channel_name: data.notifyChannelName.trim() } : {}),
       },
     }

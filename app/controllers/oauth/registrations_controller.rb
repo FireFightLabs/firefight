@@ -1,6 +1,5 @@
-# RFC 7591 dynamic client registration: MCP clients self-register as public
-# clients (no secret, PKCE enforced at authorization time). Open by design,
-# so it is rate limited and stores nothing sensitive.
+# RFC 7591 dynamic registration. Public clients only, PKCE enforced at authorization.
+# Open by design, so rate limited and storing nothing sensitive.
 class Oauth::RegistrationsController < ActionController::API
   MAX_REDIRECT_URIS = 5
 

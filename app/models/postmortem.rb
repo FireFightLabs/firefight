@@ -1,8 +1,6 @@
 class Postmortem < ApplicationRecord
   include Postmortem::Snapshots
 
-  # Raised when a caller sends a body built from a version of the document that
-  # somebody else has since replaced.
   class StaleContent < StandardError; end
 
   STATUS_DRAFT = "draft"
@@ -11,15 +9,13 @@ class Postmortem < ApplicationRecord
   STATUS_COMPLETED = "completed"
   STATUSES = [ STATUS_DRAFT, STATUS_IN_PROGRESS, STATUS_IN_REVIEW, STATUS_COMPLETED ].freeze
 
-  # Whether an AI generation is writing this document. Separate from status,
-  # which is where the document is in its editorial life. nil means nobody
-  # is writing it.
+  # Separate from status, which is the document's editorial life. nil means
+  # nobody is writing it.
   GENERATION_GENERATING = "generating"
   GENERATION_FAILED = "failed"
   GENERATION_STATES = [ GENERATION_GENERATING, GENERATION_FAILED ].freeze
 
-  # Every heading is always rendered. The timeline comes from the incident
-  # record, the rest from the model. An empty section gets the placeholder.
+  # Every heading is always rendered, an empty section gets the placeholder.
   TIMELINE_SECTION = "timeline".freeze
 
   SECTION_KEYS = %w[
@@ -44,8 +40,7 @@ class Postmortem < ApplicationRecord
   EMPTY_SECTION_PLACEHOLDER = "Nothing in the incident record covers this yet. Add what you know.".freeze
 
   belongs_to :incident
-  # Polymorphic for the same reason declared_by is: an agent can write one,
-  # and saying a person did would be a lie the ledger exists to prevent.
+  # Polymorphic because an agent can write one.
   belongs_to :generated_by, polymorphic: true
   has_many :postmortem_updates, dependent: :destroy
 
@@ -59,12 +54,6 @@ class Postmortem < ApplicationRecord
     generation_state == GENERATION_FAILED
   end
 
-  # Every entry point that kicks off a generation goes through here. Returns
-  # the postmortem when this call is the one that should enqueue the job, nil
-  # when a generation is already running. The unique index on incident_id
-  # serializes two callers creating the placeholder at once, and the guarded
-  # update serializes two callers retrying a failed one.
-  # An empty document a person writes by hand, recorded like a generated one.
   # A failed placeholder is reused instead of blocking a blank document.
   def self.start_blank!(incident, by:)
     attrs = {
@@ -146,8 +135,7 @@ class Postmortem < ApplicationRecord
 
   private
 
-  # Fallback for postmortems created before the HTML storage migration.
-  # Converts legacy content["sections"] markdown to HTML.
+  # For postmortems created before the HTML storage migration.
   def legacy_sections_to_html
     sections = content["sections"]
     return nil if sections.blank?

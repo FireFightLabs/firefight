@@ -1,9 +1,7 @@
 module Slack
   module Modals
     module Roles
-      # A view holds 100 blocks. The header and the truncation notice take two,
-      # leaving the rest for roles, which is far more than any workspace
-      # configures.
+      # Slack's 100-block ceiling minus the header and truncation notice.
       MAX_ROLES = 98
 
       def self.build(incident, roles)
@@ -52,8 +50,8 @@ module Slack
       end
       private_class_method :role_block
 
-      # Slack appends a period to hint text that lacks one, which is why stored
-      # descriptions are normalized as finished sentences.
+      # Slack appends a period to a hint without one, hence descriptions are
+      # stored as finished sentences.
       def self.hint_for(role)
         return role.description if role.description.present?
         return "This role cannot be cleared once assigned" if role.unassign_blocked_reason

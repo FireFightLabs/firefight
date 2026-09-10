@@ -1,11 +1,5 @@
-# The transcript is scaffolding. What was worked out in it survives as timeline
-# milestones and, where one was written, as the postmortem, so purging loses
-# the messages and not the memory. The window starts when the incident ends
-# rather than when it closes, because a postmortem is usually written the next
-# morning and generating one reads the transcript.
-#
-# A workspace with no retention set keeps everything, which is a choice it can
-# make knowing what it means.
+# The window starts when the incident ends rather than when it closes, because a postmortem
+# is usually written the next morning from the transcript. No retention set keeps everything.
 class TranscriptRetentionJob < ApplicationJob
   queue_as :background
 

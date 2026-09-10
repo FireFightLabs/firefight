@@ -1,11 +1,9 @@
 module Slack
   module Messages
-    # Channel message posted when a runbook is attached to an incident. Every
-    # step is a row carrying its own button, and the message is updated in
-    # place as rows are claimed and completed, so working a runbook never posts
-    # anything else into the channel.
+    # Updated in place as steps are claimed and completed, so working a
+    # runbook never posts anything else into the channel.
     module Runbook
-      # Slack caps a message at 50 blocks, four of which are header and footer.
+      # Slack caps a message at 50 blocks, four are header and footer.
       MAX_STEP_ROWS = 45
 
       def self.attached(incident_runbook)

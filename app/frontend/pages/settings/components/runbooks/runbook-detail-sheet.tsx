@@ -17,9 +17,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 
-// Read-only. A runbook is the one settings row that is a document rather than
-// a setting, and it is read under time pressure, so opening it must not mean
-// opening a form that can be saved by accident.
+// Read only. A runbook is read under time pressure, so opening it must not
+// open a form that can be saved by accident.
 export function RunbookDetailSheet({
   runbook,
   incidentTypes,

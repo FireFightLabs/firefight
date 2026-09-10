@@ -116,9 +116,8 @@ module SolidWorkflow
         { max_attempts: SolidWorkflow.max_default_attempts, backoff: SolidWorkflow::Step::Retryable::BACKOFF_EXPONENTIAL }
       end
 
-      # A duplicate name corrupts the dependency map (index_by(&:name)), an
-      # unknown or cyclic dependency hangs the workflow forever instead of
-      # erroring, catch all three at start! time.
+      # A duplicate name corrupts the dependency map and an unknown or cyclic dependency
+      # hangs the workflow forever, so all three are caught at start!.
       def validate_steps!
         names = steps.map { |s| s[:name] }
 

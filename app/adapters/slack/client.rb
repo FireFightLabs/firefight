@@ -4,8 +4,7 @@ module Slack
   class Client
     SLACK_API_BASE = "https://slack.com/api"
 
-    # Slack error codes to the adapter error each one means. Codes not listed
-    # raise a plain AdapterError carrying Slack's detail.
+    # Codes not listed raise a plain AdapterError carrying Slack's detail.
     SLACK_ERROR_CODES = {
       "expired_trigger_id" => AdapterError::TriggerExpired,
       "name_taken"         => AdapterError::ChannelExists,
@@ -23,8 +22,7 @@ module Slack
       "not_authed"         => AdapterError::AuthRevoked
     }.freeze
 
-    # trigger_id expires three seconds after the slash command, and Slack rejects
-    # the open once it does.
+    # A trigger_id expires three seconds after the slash command.
     def self.open_modal(workspace:, trigger_id:, view:)
       api_post(
         workspace: workspace,
@@ -73,8 +71,6 @@ module Slack
       )
     end
 
-    # Slack rejects a name already in use, which surfaces as ChannelExistsError.
-    # https://api.slack.com/methods/conversations.create
     def self.create_channel(workspace:, name:, is_private: false)
       api_post(
         workspace: workspace,
@@ -108,7 +104,6 @@ module Slack
       )
     end
 
-    # users takes an array or a comma-separated string.
     def self.invite_to_channel(workspace:, channel:, users:)
       users_str = if users.is_a?(Array)
         users.join(",")
@@ -184,7 +179,6 @@ module Slack
       )
     end
 
-    # Archiving an archived channel raises AlreadyArchivedError.
     def self.archive_channel(workspace:, channel:)
       api_post(
         workspace: workspace,
@@ -211,7 +205,7 @@ module Slack
       channels = []
       cursor = nil
 
-      # Paginate with a hard cap. conversations.list is Tier 2 rate limited.
+      # Hard page cap, conversations.list is Tier 2 rate limited.
       10.times do
         payload = { types: types, exclude_archived: true, limit: 200 }
         payload[:cursor] = cursor if cursor.present?
@@ -280,10 +274,8 @@ module Slack
       api_get(workspace: workspace, endpoint: "users.info", params: { user: user_id })
     end
 
-    # A block_actions payload carries a one-off `response_url` that stays valid
-    # for 30 minutes. Posting `delete_original` to it is the only way to remove
-    # an ephemeral message, since chat.delete never sees one.
-    # https://api.slack.com/interactivity/handling#message_responses
+    # Posting delete_original to the click's response_url (valid 30 minutes)
+    # is the only way to remove an ephemeral message, chat.delete never sees one.
     RESPONSE_URL_HOST = "hooks.slack.com"
 
     def self.delete_original_response(response_url:)
@@ -303,8 +295,7 @@ module Slack
       { ok: true }
     end
 
-    # Allowlist so the workspace's Bearer token can't leak to a hostile host
-    # via a forged `permalink_public` or misrouted URL.
+    # Keeps the Bearer token off a hostile host behind a forged permalink.
     ALLOWED_DOWNLOAD_HOST_SUFFIX = ".slack.com"
 
     def self.download_file(workspace:, url:)
@@ -319,9 +310,8 @@ module Slack
 
       response = pool_request(uri, request, endpoint: "files.download")
 
-      # Slack private file URLs redirect to a presigned CDN URL. Follow the
-      # redirect without the Bearer token, the presigned URL carries its own auth.
-      # Auth failures redirect back to the Slack login page (same host, ?redir= param).
+      # Private file URLs redirect to a presigned CDN URL that carries its own
+      # auth, so the token is dropped. An auth failure redirects to the login page.
       if response.code.to_i.between?(301, 302) && response["location"].present?
         redirect_location = response["location"]
         redirect_uri = URI(redirect_location)
@@ -347,13 +337,8 @@ module Slack
       }
     end
 
-    # Net::HTTP::Persistent keeps a socket cache per thread, and Puma threads
-    # share this one pool object.
-    #
-    # The 30s idle_timeout sits under the ~60s idle window of a typical AWS ALB
-    # or the Slack edge. If we do reuse a half-closed socket, pool_request
-    # retries once. The open and read timeouts stop a wedged Slack endpoint
-    # from pinning a Puma thread forever.
+    # The 30s idle timeout sits under the ALB and Slack edge idle window.
+    # A reused half-closed socket is retried once in pool_request.
     OPEN_TIMEOUT_SECONDS    = 5
     READ_TIMEOUT_SECONDS    = 10
     IDLE_TIMEOUT_SECONDS    = 30
@@ -434,7 +419,7 @@ module Slack
       1
     end
 
-    # ±50% jitter so concurrent callers don't synchronize on retry.
+    # Jitter so concurrent callers do not retry in lockstep.
     def self.backoff_seconds(attempts)
       base = 0.25 * (2**(attempts - 1))
       base + (rand * base) - (base / 2.0)

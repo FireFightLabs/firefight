@@ -1,7 +1,5 @@
-# Alert routing rules, which decide what an incoming alert does. Rules belong
-# to a scope, either the workspace or one alert source, and are addressed by
-# priority within it. A source with no policy of its own falls back to the
-# workspace, so writing a rule for a source is what gives it one.
+# Rules belong to a scope, the workspace or one alert source. A source with no policy
+# falls back to the workspace, so writing a rule for a source is what gives it one.
 class Api::V1::RoutingRulesController < Api::V1::ApiController
   def index
     authorize!(Ability::Action::RESOURCE_POLICIES, Ability::Action::ACTION_READ)
@@ -55,8 +53,7 @@ class Api::V1::RoutingRulesController < Api::V1::ApiController
     policy.policy_rules.find_by!(priority: params[:id])
   end
 
-  # No source names the workspace itself, which is the fallback every source
-  # without a policy of its own uses.
+  # No source means the workspace itself, the fallback for every source without a policy.
   def scope
     return current_workspace if params[:source].blank?
 

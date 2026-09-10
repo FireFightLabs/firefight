@@ -64,9 +64,7 @@ class IncidentFormFieldsController < InertiaController
 
   private
 
-  # Accepts either a persisted form's DB id or a `default:<slug>` synthetic
-  # id from the settings editor. Synthetic ids materialize the default into
-  # a real DB row on first use via `Workspace#ensure_incident_form!`.
+  # Accepts a DB id or a `default:<slug>` synthetic id, materialized into a row on first use.
   def resolve_form(id_or_default)
     id = id_or_default.to_s
     if id.start_with?(IncidentFormField::SYNTHETIC_PREFIX)
@@ -76,9 +74,7 @@ class IncidentFormFieldsController < InertiaController
     end
   end
 
-  # Accepts a persisted overlay row's id, or a `default:<system_field_key>`
-  # synthetic id for a system field this workspace has never customized, which
-  # is materialized into a real row on first edit.
+  # Accepts a row id or a `default:<system_field_key>` synthetic id, materialized on first edit.
   def set_form_field
     id = params[:id].to_s
 

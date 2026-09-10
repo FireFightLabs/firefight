@@ -33,9 +33,7 @@ module Events
       )
     end
 
-    # The text is what makes the timeline entry readable without opening
-    # Slack. It is decoration on the pin, so failing to fetch it never fails
-    # the event.
+    # The text is decoration on the pin, so failing to fetch it never fails the event.
     def self.message_text(workspace, channel_id, message_ts)
       workspace.adapter.fetch_message(channel_id: channel_id, message_id: message_ts)[:text].presence
     rescue AdapterError

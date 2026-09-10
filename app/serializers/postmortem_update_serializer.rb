@@ -27,7 +27,7 @@ class PostmortemUpdateSerializer < BaseSerializer
 
   private
 
-  # Fallback for revision snapshots created before HTML storage
+  # Snapshots created before HTML storage.
   def legacy_sections_html(content)
     sections = content&.dig("sections")
     return nil if sections.blank?

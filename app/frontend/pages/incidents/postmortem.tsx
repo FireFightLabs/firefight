@@ -64,7 +64,7 @@ interface PostmortemPageProps extends SharedProps {
 export default function PostmortemPage() {
   const { incident, postmortem } = usePage<PostmortemPageProps>().props;
 
-  // All hooks run unconditionally, the null-postmortem branch returns after.
+  // Hooks run before the null-postmortem return, so none may be conditional.
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
@@ -72,8 +72,8 @@ export default function PostmortemPage() {
   const [revisionsOpen, setRevisionsOpen] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const editorContentRef = useRef(postmortem?.htmlContent ?? "");
-  // The version the editor's text was built from. A save that loses to
-  // somebody else's rewrite is refused rather than throwing their work away.
+  // The version the editor text was built from. A save that loses to somebody
+  // else's rewrite is refused rather than overwriting their work.
   const versionRef = useRef(postmortem?.version ?? 0);
   const conflictedRef = useRef(false);
 
@@ -84,9 +84,8 @@ export default function PostmortemPage() {
       body: { html_content: editorContentRef.current, version: versionRef.current },
     });
 
-    // Losing means nothing was written, so the version stays where it was and
-    // the editor stops trying. Adopting the version that won would let the
-    // next keystroke overwrite the work this save was refused for.
+    // Losing wrote nothing, so the version stays and the editor stops. Adopting the
+    // winning version would let the next keystroke overwrite what this save was refused for.
     if (!result.ok) {
       conflictedRef.current = true;
       setSaveState("conflict");
@@ -142,9 +141,8 @@ export default function PostmortemPage() {
   }, [incident, postmortem]);
 
   useEffect(() => {
-    // Uses raw fetch with keepalive instead of Inertia's router.patch so the
-    // request survives page unload / tab close. Inertia's router has no
-    // keepalive equivalent, the request would be cancelled on navigation.
+    // Raw fetch with keepalive so the request survives tab close. Inertia's
+    // router has no keepalive and cancels on navigation.
     const flushPendingSave = () => {
       if (!saveTimerRef.current || conflictedRef.current) {
         return;

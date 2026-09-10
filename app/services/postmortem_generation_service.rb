@@ -1,10 +1,8 @@
-# Starts, saves and announces postmortem generation for every entry point.
 class PostmortemGenerationService
   UNAVAILABLE_MESSAGE = "AI features are not available.".freeze
   UNKNOWN_MEMBER_MESSAGE = "Could not identify your workspace membership.".freeze
 
-  # started is true when a generation is running, whether this call started
-  # it or not. message is what to tell the person.
+  # started is true when a generation is running, whether this call started it or not.
   Outcome = Struct.new(:started, :message, keyword_init: true)
 
   def self.started_message(incident)
@@ -15,7 +13,6 @@ class PostmortemGenerationService
     @workspace = workspace
   end
 
-  # The guards every Slack entry point runs before starting.
   def request!(incident, by:)
     return Outcome.new(started: false, message: UNAVAILABLE_MESSAGE) unless defined?(FirefightAi)
 
@@ -31,8 +28,7 @@ class PostmortemGenerationService
     Outcome.new(started: true, message: self.class.started_message(incident))
   end
 
-  # Returns the placeholder when this call enqueued the job, nil when one
-  # was already running.
+  # nil when a generation was already running.
   def start!(incident, by:)
     postmortem = Postmortem.start_generation!(incident, by: by)
     PostmortemGenerationJob.perform_later(incident.id) if postmortem

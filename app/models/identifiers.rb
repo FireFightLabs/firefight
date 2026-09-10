@@ -92,8 +92,7 @@ module Identifiers
   SET_INCIDENT_LEAD_SELF = "set_incident_lead_self"
   ROLE_SELECT = "role_select"
 
-  # The roles modal renders one input block per configured role, so the
-  # block_id carries the role it belongs to.
+  # One input block per configured role, so the block_id carries the role.
   ROLE_BLOCK_PREFIX = "role_block_"
   UPDATE_INCIDENT_SUMMARY = "update_incident_summary"
   ESCALATE_INCIDENT = "escalate_incident"

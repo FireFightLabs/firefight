@@ -1,8 +1,7 @@
 require "test_helper"
 
-# Managing agents, service keys, alert sources and webhooks from Claude Code.
-# The credential tools authorize as admin-only resources, so a person reaches
-# them and a machine never can, however it was granted.
+# The credential tools authorize as admin-only resources, so a person reaches them and a machine
+# never can, however it was granted.
 class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -13,8 +12,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     )
   end
 
-  # The rule the gateway exists to keep: a machine cannot mint another machine,
-  # whatever anyone tries to grant it.
+  # A machine cannot mint another machine, whatever anyone tries to grant it.
   test "an agent cannot reach the credential tools even when granted everything grantable" do
     _, token = create_agent(
       workspace: @workspace, created_by: @membership, name: "Ambitious", slug: "ambitious",

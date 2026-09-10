@@ -1,6 +1,4 @@
-# Agents are principals, so they are the gateway's business rather than the
-# developer's. What an agent may do is a permissions decision, and its token is
-# only the credential it presents.
+# Agents are principals, so managing them is a permissions decision, not an API key one.
 class AgentsController < InertiaController
   authorizes Ability::Action::RESOURCE_PERMISSIONS,
     read: :index,
@@ -16,8 +14,7 @@ class AgentsController < InertiaController
     }
   end
 
-  # One token comes with the agent, since an agent without a credential cannot
-  # do anything and making that a second step is a step everyone would forget.
+  # A token is minted with the agent, since one without a credential can do nothing.
   def create
     agent, raw_token = ActiveRecord::Base.transaction do
       record = current_workspace.agents.create!(
@@ -42,9 +39,8 @@ class AgentsController < InertiaController
     redirect_to gateway_agents_path, inertia: { errors: e.record.errors.to_hash }
   end
 
-  # Rotation is an overlap, never a swap. The new token is handed over while
-  # the old one still works, so the agent keeps running until its config is
-  # updated, and revoking is a separate deliberate step.
+  # Rotation overlaps. The old token keeps working until revoked, so the agent stays up
+  # while its config is updated.
   def rotate
     flash.inertia[:api_key_token] = mint_token(@agent).last
 
@@ -61,8 +57,7 @@ class AgentsController < InertiaController
 
   private
 
-  # Disabled agents stay on the list. One that vanished would still hold its
-  # slug and its grants, with no way back on.
+  # Disabled agents stay listed. A hidden one still holds its slug and grants with no way back.
   def agent_roster
     current_workspace.agents.where(deleted_at: nil).ordered
       .includes(:api_keys, ability_grants: :action)

@@ -72,8 +72,7 @@ class Api::V1::IncidentParticipationControllerTest < ActionDispatch::Integration
     assert @incident.reload.canceled?
   end
 
-  # The service refuses, so a surface that never thought to ask still cannot
-  # post into a channel that is gone.
+  # The service refuses, so no surface can post into a channel that is gone.
   test "an incident that is over refuses an invite and a shoutout" do
     close_incident
 

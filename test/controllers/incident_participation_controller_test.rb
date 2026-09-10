@@ -1,7 +1,6 @@
 require "test_helper"
 
-# Escalating, inviting and giving a shoutout from the dashboard. Each calls the
-# same service Slack calls, so the record cannot tell which surface it was.
+# Each action calls the same service Slack calls, so the record cannot tell which surface it was.
 class IncidentParticipationControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -40,8 +39,7 @@ class IncidentParticipationControllerTest < ActionDispatch::IntegrationTest
     assert_not @incident.incident_events.exists?(event_type: IncidentEvent::INCIDENT_ESCALATED)
   end
 
-  # The channel arrives a moment after the incident does, and all three of
-  # these post in it.
+  # The channel arrives a moment after the incident does, and all three of these post in it.
   test "an incident whose channel is still being created says so" do
     @incident.update_columns(channel_id: nil)
 
@@ -90,8 +88,7 @@ class IncidentParticipationControllerTest < ActionDispatch::IntegrationTest
     assert_empty @incident.shoutouts
   end
 
-  # The picker sends ids, but a hand-rolled request can send anything, and the
-  # same resolver answers all of it.
+  # The picker sends ids, but a hand-rolled request can send anything, and one resolver answers all of it.
   test "a person named by email resolves the same as one named by id" do
     post incident_shoutout_path(@incident),
          params: { member_id: @other.user.email, message: "Named by email" }

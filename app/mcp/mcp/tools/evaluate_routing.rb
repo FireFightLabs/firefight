@@ -50,9 +50,8 @@ module Mcp
         respond(payload)
       end
 
-      # Outcome targets store bare IDs. Resolve display names at read time so
-      # MCP clients see who is notified/invited, not opaque UUIDs. Channel
-      # names are stored on the target at config time and pass through as-is.
+      # Targets store bare ids, so names are resolved at read time. Channel names
+      # were stored at config time and pass through.
       def self.enriched_outcome(workspace, outcome)
         return outcome unless outcome.is_a?(Hash)
 

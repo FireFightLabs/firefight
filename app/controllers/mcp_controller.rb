@@ -1,6 +1,5 @@
-# The MCP entry point, stateless Streamable HTTP (every POST self-contained,
-# no sessions, no SSE) so it runs under multi-worker Puma. Auth is the same
-# Bearer ApiKey as the REST API, either token kind resolves to a principal.
+# Stateless Streamable HTTP, every POST self-contained, so it runs under multi-worker
+# Puma. Auth is the same Bearer ApiKey as REST.
 class McpController < ActionController::API
   SERVER_NAME = "firefight".freeze
   SERVER_VERSION = "1.0.0".freeze
@@ -23,9 +22,7 @@ class McpController < ActionController::API
 
   private
 
-  # Two credential kinds resolve to one principal model. ff_-prefixed API
-  # tokens (either mode) and OAuth access tokens minted by the consent flow
-  # (resource owner = the consenting membership).
+  # ff_ prefixed API tokens and OAuth access tokens from the consent flow both resolve to a principal.
   def authenticate!
     token = request.headers["Authorization"]&.match(/\ABearer (.+)\z/)&.captures&.first
     return unauthorized! if token.blank?
@@ -80,9 +77,8 @@ class McpController < ActionController::API
     }, status: :unauthorized
   end
 
-  # Named per connection, so an agent knows which workspace it is in from the
-  # handshake rather than a tool call, and the answer cannot drift from the
-  # token it authenticated with.
+  # Named per connection so an agent learns its workspace from the handshake, and the
+  # answer cannot drift from the token.
   def instructions
     "Access to the #{Current.workspace.name} workspace, acting as " \
       "#{Current.principal.actor_display_name}: read incidents, alerts, the service catalog and " \

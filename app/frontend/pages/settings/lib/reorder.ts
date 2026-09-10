@@ -2,10 +2,8 @@ import { useState } from "react"
 import { arrayMove } from "@dnd-kit/sortable"
 import type { DragEndEvent } from "@dnd-kit/core"
 
-// Shows the dropped order straight away and keeps showing it until the server
-// confirms it, so rows never jump back while the request is in flight. The
-// override is dropped only when the server's order matches it, which keeps a
-// second drag from flashing back to the result of the first.
+// Shows the dropped order until the server confirms it, so rows never jump back mid request.
+// The override lifts only when the server's order matches, so a second drag cannot flash back to the first.
 export function useOptimisticOrder<T extends { id: string }>(items: T[]) {
   const [orderIds, setOrderIds] = useState<string[] | null>(null)
 

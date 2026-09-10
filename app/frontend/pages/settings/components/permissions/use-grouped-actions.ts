@@ -2,11 +2,8 @@ import { useMemo } from "react"
 
 import type { AbilityActionOption } from "@/types/serializers"
 
-/**
- * Abilities filtered by a search term and grouped under the connection that
- * minted them, ready to render as sections. Both places that offer abilities
- * (granting one, and choosing what a set covers) need exactly this.
- */
+// Grouped under the connection that minted them. Granting an ability and
+// choosing what a set covers both need exactly this.
 export function useGroupedActions(
   actions: AbilityActionOption[],
   search: string,

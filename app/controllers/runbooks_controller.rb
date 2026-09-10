@@ -52,9 +52,8 @@ class RunbooksController < InertiaController
     redirect_to settings_runbooks_path, notice: "#{@runbook.name} was enabled."
   end
 
-  # Deletes only when nothing references it. Previously this always soft-deleted
-  # with no enable control anywhere, so a "deleted" runbook was unreachable but
-  # still holding its slug.
+  # Deletes only when unreferenced. Soft deleting with no enable control left a runbook
+  # unreachable but still holding its slug.
   def destroy
     if @runbook.deletion_blocked_reason
       return redirect_to settings_runbooks_path, alert: @runbook.deletion_blocked_reason

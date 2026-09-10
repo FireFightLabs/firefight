@@ -1,15 +1,11 @@
 module Integrations
   module Packs
-    # First-party GitHub pack. PR and commit correlation run over the REST
-    # API with server-to-server installation tokens. fetch_file, code_search,
-    # and blame run against a warm local clone (CloneManager), reading only
-    # through git object commands so repo content never touches the
-    # filesystem API directly.
+    # File reads, search and blame run against a local clone through git object commands only,
+    # so repo content never touches the filesystem API.
     class Github < NativePack
       REPO_FORMAT = /\A[\w.\-]+\/[\w.\-]+\z/
       PATH_FORMAT = /\A[^\/\0][^\0]*\z/
-      # Secrets-shaped paths are refused in the executor, not the prompt:
-      # prompts can be talked around, executors cannot.
+      # Refused in the executor, not the prompt. Prompts can be talked around.
       SENSITIVE_PATHS = /\.env|credential|secret|\.pem\z|\.key\z|id_rsa|id_ed25519|\.p12\z|\.pfx\z/i
       FILE_LIMIT = 30
       LINE_LIMIT = 200

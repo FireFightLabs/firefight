@@ -1,16 +1,11 @@
 module Integrations
-  # A first-party integration implemented in Ruby, the native analogue of an
-  # external MCP server. A subclass declares its tools in code and implements
-  # one instance method per tool. Discovery reads the declarations and the
-  # executor dispatches to the methods, so the pack is the single source of
-  # truth for what a native provider offers.
+  # A first-party integration in Ruby, the native analogue of an MCP server.
+  # The pack's tool declarations are the single source of truth for what the provider offers.
   class NativePack
     class Error < Integrations::Error; end
 
-    # Provider key -> pack class. A provider listed here executes through its
-    # pack instead of an MCP server. Its registry entry declares kind: native
-    # so the connect flow skips the server URL. Listing and execution stay
-    # decoupled on purpose - the gallery is config, the pack is code.
+    # Providers listed here execute through the pack instead of an MCP server, their
+    # registry entry declares kind: native so connect skips the server URL.
     REGISTRY = {
       "github" => "Integrations::Packs::Github"
     }.freeze
@@ -20,9 +15,8 @@ module Integrations
         REGISTRY[provider_key.to_s]&.constantize
       end
 
-      # Packs whose provider gates access behind installing an app return the
-      # URL the connect flow sends the customer to. nil means the provider has
-      # no install-first flow.
+      # Providers that gate access behind installing an app return the URL to send
+      # the customer to. nil means no install-first flow.
       def install_url(state:)
         nil
       end
@@ -67,17 +61,13 @@ module Integrations
       public_send(definition.name, environment_row: environment_row, arguments: arguments)
     end
 
-    # Packs raise through this instead of `raise Error, ...`. Inside a pack
-    # file a bare Error resolves lexically to Integrations::Error, not this
-    # class. Defined here, where the constant resolves correctly, the trap
-    # is gone.
+    # Inside a pack file a bare Error resolves to Integrations::Error, not this class.
     def fail!(message)
       raise Error, message
     end
 
-    # Probes the provider with the row's credentials. Packs override with a
-    # real call and raise Error with a readable reason on failure. The
-    # default accepts so a pack without a probe still connects.
+    # Packs override with a real probe and raise Error with a readable reason.
+    # The default accepts so a pack without a probe still connects.
     def check_health!(environment_row)
     end
   end

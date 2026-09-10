@@ -1,9 +1,7 @@
 class CreateAuthenticationTables < ActiveRecord::Migration[8.1]
   def change
-    # Enable UUID extension for PostgreSQL
     enable_extension 'pgcrypto' unless extension_enabled?('pgcrypto')
 
-    # Workspaces table - platform-agnostic workspace management
     create_table :workspaces, id: :uuid do |t|
       t.string :platform, null: false, default: 'slack' # enum: 'slack', 'teams'
       t.string :platform_id, null: false # Slack team ID, Teams tenant ID, etc.
@@ -21,7 +19,6 @@ class CreateAuthenticationTables < ActiveRecord::Migration[8.1]
     add_index :workspaces, [ :platform, :platform_id ], unique: true
     add_index :workspaces, :platform
 
-    # Users table - application users
     create_table :users, id: :uuid do |t|
       t.string :email, null: false
       t.string :name, null: false
@@ -32,7 +29,6 @@ class CreateAuthenticationTables < ActiveRecord::Migration[8.1]
 
     add_index :users, :email, unique: true
 
-    # Workspace memberships table - joins users to workspaces with roles
     create_table :workspace_memberships, id: :uuid do |t|
       t.references :user, type: :uuid, null: false, foreign_key: true
       t.references :workspace, type: :uuid, null: false, foreign_key: true

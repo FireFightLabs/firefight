@@ -1,7 +1,6 @@
 module Mcp
   module Tools
-    # The token appears once, in the response that minted it, and never in a
-    # listing.
+    # The token appears once, in the response that minted it, never in a listing.
     module ApiKeyPayloads
       def self.summary(key)
         {

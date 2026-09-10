@@ -21,8 +21,6 @@ class WorkspaceTest < ActiveSupport::TestCase
     assert_includes duplicate.errors[:platform_id], "has already been taken"
   end
 
-  # process_slack_installation tests
-
   test "process_slack_installation creates workspace, user, and membership" do
     auth_hash = mock_slack_auth_hash
 
@@ -33,25 +31,21 @@ class WorkspaceTest < ActiveSupport::TestCase
     assert result[:membership].present?
     assert result[:first_install]
 
-    # Verify workspace
     workspace = result[:workspace]
     assert workspace.persisted?
     assert_equal "slack", workspace.platform
     assert_equal auth_hash.extra.team_info["id"], workspace.platform_id
     assert_equal "Test Workspace", workspace.name
 
-    # Verify user
     user = result[:user]
     assert user.persisted?
     assert_equal "test@example.com", user.email
 
-    # Verify membership
     membership = result[:membership]
     assert membership.persisted?
     assert_equal workspace.id, membership.workspace_id
     assert_equal user.id, membership.user_id
 
-    # Verify default incident types
     assert_equal 5, workspace.incident_types.count
     assert_equal %w[data infrastructure production security third_party],
                  workspace.incident_types.pluck(:slug).sort
@@ -72,9 +66,8 @@ class WorkspaceTest < ActiveSupport::TestCase
     assert_equal 1, workspace.reload.workspace_memberships.owners.count
   end
 
-  # The check and the insert that answers it have to be one serialized step, or
-  # two people finishing the install together both read an empty workspace and
-  # both come out as owner.
+  # Without the lock, two people finishing the install together both read an empty workspace
+  # and both come out as owner.
   test "the first-member check runs under a workspace lock" do
     relation = mock
     relation.expects(:find).at_least_once.returns(nil)
@@ -84,7 +77,6 @@ class WorkspaceTest < ActiveSupport::TestCase
   end
 
   test "process_slack_installation returns existing workspace for reinstall" do
-    # Create existing workspace with specific team_id
     team_id = "T#{SecureRandom.hex(8)}"
     existing = Workspace.create!(
     platform: "slack",
@@ -95,7 +87,6 @@ class WorkspaceTest < ActiveSupport::TestCase
     incidents_channel_id: "C12345678"
     )
 
-    # Use the same team_id in auth_hash
     auth_hash = mock_slack_auth_hash(
     extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
     )
@@ -107,7 +98,6 @@ class WorkspaceTest < ActiveSupport::TestCase
   end
 
   test "process_slack_installation treats workspace without channel as first install" do
-    # Create workspace without incidents channel
     team_id = "T#{SecureRandom.hex(8)}"
     existing = Workspace.create!(
     platform: "slack",
@@ -146,7 +136,6 @@ class WorkspaceTest < ActiveSupport::TestCase
   end
 
   test "process_slack_installation updates existing user and workspace" do
-    # Create existing records
     team_id = "T#{SecureRandom.hex(8)}"
     existing_workspace = Workspace.create!(
     platform: "slack",
@@ -181,18 +170,15 @@ class WorkspaceTest < ActiveSupport::TestCase
 
     result = Workspace.process_slack_installation(auth_hash)
 
-    # Verify workspace was updated
     existing_workspace.reload
     assert_equal "Updated Workspace", existing_workspace.name
     assert_equal "new-token", existing_workspace.access_token
 
-    # Verify user was updated
     existing_user.reload
     assert_equal "Updated User", existing_user.name
   end
 
   test "process_slack_installation creates membership for existing workspace and user" do
-    # Create existing records without membership
     team_id = "T#{SecureRandom.hex(8)}"
     existing_workspace = Workspace.create!(
     platform: "slack",
@@ -213,7 +199,6 @@ class WorkspaceTest < ActiveSupport::TestCase
 
     result = Workspace.process_slack_installation(auth_hash)
 
-    # Verify membership was created
     assert result[:membership].persisted?
     assert_equal existing_workspace.id, result[:membership].workspace_id
     assert_equal existing_user.id, result[:membership].user_id

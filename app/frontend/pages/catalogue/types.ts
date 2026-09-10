@@ -1,5 +1,5 @@
-// The three catalogue shapes come from the serializers. Hand-writing them
-// once let the page drift from what the server sends without a type error.
+// Re-exported from the generated serializer types. Hand-written copies drifted
+// from the server without a type error.
 export type {
   CatalogType,
   CatalogEntry,

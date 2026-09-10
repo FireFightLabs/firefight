@@ -1,11 +1,8 @@
-# Conditions match on ids, but a caller knows slugs. Accept either, and refuse
-# anything that resolves to neither. A stored value matching no record produces
-# a condition that saves cleanly and then never fires.
+# Accepts ids or slugs and refuses anything resolving to neither. A stored
+# value matching no record saves cleanly and then never fires.
 module IncidentCondition::Values
   UUID_FORMAT = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
 
-  # Every attribute a condition row needs, so a caller never has to know that
-  # a custom field condition carries a definition alongside its values.
   def self.attributes(workspace, condition)
     definition = resolve_definition(workspace, condition)
 
@@ -29,8 +26,7 @@ module IncidentCondition::Values
     end
   end
 
-  # A custom field condition names its field. The id form stays accepted so a
-  # caller already holding one keeps working.
+  # The id form stays accepted so a caller already holding one keeps working.
   def self.resolve_definition(workspace, condition)
     return nil unless condition[:condition_field].to_s == IncidentCondition::FIELD_CUSTOM_FIELD
 
@@ -43,8 +39,7 @@ module IncidentCondition::Values
       "unknown custom field #{reference.inspect}. Valid: #{scope.order(:slug).pluck(:slug).join(', ')}"
   end
 
-  # Which table a stored value comes from is the field's own business, so the
-  # accepted keys follow its storage rather than being guessed from the type.
+  # The accepted keys follow the field's storage rather than being guessed from the type.
   def self.option_ids(definition, values)
     match(values, offered_keys(definition)) do |value, offered|
       "unknown value #{value.inspect} for #{definition.name}. Valid: #{offered.join(', ')}"

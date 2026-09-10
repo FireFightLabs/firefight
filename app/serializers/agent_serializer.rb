@@ -13,8 +13,7 @@ class AgentSerializer < BaseSerializer
     agent.description.presence
   end
 
-  # Every live token, not a count. Rotation leaves two, and whoever rotated
-  # needs to see which is which before revoking the old one.
+  # Every live token, since rotation leaves two and whoever rotated needs to see which to revoke.
   type "{ id: string; prefix: string; createdAt: string; lastUsedAt: string | null }[]"
   def tokens
     agent.live_api_keys.map do |key|
@@ -32,8 +31,7 @@ class AgentSerializer < BaseSerializer
     agent.last_used_at&.utc&.iso8601
   end
 
-  # An agent with none can authenticate and do nothing, which is the state
-  # worth seeing at a glance.
+  # An agent with none can authenticate and do nothing, worth seeing at a glance.
   type :number
   def grant_count
     agent.ability_grants.size

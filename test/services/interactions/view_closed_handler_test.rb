@@ -134,8 +134,7 @@ class Interactions::ViewClosedHandlerTest < ActiveSupport::TestCase
     )
   end
 
-  # The allowlist this replaced never got Cancel, so closing that modal left
-  # "is canceling the incident..." in the channel for good.
+  # The allowlist this replaced never got Cancel, so its placeholder stayed in the channel for good.
   test "deletes the temp message for every modal that opened one" do
     [ Identifiers::CANCEL_INCIDENT_MODAL, Identifiers::CLOSE_INCIDENT_MODAL,
       Identifiers::REOPEN_INCIDENT_MODAL, Identifiers::UPDATE_SUMMARY_MODAL,

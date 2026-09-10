@@ -1,6 +1,4 @@
-# Thanking someone for their work on an incident. The record and the channel
-# message are one operation, which is why this is not left in the handler that
-# happens to open the modal.
+# The record and the channel message are one operation.
 class ShoutoutService
   def initialize(workspace)
     @workspace = workspace

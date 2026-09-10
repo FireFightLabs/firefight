@@ -1,8 +1,7 @@
 require "test_helper"
 
 class Slack::Modals::ActionItemsListTest < ActiveSupport::TestCase
-  # Counting rows means owning every row, and fixture incidents carry action
-  # items declared by other tests.
+  # Counting rows means owning every row, and fixture incidents carry action items from other tests.
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)

@@ -1,6 +1,5 @@
 class SettingsController < InertiaController
-  # The grant matrix and the ledger are admin territory, like the
-  # mutations behind them. Approvals read as approvals do everywhere else.
+  # The grant matrix and the ledger are admin territory, like the mutations behind them.
   authorizes Ability::Action::RESOURCE_PERMISSIONS, read: %i[permissions activity]
   authorizes Ability::Action::RESOURCE_APPROVALS, read: :approvals
 
@@ -97,8 +96,6 @@ class SettingsController < InertiaController
     }
   end
 
-  # Who may do what, every principal that can hold a grant, the abilities and
-  # sets available to hand out, and the environments a grant can be scoped to.
   def permissions
     render inertia: "settings/permissions", props: {
       principals: principal_rows,
@@ -111,8 +108,7 @@ class SettingsController < InertiaController
     }
   end
 
-  # The gateway ledger, everything agents and API keys did (or were denied),
-  # rendered read-only. This is the oversight surface for governed writes.
+  # The gateway ledger, read only. The oversight surface for governed writes.
   def activity
     scope = current_workspace.ability_invocations.order(created_at: :desc)
     scope = scope.where(decision: params[:decision]) if params[:decision].present?
@@ -142,8 +138,7 @@ class SettingsController < InertiaController
     }
   end
 
-  # Agent credentials are managed on the Agents screen, so they are not mixed
-  # in with a person's own tokens and the workspace's service keys.
+  # Agent credentials live on the Agents screen, so they are kept out of this list.
   def api_keys
     scope = current_workspace.api_keys.where(deleted_at: nil, agent_id: nil)
     scope = scope.where(workspace_membership_id: current_membership.id) unless current_membership.admin_access?
@@ -203,15 +198,12 @@ class SettingsController < InertiaController
 
   private
 
-  # Everything that can hold a grant, in one list: humans, agents, and the
-  # service keys. Personal keys are omitted because they resolve to their
-  # owner's authority rather than carrying grants of their own.
+  # Personal keys are omitted, they resolve to their owner's authority rather than carrying grants.
   def principal_rows
     Ability::Principal.all(current_workspace).map { |principal| PrincipalSerializer.one(principal) }
   end
 
-  # MCP clients this member authorized via OAuth consent. One row per
-  # application with a live (non-revoked) token or refresh chain.
+  # One row per application with a live token or refresh chain.
   def connected_agents
     Doorkeeper::AccessToken
       .where(resource_owner_id: current_membership.id, revoked_at: nil)
@@ -226,9 +218,8 @@ class SettingsController < InertiaController
       end
   end
 
-  # Rule filter options follow the source filter. A selected source offers the
-  # rules of its effective policy. No selection offers every routing rule in
-  # the workspace, prefixed with its scope.
+  # A selected source offers the rules of its effective policy. No selection offers
+  # every rule, prefixed with its scope.
   def routing_rule_options(source)
     policies =
       if source
@@ -253,8 +244,7 @@ class SettingsController < InertiaController
       .join(" AND ").truncate(60)
   end
 
-  # Catalog entries grouped by system key so condition values on catalog-backed
-  # fields are picked, not typed.
+  # Grouped by system key so condition values on catalog fields are picked, not typed.
   def catalog_condition_options
     current_workspace.catalog_entries.in_system_type(CatalogType::SYSTEM_KEYS)
       .order(:name)
@@ -263,8 +253,7 @@ class SettingsController < InertiaController
       .transform_values { |rows| rows.map { |_, slug, name| { slug: slug, name: name } } }
   end
 
-  # Best-effort: the notify-target picker degrades to a manual ID input when
-  # Slack can't be reached.
+  # The picker degrades to a manual ID input when Slack cannot be reached.
   def workspace_channels
     WorkspaceAdapter.for(current_workspace).list_channels
   rescue AdapterError

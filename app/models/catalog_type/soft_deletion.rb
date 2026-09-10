@@ -1,9 +1,8 @@
 module CatalogType::SoftDeletion
   extend ActiveSupport::Concern
 
-  # The rule the controller enforces and the serializer ships. A type that
-  # another type's attribute points at cannot go: its entries would vanish
-  # from that attribute's picker with no way to retarget it.
+  # A type another attribute points at cannot go, its entries would vanish
+  # from that picker with no way to retarget it.
   def deletion_blocked_reason
     return "#{name} is a built-in type and cannot be deleted." if system?
 

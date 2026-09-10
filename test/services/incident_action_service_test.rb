@@ -23,9 +23,8 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     stub_get_permalink
   end
 
-  # The service is the floor every entry point stands on, so a closed incident
-  # refuses here whether the request came from Slack, the dashboard, the API
-  # or MCP.
+  # The service is the floor every entry point stands on, so a closed incident refuses here for Slack,
+  # the dashboard, the API and MCP alike.
   test "create_action refuses an action on an incident that is over, and creates nothing" do
     over = incidents(:resolved_minor_ws1)
 
@@ -367,9 +366,7 @@ class IncidentActionServiceTest < ActiveSupport::TestCase
     assert_includes posted.last[:text], "Action completed"
   end
 
-  # An item that already has controls in the channel must not get a second set,
-  # because only the first is ever updated and the other keeps a live button on
-  # finished work.
+  # Only the first set of controls is ever updated, a second would keep a live button on finished work.
   test "handing over an item that already has a message points at it instead of duplicating its controls" do
     stub_post_message
     stub_update_message

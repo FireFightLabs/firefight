@@ -2,8 +2,8 @@ import type { CSSProperties } from "react"
 
 const DEFAULT_SEVERITY_COLOR = "#3B82F6"
 
-// The badge wears the colour the admin picked for the severity, so it cannot be
-// keyed off rank, which is derived from ordering and has no fixed scale.
+// The badge wears the colour the admin picked, not one keyed off rank, which
+// comes from ordering and has no fixed scale.
 export function severityBadgeStyle(color?: string | null): CSSProperties {
   const background = /^#[0-9a-f]{6}$/i.test(color ?? "") ? color! : DEFAULT_SEVERITY_COLOR
   return { backgroundColor: background, color: readableTextColor(background), borderColor: "transparent" }

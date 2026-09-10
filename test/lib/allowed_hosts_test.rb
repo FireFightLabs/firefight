@@ -10,8 +10,7 @@ class AllowedHostsTest < ActiveSupport::TestCase
     assert_equal [ "app.firefight.test" ], AllowedHosts.parse!("app.firefight.test")
   end
 
-  # Rails skips host authorization entirely when the list is empty, so every
-  # way of arriving at "nothing" has to stop the boot instead.
+  # Rails skips host authorization when the list is empty, so every way of arriving at nothing must stop the boot.
   test "refuses a value that names no host" do
     [ "", "   ", ",", " , , " ].each do |raw|
       assert_raises(AllowedHosts::MissingError, "#{raw.inspect} should not pass") do

@@ -268,9 +268,8 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_not @workspace.integrations.exists?(provider: "linear")
   end
 
-  # The controller looks a connection up by the slug a name *would* derive to.
-  # If that rule ever drifts from the model's, reconnecting silently creates a
-  # duplicate instead of finding the row, so pin them to the same helper.
+  # The controller looks a connection up by the slug a name would derive to. If that drifts from
+  # the model's rule, reconnecting silently creates a duplicate, so both use one helper.
   test "a name the slug rule has to rewrite still reuses one connection" do
     complete_oauth_flow(name: "Linear read-only")
     complete_oauth_flow(name: "Linear read-only")
@@ -354,9 +353,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/not configured/, flash[:alert])
   end
 
-  # Every provider with a hosted server must be connectable through the
-  # generic flow. A provider that needs code to connect is a design failure,
-  # not a special case, so this asserts the registry alone carries it.
+  # A hosted-server provider that needs code to connect is a design failure, so the registry alone must carry it.
   test "a registry provider with a hosted server needs no provider-specific code" do
     entry = IntegrationProvider.find("linear")
 
@@ -374,8 +371,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to "https://mcp.linear.app/authorize"
   end
 
-  # ProviderMark falls back to the letter mark, so a missing logo degrades
-  # rather than breaks. It still looks unfinished next to thirteen that have one.
+  # ProviderMark falls back to a letter mark, so a missing logo degrades rather than breaks, but looks unfinished.
   test "every provider ships a logo" do
     missing = IntegrationProvider.all.reject do |provider|
       Rails.root.join("public/integrations/#{provider.key}.svg").exist?
@@ -519,8 +515,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
-  # Walks the browser through start, the provider's screen, and the callback,
-  # so tests assert on the connection the whole flow produces.
+  # Walks start, the provider's screen and the callback, so tests assert on the connection the whole flow produces.
   def complete_oauth_flow(callback: {}, name: nil, start: {})
     stub_begin_flow
     get oauth_start_integrations_url({ provider: "linear" }.merge(name ? { name: name } : {}).merge(start))

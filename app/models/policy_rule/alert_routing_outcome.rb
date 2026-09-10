@@ -1,5 +1,5 @@
-# Outcome vocabulary + write-time validation for the alert_routing domain.
-# The evaluation engine never reads this. It is the domain consumer's contract.
+# Outcome vocabulary and write-time validation for alert routing. The
+# evaluation engine never reads this.
 module PolicyRule::AlertRoutingOutcome
   ACTION_AUTO_CREATE = "auto_create_incident"
   ACTION_ATTACH = "attach_to_incident"

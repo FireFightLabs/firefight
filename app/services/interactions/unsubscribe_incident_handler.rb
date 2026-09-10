@@ -1,6 +1,5 @@
 module Interactions
-  # The Unsubscribe button on a subscription notice or at the foot of a
-  # subscriber DM. Both are only ever seen by the person they belong to.
+  # Both places this button appears are only seen by the person it belongs to.
   class UnsubscribeIncidentHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ

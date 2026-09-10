@@ -1,9 +1,7 @@
 module Slack
   module Modals
-    # The update dialog. Its status select dispatches, so the modal re-renders
-    # against the status the responder has picked rather than the one the
-    # incident still holds. `state` is the view's values as Slack sends them
-    # back on that dispatch, and is empty on first open.
+    # `state` is the view's values as Slack sends them back on a status
+    # dispatch, empty on first open.
     module IncidentUpdate
       def self.build(incident, private_metadata: nil, state: {})
         workspace = incident.workspace
@@ -37,10 +35,8 @@ module Slack
         }
       end
 
-      # What the incident will hold once this is submitted, the status in front
-      # of the responder over the one it still has. Mirrors what
-      # Slack::FormSubmission builds on submit, so the fields the modal shows
-      # are the fields the submission then asks for.
+      # Mirrors what Slack::FormSubmission builds on submit, so the modal shows
+      # the fields the submission will ask for.
       def self.context_for(incident, workspace, picked_slug)
         base = IncidentConditionEvaluator.context_for(incident)
         return base if picked_slug.blank?

@@ -1,6 +1,5 @@
-# "status" doubled as the flag for an AI generation in flight, so a responder
-# setting in_progress by hand looked like a running job and a failed job
-# deleted the row. Generation now has its own column.
+# status doubled as the in-flight flag, so a hand-set in_progress looked like a running
+# job and a failed job deleted the row.
 class AddGenerationStateToPostmortems < ActiveRecord::Migration[8.1]
   def up
     add_column :postmortems, :generation_state, :string

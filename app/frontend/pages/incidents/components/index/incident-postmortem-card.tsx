@@ -44,8 +44,8 @@ export function IncidentPostmortemCard({
 }) {
   const canCreate = incidentLifecycleStage === LIFECYCLE_STAGES.CLOSED;
 
-  // Both land on the postmortem page when they succeed. The list of props only
-  // matters when the server sends the reader back here with an alert instead.
+  // Both land on the postmortem page on success. The prop list only matters
+  // when the server sends the reader back here with an alert.
   const postmortemProps = afterMutation(
     "hasPostmortem",
     "postmortemStatus",

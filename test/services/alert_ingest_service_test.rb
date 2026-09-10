@@ -165,7 +165,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     stub_update_message
 
     alert = @service.ingest(firing_fields, {})
-    # channel_id stores the conversation Slack resolved (matters for DMs)
+    # channel_id stores the conversation Slack resolved, which matters for DMs.
     assert alert.channel_id.present?
     alert.update!(last_notified_at: 2.minutes.ago)
 
@@ -346,8 +346,7 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     alert = @service.ingest(firing_fields, {})
     assert alert.channel_message_id.present?
 
-    # A partial routing failure leaves the alert pending with the digest
-    # already posted. The sweep's retry must not post again.
+    # A partial routing failure leaves the alert pending with the digest already posted, the retry must not post again.
     alert.update!(routing_state: Alert::ROUTING_PENDING)
     Slack::WorkspaceAdapter.any_instance.expects(:post_alert_message).never
     @service.route(alert.reload)

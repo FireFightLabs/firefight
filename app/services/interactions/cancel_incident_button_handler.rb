@@ -1,8 +1,6 @@
 module Interactions
-  # The Cancel button beside Accept in triage. Mirrors AcceptIncidentHandler:
-  # one click, no modal, because a false positive should cost nothing to
-  # dismiss. A workspace wanting to capture a reason attaches a field to the
-  # Cancel form, which routes through CancelIncidentHandler instead.
+  # One click, no modal, a false positive should cost nothing to dismiss. A
+  # workspace that attached a field to the Cancel form routes through CancelIncidentHandler instead.
   class CancelIncidentButtonHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE

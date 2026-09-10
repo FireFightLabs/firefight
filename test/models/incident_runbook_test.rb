@@ -24,9 +24,7 @@ class IncidentRunbookTest < ActiveSupport::TestCase
     incident = Incident.with_detail_associations.find(@incident.id)
     attachments = incident.incident_runbooks.to_a
 
-    # Counted per attachment rather than in total. How many queries the first
-    # load costs depends on what else the page preloaded, and that is not what
-    # this is about. The second attachment adding none is.
+    # Counted per attachment. The first load depends on what the page preloaded, the second adding none is the point.
     queries = 0
     counter = ->(*, payload) { queries += 1 unless payload[:name] == "SCHEMA" || payload[:cached] }
 

@@ -31,14 +31,12 @@ class AlertSourcesController < InertiaController
     redirect_to settings_alert_sources_path
   end
 
-  # The secret is fetched on demand (copy button), never embedded in page
-  # props, mirroring how API keys avoid shipping credentials on every render.
+  # Fetched on demand, never embedded in page props.
   def token
     render json: { token: @alert_source.secret_token }
   end
 
-  # The most recent raw payload, so the field-mapping UI can offer real keys
-  # to click instead of asking users to type paths blind.
+  # The latest raw payload, so the field mapping UI can offer real keys.
   def sample_payload
     alert = @alert_source.alerts.order(received_at: :desc).first
     render json: { payload: alert&.payload }
@@ -78,8 +76,7 @@ class AlertSourcesController < InertiaController
     end
   end
 
-  # {"critical" => severity_id}. Keys are free-form provider strings, values
-  # must be severities of this workspace.
+  # Keys are free-form provider strings, values must be this workspace's severities.
   def severity_map
     raw = params.dig(:alert_source, :severity_map).to_unsafe_h
     valid_ids = current_workspace.incident_severities.pluck(:id).to_set

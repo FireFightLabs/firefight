@@ -1,7 +1,7 @@
 class RefreshPlatformCredentialsJob < ApplicationJob
   queue_as :default
 
-  # Credentials expiring in the next 3 hours, leaving time to notice a failure.
+  # Leaves time to notice a failed refresh before the credential expires.
   REFRESH_BUFFER = 3.hours
 
   def perform

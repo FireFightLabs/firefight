@@ -1,7 +1,6 @@
 class CatalogEntry < ApplicationRecord
-  # The "attributes" column shadows ActiveRecord's #attributes method.
-  # Override the safety check so Rails does not raise DangerousAttributeError.
-  # Access the column via self[:attributes] or entry_attributes instead.
+  # The attributes column shadows ActiveRecord#attributes. Read it through
+  # self[:attributes] or entry_attributes.
   def self.instance_method_already_implemented?(method_name)
     return false if method_name.to_s.start_with?("attributes")
     super
@@ -29,25 +28,18 @@ class CatalogEntry < ApplicationRecord
   scope :search, ->(query) { where("catalog_entries.name ILIKE ?", "%#{sanitize_sql_like(query)}%") }
   scope :externally_managed, -> { where.not(source: nil) }
 
-  # Entries of one system type or several, the join every resolver was
-  # hand-writing. Alert routing and policy context both resolve through here.
   scope :in_system_type, ->(system_keys) { active.joins(:catalog_type).where(catalog_types: { system_key: system_keys }) }
 
   def entry_attributes
     self[:attributes] || {}
   end
 
-  # The value held by the attribute tagged with the given routing role, nil
-  # when the type has no attribute tagged or the entry left it empty.
   def role_value(role)
     slug = catalog_type.role_attribute(role)&.slug
     slug && entry_attributes[slug]
   end
 
-  # The outgoing relationships whose target still exists. Preloads targets
-  # and their types when the association is cold, and filters in memory when
-  # it is already loaded. Every resolver hopping to a related entry reads
-  # from here instead of re-filtering deleted targets itself.
+  # Filters in memory when the association is loaded, preloads otherwise.
   def active_outgoing_relationships
     relationships = outgoing_relationships
     relationships = relationships.includes(target_entry: :catalog_type) unless relationships.loaded?

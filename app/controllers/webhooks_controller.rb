@@ -24,9 +24,7 @@ class WebhooksController < InertiaController
     end
   end
 
-  # The secret leaves the server only when an admin asks for it, so it is not
-  # sitting in every page load of the settings screen waiting to be read out
-  # of the props.
+  # Read on demand so the secret is not in every settings page load.
   def signing_secret
     render json: { signingSecret: @webhook.signing_secret }
   end

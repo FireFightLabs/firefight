@@ -20,8 +20,8 @@ export function ProviderTile({
   onConnect: (provider: IntegrationProvider) => void
   onDetails: (integration: Integration) => void
 }) {
-  // One connection stays the plain Details-plus-switch tile. Several become a
-  // list, since a provider backing two accounts has no single on/off state.
+  // Several connections become a list, since a provider backing two accounts
+  // has no single on/off state.
   const single = integrations.length === 1 ? integrations[0] : null
   const connected = integrations.length > 0
 
@@ -82,8 +82,8 @@ export function ProviderTile({
             </Button>
           )}
         </div>
-        {/* The switch stands for the whole provider, so it only appears while
-            one connection can speak for it. Past that, each row owns its own. */}
+        {/* The switch speaks for the whole provider, so it only appears while
+            one connection can. */}
         {!connected && (
           <Switch
             checked={false}

@@ -22,8 +22,6 @@ module Slack
         blocks
       end
 
-      # Offered on every resolution. The context line names what the draft
-      # is built from.
       def self.postmortem_offer(incident)
         [
           {

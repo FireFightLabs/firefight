@@ -1,7 +1,5 @@
-# Turns a partial description of an approval rule (only the keys that
-# arrived, environments by slug from the API and MCP or by id from the
-# dashboard) into the attributes the rule stores. Absent keys keep what the
-# existing rule has, and a new rule without a role asks any admin.
+# Absent keys keep what the existing rule has. Environments arrive by slug
+# from the API and MCP, by id from the dashboard. A new rule without a role asks any admin.
 module PolicyRule::ApprovalRuleChanges
   CONDITION_KEYS = %i[abilities risk_levels environments environment_ids].freeze
   OUTCOME_KEYS = %i[approver_role self_approval notify approvers agents_may_approve].freeze

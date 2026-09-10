@@ -51,9 +51,8 @@ const OPTION_SOURCE_OPTIONS = [
   { value: "catalog", label: "From catalogue" },
 ] as const
 
-// The server owns which option sources each field type accepts. The map
-// arrives as a page prop from the same constant the model validates with,
-// so the dialog cannot drift from the rule.
+// The server owns which option sources each field type accepts. The map comes
+// from the same constant the model validates with, so the dialog cannot drift.
 export type OptionSourcesByFieldType = Record<string, string[]>
 
 function allowedOptionSources(optionSourcesByFieldType: OptionSourcesByFieldType, fieldType: string) {
@@ -94,9 +93,8 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes, optionSou
   const isEdit = Boolean(field)
   const form = useForm(fieldToFormData(field))
 
-  // Keyed on the open state as well as the row, because creating twice in a
-  // row leaves the row undefined both times. Without this the second Add
-  // dialog opens holding whatever the last one was filled in with.
+  // Keyed on open as well as the row, because creating twice leaves the row
+  // undefined both times and the second Add dialog would keep the first's values.
   const syncKey = open ? (field?.id ?? "new") : null
   useSyncFormData(syncKey, form, () => fieldToFormData(field))
 
@@ -107,14 +105,8 @@ export function FieldDialog({ open, onOpenChange, field, catalogTypes, optionSou
   const duplicateLabels = hasDuplicateLabels(form.data.options)
   const showCatalogType = optionSource === "catalog"
 
-  // Options and the catalogue type belong to the field type that was chosen
-  // when they were entered, so changing the type discards them rather than
-  // carrying a list built for one shape across to another.
-  //
-  // The sync key rides along because a reset lands a render later than the key
-  // change. Seeding from what the reset will produce, rather than from the
-  // values still on screen, is what stops opening a field for edit being mistaken
-  // for the user having changed its type.
+  // Options and the catalogue type belong to the type they were entered under, so a type change
+  // discards them. Seeding from what the reset produces stops opening for edit reading as a type change.
   const shape = useRef({ key: syncKey, fieldType, optionSource })
   if (shape.current.key !== syncKey) {
     const next = fieldToFormData(field)

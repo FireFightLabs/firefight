@@ -28,8 +28,7 @@ class IncidentActionService
     action
   end
 
-  # A step somebody has already touched is the item behind it, so claiming it
-  # is the same operation as claiming any other piece of work.
+  # A step somebody already touched is the item behind it, so claiming it is an ordinary claim.
   def assign_step(incident:, runbook_step:, assignee:, assigned_by:)
     existing = incident.incident_actions.active.find_by(runbook_step: runbook_step)
     return assign_action(action: existing, assignee: assignee, assigned_by: assigned_by) if existing
@@ -48,10 +47,8 @@ class IncidentActionService
     incident.incident_actions.active.find_by(runbook_step: runbook_step)
   end
 
-  # Taking a piece of work and handing it over differ only in who ends up
-  # holding it, so a caller that knows the assignee does not also have to
-  # decide which of the two this is. Returns the item either way, since the
-  # two verbs below return whatever their last message call did.
+  # Claiming and handing over differ only in who ends up holding the work, so
+  # callers do not have to pick. Returns the item either way.
   def assign_action(action:, assignee:, assigned_by:)
     if assignee == assigned_by && action.claimable?
       pick_up_action(action: action, picked_up_by: assigned_by)
@@ -95,12 +92,8 @@ class IncidentActionService
 
   private
 
-  # Editing a message notifies nobody, so giving work to someone else has to
-  # post. Taking it yourself does not, because you already know.
-  #
-  # An item holds exactly one message, the one carrying its controls. A handover
-  # either becomes that message or points at it, never posts a second set of
-  # controls that nothing would keep up to date.
+  # Editing a message notifies nobody, so a handover posts while taking it yourself does not.
+  # An item has exactly one message carrying its controls, a handover points at it rather than posting a second set.
   def announce_handover(action, actor)
     return if action.assignee == actor
     return adopt_handover_as_message(action, actor) if action.message_ts.blank?
@@ -122,8 +115,7 @@ class IncidentActionService
     action.update!(message_ts: result[:message_id])
   end
 
-  # Work spread across an incident is invisible if finishing it only edits a
-  # message nobody is looking at.
+  # Finishing work by only editing a message nobody is looking at is invisible.
   def announce_completion(action, completed_by)
     @workspace.adapter.post_action_completed(
       channel_id: action.incident.channel_id,
@@ -133,8 +125,7 @@ class IncidentActionService
     )
   end
 
-  # A link is a url and a label together or it is nothing, so it resolves to one
-  # value rather than two that callers have to keep in step.
+  # A link is a url and a label together or it is nothing.
   def origin_link(action)
     reference = action.origin_reference
     url = reference.url.presence || permalink(action.incident.channel_id, reference.message_ts)

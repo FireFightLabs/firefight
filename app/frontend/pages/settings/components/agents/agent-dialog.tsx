@@ -18,8 +18,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { gatewayAgentPath, gatewayAgentsPath } from "@/lib/routes"
 import type { Agent } from "@/types/serializers"
 
-// The slug is what a grant and the ledger record, so it is fixed once the
-// agent exists. Only the name and description are editable afterwards.
+// The slug is what grants and the ledger record, so it is fixed once the
+// agent exists.
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40)
 }
