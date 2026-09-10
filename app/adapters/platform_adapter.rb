@@ -82,6 +82,14 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Removes an ephemeral prompt once the flow it started has finished.
+  # `prompt_handle` is the opaque token the platform attached to the button
+  # click (Slack's `response_url`), carried through the modal's metadata.
+  # @return [Hash] { ok: true }
+  def dismiss_prompt(prompt_handle:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # The modals the app opens, by kind.
   module Modal
     INCIDENT_CREATION = :incident_creation

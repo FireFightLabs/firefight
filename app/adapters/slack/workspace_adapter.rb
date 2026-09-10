@@ -288,6 +288,12 @@ module Slack
       end
     end
 
+    def dismiss_prompt(prompt_handle:)
+      translate_errors do
+        Slack::Client.delete_original_response(response_url: prompt_handle)
+      end
+    end
+
     def self.refresh_expiring_credentials(buffer:)
       Slack::TokenManager.new.refresh_all_expiring(buffer: buffer)
     end

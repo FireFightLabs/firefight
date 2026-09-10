@@ -18,6 +18,7 @@ class Interactions::CreateActionItemFromReactionHandlerTest < ActiveSupport::Tes
         view = args[:view]
         view[:callback_id] == callback_id &&
           ModalState.parse(view[:private_metadata]).source_message_link == "https://workspace.slack.com/archives/C123/p123" &&
+          ModalState.parse(view[:private_metadata]).prompt_handle == "https://hooks.slack.com/actions/T123/456/abc" &&
           view[:blocks].first.dig(:element, :initial_value) == "The database is slow"
       end.returns({ ok: true, view: { id: "V12345678" } })
 
@@ -37,6 +38,7 @@ class Interactions::CreateActionItemFromReactionHandlerTest < ActiveSupport::Tes
     Interaction.new(
       platform: Platforms::SLACK, type: Interaction::BLOCK_ACTIONS, team_id: @workspace.platform_id,
       user_id: @member.platform_user_id, action_id: action_id, trigger_id: "12345.trigger",
+      prompt_handle: "https://hooks.slack.com/actions/T123/456/abc",
       action_value: { incident_id: incident_id, source_message_text: "The database is slow",
                       source_message_link: "https://workspace.slack.com/archives/C123/p123" }.to_json
     )

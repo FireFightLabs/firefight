@@ -1,7 +1,8 @@
 module Interactions
   # The message shortcut behind the :boom: and :arrow_forward: reactions.
   # Opens the matching form with the source message carried along so the
-  # description starts from it.
+  # description starts from it, and the prompt's handle so the submit
+  # handler can take the prompt down once the item exists.
   class CreateActionItemFromReactionHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS
@@ -19,7 +20,8 @@ module Interactions
       private_metadata = ModalState.encode(
         incident_id: incident.id,
         source_message_text: metadata["source_message_text"],
-        source_message_link: metadata["source_message_link"]
+        source_message_link: metadata["source_message_link"],
+        prompt_handle: interaction.prompt_handle
       )
 
       workspace.adapter.open_action_item_modal(

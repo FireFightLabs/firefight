@@ -15,6 +15,7 @@ module Slack
         selected_user: payload.dig(:actions, 0, :selected_user),
         action_value: payload.dig(:actions, 0, :value),
         block_id: payload.dig(:actions, 0, :block_id),
+        prompt_handle: payload[:response_url],
         private_metadata: payload.dig(:view, :private_metadata),
         view: payload[:view],
         view_id: payload.dig(:view, :id),

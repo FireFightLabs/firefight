@@ -162,6 +162,33 @@ class Slack::ClientTest < ActiveSupport::TestCase
     assert_equal "token_revoked", error.error_code
   end
 
+  test "delete_original_response posts delete_original to the response_url without a token" do
+    pool = mock_pool
+    pool.expects(:request).with do |uri, request|
+      uri.to_s == "https://hooks.slack.com/actions/T1/2/abc" &&
+        request["Authorization"].nil? &&
+        JSON.parse(request.body) == { "delete_original" => true }
+    end.returns(http_response(200, "ok", content_type: "text/plain"))
+
+    assert_equal({ ok: true }, Slack::Client.delete_original_response(response_url: "https://hooks.slack.com/actions/T1/2/abc"))
+  end
+
+  test "delete_original_response refuses a response_url off hooks.slack.com" do
+    Slack::Client.expects(:http_pool).never
+    assert_raises(AdapterError) do
+      Slack::Client.delete_original_response(response_url: "https://evil.example.com/actions/T1/2/abc")
+    end
+  end
+
+  test "delete_original_response surfaces a non-2xx reply as an AdapterError" do
+    pool = mock_pool
+    pool.expects(:request).returns(http_response(404, "expired_url", content_type: "text/plain"))
+
+    assert_raises(AdapterError) do
+      Slack::Client.delete_original_response(response_url: "https://hooks.slack.com/actions/T1/2/abc")
+    end
+  end
+
   test "download_file refuses non-slack.com hosts" do
     assert_raises(AdapterError::UnsafeDownloadHost) do
       Slack::Client.download_file(workspace: @workspace, url: "https://evil.example.com/leak")
