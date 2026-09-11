@@ -18,6 +18,11 @@ default: &default
       threads: 3
       processes: <%= ENV.fetch("WEBHOOK_JOB_CONCURRENCY", 1) %>
       polling_interval: 0.5
+    # Dedicated worker for investigations, a long run must not starve the short queues
+    - queues: investigations
+      threads: 3
+      processes: <%= ENV.fetch("INVESTIGATION_JOB_CONCURRENCY", 1) %>
+      polling_interval: 0.5
     # Default worker for all other queues
     - queues: "*"
       threads: 3

@@ -30,6 +30,9 @@ class AbilityGateway
   # For callers that finalize after their own execution, such as the API's
   # around_action. No-ops when nothing was ledgered.
   class Authorization
+    # An investigation step stores this id as the receipt for what it ran.
+    attr_reader :invocation
+
     def initialize(invocation)
       @invocation = invocation
       @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)

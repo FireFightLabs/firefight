@@ -37,6 +37,7 @@ class InteractionDispatcher
     Identifiers::SET_INCIDENT_LEAD_SELF => Interactions::SetLeadSelfHandler,
     Identifiers::UPDATE_INCIDENT_SUMMARY => Interactions::UpdateSummaryButtonHandler,
     Identifiers::ESCALATE_INCIDENT => Interactions::EscalateIncidentButtonHandler,
+    Identifiers::START_INVESTIGATION => Interactions::StartInvestigationButtonHandler,
     Identifiers::SEND_INCIDENT_UPDATE => Interactions::SendIncidentUpdateButtonHandler,
     Identifiers::PICK_UP_ACTION => Interactions::PickUpActionHandler,
     Identifiers::MARK_ACTION_DONE => Interactions::MarkActionDoneHandler,

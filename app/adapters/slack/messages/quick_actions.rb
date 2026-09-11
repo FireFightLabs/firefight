@@ -54,6 +54,15 @@ module Slack
           value: incident.id
         }
 
+        if Investigation.available_for?(incident.workspace)
+          result << {
+            type: "button",
+            text: { type: "plain_text", text: ":mag: Investigate", emoji: true },
+            action_id: Identifiers::START_INVESTIGATION,
+            value: incident.id
+          }
+        end
+
         result << {
           type: "button",
           text: { type: "plain_text", text: ":fire_engine: Escalate", emoji: true },

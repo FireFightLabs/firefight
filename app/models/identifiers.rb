@@ -57,6 +57,7 @@ module Identifiers
   SUBCOMMAND_SHOUTOUT   = "shoutout"
   SUBCOMMAND_RUNBOOK    = "runbook"
   SUBCOMMAND_RUNBOOKS   = "runbooks"
+  SUBCOMMAND_INVESTIGATE = "investigate"
 
   # Home modal action values
   HOME_ACTION_NEW        = "new"
@@ -96,6 +97,7 @@ module Identifiers
   ROLE_BLOCK_PREFIX = "role_block_"
   UPDATE_INCIDENT_SUMMARY = "update_incident_summary"
   ESCALATE_INCIDENT = "escalate_incident"
+  START_INVESTIGATION = "start_investigation"
   PICK_UP_ACTION = "pick_up_action"
   MARK_ACTION_DONE = "mark_action_done"
   ADD_NEW_ACTION = "add_new_action"

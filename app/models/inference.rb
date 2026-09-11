@@ -2,7 +2,9 @@ class Inference < ApplicationRecord
   STATUS_SUCCESS = "success"
   STATUS_ERROR   = "error"
 
-  CONTEXT_KEYS = %i[workspace feature provider model inferable member api_key].freeze
+  CONTEXT_KEYS = %i[
+    workspace feature provider model inferable member api_key prompt_template prompt_version
+  ].freeze
 
   belongs_to :workspace
   belongs_to :member, class_name: "WorkspaceMembership", optional: true

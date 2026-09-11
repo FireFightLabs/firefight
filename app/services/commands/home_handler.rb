@@ -35,7 +35,8 @@ module Commands
       Identifiers::SUBCOMMAND_LIST => Commands::ListActiveIncidents,
       Identifiers::SUBCOMMAND_SHOUTOUT => Commands::GiveShoutout,
       Identifiers::SUBCOMMAND_RUNBOOK => Commands::AttachRunbook,
-      Identifiers::SUBCOMMAND_RUNBOOKS => Commands::AttachRunbook
+      Identifiers::SUBCOMMAND_RUNBOOKS => Commands::AttachRunbook,
+      Identifiers::SUBCOMMAND_INVESTIGATE => Commands::StartInvestigation
     }.freeze
 
     SUBCOMMANDS = SUBCOMMAND_HANDLERS.keys.freeze

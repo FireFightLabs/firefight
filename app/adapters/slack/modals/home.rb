@@ -16,7 +16,8 @@ module Slack
         "postmortem" => "*Generate postmortem*\n\nUsage: `/ff postmortem`\nGenerate a postmortem document from the incident timeline.",
         "timeline" => "*View timeline*\n\nUsage: `/ff timeline`\nSee the full history of incident events.",
         "list" => "*List active incidents*\n\nUsage: `/ff list`\nShow all currently open incidents.",
-        "catchup" => "*AI incident catchup*\n\nUsage: `/ff catchup`\nGet an AI-generated summary of the current incident."
+        "catchup" => "*AI incident catchup*\n\nUsage: `/ff catchup`\nGet an AI-generated summary of the current incident.",
+        Identifiers::SUBCOMMAND_INVESTIGATE => "*Investigate the incident*\n\nUsage: `/ff investigate`\nFirefight looks into what broke and posts what it finds, with the evidence behind it."
       }.freeze
 
       def self.build(channel_id:)
