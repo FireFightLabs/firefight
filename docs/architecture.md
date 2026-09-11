@@ -372,6 +372,23 @@ Entitlements.check(workspace, feature)              # → Result (allowed? + mes
 - The proprietary cloud build swaps in its own backend (trial state, credit caps) via `Entitlements.backend=`. That code lives in the private `firefight_cloud` gem, loaded only when the Gemfile's `FIREFIGHT_CLOUD` env flag is set at build time — it is never bundled or locked for self-hosters, and the app must always run without it.
 - Rules: gate new premium-capable features through `Entitlements.allows?` with a new feature constant; never reference `firefight_cloud` from app code; never make core behavior depend on the gem's presence.
 
+## Feature flags (unreleased work)
+
+Work that is not ready for everyone hides behind `FeatureFlags` (`app/models/feature_flags.rb`), backed by Flipper with its ActiveRecord adapter:
+
+```ruby
+FeatureFlags.enabled?(workspace, FeatureFlags::AI_SRE)   # → true/false
+```
+
+- Every flag is off for every workspace until an operator turns it on. Unlike `Entitlements`, this holds on self-hosted installs too, so unfinished work never reaches anyone by default.
+- Operators switch flags with rake, never from the dashboard: `bin/rails 'feature_flags:enable[ai_sre,WORKSPACE_ID]'`, `feature_flags:disable[...]`, and `feature_flags:list`.
+- A flag is a constant on `FeatureFlags` listed in `FeatureFlags::ALL`. Any other name raises `FeatureFlags::UnknownFlag`.
+- Only `FeatureFlags` may name `Flipper` (ArchSpec). State lives in the `flipper_features` and `flipper_gates` tables. Flipper Cloud is never configured, and its routes only mount when `FLIPPER_CLOUD_TOKEN` and `FLIPPER_CLOUD_SYNC_SECRET` are both set.
+- Flags are checked lazily per request (`preload = false` in `config/initializers/flipper.rb`), so a request that never asks costs no query.
+- Flipper caps actor gates at 100 workspaces per flag (`config.flipper.actor_limit`). A flag that needs more than that is ready to ship.
+- Shipping a feature means deleting its constant and every check, then gating it with `Entitlements` if it is premium-capable.
+- Tests run on Flipper's in-memory adapter, reset before every test. Turn a flag on with `FeatureFlags.enable!(workspace, flag)`.
+
 ## Identifiers
 
 All callback_ids, action_ids, and subcommand strings are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, `Identifiers::SUBCOMMAND_CLOSE`, etc.
