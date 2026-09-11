@@ -40,8 +40,15 @@ component :dispatchers, in: DISPATCHER_FILES
 component :slack_auth, in: SLACK_AUTH_FILES
 component :handlers, in: "app/services/{commands,interactions,events}/**/*.rb"
 component :services, in: plain_services + %w[app/services/webhooks/**/*.rb app/services/catalogue/**/*.rb]
-component :models, in: "app/models/**/*.rb"
 component :serializers, in: "app/serializers/**/*.rb"
+
+# The only file allowed to use Flipper.
+FEATURE_FLAG_FILES = %w[app/models/feature_flags.rb].freeze
+
+model_files = Dir.chdir(__dir__) { Dir.glob("app/models/**/*.rb") }.sort - FEATURE_FLAG_FILES
+
+component :models, in: model_files
+component :feature_flags, in: FEATURE_FLAG_FILES
 
 # The one file outside a platform directory allowed to name platform adapters.
 PLATFORM_FACTORY_FILES = %w[app/adapters/workspace_adapter.rb].freeze
@@ -116,3 +123,10 @@ firefight_ai_engine.can_only_use :models, :firefight_ai_engine
 
 # Provider clients and credential shapes stay behind the integrations layer.
 integration_clients.can_only_be_used_by :integrations_layer
+
+feature_flags.can_only_use :models
+
+# Keep last, the Flipper ban only covers components declared above.
+(component_specs.keys - [ :feature_flags ]).each do |component_name|
+  send(component_name).cannot_reference_constants "Flipper"
+end

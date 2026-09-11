@@ -65,6 +65,10 @@ gem "net-http-persistent"
 # AI intelligence layer (postmortem generation, incident Q&A, integrations)
 gem "firefight_ai", path: "engines/firefight_ai"
 
+# Feature flags for unreleased work
+gem "flipper", "~> 1.4"
+gem "flipper-active_record", "~> 1.4"
+
 # Proprietary cloud layer — present only when the cloud build sets FIREFIGHT_CLOUD.
 # Never bundled or locked for self-hosters; the app runs without it. Pins to a
 # ref when FIREFIGHT_CLOUD_REF is set (prod), else tracks the main branch (dev).
