@@ -34,7 +34,7 @@ gem "thruster", require: false
 # ruby-vips is the binding for the libvips system library, which backs the
 # default :vips variant processor. Active Storage loads it during boot to turn
 # off libvips's unfuzzed loaders, so the gem and the library are both required.
-gem "image_processing", "~> 2.0"
+gem "image_processing", "~> 2.1"
 gem "ruby-vips", "~> 2.0"
 gem "aws-sdk-s3", require: false
 

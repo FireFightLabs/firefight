@@ -224,7 +224,7 @@ GEM
       multi_xml (>= 0.5.2)
     i18n (1.15.2)
       concurrent-ruby (~> 1.0)
-    image_processing (2.0.3)
+    image_processing (2.1.0)
     inertia_rails (3.22.0)
       railties (>= 6)
     io-console (0.9.2)
@@ -826,7 +826,7 @@ DEPENDENCIES
   flipper (~> 1.4)
   flipper-active_record (~> 1.4)
   httparty
-  image_processing (~> 2.0)
+  image_processing (~> 2.1)
   inertia_rails (~> 3.19)
   jbuilder
   js-routes (~> 2.3)
