@@ -1,5 +1,16 @@
 {
   "enabledPlugins": {
     "layered-rails@palkan-skills": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bin/rails test *)",
+      "Bash(bundle exec rubocop *)",
+      "Bash(bundle exec archspec *)",
+      "Bash(npm run lint)",
+      "Bash(bin/brakeman *)",
+      "Bash(npx tsc -p tsconfig.app.json --noEmit)",
+      "Bash(git fetch *)"
+    ]
   }
 }
