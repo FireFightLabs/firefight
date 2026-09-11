@@ -1,5 +1,3 @@
-# Hides unreleased features from every workspace until an operator turns one on.
-# Unlike Entitlements this also applies to self-hosted installs.
 module FeatureFlags
   class UnknownFlag < ArgumentError; end
 
