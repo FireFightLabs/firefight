@@ -65,7 +65,7 @@ gem "net-http-persistent"
 # AI intelligence layer (postmortem generation, incident Q&A, integrations)
 gem "firefight_ai", path: "engines/firefight_ai"
 
-# Per-workspace flags for unreleased features, stored in our own Postgres. Flipper Cloud is never configured.
+# Feature flags for unreleased work
 gem "flipper", "~> 1.4"
 gem "flipper-active_record", "~> 1.4"
 
