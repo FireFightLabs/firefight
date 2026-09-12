@@ -138,6 +138,7 @@ Controller → Dispatcher → Handler → Service → Adapter → Slack::Client
 - Every privileged operation goes through `AbilityGateway.authorize!`, never an inline permission check. **Config ≠ permission**: a grant and a wired `IntegrationEnvironment` are both required, and the gateway asks `action.configured_for?(scope)` rather than reaching into the integrations layer.
 - Machines never inherit a human's reach: service keys and `Agent` principals hold only explicit grants, whatever their creator can do.
 - Adding an integration provider is an entry in `config/integration_providers.yml` plus env vars, never new code. Discovered tools arrive disabled; enabling one mints exactly one action.
+- **AI SRE records live in the app, the reasoning lives in the engine.** `Investigation` and its nested `Investigation::Hypothesis`, `Investigation::Step` and `Investigation::Finding` are app models, because the dashboard, the API and MCP all read them. `engines/firefight_ai` never names them (ArchSpec enforces it): it takes plain input, returns plain results, and the app writes the rows. New AI SRE data joins that family rather than becoming another top-level name.
 - Secrets never enter the session, an MCP tool response, or the ledger. Credential shapes are owned by `Integrations::OauthClient`; only `IntegrationEnvironment` persists them.
 
 ## Testing

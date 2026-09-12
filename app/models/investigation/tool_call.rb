@@ -8,12 +8,12 @@ class Investigation::ToolCall
   Result = Data.define(:step, :value)
 
   def self.run!(investigation, principal:, action_key:, params: {}, hypothesis: nil, reasoning: nil)
-    step = investigation.investigation_steps.create!(
+    step = investigation.steps.create!(
       hypothesis: hypothesis,
       action_key: action_key,
       params: params,
       reasoning: reasoning,
-      status: InvestigationStep::STATUS_RUNNING,
+      status: Investigation::Step::STATUS_RUNNING,
       started_at: Time.current
     )
 

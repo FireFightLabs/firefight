@@ -45,7 +45,7 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
       max_turns: 4, max_spend_cents: 400
     )
     hypothesis = investigation.hypotheses.create!(assertion: "The deploy broke it", position: 1)
-    investigation.investigation_steps.create!(
+    investigation.steps.create!(
       hypothesis: hypothesis,
       action_key: Ability::Action.system_key(
         Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ

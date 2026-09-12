@@ -328,28 +328,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_120002) do
     t.index ["workspace_id"], name: "index_catalog_types_on_workspace_id"
   end
 
-  create_table "findings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.decimal "confidence", precision: 3, scale: 2
-    t.jsonb "confidence_factors", default: {}, null: false
-    t.datetime "created_at", null: false
-    t.jsonb "evidence", default: [], null: false
-    t.uuid "investigation_id", null: false
-    t.string "outcome"
-    t.datetime "outcome_at"
-    t.uuid "outcome_by_id"
-    t.string "outcome_by_type"
-    t.jsonb "proposed_solution", default: {}, null: false
-    t.datetime "published_at"
-    t.string "published_state", default: "unpublished", null: false
-    t.string "remediation_type"
-    t.text "summary"
-    t.datetime "updated_at", null: false
-    t.uuid "winning_hypothesis_id"
-    t.index ["investigation_id"], name: "index_findings_on_investigation_id", unique: true
-    t.index ["outcome_by_type", "outcome_by_id"], name: "index_findings_on_outcome_by"
-    t.index ["winning_hypothesis_id"], name: "index_findings_on_winning_hypothesis_id"
-  end
-
   create_table "flipper_features", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "key", null: false
@@ -364,22 +342,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_120002) do
     t.datetime "updated_at", null: false
     t.text "value"
     t.index ["feature_key", "key", "value"], name: "index_flipper_gates_on_feature_key_and_key_and_value", unique: true
-  end
-
-  create_table "hypotheses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.text "assertion", null: false
-    t.uuid "catalog_entry_id"
-    t.decimal "confidence", precision: 3, scale: 2
-    t.datetime "created_at", null: false
-    t.uuid "investigation_id", null: false
-    t.integer "max_turns"
-    t.integer "position", null: false
-    t.string "specialist"
-    t.string "status", default: "open", null: false
-    t.datetime "updated_at", null: false
-    t.index ["catalog_entry_id"], name: "index_hypotheses_on_catalog_entry_id"
-    t.index ["investigation_id", "position"], name: "index_hypotheses_on_investigation_id_and_position", unique: true
-    t.index ["investigation_id"], name: "index_hypotheses_on_investigation_id"
   end
 
   create_table "idempotency_keys", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -899,6 +861,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_120002) do
     t.index ["workspace_id", "slug"], name: "index_integrations_on_active_slug", unique: true, where: "(deleted_at IS NULL)"
   end
 
+  create_table "investigation_findings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.decimal "confidence", precision: 3, scale: 2
+    t.jsonb "confidence_factors", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.jsonb "evidence", default: [], null: false
+    t.uuid "investigation_id", null: false
+    t.string "outcome"
+    t.datetime "outcome_at"
+    t.uuid "outcome_by_id"
+    t.string "outcome_by_type"
+    t.jsonb "proposed_solution", default: {}, null: false
+    t.datetime "published_at"
+    t.string "published_state", default: "unpublished", null: false
+    t.string "remediation_type"
+    t.text "summary"
+    t.datetime "updated_at", null: false
+    t.uuid "winning_hypothesis_id"
+    t.index ["investigation_id"], name: "index_investigation_findings_on_investigation_id", unique: true
+    t.index ["outcome_by_type", "outcome_by_id"], name: "index_investigation_findings_on_outcome_by"
+    t.index ["winning_hypothesis_id"], name: "index_investigation_findings_on_winning_hypothesis_id"
+  end
+
+  create_table "investigation_hypotheses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "assertion", null: false
+    t.uuid "catalog_entry_id"
+    t.decimal "confidence", precision: 3, scale: 2
+    t.datetime "created_at", null: false
+    t.uuid "investigation_id", null: false
+    t.integer "max_turns"
+    t.integer "position", null: false
+    t.string "specialist"
+    t.string "status", default: "open", null: false
+    t.datetime "updated_at", null: false
+    t.index ["catalog_entry_id"], name: "index_investigation_hypotheses_on_catalog_entry_id"
+    t.index ["investigation_id", "position"], name: "index_investigation_hypotheses_on_investigation_and_position", unique: true
+    t.index ["investigation_id"], name: "index_investigation_hypotheses_on_investigation_id"
+  end
+
   create_table "investigation_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "action_key"
     t.text "compacted_result"
@@ -1312,10 +1312,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_120002) do
   add_foreign_key "catalog_entry_relationships", "catalog_entries", column: "target_entry_id"
   add_foreign_key "catalog_entry_relationships", "workspaces"
   add_foreign_key "catalog_types", "workspaces"
-  add_foreign_key "findings", "hypotheses", column: "winning_hypothesis_id"
-  add_foreign_key "findings", "investigations"
-  add_foreign_key "hypotheses", "catalog_entries"
-  add_foreign_key "hypotheses", "investigations"
   add_foreign_key "idempotency_keys", "workspaces"
   add_foreign_key "incident_action_updates", "incident_actions"
   add_foreign_key "incident_action_updates", "incidents"
@@ -1376,7 +1372,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_120002) do
   add_foreign_key "integration_environments", "integrations"
   add_foreign_key "integration_tools", "integrations"
   add_foreign_key "integrations", "workspaces"
-  add_foreign_key "investigation_steps", "hypotheses"
+  add_foreign_key "investigation_findings", "investigation_hypotheses", column: "winning_hypothesis_id"
+  add_foreign_key "investigation_findings", "investigations"
+  add_foreign_key "investigation_hypotheses", "catalog_entries"
+  add_foreign_key "investigation_hypotheses", "investigations"
+  add_foreign_key "investigation_steps", "investigation_hypotheses", column: "hypothesis_id"
   add_foreign_key "investigation_steps", "investigations"
   add_foreign_key "investigations", "incidents"
   add_foreign_key "investigations", "workspaces"

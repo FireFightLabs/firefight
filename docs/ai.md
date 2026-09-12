@@ -119,9 +119,9 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | Piece | Holds |
 |---|---|
 | `Investigation` | one run: trigger, who asked, budget, status |
-| `Hypothesis` | one theory |
-| `InvestigationStep` | one tool call |
-| `Finding` | the one answer, with its named confidence factors |
+| `Investigation::Hypothesis` | one theory |
+| `Investigation::Step` | one tool call |
+| `Investigation::Finding` | the one answer, with its named confidence factors |
 | `Investigation::ToolCall` | the gateway wrapper every tool call goes through |
 | `InvestigationService` / `InvestigationJob` | starts a run, runs it on the `investigations` queue |
 | `Commands::StartInvestigation` / `Interactions::StartInvestigationButtonHandler` | the two entry points |

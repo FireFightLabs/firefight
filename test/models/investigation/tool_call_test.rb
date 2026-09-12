@@ -22,7 +22,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
 
     step = result.step
     assert_equal "the deploy at 10:01", result.value
-    assert_equal InvestigationStep::STATUS_SUCCEEDED, step.status
+    assert_equal Investigation::Step::STATUS_SUCCEEDED, step.status
     assert_equal "the deploy at 10:01", step.compacted_result
     assert_not_nil step.completed_at
 
@@ -35,7 +35,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
   test "the ledger says the work came from an investigation, not from a click" do
     Investigation::ToolCall.run!(@investigation, principal: @member, action_key: CREATE_KEY) { "done" }
 
-    step = @investigation.investigation_steps.sole
+    step = @investigation.steps.sole
     invocation = Ability::Invocation.find(step.invocation_id)
 
     assert_equal AbilityGateway::SOURCE_INVESTIGATION, invocation.source
@@ -49,8 +49,8 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
       end
     end
 
-    step = @investigation.investigation_steps.sole
-    assert_equal InvestigationStep::STATUS_FAILED, step.status
+    step = @investigation.steps.sole
+    assert_equal Investigation::Step::STATUS_FAILED, step.status
     assert_equal "RuntimeError", step.error_summary
     assert_nil step.compacted_result, "a failure is not a result"
 
@@ -68,8 +68,8 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
     end
 
     assert_not ran
-    step = @investigation.investigation_steps.sole
-    assert_equal InvestigationStep::STATUS_FAILED, step.status
+    step = @investigation.steps.sole
+    assert_equal Investigation::Step::STATUS_FAILED, step.status
     assert_equal "Denied", step.error_summary
     assert_nil step.invocation_id
   end
@@ -101,6 +101,6 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
     3.times { |index| Investigation::ToolCall.run!(@investigation, principal: @member, action_key: CREATE_KEY) { "call #{index}" } }
 
     assert_equal [ "call 0", "call 1", "call 2" ],
-                 @investigation.investigation_steps.reload.map(&:compacted_result)
+                 @investigation.steps.reload.map(&:compacted_result)
   end
 end

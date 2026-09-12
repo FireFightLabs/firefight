@@ -25,7 +25,7 @@ class CreateInvestigations < ActiveRecord::Migration[8.1]
               where: "status IN ('pending', 'running')", name: "index_investigations_on_live_incident"
     add_index :investigations, [ :workspace_id, :created_at ]
 
-    create_table :hypotheses, id: :uuid do |t|
+    create_table :investigation_hypotheses, id: :uuid do |t|
       t.references :investigation, type: :uuid, null: false, foreign_key: true
       t.references :catalog_entry, type: :uuid, foreign_key: true
       t.text :assertion, null: false
@@ -36,13 +36,14 @@ class CreateInvestigations < ActiveRecord::Migration[8.1]
       t.integer :max_turns
       t.timestamps
     end
-    add_index :hypotheses, [ :investigation_id, :position ], unique: true
+    add_index :investigation_hypotheses, [ :investigation_id, :position ], unique: true,
+              name: "index_investigation_hypotheses_on_investigation_and_position"
 
     # Steps are ordered by when they happened. Branches run in parallel, so a shared
     # counter would be a number two of them fight over.
     create_table :investigation_steps, id: :uuid do |t|
       t.references :investigation, type: :uuid, null: false, foreign_key: true
-      t.references :hypothesis, type: :uuid, foreign_key: true
+      t.references :hypothesis, type: :uuid, foreign_key: { to_table: :investigation_hypotheses }
       t.string :action_key
       t.jsonb :params, null: false, default: {}
       # No foreign key, so pruning the ledger cannot delete a step's receipt.
@@ -58,9 +59,10 @@ class CreateInvestigations < ActiveRecord::Migration[8.1]
     end
     add_index :investigation_steps, [ :investigation_id, :created_at ]
 
-    create_table :findings, id: :uuid do |t|
+    create_table :investigation_findings, id: :uuid do |t|
       t.references :investigation, type: :uuid, null: false, foreign_key: true, index: { unique: true }
-      t.references :winning_hypothesis, type: :uuid, foreign_key: { to_table: :hypotheses }
+      t.references :winning_hypothesis, type: :uuid,
+                   foreign_key: { to_table: :investigation_hypotheses }
       t.references :outcome_by, type: :uuid, polymorphic: true
       t.text :summary
       t.string :remediation_type

@@ -1,4 +1,6 @@
-class Hypothesis < ApplicationRecord
+class Investigation::Hypothesis < ApplicationRecord
+  self.table_name = "investigation_hypotheses"
+
   STATUS_OPEN = "open"
   STATUS_SUPPORTED = "supported"
   STATUS_REFUTED = "refuted"
@@ -6,7 +8,7 @@ class Hypothesis < ApplicationRecord
 
   belongs_to :investigation
   belongs_to :catalog_entry, optional: true
-  has_many :investigation_steps, dependent: :nullify, inverse_of: :hypothesis
+  has_many :steps, class_name: "Investigation::Step", dependent: :nullify, inverse_of: :hypothesis
 
   validates :assertion, presence: true
   validates :status, inclusion: { in: STATUSES }

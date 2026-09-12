@@ -1,4 +1,6 @@
-class InvestigationStep < ApplicationRecord
+class Investigation::Step < ApplicationRecord
+  self.table_name = "investigation_steps"
+
   STATUS_PENDING = "pending"
   STATUS_RUNNING = "running"
   STATUS_SUCCEEDED = "succeeded"
@@ -6,7 +8,7 @@ class InvestigationStep < ApplicationRecord
   STATUSES = [ STATUS_PENDING, STATUS_RUNNING, STATUS_SUCCEEDED, STATUS_FAILED ].freeze
 
   belongs_to :investigation
-  belongs_to :hypothesis, optional: true
+  belongs_to :hypothesis, class_name: "Investigation::Hypothesis", optional: true
 
   # Tool output is the customer's data, and a replay needs it in full.
   encrypts :raw_result

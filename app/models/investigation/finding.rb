@@ -1,4 +1,6 @@
-class Finding < ApplicationRecord
+class Investigation::Finding < ApplicationRecord
+  self.table_name = "investigation_findings"
+
   STATE_UNPUBLISHED = "unpublished"
   STATE_PUBLISHED = "published"
   # Below the workspace's confidence bar, or holding instruction-like evidence.
@@ -21,7 +23,7 @@ class Finding < ApplicationRecord
   ].freeze
 
   belongs_to :investigation
-  belongs_to :winning_hypothesis, class_name: "Hypothesis", optional: true
+  belongs_to :winning_hypothesis, class_name: "Investigation::Hypothesis", optional: true
   belongs_to :outcome_by, polymorphic: true, optional: true
 
   validates :published_state, inclusion: { in: STATES }

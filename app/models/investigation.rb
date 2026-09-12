@@ -20,9 +20,11 @@ class Investigation < ApplicationRecord
   belongs_to :triggered_by, polymorphic: true, optional: true
 
   # Destroyed in declaration order, so the rows holding a hypothesis id go first.
-  has_one :finding, dependent: :destroy
-  has_many :investigation_steps, -> { ordered }, dependent: :destroy, inverse_of: :investigation
-  has_many :hypotheses, -> { ordered }, dependent: :destroy, inverse_of: :investigation
+  has_one :finding, class_name: "Investigation::Finding", dependent: :destroy
+  has_many :steps, -> { ordered }, class_name: "Investigation::Step",
+           dependent: :destroy, inverse_of: :investigation
+  has_many :hypotheses, -> { ordered }, class_name: "Investigation::Hypothesis",
+           dependent: :destroy, inverse_of: :investigation
 
   validates :status, inclusion: { in: STATUSES }
   validates :trigger_source, inclusion: { in: TRIGGER_SOURCES }
