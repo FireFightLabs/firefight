@@ -42,16 +42,16 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
 
     investigation = @workspace.investigations.create!(
       incident: incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @membership,
-      max_turns: 4, max_tokens: 1_000, confidence_threshold: 0.7
+      max_turns: 4, max_spend_cents: 400
     )
     hypothesis = investigation.hypotheses.create!(assertion: "The deploy broke it", position: 1)
     investigation.investigation_steps.create!(
-      position: 1, hypothesis: hypothesis,
+      hypothesis: hypothesis,
       action_key: Ability::Action.system_key(
         Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ
       )
     )
-    Finding.create!(investigation: investigation, winning_hypothesis: hypothesis, summary: "The deploy broke it")
+    investigation.create_finding!(winning_hypothesis: hypothesis, summary: "The deploy broke it")
 
     oauth_app = Doorkeeper::Application.create!(name: "Test agent", redirect_uri: "https://example.test/callback")
     Doorkeeper::AccessToken.create!(application: oauth_app, resource_owner_id: @membership.id, token: SecureRandom.hex(16))

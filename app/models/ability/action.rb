@@ -28,8 +28,8 @@ module Ability
     RESOURCE_API_KEYS = "api_keys"
     RESOURCE_PERMISSIONS = "permissions"
     RESOURCE_WORKSPACE = "workspace"
-    # Starting one spends money and posts in the channel, so it is granted on its own
-    # rather than riding along with updating an incident.
+    # Its own resource. An investigation spends tokens and posts in the channel,
+    # which updating an incident does not.
     RESOURCE_INVESTIGATIONS = "investigations"
 
     # Nobody can be granted these, so a member or an agent can never mint keys

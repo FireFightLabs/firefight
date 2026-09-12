@@ -12,12 +12,10 @@ class InvestigationStep < ApplicationRecord
   encrypts :raw_result
   encrypts :compacted_result
 
-  validates :position, numericality: { only_integer: true, greater_than: 0 }
   validates :status, inclusion: { in: STATUSES }
 
-  scope :ordered, -> { order(:position) }
+  scope :ordered, -> { order(:created_at, :id) }
 
-  # Reasoning is why the step was taken, so it is set when the step is created, not here.
   def succeed!(compacted_result:, raw_result: nil)
     update!(
       status: STATUS_SUCCEEDED, compacted_result: compacted_result, raw_result: raw_result,
@@ -25,8 +23,10 @@ class InvestigationStep < ApplicationRecord
     )
   end
 
+  # The reason goes in its own column, so it is readable in a query and no branch
+  # reads it back as something a tool returned.
   def fail!(reason)
     reason = reason.class.name.demodulize unless reason.is_a?(String)
-    update!(status: STATUS_FAILED, compacted_result: reason, completed_at: Time.current)
+    update!(status: STATUS_FAILED, error_summary: reason, completed_at: Time.current)
   end
 end

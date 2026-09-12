@@ -114,17 +114,30 @@ Dismissal is error correction, not deletion. `IncidentEvent#dismiss!(by:)` stamp
 
 ## Investigator
 
-An investigation is a record, not a conversation. `Investigation` holds the run (trigger, principal, budget, status), `Hypothesis` holds one theory each, `InvestigationStep` holds one tool call each, and `Finding` holds the single answer with its named confidence factors. Evidence is always a reference (a ledger invocation, a PR, a file range, an incident), never a copied blob.
+Phase 1 of the AI SRE build. Where the pieces are:
 
-- **Two entry points, one rule.** `/ff investigate` and the Investigate button both call `InvestigationService#start`. Whether a run may happen at all is `Investigation.unavailable_reason(workspace)` (the build has the engine, the workspace has `FeatureFlags::AI_SRE`, entitlements allow AI), and whether this incident may be investigated is `Incident#investigation_blocked_reason`. Neither entry point re-derives either.
-- **One live run per incident.** A partial unique index on `incident_id` over the live statuses is the real guard, so a second request loses the insert and the caller attaches to the run already going. `Investigation#claim_running!` and `#finish!` are single guarded statements, so two workers cannot both run the same row and a crash mid-run resumes instead of duplicating.
-- **Every tool call goes through the gateway.** `Investigation::ToolCall.run!` writes the step, authorizes, stores the ledger invocation id on the step, runs the tool, then finalizes the ledger row and the step together. A refusal fails the step. The full output stays on the step, encrypted, and never reaches the ledger.
-- **Budgets and the confidence bar are code defaults with per-workspace overrides.** `Workspace::InvestigationLimits` holds `INVESTIGATION_DEFAULT_MAX_TURNS`, `INVESTIGATION_DEFAULT_MAX_TOKENS` and `INVESTIGATION_DEFAULT_CONFIDENCE_THRESHOLD`; the nullable `investigation_*` columns override one workspace, set by an operator rather than from the dashboard. Each run snapshots all three, so a later change to the default cannot rewrite what an old run was allowed to spend.
-- **The reasoning is swappable, the records are not.** `FirefightAi::Contracts` declares five shapes (planner, branch runner, specialist, confidence scorer, matcher) with implementations registered by name, so a model or method change is a registration plus a replay. Nothing is registered yet; `Contracts.resolve` says so rather than guessing.
-- **Replay from the first run.** `investigations.seed_pack` and `tool_set` record what the run was given, every step keeps its full response, and `inferences.prompt_template` and `prompt_version` pin a model call to the prompt that made it, so a regression is attributable to a change.
-- **Model choice.** `AiPurpose::INVESTIGATION`, overridable per workspace like every other purpose, env prefix `INVESTIGATION_AI`.
+| Piece | Holds |
+|---|---|
+| `Investigation` | one run: trigger, who asked, budget, status |
+| `Hypothesis` | one theory |
+| `InvestigationStep` | one tool call |
+| `Finding` | the one answer, with its named confidence factors |
+| `Investigation::ToolCall` | the gateway wrapper every tool call goes through |
+| `InvestigationService` / `InvestigationJob` | starts a run, runs it on the `investigations` queue |
+| `Commands::StartInvestigation` / `Interactions::StartInvestigationButtonHandler` | the two entry points |
+| `FirefightAi::Contracts::*` | the five reasoning shapes |
 
-Jobs run on the `investigations` queue with its own worker, so a long run cannot starve the short queues.
+The rules:
+
+- Evidence is a reference (a ledger invocation, a PR, a file range, an incident), never a copied blob.
+- Every tool call goes through `AbilityGateway` carrying `SOURCE_INVESTIGATION`, and stores its invocation id on the step. Tool output lives on the step, encrypted, and never reaches the ledger. `params` is the binding the ledger stores, so it names what was asked and never carries a payload.
+- One live run per incident, enforced by a partial unique index, so a second request is told rather than duplicating the work and posting a second answer to the same channel. It is not a cost control, budgets are.
+- Both entry points ask `Investigation.unavailable_reason` and `Incident#investigation_blocked_reason` and spell no refusal of their own.
+- Steps are ordered by when they happened. Branches run in parallel, so a shared counter would be a number two of them fight over.
+- Budgets are code defaults in `Workspace::InvestigationLimits`, overridden per workspace by the nullable `investigation_*` columns an operator sets. Spend is cents. Turns are a loop guard, not a cost unit. Each run snapshots both, so changing a default never rewrites what an old run was allowed to spend.
+- `AiPurpose::INVESTIGATION` picks the model, env prefix `INVESTIGATION_AI`.
+
+Not built yet: the seed pack, the planner, parallel branches, the posted Finding, MCP tools, the dashboard page, and the Investigator's own agent principal (a tool call runs under the grants of whoever asked until then). `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind the five contracts.
 
 ## Postmortem generation state
 

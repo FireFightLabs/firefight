@@ -19,7 +19,7 @@ class Interactions::StartInvestigationButtonHandlerTest < ActiveSupport::TestCas
     assert_equal Investigation::TRIGGER_BUTTON, @incident.investigations.sole.trigger_source
   end
 
-  test "a button on an old message tells the person why nothing happened" do
+  test "a button on a finished incident says the incident is over" do
     resolved = incidents(:resolved_minor_ws1)
     Interactions::TerminalNotice.expects(:post).with(
       @workspace, resolved, @member.platform_user_id, regexp_matches(/nothing left to investigate/)
@@ -32,17 +32,21 @@ class Interactions::StartInvestigationButtonHandlerTest < ActiveSupport::TestCas
 
   test "a workspace without the flag is told, not ignored" do
     FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
-    Interactions::TerminalNotice.expects(:post).with(
-      @workspace, @incident, @member.platform_user_id, regexp_matches(/not turned on/)
+    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with(
+      channel_id: @incident.channel_id, user_id: @member.platform_user_id,
+      text: regexp_matches(/not turned on/)
     ).once
 
     Interactions::StartInvestigationButtonHandler.execute(build_interaction)
+
+    assert_empty @incident.investigations
   end
 
-  test "a second click points at the run already going" do
+  test "a second click is told about the run already going" do
     Interactions::StartInvestigationButtonHandler.execute(build_interaction)
-    Interactions::TerminalNotice.expects(:post).with(
-      @workspace, @incident, @member.platform_user_id, regexp_matches(/Already investigating/)
+    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with(
+      channel_id: @incident.channel_id, user_id: @member.platform_user_id,
+      text: regexp_matches(/Already investigating/)
     ).once
 
     Interactions::StartInvestigationButtonHandler.execute(build_interaction)
@@ -57,7 +61,7 @@ class Interactions::StartInvestigationButtonHandlerTest < ActiveSupport::TestCas
     assert_nothing_raised { Interactions::StartInvestigationButtonHandler.execute(interaction) }
   end
 
-  test "the handler declares what it needs, so the gateway can refuse it" do
+  test "declares investigations.create as its authorization" do
     assert_equal [ Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE ],
                  Interactions::StartInvestigationButtonHandler.authorization
   end

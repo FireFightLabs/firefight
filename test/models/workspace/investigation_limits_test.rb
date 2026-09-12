@@ -4,43 +4,39 @@ class Workspace::InvestigationLimitsTest < ActiveSupport::TestCase
   setup { @workspace = workspaces(:slack_workspace_one) }
 
   test "a workspace that set nothing gets the defaults" do
-    assert_equal Workspace::INVESTIGATION_DEFAULT_MAX_TURNS, @workspace.investigation_turn_limit
-    assert_equal Workspace::INVESTIGATION_DEFAULT_MAX_TOKENS, @workspace.investigation_token_limit
-    assert_in_delta Workspace::INVESTIGATION_DEFAULT_CONFIDENCE_THRESHOLD,
-                    @workspace.investigation_confidence_bar, 0.001
+    limits = @workspace.investigation_limits
+
+    assert_equal Workspace::INVESTIGATION_DEFAULT_MAX_TURNS, limits.max_turns
+    assert_equal Workspace::INVESTIGATION_DEFAULT_MAX_SPEND_CENTS, limits.max_spend_cents
   end
 
   test "an override replaces the default for that workspace only" do
-    @workspace.update!(
-      investigation_max_turns: 6, investigation_max_tokens: 50_000,
-      investigation_confidence_threshold: 0.85
-    )
+    @workspace.update!(investigation_max_turns: 6, investigation_max_spend_cents: 250)
 
-    assert_equal 6, @workspace.investigation_turn_limit
-    assert_equal 50_000, @workspace.investigation_token_limit
-    assert_in_delta 0.85, @workspace.investigation_confidence_bar, 0.001
+    assert_equal 6, @workspace.investigation_limits.max_turns
+    assert_equal 250, @workspace.investigation_limits.max_spend_cents
     assert_equal Workspace::INVESTIGATION_DEFAULT_MAX_TURNS,
-                 workspaces(:slack_workspace_two).investigation_turn_limit
+                 workspaces(:slack_workspace_two).investigation_limits.max_turns
   end
 
-  test "a budget of zero is refused, since it would mean a run that cannot read anything" do
+  test "a zero budget is refused" do
     @workspace.investigation_max_turns = 0
 
     assert_not @workspace.valid?
     assert_includes @workspace.errors[:investigation_max_turns], "must be greater than 0"
   end
 
-  test "a confidence bar above one is refused" do
-    @workspace.investigation_confidence_threshold = 1.5
+  test "spend is whole cents, so there is no floating point money" do
+    @workspace.investigation_max_spend_cents = 12.5
 
     assert_not @workspace.valid?
-    assert_includes @workspace.errors[:investigation_confidence_threshold],
-                    "must be less than or equal to 1"
+    assert_includes @workspace.errors[:investigation_max_spend_cents], "must be an integer"
   end
 
-  test "junk in an integer override is refused rather than cast to zero" do
-    @workspace.investigation_max_tokens = "plenty"
+  test "junk in an override is refused rather than cast to zero" do
+    @workspace.investigation_max_spend_cents = "plenty"
 
     assert_not @workspace.valid?
+    assert_includes @workspace.errors[:investigation_max_spend_cents], "is not a number"
   end
 end

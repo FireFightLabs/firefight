@@ -2,28 +2,22 @@ module Workspace::InvestigationLimits
   extend ActiveSupport::Concern
 
   INVESTIGATION_DEFAULT_MAX_TURNS = 24
-  INVESTIGATION_DEFAULT_MAX_TOKENS = 300_000
-  # Ambient runs stay quiet below this. A person who asks always gets an answer.
-  INVESTIGATION_DEFAULT_CONFIDENCE_THRESHOLD = 0.7
+  # Cents, so there is no floating point money and dollars are only the display.
+  INVESTIGATION_DEFAULT_MAX_SPEND_CENTS = 400
+
+  Limits = Data.define(:max_turns, :max_spend_cents)
 
   included do
     validates :investigation_max_turns,
               numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
-    validates :investigation_max_tokens,
+    validates :investigation_max_spend_cents,
               numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
-    validates :investigation_confidence_threshold,
-              numericality: { greater_than: 0, less_than_or_equal_to: 1 }, allow_nil: true
   end
 
-  def investigation_turn_limit
-    investigation_max_turns || INVESTIGATION_DEFAULT_MAX_TURNS
-  end
-
-  def investigation_token_limit
-    investigation_max_tokens || INVESTIGATION_DEFAULT_MAX_TOKENS
-  end
-
-  def investigation_confidence_bar
-    investigation_confidence_threshold || INVESTIGATION_DEFAULT_CONFIDENCE_THRESHOLD
+  def investigation_limits
+    Limits.new(
+      max_turns: investigation_max_turns || INVESTIGATION_DEFAULT_MAX_TURNS,
+      max_spend_cents: investigation_max_spend_cents || INVESTIGATION_DEFAULT_MAX_SPEND_CENTS
+    )
   end
 end

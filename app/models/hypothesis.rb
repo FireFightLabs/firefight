@@ -15,18 +15,4 @@ class Hypothesis < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }, allow_nil: true
 
   scope :ordered, -> { order(:position) }
-  scope :unresolved, -> { where(status: STATUS_OPEN) }
-
-  def open?
-    status == STATUS_OPEN
-  end
-
-  def supported?
-    status == STATUS_SUPPORTED
-  end
-
-  # A refuted hypothesis is worth as much to a responder as the winning one.
-  def refuted?
-    status == STATUS_REFUTED
-  end
 end

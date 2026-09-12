@@ -29,16 +29,4 @@ class Finding < ApplicationRecord
   validates :remediation_type, inclusion: { in: REMEDIATION_TYPES }, allow_nil: true
   validates :confidence,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }, allow_nil: true
-
-  def published?
-    published_state == STATE_PUBLISHED
-  end
-
-  def held?
-    published_state == STATE_HELD
-  end
-
-  def grade!(outcome:, by:)
-    update!(outcome: outcome, outcome_by: by, outcome_at: Time.current)
-  end
 end

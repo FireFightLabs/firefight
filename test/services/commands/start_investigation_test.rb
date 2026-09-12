@@ -46,9 +46,7 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
     assert_match "incident channel", result[:text]
   end
 
-  # A command only ever resolves a live incident, so a finished channel reads as no incident
-  # at all, the same as every other /ff command. The button is where the over-and-done
-  # sentence shows, since it looks the incident up by id.
+  # A command only resolves a live incident, so a finished channel reads as no incident at all.
   test "in a channel whose incident is over it says where to run it" do
     resolved = incidents(:resolved_minor_ws1)
 
@@ -58,7 +56,7 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
     assert_empty resolved.investigations
   end
 
-  test "a second ask points at the run already going" do
+  test "a second ask is told about the run already going" do
     Commands::StartInvestigation.execute(build_command)
 
     result = nil
@@ -68,7 +66,7 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
     assert_equal 1, @incident.investigations.count
   end
 
-  test "the handler declares what it needs, so the gateway can refuse it" do
+  test "declares investigations.create as its authorization" do
     assert_equal [ Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE ],
                  Commands::StartInvestigation.authorization
   end

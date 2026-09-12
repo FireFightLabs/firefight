@@ -17,26 +17,24 @@ class InvestigationServiceTest < ActiveSupport::TestCase
     )
 
     assert_equal Workspace::INVESTIGATION_DEFAULT_MAX_TURNS, investigation.max_turns
-    assert_equal Workspace::INVESTIGATION_DEFAULT_MAX_TOKENS, investigation.max_tokens
-    assert_in_delta Workspace::INVESTIGATION_DEFAULT_CONFIDENCE_THRESHOLD,
-                    investigation.confidence_threshold, 0.001
+    assert_equal Workspace::INVESTIGATION_DEFAULT_MAX_SPEND_CENTS, investigation.max_spend_cents
     assert_equal @member, investigation.triggered_by
     assert_equal Investigation::TRIGGER_COMMAND, investigation.trigger_source
   end
 
   test "an operator's override wins over the default" do
-    @workspace.update!(investigation_max_turns: 4, investigation_confidence_threshold: 0.9)
+    @workspace.update!(investigation_max_turns: 4, investigation_max_spend_cents: 150)
 
     investigation = @service.start(@incident, trigger_source: Investigation::TRIGGER_COMMAND)
 
     assert_equal 4, investigation.max_turns
-    assert_in_delta 0.9, investigation.confidence_threshold, 0.001
+    assert_equal 150, investigation.max_spend_cents
   end
 
   test "the channel is told the run has started" do
     Slack::WorkspaceAdapter.any_instance.expects(:post_message).with(
       channel_id: @incident.channel_id,
-      text: "Investigating #{@incident.identifier}, I will post what I find.",
+      text: "Investigating #{@incident.identifier}. I will post what I find.",
       blocks: nil
     ).once
 
@@ -49,7 +47,7 @@ class InvestigationServiceTest < ActiveSupport::TestCase
     end
   end
 
-  test "a second start while one is live does nothing" do
+  test "a second start while one is live is refused rather than duplicated" do
     first = @service.start(@incident, trigger_source: Investigation::TRIGGER_COMMAND)
 
     assert_no_enqueued_jobs(only: InvestigationJob) do
@@ -57,16 +55,6 @@ class InvestigationServiceTest < ActiveSupport::TestCase
     end
 
     assert_equal [ first ], @incident.investigations.live.to_a
-  end
-
-  test "the live run is what a second asker attaches to" do
-    assert_nil @service.live_for(@incident)
-
-    investigation = @service.start(@incident, trigger_source: Investigation::TRIGGER_COMMAND)
-    assert_equal investigation, @service.live_for(@incident)
-
-    investigation.finish!(status: Investigation::STATUS_SUCCEEDED)
-    assert_nil @service.live_for(@incident)
   end
 
   test "an undelivered announcement does not lose the run" do

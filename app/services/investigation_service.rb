@@ -4,6 +4,7 @@ class InvestigationService
     @workspace = workspace
   end
 
+  # Nil means a live run already exists, so the caller says so rather than starting a second.
   def start(incident, trigger_source:, triggered_by: nil)
     investigation = claim(incident, trigger_source: trigger_source, triggered_by: triggered_by)
     return nil unless investigation
@@ -13,22 +14,17 @@ class InvestigationService
     investigation
   end
 
-  def live_for(incident)
-    incident.investigations.live.first
-  end
-
   private
 
-  # The partial unique index is the real guard, so a second request loses the insert
-  # and the caller attaches to the run that is already going.
+  # The partial unique index is the guard, so a second request loses the insert.
   def claim(incident, trigger_source:, triggered_by:)
+    limits = @workspace.investigation_limits
     @workspace.investigations.create!(
       incident: incident,
       trigger_source: trigger_source,
       triggered_by: triggered_by,
-      max_turns: @workspace.investigation_turn_limit,
-      max_tokens: @workspace.investigation_token_limit,
-      confidence_threshold: @workspace.investigation_confidence_bar
+      max_turns: limits.max_turns,
+      max_spend_cents: limits.max_spend_cents
     )
   rescue ActiveRecord::RecordNotUnique
     nil
@@ -39,12 +35,12 @@ class InvestigationService
 
     @workspace.adapter.post_message(
       channel_id: incident.channel_id,
-      text: "Investigating #{incident.identifier}, I will post what I find.",
+      text: "Investigating #{incident.identifier}. I will post what I find.",
       blocks: nil
     )
   rescue AdapterError => e
     Rails.logger.warn({
-      event: "investigation.announcement_undelivered", incident_id: incident.id, error: e.class.name
-    }.to_json)
+      event: "investigation.announcement_undelivered", incident_id: incident.id, error: e.message
+    })
   end
 end

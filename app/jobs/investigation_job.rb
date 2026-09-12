@@ -1,20 +1,26 @@
 class InvestigationJob < ApplicationJob
   queue_as :investigations
 
+  # The run is marked failed only once the retries are gone, so a deadlock or a killed
+  # worker resumes rather than burning the run.
+  retry_on StandardError, wait: :polynomially_longer, attempts: 3 do |job, error|
+    job.mark_failed(error)
+  end
+
   discard_on ActiveRecord::RecordNotFound
 
   def perform(investigation_id)
     investigation = Investigation.find(investigation_id)
-    # The loser of the claim leaves the run alone, so a retry after a crash resumes
-    # rather than starting a second pass.
-    return unless investigation.claim_running!
+    return unless investigation.claim!
 
-    # The seed pack, the planner, the branches and the Finding land in PR 2 to PR 5.
-    # Until then a claimed run has nothing to do and closes itself instead of sitting
-    # in running and blocking the next request for this incident.
-    investigation.finish!(status: Investigation::STATUS_SUCCEEDED)
-  rescue StandardError => error
-    investigation&.finish!(status: Investigation::STATUS_FAILED, error_summary: error.class.name)
-    raise
+    # Nothing to run until the planner exists. The run says so rather than claiming
+    # success or holding the incident's only live slot.
+    investigation.finish!(status: Investigation::STATUS_CANCELED, error_summary: "Nothing to run yet")
+  end
+
+  def mark_failed(error)
+    investigation_id, = arguments
+    Investigation.find_by(id: investigation_id)
+      &.finish!(status: Investigation::STATUS_FAILED, error_summary: error.class.name)
   end
 end
