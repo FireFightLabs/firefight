@@ -39,12 +39,20 @@ class InvestigationTest < ActiveSupport::TestCase
   test "claiming a run that is already running resumes it rather than refusing" do
     investigation = build_investigation
     investigation.claim!
-    started_at = investigation.started_at
 
     resumed = Investigation.find(investigation.id)
 
     assert resumed.claim!, "a retry after a killed worker has to be able to pick the run up"
-    assert_equal started_at.to_i, resumed.started_at.to_i, "resuming keeps the original start time"
+  end
+
+  test "resuming keeps the start time even when the caller's copy is stale" do
+    investigation = build_investigation
+    stale = Investigation.find(investigation.id)
+    investigation.claim!
+    started_at = investigation.started_at
+
+    assert stale.claim!
+    assert_equal started_at.to_i, investigation.reload.started_at.to_i
   end
 
   test "claiming a run that is over does nothing" do

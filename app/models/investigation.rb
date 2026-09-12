@@ -58,10 +58,13 @@ class Investigation < ApplicationRecord
 
   # Takes a waiting run, and picks up one that was already started, which is what
   # resuming after a killed worker means. False means the run is already over.
+  # The start time is kept in SQL, so a caller holding a stale copy cannot move it.
   def claim!
     moved = self.class.where(id: id, status: LIVE_STATUSES)
       .update_all(
-        status: STATUS_RUNNING, started_at: started_at || Time.current, updated_at: Time.current
+        status: STATUS_RUNNING,
+        started_at: Arel.sql("COALESCE(started_at, now())"),
+        updated_at: Time.current
       ) > 0
     reload if moved
     moved
