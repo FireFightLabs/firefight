@@ -34,7 +34,7 @@ const SOURCE_LABELS: Record<string, string> = {
   web: "Dashboard",
   slack: "Slack",
   api: "API",
-  mcp: "Agent",
+  mcp: "MCP",
   investigation: "Investigation",
 }
 
