@@ -123,6 +123,8 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `Investigation::Step` | one tool call |
 | `Investigation::Finding` | the one answer, with its named confidence factors |
 | `Investigation::ToolCall` | the gateway wrapper every tool call goes through |
+| `Investigation::Seeding` | gathers the facts Firefight already holds, stored on `seed_pack` |
+| `Slack::Messages::InvestigationBriefing` | renders that pack into the channel's first message |
 | `InvestigationService` / `InvestigationJob` | starts a run, runs it on the `investigations` queue |
 | `Commands::StartInvestigation` / `Interactions::StartInvestigationButtonHandler` | the two entry points |
 | `FirefightAi::Contracts::*` | the five reasoning shapes |
@@ -136,8 +138,12 @@ The rules:
 - Steps are ordered by when they happened. Branches run in parallel, so a shared counter would be a number two of them fight over.
 - Budgets are code defaults in `Workspace::InvestigationLimits`, overridden per workspace by the nullable `investigation_*` columns an operator sets. Spend is cents. Turns are a loop guard, not a cost unit. Each run snapshots both, so changing a default never rewrites what an old run was allowed to spend.
 - `AiPurpose::INVESTIGATION` picks the model, env prefix `INVESTIGATION_AI`.
+- **The seed pack is gathered once, stored, and rendered from storage.** `Investigation#build_seed_pack!` reads only Firefight's own tables (the incident and its state, the lead and roles, the alerts with their provider fields, attached runbooks, and resolved past incidents that fired the same alert) and writes one jsonb blob. The briefing renders that blob rather than re-querying, so the channel sees exactly what a later turn will read. No model call and no tool call are involved.
+- **People in the pack carry a `platform_user_id`** so the briefing can mention them while still rendering from storage alone. It is the only platform-shaped value in the pack, and the reasoning loop must drop it when it builds engine input rather than letting a model learn that `<@U123>` means a person.
+- A past incident matches on `alert_source_id` **and** `fingerprint`, because a fingerprint is only unique within its source, and only resolved incidents count. A match carries its `Investigation::Finding` summary when it has one.
+- The pack caps alerts at `Seeding::ALERT_LIMIT` and records `alerts_held_back`, which the message adds to its own smaller ceiling so the count a reader sees is the total withheld. Alert `fields` are kept whole, because the agent reads them, and escaped at render.
 
-Not built yet: the seed pack, the planner, parallel branches, the posted Finding, MCP tools, the dashboard page, and the Investigator's own agent principal (a tool call runs under the grants of whoever asked until then). `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind the five contracts.
+Not built yet: the planner, parallel branches, the posted Finding, MCP tools, the dashboard page, a deadline on a run (nothing runs long enough to need one yet), and the Investigator's own agent principal (a tool call runs under the grants of whoever asked until then). A run today gathers the pack, posts the briefing, and finishes as `canceled` with "Briefed, nothing to reason with yet", which keeps the incident's one live slot free. `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind the five contracts.
 
 ## Postmortem generation state
 

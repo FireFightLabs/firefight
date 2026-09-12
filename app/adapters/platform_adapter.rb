@@ -191,6 +191,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # @param seed_pack [Hash] the investigation's gathered facts, as stored.
+  # @return [Hash] { message_id: ... }
+  def post_investigation_briefing(channel_id:, incident:, seed_pack:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @param changes [Array<Hash>] [{ role_name:, platform_user_id: }], a nil
   #   platform_user_id meaning the role was cleared.
   # @return [Hash] { message_id: ... }

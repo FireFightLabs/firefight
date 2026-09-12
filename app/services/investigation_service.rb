@@ -14,6 +14,22 @@ class InvestigationService
     investigation
   end
 
+  # The pack is stored even when the channel cannot be reached, because the
+  # reasoning loop reads it rather than the message.
+  def brief(investigation)
+    seed_pack = investigation.build_seed_pack!
+    incident = investigation.incident
+    return if incident.channel_id.blank?
+
+    @workspace.adapter.post_investigation_briefing(
+      channel_id: incident.channel_id, incident: incident, seed_pack: seed_pack
+    )
+  rescue AdapterError => e
+    Rails.logger.warn({
+      event: "investigation.briefing_undelivered", investigation_id: investigation.id, error: e.message
+    })
+  end
+
   private
 
   # The partial unique index is the guard, so a second request loses the insert.

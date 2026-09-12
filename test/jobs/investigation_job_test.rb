@@ -10,14 +10,21 @@ class InvestigationJobTest < ActiveSupport::TestCase
       incident: @incident, trigger_source: Investigation::TRIGGER_COMMAND,
       max_turns: 10, max_spend_cents: 400
     )
+    stub_post_message
   end
 
-  test "a run with nothing to do says so rather than claiming success" do
+  test "the run gathers the facts and posts them before it finishes" do
+    InvestigationJob.perform_now(@investigation.id)
+
+    assert_equal "INC-001", @investigation.reload.seed_pack.dig("incident", "identifier")
+  end
+
+  test "a run with nothing to reason over says so rather than claiming success" do
     InvestigationJob.perform_now(@investigation.id)
 
     @investigation.reload
     assert_equal Investigation::STATUS_CANCELED, @investigation.status
-    assert_equal "Nothing to run yet", @investigation.error_summary
+    assert_equal "Briefed, nothing to reason with yet", @investigation.error_summary
     assert_not_nil @investigation.completed_at
     assert @investigation.over?, "a finished run must not hold the incident's only live slot"
   end
