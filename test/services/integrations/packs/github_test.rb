@@ -66,6 +66,115 @@ module Integrations
         end
       end
 
+      test "recent_deployments names what shipped, where, and how it ended" do
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments?per_page=3", token: "ghs_token").returns([
+          { "id" => 9, "ref" => "v41", "environment" => "production",
+            "created_at" => "2026-09-12T10:01:00Z", "creator" => { "login" => "uros" } },
+          { "id" => 8, "ref" => "v40", "environment" => "production",
+            "created_at" => "2026-09-11T16:20:00Z", "creator" => { "login" => "ada" } }
+        ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/9/statuses?per_page=1", token: "ghs_token")
+                 .returns([ { "state" => "success" } ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/8/statuses?per_page=1", token: "ghs_token")
+                 .returns([ { "state" => "failure" } ])
+
+        text = @pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" })
+
+        assert_match(/2026-09-12T10:01:00Z\s+production\s+v41\s+success\s+by uros/, text)
+        assert_match(/v40\s+failure\s+by ada/, text)
+      end
+
+      test "recent_deployments can be limited to one deployment environment" do
+        GithubApp.expects(:get)
+                 .with("/repos/acme/checkout/deployments?environment=production&per_page=3", token: "ghs_token")
+                 .returns([])
+
+        assert_match(/No deployments recorded/,
+                     @pack.recent_deployments(environment_row: @row,
+                                              arguments: { "repo" => "acme/checkout",
+                                                           "deployment_environment" => "production" }))
+      end
+
+      test "a deployment whose status cannot be read still lists what shipped" do
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments?per_page=3", token: "ghs_token").returns([
+          { "id" => 9, "ref" => "v41", "environment" => "production", "created_at" => "2026-09-12T10:01:00Z" }
+        ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/9/statuses?per_page=1", token: "ghs_token")
+                 .raises(GithubApp::Error, "GitHub: Not Found")
+
+        text = @pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" })
+
+        assert_match(/v41\s+state unavailable\s+by unknown/, text)
+      end
+
+      test "a deployment nobody has reported on yet reads as having no status" do
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments?per_page=3", token: "ghs_token").returns([
+          { "id" => 9, "ref" => "v41", "environment" => "production", "created_at" => "2026-09-12T10:01:00Z" }
+        ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/9/statuses?per_page=1", token: "ghs_token")
+                 .returns([])
+
+        text = @pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" })
+
+        assert_match(/v41\s+no status\s+by unknown/, text)
+      end
+
+      test "merged_pull_requests keeps only the ones that actually merged" do
+        GithubApp.stubs(:get).with(closed_pulls_path, token: "ghs_token").returns([
+          { "number" => 412, "title" => "Fix payment retries", "merged_at" => "2026-09-12T09:40:00Z",
+            "user" => { "login" => "uros" }, "base" => { "ref" => "main" } },
+          { "number" => 411, "title" => "Abandoned spike", "merged_at" => nil,
+            "user" => { "login" => "ada" }, "base" => { "ref" => "main" } }
+        ])
+
+        text = @pack.merged_pull_requests(environment_row: @row, arguments: { "repo" => "acme/checkout" })
+
+        assert_match(/PR #412\s+Fix payment retries\s+merged 2026-09-12T09:40:00Z by uros into main/, text)
+        assert_no_match(/Abandoned spike/, text, "closed without merging is not a merge")
+      end
+
+      test "merged_pull_requests can be windowed to what merged since a time" do
+        GithubApp.stubs(:get).with(closed_pulls_path, token: "ghs_token").returns([
+          { "number" => 412, "title" => "Shipped today", "merged_at" => "2026-09-12T09:40:00Z",
+            "user" => { "login" => "uros" }, "base" => { "ref" => "main" } },
+          { "number" => 380, "title" => "Shipped last month", "merged_at" => "2026-08-01T09:40:00Z",
+            "user" => { "login" => "ada" }, "base" => { "ref" => "main" } }
+        ])
+
+        text = @pack.merged_pull_requests(
+          environment_row: @row, arguments: { "repo" => "acme/checkout", "since" => "2026-09-12T00:00:00Z" }
+        )
+
+        assert_match(/Shipped today/, text)
+        assert_no_match(/Shipped last month/, text)
+      end
+
+      test "merged_pull_requests says so when nothing merged in the window" do
+        GithubApp.stubs(:get).with(closed_pulls_path, token: "ghs_token").returns([])
+
+        text = @pack.merged_pull_requests(
+          environment_row: @row, arguments: { "repo" => "acme/checkout", "since" => "2026-09-12T00:00:00Z" }
+        )
+
+        assert_match(/No pull requests merged since 2026-09-12T00:00:00Z/, text)
+      end
+
+      test "since must be a time it can parse" do
+        error = assert_raises(NativePack::Error) do
+          @pack.merged_pull_requests(environment_row: @row,
+                                     arguments: { "repo" => "acme/checkout", "since" => "last tuesday" })
+        end
+
+        assert_match(/ISO 8601/, error.message)
+      end
+
+      test "both new reads are declared as read only tools" do
+        names = Github.tool_definitions.select(&:read_only).map(&:name)
+
+        assert_includes names, "recent_deployments"
+        assert_includes names, "merged_pull_requests"
+      end
+
       test "health check proves an installation token can be minted" do
         GithubApp.expects(:installation_token).with(@row).returns("ghs_token")
         @pack.check_health!(@row)
@@ -136,6 +245,10 @@ module Integrations
       end
 
       private
+
+      def closed_pulls_path
+        "/repos/acme/checkout/pulls?state=closed&sort=updated&direction=desc&per_page=#{Github::CLOSED_CANDIDATES}"
+      end
 
       def with_fixture_clone(&block)
         FixtureRepo.with_clone_env(&block)

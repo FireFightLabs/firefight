@@ -11,6 +11,11 @@ module Integrations
       LINE_LIMIT = 200
       MATCH_LIMIT = 50
       CONTEXT_LINES = 10
+      # Each deployment needs a second call for its state.
+      DEPLOYMENT_LIMIT = 3
+      MERGED_LIMIT = 10
+      # Closed pull requests include unmerged ones, so fetch more than we keep.
+      CLOSED_CANDIDATES = 50
 
       tool :pr_lookup,
            description: "Fetch a pull request: title, state, author, merge status, and changed files",
@@ -33,6 +38,30 @@ module Integrations
                "sha" => { "type" => "string", "description" => "Commit SHA" }
              },
              "required" => [ "repo", "sha" ]
+           },
+           read_only: true
+
+      tool :recent_deployments,
+           description: "List recent deployments for a repository, newest first, each with the ref deployed, the environment and the outcome",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
+               "deployment_environment" => { "type" => "string", "description" => "Limit to one deployment environment, e.g. production (optional)" }
+             },
+             "required" => [ "repo" ]
+           },
+           read_only: true
+
+      tool :merged_pull_requests,
+           description: "List pull requests merged into a repository, newest first, optionally only those merged since a given time",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
+               "since" => { "type" => "string", "description" => "Only pull requests merged at or after this time, as ISO 8601 (optional)" }
+             },
+             "required" => [ "repo" ]
            },
            read_only: true
 
@@ -121,6 +150,30 @@ module Integrations
         TEXT
       end
 
+      def recent_deployments(environment_row:, arguments:)
+        repo = repo_argument(arguments)
+        token = GithubApp.installation_token(environment_row)
+        deployments = GithubApp.get("/repos/#{repo}/deployments?#{deployment_query(arguments)}", token: token)
+        return "No deployments recorded for #{repo}." if deployments.blank?
+
+        Array(deployments).map { |deployment| deployment_line(repo, deployment, token) }.join("\n")
+      end
+
+      def merged_pull_requests(environment_row:, arguments:)
+        repo = repo_argument(arguments)
+        since = since_argument(arguments)
+        token = GithubApp.installation_token(environment_row)
+        closed = GithubApp.get(
+          "/repos/#{repo}/pulls?state=closed&sort=updated&direction=desc&per_page=#{CLOSED_CANDIDATES}",
+          token: token
+        )
+
+        merged = Array(closed).select { |pull| merged_since?(pull, since) }.first(MERGED_LIMIT)
+        return "No pull requests merged#{since ? " since #{since.iso8601}" : ''} in #{repo}." if merged.empty?
+
+        merged.map { |pull| merged_line(pull) }.join("\n")
+      end
+
       def fetch_file(environment_row:, arguments:)
         repo = repo_argument(arguments)
         path = path_argument(arguments)
@@ -171,6 +224,54 @@ module Integrations
       end
 
       private
+
+      # ConnectionToolFactory strips "environment" from arguments before a pack sees it.
+      def deployment_query(arguments)
+        query = { "per_page" => DEPLOYMENT_LIMIT }
+        target = arguments["deployment_environment"].to_s
+        query["environment"] = target if target.present?
+        query.to_query
+      end
+
+      def deployment_line(repo, deployment, token)
+        state = deployment_state(repo, deployment["id"], token)
+        ref = deployment["ref"].presence || deployment["sha"].to_s[0, 8]
+        target = deployment["environment"].presence || "unknown environment"
+        creator = deployment.dig("creator", "login").presence || "unknown"
+
+        "#{deployment['created_at']}  #{target}  #{ref}  #{state}  by #{creator}"
+      end
+
+      # A deployment has no state field. Its newest status row is the outcome.
+      def deployment_state(repo, deployment_id, token)
+        statuses = GithubApp.get("/repos/#{repo}/deployments/#{deployment_id}/statuses?per_page=1", token: token)
+        Array(statuses).first&.fetch("state", nil).presence || "no status"
+      rescue GithubApp::Error
+        "state unavailable"
+      end
+
+      # Time.zone.parse accepts "last tuesday" and would filter on a window the caller never gave.
+      def since_argument(arguments)
+        raw = arguments["since"].to_s
+        return nil if raw.blank?
+
+        Time.iso8601(raw)
+      rescue ArgumentError
+        fail! "since must be an ISO 8601 time, for example 2026-09-12T09:00:00Z"
+      end
+
+      def merged_since?(pull, since)
+        merged_at = pull["merged_at"]
+        return false if merged_at.blank?
+        return true if since.nil?
+
+        Time.zone.parse(merged_at) >= since
+      end
+
+      def merged_line(pull)
+        "PR ##{pull['number']}  #{pull['title']}  merged #{pull['merged_at']} " \
+          "by #{pull.dig('user', 'login')} into #{pull.dig('base', 'ref')}"
+      end
 
       def read_file_lines(dir, path)
         CloneManager.show_file(dir, path).lines
