@@ -225,7 +225,7 @@ module Integrations
 
       private
 
-      # The MCP layer strips "environment" from arguments before a pack sees it.
+      # ConnectionToolFactory strips "environment" from arguments before a pack sees it.
       def deployment_query(arguments)
         query = { "per_page" => DEPLOYMENT_LIMIT }
         target = arguments["deployment_environment"].to_s
@@ -250,7 +250,7 @@ module Integrations
         "state unavailable"
       end
 
-      # Time.zone.parse accepts "last tuesday" and would window the results silently.
+      # Time.zone.parse accepts "last tuesday" and would filter on a window the caller never gave.
       def since_argument(arguments)
         raw = arguments["since"].to_s
         return nil if raw.blank?

@@ -107,6 +107,18 @@ module Integrations
         assert_match(/v41\s+state unavailable\s+by unknown/, text)
       end
 
+      test "a deployment nobody has reported on yet reads as having no status" do
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments?per_page=3", token: "ghs_token").returns([
+          { "id" => 9, "ref" => "v41", "environment" => "production", "created_at" => "2026-09-12T10:01:00Z" }
+        ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/9/statuses?per_page=1", token: "ghs_token")
+                 .returns([])
+
+        text = @pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" })
+
+        assert_match(/v41\s+no status\s+by unknown/, text)
+      end
+
       test "merged_pull_requests keeps only the ones that actually merged" do
         GithubApp.stubs(:get).with(closed_pulls_path, token: "ghs_token").returns([
           { "number" => 412, "title" => "Fix payment retries", "merged_at" => "2026-09-12T09:40:00Z",
