@@ -118,7 +118,7 @@ module Integrations
         text = @pack.merged_pull_requests(environment_row: @row, arguments: { "repo" => "acme/checkout" })
 
         assert_match(/PR #412\s+Fix payment retries\s+merged 2026-09-12T09:40:00Z by uros into main/, text)
-        assert_no_match(/Abandoned spike/, text, "a closed pull request that never merged is not a change")
+        assert_no_match(/Abandoned spike/, text, "closed without merging is not a merge")
       end
 
       test "merged_pull_requests can be windowed to what merged since a time" do

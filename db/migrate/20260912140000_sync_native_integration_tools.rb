@@ -1,6 +1,5 @@
-# New pack tools reach a connection through discovery, which until now only ran when
-# someone connected or refreshed one. A native pack declares its tools in code, so this
-# is a database write with no call to the provider. New rows arrive disabled, as always.
+# Discovery only runs on connect or refresh, so existing connections miss tools added in code.
+# Native packs declare their tools locally, so this calls no provider. New rows arrive disabled.
 class SyncNativeIntegrationTools < ActiveRecord::Migration[8.1]
   def up
     Integration.where(kind: Integration::KIND_NATIVE).find_each do |integration|

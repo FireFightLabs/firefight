@@ -11,10 +11,10 @@ module Integrations
       LINE_LIMIT = 200
       MATCH_LIMIT = 50
       CONTEXT_LINES = 10
-      # Each deployment costs a second call for its state, so the list stays short.
+      # Each deployment needs a second call for its state.
       DEPLOYMENT_LIMIT = 3
       MERGED_LIMIT = 10
-      # Closed pull requests include the ones nobody merged, so ask for more than we keep.
+      # Closed pull requests include unmerged ones, so fetch more than we keep.
       CLOSED_CANDIDATES = 50
 
       tool :pr_lookup,
@@ -42,7 +42,7 @@ module Integrations
            read_only: true
 
       tool :recent_deployments,
-           description: "List the most recent deployments for a repository, newest first, each with what shipped and how it ended - the answer to what changed just before an incident",
+           description: "List recent deployments for a repository, newest first, each with the ref deployed, the environment and the outcome",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -54,7 +54,7 @@ module Integrations
            read_only: true
 
       tool :merged_pull_requests,
-           description: "List pull requests merged into a repository, newest first - what shipped recently, without knowing a number in advance",
+           description: "List pull requests merged into a repository, newest first, optionally only those merged since a given time",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -225,8 +225,7 @@ module Integrations
 
       private
 
-      # The MCP layer owns the name "environment" and strips it before a pack sees it,
-      # so the deployment target is asked for under its own name.
+      # The MCP layer strips "environment" from arguments before a pack sees it.
       def deployment_query(arguments)
         query = { "per_page" => DEPLOYMENT_LIMIT }
         target = arguments["deployment_environment"].to_s
@@ -243,7 +242,7 @@ module Integrations
         "#{deployment['created_at']}  #{target}  #{ref}  #{state}  by #{creator}"
       end
 
-      # A deployment carries no state of its own, the newest status row is the outcome.
+      # A deployment has no state field. Its newest status row is the outcome.
       def deployment_state(repo, deployment_id, token)
         statuses = GithubApp.get("/repos/#{repo}/deployments/#{deployment_id}/statuses?per_page=1", token: token)
         Array(statuses).first&.fetch("state", nil).presence || "no status"
@@ -251,8 +250,7 @@ module Integrations
         "state unavailable"
       end
 
-      # Strictly, because Time.zone.parse reads "last tuesday" as a date and would send
-      # a window nobody asked for.
+      # Time.zone.parse accepts "last tuesday" and would window the results silently.
       def since_argument(arguments)
         raw = arguments["since"].to_s
         return nil if raw.blank?
