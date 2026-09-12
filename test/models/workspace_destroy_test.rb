@@ -40,6 +40,19 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
                             content: "All quiet", summary_up_to_ts: "1234.5678",
                             generated_at: Time.current, model: "gpt-4o-mini")
 
+    investigation = @workspace.investigations.create!(
+      incident: incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @membership,
+      max_turns: 4, max_spend_cents: 400
+    )
+    hypothesis = investigation.hypotheses.create!(assertion: "The deploy broke it", position: 1)
+    investigation.steps.create!(
+      hypothesis: hypothesis,
+      action_key: Ability::Action.system_key(
+        Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ
+      )
+    )
+    investigation.create_finding!(winning_hypothesis: hypothesis, summary: "The deploy broke it")
+
     oauth_app = Doorkeeper::Application.create!(name: "Test agent", redirect_uri: "https://example.test/callback")
     Doorkeeper::AccessToken.create!(application: oauth_app, resource_owner_id: @membership.id, token: SecureRandom.hex(16))
 
@@ -53,7 +66,7 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
     @workspace.destroy!
 
     [ Incident, WorkspaceMembership, ApiKey, Alert, AlertGroup, AlertSource, Integration,
-      CatalogType, CatalogEntry, Runbook, Webhook, Inference, IncidentSummary, Policy,
+      CatalogType, CatalogEntry, Runbook, Webhook, Inference, IncidentSummary, Policy, Investigation,
       IncidentStatus, IncidentFieldDefinition, IncidentForm, IdempotencyKey,
       Ability::Action, Ability::Grant, Ability::Role ].each do |model|
       assert_not model.where(workspace_id: workspace_id).exists?, "expected no #{model.table_name} rows"

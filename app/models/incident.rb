@@ -48,6 +48,7 @@ class Incident < ApplicationRecord
   has_many :alerts, dependent: :nullify
   has_many :alert_groups, dependent: :destroy
   has_many :incident_runbooks, dependent: :destroy
+  has_many :investigations, dependent: :destroy
 
   validates :sequence_number, presence: true, uniqueness: { scope: :workspace_id }
   validates :identifier, presence: true, uniqueness: { scope: :workspace_id }
@@ -248,6 +249,11 @@ class Incident < ApplicationRecord
 
   def duplicates
     inverse_incident_relationships.duplicates.map(&:incident)
+  end
+
+  def investigation_blocked_reason
+    terminal_blocked_reason("there is nothing left to investigate") ||
+      channelless_blocked_reason("post what it finds")
   end
 
   # Messages Firefight pinned itself, which the timeline leaves out.

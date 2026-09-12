@@ -28,6 +28,9 @@ module Ability
     RESOURCE_API_KEYS = "api_keys"
     RESOURCE_PERMISSIONS = "permissions"
     RESOURCE_WORKSPACE = "workspace"
+    # Its own resource. An investigation spends tokens and posts in the channel,
+    # which updating an incident does not.
+    RESOURCE_INVESTIGATIONS = "investigations"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
@@ -39,7 +42,7 @@ module Ability
       RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
-      RESOURCE_INCIDENT_TRANSCRIPTS
+      RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -58,6 +61,7 @@ module Ability
       RESOURCE_APPROVALS => "Approvals",
       RESOURCE_INCIDENT_ROLES => "Incident Roles",
       RESOURCE_INCIDENT_TRANSCRIPTS => "Incident Transcripts",
+      RESOURCE_INVESTIGATIONS => "Investigations",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",

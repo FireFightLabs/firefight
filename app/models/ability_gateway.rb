@@ -5,7 +5,9 @@ class AbilityGateway
   SOURCE_MCP = "mcp"
   SOURCE_SLACK = "slack"
   SOURCE_WEB = "web"
-  SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB ].freeze
+  # Firefight's own work rather than a person's click, so the ledger names the origin.
+  SOURCE_INVESTIGATION = "investigation"
+  SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 
@@ -33,6 +35,11 @@ class AbilityGateway
     def initialize(invocation)
       @invocation = invocation
       @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+
+    # The step that ran the tool stores this as its receipt.
+    def invocation_id
+      @invocation&.id
     end
 
     def finalize_success!

@@ -112,6 +112,33 @@ Three things cap what a pass can cost:
 
 Dismissal is error correction, not deletion. `IncidentEvent#dismiss!(by:)` stamps `dismissed_at` into the metadata and the `undismissed` scope keeps the row out of every text surface: the AI context (`Incident#to_full_context`, which feeds postmortem generation and `/ff catchup`), the Slack timeline modal, `get_incident`, and the REST timeline. The dashboard is the exception, collecting dismissed notes at the end of their day so the correction stays visible.
 
+## Investigator
+
+Phase 1 of the AI SRE build. Where the pieces are:
+
+| Piece | Holds |
+|---|---|
+| `Investigation` | one run: trigger, who asked, budget, status |
+| `Investigation::Hypothesis` | one theory |
+| `Investigation::Step` | one tool call |
+| `Investigation::Finding` | the one answer, with its named confidence factors |
+| `Investigation::ToolCall` | the gateway wrapper every tool call goes through |
+| `InvestigationService` / `InvestigationJob` | starts a run, runs it on the `investigations` queue |
+| `Commands::StartInvestigation` / `Interactions::StartInvestigationButtonHandler` | the two entry points |
+| `FirefightAi::Contracts::*` | the five reasoning shapes |
+
+The rules:
+
+- Evidence is a reference (a ledger invocation, a PR, a file range, an incident), never a copied blob.
+- Every tool call goes through `AbilityGateway` carrying `SOURCE_INVESTIGATION`, and stores its invocation id on the step. Tool output lives on the step, encrypted, and never reaches the ledger. `params` is the binding the ledger stores, so it names what was asked and never carries a payload.
+- One live run per incident, enforced by a partial unique index, so a second request is told rather than duplicating the work and posting a second answer to the same channel. It is not a cost control, budgets are.
+- Both entry points ask `Investigation.unavailable_reason` and `Incident#investigation_blocked_reason` and spell no refusal of their own.
+- Steps are ordered by when they happened. Branches run in parallel, so a shared counter would be a number two of them fight over.
+- Budgets are code defaults in `Workspace::InvestigationLimits`, overridden per workspace by the nullable `investigation_*` columns an operator sets. Spend is cents. Turns are a loop guard, not a cost unit. Each run snapshots both, so changing a default never rewrites what an old run was allowed to spend.
+- `AiPurpose::INVESTIGATION` picks the model, env prefix `INVESTIGATION_AI`.
+
+Not built yet: the seed pack, the planner, parallel branches, the posted Finding, MCP tools, the dashboard page, and the Investigator's own agent principal (a tool call runs under the grants of whoever asked until then). `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind the five contracts.
+
 ## Postmortem generation state
 
 `Postmortem#status` is the document's editorial status and nothing else. Whether an AI generation is writing the document lives in `generation_state` (`generating`, `failed`, or nil for nobody). Every entry point (the dashboard button, `/ff postmortem`, the Slack home menu, the button on the resolution message, the API and the MCP tool) calls `PostmortemGenerationService#start!(incident, by:)`, which creates the placeholder through `Postmortem.start_generation!` or re-arms a failed one and enqueues the job, and does nothing when a generation is already running, so two requests yield one job. The job runs only while the state is `generating`. A terminal failure marks the row `failed` with the error's reason instead of deleting it, and so does any error the engine did not classify, so the page never polls a placeholder forever. A failed placeholder blocks nothing: `Incident#postmortem_blocked_reason` ignores it, so Try again re-arms it and Start blank turns it into the empty document. `Postmortem.complete_generation!` clears the state when it saves the draft.

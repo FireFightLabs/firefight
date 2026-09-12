@@ -4,6 +4,7 @@ class Workspace < ApplicationRecord
   include Workspace::Suspension
   include Workspace::Connection
   include Workspace::ChannelArchival
+  include Workspace::InvestigationLimits
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
@@ -17,6 +18,7 @@ class Workspace < ApplicationRecord
   has_many :webhooks, dependent: :destroy
   has_many :alerts, dependent: :destroy
   has_many :alert_groups, dependent: :destroy
+  has_many :investigations, dependent: :destroy
   has_many :incidents, dependent: :destroy
   has_many :alert_sources, dependent: :destroy
   has_many :policies, dependent: :destroy

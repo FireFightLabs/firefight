@@ -48,6 +48,8 @@ Slack handlers, the API, MCP, and the dashboard normalize input and call shared 
 - **Services coordinate, models own logic.** A new file in `app/services/` that never calls an adapter, starts a workflow, or touches another system is a model in the wrong folder.
 - **Engines return, the app delivers.** `engines/firefight_ai` returns drafts, strings, and its own error classes (`FirefightAi::TransientError`, `TerminalError`). It never enqueues app jobs, posts anywhere, or names a platform. Client library exceptions stop at `FirefightAi.translating_errors`.
 - **Constants live once.** No TypeScript mirror of a Ruby list. Add it to `lib/typescript_constants.rb` and run `bin/rails typescript:constants`. No raw strings for identifiers, event types, action names, or resources anywhere.
+- **AI records belong to the app.** `engines/firefight_ai` never names `Investigation` or anything nested under it: it returns a result, the app writes the row. A new AI SRE record is a nested `Investigation::*` model in `app/models`, not another generic name at the top level.
+- **Raced writes are one statement.** A status two workers could reach moves with a guarded `update_all` whose `WHERE` names the states it may leave, never a read followed by a write, and the row count is what says who won. A value that has to survive the race is computed in SQL, not read off a record that may be stale. A new `lock_version` column is a different answer to a solved problem.
 
 ## Reach
 

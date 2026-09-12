@@ -34,7 +34,8 @@ const SOURCE_LABELS: Record<string, string> = {
   web: "Dashboard",
   slack: "Slack",
   api: "API",
-  mcp: "Agent",
+  mcp: "MCP",
+  investigation: "Investigation",
 }
 
 const DECISION_VARIANT: Record<string, "default" | "destructive" | "secondary"> = {
