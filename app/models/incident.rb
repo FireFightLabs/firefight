@@ -48,7 +48,7 @@ class Incident < ApplicationRecord
   has_many :alerts, dependent: :nullify
   has_many :alert_groups, dependent: :destroy
   has_many :incident_runbooks, dependent: :destroy
-  has_many :investigations, dependent: :destroy
+  has_many :investigations, as: :subject, dependent: :destroy
 
   validates :sequence_number, presence: true, uniqueness: { scope: :workspace_id }
   validates :identifier, presence: true, uniqueness: { scope: :workspace_id }

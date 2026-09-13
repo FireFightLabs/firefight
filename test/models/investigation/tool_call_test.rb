@@ -10,7 +10,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
     @incident = incidents(:active_critical_ws1)
     @member = workspace_memberships(:alice_workspace_one)
     @investigation = @workspace.investigations.create!(
-      incident: @incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @member,
+      subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @member,
       max_turns: 10, max_spend_cents: 400
     )
   end

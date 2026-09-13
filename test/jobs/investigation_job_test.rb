@@ -7,7 +7,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
     @investigation = @workspace.investigations.create!(
-      incident: @incident, trigger_source: Investigation::TRIGGER_COMMAND,
+      subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND,
       max_turns: 10, max_spend_cents: 400
     )
     stub_post_message

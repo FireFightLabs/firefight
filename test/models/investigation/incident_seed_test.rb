@@ -1,6 +1,6 @@
 require "test_helper"
 
-class Investigation::SeedingTest < ActiveSupport::TestCase
+class Investigation::IncidentSeedTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
@@ -46,14 +46,14 @@ class Investigation::SeedingTest < ActiveSupport::TestCase
 
   test "a flood of alerts is capped and the pack counts what it left out" do
     source = alert_source("Grafana")
-    (Investigation::Seeding::ALERT_LIMIT + 3).times do |index|
+    (Investigation::IncidentSeed::ALERT_LIMIT + 3).times do |index|
       attach_alert(source, fingerprint: "flood-#{index}", fields: { "title" => "Alert #{index}" },
                    received_at: index.minutes.ago)
     end
 
     pack = @investigation.build_seed_pack!
 
-    assert_equal Investigation::Seeding::ALERT_LIMIT, pack["alerts"].size
+    assert_equal Investigation::IncidentSeed::ALERT_LIMIT, pack["alerts"].size
     assert_equal 3, pack["alerts_held_back"]
   end
 
@@ -122,7 +122,7 @@ class Investigation::SeedingTest < ActiveSupport::TestCase
 
   def investigation_for(incident)
     @workspace.investigations.create!(
-      incident: incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400
+      subject: incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400
     )
   end
 
@@ -141,7 +141,7 @@ class Investigation::SeedingTest < ActiveSupport::TestCase
 
   def record_finding(incident, summary)
     run = @workspace.investigations.create!(
-      incident: incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400,
+      subject: incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400,
       status: Investigation::STATUS_SUCCEEDED
     )
     run.create_finding!(summary: summary)

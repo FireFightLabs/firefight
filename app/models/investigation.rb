@@ -17,7 +17,8 @@ class Investigation < ApplicationRecord
   TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON ].freeze
 
   belongs_to :workspace
-  belongs_to :incident
+  # Polymorphic so a run can be about something other than an incident later.
+  belongs_to :subject, polymorphic: true
   # Polymorphic because a person, an agent or a key can ask.
   belongs_to :triggered_by, polymorphic: true, optional: true
 
@@ -48,8 +49,22 @@ class Investigation < ApplicationRecord
     unavailable_reason(workspace).nil?
   end
 
-  def self.already_running_message(incident)
-    "Already investigating #{incident.identifier}, I will post here when I have something."
+  def self.already_running_message(subject)
+    "Already investigating #{subject.identifier}, I will post here when I have something."
+  end
+
+  # The ledger wants an incident id. A subject that is not an incident has none.
+  def incident
+    subject if subject.is_a?(Incident)
+  end
+
+  def incident_id
+    subject_id if subject_type == Incident.name
+  end
+
+  # Only an incident has a channel, so any other subject gets nil.
+  def channel_id
+    incident&.channel_id
   end
 
   def live?
