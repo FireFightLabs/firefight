@@ -55,10 +55,12 @@ module Investigation::Seeding
     end
   end
 
+  # A name, not a platform id. Whatever renders a mention can ask the incident for one,
+  # and the pack stays plain domain facts the engine can read without learning a platform.
   def person_facts(membership)
     return nil unless membership
 
-    { "name" => membership.display_name, "platform_user_id" => membership.platform_user_id }
+    { "name" => membership.display_name }
   end
 
   # Fields are the provider's own payload, kept whole because the agent reads them.

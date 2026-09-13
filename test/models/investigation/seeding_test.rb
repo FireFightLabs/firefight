@@ -16,8 +16,8 @@ class Investigation::SeedingTest < ActiveSupport::TestCase
     assert_equal "Investigating", facts["status"]
     assert_nil facts["lead"], "this incident has no lead, and the pack says so rather than guessing"
     assert_equal [ { "role" => "Communications Lead",
-                     "member" => { "name" => workspace_memberships(:bob_workspace_one).display_name,
-                                   "platform_user_id" => "U87654321" } } ], facts["roles"]
+                     "member" => { "name" => workspace_memberships(:bob_workspace_one).display_name } } ],
+                 facts["roles"]
   end
 
   test "the lead is named separately from the other roles" do
@@ -25,7 +25,8 @@ class Investigation::SeedingTest < ActiveSupport::TestCase
 
     facts = investigation.build_seed_pack!["incident"]
 
-    assert_equal "U87654321", facts["lead"]["platform_user_id"]
+    assert_equal workspace_memberships(:bob_workspace_one).display_name, facts["lead"]["name"]
+    assert_not facts["lead"].key?("platform_user_id"), "the pack carries no platform shaped value"
     assert_empty facts["roles"], "the lead is not repeated in the role list"
   end
 

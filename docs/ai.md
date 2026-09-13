@@ -139,7 +139,7 @@ The rules:
 - `AiPurpose::INVESTIGATION` picks the model, env prefix `INVESTIGATION_AI`.
 - **The seed pack is gathered once and stored.** `Investigation#build_seed_pack!` reads only Firefight's own tables (the incident and its state, the lead and roles, the alerts with their provider fields, attached runbooks, and resolved past incidents that fired the same alert) and writes one jsonb blob. No model call and no tool call are involved, so the same run always produces the same pack.
 - **Nothing is posted yet.** A run gathers the pack and finishes. A briefing with no answer behind it is half a feature, and the message that will carry a finding is not this one, so the posting lands with the planner instead.
-- **People in the pack carry a `platform_user_id`** so whatever posts the finding can mention them without re-querying. It is the only platform-shaped value in the pack, and the reasoning loop must drop it when it builds engine input rather than letting a model learn that `<@U123>` means a person.
+- **People in the pack are a name and nothing else.** No platform id, so the pack is plain domain facts the engine can be handed without learning that `<@U123>` means a person. Whatever renders a mention asks the incident for it.
 - A past incident matches on `alert_source_id` **and** `fingerprint`, because a fingerprint is only unique within its source, and only resolved incidents count. A match carries its `Investigation::Finding` summary when it has one.
 - The pack caps alerts at `Seeding::ALERT_LIMIT` and records `alerts_held_back`, so whatever renders it can say how many it did not get. Alert `fields` are kept whole, because the agent reads them, and must be escaped by whatever renders them.
 
