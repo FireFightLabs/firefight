@@ -57,36 +57,6 @@ class InvestigationServiceTest < ActiveSupport::TestCase
     assert_equal [ first ], @incident.investigations.live.to_a
   end
 
-  test "the briefing posts the gathered facts to the incident channel" do
-    investigation = @service.start(@incident, trigger_source: Investigation::TRIGGER_COMMAND)
-    Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_briefing).with(
-      channel_id: @incident.channel_id, incident: @incident, seed_pack: anything
-    ).once
-
-    @service.brief(investigation)
-  end
-
-  test "the pack survives a channel the briefing cannot reach" do
-    investigation = @service.start(@incident, trigger_source: Investigation::TRIGGER_COMMAND)
-    Slack::WorkspaceAdapter.any_instance.stubs(:post_investigation_briefing)
-                           .raises(AdapterError.new("channel_not_found"))
-
-    @service.brief(investigation)
-
-    assert_equal "INC-001", investigation.reload.seed_pack.dig("incident", "identifier"),
-                 "the reasoning loop reads the pack, not the message"
-  end
-
-  test "an incident with no channel is still gathered for" do
-    @incident.update!(channel_id: nil)
-    investigation = @service.start(@incident, trigger_source: Investigation::TRIGGER_COMMAND)
-    Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_briefing).never
-
-    @service.brief(investigation)
-
-    assert investigation.reload.seed_pack.present?
-  end
-
   test "an undelivered announcement does not lose the run" do
     Slack::WorkspaceAdapter.any_instance.stubs(:post_message).raises(AdapterError.new("channel_not_found"))
 

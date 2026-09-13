@@ -122,14 +122,6 @@ The shared button only ever subscribes.
   one block per record needs a ceiling and a line saying what it held back.
   `Messages::Runbook::MAX_STEP_ROWS` and `Modals::RunbookDetail::MAX_STEPS` are
   those ceilings, sized against the header and footer around them.
-- **One block per record is not the only answer to the 50 block cap.** A row that
-  carries controls has to be its own block, which is why `Runbook` has
-  `MAX_STEP_ROWS`. A group that is only text can be one `section` holding every
-  line, which is what `InvestigationBriefing` does for alerts, runbooks and past
-  incidents. Either way the ceiling and the withheld count are still required:
-  the section's text caps at 3000 characters, and the briefing adds the count the
-  seed pack held back to the count its own ceiling dropped, so the reader sees one
-  honest total.
 - A `section` accessory is **one element**, so a row cannot carry both a button
   and a picker. Put the second control in an `actions` block, as the action
   item message does, or move it to a modal, as a runbook row does.

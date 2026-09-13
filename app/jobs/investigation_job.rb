@@ -13,11 +13,12 @@ class InvestigationJob < ApplicationJob
     investigation = Investigation.find(investigation_id)
     return unless investigation.claim!
 
-    InvestigationService.new(investigation.workspace).brief(investigation)
+    investigation.build_seed_pack!
 
-    # The facts are gathered but nothing reasons over them until the planner exists.
+    # The facts are gathered but nothing reasons over them until the planner exists,
+    # and nothing is posted because a briefing with no answer behind it is half a feature.
     # The run says so rather than claiming success or holding the incident's only live slot.
-    investigation.finish!(status: Investigation::STATUS_CANCELED, error_summary: "Briefed, nothing to reason with yet")
+    investigation.finish!(status: Investigation::STATUS_CANCELED, error_summary: "Gathered, nothing to reason with yet")
   end
 
   def mark_failed(error)

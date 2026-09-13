@@ -383,14 +383,6 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     AI_OUTPUT_STYLE
   end
 
-  def post_investigation_briefing(channel_id:, incident:, seed_pack:)
-    post_message(
-      channel_id: channel_id,
-      text: Slack::Messages::InvestigationBriefing.fallback_text(incident: incident, seed_pack: seed_pack),
-      blocks: Slack::Messages::InvestigationBriefing.build(incident: incident, seed_pack: seed_pack)
-    )
-  end
-
   def post_ai_response(channel_id:, incident:, answer:)
     blocks = Slack::Messages::AiResponse.build(incident: incident, answer: answer)
     post_message(channel_id: channel_id, text: answer, blocks: blocks)

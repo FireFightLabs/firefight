@@ -13,10 +13,16 @@ class InvestigationJobTest < ActiveSupport::TestCase
     stub_post_message
   end
 
-  test "the run gathers the facts and posts them before it finishes" do
+  test "the run gathers the facts before it finishes" do
     InvestigationJob.perform_now(@investigation.id)
 
     assert_equal "INC-001", @investigation.reload.seed_pack.dig("incident", "identifier")
+  end
+
+  test "the run posts nothing, because a briefing with no answer behind it is half a feature" do
+    Slack::WorkspaceAdapter.any_instance.expects(:post_message).never
+
+    InvestigationJob.perform_now(@investigation.id)
   end
 
   test "a run with nothing to reason over says so rather than claiming success" do
@@ -24,7 +30,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
 
     @investigation.reload
     assert_equal Investigation::STATUS_CANCELED, @investigation.status
-    assert_equal "Briefed, nothing to reason with yet", @investigation.error_summary
+    assert_equal "Gathered, nothing to reason with yet", @investigation.error_summary
     assert_not_nil @investigation.completed_at
     assert @investigation.over?, "a finished run must not hold the incident's only live slot"
   end
