@@ -121,11 +121,51 @@ class InvestigationTest < ActiveSupport::TestCase
     assert_equal %w[command button], Investigation::TRIGGER_SOURCES
   end
 
+  test "an incident is one kind of subject, not the only kind the record allows" do
+    runbook = @workspace.runbooks.create!(name: "Pool triage", slug: "pool-triage", position: 1)
+
+    investigation = @workspace.investigations.create!(
+      subject: runbook, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 4, max_spend_cents: 400
+    )
+
+    assert_equal runbook, investigation.subject
+    assert_nil investigation.incident, "a subject that is not an incident has no incident to name"
+    assert_nil investigation.incident_id, "the ledger gets nil rather than a foreign id"
+    assert_nil investigation.channel_id, "and there is nowhere to post anything"
+  end
+
+  test "one live run per subject, counted per subject and not per workspace" do
+    runbook = @workspace.runbooks.create!(name: "Pool triage", slug: "pool-triage", position: 1)
+    build_investigation
+
+    assert_nothing_raised do
+      @workspace.investigations.create!(
+        subject: runbook, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 4, max_spend_cents: 400
+      )
+    end
+  end
+
+  test "a subject with no seeder says so rather than storing an empty pack" do
+    runbook = @workspace.runbooks.create!(name: "Pool triage", slug: "pool-triage", position: 1)
+    investigation = @workspace.investigations.create!(
+      subject: runbook, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 4, max_spend_cents: 400
+    )
+
+    error = assert_raises(Investigation::Seeding::UnknownSubject) { investigation.build_seed_pack! }
+
+    assert_match "Runbook", error.message
+    assert_empty investigation.reload.seed_pack
+  end
+
+  test "an incident subject resolves to the incident seeder" do
+    assert_equal "Investigation::IncidentSeed", Investigation::Seeding::SEEDERS.fetch("Incident")
+  end
+
   private
 
   def build_investigation(max_turns: 10, max_spend_cents: 400)
     @workspace.investigations.create!(
-      incident: @incident,
+      subject: @incident,
       trigger_source: Investigation::TRIGGER_COMMAND,
       max_turns: max_turns,
       max_spend_cents: max_spend_cents

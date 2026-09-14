@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_12_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_13_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -923,13 +923,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_140000) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.string "error_summary"
-    t.uuid "incident_id", null: false
     t.integer "max_spend_cents", null: false
     t.integer "max_turns", null: false
     t.jsonb "seed_pack", default: {}, null: false
     t.integer "spent_cents", default: 0, null: false
     t.datetime "started_at"
     t.string "status", default: "pending", null: false
+    t.uuid "subject_id", null: false
+    t.string "subject_type", null: false
     t.jsonb "tool_set", default: [], null: false
     t.string "trigger_source", null: false
     t.uuid "triggered_by_id"
@@ -937,8 +938,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_140000) do
     t.integer "turns_used", default: 0, null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
-    t.index ["incident_id"], name: "index_investigations_on_incident_id"
-    t.index ["incident_id"], name: "index_investigations_on_live_incident", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'running'::character varying])::text[]))"
+    t.index ["subject_type", "subject_id"], name: "index_investigations_on_live_subject", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'running'::character varying])::text[]))"
+    t.index ["subject_type", "subject_id"], name: "index_investigations_on_subject"
     t.index ["triggered_by_type", "triggered_by_id"], name: "index_investigations_on_triggered_by"
     t.index ["workspace_id", "created_at"], name: "index_investigations_on_workspace_id_and_created_at"
     t.index ["workspace_id"], name: "index_investigations_on_workspace_id"
@@ -1378,7 +1379,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_140000) do
   add_foreign_key "investigation_hypotheses", "investigations"
   add_foreign_key "investigation_steps", "investigation_hypotheses", column: "hypothesis_id"
   add_foreign_key "investigation_steps", "investigations"
-  add_foreign_key "investigations", "incidents"
   add_foreign_key "investigations", "workspaces"
   add_foreign_key "invite_codes", "users", column: "redeemed_by_id"
   add_foreign_key "oauth_access_grants", "oauth_applications", column: "application_id"
