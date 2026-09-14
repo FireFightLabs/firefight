@@ -5,8 +5,7 @@ module Investigation::Seeding
   RUNBOOK_LIMIT = 5
   PAST_INCIDENT_LIMIT = 3
 
-  # Gathered once and stored, so every later turn reads one row and every turn
-  # sees the same facts.
+  # Stored once so every later turn reads one row and sees the same facts.
   def build_seed_pack!
     update!(seed_pack: gathered_facts)
     seed_pack
@@ -45,7 +44,7 @@ module Investigation::Seeding
     }
   end
 
-  # Ordered by the role's own position, so the pack and the dashboard list them the same way.
+  # Sorted by role position so the order matches the dashboard.
   def role_facts
     assignments = incident.incident_role_assignments.includes(:incident_role, :workspace_membership)
     assignments.sort_by { |assignment| assignment.incident_role.position }.filter_map do |assignment|
@@ -55,15 +54,14 @@ module Investigation::Seeding
     end
   end
 
-  # A name, not a platform id. Whatever renders a mention can ask the incident for one,
-  # and the pack stays plain domain facts the engine can read without learning a platform.
+  # No platform id. The engine reads this pack, and a Slack user id means nothing to it.
   def person_facts(membership)
     return nil unless membership
 
     { "name" => membership.display_name }
   end
 
-  # Fields are the provider's own payload, kept whole because the agent reads them.
+  # The provider's payload, kept whole because the agent reads it.
   def alert_facts(alert)
     {
       "source" => alert.alert_source.name,
