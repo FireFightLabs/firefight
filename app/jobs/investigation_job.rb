@@ -13,9 +13,11 @@ class InvestigationJob < ApplicationJob
     investigation = Investigation.find(investigation_id)
     return unless investigation.claim!
 
-    # Nothing to run until the planner exists. The run says so rather than claiming
-    # success or holding the incident's only live slot.
-    investigation.finish!(status: Investigation::STATUS_CANCELED, error_summary: "Nothing to run yet")
+    investigation.build_seed_pack!
+
+    # Nothing reasons over the facts until the planner exists. Canceled rather than
+    # succeeded, so the run neither claims an answer nor holds the incident's live slot.
+    investigation.finish!(status: Investigation::STATUS_CANCELED, error_summary: "Gathered, nothing to reason with yet")
   end
 
   def mark_failed(error)

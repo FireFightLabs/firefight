@@ -1,4 +1,6 @@
 class Investigation < ApplicationRecord
+  include Investigation::Seeding
+
   STATUS_PENDING = "pending"
   STATUS_RUNNING = "running"
   STATUS_SUCCEEDED = "succeeded"
