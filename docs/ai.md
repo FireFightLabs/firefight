@@ -118,12 +118,13 @@ Phase 1 of the AI SRE build. Where the pieces are:
 
 | Piece | Holds |
 |---|---|
-| `Investigation` | one run: trigger, who asked, budget, status |
+| `Investigation` | one run: the subject, trigger, who asked, budget, status |
 | `Investigation::Hypothesis` | one theory |
 | `Investigation::Step` | one tool call |
 | `Investigation::Finding` | the one answer, with its named confidence factors |
 | `Investigation::ToolCall` | the gateway wrapper every tool call goes through |
-| `Investigation::Seeding` | gathers the facts Firefight already holds, stored on `seed_pack` |
+| `Investigation::Seeding` | picks the seeder for the subject and stores its pack on `seed_pack` |
+| `Investigation::IncidentSeed` | the facts Firefight already holds about an incident |
 | `InvestigationService` / `InvestigationJob` | starts a run, runs it on the `investigations` queue |
 | `Commands::StartInvestigation` / `Interactions::StartInvestigationButtonHandler` | the two entry points |
 | `FirefightAi::Contracts::*` | the five reasoning shapes |
@@ -132,12 +133,14 @@ The rules:
 
 - Evidence is a reference (a ledger invocation, a PR, a file range, an incident), never a copied blob.
 - Every tool call goes through `AbilityGateway` carrying `SOURCE_INVESTIGATION`, and stores its invocation id on the step. Tool output lives on the step, encrypted, and never reaches the ledger. `params` is the binding the ledger stores, so it names what was asked and never carries a payload.
-- One live run per incident, enforced by a partial unique index, so a second request is told rather than duplicating the work and posting a second answer to the same channel. It is not a cost control, budgets are.
+- One live run per subject, enforced by a partial unique index, so a second request is told rather than duplicating the work and posting a second answer to the same channel. It is not a cost control, budgets are.
 - Both entry points ask `Investigation.unavailable_reason` and `Incident#investigation_blocked_reason` and spell no refusal of their own.
 - Steps are ordered by when they happened. Branches run in parallel, so a shared counter would be a number two of them fight over.
 - Budgets are code defaults in `Workspace::InvestigationLimits`, overridden per workspace by the nullable `investigation_*` columns an operator sets. Spend is cents. Turns are a loop guard, not a cost unit. Each run snapshots both, so changing a default never rewrites what an old run was allowed to spend.
 - `AiPurpose::INVESTIGATION` picks the model, env prefix `INVESTIGATION_AI`.
-- **The seed pack is gathered once and stored.** `Investigation#build_seed_pack!` reads only Firefight's own tables (the incident and its state, the lead and roles, the alerts with their provider fields, attached runbooks, and resolved past incidents that fired the same alert) and writes one jsonb blob. No model call and no tool call are involved, so the same run always produces the same pack.
+- **The subject is polymorphic.** An investigation is a bounded piece of research that ends in a finding, and an incident is the first thing worth researching, not the only one. `subject_type` plus `subject_id` replaced `incident_id`, the one live run index keys on the subject, and `Investigation#incident` returns the subject only when it is an incident, which is what the ledger's `incident_id` and the announcement's channel both ask for. A polymorphic column carries no database foreign key, so the cascade is Rails' `has_many :investigations, as: :subject, dependent: :destroy`.
+- **A seeder per subject type.** `Investigation::Seeding::SEEDERS` maps a subject type to a class and a subject with no entry raises `UnknownSubject` rather than storing an empty pack. `Investigation::IncidentSeed` is the only implementation.
+- **The seed pack is gathered once and stored.** The seeder reads only Firefight's own tables (the incident and its state, the lead and roles, the alerts with their provider fields, attached runbooks, and resolved past incidents that fired the same alert) and writes one jsonb blob. No model call and no tool call are involved, so the same run always produces the same pack.
 - **Nothing is posted yet.** A run gathers the pack and finishes. A briefing with no answer behind it is half a feature, and the message that will carry a finding is not this one, so the posting lands with the planner instead.
 - **People in the pack are a name and nothing else.** No platform id, so the pack is plain domain facts the engine can be handed without learning that `<@U123>` means a person. Whatever renders a mention asks the incident for it.
 - A past incident matches on `alert_source_id` **and** `fingerprint`, because a fingerprint is only unique within its source, and only resolved incidents count. A match carries its `Investigation::Finding` summary when it has one.

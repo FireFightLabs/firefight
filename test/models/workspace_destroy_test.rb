@@ -41,7 +41,7 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
                             generated_at: Time.current, model: "gpt-4o-mini")
 
     investigation = @workspace.investigations.create!(
-      incident: incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @membership,
+      subject: incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @membership,
       max_turns: 4, max_spend_cents: 400
     )
     hypothesis = investigation.hypotheses.create!(assertion: "The deploy broke it", position: 1)
