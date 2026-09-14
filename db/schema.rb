@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_13_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_14_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -61,20 +61,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_090000) do
   end
 
   create_table "ability_grants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "workspace_id", null: false
-    t.string "principal_type", null: false
-    t.uuid "principal_id", null: false
-    t.uuid "role_id"
     t.uuid "action_id"
-    t.jsonb "scope", default: {}, null: false
     t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
     t.datetime "expires_at"
+    t.uuid "principal_id", null: false
+    t.string "principal_type", null: false
+    t.uuid "role_id"
+    t.jsonb "scope", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
     t.index ["action_id"], name: "index_ability_grants_on_action_id"
     t.index ["expires_at"], name: "index_ability_grants_on_expires_at", where: "(expires_at IS NOT NULL)"
-    t.index ["principal_type", "principal_id", "action_id"], name: "index_ability_grants_on_principal_action", unique: true, where: "(action_id IS NOT NULL)"
-    t.index ["principal_type", "principal_id", "role_id"], name: "index_ability_grants_on_principal_role", unique: true, where: "(role_id IS NOT NULL)"
     t.index ["role_id"], name: "index_ability_grants_on_role_id"
+    t.index ["workspace_id", "principal_type", "principal_id", "action_id"], name: "index_ability_grants_on_principal_action", unique: true, where: "(action_id IS NOT NULL)"
+    t.index ["workspace_id", "principal_type", "principal_id", "role_id"], name: "index_ability_grants_on_principal_role", unique: true, where: "(role_id IS NOT NULL)"
     t.check_constraint "role_id IS NOT NULL AND action_id IS NULL OR role_id IS NULL AND action_id IS NOT NULL", name: "ability_grants_exactly_one_target"
   end
 

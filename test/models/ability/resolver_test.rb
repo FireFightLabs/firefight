@@ -9,11 +9,46 @@ module Ability
       @key = api_keys(:full_access_key)
     end
 
+    # The point of the workspace argument: a principal that is not owned by one
+    # workspace must not carry its grants into another.
+    test "a grant in one workspace does not resolve in another" do
+      other = workspaces(:slack_workspace_two)
+      Ability::Grant.create!(workspace: @workspace, principal: @key, action: ability_actions(:alerts_read))
+
+      assert Ability::Resolver.resolve(@key, @workspace).covers?("alerts.read")
+      assert_not Ability::Resolver.resolve(@key, other).covers?("alerts.read"),
+                 "grants belong to the workspace they were made in"
+    end
+
+    test "the same principal can hold different grants in two workspaces" do
+      other = workspaces(:slack_workspace_two)
+      Ability::Grant.create!(workspace: @workspace, principal: @key, action: ability_actions(:alerts_read))
+      Ability::Grant.create!(workspace: other, principal: @key, action: ability_actions(:alerts_read),
+                             scope: { "environment" => [ "env-staging" ] })
+
+      assert Ability::Resolver.resolve(@key, @workspace).covers?("alerts.read", {})
+      assert_not Ability::Resolver.resolve(@key, other).covers?("alerts.read", {}),
+                 "the second workspace granted a narrower scope and that is what applies there"
+    end
+
+    test "the cache is keyed by workspace, so revoking in one leaves the other alone" do
+      other = workspaces(:slack_workspace_two)
+      first = Ability::Grant.create!(workspace: @workspace, principal: @key, action: ability_actions(:alerts_read))
+      Ability::Grant.create!(workspace: other, principal: @key, action: ability_actions(:alerts_read))
+      Ability::Resolver.resolve(@key, @workspace)
+      Ability::Resolver.resolve(@key, other)
+
+      first.destroy!
+
+      assert_not Ability::Resolver.resolve(@key, @workspace).covers?("alerts.read")
+      assert Ability::Resolver.resolve(@key, other).covers?("alerts.read")
+    end
+
     test "resolves direct grants with their scopes" do
       Ability::Grant.create!(workspace: @workspace, principal: @key, action: ability_actions(:alerts_read),
                              scope: { "environment" => [ "env-prod" ] })
 
-      resolved = Ability::Resolver.resolve(@key)
+      resolved = Ability::Resolver.resolve(@key, @workspace)
 
       assert resolved.covers?("alerts.read", { "environment" => "env-prod" })
       assert_not resolved.covers?("alerts.read", { "environment" => "env-staging" })
@@ -24,7 +59,7 @@ module Ability
     test "an unscoped grant is unrestricted on every dimension" do
       Ability::Grant.create!(workspace: @workspace, principal: @key, action: ability_actions(:alerts_read))
 
-      resolved = Ability::Resolver.resolve(@key)
+      resolved = Ability::Resolver.resolve(@key, @workspace)
 
       assert resolved.covers?("alerts.read")
       assert resolved.covers?("alerts.read", { "environment" => "env-prod" })
@@ -38,7 +73,7 @@ module Ability
       Ability::Grant.create!(workspace: @workspace, principal: @key, role: role,
                              scope: { "environment" => [ "env-prod" ] })
 
-      resolved = Ability::Resolver.resolve(@key)
+      resolved = Ability::Resolver.resolve(@key, @workspace)
 
       assert resolved.covers?("alerts.read", { "environment" => "env-prod" })
       assert_not resolved.covers?("alerts.read", { "environment" => "env-dev" })
@@ -49,13 +84,13 @@ module Ability
       store = ActiveSupport::Cache::MemoryStore.new
       Rails.stubs(:cache).returns(store)
 
-      assert_not Ability::Resolver.resolve(@key).covers?("alerts.read")
+      assert_not Ability::Resolver.resolve(@key, @workspace).covers?("alerts.read")
 
       grant = Ability::Grant.create!(workspace: @workspace, principal: @key, action: ability_actions(:alerts_read))
-      assert Ability::Resolver.resolve(@key).covers?("alerts.read")
+      assert Ability::Resolver.resolve(@key, @workspace).covers?("alerts.read")
 
       grant.destroy!
-      assert_not Ability::Resolver.resolve(@key).covers?("alerts.read")
+      assert_not Ability::Resolver.resolve(@key, @workspace).covers?("alerts.read")
     end
 
     test "role membership changes bust every holder of the role" do
@@ -64,20 +99,21 @@ module Ability
 
       role = Ability::Role.create!(workspace: @workspace, name: "Observer", slug: "observer")
       Ability::Grant.create!(workspace: @workspace, principal: @key, role: role)
-      assert_not Ability::Resolver.resolve(@key).covers?("alerts.read")
+      assert_not Ability::Resolver.resolve(@key, @workspace).covers?("alerts.read")
 
       Ability::RoleAction.create!(role: role, action: ability_actions(:alerts_read))
-      assert Ability::Resolver.resolve(@key).covers?("alerts.read")
+      assert Ability::Resolver.resolve(@key, @workspace).covers?("alerts.read")
     end
 
     test "an expired grant stops resolving" do
       grant = Grant.create!(workspace: @workspace, principal: @key,
                             action: Action.system!("runbooks.read"), expires_at: 1.hour.from_now)
-      assert Resolver.resolve(@key).covers?("runbooks.read")
+      assert Resolver.resolve(@key, @workspace).covers?("runbooks.read")
 
       travel 2.hours do
-        Resolver.bust!(principal_type: @key.class.polymorphic_name, principal_id: @key.id)
-        assert_not Resolver.resolve(@key).covers?("runbooks.read")
+        Resolver.bust!(principal_type: @key.class.polymorphic_name, principal_id: @key.id,
+                       workspace_id: @workspace.id)
+        assert_not Resolver.resolve(@key, @workspace).covers?("runbooks.read")
       end
       assert grant.reload.persisted?, "the row stays so the screen can show it lapsed"
     end
@@ -87,20 +123,20 @@ module Ability
       Grant.create!(workspace: @workspace, principal: @key,
                     action: Action.system!("runbooks.read"), expires_at: 10.minutes.from_now)
 
-      assert_in_delta 10.minutes, Resolver.cache_ttl_for(@key), 5.seconds
+      assert_in_delta 10.minutes, Resolver.cache_ttl_for(@key, @workspace.id), 5.seconds
     end
 
     test "a grant with no expiry keeps the full cache window" do
       Grant.create!(workspace: @workspace, principal: @key, action: Action.system!("runbooks.create"))
 
-      assert_equal Resolver::CACHE_TTL, Resolver.cache_ttl_for(@key)
+      assert_equal Resolver::CACHE_TTL, Resolver.cache_ttl_for(@key, @workspace.id)
     end
 
     test "an expiry further out than the cache window does not extend it" do
       Grant.create!(workspace: @workspace, principal: @key,
                     action: Action.system!("runbooks.update"), expires_at: 5.days.from_now)
 
-      assert_equal Resolver::CACHE_TTL, Resolver.cache_ttl_for(@key)
+      assert_equal Resolver::CACHE_TTL, Resolver.cache_ttl_for(@key, @workspace.id)
     end
 
     # What the expiry is for.
@@ -113,7 +149,8 @@ module Ability
       end
 
       travel 2.hours do
-        Resolver.bust!(principal_type: @key.class.polymorphic_name, principal_id: @key.id)
+        Resolver.bust!(principal_type: @key.class.polymorphic_name, principal_id: @key.id,
+                       workspace_id: @workspace.id)
         assert_raises(AbilityGateway::Denied) do
           AbilityGateway.authorize!(principal: @key, action_key: "runbooks.create", workspace: @workspace)
         end

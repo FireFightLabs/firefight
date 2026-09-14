@@ -2,7 +2,7 @@ module Ability
   # What a principal can actually do, for the settings UI and debugging denials.
   module Preview
     def self.for(principal)
-      resolved = Resolver.resolve(principal)
+      resolved = Resolver.resolve(principal, principal.workspace_id)
       actions = Action.where(workspace_id: [ nil, principal.workspace_id ], key: resolved.action_keys)
                       .index_by(&:key)
 
