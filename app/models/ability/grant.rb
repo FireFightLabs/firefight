@@ -6,8 +6,11 @@ module Ability
     belongs_to :role, class_name: "Ability::Role", optional: true, inverse_of: :grants
     belongs_to :action, class_name: "Ability::Action", optional: true
 
-    validates :action_id, uniqueness: { scope: [ :principal_type, :principal_id ] }, if: -> { action_id.present? }
-    validates :role_id, uniqueness: { scope: [ :principal_type, :principal_id ] }, if: -> { role_id.present? }
+    # Workspace is part of the key so a global principal can hold different grants per tenant.
+    validates :action_id, uniqueness: { scope: [ :principal_type, :principal_id, :workspace_id ] },
+                          if: -> { action_id.present? }
+    validates :role_id, uniqueness: { scope: [ :principal_type, :principal_id, :workspace_id ] },
+                        if: -> { role_id.present? }
     validate :exactly_one_target
     validate :action_grantable
     validate :scope_well_formed
@@ -65,7 +68,7 @@ module Ability
     # Grants outside managed_keys, such as tool actions, are never touched.
     def self.sync_direct!(principal:, workspace:, desired_keys:, managed_keys:)
       transaction do
-        existing = where(principal: principal)
+        existing = where(principal: principal, workspace_id: workspace.id)
                      .joins(:action)
                      .where(ability_actions: { key: managed_keys })
                      .index_by { |grant| grant.action.key }
@@ -116,7 +119,9 @@ module Ability
     end
 
     def bust_principal_cache
-      Ability::Resolver.bust!(principal_type: principal_type, principal_id: principal_id)
+      Ability::Resolver.bust!(
+        principal_type: principal_type, principal_id: principal_id, workspace_id: workspace_id
+      )
     end
   end
 end

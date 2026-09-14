@@ -8,7 +8,7 @@ module Mcp
     # Lists only what the principal could call, so a narrowly scoped service key
     # never sees an inventory of the workspace's connections. invoke still authorizes each call.
     def self.tools_for(workspace, principal)
-      resolved = Ability::Resolver.resolve(principal)
+      resolved = Ability::Resolver.resolve(principal, workspace)
 
       Integration::Tool.enabled.available
                        .joins(:integration)

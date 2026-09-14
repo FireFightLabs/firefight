@@ -26,7 +26,7 @@ class InertiaController < ApplicationController
     keys = Ability::Action::RESOURCES.index_with { |resource| Ability::Action.system_key(resource, Ability::Action::ACTION_UPDATE) }
     actions = Ability::Action.system_actions.where(key: keys.values).index_by(&:key)
     keys.transform_values do |key|
-      actions[key].present? && AbilityGateway.permitted?(current_membership, actions[key], key, {})
+      actions[key].present? && AbilityGateway.permitted?(current_membership, actions[key], key, current_workspace, {})
     end
   end
 

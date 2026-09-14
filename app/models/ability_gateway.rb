@@ -65,7 +65,7 @@ class AbilityGateway
   def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
     action = Ability::Action.lookup(action_key, workspace)
 
-    unless permitted?(principal, action, action_key, scope) && action&.configured_for?(scope)
+    unless permitted?(principal, action, action_key, workspace, scope) && action&.configured_for?(scope)
       record!(decision: Ability::Invocation::DECISION_DENY, completed_at: Time.current,
               principal: principal, action: action, action_key: action_key,
               workspace: workspace, scope: scope, params: params, context: context)
@@ -114,11 +114,11 @@ class AbilityGateway
     end
   end
 
-  def self.permitted?(principal, action, action_key, scope)
+  def self.permitted?(principal, action, action_key, workspace, scope)
     return false unless action
 
     principal.implicitly_allowed?(action) ||
-      Ability::Resolver.resolve(principal).covers?(action_key, scope)
+      Ability::Resolver.resolve(principal, workspace).covers?(action_key, scope)
   end
 
   # The caller claims the returned approval together with the allow ledger row.

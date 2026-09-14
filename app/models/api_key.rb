@@ -89,7 +89,7 @@ class ApiKey < ApplicationRecord
   def has_permission?(resource, action)
     return on_behalf_of.implicitly_permits?(resource, action) if personal?
 
-    Ability::Resolver.resolve(self).covers?(Ability::Action.system_key(resource, action))
+    Ability::Resolver.resolve(self, workspace).covers?(Ability::Action.system_key(resource, action))
   end
 
   # Derived from the grants rather than stored, so there is no second copy to
