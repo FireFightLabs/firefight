@@ -7,7 +7,7 @@ class Investigation::ToolCall
 
   Result = Data.define(:step, :value)
 
-  def self.run!(investigation, principal:, action_key:, params: {}, hypothesis: nil, reasoning: nil)
+  def self.run!(investigation, action_key:, params: {}, hypothesis: nil, reasoning: nil)
     step = investigation.steps.create!(
       hypothesis: hypothesis,
       action_key: action_key,
@@ -19,7 +19,7 @@ class Investigation::ToolCall
 
     begin
       authorization = AbilityGateway.authorize!(
-        principal: principal,
+        principal: investigation.agent_principal,
         action_key: action_key,
         workspace: investigation.workspace,
         params: params,

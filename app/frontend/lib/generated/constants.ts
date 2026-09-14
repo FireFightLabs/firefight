@@ -241,7 +241,8 @@ export type AbilityRiskLevel = (typeof ABILITY_RISK_LEVELS)[number]
 export const PRINCIPAL_KINDS = {
   "USER": "user",
   "AGENT": "agent",
-  "API_KEY": "api_key"
+  "API_KEY": "api_key",
+  "SYSTEM_AGENT": "system_agent"
 } as const
 
 export const APPROVAL_NOTIFY_OPTIONS = [

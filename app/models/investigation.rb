@@ -67,6 +67,11 @@ class Investigation < ApplicationRecord
     incident&.channel_id
   end
 
+  # Runs as the agent, not the person, so a finding does not depend on who asked.
+  def agent_principal
+    SystemAgent.investigator
+  end
+
   def live?
     LIVE_STATUSES.include?(status)
   end

@@ -13,11 +13,16 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
       subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @member,
       max_turns: 10, max_spend_cents: 400
     )
+    # Without this grant every tool call below is denied.
+    Ability::Grant.create!(
+      workspace: @workspace, principal: SystemAgent.investigator,
+      action: Ability::Action.system!(CREATE_KEY)
+    )
   end
 
   test "a tool call leaves a ledger row and the step keeps the receipt" do
     result = Investigation::ToolCall.run!(
-      @investigation, principal: @member, action_key: CREATE_KEY, params: { "question" => "what changed" }
+      @investigation, action_key: CREATE_KEY, params: { "question" => "what changed" }
     ) { "the deploy at 10:01" }
 
     step = result.step
@@ -32,8 +37,27 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
     assert_equal @incident.id, invocation.incident_id
   end
 
+  test "a tool call runs as the agent, never as the person who asked" do
+    Investigation::ToolCall.run!(@investigation, action_key: CREATE_KEY) { "done" }
+
+    invocation = Ability::Invocation.find(@investigation.steps.sole.invocation_id)
+
+    assert_equal SystemAgent.investigator.id, invocation.principal_id
+    assert_equal "SystemAgent", invocation.principal_type
+    assert_equal @member.principal_label, invocation.triggered_by_label,
+                 "the ledger still names the person who asked"
+  end
+
+  test "an agent the workspace granted nothing cannot act, whoever asked" do
+    Ability::Grant.where(principal: SystemAgent.investigator).destroy_all
+
+    assert_raises(AbilityGateway::Denied) do
+      Investigation::ToolCall.run!(@investigation, action_key: CREATE_KEY) { "done" }
+    end
+  end
+
   test "the ledger says the work came from an investigation, not from a click" do
-    Investigation::ToolCall.run!(@investigation, principal: @member, action_key: CREATE_KEY) { "done" }
+    Investigation::ToolCall.run!(@investigation, action_key: CREATE_KEY) { "done" }
 
     step = @investigation.steps.sole
     invocation = Ability::Invocation.find(step.invocation_id)
@@ -44,7 +68,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
 
   test "a tool that raises records the reason on the step and the ledger row" do
     assert_raises(RuntimeError) do
-      Investigation::ToolCall.run!(@investigation, principal: @member, action_key: CREATE_KEY) do
+      Investigation::ToolCall.run!(@investigation, action_key: CREATE_KEY) do
         raise "the database said no"
       end
     end
@@ -61,10 +85,10 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
 
   test "a refused tool never runs and leaves no step open" do
     ran = false
-    WorkspaceMembership.any_instance.stubs(:implicitly_allowed?).returns(false)
+    Ability::Grant.where(principal: SystemAgent.investigator).destroy_all
 
     assert_raises(AbilityGateway::Denied) do
-      Investigation::ToolCall.run!(@investigation, principal: @member, action_key: CREATE_KEY) { ran = true }
+      Investigation::ToolCall.run!(@investigation, action_key: CREATE_KEY) { ran = true }
     end
 
     assert_not ran
@@ -78,7 +102,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
     hypothesis = @investigation.hypotheses.create!(assertion: "The deploy broke it", position: 1)
 
     result = Investigation::ToolCall.run!(
-      @investigation, principal: @member, action_key: CREATE_KEY, hypothesis: hypothesis,
+      @investigation, action_key: CREATE_KEY, hypothesis: hypothesis,
       reasoning: "check what shipped"
     ) { "v41" }
 
@@ -90,7 +114,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
     long = "x" * (Investigation::ToolCall::MAX_COMPACTED + 500)
 
     step = Investigation::ToolCall.run!(
-      @investigation, principal: @member, action_key: CREATE_KEY
+      @investigation, action_key: CREATE_KEY
     ) { long }.step
 
     assert_equal Investigation::ToolCall::MAX_COMPACTED, step.compacted_result.length
@@ -98,7 +122,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
   end
 
   test "steps read back in the order they happened, with no number to fight over" do
-    3.times { |index| Investigation::ToolCall.run!(@investigation, principal: @member, action_key: CREATE_KEY) { "call #{index}" } }
+    3.times { |index| Investigation::ToolCall.run!(@investigation, action_key: CREATE_KEY) { "call #{index}" } }
 
     assert_equal [ "call 0", "call 1", "call 2" ],
                  @investigation.steps.reload.map(&:compacted_result)

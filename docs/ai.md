@@ -122,7 +122,8 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `Investigation::Hypothesis` | one theory |
 | `Investigation::Step` | one tool call |
 | `Investigation::Finding` | the one answer, with its named confidence factors |
-| `Investigation::ToolCall` | the gateway wrapper every tool call goes through |
+| `Investigation::ToolCall` | the gateway wrapper every tool call goes through, always as the agent |
+| `SystemAgent` | Firefight's own agents, global, one row each, granted per workspace |
 | `Investigation::Seeding` | picks the seeder for the subject and stores its pack on `seed_pack` |
 | `Investigation::IncidentSeed` | the facts Firefight already holds about an incident |
 | `InvestigationService` / `InvestigationJob` | starts a run, runs it on the `investigations` queue |
@@ -132,6 +133,8 @@ Phase 1 of the AI SRE build. Where the pieces are:
 The rules:
 
 - Evidence is a reference (a ledger invocation, a PR, a file range, an incident), never a copied blob.
+- **A run acts as the agent, not as the person who asked.** `SystemAgent.investigator` is one global row, because the software is the same for every customer and only the grants differ. `Investigation::ToolCall` takes no principal argument, so no caller can run a tool as the human by mistake. A workspace grants the agent what it may reach under Gateway, Permissions, where built in agents are their own section, hidden until the workspace has `FeatureFlags::AI_SRE`. An agent granted nothing is denied, whoever asked.
+- Built in agents are defined in code (`SystemAgent::BUILT_IN`) and created on demand, so a fresh install loading `schema.rb` gets them without running the migration.
 - Every tool call goes through `AbilityGateway` carrying `SOURCE_INVESTIGATION`, and stores its invocation id on the step. Tool output lives on the step, encrypted, and never reaches the ledger. `params` is the binding the ledger stores, so it names what was asked and never carries a payload.
 - One live run per subject, enforced by a partial unique index, so a second request is told rather than duplicating the work and posting a second answer to the same channel. It is not a cost control, budgets are.
 - Both entry points ask `Investigation.unavailable_reason` and `Incident#investigation_blocked_reason` and spell no refusal of their own.
@@ -146,7 +149,7 @@ The rules:
 - A past incident matches on `alert_source_id` **and** `fingerprint`, because a fingerprint is only unique within its source, and only resolved incidents count. A match carries its `Investigation::Finding` summary when it has one.
 - The pack caps alerts at `Seeding::ALERT_LIMIT` and records `alerts_held_back`, so whatever renders it can say how many it did not get. Alert `fields` are kept whole, because the agent reads them, and must be escaped by whatever renders them.
 
-Not built yet: the planner, parallel branches, the posted Finding, MCP tools, the dashboard page, a deadline on a run (nothing runs long enough to need one yet), and the Investigator's own agent principal (a tool call runs under the grants of whoever asked until then). A run today gathers the pack and finishes as `canceled` with "Gathered, nothing to reason with yet", which keeps the incident's one live slot free. `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind the five contracts.
+Not built yet: the planner, parallel branches, the posted Finding, MCP tools, the dashboard page, a deadline on a run (nothing runs long enough to need one yet), and the per person environment cap on a run (the scope a person may investigate lands with the planner, which is what decides the environment a tool call targets). A run today gathers the pack and finishes as `canceled` with "Gathered, nothing to reason with yet", which keeps the incident's one live slot free. `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind the five contracts.
 
 ## Postmortem generation state
 

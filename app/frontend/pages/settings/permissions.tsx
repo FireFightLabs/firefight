@@ -32,10 +32,15 @@ interface PermissionsPageProps extends SharedProps {
 
 type Selection = { kind: "principal" | "set"; id: string } | { kind: "approvals" }
 
-const KIND_ICON = { user: IconUser, agent: IconRobot, api_key: IconKey }
+const KIND_ICON = { user: IconUser, agent: IconRobot, api_key: IconKey, system_agent: IconRobot }
 const SECTIONS: { kind: string; title: string; blurb: string }[] = [
   { kind: "user", title: "People", blurb: "Members of this workspace" },
   { kind: "agent", title: "Agents", blurb: "AI principals acting on their own grants" },
+  {
+    kind: "system_agent",
+    title: "Firefight agents",
+    blurb: "Built in, and they reach only what you grant them here",
+  },
   { kind: "api_key", title: "Service keys", blurb: "Machine credentials, never inheriting a human's reach" },
 ]
 

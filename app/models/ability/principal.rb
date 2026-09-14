@@ -4,12 +4,15 @@ module Ability
     KIND_USER = "user"
     KIND_AGENT = "agent"
     KIND_API_KEY = "api_key"
-    KINDS = [ KIND_USER, KIND_AGENT, KIND_API_KEY ].freeze
+    # Firefight's own agents, global rather than owned by a workspace.
+    KIND_SYSTEM_AGENT = "system_agent"
+    KINDS = [ KIND_USER, KIND_AGENT, KIND_API_KEY, KIND_SYSTEM_AGENT ].freeze
 
     def self.find!(workspace, kind, id)
       case kind.to_s
       when KIND_USER then workspace.workspace_memberships.find(id)
       when KIND_AGENT then workspace.agents.find(id)
+      when KIND_SYSTEM_AGENT then SystemAgent.find(id)
       when KIND_API_KEY then workspace.api_keys.service.find(id)
       else raise ActiveRecord::RecordNotFound, "unknown principal kind #{kind.inspect}"
       end
@@ -43,7 +46,17 @@ module Ability
       memberships = workspace.workspace_memberships.includes(:user, associations)
       agents = workspace.agents.active.includes(associations)
       keys = workspace.api_keys.where(deleted_at: nil).service.includes(associations)
-      memberships.to_a + agents.to_a + keys.to_a
+      memberships.to_a + agents.to_a + keys.to_a + system_agents(workspace)
+    end
+
+    # Each is told which workspace's grants to show, and hidden unless it has the feature.
+    def self.system_agents(workspace)
+      return [] unless FeatureFlags.enabled?(workspace, FeatureFlags::AI_SRE)
+
+      SystemAgent.order(:name).map do |agent|
+        agent.listing_workspace_id = workspace.id
+        agent
+      end
     end
   end
 end
