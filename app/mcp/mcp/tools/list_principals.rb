@@ -4,14 +4,14 @@ module Mcp
       extend GatewayPayloads
 
       tool_name LIST_PRINCIPALS
-      description "Everyone who can hold a grant, people, agents and service keys, with the grants " \
-                  "each holds. Use the kind and id with grant_ability, and a person's id as an " \
-                  "approver in upsert_approval_rule. Docs: #{Docs::PERMISSIONS}"
+      description "Everyone who can hold a grant, people, agents, service keys and Firefight's own " \
+                  "built in agents, with the grants each holds. Use the kind and id with grant_ability, " \
+                  "and a person's id as an approver in upsert_approval_rule. Docs: #{Docs::PERMISSIONS}"
       annotations(**READ_ONLY)
       authorize_as Ability::Action::RESOURCE_PERMISSIONS
       input_schema(
         properties: {
-          kind: { type: "string", description: "user, agent or api_key; omit for all" }
+          kind: { type: "string", description: "user, agent, api_key or system_agent; omit for all" }
         },
         required: []
       )

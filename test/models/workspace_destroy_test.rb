@@ -29,6 +29,8 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
     )
     tool = integration.tools.create!(name: "logs_query", read_only: true, enabled: true)
     Ability::Grant.create!(workspace: @workspace, principal: api_keys(:full_access_key), action: tool.ability_action)
+    # A built in agent outlives any one workspace, so only the grant goes.
+    Ability::Grant.create!(workspace: @workspace, principal: SystemAgent.investigator, action: tool.ability_action)
 
     role = @workspace.ability_roles.create!(name: "Readers")
     role.role_actions.create!(action: tool.ability_action)
@@ -72,6 +74,10 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
       assert_not model.where(workspace_id: workspace_id).exists?, "expected no #{model.table_name} rows"
     end
     assert_not Doorkeeper::AccessToken.where(resource_owner_id: membership_ids).exists?
+    assert SystemAgent.exists?(SystemAgent.investigator.id),
+           "a global agent is not one workspace's to delete"
+    assert_not Ability::Grant.where(principal: SystemAgent.investigator).exists?,
+               "but the grant it held in that workspace is gone"
   end
 
   test "destroying one workspace leaves the others and global actions untouched" do
