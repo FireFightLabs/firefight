@@ -1,6 +1,4 @@
 class Investigation::Finding < ApplicationRecord
-  self.table_name = "investigation_findings"
-
   STATE_UNPUBLISHED = "unpublished"
   STATE_PUBLISHED = "published"
   # Below the workspace's confidence bar, or holding instruction-like evidence.

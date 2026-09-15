@@ -1,8 +1,6 @@
 # enabled is the admin's allowlist, removed_at is whether the provider still offers it.
 # Discovery only writes removed_at, so a tool that vanishes and returns keeps the admin's choice.
 class Integration::Tool < ApplicationRecord
-  self.table_name = "integration_tools"
-
   belongs_to :integration
   has_one :ability_action, class_name: "Ability::Action", as: :source, dependent: :destroy
 

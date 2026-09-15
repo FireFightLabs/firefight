@@ -1,6 +1,4 @@
 class Chat::Message < ApplicationRecord
-  self.table_name = "chat_messages"
-
   acts_as_message chat: :chat, chat_class: "Chat"
 
   # Tool results and the model's reasoning about them are the customer's data. The raw
