@@ -128,7 +128,7 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `Investigation::IncidentSeed` | the facts Firefight already holds about an incident |
 | `InvestigationService` / `InvestigationJob` | starts a run, runs it on the `investigations` queue |
 | `Commands::StartInvestigation` / `Interactions::StartInvestigationButtonHandler` | the two entry points |
-| `FirefightAi::Contracts::*` | the five reasoning shapes |
+| `FirefightAi::Contracts::*` | the reasoning shapes that are swappable, `ConfidenceScorer` and `Matcher` |
 
 The rules:
 
@@ -144,12 +144,13 @@ The rules:
 - **The subject is polymorphic.** An investigation is a bounded piece of research that ends in a finding, and an incident is the first thing worth researching, not the only one. `subject_type` plus `subject_id` replaced `incident_id`, the one live run index keys on the subject, and `Investigation#incident` returns the subject only when it is an incident, which is what the ledger's `incident_id` and the announcement's channel both ask for. A polymorphic column carries no database foreign key, so the cascade is Rails' `has_many :investigations, as: :subject, dependent: :destroy`.
 - **A seeder per subject type.** `Investigation::Seeding::SEEDERS` maps a subject type to a class and a subject with no entry raises `UnknownSubject` rather than storing an empty pack. `Investigation::IncidentSeed` is the only implementation.
 - **The seed pack is gathered once and stored.** The seeder reads only Firefight's own tables (the incident and its state, the lead and roles, the alerts with their provider fields, attached runbooks, and resolved past incidents that fired the same alert) and writes one jsonb blob. No model call and no tool call are involved, so the same run always produces the same pack.
-- **Nothing is posted yet.** A run gathers the pack and finishes. A briefing with no answer behind it is half a feature, and the message that will carry a finding is not this one, so the posting lands with the planner instead.
+- **Nothing is posted yet.** A run gathers the pack and finishes. A briefing with no answer behind it is half a feature, and the message that will carry a finding is not this one, so the posting lands with the agent loop instead.
 - **People in the pack are a name and nothing else.** No platform id, so the pack is plain domain facts the engine can be handed without learning that `<@U123>` means a person. Whatever renders a mention asks the incident for it.
 - A past incident matches on `alert_source_id` **and** `fingerprint`, because a fingerprint is only unique within its source, and only resolved incidents count. A match carries its `Investigation::Finding` summary when it has one.
 - The pack caps alerts at `Seeding::ALERT_LIMIT` and records `alerts_held_back`, so whatever renders it can say how many it did not get. Alert `fields` are kept whole, because the agent reads them, and must be escaped by whatever renders them.
 
-Not built yet: the planner, parallel branches, the posted Finding, MCP tools, the dashboard page, a deadline on a run (nothing runs long enough to need one yet), and the per person environment cap on a run (the scope a person may investigate lands with the planner, which is what decides the environment a tool call targets). A run today gathers the pack and finishes as `canceled` with "Gathered, nothing to reason with yet", which keeps the incident's one live slot free. `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind the five contracts.
+Not built yet: the agent loop, the posted Finding, MCP tools, the dashboard page, a deadline on a run (nothing runs long enough to need one yet), and the per person environment cap on a run (the scope a person may investigate lands with the agent loop, which is what decides the environment a tool call targets). A run today gathers the pack and finishes as `canceled` with "Gathered, nothing to reason with yet", which keeps the incident's one live slot free. `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind `ConfidenceScorer` or `Matcher` yet.
+- **One agent with tools, no sub-agents.** The Investigator reads every tool result into one context itself. There is no planner handing theories to branch runners and no specialist agents returning summaries, because a handoff passes on only part of what the previous step knew. Theories are `Investigation::Hypothesis` rows the same agent writes as it works.
 
 ## Postmortem generation state
 
