@@ -54,6 +54,11 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
       )
     )
     investigation.create_finding!(winning_hypothesis: hypothesis, summary: "The deploy broke it")
+    chat = @workspace.chats.create!(owner: investigation, model: "claude-sonnet-4-5", provider: :anthropic)
+    chat.add_message(role: :assistant, content: "",
+                     tool_calls: { "toolu_1" => RubyLLM::ToolCall.new(id: "toolu_1", name: "list_commits", arguments: {}) })
+    chat.add_message(role: :tool, content: "abc123", tool_call_id: "toolu_1")
+    chat.ruby_llm_usages.create!(operation: "chat", provider: "anthropic", model: "claude-sonnet-4-5", status: "succeeded")
 
     oauth_app = Doorkeeper::Application.create!(name: "Test agent", redirect_uri: "https://example.test/callback")
     Doorkeeper::AccessToken.create!(application: oauth_app, resource_owner_id: @membership.id, token: SecureRandom.hex(16))
@@ -68,11 +73,14 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
     @workspace.destroy!
 
     [ Incident, WorkspaceMembership, ApiKey, Alert, AlertGroup, AlertSource, Integration,
-      CatalogType, CatalogEntry, Runbook, Webhook, Inference, IncidentSummary, Policy, Investigation,
+      CatalogType, CatalogEntry, Runbook, Webhook, Inference, IncidentSummary, Policy, Investigation, Chat,
       IncidentStatus, IncidentFieldDefinition, IncidentForm, IdempotencyKey,
       Ability::Action, Ability::Grant, Ability::Role ].each do |model|
       assert_not model.where(workspace_id: workspace_id).exists?, "expected no #{model.table_name} rows"
     end
+    assert_not Chat::Message.exists?(chat_id: chat.id)
+    assert_not RubyLLM::ActiveRecord::ToolCall.exists?(message_type: Chat::Message.polymorphic_name)
+    assert_not RubyLLM::ActiveRecord::Usage.exists?(chat_id: chat.id)
     assert_not Doorkeeper::AccessToken.where(resource_owner_id: membership_ids).exists?
     assert SystemAgent.exists?(SystemAgent.investigator.id),
            "a global agent is not one workspace's to delete"

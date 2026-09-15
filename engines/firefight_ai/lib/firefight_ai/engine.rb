@@ -2,6 +2,12 @@ module FirefightAi
   class Engine < ::Rails::Engine
     isolate_namespace FirefightAi
 
+    # RubyLLM's Rails support would read models from ruby_llm_models, a copy no gem upgrade
+    # refreshes. Runs after RubyLLM's own hook sets that store.
+    initializer "firefight_ai.model_registry" do
+      ActiveSupport.on_load(:active_record) { RubyLLM.config.model_registry_store = nil }
+    end
+
     initializer "firefight_ai.configure_llm" do
       config.after_initialize do
         RubyLLM.configure do |c|

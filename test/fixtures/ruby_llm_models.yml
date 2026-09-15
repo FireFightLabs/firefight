@@ -1,0 +1,10 @@
+_fixture:
+  model_class: RubyLLM::ActiveRecord::Model
+
+# RubyLLM copies its whole registry into this table when it is empty, so one row
+# keeps every test that saves a chat from writing some 1,700 rows first.
+claude_sonnet:
+  model_id: claude-sonnet-4-5
+  name: Claude Sonnet 4.5
+  provider: anthropic
+  capabilities: ["function_calling", "reasoning"]

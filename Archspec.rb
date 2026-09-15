@@ -121,8 +121,9 @@ solid_workflow_namespace.can_only_be_used_by :workflows, :solid_workflow_engine
 # Delivery, jobs and platform calls live in the app, the engine only reads models and returns results.
 firefight_ai_engine.can_only_use :models, :firefight_ai_engine
 
-# The engine reasons and returns, the app writes the record of what happened.
-firefight_ai_engine.cannot_reference_constants "Investigation"
+# The engine reasons and returns, the app writes the record of what happened. A saved
+# chat reaches the engine as the RubyLLM chat it wraps, never as the record.
+firefight_ai_engine.cannot_reference_constants "Investigation", "Chat"
 
 # Provider clients and credential shapes stay behind the integrations layer.
 integration_clients.can_only_be_used_by :integrations_layer

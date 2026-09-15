@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_14_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_15_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -326,6 +326,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_120000) do
     t.index ["workspace_id", "slug"], name: "index_catalog_types_on_workspace_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id", "system_key"], name: "index_catalog_types_on_workspace_id_and_system_key", unique: true, where: "(system_key IS NOT NULL)"
     t.index ["workspace_id"], name: "index_catalog_types_on_workspace_id"
+  end
+
+  create_table "chat_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "cache_until_here", default: false, null: false
+    t.uuid "chat_id", null: false
+    t.jsonb "citations"
+    t.text "content"
+    t.datetime "created_at", null: false
+    t.string "finish_reason"
+    t.jsonb "raw_content"
+    t.jsonb "raw_reasoning"
+    t.string "role", null: false
+    t.jsonb "server_tool_calls"
+    t.text "thinking_signature"
+    t.text "thinking_text"
+    t.datetime "updated_at", null: false
+    t.index ["chat_id", "created_at"], name: "index_chat_messages_on_chat_id_and_created_at"
+  end
+
+  create_table "chats", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "cancelled", default: false, null: false
+    t.datetime "created_at", null: false
+    t.uuid "owner_id", null: false
+    t.string "owner_type", null: false
+    t.uuid "ruby_llm_model_id"
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["owner_type", "owner_id"], name: "index_chats_on_owner", unique: true
+    t.index ["ruby_llm_model_id"], name: "index_chats_on_ruby_llm_model_id"
+    t.index ["workspace_id"], name: "index_chats_on_workspace_id"
   end
 
   create_table "flipper_features", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1063,6 +1093,72 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_120000) do
     t.index ["incident_id"], name: "index_postmortems_on_incident_id", unique: true
   end
 
+  create_table "ruby_llm_models", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "capabilities", default: []
+    t.integer "context_window"
+    t.datetime "created_at", null: false
+    t.string "family"
+    t.date "knowledge_cutoff"
+    t.integer "max_output_tokens"
+    t.jsonb "metadata", default: {}
+    t.jsonb "modalities", default: {}
+    t.datetime "model_created_at"
+    t.string "model_id", null: false
+    t.string "name", null: false
+    t.jsonb "pricing", default: {}
+    t.string "provider", null: false
+    t.datetime "unlisted_at"
+    t.datetime "updated_at", null: false
+    t.index ["family"], name: "index_ruby_llm_models_on_family"
+    t.index ["provider", "model_id"], name: "index_ruby_llm_models_on_provider_and_model_id", unique: true
+    t.index ["provider"], name: "index_ruby_llm_models_on_provider"
+  end
+
+  create_table "ruby_llm_tool_calls", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "approval"
+    t.jsonb "arguments", default: {}
+    t.datetime "created_at", null: false
+    t.uuid "message_id", null: false
+    t.string "message_type", null: false
+    t.string "name", null: false
+    t.boolean "remote", default: false, null: false
+    t.uuid "result_id"
+    t.string "result_type"
+    t.text "thought_signature"
+    t.string "tool_call_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["message_type", "message_id", "tool_call_id"], name: "index_ruby_llm_tool_calls_on_message_and_tool_call_id", unique: true
+    t.index ["name"], name: "index_ruby_llm_tool_calls_on_name"
+    t.index ["result_type", "result_id"], name: "index_ruby_llm_tool_calls_on_result_type_and_result_id"
+  end
+
+  create_table "ruby_llm_usages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.decimal "cache_read_cost", precision: 16, scale: 10
+    t.integer "cache_read_tokens"
+    t.decimal "cache_write_cost", precision: 16, scale: 10
+    t.integer "cache_write_tokens"
+    t.uuid "chat_id", null: false
+    t.string "chat_type", null: false
+    t.datetime "created_at", null: false
+    t.decimal "input_cost", precision: 16, scale: 10
+    t.integer "input_tokens"
+    t.uuid "message_id"
+    t.string "message_type"
+    t.string "model", null: false
+    t.string "operation", null: false
+    t.decimal "output_cost", precision: 16, scale: 10
+    t.integer "output_tokens"
+    t.string "provider", null: false
+    t.string "status", null: false
+    t.decimal "thinking_cost", precision: 16, scale: 10
+    t.integer "thinking_tokens"
+    t.decimal "total_cost", precision: 16, scale: 10
+    t.datetime "updated_at", null: false
+    t.index ["chat_type", "chat_id"], name: "index_ruby_llm_usages_on_chat_type_and_chat_id"
+    t.index ["message_type", "message_id"], name: "index_ruby_llm_usages_on_message_type_and_message_id"
+    t.index ["status"], name: "index_ruby_llm_usages_on_status"
+  end
+
   create_table "runbook_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "runbook_id", null: false
     t.string "title", null: false
@@ -1321,6 +1417,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_120000) do
   add_foreign_key "catalog_entry_relationships", "catalog_entries", column: "target_entry_id"
   add_foreign_key "catalog_entry_relationships", "workspaces"
   add_foreign_key "catalog_types", "workspaces"
+  add_foreign_key "chat_messages", "chats"
+  add_foreign_key "chats", "ruby_llm_models"
+  add_foreign_key "chats", "workspaces"
   add_foreign_key "idempotency_keys", "workspaces"
   add_foreign_key "incident_action_updates", "incident_actions"
   add_foreign_key "incident_action_updates", "incidents"
