@@ -77,7 +77,7 @@ component :integration_clients,
                         Integrations::CloneManager Integrations::Http]
 
 # Handlers naming Slack::Modals and the like are grandfathered debt, not precedent.
-slack_namespace.can_only_be_used_by :slack_adapter, :slack_entry_controllers, :slack_auth, :platform_factory
+slack_namespace.can_only_be_used_by :slack_adapter, :slack_client, :slack_entry_controllers, :slack_auth, :platform_factory
 
 slack_client.can_only_be_used_by :slack_adapter, :slack_namespace
 
