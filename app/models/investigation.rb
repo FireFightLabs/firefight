@@ -28,6 +28,7 @@ class Investigation < ApplicationRecord
            dependent: :destroy, inverse_of: :investigation
   has_many :hypotheses, -> { ordered }, class_name: "Investigation::Hypothesis",
            dependent: :destroy, inverse_of: :investigation
+  has_one :chat, as: :owner, dependent: :destroy
 
   validates :status, inclusion: { in: STATUSES }
   validates :trigger_source, inclusion: { in: TRIGGER_SOURCES }

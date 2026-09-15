@@ -124,6 +124,7 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `Investigation::Hypothesis` | one theory |
 | `Investigation::Step` | one tool call |
 | `Investigation::Finding` | the one answer, with its named confidence factors |
+| `Chat` / `Chat::Message` | the agent's saved conversation with the model, see Saved chat |
 | `Investigation::ToolCall` | the gateway wrapper every tool call goes through, always as the agent |
 | `SystemAgent` | Firefight's own agents, global, one row each, granted per workspace |
 | `Investigation::Seeding` | picks the seeder for the subject and stores its pack on `seed_pack` |
@@ -153,6 +154,23 @@ The rules:
 
 Not built yet: the agent loop, the posted Finding, MCP tools, the dashboard page, a deadline on a run (nothing runs long enough to need one yet), and the per person environment cap on a run (the scope a person may investigate lands with the agent loop, which is what decides the environment a tool call targets). A run today gathers the pack and finishes as `canceled` with "Gathered, nothing to reason with yet", which keeps the incident's one live slot free. `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind `ConfidenceScorer` or `Matcher` yet.
 - **One agent with tools, no sub-agents.** The Investigator reads every tool result into one context itself. There is no planner handing theories to branch runners and no specialist agents returning summaries, because a handoff passes on only part of what the previous step knew. Theories are `Investigation::Hypothesis` rows the same agent writes as it works.
+
+## Saved chat
+
+`Chat` and `Chat::Message` hold the agent's conversation with the model: messages, thinking text and signatures, raw reasoning and content blocks, tool calls and results, approval decisions. `owner` is polymorphic and unique, so an investigation has one chat and a conversation will too, and the owner decides who may read it. RubyLLM's `acts_as_chat` and `acts_as_message` write each move as it happens, and `chat.to_llm` rebuilds the `RubyLLM::Chat`. The engine only sees that `RubyLLM::Chat`.
+
+The rules:
+
+- **Resume from the chat.** Rebuilding from `Investigation::Step` loses the reasoning between tool calls and the thinking blocks providers need back unchanged.
+- **Call `Chat#discard_interrupted_reply!` before resuming.** A worker killed mid tool call leaves an empty assistant row that RubyLLM reads as the final answer. Only the job holding the run may call it, since a live worker mid tool call has the same row. The interrupted tool runs again, so tools must be safe to repeat.
+- **Tool call ids are unique per message**, not globally as RubyLLM installs them, since a model that numbers its calls (`call_0`) repeats ids across workspaces.
+- **Everything the model read or said is encrypted**: `content`, `thinking_text`, `thinking_signature`, `citations`, `server_tool_calls`, `raw_content`, `raw_reasoning`. Tool call `arguments` in `ruby_llm_tool_calls` are not, like ledger `params`.
+- **A chat belongs to its owner's workspace.**
+- **Settings are not saved.** Tools, thinking and temperature live on the in-memory chat, so every job applies them after loading.
+- **Always set the model**, from `FirefightAi.model_for`. Without one RubyLLM uses its `default_model`. The first chat ever saved copies RubyLLM's 1,669 models into `ruby_llm_models`, and `test/fixtures/ruby_llm_models.yml` keeps one row so tests skip that.
+- **Model lookups never read `ruby_llm_models`.** RubyLLM's Rails support would point `RubyLLM.models` at it, a copy no gem upgrade refreshes, so the engine clears `model_registry_store` on `:active_record` load.
+- **Spend is not read from here.** `ruby_llm_usages` records tokens and cost per attempt, but spend, permissions and audit stay in `Inference`, the gateway and `Investigation::Step`.
+- Only Anthropic's thinking replay has been tested against saved rows, not OpenAI's or Gemini's.
 
 ## Postmortem generation state
 

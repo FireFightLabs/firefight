@@ -1,6 +1,4 @@
 class Investigation::Hypothesis < ApplicationRecord
-  self.table_name = "investigation_hypotheses"
-
   STATUS_OPEN = "open"
   STATUS_SUPPORTED = "supported"
   STATUS_REFUTED = "refuted"

@@ -1,0 +1,9 @@
+_fixture:
+  model_class: RubyLLM::ActiveRecord::Model
+
+# RubyLLM copies all 1,669 models into an empty table, so without this row every test that saves a chat does.
+claude_sonnet:
+  model_id: claude-sonnet-4-5
+  name: Claude Sonnet 4.5
+  provider: anthropic
+  capabilities: ["function_calling", "reasoning"]

@@ -19,6 +19,7 @@ class Workspace < ApplicationRecord
   has_many :alerts, dependent: :destroy
   has_many :alert_groups, dependent: :destroy
   has_many :investigations, dependent: :destroy
+  has_many :chats, dependent: :destroy
   has_many :incidents, dependent: :destroy
   has_many :alert_sources, dependent: :destroy
   has_many :policies, dependent: :destroy

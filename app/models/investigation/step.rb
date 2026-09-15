@@ -1,6 +1,4 @@
 class Investigation::Step < ApplicationRecord
-  self.table_name = "investigation_steps"
-
   STATUS_PENDING = "pending"
   STATUS_RUNNING = "running"
   STATUS_SUCCEEDED = "succeeded"
