@@ -15,7 +15,7 @@ class InvestigationJob < ApplicationJob
 
     investigation.build_seed_pack!
 
-    # Nothing reasons over the facts until the planner exists. Canceled rather than
+    # Nothing reasons over the facts until the agent loop exists. Canceled rather than
     # succeeded, so the run neither claims an answer nor holds the incident's live slot.
     investigation.finish!(status: Investigation::STATUS_CANCELED, error_summary: "Gathered, nothing to reason with yet")
   end
