@@ -74,6 +74,13 @@ class ChatTest < ActiveSupport::TestCase
     assert_equal 2, RubyLLM::ActiveRecord::ToolCall.where(tool_call_id: "call_0").count
   end
 
+  test "a chat belongs to its owner's workspace" do
+    chat = workspaces(:slack_workspace_two).chats.build(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
+
+    assert_not chat.valid?
+    assert_includes chat.errors[:owner], "must belong to the same workspace"
+  end
+
   test "an investigation has one chat" do
     assert_equal @chat, @investigation.reload.chat
     assert_raises(ActiveRecord::RecordNotUnique) do

@@ -1,6 +1,6 @@
 class CreateChats < ActiveRecord::Migration[8.1]
   def change
-    # RubyLLM's model registry, filled by RubyLLM the first time a chat resolves a model.
+    # RubyLLM fills this the first time a chat picks a model.
     create_table :ruby_llm_models, id: :uuid do |t|
       t.string :model_id, null: false
       t.string :name, null: false
@@ -56,8 +56,7 @@ class CreateChats < ActiveRecord::Migration[8.1]
       t.jsonb :arguments, default: {}
       t.timestamps
     end
-    # Unique per message, not globally as RubyLLM installs it, since a model that numbers
-    # its calls would otherwise fail another workspace's run.
+    # Unique per message, since a model that numbers its calls repeats ids across workspaces.
     add_index :ruby_llm_tool_calls, [ :message_type, :message_id, :tool_call_id ], unique: true,
               name: "index_ruby_llm_tool_calls_on_message_and_tool_call_id"
     add_index :ruby_llm_tool_calls, [ :result_type, :result_id ]

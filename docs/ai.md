@@ -157,19 +157,20 @@ Not built yet: the agent loop, the posted Finding, MCP tools, the dashboard page
 
 ## Saved chat
 
-`Chat` and `Chat::Message` hold the agent's conversation with the model: every message, the model's thinking text and signature, the raw reasoning and content blocks, tool calls and their results, approval decisions. One table serves every owner (`owner` is polymorphic and unique, so an investigation has one chat and a conversation will too), and who may read it is the owner's rule. The models use RubyLLM's `acts_as_chat` and `acts_as_message`, so RubyLLM writes each move as it happens and `chat.to_llm` rebuilds the `RubyLLM::Chat` from the rows. The engine only ever sees that `RubyLLM::Chat`, never the record.
+`Chat` and `Chat::Message` hold the agent's conversation with the model: messages, thinking text and signatures, raw reasoning and content blocks, tool calls and results, approval decisions. `owner` is polymorphic and unique, so an investigation has one chat and a conversation will too, and the owner decides who may read it. RubyLLM's `acts_as_chat` and `acts_as_message` write each move as it happens, and `chat.to_llm` rebuilds the `RubyLLM::Chat`. The engine only sees that `RubyLLM::Chat`.
 
 The rules:
 
-- **Resume from the chat, not from the steps.** A restarted job loads the saved messages and carries on with `step`. Rebuilding from `Investigation::Step` would lose the reasoning between tool calls and the thinking blocks providers require back unchanged.
-- **Discard an interrupted reply first.** A worker killed while a tool runs leaves an empty assistant row, and RubyLLM reads that on resume as the model's final answer, so the run would silently complete. Call `Chat#discard_interrupted_reply!` before resuming, and only from the job that holds the run, since a worker still mid tool call has the same empty row. The interrupted tool then runs again, so every tool must be safe to repeat.
-- **Tool call ids are unique per message.** RubyLLM installs `ruby_llm_tool_calls.tool_call_id` as globally unique, and a model that numbers its calls (`call_0`) would then fail another workspace's run. The index here is `[message_type, message_id, tool_call_id]`.
-- **Everything the model read or said is encrypted.** `content`, `thinking_text`, `thinking_signature`, `citations`, `server_tool_calls`, `raw_content` and `raw_reasoning`, since tool results are the customer's data and the raw columns carry a second copy of the thinking. Tool call `arguments` sit unencrypted in RubyLLM's `ruby_llm_tool_calls`, like ledger `params`.
-- **Settings are not saved.** Tools, thinking, temperature and instructions applied without `persist` live on the in-memory chat, so every job applies them again after loading the record.
-- **Always set the model.** A chat saved without one resolves RubyLLM's `default_model`. Set it from `FirefightAi.model_for`. The first chat ever resolved copies RubyLLM's whole registry (about 1,700 models) into `ruby_llm_models`, once. Tests keep one row in `test/fixtures/ruby_llm_models.yml` so no test pays that.
-- **Model lookups never read `ruby_llm_models`.** RubyLLM's Rails support would switch `RubyLLM.models` to that table once it exists, a copy frozen at the first chat that a gem upgrade no longer refreshes. The engine clears `model_registry_store` in an `on_load(:active_record)` hook, so lookups stay on RubyLLM's registry file and the table is only what chats point at.
-- **Money is not read from here.** `ruby_llm_usages` records each attempt's tokens and cost, but spend, permissions and audit stay in `Inference`, the gateway and `Investigation::Step`.
-- Only Anthropic's thinking replay has been exercised against the saved rows. OpenAI and Gemini reasoning replay is untested.
+- **Resume from the chat.** Rebuilding from `Investigation::Step` loses the reasoning between tool calls and the thinking blocks providers need back unchanged.
+- **Call `Chat#discard_interrupted_reply!` before resuming.** A worker killed mid tool call leaves an empty assistant row that RubyLLM reads as the final answer. Only the job holding the run may call it, since a live worker mid tool call has the same row. The interrupted tool runs again, so tools must be safe to repeat.
+- **Tool call ids are unique per message**, not globally as RubyLLM installs them, since a model that numbers its calls (`call_0`) repeats ids across workspaces.
+- **Everything the model read or said is encrypted**: `content`, `thinking_text`, `thinking_signature`, `citations`, `server_tool_calls`, `raw_content`, `raw_reasoning`. Tool call `arguments` in `ruby_llm_tool_calls` are not, like ledger `params`.
+- **A chat belongs to its owner's workspace.**
+- **Settings are not saved.** Tools, thinking and temperature live on the in-memory chat, so every job applies them after loading.
+- **Always set the model**, from `FirefightAi.model_for`. Without one RubyLLM uses its `default_model`. The first chat ever saved copies RubyLLM's 1,669 models into `ruby_llm_models`, and `test/fixtures/ruby_llm_models.yml` keeps one row so tests skip that.
+- **Model lookups never read `ruby_llm_models`.** RubyLLM's Rails support would point `RubyLLM.models` at it, a copy no gem upgrade refreshes, so the engine clears `model_registry_store` on `:active_record` load.
+- **Spend is not read from here.** `ruby_llm_usages` records tokens and cost per attempt, but spend, permissions and audit stay in `Inference`, the gateway and `Investigation::Step`.
+- Only Anthropic's thinking replay has been tested against saved rows, not OpenAI's or Gemini's.
 
 ## Postmortem generation state
 

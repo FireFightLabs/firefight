@@ -1,8 +1,7 @@
 class Chat::Message < ApplicationRecord
   acts_as_message chat: :chat, chat_class: "Chat"
 
-  # Tool results and the model's reasoning about them are the customer's data. The raw
-  # columns carry a second copy of the thinking.
+  # Tool results and the model's reasoning are customer data, and the raw columns repeat the thinking.
   encrypts :content, :thinking_text, :thinking_signature,
            :citations, :server_tool_calls, :raw_content, :raw_reasoning
 
