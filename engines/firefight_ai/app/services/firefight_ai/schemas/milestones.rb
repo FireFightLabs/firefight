@@ -1,6 +1,6 @@
 module FirefightAi
   module Schemas
-    class Milestones < ::RubyLLM::Schema
+    class Milestones < ::Schematist::Schema
       # The extractor reads the response by this key.
       ROOT_KEY = "milestones".freeze
 

@@ -9,6 +9,8 @@ module FirefightAi
             c.public_send("#{setting}=", value) if value.present?
           end
           c.request_timeout = FirefightAi.configuration.request_timeout
+          # RubyLLM 2 defaults OpenAI to the Responses API, which OpenAI compatible bases may not serve.
+          c.openai_protocol = :chat_completions
         end
       end
     end

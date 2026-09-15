@@ -150,12 +150,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   end
 
   def stub_llm_response(text)
-    response = OpenStruct.new(
-      content: text,
-      input_tokens: 100, output_tokens: 50,
-      cache_read_tokens: 0, cache_write_tokens: 0,
-      cost: 0.001, stop_reason: "end_turn", id: "msg_test"
-    )
+    response = llm_reply(content: text, input: 100, output: 50, cost: 0.001)
 
     chat = mock("chat")
     chat.stubs(:with_instructions).returns(chat)
@@ -164,7 +159,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   end
 
   def stub_llm_capturing_prompt
-    response = OpenStruct.new(content: "stub", input_tokens: 0, output_tokens: 0, cost: 0)
+    response = llm_reply(content: "stub")
     chat = mock("chat")
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:ask).with do |prompt|

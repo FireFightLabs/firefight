@@ -19,16 +19,17 @@ class Inference < ApplicationRecord
 
     begin
       response = yield
+      tokens = response.try(:tokens)
       inference = create!(
         **attrs,
-        input_tokens:        response.try(:input_tokens).to_i,
-        output_tokens:       response.try(:output_tokens).to_i,
-        cache_read_tokens:   response.try(:cache_read_tokens).to_i,
-        cache_write_tokens:  response.try(:cache_write_tokens).to_i,
+        input_tokens:        tokens.try(:input).to_i,
+        output_tokens:       tokens.try(:output).to_i,
+        cache_read_tokens:   tokens.try(:cache_read).to_i,
+        cache_write_tokens:  tokens.try(:cache_write).to_i,
         cost_micros:         cost_to_micros(response.try(:cost)),
         latency_ms:          elapsed_ms_since(started),
-        stop_reason:         response.try(:stop_reason),
-        provider_request_id: response.try(:id),
+        stop_reason:         response.try(:finish_reason)&.to_s,
+        provider_request_id: provider_request_id(response),
         status:              STATUS_SUCCESS
       )
       [ response, inference ]
@@ -57,6 +58,13 @@ class Inference < ApplicationRecord
     ((dollars || 0).to_f * 1_000_000).round
   end
   private_class_method :cost_to_micros
+
+  # The provider's own id for the call, read off the raw body since RubyLLM does not surface it.
+  def self.provider_request_id(response)
+    body = response.try(:raw).try(:body)
+    body["id"].presence if body.is_a?(Hash)
+  end
+  private_class_method :provider_request_id
 
   def self.monotonic_now
     Process.clock_gettime(Process::CLOCK_MONOTONIC)

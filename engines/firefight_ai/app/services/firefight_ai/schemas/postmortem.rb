@@ -1,6 +1,6 @@
 module FirefightAi
   module Schemas
-    class Postmortem < ::RubyLLM::Schema
+    class Postmortem < ::Schematist::Schema
       # Nullable, not optional. Strict structured output needs every key present.
       SECTION_KEYS = %w[
         summary introduction deeper_dive impact resolution

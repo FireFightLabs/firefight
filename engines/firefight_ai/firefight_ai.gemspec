@@ -14,5 +14,5 @@ Gem::Specification.new do |spec|
   end
 
   spec.add_dependency "rails", ">= 8.0"
-  spec.add_dependency "ruby_llm"
+  spec.add_dependency "ruby_llm", ">= 2.0.0.rc3", "< 3"
 end

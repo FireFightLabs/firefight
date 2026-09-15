@@ -1,5 +1,5 @@
 require "ruby_llm"
-require "ruby_llm/schema"
+require "schematist"
 require "firefight_ai/version"
 require "firefight_ai/configuration"
 require "firefight_ai/errors"

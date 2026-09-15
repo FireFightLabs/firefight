@@ -18,8 +18,7 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
     captured_prompt = nil
 
-    mock_response = mock("response")
-    mock_response.stubs(:content).returns("summary")
+    mock_response = llm_reply(content: "summary")
 
     mock_chat = mock("chat")
     mock_chat.stubs(:with_instructions).returns(mock_chat)
@@ -38,8 +37,7 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(summary_stub)
 
     captured_prompt = nil
-    mock_response = mock("response")
-    mock_response.stubs(:content).returns("answer")
+    mock_response = llm_reply(content: "answer")
     mock_chat = mock("chat")
     mock_chat.stubs(:with_instructions).returns(mock_chat)
     mock_chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(mock_response)
@@ -69,8 +67,7 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
     end
 
     captured_prompt = nil
-    mock_response = mock("response")
-    mock_response.stubs(:content).returns("thread summary")
+    mock_response = llm_reply(content: "thread summary")
     mock_chat = mock("chat")
     mock_chat.stubs(:with_instructions).returns(mock_chat)
     mock_chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(mock_response)
@@ -109,8 +106,7 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
 
     captured_prompt = nil
-    mock_response = mock("response")
-    mock_response.stubs(:content).returns("answer")
+    mock_response = llm_reply(content: "answer")
     mock_chat = mock("chat")
     mock_chat.stubs(:with_instructions).returns(mock_chat)
     mock_chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(mock_response)
@@ -126,8 +122,7 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
   def stub_ruby_llm_response(text)
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
 
-    mock_response = mock("response")
-    mock_response.stubs(:content).returns(text)
+    mock_response = llm_reply(content: text)
 
     mock_chat = mock("chat")
     mock_chat.stubs(:with_instructions).returns(mock_chat)

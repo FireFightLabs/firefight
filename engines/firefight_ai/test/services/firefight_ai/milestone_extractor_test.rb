@@ -128,12 +128,7 @@ class FirefightAi::MilestoneExtractorTest < ActiveSupport::TestCase
   end
 
   def stub_model(rows, &capture)
-    response = OpenStruct.new(
-      content: { "milestones" => rows.map(&:stringify_keys) },
-      input_tokens: 100, output_tokens: 50,
-      cache_read_tokens: 0, cache_write_tokens: 0,
-      cost: 0.0001, stop_reason: "end_turn", id: "msg_test"
-    )
+    response = llm_reply(content: { "milestones" => rows }, input: 100, output: 50, cost: 0.0001)
 
     chat = mock("chat")
     chat.stubs(:with_instructions).returns(chat)
