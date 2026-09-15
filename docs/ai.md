@@ -32,7 +32,7 @@ app/services/
 
 ## Model-agnostic by configuration
 
-The engine calls models through `RubyLLM` — no provider-specific SDK code in services. Every provider RubyLLM supports is configured the same way: one env var per RubyLLM setting, named after it. `FirefightAi::Configuration::PROVIDER_SETTINGS` is the list (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `BEDROCK_REGION`, `VERTEXAI_SERVICE_ACCOUNT_KEY`, `OLLAMA_API_BASE`, `OPENROUTER_API_KEY`, ...). `config/initializers/firefight_ai.rb` reads them into `configuration.provider_settings` and the engine hands them to `RubyLLM.configure` untouched, so adding a provider RubyLLM gains is one entry in the list. Bedrock takes its AWS credentials from the SDK's usual environment.
+The engine calls models through `RubyLLM` — no provider-specific SDK code in services. Every provider RubyLLM supports is configured the same way: one env var per RubyLLM setting, named after it. `FirefightAi::Configuration::PROVIDER_SETTINGS` is the list (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `BEDROCK_REGION`, `VERTEXAI_SERVICE_ACCOUNT_KEY`, `OLLAMA_API_BASE`, `OPENROUTER_API_KEY`, ...). `config/initializers/firefight_ai.rb` reads them into `configuration.provider_settings` and the engine hands them to `RubyLLM.configure` untouched, so adding a provider RubyLLM gains is one entry in the list. Bedrock takes its AWS credentials from the SDK's usual environment. OpenAI is pinned to the Chat Completions protocol (`openai_protocol`), since RubyLLM 2 defaults it to the Responses API and OpenAI compatible bases may not serve that.
 
 Every call has a purpose (`AiPurpose::POSTMORTEM`, `INCIDENT_RESPONSE`, `SUMMARY`, `MILESTONES`), and every service resolves its model through `FirefightAi.model_for(purpose, workspace:)`, most specific first:
 
@@ -48,7 +48,7 @@ The answer is a `FirefightAi::ModelChoice` (`model`, `provider`). A provider onl
 
 ## Inference ledger — every call is tracked
 
-Every LLM call is wrapped in `Inference.track` (`app/models/inference.rb`), which records feature, provider, model, token counts (input/output/cache), `cost_micros`, latency, stop reason, and status — success or error — plus who triggered it (`member` or `api_key`) and what it was about (`inferable` polymorphic).
+Every LLM call is wrapped in `Inference.track` (`app/models/inference.rb`), which records feature, provider, model, token counts (input/output/cache), `cost_micros`, latency, finish reason (`stop_reason`), the provider's request id, and status — success or error — plus who triggered it (`member` or `api_key`) and what it was about (`inferable` polymorphic).
 
 ```ruby
 Inference.track(workspace:, feature:, provider:, model:, inferable: incident, member:) do
@@ -57,6 +57,8 @@ Inference.track(workspace:, feature:, provider:, model:, inferable: incident, me
   chat.ask(prompt_text)
 end
 ```
+
+A call with `with_schema` reads its answer from `response.parsed`. `response.content` is the raw JSON text.
 
 Never call `RubyLLM` outside an `Inference.track` block — the ledger is the cost/usage observability layer (and the substrate for AI credit billing).
 

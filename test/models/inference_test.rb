@@ -16,10 +16,9 @@ class InferenceTest < ActiveSupport::TestCase
   end
 
   test "track records a row with all dimensions on success" do
-    response = stub_response(
-      input_tokens: 1200, output_tokens: 300,
-      cache_read_tokens: 800, cache_write_tokens: 0,
-      cost: 0.0045, stop_reason: "end_turn", id: "msg_01ABC"
+    response = llm_reply(
+      input: 1200, output: 300, cache_read: 800, cache_write: 0,
+      cost: 0.0045, finish_reason: :max_tokens, request_id: "msg_01ABC"
     )
 
     inference = nil
@@ -40,7 +39,7 @@ class InferenceTest < ActiveSupport::TestCase
     assert_equal 800, inference.cache_read_tokens
     assert_equal 0, inference.cache_write_tokens
     assert_equal 4500, inference.cost_micros  # 0.0045 dollars -> 4500 micros
-    assert_equal "end_turn", inference.stop_reason
+    assert_equal "max_tokens", inference.stop_reason
     assert_equal "msg_01ABC", inference.provider_request_id
     assert_equal Inference::STATUS_SUCCESS, inference.status
     assert_nil inference.error_class
@@ -48,7 +47,7 @@ class InferenceTest < ActiveSupport::TestCase
   end
 
   test "track stores cost as integer micros (millionths of a dollar)" do
-    response = stub_response(cost: 1.235)
+    response = llm_reply(cost: 1.235)
     Inference.track(@context) { response }
     assert_equal 1_235_000, Inference.order(:created_at).last.cost_micros
   end
@@ -73,7 +72,7 @@ class InferenceTest < ActiveSupport::TestCase
 
   test "track works without inferable, member, or api_key" do
     minimal = @context.except(:inferable, :member)
-    Inference.track(minimal) { stub_response }
+    Inference.track(minimal) { llm_reply }
 
     inference = Inference.order(:created_at).last
     assert_nil inference.inferable
@@ -83,21 +82,6 @@ class InferenceTest < ActiveSupport::TestCase
 
   test "track ignores unknown context keys" do
     bad = @context.merge(garbage: "ignored", another: 42)
-    assert_nothing_raised { Inference.track(bad) { stub_response } }
-  end
-
-  private
-
-  def stub_response(input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
-                    cost: 0.0, stop_reason: nil, id: nil)
-    OpenStruct.new(
-      input_tokens: input_tokens,
-      output_tokens: output_tokens,
-      cache_read_tokens: cache_read_tokens,
-      cache_write_tokens: cache_write_tokens,
-      cost: cost,
-      stop_reason: stop_reason,
-      id: id
-    )
+    assert_nothing_raised { Inference.track(bad) { llm_reply } }
   end
 end

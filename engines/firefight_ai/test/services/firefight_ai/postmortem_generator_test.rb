@@ -46,15 +46,13 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
 
   test "every key is present for strict output, and every section may be null" do
     schema = FirefightAi::Schemas::Postmortem.new.to_json_schema
-    properties = (schema.dig(:schema, :properties) || schema.dig("schema", "properties")).transform_keys(&:to_s)
-    required = (schema.dig(:schema, :required) || schema.dig("schema", "required")).map(&:to_s)
+    properties = schema.fetch("properties")
 
-    assert_equal ([ "title" ] + FirefightAi::Schemas::Postmortem::SECTION_KEYS).sort, required.sort
+    assert_equal ([ "title" ] + FirefightAi::Schemas::Postmortem::SECTION_KEYS).sort, schema.fetch("required").sort
     FirefightAi::Schemas::Postmortem::SECTION_KEYS.each do |key|
-      variants = (properties[key][:anyOf] || properties[key]["anyOf"]).map { |variant| (variant[:type] || variant["type"]).to_s }
-      assert_includes variants, "null", key
+      assert_includes properties[key].fetch("anyOf").map { |variant| variant["type"] }, "null", key
     end
-    assert_nil properties["title"][:anyOf] || properties["title"]["anyOf"]
+    assert_nil properties["title"]["anyOf"]
   end
 
   test "sections the model returns as null are absent from the draft rather than blank" do
@@ -99,8 +97,7 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
       "action_items" => "- Add integration test for upload flow"
     }
 
-    mock_response = mock("response")
-    mock_response.stubs(:content).returns(ai_result)
+    mock_response = llm_reply(content: ai_result)
 
     mock_chat = mock("chat")
     mock_chat.stubs(:with_instructions).returns(mock_chat)

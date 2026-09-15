@@ -36,7 +36,7 @@ module FirefightAi
     private
 
     def milestones(response)
-      content = response.content
+      content = response.parsed
       rows = content.is_a?(Hash) ? content.with_indifferent_access[Schemas::Milestones::ROOT_KEY] : nil
 
       Array(rows).filter_map do |row|

@@ -11,8 +11,7 @@ class FirefightAi::PostmortemSectionRewriterTest < ActiveSupport::TestCase
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
 
     captured_prompt = nil
-    response = mock("response")
-    response.stubs(:content).returns("<p>tightened paragraph</p>")
+    response = llm_reply(content: "<p>tightened paragraph</p>")
     chat = mock("chat")
     chat.stubs(:with_instructions).returns(chat)
     chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(response)
@@ -34,8 +33,7 @@ class FirefightAi::PostmortemSectionRewriterTest < ActiveSupport::TestCase
   test "rewrite sanitizes script tags and event handlers out of the LLM response" do
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
 
-    response = mock("response")
-    response.stubs(:content).returns('<p>safe</p><script>alert(1)</script><a href="javascript:bad()" onclick="x()">link</a>')
+    response = llm_reply(content: '<p>safe</p><script>alert(1)</script><a href="javascript:bad()" onclick="x()">link</a>')
     chat = mock("chat")
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:ask).returns(response)
@@ -54,8 +52,7 @@ class FirefightAi::PostmortemSectionRewriterTest < ActiveSupport::TestCase
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(summary_stub)
 
     captured_prompt = nil
-    response = mock("response")
-    response.stubs(:content).returns("<p>ok</p>")
+    response = llm_reply(content: "<p>ok</p>")
     chat = mock("chat")
     chat.stubs(:with_instructions).returns(chat)
     chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(response)

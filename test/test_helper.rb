@@ -29,5 +29,6 @@ module ActiveSupport
     include EntitlementsTestHelper
     include SessionTestHelper
     include InviteGateTestHelper
+    include LlmResponseHelper
   end
 end

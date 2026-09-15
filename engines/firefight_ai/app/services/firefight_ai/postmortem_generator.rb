@@ -40,7 +40,8 @@ module FirefightAi
           chat.ask(user_prompt(prompt_data, summary))
         end
       end
-      response.content
+      # Structured output arrives as JSON text, parsed is the hash.
+      response.parsed
     end
 
     def ai_model
