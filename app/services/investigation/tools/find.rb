@@ -4,7 +4,7 @@ class Investigation::Tools::Find < RubyLLM::Tool
   MATCH_LIMIT = 8
 
   description "Find the tools available for what you need to do next, such as 'recent deploys', " \
-              "'past incidents like this' or 'error logs'. Tools you are allowed to use become " \
+              "'incidents mentioning checkout' or 'runbooks'. Tools you are allowed to use become " \
               "callable straight after this. Call it before saying you cannot check something."
   parameter :query, description: "What you are trying to find out, in a few words"
 
