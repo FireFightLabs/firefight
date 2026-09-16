@@ -129,6 +129,8 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `FirefightAi::AgentLoop` / `FirefightAi::Investigator` | the loop and the prompts, in the engine |
 | `Investigation::Runner` / `Investigation::Tools` | the app side of a run: the chat, the tools, what each turn spent |
 | `Investigation::Delivery` | what a run says while it works, see What a run says in Slack |
+| `Conversation` / `Conversation::Runner` | a person talking to the agent, see Conversations |
+| `Chat::Tools` / `Chat::ToolCall` | the tools both share, and the gateway call every one goes through |
 | `SystemAgent` | Firefight's own agents, global, one row each, granted per workspace |
 | `Investigation::Seeding` | picks the seeder for the subject and stores its pack on `seed_pack` |
 | `Investigation::IncidentSeed` | the facts Firefight already holds about an incident |
@@ -174,6 +176,21 @@ The rules:
 - **Firefight's own tools are the same classes the MCP server exposes**, so a tool never means two things and a new one reaches the agent as soon as it exists. A write the workspace granted is offered like any read, since the gateway decides. A system read leaves an `Investigation::Step` but no ledger row, which is how the gateway already treats system reads. A refusal, a pending approval or a provider failure comes back as a result the agent reads and works around, never an exception that ends the run.
 - **Waiting for a person does not exist yet.** A tool needing approval says so and was not run.
 - **No environment is chosen.** A tool call passes no scope, so a connection with more than one environment cannot resolve one and the call is refused. Per run environment scoping lands with the approval work.
+
+## Conversations
+
+A `Conversation` is a person talking to the agent, and an investigation is the job it starts when a question needs real work. Both run on `FirefightAi::AgentLoop`, share `Chat::Tools` and save their chat in the same table. `FirefightAi::Responder` holds the prompt, `Conversation::Runner` is the app half, and `Conversation::Delivery` is what it says while it answers.
+
+The rules:
+
+- **A mention is the entry point.** `@Firefight` in an incident channel reaches the agent once `FeatureFlags::AI_SRE` is on, and the old `IncidentResponder` answer stands for every workspace without the flag.
+- **One conversation per thread.** `Conversation::Opener` joins the one already there, so a second mention continues rather than starting over, and the unique index on workspace, channel and thread is the guard.
+- **A reply ends the turn.** `reply_is_answer` is the only difference in the loop: in a chat the person is waiting, so plain text is the answer, and in a run only `conclude` ends it.
+- **The agent hands real work over** with `start_investigation`, which starts a run in the same channel rather than doing the work in the chat.
+- **A turn is written with `GREATEST`**, since two mentions in one thread can answer at once and the later write is not always the larger count.
+- **The budget is per conversation**, `Workspace::InvestigationLimits::CONVERSATION_DEFAULT_*`, smaller than a run's. A turn that runs out says so rather than going quiet.
+- **A channel answer runs on the agent's account.** Everyone in the channel reads it, so who asked does not change what it reads. A personal conversation, when it lands, checks the person as well.
+- **Every tool call is ledgered** with `AbilityGateway::SOURCE_CONVERSATION`. A conversation writes no `Investigation::Step`, since it has no run to record.
 
 ## What a run says in Slack
 

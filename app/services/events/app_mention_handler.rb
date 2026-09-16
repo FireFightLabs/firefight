@@ -21,6 +21,8 @@ module Events
       parent_thread_ts = event["thread_ts"]
       reply_thread_ts = parent_thread_ts || event["ts"]
 
+      return answer_as_agent(workspace, incident, channel_id, reply_thread_ts, event, user_text) if agent?(workspace)
+
       IncidentAiResponseJob.perform_later(
         incident.id,
         channel_id,
@@ -29,6 +31,21 @@ module Events
         parent_thread_ts
       )
     end
+
+    # The agent answers with tools and remembers the thread. Without the flag, the old reply stands.
+    def self.agent?(workspace)
+      FeatureFlags.enabled?(workspace, FeatureFlags::AI_SRE)
+    end
+    private_class_method :agent?
+
+    def self.answer_as_agent(workspace, incident, channel_id, thread_id, event, user_text)
+      conversation = Conversation::Opener.call(
+        workspace: workspace, incident: incident, channel_id: channel_id,
+        thread_id: thread_id, platform_user_id: event["user"]
+      )
+      ConversationReplyJob.perform_later(conversation.id, user_text)
+    end
+    private_class_method :answer_as_agent
 
     def self.strip_mention(text)
       text.to_s.gsub(/<@[^>]+>/, "").squish

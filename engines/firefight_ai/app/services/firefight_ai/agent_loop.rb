@@ -21,7 +21,9 @@ module FirefightAi
     Step = Data.define(:key, :tool, :status)
     Outcome = Data.define(:status, :turns_used, :spent_cents)
 
-    def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil)
+    # reply_is_answer is what separates a conversation from an investigation. In a chat the person
+    # is waiting for a reply, in a run only a conclusion ends it.
+    def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, reply_is_answer: false)
       @chat = chat
       @budget = budget
       @answered = answered
@@ -30,6 +32,7 @@ module FirefightAi
       @turns = budget.turns_used
       @spend_micros = budget.spent_cents * MICROS_PER_CENT
       @reminders = 0
+      @reply_is_answer = reply_is_answer
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
     end
@@ -109,6 +112,8 @@ module FirefightAi
         @reminders = 0
         return nil
       end
+
+      return STATUS_ANSWERED if @reply_is_answer
 
       return STATUS_STALLED if @reminders.positive?
 

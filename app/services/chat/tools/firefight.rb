@@ -1,9 +1,9 @@
 # One of Firefight's own tools, the same ones an outside agent reaches over MCP. The definition is
 # shared so a tool never means two things, and the gateway still authorizes each call as the agent.
-class Investigation::Tools::Firefight < RubyLLM::Tool
-  def initialize(investigation, tool_class, action_key)
+class Chat::Tools::Firefight < RubyLLM::Tool
+  def initialize(agent_run, tool_class, action_key)
     super()
-    @investigation = investigation
+    @agent_run = agent_run
     @tool_class = tool_class
     @action_key = action_key
   end
@@ -15,17 +15,15 @@ class Investigation::Tools::Firefight < RubyLLM::Tool
   def parameters_schema = @tool_class.input_schema_value.to_h
 
   def call(tool_call: nil, **arguments)
-    run(arguments.symbolize_keys)
+    invoke(arguments.symbolize_keys)
   end
 
   private
 
-  def run(arguments)
-    Investigation::ToolCall.run!(
-      @investigation, action_key: @action_key, params: arguments.transform_keys(&:to_s)
-    ) do
-      text_of(@tool_class.perform(workspace: @investigation.workspace, args: arguments))
-    end.value
+  def invoke(arguments)
+    @agent_run.tool_call(action_key: @action_key, params: arguments.transform_keys(&:to_s)) do
+      text_of(@tool_class.perform(workspace: @agent_run.workspace, args: arguments))
+    end
   rescue AbilityGateway::Denied
     "Not allowed: this agent has no grant for #{@action_key} in this workspace."
   rescue AbilityGateway::PendingApproval

@@ -450,6 +450,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
+  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:)
+    finish_agent_answer(
+      channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
+      text: text, blocks: Slack::Messages::AgentReply.build(text: text)
+    )
+  end
+
   def finish_agent_answer(channel_id:, thread_id:, answer_id:, text:, blocks:)
     result = if answer_id.present?
       Slack::Client.stop_stream(workspace: @workspace, channel: channel_id, ts: answer_id, blocks: blocks)

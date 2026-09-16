@@ -137,6 +137,15 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal [ [ "call_1", "list_commits", :running ], [ "call_1", nil, :done ] ], steps
   end
 
+  test "in a conversation the reply is the answer, so the turn ends there" do
+    chat = FakeChat.new([ llm_reply(content: "It was the 14:02 deploy") ])
+
+    outcome = run_loop(chat, reply_is_answer: true)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    assert_equal 1, outcome.turns_used
+  end
+
   test "a resumed run carries the turns and spend it already used" do
     chat = FakeChat.new([ tool_reply("call_1", cost: 0.01) ])
 
@@ -161,9 +170,9 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     )
   end
 
-  def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, &on_turn)
+  def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, reply_is_answer: false, &on_turn)
     FirefightAi::AgentLoop.new(
-      chat: chat, budget: budget, answered: answered, on_step: on_step,
+      chat: chat, budget: budget, answered: answered, on_step: on_step, reply_is_answer: reply_is_answer,
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
     ).run(&on_turn)
   end

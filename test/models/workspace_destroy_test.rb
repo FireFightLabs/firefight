@@ -54,6 +54,10 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
       )
     )
     investigation.create_finding!(winning_hypothesis: hypothesis, summary: "The deploy broke it")
+    @workspace.conversations.create!(
+      subject: incident, kind: Conversation::KIND_CHANNEL, channel_id: incident.channel_id,
+      thread_id: "1700000000.000900", started_by: @membership, max_turns: 40, max_spend_cents: 50
+    )
     investigation.finding.record_verdict!(Investigation::Finding::OUTCOME_CONFIRMED, by: @membership)
     chat = @workspace.chats.create!(owner: investigation, model: "claude-sonnet-4-5", provider: :anthropic)
     chat.add_message(role: :assistant, content: "",
@@ -74,7 +78,7 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
     @workspace.destroy!
 
     [ Incident, WorkspaceMembership, ApiKey, Alert, AlertGroup, AlertSource, Integration,
-      CatalogType, CatalogEntry, Runbook, Webhook, Inference, IncidentSummary, Policy, Investigation, Chat,
+      CatalogType, CatalogEntry, Runbook, Webhook, Inference, IncidentSummary, Policy, Investigation, Chat, Conversation,
       IncidentStatus, IncidentFieldDefinition, IncidentForm, IdempotencyKey,
       Ability::Action, Ability::Grant, Ability::Role ].each do |model|
       assert_not model.where(workspace_id: workspace_id).exists?, "expected no #{model.table_name} rows"

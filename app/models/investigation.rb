@@ -105,6 +105,14 @@ class Investigation < ApplicationRecord
   end
 
   # Writing the turn and holding the lease are one statement, so a worker that lost the run writes nothing.
+  def ledger_context
+    {
+      source: AbilityGateway::SOURCE_INVESTIGATION,
+      incident_id: incident_id,
+      triggered_by_label: triggered_by.try(:principal_label)
+    }
+  end
+
   def record_turn!(turns_used:, spent_cents:)
     return false if @lease_token.blank?
 
@@ -121,6 +129,11 @@ class Investigation < ApplicationRecord
       .update_all(cancel_requested: true, updated_at: Time.current) > 0
     chat&.cancel if moved
     moved
+  end
+
+  # The shared tools call this, so what a tool call leaves behind is the run's business.
+  def tool_call(action_key:, params: {}, &block)
+    Investigation::ToolCall.run!(self, action_key: action_key, params: params, &block).value
   end
 
   def record_hypothesis!(assertion:, status: nil, confidence: nil)

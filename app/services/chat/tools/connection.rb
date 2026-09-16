@@ -1,8 +1,8 @@
 # One integration tool. A refusal comes back as a result the agent works around, never an exception.
-class Investigation::Tools::Connection < RubyLLM::Tool
-  def initialize(investigation, tool)
+class Chat::Tools::Connection < RubyLLM::Tool
+  def initialize(agent_run, tool)
     super()
-    @investigation = investigation
+    @agent_run = agent_run
     @tool = tool
   end
 
@@ -14,17 +14,17 @@ class Investigation::Tools::Connection < RubyLLM::Tool
 
   # The arguments match the tool's own schema, not an execute signature, so skip the base check.
   def call(tool_call: nil, **arguments)
-    run(arguments.transform_keys(&:to_s))
+    invoke(arguments.transform_keys(&:to_s))
   end
 
   private
 
-  def run(arguments)
-    Investigation::ToolCall.run!(@investigation, action_key: @tool.action_key, params: arguments) do
+  def invoke(arguments)
+    @agent_run.tool_call(action_key: @tool.action_key, params: arguments) do
       integration = @tool.integration
       environment_row = integration.resolve_environment(nil)
       text_of(integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments))
-    end.value
+    end
   rescue AbilityGateway::Denied
     "Not allowed: this agent has no grant for #{@tool.action_key} in this workspace."
   rescue AbilityGateway::PendingApproval
