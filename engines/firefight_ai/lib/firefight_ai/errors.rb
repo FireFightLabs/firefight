@@ -15,6 +15,9 @@ module FirefightAi
   # Retrying gives the same answer, bad request, auth, billing, context size, unknown model.
   class TerminalError < Error; end
 
+  # Someone stopped the run while the model was answering.
+  class Canceled < Error; end
+
   TRANSIENT_CLIENT_ERRORS = [
     RubyLLM::RateLimitError,
     RubyLLM::ServerError,
@@ -35,6 +38,8 @@ module FirefightAi
 
   def self.translating_errors
     yield
+  rescue RubyLLM::CancelledError => e
+    raise Canceled.new(e.message, reason: e.class.name.demodulize)
   rescue *TRANSIENT_CLIENT_ERRORS => e
     raise TransientError.new(e.message, reason: e.class.name.demodulize)
   rescue *TERMINAL_CLIENT_ERRORS => e

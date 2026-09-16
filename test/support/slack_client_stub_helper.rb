@@ -36,6 +36,13 @@ module SlackClientStubHelper
     end
   end
 
+  def stub_agent_session
+    Slack::Client.stubs(:set_agent_session_status).returns({ ok: true })
+    Slack::Client.stubs(:start_stream).returns({ ok: true, ts: "1234567890.000100" })
+    Slack::Client.stubs(:append_stream).returns({ ok: true })
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1234567890.000100" })
+  end
+
   def stub_post_direct_message
     Slack::Client.stubs(:post_message).returns({ ok: true, ts: "1234567890.123456" })
   end

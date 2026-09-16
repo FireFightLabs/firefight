@@ -30,6 +30,11 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
       triggered_by: workspace_memberships(:alice_workspace_one), max_turns: 10, max_spend_cents: 400
     )
     @investigation.claim!
+    # What a run says in Slack has its own test. Here it only has to not reach the network.
+    Investigation::Delivery.any_instance.stubs(:start!)
+    Investigation::Delivery.any_instance.stubs(:step)
+    @answered = Investigation::Delivery.any_instance.stubs(:answered!)
+    @stopped = Investigation::Delivery.any_instance.stubs(:stopped!)
   end
 
   test "an answered run succeeds and keeps the chat that produced it" do
@@ -46,11 +51,39 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
 
   test "a run that never answers fails and says why" do
     fake(outcome: :out_of_budget)
+    Investigation::Delivery.any_instance.expects(:stopped!).with("Budget spent before it could answer")
 
     result = Investigation::Runner.new(@investigation).run
 
     assert_equal Investigation::STATUS_FAILED, result.status
     assert_equal "Budget spent before it could answer", result.error_summary
+  end
+
+  test "an answer is posted where the run started" do
+    fake(outcome: :answered, conclude: true)
+    Investigation::Delivery.any_instance.expects(:answered!).with { |finding| finding == @investigation.reload.finding }
+
+    Investigation::Runner.new(@investigation).run
+  end
+
+  test "a run someone stopped ends as canceled and says so" do
+    fake(outcome: :canceled)
+    Investigation::Delivery.any_instance.expects(:stopped!).with(Investigation::Runner::STOPPED_BY_A_RESPONDER)
+
+    result = Investigation::Runner.new(@investigation).run
+
+    assert_equal Investigation::STATUS_CANCELED, result.status
+  end
+
+  test "a model call stopped mid answer ends the run rather than failing it" do
+    fake(outcome: :answered)
+    FakeInvestigator.any_instance.stubs(:run).raises(FirefightAi::Canceled, "cancelled")
+    Investigation::Delivery.any_instance.expects(:stopped!)
+
+    result = Investigation::Runner.new(@investigation).run
+
+    assert_equal Investigation::STATUS_CANCELED, result.status
+    assert_equal Investigation::Runner::STOPPED_BY_A_RESPONDER, result.error_summary
   end
 
   test "each turn is written down as it happens" do

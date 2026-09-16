@@ -120,9 +120,12 @@ module Identifiers
   VIEW_RUNBOOK = "view_runbook"
   ASSIGN_RUNBOOK_STEP = "assign_runbook_step"
   REASSIGN_ACTION = "reassign_action"
+  # Slack sends the stop button press as an event, not an interaction.
+  EVENT_AGENT_SESSION_STOPPED = "agent_session_stopped"
   # A users_select carries no value, so block_id holds the id it acts on.
   ACTION_BLOCK_PREFIX = "action_block_"
   RUNBOOK_STEP_BLOCK_PREFIX = "runbook_step_block_"
+  INVESTIGATION_FEEDBACK = "investigation_feedback"
   APPROVE_ABILITY = "approve_ability"
   DENY_ABILITY = "deny_ability"
 

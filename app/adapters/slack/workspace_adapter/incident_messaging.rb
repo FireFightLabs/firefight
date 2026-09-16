@@ -393,6 +393,82 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: answer, blocks: blocks)
   end
 
+  STEP_STATUSES = { running: "in_progress", done: "complete", failed: "error" }.freeze
+
+  def post_investigation_started(channel_id:, incident:, started_by:)
+    blocks = Slack::Messages::InvestigationRun.started(incident: incident, started_by: started_by)
+    post_message(channel_id: channel_id, text: "Investigating #{incident.identifier}", blocks: blocks)
+  end
+
+  # A workspace without the agent features still gets the answer, just posted in one go at the end.
+  def start_agent_answer(channel_id:, thread_id:, user_id:)
+    translate_errors do
+      Slack::Client.set_agent_session_status(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id, status: "processing"
+      )
+      stream = Slack::Client.start_stream(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        recipient_user_id: user_id, recipient_team_id: @workspace.platform_id
+      )
+      { answer_id: stream[:ts] }
+    end
+  rescue AdapterError => error
+    Rails.logger.info("slack.agent_answer.unavailable error=#{error.class.name} message=#{error.message}")
+    { answer_id: nil }
+  end
+
+  def report_agent_step(channel_id:, answer_id:, key:, title:, status:)
+    return { success: true } if answer_id.blank?
+
+    translate_errors do
+      Slack::Client.append_stream(
+        workspace: @workspace, channel: channel_id, ts: answer_id,
+        chunks: [ {
+          type: "task_update",
+          task: { task_id: key, title: title, status: STEP_STATUSES.fetch(status) }
+        } ]
+      )
+      { success: true }
+    end
+  rescue AdapterError => error
+    Rails.logger.info("slack.agent_step.dropped error=#{error.class.name} message=#{error.message}")
+    { success: true }
+  end
+
+  def post_investigation_answer(channel_id:, thread_id:, answer_id:, finding:)
+    finish_agent_answer(
+      channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
+      text: finding.summary.to_s, blocks: Slack::Messages::InvestigationRun.finding(finding: finding)
+    )
+  end
+
+  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:)
+    finish_agent_answer(
+      channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
+      text: "Stopped without an answer. #{reason}.",
+      blocks: Slack::Messages::InvestigationRun.stopped(reason: reason)
+    )
+  end
+
+  def finish_agent_answer(channel_id:, thread_id:, answer_id:, text:, blocks:)
+    result = if answer_id.present?
+      Slack::Client.stop_stream(workspace: @workspace, channel: channel_id, ts: answer_id, blocks: blocks)
+    else
+      Slack::Client.post_message(workspace: @workspace, channel: channel_id, text: text, blocks: blocks, thread_ts: thread_id)
+    end
+    clear_agent_session(channel_id: channel_id, thread_id: thread_id)
+    { message_id: result[:ts], channel_id: channel_id }
+  end
+
+  # Slack holds the spinner for an hour unless the session is set back to active.
+  def clear_agent_session(channel_id:, thread_id:)
+    Slack::Client.set_agent_session_status(
+      workspace: @workspace, channel: channel_id, thread_ts: thread_id, status: "active"
+    )
+  rescue AdapterError => error
+    Rails.logger.info("slack.agent_session.clear_failed error=#{error.class.name} message=#{error.message}")
+  end
+
   def post_postmortem_generation_failed(channel_id:, user_id:, incident:, reason:, retrying:)
     text = if retrying
       ":warning: Postmortem generation for #{incident.identifier} failed after retries (reason: #{reason}). Try again from the incident page or with `/ff #{Identifiers::SUBCOMMAND_POSTMORTEM}`."

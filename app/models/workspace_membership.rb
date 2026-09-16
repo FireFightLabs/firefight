@@ -7,6 +7,8 @@ class WorkspaceMembership < ApplicationRecord
   belongs_to :user
   belongs_to :workspace
   # A departed member's personal tokens die with the membership.
+  has_many :investigation_verdicts, class_name: "Investigation::Verdict", foreign_key: :member_id,
+           dependent: :destroy, inverse_of: :member
   has_many :personal_api_keys, class_name: "ApiKey", foreign_key: :workspace_membership_id,
            dependent: :destroy, inverse_of: :on_behalf_of
   # Same for OAuth connections resolving to the member.

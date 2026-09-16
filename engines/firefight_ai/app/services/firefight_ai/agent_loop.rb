@@ -6,6 +6,7 @@ module FirefightAi
     STATUS_OUT_OF_TURNS = :out_of_turns
     STATUS_STALLED = :stalled
     STATUS_REPEATED_TOOL_CALL = :repeated_tool_call
+    STATUS_CANCELED = :canceled
 
     REMINDER = "That reply did nothing. Call a tool to keep going, or conclude with what you have.".freeze
     LAST_TURN = "This run has spent its budget. Conclude now with the evidence you already have.".freeze
@@ -17,17 +18,27 @@ module FirefightAi
     end
 
     Turn = Data.define(:turns_used, :spent_cents)
+    Step = Data.define(:key, :tool, :status)
     Outcome = Data.define(:status, :turns_used, :spent_cents)
 
-    def initialize(chat:, budget:, answered:, inference:)
+    def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil)
       @chat = chat
       @budget = budget
       @answered = answered
+      @canceled = canceled
       @inference = inference
       @turns = budget.turns_used
       @spend_micros = budget.spent_cents * MICROS_PER_CENT
       @reminders = 0
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
+      report_steps_to(on_step) if on_step
+    end
+
+    # The caller hears about a tool as the agent reaches for it, and again when it answers.
+    def report_steps_to(on_step)
+      llm = @chat.to_llm
+      llm.before_tool_call { |tool_call| on_step.call(Step.new(key: tool_call.id, tool: tool_call.name, status: :running)) }
+      llm.after_tool_result { |message| on_step.call(Step.new(key: message.tool_call_id, tool: nil, status: :done)) }
     end
 
     def run(&on_turn)
@@ -53,6 +64,7 @@ module FirefightAi
 
     def stop_reason
       return STATUS_ANSWERED if @answered.call
+      return STATUS_CANCELED if @canceled.call
       return STATUS_OUT_OF_TURNS if @turns >= @budget.max_turns
       return nil if spent_cents < @budget.max_spend_cents
       return STATUS_OUT_OF_BUDGET if @last_turn_offered

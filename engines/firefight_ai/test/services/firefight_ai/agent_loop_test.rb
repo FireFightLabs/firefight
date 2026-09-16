@@ -13,6 +13,10 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
 
     def to_llm = self
 
+    def before_tool_call(&block) = (@before_tool_call = block)
+
+    def after_tool_result(&block) = (@after_tool_result = block)
+
     def add_message(attributes)
       messages << RubyLLM::Message.new(**attributes)
       messages.last
@@ -41,7 +45,10 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     end
 
     def answer_tool_call(tool_call_id)
+      call = messages.reverse.find(&:tool_call?).tool_calls[tool_call_id]
+      @before_tool_call&.call(call)
       messages << RubyLLM::Message.new(role: :tool, content: "ran", tool_call_id: tool_call_id)
+      @after_tool_result&.call(messages.last)
       messages.last
     end
   end
@@ -121,6 +128,15 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal [ [ 1, 1 ], [ 2, 3 ] ], turns.first(2)
   end
 
+  test "each tool the agent reaches for is reported as it runs and when it answers" do
+    chat = FakeChat.new([ tool_reply("call_1"), llm_reply(content: "done") ])
+    steps = []
+
+    run_loop(chat, on_step: ->(step) { steps << [ step.key, step.tool, step.status ] })
+
+    assert_equal [ [ "call_1", "list_commits", :running ], [ "call_1", nil, :done ] ], steps
+  end
+
   test "a resumed run carries the turns and spend it already used" do
     chat = FakeChat.new([ tool_reply("call_1", cost: 0.01) ])
 
@@ -145,9 +161,9 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     )
   end
 
-  def run_loop(chat, budget: budget(), answered: -> { false }, &on_turn)
+  def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, &on_turn)
     FirefightAi::AgentLoop.new(
-      chat: chat, budget: budget, answered: answered,
+      chat: chat, budget: budget, answered: answered, on_step: on_step,
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
     ).run(&on_turn)
   end
