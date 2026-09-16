@@ -17,7 +17,8 @@ class Investigation < ApplicationRecord
 
   TRIGGER_COMMAND = "command"
   TRIGGER_BUTTON = "button"
-  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON ].freeze
+  TRIGGER_CONVERSATION = "conversation"
+  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION ].freeze
 
   belongs_to :workspace
   # Polymorphic so a run can be about something other than an incident later.

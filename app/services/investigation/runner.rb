@@ -48,22 +48,13 @@ class Investigation::Runner
     result
   end
 
-  # A reader sees the tools the agent reached for, not the ones it writes its findings with.
   def report_step(step)
-    titles[step.key] = title_for(step.tool) if step.tool.present? && !internal?(step.tool)
+    titles[step.key] = Chat::Tools.step_title(step.tool) if step.tool.present?
     title = titles[step.key]
     delivery.step(key: step.key, title: title, status: step.status) if title
   end
 
   def titles = @titles ||= {}
-
-  def internal?(tool_name)
-    [ Investigation::Tools::Conclude.tool_name, Investigation::Tools::RecordHypothesis.tool_name ].include?(tool_name)
-  end
-
-  def title_for(tool_name)
-    tool_name.to_s.tr("_", " ").humanize
-  end
 
   def investigator
     @investigator ||= FirefightAi::Investigator.new(
@@ -84,18 +75,9 @@ class Investigation::Runner
   end
 
   def chat_record
-    @investigation.chat || create_chat
-  end
-
-  # Records which model ran, without opening a connection to the provider.
-  def create_chat
-    choice = investigator.ai_model
-    chat = @investigation.build_chat(workspace: @investigation.workspace)
-    chat.provider = choice.provider if choice.provider.present?
-    chat.assume_model_exists = choice.provider.present? && !FirefightAi.registered?(choice.model)
-    chat.model = choice.model
-    chat.save!
-    chat
+    @investigation.chat || Chat.open!(
+      owner: @investigation, workspace: @investigation.workspace, model_choice: investigator.ai_model
+    )
   end
 
   # An answer is the only success.

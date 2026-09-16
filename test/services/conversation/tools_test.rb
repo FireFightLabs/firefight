@@ -43,6 +43,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     investigation = @workspace.investigations.sole
     assert_equal @incident, investigation.subject
     assert_equal @conversation.started_by, investigation.triggered_by
+    assert_equal Investigation::TRIGGER_CONVERSATION, investigation.trigger_source
   end
 
   test "a run already going is said plainly rather than started twice" do

@@ -1,5 +1,7 @@
 # One turn of a conversation: the agent reads the question, uses what it can reach, and replies.
 class Conversation::Runner
+  NO_ROOM_LEFT = "I could not finish that one. Ask me something narrower, or start an investigation.".freeze
+
   def initialize(conversation)
     @conversation = conversation
   end
@@ -42,10 +44,8 @@ class Conversation::Runner
     chat.messages.reload.last&.content.presence || NO_ROOM_LEFT
   end
 
-  NO_ROOM_LEFT = "I could not finish that one. Ask me something narrower, or start an investigation.".freeze
-
   def report_step(step)
-    titles[step.key] = step.tool.to_s.tr("_", " ").humanize if step.tool.present?
+    titles[step.key] = Chat::Tools.step_title(step.tool) if step.tool.present?
     title = titles[step.key]
     delivery.step(key: step.key, title: title, status: step.status) if title
   end
@@ -67,16 +67,8 @@ class Conversation::Runner
   end
 
   def chat_record
-    @conversation.chat || create_chat
-  end
-
-  def create_chat
-    choice = responder.ai_model
-    chat = @conversation.build_chat(workspace: @conversation.workspace)
-    chat.provider = choice.provider if choice.provider.present?
-    chat.assume_model_exists = choice.provider.present? && !FirefightAi.registered?(choice.model)
-    chat.model = choice.model
-    chat.save!
-    chat
+    @conversation.chat || Chat.open!(
+      owner: @conversation, workspace: @conversation.workspace, model_choice: responder.ai_model
+    )
   end
 end

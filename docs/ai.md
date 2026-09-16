@@ -187,6 +187,8 @@ The rules:
 - **One conversation per thread.** `Conversation::Opener` joins the one already there, so a second mention continues rather than starting over, and the unique index on workspace, channel and thread is the guard.
 - **A reply ends the turn.** `reply_is_answer` is the only difference in the loop: in a chat the person is waiting, so plain text is the answer, and in a run only `conclude` ends it.
 - **The agent hands real work over** with `start_investigation`, which starts a run in the same channel rather than doing the work in the chat.
+- **A run started from a chat is recorded as one.** `Investigation::TRIGGER_CONVERSATION`, not the command trigger, so the record says where it came from.
+- **A reply the platform refuses is logged, never retried.** The answer is already in the chat and the turn is paid for, so a retry would buy a second model call for nothing.
 - **A turn is written with `GREATEST`**, since two mentions in one thread can answer at once and the later write is not always the larger count.
 - **The budget is per conversation**, `Workspace::InvestigationLimits::CONVERSATION_DEFAULT_*`, smaller than a run's. A turn that runs out says so rather than going quiet.
 - **A channel answer runs on the agent's account.** Everyone in the channel reads it, so who asked does not change what it reads. A personal conversation, when it lands, checks the person as well.

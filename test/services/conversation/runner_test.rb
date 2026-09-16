@@ -94,6 +94,13 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     Conversation::Runner.new(@conversation).run(question: "what is going on")
   end
 
+  test "a reply Slack refuses is logged rather than paid for twice" do
+    fake(reply: "ok")
+    Slack::Client.stubs(:stop_stream).raises(AdapterError, "channel_not_found")
+
+    assert_nothing_raised { Conversation::Runner.new(@conversation).run(question: "what is going on") }
+  end
+
   private
 
   def fake(outcome: FirefightAi::AgentLoop::STATUS_ANSWERED, reply: nil, turns: [], steps: [])

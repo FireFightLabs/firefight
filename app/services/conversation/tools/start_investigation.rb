@@ -18,7 +18,7 @@ class Conversation::Tools::StartInvestigation < RubyLLM::Tool
     return { error: "#{asker_label} is not allowed to start an investigation." } unless asker_may_start?
 
     started = InvestigationService.new(@conversation.workspace).start(
-      incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @conversation.started_by
+      incident, trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @conversation.started_by
     )
     return { error: "An investigation is already running for #{incident.identifier}." } unless started
 

@@ -15,6 +15,16 @@ module Chat::Tools
     end
   end
 
+  # What a reader sees while the agent works. conclude and record_hypothesis are how it writes,
+  # not what it looked at, so they are never shown.
+  INTERNAL = %w[conclude record_hypothesis find_tools].freeze
+
+  def self.step_title(tool_name)
+    return nil if tool_name.blank? || INTERNAL.include?(tool_name.to_s)
+
+    tool_name.to_s.tr("_", " ").humanize
+  end
+
   def self.catalog(agent_run)
     firefight_entries(agent_run) + connection_entries(agent_run) + unconnected_entries(agent_run)
   end
