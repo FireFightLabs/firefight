@@ -1,4 +1,4 @@
-class InvestigationTools::Conclude < RubyLLM::Tool
+class Investigation::Tools::Conclude < RubyLLM::Tool
   description "Finish the investigation with the answer the evidence supports. Nothing else ends a run."
   parameter :summary, description: "What happened and why, in a few sentences, using only what the evidence shows"
   parameter :hypothesis, description: "The assertion of the theory the evidence supports, exactly as recorded, or leave empty when none holds", required: false

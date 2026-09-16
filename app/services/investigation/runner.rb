@@ -1,6 +1,6 @@
 # Runs one investigation: hands the engine the saved chat, the tools and the budget, and writes
 # down what the run spent as it goes.
-class InvestigationRunner
+class Investigation::Runner
   # Another worker took the run over, so this one stops rather than writing over its work.
   class LeaseLost < StandardError; end
 
@@ -16,7 +16,7 @@ class InvestigationRunner
 
     outcome = investigator.run(
       chat: chat,
-      tools: InvestigationTools.for(@investigation),
+      tools: Investigation::Tools.for(@investigation),
       seed_pack: @investigation.seed_pack,
       budget: budget,
       answered: -> { @investigation.reload.finding.present? }

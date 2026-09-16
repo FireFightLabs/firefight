@@ -1,4 +1,4 @@
-class InvestigationTools::RecordHypothesis < RubyLLM::Tool
+class Investigation::Tools::RecordHypothesis < RubyLLM::Tool
   description "Record a theory about the cause, or update one you recorded earlier."
   parameter :assertion, description: "The theory in one sentence, such as 'The 14:02 deploy raised the connection pool size'"
   parameter :status, description: "open, supported or refuted", required: false

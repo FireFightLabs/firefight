@@ -9,7 +9,7 @@ class InvestigationJob < ApplicationJob
 
   discard_on ActiveRecord::RecordNotFound
   # The worker that holds the lease is already doing this work.
-  discard_on InvestigationRunner::LeaseLost
+  discard_on Investigation::Runner::LeaseLost
 
   def perform(investigation_id)
     investigation = Investigation.find(investigation_id)
@@ -17,7 +17,7 @@ class InvestigationJob < ApplicationJob
 
     investigation.build_seed_pack! if investigation.seed_pack.blank?
 
-    result = InvestigationRunner.new(investigation).run
+    result = Investigation::Runner.new(investigation).run
     investigation.finish!(status: result.status, error_summary: result.error_summary)
   end
 

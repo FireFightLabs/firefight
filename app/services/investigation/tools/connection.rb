@@ -1,6 +1,6 @@
 # One integration tool, offered to the model under its action key. Every call goes through the
 # gateway as the agent, and a refusal comes back as a result the agent can work around.
-class InvestigationTools::Connection < RubyLLM::Tool
+class Investigation::Tools::Connection < RubyLLM::Tool
   def initialize(investigation, tool)
     super()
     @investigation = investigation

@@ -14,8 +14,8 @@ class InvestigationJobTest < ActiveSupport::TestCase
   end
 
   def stub_runner(status: Investigation::STATUS_SUCCEEDED, error_summary: nil)
-    InvestigationRunner.any_instance.stubs(:run)
-      .returns(InvestigationRunner::Result.new(status: status, error_summary: error_summary))
+    Investigation::Runner.any_instance.stubs(:run)
+      .returns(Investigation::Runner::Result.new(status: status, error_summary: error_summary))
   end
 
   test "the run gathers the facts before the agent reasons over them" do
@@ -67,7 +67,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
 
   test "a run another worker holds is left alone" do
     @investigation.claim!
-    InvestigationRunner.any_instance.expects(:run).never
+    Investigation::Runner.any_instance.expects(:run).never
 
     InvestigationJob.perform_now(@investigation.id)
 
@@ -75,7 +75,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
   end
 
   test "a job that lost the run to another worker is dropped rather than retried" do
-    InvestigationRunner.any_instance.stubs(:run).raises(InvestigationRunner::LeaseLost, "taken over")
+    Investigation::Runner.any_instance.stubs(:run).raises(Investigation::Runner::LeaseLost, "taken over")
 
     assert_no_enqueued_jobs { InvestigationJob.perform_now(@investigation.id) }
   end

@@ -1,6 +1,6 @@
 require "test_helper"
 
-class InvestigationToolsTest < ActiveSupport::TestCase
+class Investigation::ToolsTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
@@ -25,7 +25,7 @@ class InvestigationToolsTest < ActiveSupport::TestCase
   test "the agent is offered the tools it was granted, and never the ones it was not" do
     grant!(@tool)
 
-    names = InvestigationTools.for(@investigation).map(&:name)
+    names = Investigation::Tools.for(@investigation).map(&:name)
 
     assert_includes names, "fake_echo_text"
     assert_includes names, "conclude"
@@ -33,12 +33,12 @@ class InvestigationToolsTest < ActiveSupport::TestCase
   end
 
   test "a tool the agent holds no grant for is not offered" do
-    assert_empty InvestigationTools.connection_tools(@investigation)
+    assert_empty Investigation::Tools.connection_tools(@investigation)
   end
 
   test "a connection tool runs through the gateway and returns what the provider said" do
     grant!(@tool)
-    tool = InvestigationTools.connection_tools(@investigation).first
+    tool = Investigation::Tools.connection_tools(@investigation).first
 
     result = tool.call(text: "hi")
 
@@ -51,7 +51,7 @@ class InvestigationToolsTest < ActiveSupport::TestCase
   end
 
   test "a refused call comes back as a result the agent can work around" do
-    tool = InvestigationTools::Connection.new(@investigation, @tool)
+    tool = Investigation::Tools::Connection.new(@investigation, @tool)
 
     result = tool.call(text: "hi")
 
@@ -62,21 +62,21 @@ class InvestigationToolsTest < ActiveSupport::TestCase
   test "a provider failure is reported to the agent rather than ending the run" do
     grant!(@tool)
     Integrations::NativeExecutor.stubs(:call).raises(Integrations::Error, "GitHub said no")
-    tool = InvestigationTools.connection_tools(@investigation).first
+    tool = Investigation::Tools.connection_tools(@investigation).first
 
     assert_match "GitHub said no", tool.call(text: "hi")
   end
 
   test "the model describes a tool by the connection's own schema" do
     grant!(@tool)
-    tool = InvestigationTools.connection_tools(@investigation).first
+    tool = Investigation::Tools.connection_tools(@investigation).first
 
     assert_equal @tool.params_schema, tool.parameters_schema
     assert_equal "Echoes text back", tool.description
   end
 
   test "recording a theory writes it once and updates it after that" do
-    tool = InvestigationTools::RecordHypothesis.new(@investigation)
+    tool = Investigation::Tools::RecordHypothesis.new(@investigation)
 
     tool.execute(assertion: "The 14:02 deploy did it")
     tool.execute(assertion: "The 14:02 deploy did it", status: Investigation::Hypothesis::STATUS_SUPPORTED, confidence: 0.8)
@@ -89,7 +89,7 @@ class InvestigationToolsTest < ActiveSupport::TestCase
 
   test "concluding writes the answer against the theory it names" do
     @investigation.record_hypothesis!(assertion: "The 14:02 deploy did it")
-    tool = InvestigationTools::Conclude.new(@investigation)
+    tool = Investigation::Tools::Conclude.new(@investigation)
 
     tool.execute(
       summary: "The deploy raised the pool size", hypothesis: "The 14:02 deploy did it",
@@ -105,7 +105,7 @@ class InvestigationToolsTest < ActiveSupport::TestCase
   end
 
   test "concluding with no theory still records the answer" do
-    InvestigationTools::Conclude.new(@investigation).execute(summary: "Nothing in the evidence explains it")
+    Investigation::Tools::Conclude.new(@investigation).execute(summary: "Nothing in the evidence explains it")
 
     assert_nil @investigation.reload.finding.winning_hypothesis
   end

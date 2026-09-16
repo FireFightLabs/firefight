@@ -127,7 +127,7 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `Chat` / `Chat::Message` | the agent's saved conversation with the model, see Saved chat |
 | `Investigation::ToolCall` | the gateway wrapper every tool call goes through, always as the agent |
 | `FirefightAi::AgentLoop` / `FirefightAi::Investigator` | the loop and the prompts, in the engine |
-| `InvestigationRunner` / `InvestigationTools` | the app side of a run: the chat, the tools, what each turn spent |
+| `Investigation::Runner` / `Investigation::Tools` | the app side of a run: the chat, the tools, what each turn spent |
 | `SystemAgent` | Firefight's own agents, global, one row each, granted per workspace |
 | `Investigation::Seeding` | picks the seeder for the subject and stores its pack on `seed_pack` |
 | `Investigation::IncidentSeed` | the facts Firefight already holds about an incident |
@@ -159,7 +159,7 @@ Not built yet: the posted Finding, MCP tools, the dashboard page, a deadline on 
 
 ## The agent loop
 
-`FirefightAi::AgentLoop` drives one run over the saved chat, and `FirefightAi::Investigator` holds the prompts and the model choice. The app hands over a `Chat` record, the tools and the budget, and gets back why the run stopped. `InvestigationRunner` is the app half: it makes the chat, builds the tools, writes down what each turn spent, and turns the outcome into the run's status.
+`FirefightAi::AgentLoop` drives one run over the saved chat, and `FirefightAi::Investigator` holds the prompts and the model choice. The app hands over a `Chat` record, the tools and the budget, and gets back why the run stopped. `Investigation::Runner` is the app half: it makes the chat, builds the tools, writes down what each turn spent, and turns the outcome into the run's status.
 
 The rules:
 
@@ -167,8 +167,8 @@ The rules:
 - **Spend is the budget.** Each model reply's cost is added to `spent_cents`, and at `max_spend_cents` the agent gets one last turn to conclude with what it has, which may go slightly over. `max_turns` is only a runaway guard, and the only stop for a model whose price is unknown. A tool call id repeated in the chat ends the run, since RubyLLM would skip the tool and pay for another turn forever.
 - **A model call is billed, running its tools is not.** The loop wraps only the generate move in `Inference.track`.
 - **Every turn is written down as it happens**, so a killed worker's successor starts from what was already spent.
-- **One worker per run.** `Investigation#claim!` takes a run whose lease has expired and stamps a new `lease_token`, and `record_turn!` renews that lease in the same statement that writes the turn. A worker whose token no longer matches raises `InvestigationRunner::LeaseLost`, and that job is discarded rather than retried.
-- **Tools come from the agent's own grants.** `InvestigationTools.for` offers `record_hypothesis`, `conclude` and every connection tool `Integration::Tool#callable_by?` allows for `SystemAgent.investigator`, under the action key with dots turned into underscores. A refusal, a pending approval or a provider failure comes back as a result the agent reads and works around, never an exception that ends the run.
+- **One worker per run.** `Investigation#claim!` takes a run whose lease has expired and stamps a new `lease_token`, and `record_turn!` renews that lease in the same statement that writes the turn. A worker whose token no longer matches raises `Investigation::Runner::LeaseLost`, and that job is discarded rather than retried.
+- **Tools come from the agent's own grants.** `Investigation::Tools.for` offers `record_hypothesis`, `conclude` and every connection tool `Integration::Tool#callable_by?` allows for `SystemAgent.investigator`, under the action key with dots turned into underscores. A refusal, a pending approval or a provider failure comes back as a result the agent reads and works around, never an exception that ends the run.
 - **Waiting for a person does not exist yet.** A tool needing approval says so and was not run.
 - **No environment is chosen.** A tool call passes no scope, so a connection with more than one environment cannot resolve one and the call is refused. Per run environment scoping lands with the approval work.
 

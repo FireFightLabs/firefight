@@ -1,6 +1,6 @@
 require "test_helper"
 
-class InvestigationRunnerTest < ActiveSupport::TestCase
+class Investigation::RunnerTest < ActiveSupport::TestCase
   # Stands in for the engine, so the run's bookkeeping is tested without calling a model.
   class FakeInvestigator
     attr_reader :calls
@@ -35,7 +35,7 @@ class InvestigationRunnerTest < ActiveSupport::TestCase
   test "an answered run succeeds and keeps the chat that produced it" do
     investigator = fake(outcome: :answered, conclude: true)
 
-    result = InvestigationRunner.new(@investigation).run
+    result = Investigation::Runner.new(@investigation).run
 
     assert_equal Investigation::STATUS_SUCCEEDED, result.status
     assert_nil result.error_summary
@@ -47,7 +47,7 @@ class InvestigationRunnerTest < ActiveSupport::TestCase
   test "a run that never answers fails and says why" do
     fake(outcome: :out_of_budget)
 
-    result = InvestigationRunner.new(@investigation).run
+    result = Investigation::Runner.new(@investigation).run
 
     assert_equal Investigation::STATUS_FAILED, result.status
     assert_equal "Budget spent before it could answer", result.error_summary
@@ -56,7 +56,7 @@ class InvestigationRunnerTest < ActiveSupport::TestCase
   test "each turn is written down as it happens" do
     fake(outcome: :answered, conclude: true, turns: [ turn(1, 3), turn(2, 9) ])
 
-    InvestigationRunner.new(@investigation).run
+    Investigation::Runner.new(@investigation).run
 
     @investigation.reload
     assert_equal 2, @investigation.turns_used
@@ -67,14 +67,14 @@ class InvestigationRunnerTest < ActiveSupport::TestCase
     fake(outcome: :answered, turns: [ turn(1, 3) ])
     Investigation.any_instance.stubs(:record_turn!).returns(false)
 
-    assert_raises(InvestigationRunner::LeaseLost) { InvestigationRunner.new(@investigation).run }
+    assert_raises(Investigation::Runner::LeaseLost) { Investigation::Runner.new(@investigation).run }
   end
 
   test "the engine is given what the run has already spent, so a resumed run cannot spend it twice" do
     @investigation.update!(turns_used: 4, spent_cents: 120)
     investigator = fake(outcome: :answered, conclude: true)
 
-    InvestigationRunner.new(@investigation).run
+    Investigation::Runner.new(@investigation).run
 
     budget = investigator.calls.sole[:budget]
     assert_equal 4, budget.turns_used
@@ -89,7 +89,7 @@ class InvestigationRunnerTest < ActiveSupport::TestCase
     interrupted = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
     fake(outcome: :answered, conclude: true)
 
-    InvestigationRunner.new(@investigation).run
+    Investigation::Runner.new(@investigation).run
 
     assert_not Chat::Message.exists?(interrupted.id)
   end
