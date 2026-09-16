@@ -68,6 +68,16 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     delivery.answered!(finding)
   end
 
+  test "a resumed run picks its thread back up rather than announcing itself twice" do
+    delivery = Investigation::Delivery.new(@investigation)
+    delivery.start!
+    Slack::Client.expects(:post_message).never
+
+    Investigation::Delivery.new(@investigation.reload).start!
+
+    assert_equal "1234567890.123456", @investigation.reload.thread_id
+  end
+
   test "an investigation with no channel says nothing" do
     @incident.update!(channel_id: nil)
     Slack::Client.expects(:post_message).never

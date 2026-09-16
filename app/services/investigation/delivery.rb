@@ -4,8 +4,10 @@ class Investigation::Delivery
     @investigation = investigation
   end
 
+  # A resumed run already said it started, and picks its thread back up rather than opening a second.
   def start!
     return unless channel_id
+    return if thread_id
 
     started = adapter.post_investigation_started(
       channel_id: channel_id, incident: @investigation.subject, started_by: started_by

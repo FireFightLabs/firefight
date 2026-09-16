@@ -23,6 +23,10 @@ class Investigation::Finding < ApplicationRecord
   belongs_to :investigation
   belongs_to :winning_hypothesis, class_name: "Investigation::Hypothesis", optional: true
   belongs_to :outcome_by, polymorphic: true, optional: true
+  scope :in_workspace, ->(workspace) {
+    joins(:investigation).where(investigations: { workspace_id: workspace.id })
+  }
+
   has_many :verdicts, class_name: "Investigation::Verdict", dependent: :destroy, inverse_of: :finding
 
   validates :published_state, inclusion: { in: STATES }
