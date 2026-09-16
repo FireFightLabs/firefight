@@ -346,6 +346,36 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Says an investigation has started, and opens the thread the rest of it goes in.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_investigation_started(channel_id:, incident:, started_by:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Shows the agent as working, and opens whatever carries its steps.
+  # @return [Hash] { answer_id: } where answer_id is nil when the platform has no live answer
+  def start_agent_answer(channel_id:, thread_id:, user_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # One step the agent took. status is :running, :done or :failed.
+  # @return [Hash] { success: true }
+  def report_agent_step(channel_id:, answer_id:, key:, title:, status:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The answer, and the end of the working state.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_investigation_answer(channel_id:, thread_id:, answer_id:, finding:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Why the run stopped without an answer, and the end of the working state.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, timezone: }
   def get_user_info(user_id:)
     raise NotImplemented.new(__method__, self.class)

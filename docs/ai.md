@@ -128,6 +128,7 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `Investigation::ToolCall` | the gateway wrapper every tool call goes through, always as the agent |
 | `FirefightAi::AgentLoop` / `FirefightAi::Investigator` | the loop and the prompts, in the engine |
 | `Investigation::Runner` / `Investigation::Tools` | the app side of a run: the chat, the tools, what each turn spent |
+| `Investigation::Delivery` | what a run says while it works, see What a run says in Slack |
 | `SystemAgent` | Firefight's own agents, global, one row each, granted per workspace |
 | `Investigation::Seeding` | picks the seeder for the subject and stores its pack on `seed_pack` |
 | `Investigation::IncidentSeed` | the facts Firefight already holds about an incident |
@@ -171,6 +172,20 @@ The rules:
 - **Tools come from the agent's own grants.** `Investigation::Tools.for` offers `record_hypothesis`, `conclude` and every connection tool `Integration::Tool#callable_by?` allows for `SystemAgent.investigator`, under the action key with dots turned into underscores. A refusal, a pending approval or a provider failure comes back as a result the agent reads and works around, never an exception that ends the run.
 - **Waiting for a person does not exist yet.** A tool needing approval says so and was not run.
 - **No environment is chosen.** A tool call passes no scope, so a connection with more than one environment cannot resolve one and the call is refused. Per run environment scoping lands with the approval work.
+
+## What a run says in Slack
+
+`Investigation::Delivery` is everything a run says while it works, and the adapter decides how it looks. A run posts "Investigating INC-001" in the incident channel, opens an agent session on that message's thread, reports each tool as a step, and closes with the answer or with why it stopped.
+
+The rules:
+
+- **Firefight is declared a Slack agent.** `features.agent_view` and the `assistant:write` scope in `config/slack_manifests/template.yml`. The declaration cannot be reversed, the scope forces a reinstall, and the features need a paid Slack plan.
+- **The session status is ours to clear.** Slack holds its spinner for an hour unless the session is set back to `active`, so `finish_agent_answer` always clears it, including when the run failed.
+- **A workspace without the agent features still gets the answer.** `start_agent_answer` returns no answer id when Slack refuses, and the finish posts one ordinary threaded message instead. A step against no answer id is dropped.
+- **Steps come from the engine**, which reports a tool as the agent reaches for it and again when it answers. `conclude` and `record_hypothesis` are not shown, since they are how the agent writes rather than what it looked at.
+- **Thumbs are Slack's own feedback element**, and the first vote stands. The outcome and who voted are on `Investigation::Finding`, which is what the Learner reads later.
+- **Stop is Slack's own button.** It needs the `agent_session_stopped` subscription or Slack shows a dead spinner. The event sets `cancel_requested`, the loop sees it between turns, and `Chat#cancel` stops a model call already in flight. The run ends as canceled.
+- **Blocks are attached when the stream stops**, never mid stream, since Slack may otherwise break them up.
 
 ## Saved chat
 

@@ -9,13 +9,16 @@ module FirefightAi
       @member = member
     end
 
-    def run(chat:, tools:, seed_pack:, budget:, answered:, &on_turn)
+    def run(chat:, tools:, seed_pack:, budget:, answered:, canceled: -> { false }, on_step: nil, &on_turn)
       FirefightAi.translating_errors do
         chat.with_instructions(system_prompt)
         chat.with_tools(*tools)
         chat.add_message(role: :user, content: opening(seed_pack)) if chat.to_llm.messages.none? { |message| message.role == :user }
 
-        AgentLoop.new(chat: chat, budget: budget, answered: answered, inference: inference_context).run(&on_turn)
+        AgentLoop.new(
+          chat: chat, budget: budget, answered: answered, canceled: canceled,
+          on_step: on_step, inference: inference_context
+        ).run(&on_turn)
       end
     end
 

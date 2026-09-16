@@ -58,6 +58,7 @@ class InteractionDispatcher
     Identifiers::INCIDENT_CREATION_VISIBILITY_SELECT => Interactions::IncidentCreationSelectHandler,
     Identifiers::INCIDENT_UPDATE_STATUS_SELECT => Interactions::IncidentUpdateSelectHandler,
     Identifiers::APPLY_RUNBOOK => Interactions::ApplyRunbookHandler,
+    Identifiers::INVESTIGATION_FEEDBACK => Interactions::InvestigationFeedbackHandler,
     Identifiers::APPROVE_ABILITY => Interactions::ApproveAbilityHandler,
     Identifiers::DENY_ABILITY => Interactions::DenyAbilityHandler
   }.freeze

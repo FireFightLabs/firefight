@@ -58,6 +58,56 @@ module Slack
       )
     end
 
+    # The spinner and stop button stay until the session is set back to active.
+    def self.set_agent_session_status(workspace:, channel:, thread_ts:, status:, title: nil)
+      api_post(
+        workspace: workspace,
+        endpoint: "agents.sessions.setStatus",
+        payload: {
+          channel_id: channel,
+          thread_ts: thread_ts,
+          status: status,
+          title: title
+        }.compact
+      )
+    end
+
+    def self.start_stream(workspace:, channel:, thread_ts:, recipient_user_id: nil, recipient_team_id: nil, chunks: nil)
+      api_post(
+        workspace: workspace,
+        endpoint: "chat.startStream",
+        payload: {
+          channel: channel,
+          thread_ts: thread_ts,
+          recipient_user_id: recipient_user_id,
+          recipient_team_id: recipient_team_id,
+          chunks: chunks
+        }.compact
+      )
+    end
+
+    def self.append_stream(workspace:, channel:, ts:, chunks:)
+      api_post(
+        workspace: workspace,
+        endpoint: "chat.appendStream",
+        payload: { channel: channel, ts: ts, chunks: chunks }
+      )
+    end
+
+    # Blocks are attached here rather than mid stream, so Slack cannot break them up.
+    def self.stop_stream(workspace:, channel:, ts:, markdown_text: nil, blocks: nil)
+      api_post(
+        workspace: workspace,
+        endpoint: "chat.stopStream",
+        payload: {
+          channel: channel,
+          ts: ts,
+          markdown_text: markdown_text,
+          blocks: blocks
+        }.compact
+      )
+    end
+
     def self.post_ephemeral(workspace:, channel:, user:, text:, blocks: nil)
       api_post(
         workspace: workspace,

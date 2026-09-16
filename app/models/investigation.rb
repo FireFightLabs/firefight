@@ -115,6 +115,14 @@ class Investigation < ApplicationRecord
       ) > 0
   end
 
+  # The worker notices between turns, and RubyLLM stops a model call already in flight.
+  def request_cancel!
+    moved = self.class.where(id: id, status: LIVE_STATUSES)
+      .update_all(cancel_requested: true, updated_at: Time.current) > 0
+    chat&.cancel if moved
+    moved
+  end
+
   def record_hypothesis!(assertion:, status: nil, confidence: nil)
     hypothesis = hypotheses.find_or_initialize_by(assertion: assertion)
     hypothesis.position ||= (hypotheses.maximum(:position) || 0) + 1

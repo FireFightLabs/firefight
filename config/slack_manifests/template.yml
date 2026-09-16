@@ -14,6 +14,10 @@ features:
       type: global
       callback_id: create_incident_shortcut
       description: Quickly declare a new incident
+  # Declares Firefight a Slack agent, which is what allows a live status, streamed answers and
+  # task cards in a channel. Suggested prompts land when the agent answers in a DM.
+  agent_view:
+    agent_description: Investigates incidents and answers questions about them, using your connected tools.
   slash_commands:
     - command: /firefight
       url: <base-url>/api/v1/commands
@@ -55,6 +59,7 @@ oauth_config:
       - groups:history    # Read private incident channel messages/events
       - files:read        # Download shared files for archival
       - app_mentions:read # Receive app_mention events when @Firefight is mentioned
+      - assistant:write   # Act as a Slack agent: session status, streamed answers, task cards
   pkce_enabled: false
 
 settings:
@@ -68,6 +73,7 @@ settings:
       - pin_added
       - pin_removed
       - reaction_added
+      - agent_session_stopped # A responder pressed stop on a running investigation
   interactivity:
     is_enabled: true
     request_url: <base-url>/api/v1/interactions

@@ -5,7 +5,8 @@ class EventDispatcher
     Identifiers::EVENT_PIN_ADDED => Events::PinAddedHandler,
     Identifiers::EVENT_PIN_REMOVED => Events::PinRemovedHandler,
     Identifiers::EVENT_APP_MENTION => Events::AppMentionHandler,
-    Identifiers::EVENT_MEMBER_JOINED => Events::MemberJoinedChannelHandler
+    Identifiers::EVENT_MEMBER_JOINED => Events::MemberJoinedChannelHandler,
+    Identifiers::EVENT_AGENT_SESSION_STOPPED => Events::AgentSessionStoppedHandler
   }.freeze
 
   # Events carry no way to answer the user, so unknown and suspended workspaces are dropped.

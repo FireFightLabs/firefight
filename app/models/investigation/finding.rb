@@ -29,4 +29,11 @@ class Investigation::Finding < ApplicationRecord
   validates :remediation_type, inclusion: { in: REMEDIATION_TYPES }, allow_nil: true
   validates :confidence,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }, allow_nil: true
+
+  # The first vote stands. A second reader disagreeing is a conversation, not an overwrite.
+  def record_outcome!(outcome, by: nil)
+    return false if self.outcome.present?
+
+    update!(outcome: outcome, outcome_at: Time.current, outcome_by: by)
+  end
 end
