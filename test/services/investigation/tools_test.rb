@@ -34,6 +34,44 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
 
   test "a tool the agent holds no grant for is not offered" do
     assert_empty Investigation::Tools.connection_tools(@investigation)
+    assert_empty Investigation::Tools.firefight_tools(@investigation)
+  end
+
+  test "Firefight's own tools are offered by grant, the same ones an outside agent reaches over MCP" do
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+
+    names = Investigation::Tools.firefight_tools(@investigation).map(&:name)
+
+    assert_includes names, Mcp::Tools::SEARCH_INCIDENTS
+    assert_includes names, Mcp::Tools::GET_INCIDENT
+    assert_not_includes names, Mcp::Tools::SEARCH_CATALOG, "the catalog was never granted"
+  end
+
+  test "a write the agent was granted is offered too, since the gateway decides and not a list here" do
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)
+
+    assert_includes Investigation::Tools.firefight_tools(@investigation).map(&:name), Mcp::Tools::DECLARE_INCIDENT
+  end
+
+  test "a Firefight tool runs through the gateway and answers with what it found" do
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    tool = Investigation::Tools.firefight_tools(@investigation).find { |candidate| candidate.name == Mcp::Tools::SEARCH_INCIDENTS }
+
+    result = tool.call(query: @incident.identifier)
+
+    assert_match @incident.identifier, result
+    step = @investigation.steps.sole
+    assert_equal Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ), step.action_key
+    assert_equal Investigation::Step::STATUS_SUCCEEDED, step.status
+    assert_match @incident.identifier, step.raw_result
+  end
+
+  test "the model sees each tool's own description and parameters" do
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    tool = Investigation::Tools.firefight_tools(@investigation).find { |candidate| candidate.name == Mcp::Tools::SEARCH_INCIDENTS }
+
+    assert_match "Search this workspace's incidents", tool.description
+    assert_includes tool.parameters_schema[:properties].keys, :severity
   end
 
   test "a connection tool runs through the gateway and returns what the provider said" do
@@ -112,10 +150,22 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
 
   private
 
+  def grant_system!(resource, action)
+    Ability::Grant.create!(
+      workspace: @workspace, principal: @investigation.agent_principal,
+      action: Ability::Action.system!(Ability::Action.system_key(resource, action))
+    )
+    bust_grants!
+  end
+
   def grant!(tool)
     Ability::Grant.create!(
       workspace: @workspace, principal: @investigation.agent_principal, action: tool.reload.ability_action
     )
+    bust_grants!
+  end
+
+  def bust_grants!
     principal = @investigation.agent_principal
     Ability::Resolver.bust!(
       principal_type: principal.class.polymorphic_name, principal_id: principal.id, workspace_id: @workspace.id
