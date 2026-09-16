@@ -23,6 +23,7 @@ class Investigation::Finding < ApplicationRecord
   belongs_to :investigation
   belongs_to :winning_hypothesis, class_name: "Investigation::Hypothesis", optional: true
   belongs_to :outcome_by, polymorphic: true, optional: true
+  has_many :verdicts, class_name: "Investigation::Verdict", dependent: :destroy, inverse_of: :finding
 
   validates :published_state, inclusion: { in: STATES }
   validates :outcome, inclusion: { in: OUTCOMES }, allow_nil: true
@@ -30,10 +31,25 @@ class Investigation::Finding < ApplicationRecord
   validates :confidence,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }, allow_nil: true
 
-  # The first vote stands. A second reader disagreeing is a conversation, not an overwrite.
-  def record_outcome!(outcome, by: nil)
-    return false if self.outcome.present?
+  # Everyone who read the finding gets a say, and anyone may change their mind. The outcome the
+  # record carries is what the room agreed, or nothing while the room is split.
+  def record_verdict!(outcome, by:)
+    verdict = verdicts.find_or_initialize_by(member: by)
+    verdict.outcome = outcome
+    verdict.save!
+    settle_outcome!
+    verdict
+  end
 
-    update!(outcome: outcome, outcome_at: Time.current, outcome_by: by)
+  def tally
+    verdicts.group(:outcome).count
+  end
+
+  private
+
+  def settle_outcome!
+    counts = tally
+    agreed = counts.size == 1 ? counts.keys.first : nil
+    update!(outcome: agreed, outcome_at: agreed ? Time.current : nil, outcome_by: nil)
   end
 end

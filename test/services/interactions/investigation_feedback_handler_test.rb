@@ -11,20 +11,32 @@ class Interactions::InvestigationFeedbackHandlerTest < ActiveSupport::TestCase
     @finding = @investigation.conclude!(summary: "The 14:02 deploy did it")
   end
 
-  test "a thumbs up records that the answer was right, and who said so" do
+  test "a thumbs up is recorded as that person's vote" do
     Interactions::InvestigationFeedbackHandler.execute(interaction(Investigation::Finding::OUTCOME_CONFIRMED))
 
-    @finding.reload
-    assert_equal Investigation::Finding::OUTCOME_CONFIRMED, @finding.outcome
-    assert_equal @member, @finding.outcome_by
-    assert_not_nil @finding.outcome_at
+    verdict = @finding.verdicts.sole
+    assert_equal Investigation::Finding::OUTCOME_CONFIRMED, verdict.outcome
+    assert_equal @member, verdict.member
+    assert_equal Investigation::Finding::OUTCOME_CONFIRMED, @finding.reload.outcome
   end
 
-  test "the first vote stands" do
+  test "anyone may change their mind, and the vote is replaced rather than doubled" do
     Interactions::InvestigationFeedbackHandler.execute(interaction(Investigation::Finding::OUTCOME_CONFIRMED))
     Interactions::InvestigationFeedbackHandler.execute(interaction(Investigation::Finding::OUTCOME_WRONG))
 
-    assert_equal Investigation::Finding::OUTCOME_CONFIRMED, @finding.reload.outcome
+    assert_equal Investigation::Finding::OUTCOME_WRONG, @finding.verdicts.sole.outcome
+    assert_equal Investigation::Finding::OUTCOME_WRONG, @finding.reload.outcome
+  end
+
+  test "a split room leaves the finding without an outcome" do
+    Interactions::InvestigationFeedbackHandler.execute(interaction(Investigation::Finding::OUTCOME_CONFIRMED))
+    Interactions::InvestigationFeedbackHandler.execute(
+      interaction(Investigation::Finding::OUTCOME_WRONG, user_id: workspace_memberships(:bob_workspace_one).platform_user_id)
+    )
+
+    assert_equal 2, @finding.verdicts.count
+    assert_nil @finding.reload.outcome
+    assert_equal({ "confirmed" => 1, "wrong" => 1 }, @finding.tally)
   end
 
   test "a finding from another workspace is not reachable" do
@@ -43,10 +55,10 @@ class Interactions::InvestigationFeedbackHandlerTest < ActiveSupport::TestCase
 
   private
 
-  def interaction(outcome, finding_id: @finding.id)
+  def interaction(outcome, finding_id: @finding.id, user_id: @member.platform_user_id)
     Interaction.new(
       type: Interaction::BLOCK_ACTIONS, platform: Platforms::SLACK, team_id: @workspace.platform_id,
-      user_id: @member.platform_user_id, action_id: Identifiers::INVESTIGATION_FEEDBACK,
+      user_id: user_id, action_id: Identifiers::INVESTIGATION_FEEDBACK,
       action_value: "#{finding_id}:#{outcome}"
     )
   end

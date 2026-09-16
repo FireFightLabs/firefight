@@ -10,7 +10,10 @@ module Interactions
         .where(investigations: { workspace_id: interaction.workspace.id }).find_by(id: finding_id)
       return unless finding && Investigation::Finding::OUTCOMES.include?(outcome)
 
-      finding.record_outcome!(outcome, by: interaction.workspace.workspace_memberships.find_by(platform_user_id: interaction.user_id))
+      member = interaction.workspace.workspace_memberships.find_by(platform_user_id: interaction.user_id)
+      return unless member
+
+      finding.record_verdict!(outcome, by: member)
       nil
     end
   end

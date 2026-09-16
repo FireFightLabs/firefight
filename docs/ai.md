@@ -183,7 +183,7 @@ The rules:
 - **The session status is ours to clear.** Slack holds its spinner for an hour unless the session is set back to `active`, so `finish_agent_answer` always clears it, including when the run failed.
 - **A workspace without the agent features still gets the answer.** `start_agent_answer` returns no answer id when Slack refuses, and the finish posts one ordinary threaded message instead. A step against no answer id is dropped.
 - **Steps come from the engine**, which reports a tool as the agent reaches for it and again when it answers. `conclude` and `record_hypothesis` are not shown, since they are how the agent writes rather than what it looked at.
-- **Thumbs are Slack's own feedback element**, and the first vote stands. The outcome and who voted are on `Investigation::Finding`, which is what the Learner reads later.
+- **Thumbs are Slack's own feedback element**, and every vote is kept as an `Investigation::Verdict`, one per person, changeable. The finding carries an outcome only while the room agrees, so a split leaves it blank, and `Finding#tally` is the count the Learner reads later.
 - **Stop is Slack's own button.** It needs the `agent_session_stopped` subscription or Slack shows a dead spinner. The event sets `cancel_requested`, the loop sees it between turns, and `Chat#cancel` stops a model call already in flight. The run ends as canceled.
 - **Blocks are attached when the stream stops**, never mid stream, since Slack may otherwise break them up.
 

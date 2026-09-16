@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -950,6 +950,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_140000) do
     t.index ["investigation_id"], name: "index_investigation_steps_on_investigation_id"
   end
 
+  create_table "investigation_verdicts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "finding_id", null: false
+    t.uuid "member_id", null: false
+    t.string "outcome", null: false
+    t.datetime "updated_at", null: false
+    t.index ["finding_id", "member_id"], name: "index_investigation_verdicts_on_finding_and_member", unique: true
+    t.index ["member_id"], name: "index_investigation_verdicts_on_member_id"
+  end
+
   create_table "investigations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "cancel_requested", default: false, null: false
     t.datetime "completed_at"
@@ -1491,6 +1501,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_140000) do
   add_foreign_key "investigation_hypotheses", "investigations"
   add_foreign_key "investigation_steps", "investigation_hypotheses", column: "hypothesis_id"
   add_foreign_key "investigation_steps", "investigations"
+  add_foreign_key "investigation_verdicts", "investigation_findings", column: "finding_id"
+  add_foreign_key "investigation_verdicts", "workspace_memberships", column: "member_id"
   add_foreign_key "investigations", "workspaces"
   add_foreign_key "invite_codes", "users", column: "redeemed_by_id"
   add_foreign_key "oauth_access_grants", "oauth_applications", column: "application_id"

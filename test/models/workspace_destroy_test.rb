@@ -54,6 +54,7 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
       )
     )
     investigation.create_finding!(winning_hypothesis: hypothesis, summary: "The deploy broke it")
+    investigation.finding.record_verdict!(Investigation::Finding::OUTCOME_CONFIRMED, by: @membership)
     chat = @workspace.chats.create!(owner: investigation, model: "claude-sonnet-4-5", provider: :anthropic)
     chat.add_message(role: :assistant, content: "",
                      tool_calls: { "toolu_1" => RubyLLM::ToolCall.new(id: "toolu_1", name: "list_commits", arguments: {}) })
