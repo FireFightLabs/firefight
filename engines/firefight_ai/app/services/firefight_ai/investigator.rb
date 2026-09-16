@@ -45,6 +45,8 @@ module FirefightAi
 
         How to work:
         - Start from the facts below, then call tools to check what you cannot see yet.
+        - You hold almost no tools to begin with. Call find_tools with what you need, such as "recent deploys" or "past incidents like this", and the ones you may use become callable.
+        - Before saying you could not check something, search for it. find_tools also tells you when a tool exists but this workspace has not granted it, or when nothing is connected, and that is worth saying in your answer.
         - State nothing a tool result or the facts below do not support. No guesses, no filler.
         - Record each theory with record_hypothesis as soon as you have one, and mark it supported or ruled out once the evidence says so.
         - Prefer the check that would rule a theory out over the one that would confirm it.

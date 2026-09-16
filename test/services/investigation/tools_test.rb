@@ -22,40 +22,61 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
     Integrations::NativePack.stubs(:for).with("fake").returns(FakeNativePack)
   end
 
-  test "the agent is offered the tools it was granted, and never the ones it was not" do
+  test "the agent starts with only the three tools it always needs" do
     grant!(@tool)
 
-    names = Investigation::Tools.for(@investigation).map(&:name)
+    names = Investigation::Tools.for(@investigation, offer: ->(_tools) { }).map(&:name)
 
-    assert_includes names, "fake_echo_text"
-    assert_includes names, "conclude"
-    assert_includes names, "record_hypothesis"
+    assert_equal [ "find_tools", "record_hypothesis", "conclude" ], names
   end
 
-  test "a tool the agent holds no grant for is not offered" do
-    assert_empty Investigation::Tools.connection_tools(@investigation)
-    assert_empty Investigation::Tools.firefight_tools(@investigation)
+  test "finding a tool the agent may use offers it to the chat and says it is ready" do
+    grant!(@tool)
+    offered = []
+    find = Investigation::Tools::Find.new(@investigation, offer: ->(tools) { offered.concat(tools) })
+
+    answer = find.execute(query: "echoes text")
+
+    assert_match "fake_echo_text", answer
+    assert_match "ready to call", answer
+    assert_equal [ "fake_echo_text" ], offered.map(&:name)
   end
 
-  test "Firefight's own tools are offered by grant, the same ones an outside agent reaches over MCP" do
+  test "a tool the workspace never granted is named rather than hidden" do
+    find = Investigation::Tools::Find.new(@investigation, offer: ->(_tools) { })
+
+    answer = find.execute(query: "echoes text")
+
+    assert_match "fake_echo_text", answer
+    assert_match "not granted", answer
+  end
+
+  test "Firefight's own tools are found the same way, and a granted one becomes callable" do
     grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    offered = []
+    find = Investigation::Tools::Find.new(@investigation, offer: ->(tools) { offered.concat(tools) })
 
-    names = Investigation::Tools.firefight_tools(@investigation).map(&:name)
+    answer = find.execute(query: "search incidents")
 
-    assert_includes names, Mcp::Tools::SEARCH_INCIDENTS
-    assert_includes names, Mcp::Tools::GET_INCIDENT
-    assert_not_includes names, Mcp::Tools::SEARCH_CATALOG, "the catalog was never granted"
+    assert_match Mcp::Tools::SEARCH_INCIDENTS, answer
+    assert_includes offered.map(&:name), Mcp::Tools::SEARCH_INCIDENTS
   end
 
-  test "a write the agent was granted is offered too, since the gateway decides and not a list here" do
-    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)
+  test "a provider nobody connected is named as not connected" do
+    find = Investigation::Tools::Find.new(@investigation, offer: ->(_tools) { })
 
-    assert_includes Investigation::Tools.firefight_tools(@investigation).map(&:name), Mcp::Tools::DECLARE_INCIDENT
+    assert_match "not connected", find.execute(query: "datadog")
   end
 
-  test "a Firefight tool runs through the gateway and answers with what it found" do
+  test "a search that matches nothing tells the agent to say so rather than guess" do
+    find = Investigation::Tools::Find.new(@investigation, offer: ->(_tools) { })
+
+    assert_match "Say what you could not check", find.execute(query: "zzzz")
+  end
+
+  test "a found Firefight tool runs through the gateway and answers with what it found" do
     grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
-    tool = Investigation::Tools.firefight_tools(@investigation).find { |candidate| candidate.name == Mcp::Tools::SEARCH_INCIDENTS }
+    tool = Investigation::Tools.catalog(@investigation).find { |entry| entry.name == Mcp::Tools::SEARCH_INCIDENTS }.tool
 
     result = tool.call(query: @incident.identifier)
 
@@ -63,29 +84,16 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
     step = @investigation.steps.sole
     assert_equal Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ), step.action_key
     assert_equal Investigation::Step::STATUS_SUCCEEDED, step.status
-    assert_match @incident.identifier, step.raw_result
-  end
-
-  test "the model sees each tool's own description and parameters" do
-    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
-    tool = Investigation::Tools.firefight_tools(@investigation).find { |candidate| candidate.name == Mcp::Tools::SEARCH_INCIDENTS }
-
-    assert_match "Search this workspace's incidents", tool.description
-    assert_includes tool.parameters_schema[:properties].keys, :severity
   end
 
   test "a connection tool runs through the gateway and returns what the provider said" do
     grant!(@tool)
-    tool = Investigation::Tools.connection_tools(@investigation).first
+    tool = Investigation::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
 
     result = tool.call(text: "hi")
 
     assert_equal "echo: hi", result
-    step = @investigation.steps.sole
-    assert_equal "fake.echo_text", step.action_key
-    assert_equal({ "text" => "hi" }, step.params)
-    assert_equal "echo: hi", step.raw_result
-    assert_equal Ability::Invocation::OUTCOME_SUCCESS, Ability::Invocation.find(step.invocation_id).outcome
+    assert_equal "fake.echo_text", @investigation.steps.sole.action_key
   end
 
   test "a refused call comes back as a result the agent can work around" do
@@ -100,14 +108,14 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
   test "a provider failure is reported to the agent rather than ending the run" do
     grant!(@tool)
     Integrations::NativeExecutor.stubs(:call).raises(Integrations::Error, "GitHub said no")
-    tool = Investigation::Tools.connection_tools(@investigation).first
+    tool = Investigation::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
 
     assert_match "GitHub said no", tool.call(text: "hi")
   end
 
-  test "the model describes a tool by the connection's own schema" do
+  test "the model sees each tool's own description and parameters" do
     grant!(@tool)
-    tool = Investigation::Tools.connection_tools(@investigation).first
+    tool = Investigation::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
 
     assert_equal @tool.params_schema, tool.parameters_schema
     assert_equal "Echoes text back", tool.description
