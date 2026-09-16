@@ -1,7 +1,8 @@
 module Workspace::InvestigationLimits
   extend ActiveSupport::Concern
 
-  INVESTIGATION_DEFAULT_MAX_TURNS = 24
+  # A guard against a runaway loop, not a limit on how long an investigation may take. Spend is that.
+  INVESTIGATION_DEFAULT_MAX_TURNS = 500
   # Cents, so there is no floating point money and dollars are only the display.
   INVESTIGATION_DEFAULT_MAX_SPEND_CENTS = 400
 
