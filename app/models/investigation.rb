@@ -84,9 +84,8 @@ class Investigation < ApplicationRecord
     !live?
   end
 
-  # Takes a waiting run, and a running one whose worker stopped renewing the lease, which is what
-  # resuming after a killed worker means. False means the run is over or another worker holds it.
-  # The start time is kept in SQL, so a caller holding a stale copy cannot move it.
+  # Takes a waiting run, or a running one whose worker stopped renewing the lease. The start time
+  # is kept in SQL, so a caller holding a stale copy cannot move it.
   def claim!
     token = SecureRandom.uuid
     moved = self.class.where(id: id, status: LIVE_STATUSES)
@@ -105,8 +104,7 @@ class Investigation < ApplicationRecord
     moved
   end
 
-  # Writes what the turn cost and holds the lease in the same statement. False means another
-  # worker took the run over, so this one stops rather than writing over its work.
+  # Writing the turn and holding the lease are one statement, so a worker that lost the run writes nothing.
   def record_turn!(turns_used:, spent_cents:)
     return false if @lease_token.blank?
 
@@ -126,7 +124,7 @@ class Investigation < ApplicationRecord
     hypothesis
   end
 
-  # The answer, unpublished. Posting it, its confidence factors and the citation checks come later.
+  # Posting, confidence factors and citation checks come later.
   def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil)
     winner = hypotheses.find_by(assertion: hypothesis_assertion) if hypothesis_assertion.present?
     create_finding!(

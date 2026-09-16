@@ -1,7 +1,6 @@
-# Runs one investigation: hands the engine the saved chat, the tools and the budget, and writes
-# down what the run spent as it goes.
+# The app half of a run: the chat, the tools, and what each turn spent.
 class Investigation::Runner
-  # Another worker took the run over, so this one stops rather than writing over its work.
+  # Another worker holds the run.
   class LeaseLost < StandardError; end
 
   Result = Data.define(:status, :error_summary)
@@ -64,7 +63,7 @@ class Investigation::Runner
     chat
   end
 
-  # An answer is the only success. Everything else says why it stopped, and keeps the theories.
+  # An answer is the only success.
   def result_for(outcome)
     return Result.new(status: Investigation::STATUS_SUCCEEDED, error_summary: nil) if @investigation.reload.finding
 

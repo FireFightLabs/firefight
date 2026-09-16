@@ -1,8 +1,7 @@
 require "test_helper"
 
 class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
-  # Stands in for a RubyLLM chat. Each scripted reply is what the model would answer, and a reply
-  # asking for tools is answered by a tool result on the next move, as RubyLLM does.
+  # Stands in for a RubyLLM chat. A reply asking for tools is answered on the next move, as RubyLLM does.
   class FakeChat
     attr_reader :messages, :model_calls
 
@@ -55,7 +54,6 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
 
   test "the run ends as answered once the agent has concluded" do
     chat = FakeChat.new([ tool_reply("call_1"), llm_reply(content: "done") ])
-    # The conclude tool writes the answer, so the loop asks the app rather than reading the reply.
     answered = -> { chat.messages.any?(&:tool_result?) }
 
     outcome = run_loop(chat, answered: answered)

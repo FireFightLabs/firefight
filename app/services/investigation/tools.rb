@@ -1,5 +1,4 @@
-# What the agent may call during a run: the two it uses to write down what it found, plus every
-# connection tool the workspace granted its account.
+# What the agent may call during a run.
 module Investigation::Tools
   def self.for(investigation)
     [ RecordHypothesis.new(investigation), Conclude.new(investigation), *connection_tools(investigation) ]

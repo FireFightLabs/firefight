@@ -1,6 +1,5 @@
 module FirefightAi
-  # Drives one run of the agent over a saved chat. The chat is the app's record, so every message
-  # it adds is saved. The caller supplies the budget and a way to ask whether the agent has answered.
+  # Drives one run over a saved chat. The chat is the app's record, so the messages it adds are saved.
   class AgentLoop
     STATUS_ANSWERED = :answered
     STATUS_OUT_OF_BUDGET = :out_of_budget
@@ -58,7 +57,7 @@ module FirefightAi
       return nil if spent_cents < @budget.max_spend_cents
       return STATUS_OUT_OF_BUDGET if @last_turn_offered
 
-      # One last turn to answer with what it has, which may go slightly over the cap.
+      # One last turn, which may go over the cap.
       @last_turn_offered = true
       @chat.add_message(role: :user, content: LAST_TURN)
       nil
@@ -85,8 +84,7 @@ module FirefightAi
       yield Turn.new(turns_used: @turns, spent_cents: spent_cents) if block_given?
     end
 
-    # RubyLLM skips a tool call whose id already has a result, so a model that repeats an id
-    # would never see the tool run and would keep paying for another turn.
+    # RubyLLM skips a call whose id already has a result, so a repeat pays for turns that run nothing.
     def repeated_tool_call_ids(message)
       ids = message.tool_calls&.keys || []
       repeated = ids & @seen_tool_call_ids.to_a
@@ -107,7 +105,7 @@ module FirefightAi
       nil
     end
 
-    # The record's own messages are Active Record rows, the model's are the ones RubyLLM holds.
+    # The record's messages are rows. These are the ones the model sees.
     def messages = @chat.to_llm.messages
 
     def spent_cents = (@spend_micros.to_f / MICROS_PER_CENT).ceil

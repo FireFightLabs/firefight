@@ -1,5 +1,4 @@
-# One integration tool, offered to the model under its action key. Every call goes through the
-# gateway as the agent, and a refusal comes back as a result the agent can work around.
+# One integration tool. A refusal comes back as a result the agent works around, never an exception.
 class Investigation::Tools::Connection < RubyLLM::Tool
   def initialize(investigation, tool)
     super()
@@ -13,8 +12,7 @@ class Investigation::Tools::Connection < RubyLLM::Tool
 
   def parameters_schema = @tool.params_schema.presence || { "type" => "object", "properties" => {} }
 
-  # The model's arguments already match the tool's own schema, so the base class's check against an
-  # execute signature does not apply.
+  # The arguments match the tool's own schema, not an execute signature, so skip the base check.
   def call(tool_call: nil, **arguments)
     run(arguments.transform_keys(&:to_s))
   end

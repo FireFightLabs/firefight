@@ -1,6 +1,5 @@
 module FirefightAi
-  # The reasoning half of an investigation. The app hands it a saved chat, the tools the agent may
-  # call and the budget, and it runs the loop until the agent answers or the run has to stop.
+  # The reasoning half of an investigation: the prompts, the model, and the loop around them.
   class Investigator
     FEATURE = "investigation".freeze
 
