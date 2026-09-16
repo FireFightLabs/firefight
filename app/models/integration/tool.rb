@@ -9,6 +9,11 @@ class Integration::Tool < ApplicationRecord
 
   scope :enabled, -> { where(enabled: true) }
   scope :available, -> { where(removed_at: nil) }
+  scope :in_workspace, ->(workspace) {
+    enabled.available.joins(:integration)
+      .where(integrations: { workspace_id: workspace.id, disabled_at: nil, deleted_at: nil })
+      .includes(:integration, :ability_action)
+  }
 
   # Synced on every mirrored attribute, a stale risk_level on the action
   # would silently stop risk-based approval policies from matching.
@@ -16,6 +21,18 @@ class Integration::Tool < ApplicationRecord
 
   def action_key
     "#{integration.slug}.#{name}"
+  end
+
+  # A tool name cannot carry the dot an action key separates on.
+  def model_facing_name
+    action_key.tr(".", "_")
+  end
+
+  # Whether it is worth offering. Each call is still authorized on its own.
+  def callable_by?(principal, resolved = Ability::Resolver.resolve(principal, integration.workspace))
+    return true if resolved.action_keys.include?(action_key)
+
+    ability_action.present? && principal.implicitly_allowed?(ability_action)
   end
 
   def available?

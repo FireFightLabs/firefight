@@ -12,6 +12,9 @@ class Investigation < ApplicationRecord
 
   LIVE_STATUSES = [ STATUS_PENDING, STATUS_RUNNING ].freeze
 
+  # A worker renews this every turn, so a dead one holds the run for at most this long.
+  LEASE = 5.minutes
+
   TRIGGER_COMMAND = "command"
   TRIGGER_BUTTON = "button"
   TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON ].freeze
@@ -81,18 +84,52 @@ class Investigation < ApplicationRecord
     !live?
   end
 
-  # Takes a waiting run, and picks up one that was already started, which is what
-  # resuming after a killed worker means. False means the run is already over.
-  # The start time is kept in SQL, so a caller holding a stale copy cannot move it.
+  # Takes a waiting run, or a running one whose worker stopped renewing the lease. The start time
+  # is kept in SQL, so a caller holding a stale copy cannot move it.
   def claim!
+    token = SecureRandom.uuid
     moved = self.class.where(id: id, status: LIVE_STATUSES)
+      .where(lease_until: [ nil, ...Time.current ])
       .update_all(
         status: STATUS_RUNNING,
+        lease_token: token,
+        lease_until: LEASE.from_now,
         started_at: Arel.sql("COALESCE(started_at, now())"),
         updated_at: Time.current
       ) > 0
-    reload if moved
+    if moved
+      @lease_token = token
+      reload
+    end
     moved
+  end
+
+  # Writing the turn and holding the lease are one statement, so a worker that lost the run writes nothing.
+  def record_turn!(turns_used:, spent_cents:)
+    return false if @lease_token.blank?
+
+    self.class.where(id: id, status: STATUS_RUNNING, lease_token: @lease_token)
+      .update_all(
+        turns_used: turns_used, spent_cents: spent_cents,
+        lease_until: LEASE.from_now, updated_at: Time.current
+      ) > 0
+  end
+
+  def record_hypothesis!(assertion:, status: nil, confidence: nil)
+    hypothesis = hypotheses.find_or_initialize_by(assertion: assertion)
+    hypothesis.position ||= (hypotheses.maximum(:position) || 0) + 1
+    hypothesis.status = status if status.present?
+    hypothesis.confidence = confidence unless confidence.nil?
+    hypothesis.save!
+    hypothesis
+  end
+
+  # Posting, confidence factors and citation checks come later.
+  def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil)
+    winner = hypotheses.find_by(assertion: hypothesis_assertion) if hypothesis_assertion.present?
+    create_finding!(
+      summary: summary, winning_hypothesis: winner, evidence: Array(evidence).map(&:to_s), gaps: gaps
+    )
   end
 
   def finish!(status:, error_summary: nil)

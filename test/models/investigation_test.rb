@@ -36,13 +36,22 @@ class InvestigationTest < ActiveSupport::TestCase
     assert_not_nil investigation.started_at
   end
 
-  test "claiming a run that is already running resumes it rather than refusing" do
+  test "a run another worker is holding cannot be claimed twice" do
     investigation = build_investigation
     investigation.claim!
 
-    resumed = Investigation.find(investigation.id)
+    assert_not Investigation.find(investigation.id).claim!,
+               "a retried job must not run alongside the worker that holds the run"
+  end
 
-    assert resumed.claim!, "a retry after a killed worker has to be able to pick the run up"
+  test "a run whose worker stopped renewing the lease is picked up" do
+    investigation = build_investigation
+    investigation.claim!
+
+    travel Investigation::LEASE + 1.minute do
+      assert Investigation.find(investigation.id).claim!,
+             "a retry after a killed worker has to be able to pick the run up"
+    end
   end
 
   test "resuming keeps the start time even when the caller's copy is stale" do
@@ -51,8 +60,33 @@ class InvestigationTest < ActiveSupport::TestCase
     investigation.claim!
     started_at = investigation.started_at
 
-    assert stale.claim!
+    travel Investigation::LEASE + 1.minute do
+      assert stale.claim!
+    end
     assert_equal started_at.to_i, investigation.reload.started_at.to_i
+  end
+
+  test "a worker that never claimed the run writes nothing" do
+    investigation = build_investigation
+    investigation.claim!
+
+    assert_not Investigation.find(investigation.id).record_turn!(turns_used: 1, spent_cents: 1)
+  end
+
+  test "a turn is written down only while this worker still holds the run" do
+    investigation = build_investigation
+    investigation.claim!
+
+    assert investigation.record_turn!(turns_used: 2, spent_cents: 7)
+    assert_equal 7, investigation.reload.spent_cents
+
+    travel Investigation::LEASE + 1.minute do
+      Investigation.find(investigation.id).claim!
+    end
+
+    assert_not investigation.record_turn!(turns_used: 3, spent_cents: 9),
+               "the worker that lost the run must not write over the one that took it"
+    assert_equal 7, investigation.reload.spent_cents
   end
 
   test "claiming a run that is over does nothing" do
