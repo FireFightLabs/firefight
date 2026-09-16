@@ -8,8 +8,11 @@ module Investigation::Seeding
 
   class UnknownSubject < StandardError; end
 
-  # Stored once so every later turn reads one row and sees the same facts.
+  # Stored once so every later turn reads one row and sees the same facts. A resumed run keeps
+  # the facts it started from.
   def build_seed_pack!
+    return seed_pack if seed_pack.present?
+
     update!(seed_pack: seeder.gather)
     seed_pack
   end

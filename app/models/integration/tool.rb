@@ -23,6 +23,11 @@ class Integration::Tool < ApplicationRecord
     "#{integration.slug}.#{name}"
   end
 
+  # What a model calls this tool. Dots separate an action key, tool names do not carry them.
+  def model_facing_name
+    action_key.tr(".", "_")
+  end
+
   # Whether this principal could call the tool at all. Each call is still authorized on its own.
   def callable_by?(principal, resolved = Ability::Resolver.resolve(principal, integration.workspace))
     return true if resolved.action_keys.include?(action_key)

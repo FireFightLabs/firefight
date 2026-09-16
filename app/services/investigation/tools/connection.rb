@@ -7,7 +7,7 @@ class Investigation::Tools::Connection < RubyLLM::Tool
     @tool = tool
   end
 
-  def name = @tool.action_key.tr(".", "_")
+  def name = @tool.model_facing_name
 
   def description = @tool.description.to_s
 

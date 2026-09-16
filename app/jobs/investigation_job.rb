@@ -15,7 +15,7 @@ class InvestigationJob < ApplicationJob
     investigation = Investigation.find(investigation_id)
     return unless investigation.claim!
 
-    investigation.build_seed_pack! if investigation.seed_pack.blank?
+    investigation.build_seed_pack!
 
     result = Investigation::Runner.new(investigation).run
     investigation.finish!(status: result.status, error_summary: result.error_summary)

@@ -18,7 +18,7 @@ module Mcp
     def self.build(tool)
       tool_id = tool.id
       ::MCP::Tool.define(
-        name: tool.action_key.tr(".", "_"),
+        name: tool.model_facing_name,
         description: description_for(tool),
         input_schema: augmented_schema(tool),
         annotations: tool.read_only? ? Tools::Base::READ_ONLY.dup : Tools::Base::WRITE.dup
