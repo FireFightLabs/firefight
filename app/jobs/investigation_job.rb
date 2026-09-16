@@ -8,16 +8,17 @@ class InvestigationJob < ApplicationJob
   end
 
   discard_on ActiveRecord::RecordNotFound
+  # The worker that holds the lease is already doing this work.
+  discard_on InvestigationRunner::LeaseLost
 
   def perform(investigation_id)
     investigation = Investigation.find(investigation_id)
     return unless investigation.claim!
 
-    investigation.build_seed_pack!
+    investigation.build_seed_pack! if investigation.seed_pack.blank?
 
-    # Nothing reasons over the facts until the agent loop exists. Canceled rather than
-    # succeeded, so the run neither claims an answer nor holds the incident's live slot.
-    investigation.finish!(status: Investigation::STATUS_CANCELED, error_summary: "Gathered, nothing to reason with yet")
+    result = InvestigationRunner.new(investigation).run
+    investigation.finish!(status: result.status, error_summary: result.error_summary)
   end
 
   def mark_failed(error)

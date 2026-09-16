@@ -10,18 +10,9 @@ module Mcp
     def self.tools_for(workspace, principal)
       resolved = Ability::Resolver.resolve(principal, workspace)
 
-      Integration::Tool.enabled.available
-                       .joins(:integration)
-                       .where(integrations: { workspace_id: workspace.id, disabled_at: nil, deleted_at: nil })
-                       .includes(:integration, :ability_action)
-                       .select { |tool| callable?(tool, principal, resolved) }
+      Integration::Tool.in_workspace(workspace)
+                       .select { |tool| tool.callable_by?(principal, resolved) }
                        .map { |tool| build(tool) }
-    end
-
-    def self.callable?(tool, principal, resolved)
-      return true if resolved.action_keys.include?(tool.action_key)
-
-      tool.ability_action.present? && principal.implicitly_allowed?(tool.ability_action)
     end
 
     def self.build(tool)

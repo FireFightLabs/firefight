@@ -126,6 +126,8 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `Investigation::Finding` | the one answer, with its named confidence factors |
 | `Chat` / `Chat::Message` | the agent's saved conversation with the model, see Saved chat |
 | `Investigation::ToolCall` | the gateway wrapper every tool call goes through, always as the agent |
+| `FirefightAi::AgentLoop` / `FirefightAi::Investigator` | the loop and the prompts, in the engine |
+| `InvestigationRunner` / `InvestigationTools` | the app side of a run: the chat, the tools, what each turn spent |
 | `SystemAgent` | Firefight's own agents, global, one row each, granted per workspace |
 | `Investigation::Seeding` | picks the seeder for the subject and stores its pack on `seed_pack` |
 | `Investigation::IncidentSeed` | the facts Firefight already holds about an incident |
@@ -152,8 +154,23 @@ The rules:
 - A past incident matches on `alert_source_id` **and** `fingerprint`, because a fingerprint is only unique within its source, and only resolved incidents count. A match carries its `Investigation::Finding` summary when it has one.
 - The pack caps alerts at `Seeding::ALERT_LIMIT` and records `alerts_held_back`, so whatever renders it can say how many it did not get. Alert `fields` are kept whole, because the agent reads them, and must be escaped by whatever renders them.
 
-Not built yet: the agent loop, the posted Finding, MCP tools, the dashboard page, a deadline on a run (nothing runs long enough to need one yet), and the per person environment cap on a run (the scope a person may investigate lands with the agent loop, which is what decides the environment a tool call targets). A run today gathers the pack and finishes as `canceled` with "Gathered, nothing to reason with yet", which keeps the incident's one live slot free. `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind `ConfidenceScorer` or `Matcher` yet.
+Not built yet: the posted Finding, MCP tools, the dashboard page, a deadline on a run (nothing runs long enough to need one yet), and the per person environment cap on a run (the scope a person may investigate lands with the agent loop, which is what decides the environment a tool call targets). `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind `ConfidenceScorer` or `Matcher` yet.
 - **One agent with tools, no sub-agents.** The Investigator reads every tool result into one context itself. There is no planner handing theories to branch runners and no specialist agents returning summaries, because a handoff passes on only part of what the previous step knew. Theories are `Investigation::Hypothesis` rows the same agent writes as it works.
+
+## The agent loop
+
+`FirefightAi::AgentLoop` drives one run over the saved chat, and `FirefightAi::Investigator` holds the prompts and the model choice. The app hands over a `Chat` record, the tools and the budget, and gets back why the run stopped. `InvestigationRunner` is the app half: it makes the chat, builds the tools, writes down what each turn spent, and turns the outcome into the run's status.
+
+The rules:
+
+- **Only `conclude` ends a run.** It writes `Investigation::Finding` unpublished. A plain reply does nothing: the agent is reminded once, and a second one ends the run as stalled with its hypotheses kept. Theories are written as the agent goes, through `record_hypothesis`.
+- **Spend is the budget.** Each model reply's cost is added to `spent_cents`, and at `max_spend_cents` the agent gets one last turn to conclude with what it has, which may go slightly over. `max_turns` is only a runaway guard, and the only stop for a model whose price is unknown. A tool call id repeated in the chat ends the run, since RubyLLM would skip the tool and pay for another turn forever.
+- **A model call is billed, running its tools is not.** The loop wraps only the generate move in `Inference.track`.
+- **Every turn is written down as it happens**, so a killed worker's successor starts from what was already spent.
+- **One worker per run.** `Investigation#claim!` takes a run whose lease has expired and stamps a new `lease_token`, and `record_turn!` renews that lease in the same statement that writes the turn. A worker whose token no longer matches raises `InvestigationRunner::LeaseLost`, and that job is discarded rather than retried.
+- **Tools come from the agent's own grants.** `InvestigationTools.for` offers `record_hypothesis`, `conclude` and every connection tool `Integration::Tool#callable_by?` allows for `SystemAgent.investigator`, under the action key with dots turned into underscores. A refusal, a pending approval or a provider failure comes back as a result the agent reads and works around, never an exception that ends the run.
+- **Waiting for a person does not exist yet.** A tool needing approval says so and was not run.
+- **No environment is chosen.** A tool call passes no scope, so a connection with more than one environment cannot resolve one and the call is refused. Per run environment scoping lands with the approval work.
 
 ## Saved chat
 

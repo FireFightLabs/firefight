@@ -13,44 +13,92 @@ class InvestigationJobTest < ActiveSupport::TestCase
     stub_post_message
   end
 
-  test "the run gathers the facts before it finishes" do
+  def stub_runner(status: Investigation::STATUS_SUCCEEDED, error_summary: nil)
+    InvestigationRunner.any_instance.stubs(:run)
+      .returns(InvestigationRunner::Result.new(status: status, error_summary: error_summary))
+  end
+
+  test "the run gathers the facts before the agent reasons over them" do
+    stub_runner
+
     InvestigationJob.perform_now(@investigation.id)
 
     assert_equal "INC-001", @investigation.reload.seed_pack.dig("incident", "identifier")
   end
 
-  test "the run posts nothing, because a briefing with no answer behind it is half a feature" do
+  test "the run posts nothing yet, the finding is what will carry an answer to the channel" do
+    stub_runner
     Slack::WorkspaceAdapter.any_instance.expects(:post_message).never
 
     InvestigationJob.perform_now(@investigation.id)
   end
 
-  test "a run with nothing to reason over says so rather than claiming success" do
+  test "a run that answers is a success" do
+    stub_runner(status: Investigation::STATUS_SUCCEEDED)
+
     InvestigationJob.perform_now(@investigation.id)
 
     @investigation.reload
-    assert_equal Investigation::STATUS_CANCELED, @investigation.status
-    assert_equal "Gathered, nothing to reason with yet", @investigation.error_summary
-    assert_not_nil @investigation.completed_at
+    assert_equal Investigation::STATUS_SUCCEEDED, @investigation.status
+    assert_nil @investigation.error_summary
     assert @investigation.over?, "a finished run must not hold the incident's only live slot"
   end
 
-  test "a run left running by a killed worker is picked up, not abandoned" do
-    @investigation.claim!
+  test "a run that stops without an answer says why" do
+    stub_runner(status: Investigation::STATUS_FAILED, error_summary: "Budget spent before it could answer")
 
     InvestigationJob.perform_now(@investigation.id)
+
+    @investigation.reload
+    assert_equal Investigation::STATUS_FAILED, @investigation.status
+    assert_equal "Budget spent before it could answer", @investigation.error_summary
+  end
+
+  test "a run whose worker was killed is picked up once its lease has run out" do
+    @investigation.claim!
+    stub_runner
+
+    travel Investigation::LEASE + 1.minute do
+      InvestigationJob.perform_now(@investigation.id)
+    end
 
     assert @investigation.reload.over?, "the retry has to finish a run that was already running"
   end
 
+  test "a run another worker holds is left alone" do
+    @investigation.claim!
+    InvestigationRunner.any_instance.expects(:run).never
+
+    InvestigationJob.perform_now(@investigation.id)
+
+    assert @investigation.reload.live?
+  end
+
+  test "a job that lost the run to another worker is dropped rather than retried" do
+    InvestigationRunner.any_instance.stubs(:run).raises(InvestigationRunner::LeaseLost, "taken over")
+
+    assert_no_enqueued_jobs { InvestigationJob.perform_now(@investigation.id) }
+  end
+
   test "a second pass over a finished run changes nothing" do
+    stub_runner
     InvestigationJob.perform_now(@investigation.id)
     finished_at = @investigation.reload.completed_at
 
     InvestigationJob.perform_now(@investigation.id)
 
     assert_equal finished_at, @investigation.reload.completed_at
-    assert_equal Investigation::STATUS_CANCELED, @investigation.status
+  end
+
+  test "the seed pack is gathered once, a resumed run reads the facts it already has" do
+    stub_runner
+    InvestigationJob.perform_now(@investigation.id)
+    gathered_at = @investigation.reload.seed_pack["gathered_at"]
+
+    @investigation.update!(status: Investigation::STATUS_PENDING, completed_at: nil, lease_until: nil)
+    InvestigationJob.perform_now(@investigation.id)
+
+    assert_equal gathered_at, @investigation.reload.seed_pack["gathered_at"]
   end
 
   test "an error leaves the run alive and asks the queue to try again" do
