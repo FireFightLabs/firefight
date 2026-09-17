@@ -3,6 +3,7 @@ import { router } from "@inertiajs/react"
 import { useEffect, useRef, useState } from "react"
 
 import { AGENT_CHANNEL, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
+import type { AgentStep } from "@/pages/agent/components/agent-steps"
 import type { AgentChatMessage } from "@/types/serializers"
 
 // A socket that drops mid turn would leave the answer unseen, so the page asks for it once instead.
@@ -12,16 +13,10 @@ export type TurnState = "idle" | "working"
 
 type StepStatus = (typeof AGENT_STEP_STATUSES)[keyof typeof AGENT_STEP_STATUSES]
 
-export interface LiveStep {
-  key: string
-  title: string
-  status: StepStatus
-}
-
 export interface AgentStream {
   state: TurnState
   text: string
-  steps: LiveStep[]
+  steps: AgentStep[]
 }
 
 interface StreamEvent {
@@ -29,6 +24,7 @@ interface StreamEvent {
   text?: string
   key?: string
   title?: string
+  asked?: [ string, string ][]
   status?: StepStatus
 }
 
@@ -38,7 +34,7 @@ export function useAgentStream(
 ): AgentStream {
   const [ state, setState ] = useState<TurnState>("idle")
   const [ text, setText ] = useState("")
-  const [ steps, setSteps ] = useState<LiveStep[]>([])
+  const [ steps, setSteps ] = useState<AgentStep[]>([])
   const working = useRef(false)
   const recovery = useRef<number | undefined>(undefined)
   const last = messages?.[messages.length - 1]
@@ -110,10 +106,11 @@ export function useAgentStream(
   return { state, text: saved ? "" : text, steps: saved ? [] : steps }
 }
 
-function withStep(shown: LiveStep[], event: StreamEvent): LiveStep[] {
+function withStep(shown: AgentStep[], event: StreamEvent): AgentStep[] {
   const step = {
     key: event.key ?? "",
     title: event.title ?? "",
+    asked: event.asked ?? [],
     status: event.status ?? AGENT_STEP_STATUSES.RUNNING,
   }
   const already = shown.findIndex((candidate) => candidate.key === step.key)

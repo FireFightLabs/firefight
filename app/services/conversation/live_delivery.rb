@@ -32,9 +32,9 @@ class Conversation::LiveDelivery
   end
 
   # A tool interrupts the answer, so whatever has been written lands before the step does.
-  def step(key:, title:, status:)
+  def step(key:, title:, status:, asked: [])
     @text.flush!
-    broadcast(type: EVENT_STEP, key: key, title: title, status: STATUSES.fetch(status))
+    broadcast(type: EVENT_STEP, key: key, title: title, asked: asked, status: STATUSES.fetch(status))
   end
 
   def chunk(text)

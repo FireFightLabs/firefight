@@ -25,6 +25,8 @@ export default tseslint.config(
       "app/frontend/lib/routes.ts",
       "app/frontend/lib/routes.d.ts",
       "app/frontend/components/ui/",
+      // Vendored from https://www.beautifului.dev, kept close to source so updates can be re-pulled.
+      "app/frontend/components/agent-ui/",
     ],
   }
 )

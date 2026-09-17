@@ -14,10 +14,16 @@ class AgentChatMessageSerializer < BaseSerializer
     message.created_at.utc.iso8601
   end
 
-  type "{ id: string; name: string; answered: boolean }[]"
+  # The same shape the page gets while a turn is running, so a step reads the same either way.
+  type "{ key: string; title: string; asked: [string, string][]; status: string }[]"
   def tools
     message.ruby_llm_tool_calls.map do |call|
-      { id: call.tool_call_id, name: call.name, answered: call.result_id.present? }
+      {
+        key: call.tool_call_id,
+        title: Chat::Tools.step_title(call.name),
+        asked: call.arguments.to_h.filter_map { |name, value| [ name.to_s, value.to_s.truncate(60) ] if value.present? },
+        status: call.result_id.present? ? Conversation::LiveDelivery::STATUS_DONE : Conversation::LiveDelivery::STATUS_RUNNING
+      }
     end
   end
 end

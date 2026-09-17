@@ -2,6 +2,8 @@
 # started it sees it, and the agent reads only what that person could read.
 class AgentChatsController < InertiaController
   RECENT = 50
+  # What @ offers in the composer. The live ones are the ones anybody asks about.
+  MENTIONABLE = 20
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS,
     read: %i[index show],
     create: %i[create ask]
@@ -42,7 +44,14 @@ class AgentChatsController < InertiaController
   end
 
   def base_props
-    { conversations: AgentChatSerializer.many(recent_conversations) }
+    {
+      conversations: AgentChatSerializer.many(recent_conversations),
+      incidents: AgentChatIncidentSerializer.many(mentionable_incidents)
+    }
+  end
+
+  def mentionable_incidents
+    current_workspace.incidents.active.order(created_at: :desc).limit(MENTIONABLE)
   end
 
   def recent_conversations

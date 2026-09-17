@@ -1,32 +1,22 @@
 import { router } from "@inertiajs/react"
-import { IconArrowUp } from "@tabler/icons-react"
-import { useState } from "react"
 
+import PromptBar from "@/components/agent-ui/prompt-bar"
 import { agentChatAskPath } from "@/lib/routes"
+import type { AgentChatIncident } from "@/types/serializers"
 
 interface ComposerProps {
   conversationId?: string
+  incidents: AgentChatIncident[]
   busy: boolean
 }
 
-export function Composer({ conversationId, busy }: ComposerProps) {
-  const [question, setQuestion] = useState("")
-
-  function send() {
-    if (busy || !conversationId || question.trim().length === 0) {
+export function Composer({ conversationId, incidents, busy }: ComposerProps) {
+  function send(question: string) {
+    if (!conversationId || question.trim().length === 0) {
       return
     }
 
     router.post(agentChatAskPath(conversationId), { question }, { preserveScroll: true })
-    setQuestion("")
-  }
-
-  function sendOnEnter(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== "Enter" || event.shiftKey) {
-      return
-    }
-    event.preventDefault()
-    send()
   }
 
   function placeholder() {
@@ -37,32 +27,28 @@ export function Composer({ conversationId, busy }: ComposerProps) {
       return "The agent is working"
     }
 
-    return "Ask the agent"
+    return "Ask the agent, or @ an incident"
   }
 
+  // @ offers the incidents the agent can already read. The model picker and dictation are theirs
+  // and stay off until a model choice and a transcript mean something here.
+  const sources = incidents.map((incident) => ({
+    key: incident.id,
+    name: incident.identifier,
+    desc: incident.name,
+    glyph: "layers",
+  }))
+
   return (
-    <div className="mx-auto flex w-full max-w-2xl items-end gap-2 rounded-window bg-field p-2 shadow-hairline">
-      <textarea
-        name="question"
-        id="agent-question"
-        aria-label="Ask the agent"
-        value={question}
-        onChange={(event) => setQuestion(event.target.value)}
-        onKeyDown={sendOnEnter}
-        rows={2}
-        disabled={!conversationId}
-        placeholder={placeholder()}
-        className="min-h-10 flex-1 resize-none bg-transparent px-2 py-1.5 text-[13.5px] text-ink outline-none placeholder:text-ink-3"
-      />
-      <button
-        type="button"
-        onClick={send}
-        disabled={busy || !conversationId || question.trim().length === 0}
-        aria-label="Send"
-        className="flex size-8 items-center justify-center rounded-control bg-brand text-brand-ink shadow-btn transition-opacity duration-100 disabled:opacity-40"
-      >
-        <IconArrowUp className="size-4" />
-      </button>
-    </div>
+    <PromptBar
+      demo={false}
+      busy={busy}
+      modelPicker={false}
+      dictation={false}
+      sources={sources}
+      commands={[]}
+      placeholder={placeholder()}
+      onSend={send}
+    />
   )
 }

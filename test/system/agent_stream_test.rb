@@ -25,11 +25,7 @@ class AgentStreamTest < ApplicationSystemTestCase
     ApplicationCable::Connection.any_instance.stubs(:signed_in_user).returns(users(:alice))
 
     conversation = Conversation.start_personal!(workspace: workspace, member: member)
-    chat = Chat.open!(
-      owner: conversation, workspace: workspace,
-      model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: nil)
-    )
-    chat.messages.create!(role: Chat::Message::ROLE_USER, content: "Has checkout failed like this before?")
+    conversation.ask!("Has checkout failed like this before?")
 
     visit agent_chat_path(conversation)
     assert_text "Has checkout failed"
@@ -37,8 +33,9 @@ class AgentStreamTest < ApplicationSystemTestCase
 
     delivery = Conversation::LiveDelivery.new(conversation)
     delivery.thinking!
-    delivery.step(key: "call_1", title: "Search similar", status: :running)
-    delivery.step(key: "call_1", title: "Search similar", status: :done)
+    delivery.step(key: "call_1", title: "Search similar", asked: [ [ "query", "checkout failing" ] ], status: :running)
+    delivery.step(key: "call_1", title: "Search similar", asked: [ [ "query", "checkout failing" ] ], status: :done)
+    delivery.step(key: "call_2", title: "Search incidents", asked: [ [ "query", "checkout" ] ], status: :running)
     delivery.chunk("Twice in the last quarter. ")
     delivery.chunk("INC-118 was the same connection pool exhaustion.")
     delivery.answered!("ignored")

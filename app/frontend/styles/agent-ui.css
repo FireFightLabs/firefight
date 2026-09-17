@@ -1,62 +1,302 @@
+/* Beautiful UI's foundation, https://www.beautifului.dev/r/foundation.json, with three edits so it
+   can live beside the app's own tokens:
+     1. Their token values are ours. The names, the scale and the relationships are theirs.
+     2. :root and .dark are scoped to .agent-ui, which the agent page carries. The app's --accent is
+        shadcn's hover grey, so an unscoped block would have one of them silently win.
+     3. Tailwind's import, the dark variant, the font mappings and the caret-blink keyframe are the
+        app's already.
+   Below the tokens: their @theme mappings, spacing primitives, keyframes and StreamingText rules.
+   Their site's own body, heading and nav styling is not here, and the element rules that were global
+   in their file are scoped to .agent-ui. */
 @import "shadow-plugin/unprefixed";
 
-/* Beautiful UI's tokens pointed at Firefight's palette. Their radii and elevation are unchanged,
-   the colours are ours. The names are the ones this page uses, and brand rather than accent
-   because the app's own accent is shadcn's hover grey. */
+.agent-ui {
+  /* surfaces */
+  --page: var(--background);
+  --canvas: var(--background);
+  --surface: var(--card);
+  --inset: var(--secondary);
+  --hover: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --hover-2: color-mix(in srgb, var(--foreground) 7%, transparent);
+
+  /* ink ramp */
+  --ink: var(--foreground);
+  --ink-2: var(--muted-foreground);
+  --ink-3: color-mix(in srgb, var(--muted-foreground) 70%, var(--card));
+
+  /* borders */
+  --line: var(--border);
+  --line-strong: color-mix(in srgb, var(--border) 70%, var(--foreground) 12%);
+  --line-soft: color-mix(in srgb, var(--border) 55%, var(--card));
+  --grid-line: color-mix(in srgb, var(--line) 78%, transparent);
+  --field: var(--secondary);
+  --stripe: color-mix(in srgb, var(--foreground) 7%, transparent);
+  --stripe-bg: var(--secondary);
+
+  /* accent */
+  --accent: var(--primary);
+  --accent-ink: var(--primary-foreground);
+  --accent-tint: color-mix(in srgb, var(--primary) 12%, var(--card));
+
+  /* semantic */
+  --green: var(--chart-3);
+  --green-tint: color-mix(in srgb, var(--chart-3) 12%, var(--card));
+  --orange: var(--chart-4);
+  --orange-tint: color-mix(in srgb, var(--chart-4) 14%, var(--card));
+  --red: var(--destructive);
+  --red-tint: color-mix(in srgb, var(--destructive) 12%, var(--card));
+
+  /* overlays */
+  --tooltip-bg: var(--foreground);
+  --tooltip-fg: var(--card);
+  --tooltip-muted: color-mix(in srgb, var(--card) 70%, var(--foreground));
+  --tooltip-border: color-mix(in srgb, var(--foreground) 80%, var(--card));
+
+  /* shadows, theirs: a solid hairline ring over shadow-plugin's layered stacks */
+  --shadow-hairline: 0 0 0 1px var(--line);
+  --shadow-btn: 0 0 0 1px var(--line-strong), var(--shadow-xs);
+  --shadow-card: 0 0 0 1px var(--line), var(--shadow-sm);
+  --shadow-raised: 0 0 0 1px var(--line), var(--shadow-md);
+  --shadow-overlay: 0 0 0 1px var(--line), var(--shadow-lg);
+  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.12);
+}
+
+.dark .agent-ui {
+  --hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --hover-2: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --ink-3: color-mix(in srgb, var(--muted-foreground) 70%, var(--background));
+  --line-soft: color-mix(in srgb, var(--border) 55%, var(--background));
+  --stripe: oklch(1 0 0 / 0.055);
+  --accent-tint: color-mix(in srgb, var(--primary) 22%, var(--card));
+  --green-tint: color-mix(in srgb, var(--chart-3) 22%, var(--card));
+  --orange-tint: color-mix(in srgb, var(--chart-4) 22%, var(--card));
+  --red-tint: color-mix(in srgb, var(--destructive) 22%, var(--card));
+  --tooltip-bg: var(--card);
+  --tooltip-fg: var(--foreground);
+
+  /* Their dark elevation: the ring becomes a low-alpha white edge that dissolves into the shadow. */
+  --shadow-hairline: 0 0 0 1px var(--line);
+  --shadow-btn: 0 0 0 1px oklch(1 0 0 / 0.1), 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-card:
+    0 0 0 1px oklch(1 0 0 / 0.11), 0 1px 2px oklch(0 0 0 / 0.2),
+    0 2px 6px oklch(0 0 0 / 0.2);
+  --shadow-raised:
+    0 0 0 1px oklch(1 0 0 / 0.13), 0 2px 10px oklch(0 0 0 / 0.22);
+  --shadow-overlay:
+    0 0 0 1px oklch(1 0 0 / 0.15), 0 8px 28px oklch(0 0 0 / 0.34);
+  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.4);
+}
+
 @theme inline {
+  /* colors */
+  --color-page: var(--page);
+  --color-canvas: var(--canvas);
   --color-surface: var(--surface);
-  --color-field: var(--field);
-  --color-hover: var(--hover);
-  --color-hover-2: var(--hover-2);
-  --color-line: var(--line);
+  --color-inset: var(--inset);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
-  --color-brand: var(--brand);
-  --color-brand-ink: var(--brand-ink);
-  --color-brand-tint: var(--brand-tint);
+  --color-hover: var(--hover);
+  --color-hover-2: var(--hover-2);
+  --color-field: var(--field);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-tint: var(--accent-tint);
   --color-green: var(--green);
+  --color-green-tint: var(--green-tint);
+  --color-orange: var(--orange);
+  --color-orange-tint: var(--orange-tint);
+  --color-red: var(--red);
+  --color-red-tint: var(--red-tint);
 
-  /* radii, chips 6, controls 8, cards 10, windows 14 */
+  /* shadows */
+  --shadow-hairline: var(--shadow-hairline);
+  --shadow-btn: var(--shadow-btn);
+  --shadow-inset-field: var(--shadow-inset-field);
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
+
+
+  /* radii — chips 6, controls 8, cards 10, windows 14, pills 999 */
   --radius-chip: 6px;
   --radius-control: 8px;
   --radius-card: 10px;
   --radius-window: 14px;
 
-  --shadow-hairline: var(--shadow-hairline);
-  --shadow-btn: var(--shadow-btn);
-  --shadow-card: var(--shadow-card);
+  /* easing — strong curves; built-ins are too weak */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-link: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-:root {
-  --surface: var(--card);
-  --field: var(--secondary);
-  --hover: color-mix(in srgb, var(--foreground) 4%, transparent);
-  --hover-2: color-mix(in srgb, var(--foreground) 7%, transparent);
-
-  --ink: var(--foreground);
-  --ink-2: var(--muted-foreground);
-  --ink-3: color-mix(in srgb, var(--muted-foreground) 70%, var(--card));
-
-  --line: var(--border);
-  --brand: var(--primary);
-  --brand-ink: var(--primary-foreground);
-  --brand-tint: color-mix(in srgb, var(--primary) 12%, var(--card));
-  --green: var(--chart-3);
-
-  /* Elevation is a hairline ring plus a soft shadow, so a surface reads as a sheet rather than a
-     fill. --shadow-xs and --shadow-sm come from shadow-plugin. */
-  --shadow-hairline: 0 0 0 1px var(--line);
-  --shadow-btn: 0 0 0 1px var(--line), var(--shadow-xs);
-  --shadow-card: 0 0 0 1px var(--line), var(--shadow-sm);
+/* ── spacing primitives, theirs ─────────────────────────── */
+.primitive-card-pad {
+  padding: 12px;
 }
 
-.dark {
-  --hover: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --hover-2: color-mix(in srgb, var(--foreground) 12%, transparent);
-  --ink-3: color-mix(in srgb, var(--muted-foreground) 70%, var(--background));
-  --brand-tint: color-mix(in srgb, var(--primary) 22%, var(--card));
-  --shadow-hairline: 0 0 0 1px var(--line);
-  --shadow-btn: 0 0 0 1px oklch(1 0 0 / 0.1), 0 1px 2px oklch(0 0 0 / 0.3);
-  --shadow-card: 0 0 0 1px var(--line), 0 1px 2px oklch(0 0 0 / 0.3);
+.primitive-card-bar {
+  padding: 10px 12px;
+}
+
+.primitive-card-footer {
+  padding: 10px;
+}
+
+.primitive-table-cell {
+  padding: 10px 12px;
+}
+
+.primitive-icon-button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+}
+
+/* ── the agent page's own hygiene, scoped so the rest of the app keeps its own ── */
+
+.agent-ui :is(button:not([disabled]):not([aria-disabled="true"]), label:has(input), a) {
+  cursor: pointer;
+}
+
+.agent-ui :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.agent-ui :is(input, textarea, select, [contenteditable]):focus-visible {
+  outline: none;
+}
+
+/* ── shared keyframes, theirs. caret-blink is renamed: tw-animate-css already
+   defines that name for the shadcn one-time-code input. ── */
+@keyframes shimmer-text {
+  from {
+    background-position: 150% center;
+  }
+  to {
+    background-position: -50% center;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes eq-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes agent-caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pixel-on {
+  0%, 100% {
+    opacity: 0.15;
+  }
+  18%, 42% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 0.15;
+  }
+}
+
+/* ── StreamingText, theirs ──────────────────────────────── */
+.source-avatar {
+  box-shadow: 0 0 0 1px oklch(0.21 0.034 263.436 / 0.1);
+}
+
+.dark .source-avatar {
+  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.08);
+}
+
+.stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 1.5px;
+  translate: 0 -0.5px;
+  border-radius: 1px;
+  background: var(--ink);
+  vertical-align: text-bottom;
+  animation: agent-caret-blink 1s step-end infinite;
+}
+
+.stream-caret.is-streaming {
+  animation: none;
+}
+
+/* ── reduced motion, theirs ─────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .stream-caret {
+    animation: none;
+  }
+  .stream-tail {
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

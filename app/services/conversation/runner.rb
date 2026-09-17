@@ -48,13 +48,22 @@ class Conversation::Runner
 
   def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
 
+  # The name and what it was asked for are known when the tool starts, and the second report only
+  # says it finished, so both are remembered from the first.
   def report_step(step)
-    titles[step.key] = Chat::Tools.step_title(step.tool) if step.tool.present?
-    title = titles[step.key]
-    delivery.step(key: step.key, title: title, status: step.status) if title
+    seen[step.key] ||= { title: Chat::Tools.step_title(step.tool), asked: asked_for(step.arguments) } if step.tool.present?
+    known = seen[step.key]
+    return unless known
+
+    delivery.step(key: step.key, title: known[:title], asked: known[:asked], status: step.status)
   end
 
-  def titles = @titles ||= {}
+  def seen = @seen ||= {}
+
+  # One line of what the agent asked for, which is the tool's own arguments.
+  def asked_for(arguments)
+    arguments.to_h.filter_map { |name, value| [ name.to_s, value.to_s.truncate(60) ] if value.present? }
+  end
 
   def context
     incident = @conversation.incident

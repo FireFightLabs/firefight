@@ -21,7 +21,10 @@ module FirefightAi
     end
 
     Turn = Data.define(:turns_used, :spent_cents)
-    Step = Data.define(:key, :tool, :status)
+    # arguments are what the agent asked the tool for, so a caller can show the step in its own words.
+    Step = Data.define(:key, :tool, :status, :arguments) do
+      def initialize(key:, tool:, status:, arguments: {}) = super
+    end
     Outcome = Data.define(:status, :turns_used, :spent_cents)
 
     # reply_is_answer is what separates a conversation from an investigation. In a chat the person
@@ -45,7 +48,11 @@ module FirefightAi
     # The caller hears about a tool as the agent reaches for it, and again when it answers.
     def report_steps_to(on_step)
       llm = @chat.to_llm
-      llm.before_tool_call { |tool_call| on_step.call(Step.new(key: tool_call.id, tool: tool_call.name, status: STEP_RUNNING)) }
+      llm.before_tool_call do |tool_call|
+        on_step.call(
+          Step.new(key: tool_call.id, tool: tool_call.name, status: STEP_RUNNING, arguments: tool_call.arguments)
+        )
+      end
       llm.after_tool_result { |message| on_step.call(Step.new(key: message.tool_call_id, tool: nil, status: STEP_DONE)) }
     end
 

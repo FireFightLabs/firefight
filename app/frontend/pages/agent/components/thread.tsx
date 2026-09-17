@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react"
 
-import { AGENT_STEP_STATUSES } from "@/lib/generated/constants"
+import LoadingState from "@/components/agent-ui/loading-state"
+import { AgentSteps } from "@/pages/agent/components/agent-steps"
 import { Message } from "@/pages/agent/components/message"
-import { ToolRow } from "@/pages/agent/components/tool-row"
 import type { AgentStream } from "@/pages/agent/hooks/use-agent-stream"
 import type { AgentChatMessage } from "@/types/serializers"
 
@@ -39,16 +39,14 @@ export function Thread({ messages, stream, empty }: ThreadProps) {
           <Message key={message.id} message={message} />
         ))}
         {(stream.steps.length > 0 || stream.text.length > 0) && (
-          <div className="flex flex-col gap-1">
-            {stream.steps.map((step) => (
-              <ToolRow key={step.key} name={step.title} answered={step.status === AGENT_STEP_STATUSES.DONE} />
-            ))}
+          <div className="flex flex-col gap-2">
+            {stream.steps.length > 0 && <AgentSteps steps={stream.steps} />}
             {stream.text.length > 0 && (
               <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink">{stream.text}</p>
             )}
           </div>
         )}
-        {waiting && <p className="animate-pulse text-[12.5px] text-ink-3">Working…</p>}
+        {waiting && <LoadingState label="Working" />}
         <div ref={foot} />
       </div>
     </div>
