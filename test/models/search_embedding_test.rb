@@ -76,6 +76,35 @@ class SearchEmbeddingTest < ActiveSupport::TestCase
     assert_match "pool size", finding.search_text
   end
 
+  test "a row written by an older embedding model is not compared against a new one" do
+    stub_embedding
+    @incident.write_search_embedding!
+    @incident.search_embedding.update!(model: "some-older-model")
+
+    assert_empty SearchEmbedding.similar_to("anything", workspace: @workspace)
+  end
+
+  test "a postmortem is embedded once it is written, not while it is being drafted" do
+    stub_embedding
+    postmortem = postmortems(:postmortem_resolved_ws1)
+
+    postmortem.update!(status: Postmortem::STATUS_DRAFT)
+    assert_no_enqueued_jobs(only: WriteSearchEmbeddingJob) { postmortem.update!(title: "Draft title") }
+
+    assert_enqueued_with(job: WriteSearchEmbeddingJob) do
+      postmortem.update!(status: Postmortem::STATUS_COMPLETED)
+    end
+  end
+
+  test "a milestone noted on the channel puts the incident back in the queue" do
+    assert_enqueued_with(job: WriteSearchEmbeddingJob) do
+      @incident.incident_events.create!(
+        event_type: IncidentEvent::MILESTONE_NOTED, metadata: { "statement" => "Diego suspected the deploy" }
+      )
+      @incident.update!(milestones_noted_through: "1.002")
+    end
+  end
+
   test "a record is embedded in the background when it changes" do
     assert_enqueued_with(job: WriteSearchEmbeddingJob) do
       @incident.update!(summary: "Now with more detail")

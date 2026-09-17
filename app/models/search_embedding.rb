@@ -21,15 +21,22 @@ class SearchEmbedding < ApplicationRecord
     def facts = record.search_facts
   end
 
-  # Nearest by meaning, within one workspace. A record whose row was written by another model is
-  # left out rather than compared against a vector it cannot be compared with.
-  def self.similar_to(query, workspace:, limit: 25)
+  # Nearest by meaning, within one workspace. Rows written by an older embedding model are left
+  # out, since a vector from one model says nothing about a vector from another.
+  def self.similar_to(query, workspace:, limit: 25, types: nil)
     vector = FirefightAi.embed(query, workspace: workspace).vectors
+    scope = in_workspace(workspace).where(model: FirefightAi.embedding_model)
+    scope = scope.of_type(types) if types
 
-    in_workspace(workspace)
-      .nearest_neighbors(:vector, vector, distance: "cosine")
+    scope.nearest_neighbors(:vector, vector, distance: "cosine")
       .includes(:embeddable)
       .limit(limit)
-      .filter_map { |row| Match.new(record: row.embeddable, similarity: row.neighbor_distance ? 1 - row.neighbor_distance : nil) if row.embeddable }
+      .filter_map { |row| match_for(row) }
+  end
+
+  def self.match_for(row)
+    return nil unless row.embeddable
+
+    Match.new(record: row.embeddable, similarity: row.neighbor_distance ? 1 - row.neighbor_distance : nil)
   end
 end

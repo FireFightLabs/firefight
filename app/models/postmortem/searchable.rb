@@ -3,6 +3,8 @@ module Postmortem::Searchable
   extend ActiveSupport::Concern
   include SearchEmbedding::Writing
 
+  def search_embeddable? = status == Postmortem::STATUS_COMPLETED
+
   def search_facts
     { id: id, incident: incident.identifier, title: title, status: status }.compact
   end

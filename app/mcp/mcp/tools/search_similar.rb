@@ -16,12 +16,25 @@ module Mcp
         required: [ "query" ]
       )
 
-      def self.perform(workspace:, args:)
+      def self.perform_with_principal(workspace:, principal:, args:)
         query = args[:query].to_s.squish
         return Mcp::ToolDispatcher.error_response("Say what is happening first.") if query.blank?
 
-        matches = SearchEmbedding.similar_to(query, workspace: workspace, limit: limit_for(args))
+        matches = SearchEmbedding.similar_to(
+          query, workspace: workspace, limit: limit_for(args), types: readable_types(workspace, principal)
+        )
         respond(matches: matches.map { |match| summary(match) })
+      end
+
+      # A finding is an investigation's answer, and this call was authorized to read incidents.
+      def self.readable_types(workspace, principal)
+        types = [ Incident.name, Postmortem.name ]
+        resolved = Ability::Resolver.resolve(principal, workspace)
+        findings_key = Ability::Action.system_key(
+          Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ
+        )
+        types << Investigation::Finding.name if resolved.action_keys.include?(findings_key)
+        types
       end
 
       def self.limit_for(args)

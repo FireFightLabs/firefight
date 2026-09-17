@@ -11,8 +11,13 @@ module SearchEmbedding::Writing
   end
 
   def schedule_search_embedding
+    return unless search_embeddable?
+
     WriteSearchEmbeddingJob.perform_later(self.class.name, id)
   end
+
+  # A record says when it is worth embedding. Most are worth it as soon as they exist.
+  def search_embeddable? = true
 
   # Nothing to embed is not an error, it is a record with nothing worth finding yet.
   def write_search_embedding!

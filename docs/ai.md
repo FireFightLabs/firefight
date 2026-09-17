@@ -189,6 +189,9 @@ The rules:
 - **A record is embedded again only when its words change.** The row keeps a digest, and `WriteSearchEmbeddingJob` writes nothing when it matches.
 - **Nothing is backfilled.** Records written before this landed have no vector until they change.
 - **pgvector is required**, and the column is fixed at 1536 numbers wide.
+- **A postmortem is embedded once it is completed**, not on every save while someone is still writing it.
+- **The search is authorized as an incident read**, so a finding is left out unless the caller also holds `investigations.read`. The types a caller may see are decided per call.
+- **Rows written by an older embedding model are ignored**, since a vector from one model says nothing about a vector from another. Changing the model makes search quiet until records are written again.
 - **The tool is an MCP tool**, so our agent reaches it through its grants and an outside agent gets the same thing.
 
 ## Conversations

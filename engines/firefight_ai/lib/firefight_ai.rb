@@ -85,6 +85,10 @@ module FirefightAi
     embedding
   end
 
+  # Every vector in a workspace has to come from this one, so a search ignores rows written by
+  # anything else.
+  def embedding_model = model_for(AiPurpose::EMBEDDING).model
+
   def registered?(model)
     RubyLLM.models.find(model)
     true
