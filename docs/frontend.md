@@ -93,6 +93,8 @@ app/frontend/pages/dashboard/types.ts             # Manual TS types (DashboardFi
 ```
 app/frontend/
   components/              # Cross-page shared components
+    confirm-delete-dialog.tsx  # Used by settings, incidents and the agent chat
+    agent-ui/              # Vendored from Beautiful UI, outside eslint, see its README
     auth/                  # auth-layout, card-header, slack-button (used by login + onboarding)
     layout/                # App shell (authenticated-layout, theme-toggle)
     navigation/            # Sidebar, nav items, site header
@@ -239,6 +241,7 @@ capitalized. That is the accepted trade-off, not an oversight.
 - **Their tokens are scoped, not global.** `app/frontend/styles/agent-ui.css` carries their foundation with our palette behind it, under `.agent-ui` rather than `:root`. The page's outer div carries that class. Scoping matters: `--accent` means shadcn's hover grey app-wide and their blue inside the chat, and an unscoped block would have silently broken one of them.
 - **Everything under `entrypoints/` is a Vite entry.** vite-ruby treats each file there as its own bundle, so a stylesheet only imported by `application.css` lives in `styles/`.
 - **A turn arrives over Action Cable**, not by polling. `use-agent-stream.ts` subscribes to `ConversationChannel`, appends each `chunk` event to the text on screen, upserts `step` events by key, and on `answered` or `failed` reloads `messages` and `conversations` so the saved chat replaces the streamed copy. The streamed copy is hidden as soon as the last saved message is the agent's, so the two never render together.
+- **Three columns**: the app sidebar, the chat list, the open chat. The list carries its own search, an All / Pinned / Archived filter and Today / Yesterday grouping, all client side over the 50 chats the controller sends. Pinned and archived are timestamps on the conversation, not states invented in the page.
 - **A step reads the same live or saved.** `AgentStep` is the one shape: the socket sends it, the serializer returns it for a saved message, and `agent-steps.tsx` maps both onto their task row.
 - **Event names, step statuses, message roles and the channel name are generated**, from `lib/typescript_constants.rb`. The page never spells one of them out.
 

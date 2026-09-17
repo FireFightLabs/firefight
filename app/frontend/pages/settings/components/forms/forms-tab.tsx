@@ -40,7 +40,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { AddFieldDialog } from "@/pages/settings/components/forms/add-field-dialog"
-import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { SortableFieldRow } from "@/pages/settings/components/forms/sortable-field-row"
 
 function iconForForm(slug: string) {

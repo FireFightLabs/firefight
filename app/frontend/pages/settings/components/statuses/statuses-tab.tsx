@@ -4,7 +4,7 @@ import { router } from "@inertiajs/react"
 import type { IncidentStatusSettings } from "@/types/serializers"
 import type { LifecycleStageWithStatuses } from "@/pages/settings/lib/types"
 import { incidentStatusesPath, incidentStatusPath } from "@/lib/routes"
-import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { StageStatusesCard } from "@/pages/settings/components/statuses/stage-statuses-card"
 

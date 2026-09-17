@@ -20,7 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
-import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { HeaderHint } from "@/pages/settings/components/header-hint"
 import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"

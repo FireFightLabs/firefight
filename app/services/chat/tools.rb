@@ -6,13 +6,19 @@ module Chat::Tools
   STATE_NOT_CONNECTED = :not_connected
 
   Entry = Data.define(:name, :description, :state, :tool) do
-    def matches?(query)
-      words = query.to_s.downcase.scan(/[a-z0-9]+/)
-      return false if words.empty?
+    # How well this answers the question. Covering more of it counts for more than matching one
+    # word twice, since a single common word like "incident" is in half the catalogue. Words are
+    # compared singular, so "severities" answers "severity".
+    def score(query)
+      asked = terms(query)
+      return 0 if asked.empty?
 
-      haystack = "#{name} #{description}".downcase
-      words.any? { |word| haystack.include?(word) }
+      in_name = asked & terms(name)
+      covered = asked & (terms(name) + terms(description))
+      (covered.size * 10) + in_name.size
     end
+
+    def terms(text) = text.to_s.downcase.scan(/[a-z0-9]+/).map(&:singularize).to_set
   end
 
   # What a reader sees while the agent works. conclude and record_hypothesis are how it writes,

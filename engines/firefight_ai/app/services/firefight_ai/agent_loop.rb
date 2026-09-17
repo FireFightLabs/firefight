@@ -53,7 +53,13 @@ module FirefightAi
           Step.new(key: tool_call.id, tool: tool_call.name, status: STEP_RUNNING, arguments: tool_call.arguments)
         )
       end
-      llm.after_tool_result { |message| on_step.call(Step.new(key: message.tool_call_id, tool: nil, status: STEP_DONE)) }
+      # after_tool_result hands over the tool's own return value, which cannot say which call it
+      # belongs to. The saved result message can, and it arrives at the same moment.
+      llm.after_message do |message|
+        next unless message.tool_result?
+
+        on_step.call(Step.new(key: message.tool_call_id, tool: nil, status: STEP_DONE))
+      end
     end
 
     def run(&on_turn)

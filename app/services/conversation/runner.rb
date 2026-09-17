@@ -50,10 +50,12 @@ class Conversation::Runner
 
   # The name and what it was asked for are known when the tool starts, and the second report only
   # says it finished, so both are remembered from the first.
+  # Only the tools a person would recognise are reported. The agent's own bookkeeping, and its
+  # search for what to use next, have no title and are not shown.
   def report_step(step)
     seen[step.key] ||= { title: Chat::Tools.step_title(step.tool), asked: asked_for(step.arguments) } if step.tool.present?
     known = seen[step.key]
-    return unless known
+    return if known.nil? || known[:title].blank?
 
     delivery.step(key: step.key, title: known[:title], asked: known[:asked], status: step.status)
   end

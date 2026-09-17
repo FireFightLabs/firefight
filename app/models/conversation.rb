@@ -6,6 +6,7 @@ class Conversation < ApplicationRecord
   KINDS = [ KIND_CHANNEL, KIND_PERSONAL ].freeze
 
   TITLE_LIMIT = 80
+  PREVIEW_LIMIT = 90
   UNTITLED = "New chat".freeze
 
   # The title is the person's own words, the same customer data as the messages it was taken from.
@@ -20,6 +21,11 @@ class Conversation < ApplicationRecord
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }
 
   scope :personal, -> { where(kind: KIND_PERSONAL) }
+  scope :pinned, -> { where.not(pinned_at: nil) }
+  scope :archived, -> { where.not(archived_at: nil) }
+  scope :unarchived, -> { where(archived_at: nil) }
+  # Pinned chats sit at the top of the list, the rest by when they were last spoken to.
+  scope :in_reading_order, -> { order(Arel.sql("pinned_at DESC NULLS LAST, updated_at DESC")) }
 
   # A chat in the dashboard belongs to one person. Nobody else sees it, and the agent reads only
   # what that person could read.
@@ -47,6 +53,21 @@ class Conversation < ApplicationRecord
   end
 
   def display_title = title.presence || UNTITLED
+
+  def pinned? = pinned_at.present?
+
+  def archived? = archived_at.present?
+
+  def pin!(pinned) = update!(pinned_at: pinned ? Time.current : nil)
+
+  def archive!(archived) = update!(archived_at: archived ? Time.current : nil)
+
+  def rename!(new_title) = update!(title: new_title.to_s.strip.truncate(TITLE_LIMIT))
+
+  # The last thing said, which is what a list of chats shows under each title.
+  def preview
+    chat&.readable_messages&.last&.content.to_s.truncate(PREVIEW_LIMIT)
+  end
 
   # A personal chat is read by one person in the dashboard, and by nobody else.
   def watchable_by?(user)

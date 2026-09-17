@@ -17,7 +17,7 @@ class Chat::Tools::Find < RubyLLM::Tool
   end
 
   def execute(query:)
-    matches = Chat::Tools.catalog(@agent_run).select { |entry| entry.matches?(query) }.first(MATCH_LIMIT)
+    matches = best_matches(query)
     return "Nothing matches #{query.inspect}. Say what you could not check rather than guessing." if matches.empty?
 
     @offer.call(matches.filter_map(&:tool))
@@ -25,6 +25,16 @@ class Chat::Tools::Find < RubyLLM::Tool
   end
 
   private
+
+  # The best answers, not the first ones the catalogue happens to list. A tool that is ready wins a
+  # tie against one the workspace has not granted.
+  def best_matches(query)
+    Chat::Tools.catalog(@agent_run)
+      .filter_map { |entry| [ entry, entry.score(query) ] if entry.score(query).positive? }
+      .sort_by { |entry, score| [ -score, entry.state == Chat::Tools::STATE_READY ? 0 : 1, entry.name ] }
+      .first(MATCH_LIMIT)
+      .map(&:first)
+  end
 
   def line_for(entry)
     case entry.state

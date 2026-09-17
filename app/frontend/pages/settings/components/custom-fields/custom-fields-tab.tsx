@@ -21,7 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
-import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { OptionsTable } from "@/pages/settings/components/options-table"
 import { FieldDialog, type OptionSourcesByFieldType } from "@/pages/settings/components/custom-fields/field-dialog"
 import { FieldTypeIcon } from "@/pages/settings/components/custom-fields/field-type-icon"

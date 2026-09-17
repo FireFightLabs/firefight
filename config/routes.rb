@@ -290,6 +290,8 @@ Rails.application.routes.draw do
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"
     get "/agent/:id", to: "agent_chats#show", as: :agent_chat
+    patch "/agent/:id", to: "agent_chats#update"
+    delete "/agent/:id", to: "agent_chats#destroy"
     post "/agent/:id/ask", to: "agent_chats#ask", as: :agent_chat_ask
     get "/catalogue", to: "catalogue#index", as: :catalogue
     get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type

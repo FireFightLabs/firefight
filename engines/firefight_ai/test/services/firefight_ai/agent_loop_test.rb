@@ -15,7 +15,10 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
 
     def before_tool_call(&block) = (@before_tool_call = block)
 
+    # RubyLLM hands this one the tool's own return value, not a message.
     def after_tool_result(&block) = (@after_tool_result = block)
+
+    def after_message(&block) = (@after_message = block)
 
     def add_message(attributes)
       messages << RubyLLM::Message.new(**attributes)
@@ -56,8 +59,10 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     def answer_tool_call(tool_call_id)
       call = messages.reverse.find(&:tool_call?).tool_calls[tool_call_id]
       @before_tool_call&.call(call)
-      messages << RubyLLM::Message.new(role: :tool, content: "ran", tool_call_id: tool_call_id)
-      @after_tool_result&.call(messages.last)
+      result = "ran"
+      @after_tool_result&.call(result)
+      messages << RubyLLM::Message.new(role: :tool, content: result, tool_call_id: tool_call_id)
+      @after_message&.call(messages.last)
       messages.last
     end
   end

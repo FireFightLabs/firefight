@@ -4,9 +4,12 @@ class AgentChatsController < InertiaController
   RECENT = 50
   # What @ offers in the composer. The live ones are the ones anybody asks about.
   MENTIONABLE = 20
+
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS,
     read: %i[index show],
-    create: %i[create ask]
+    create: %i[create ask],
+    update: %i[update],
+    delete: %i[destroy]
 
   before_action :require_agent!
 
@@ -36,7 +39,46 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation)
   end
 
+  # Renaming, pinning and archiving are each one small change to the chat itself.
+  def update
+    return rename if params.key?(:title)
+    return pin if params.key?(:pinned)
+    return archive if params.key?(:archived)
+
+    redirect_to agent_chat_path(conversation)
+  end
+
+  def destroy
+    conversation.destroy!
+
+    redirect_to agent_chats_path, notice: "Chat deleted."
+  end
+
   private
+
+  def rename
+    title = params[:title].to_s.strip
+    return redirect_to(agent_chat_path(conversation), alert: "A chat needs a name.") if title.blank?
+
+    conversation.rename!(title)
+    redirect_to agent_chat_path(conversation), notice: "Chat renamed."
+  end
+
+  def pin
+    pinned = ActiveModel::Type::Boolean.new.cast(params[:pinned])
+    conversation.pin!(pinned)
+
+    redirect_to agent_chat_path(conversation), notice: pinned ? "Chat pinned." : "Chat unpinned."
+  end
+
+  def archive
+    archived = ActiveModel::Type::Boolean.new.cast(params[:archived])
+    conversation.archive!(archived)
+
+    return redirect_to agent_chats_path, notice: "Chat archived." if archived
+
+    redirect_to agent_chat_path(conversation), notice: "Chat back in the list."
+  end
 
   def conversation
     @conversation ||= current_workspace.conversations.personal
@@ -54,9 +96,10 @@ class AgentChatsController < InertiaController
     current_workspace.incidents.active.order(created_at: :desc).limit(MENTIONABLE)
   end
 
+  # Archived chats come too, since the page keeps them behind their own filter.
   def recent_conversations
     current_workspace.conversations.personal.where(started_by: current_membership)
-      .order(updated_at: :desc).limit(RECENT)
+      .in_reading_order.limit(RECENT)
   end
 
   def require_agent!
