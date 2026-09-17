@@ -346,6 +346,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Prompt instruction for text the platform renders as it is streamed, which need not be the
+  # same markup as a posted message.
+  # @return [String]
+  def ai_stream_output_style
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Says an investigation has started, and opens the thread the rest of it goes in.
   # @return [Hash] { message_id:, channel_id: }
   def post_investigation_started(channel_id:, incident:, started_by:)
@@ -370,9 +377,17 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The agent's reply to a person, and the end of the working state.
+  # A piece of the answer as the model writes it. streaming is false once the platform stops
+  # taking pieces, and the caller then sends the whole answer at the end instead.
+  # @return [Hash] { streaming: true|false }
+  def append_agent_text(channel_id:, answer_id:, text:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The agent's reply to a person, and the end of the working state. streamed says the person has
+  # already read the text as it arrived.
   # @return [Hash] { message_id:, channel_id: }
-  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:)
+  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
     raise NotImplemented.new(__method__, self.class)
   end
 

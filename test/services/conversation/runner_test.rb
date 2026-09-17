@@ -6,18 +6,20 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     attr_reader :calls
     attr_accessor :options
 
-    def initialize(chat, outcome:, reply: nil, turns: [], steps: [])
+    def initialize(chat, outcome:, reply: nil, turns: [], steps: [], pieces: [])
       @chat = chat
       @outcome = outcome
       @reply = reply
       @turns = turns
       @steps = steps
+      @pieces = pieces
       @calls = []
     end
 
     def run(**arguments, &on_turn)
       @calls << arguments
       @steps.each { |step| arguments[:on_step].call(step) }
+      @pieces.each { |piece| arguments[:on_chunk].call(piece) }
       @turns.each { |turn| on_turn.call(turn) }
       @chat.call.add_message(role: :assistant, content: @reply) if @reply
       @outcome
@@ -89,10 +91,39 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
   test "a tool the agent reaches for is shown as a step" do
     fake(reply: "ok", steps: [ FirefightAi::AgentLoop::Step.new(key: "call_1", tool: "search_incidents", status: :running) ])
     Slack::Client.expects(:append_stream).with do |arguments|
-      arguments[:chunks].sole.dig(:task, :title) == "Search incidents"
+      arguments[:chunks].sole[:title] == "Search incidents"
     end.returns({ ok: true })
 
     Conversation::Runner.new(@conversation).run(question: "what is going on")
+  end
+
+  test "the reply is streamed into the thread as the model writes it" do
+    fake(reply: "The 14:02 deploy raised the pool size", pieces: [ "The 14:02 deploy ", "raised the pool size" ])
+    appended = []
+    Slack::Client.stubs(:append_stream).with { |arguments| appended << arguments[:chunks] }.returns({ ok: true })
+    Slack::Client.expects(:stop_stream).with { |arguments| arguments[:blocks].nil? }.returns({ ok: true, ts: "1" })
+
+    Conversation::Runner.new(@conversation).run(question: "what is going on")
+
+    assert_equal [ { type: "markdown_text", text: "The 14:02 deploy raised the pool size" } ], appended.flatten
+  end
+
+  test "a reply Slack would not take mid stream is posted whole at the end" do
+    fake(reply: "The 14:02 deploy raised the pool size", pieces: [ "The 14:02 deploy raised the pool size" ])
+    Slack::Client.stubs(:append_stream).raises(AdapterError, "message_not_in_streaming_state")
+    Slack::Client.expects(:stop_stream).with do |arguments|
+      arguments[:blocks].sole.dig(:text, :text).include?("14:02 deploy")
+    end.returns({ ok: true, ts: "1" })
+
+    Conversation::Runner.new(@conversation).run(question: "what is going on")
+  end
+
+  test "a channel reply is asked for in the markup Slack streams" do
+    responder = fake(reply: "ok")
+
+    Conversation::Runner.new(@conversation).run(question: "what is going on")
+
+    assert_equal WorkspaceAdapter.for(@workspace).ai_stream_output_style, responder.options[:output_style]
   end
 
   test "a dashboard chat posts nothing, since the page reads the chat itself" do
@@ -132,11 +163,11 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     )
   end
 
-  def fake(outcome: FirefightAi::AgentLoop::STATUS_ANSWERED, reply: nil, turns: [], steps: [])
+  def fake(outcome: FirefightAi::AgentLoop::STATUS_ANSWERED, reply: nil, turns: [], steps: [], pieces: [])
     responder = FakeResponder.new(
       -> { @conversation.reload.chat },
       outcome: FirefightAi::AgentLoop::Outcome.new(status: outcome, turns_used: turns.size, spent_cents: 0),
-      reply: reply, turns: turns, steps: steps
+      reply: reply, turns: turns, steps: steps, pieces: pieces
     )
     FirefightAi::Responder.stubs(:new).with { |*, **options| responder.options = options }.returns(responder)
     responder

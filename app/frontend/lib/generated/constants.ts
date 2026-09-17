@@ -238,6 +238,14 @@ export const ABILITY_RISK_LEVELS = [
 ] as const
 export type AbilityRiskLevel = (typeof ABILITY_RISK_LEVELS)[number]
 
+export const AGENT_STREAM_EVENTS = {
+  "THINKING": "thinking",
+  "STEP": "step",
+  "CHUNK": "chunk",
+  "ANSWERED": "answered",
+  "FAILED": "failed"
+} as const
+
 export const CHAT_MESSAGE_ROLES = {
   "USER": "user",
   "ASSISTANT": "assistant"

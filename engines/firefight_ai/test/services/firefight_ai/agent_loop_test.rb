@@ -3,7 +3,7 @@ require "test_helper"
 class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
   # Stands in for a RubyLLM chat. A reply asking for tools is answered on the next move, as RubyLLM does.
   class FakeChat
-    attr_reader :messages, :model_calls
+    attr_reader :messages, :model_calls, :streamed
 
     def initialize(replies)
       @replies = replies
@@ -22,7 +22,7 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
       messages.last
     end
 
-    def step
+    def step(&on_chunk)
       pending = pending_tool_call
       return answer_tool_call(pending) if pending
 
@@ -30,8 +30,17 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
       reply = @replies.shift
       return nil if reply.nil?
 
+      @streamed = on_chunk ? true : @streamed
+      stream(reply, &on_chunk) if on_chunk
       messages << reply
       reply
+    end
+
+    # RubyLLM yields a chunk per piece of the reply, each one a message carrying only that piece.
+    def stream(reply)
+      reply.content.to_s.chars.each_slice(4) do |piece|
+        yield RubyLLM::Message.new(role: :assistant, content: piece.join)
+      end
     end
 
     private
@@ -146,6 +155,33 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal 1, outcome.turns_used
   end
 
+  test "a reply is handed over as it is written when someone is watching" do
+    chat = FakeChat.new([ llm_reply(content: "It was the 14:02 deploy") ])
+    pieces = []
+
+    run_loop(chat, reply_is_answer: true, on_chunk: ->(text) { pieces << text })
+
+    assert_operator pieces.size, :>, 1
+    assert_equal "It was the 14:02 deploy", pieces.join
+  end
+
+  test "a turn nobody is watching is not streamed" do
+    chat = FakeChat.new([ llm_reply(content: "done") ])
+
+    run_loop(chat, reply_is_answer: true)
+
+    assert_nil chat.streamed
+  end
+
+  test "a streamed turn is still billed" do
+    chat = FakeChat.new([ llm_reply(content: "done", cost: 0.02) ])
+
+    assert_difference "Inference.count", 1 do
+      outcome = run_loop(chat, reply_is_answer: true, on_chunk: ->(_text) { })
+      assert_equal 2, outcome.spent_cents
+    end
+  end
+
   test "a resumed run carries the turns and spend it already used" do
     chat = FakeChat.new([ tool_reply("call_1", cost: 0.01) ])
 
@@ -170,9 +206,11 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     )
   end
 
-  def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, reply_is_answer: false, &on_turn)
+  def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, on_chunk: nil, reply_is_answer: false,
+               &on_turn)
     FirefightAi::AgentLoop.new(
-      chat: chat, budget: budget, answered: answered, on_step: on_step, reply_is_answer: reply_is_answer,
+      chat: chat, budget: budget, answered: answered, on_step: on_step, on_chunk: on_chunk,
+      reply_is_answer: reply_is_answer,
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
     ).run(&on_turn)
   end

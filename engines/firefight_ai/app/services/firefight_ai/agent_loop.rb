@@ -23,8 +23,10 @@ module FirefightAi
 
     # reply_is_answer is what separates a conversation from an investigation. In a chat the person
     # is waiting for a reply, in a run only a conclusion ends it.
-    def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, reply_is_answer: false)
+    def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
+                   reply_is_answer: false)
       @chat = chat
+      @on_chunk = on_chunk
       @budget = budget
       @answered = answered
       @canceled = canceled
@@ -82,7 +84,17 @@ module FirefightAi
     def advance
       return @chat.step if tools_pending?
 
-      Inference.track(@inference) { @chat.step }.first
+      Inference.track(@inference) { @chat.step(&streamer) }.first
+    end
+
+    # Streaming still reports usage, so a streamed turn is billed like any other.
+    def streamer
+      return nil unless @on_chunk
+
+      lambda do |chunk|
+        text = chunk.content
+        @on_chunk.call(text) if text.is_a?(String) && !text.empty?
+      end
     end
 
     def tools_pending?

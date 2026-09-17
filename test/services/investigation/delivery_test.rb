@@ -30,7 +30,7 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     delivery = Investigation::Delivery.new(@investigation)
     delivery.start!
     Slack::Client.expects(:append_stream).with do |arguments|
-      arguments[:chunks].sole.dig(:task, :status) == "in_progress"
+      arguments[:chunks].sole[:status] == "in_progress"
     end.returns({ ok: true })
 
     delivery.step(key: "call_1", title: "Read recent deploys", status: :running)

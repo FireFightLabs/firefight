@@ -10,7 +10,7 @@ module FirefightAi
       @output_style = output_style
     end
 
-    def run(chat:, tools:, question:, context:, budget:, canceled: -> { false }, on_step: nil, &on_turn)
+    def run(chat:, tools:, question:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, &on_turn)
       FirefightAi.translating_errors do
         chat.with_instructions(system_prompt)
         chat.with_tools(*tools)
@@ -18,7 +18,7 @@ module FirefightAi
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
-          on_step: on_step, inference: inference_context, reply_is_answer: true
+          on_step: on_step, on_chunk: on_chunk, inference: inference_context, reply_is_answer: true
         ).run(&on_turn)
       end
     end

@@ -379,8 +379,19 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     Do not use markdown headers (#). Use *bold text* instead.
   STYLE
 
+  # Streamed text is rendered by Slack as markdown, not as mrkdwn, so a single asterisk would
+  # come out italic where the model meant bold.
+  AI_STREAM_OUTPUT_STYLE = <<~STYLE
+    Use markdown: **bold**, _italic_, bullet points, and `code` where appropriate.
+    Do not use markdown headers (#). Use **bold text** instead.
+  STYLE
+
   def ai_output_style
     AI_OUTPUT_STYLE
+  end
+
+  def ai_stream_output_style
+    AI_STREAM_OUTPUT_STYLE
   end
 
   def post_ai_response(channel_id:, incident:, answer:)
@@ -423,16 +434,30 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     translate_errors do
       Slack::Client.append_stream(
         workspace: @workspace, channel: channel_id, ts: answer_id,
-        chunks: [ {
-          type: "task_update",
-          task: { task_id: key, title: title, status: STEP_STATUSES.fetch(status) }
-        } ]
+        chunks: [ { type: "task_update", id: key, title: title, status: STEP_STATUSES.fetch(status) } ]
       )
       { success: true }
     end
   rescue AdapterError => error
     Rails.logger.info("slack.agent_step.dropped error=#{error.class.name} message=#{error.message}")
     { success: true }
+  end
+
+  # Slack joins the pieces itself, so a chunk goes up as it was written. A stream that has gone,
+  # stopped by the person or timed out, refuses appends, so the caller hears that it is no longer streaming.
+  def append_agent_text(channel_id:, answer_id:, text:)
+    return { streaming: false } if answer_id.blank?
+
+    translate_errors do
+      Slack::Client.append_stream(
+        workspace: @workspace, channel: channel_id, ts: answer_id,
+        chunks: [ { type: "markdown_text", text: text } ]
+      )
+      { streaming: true }
+    end
+  rescue AdapterError => error
+    Rails.logger.info("slack.agent_text.dropped error=#{error.class.name} message=#{error.message}")
+    { streaming: false }
   end
 
   def post_investigation_answer(channel_id:, thread_id:, answer_id:, finding:)
@@ -450,10 +475,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:)
+  # Blocks at the end of a stream render under what was streamed rather than replacing it, so a
+  # reply the person already read is finished without them.
+  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
-      text: text, blocks: Slack::Messages::AgentReply.build(text: text)
+      text: text, blocks: streamed ? nil : Slack::Messages::AgentReply.build(text: text)
     )
   end
 

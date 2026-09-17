@@ -4,7 +4,7 @@ import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { ChatList } from "@/pages/agent/components/chat-list"
 import { Composer } from "@/pages/agent/components/composer"
 import { Thread } from "@/pages/agent/components/thread"
-import { useLiveMessages } from "@/pages/agent/hooks/use-live-messages"
+import { useAgentStream } from "@/pages/agent/hooks/use-agent-stream"
 import { agentChatsPath } from "@/lib/routes"
 import type { AgentChat, AgentChatMessage } from "@/types/serializers"
 import type { SharedProps } from "@/types"
@@ -17,7 +17,7 @@ interface AgentPageProps extends SharedProps {
 
 export default function AgentPage() {
   const { conversations, conversation, messages } = usePage<AgentPageProps>().props
-  const state = useLiveMessages(conversation?.id, messages)
+  const stream = useAgentStream(conversation?.id, messages)
 
   const listClass = conversation ? "hidden w-64 md:flex" : "flex w-full md:w-64"
   const threadClass = conversation ? "flex" : "hidden md:flex"
@@ -33,8 +33,8 @@ export default function AgentPage() {
               All chats
             </Link>
           )}
-          <Thread messages={messages ?? []} state={state} empty={!conversation} />
-          <Composer conversationId={conversation?.id} busy={state === "working"} />
+          <Thread messages={messages ?? []} stream={stream} empty={!conversation} />
+          <Composer conversationId={conversation?.id} busy={stream.state === "working"} />
         </div>
       </div>
     </AuthenticatedLayout>

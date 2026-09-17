@@ -45,6 +45,11 @@ module TypescriptConstants
       Export.new("ABILITY_ACTIONS", Ability::Action::ACTIONS, "AbilityAction"),
       Export.new("WEBHOOK_EVENTS", Webhook::SUBSCRIBABLE_EVENTS, "WebhookEvent"),
       Export.new("ABILITY_RISK_LEVELS", Ability::Action::RISK_LEVELS, "AbilityRiskLevel"),
+      Export.new("AGENT_STREAM_EVENTS", {
+        "THINKING" => Conversation::LiveDelivery::EVENT_THINKING, "STEP" => Conversation::LiveDelivery::EVENT_STEP,
+        "CHUNK" => Conversation::LiveDelivery::EVENT_CHUNK, "ANSWERED" => Conversation::LiveDelivery::EVENT_ANSWERED,
+        "FAILED" => Conversation::LiveDelivery::EVENT_FAILED
+      }, nil),
       Export.new("CHAT_MESSAGE_ROLES", {
         "USER" => Chat::Message::ROLE_USER, "ASSISTANT" => Chat::Message::ROLE_ASSISTANT
       }, nil),

@@ -23,7 +23,8 @@ class Conversation::Runner
       question: question,
       context: context,
       budget: budget,
-      on_step: method(:report_step)
+      on_step: method(:report_step),
+      on_chunk: ->(text) { delivery.chunk(text) }
     ) do |turn|
       @conversation.record_turn!(turns_used: turn.turns_used, spent_cents: turn.spent_cents)
     end
@@ -43,10 +44,11 @@ class Conversation::Runner
     )
   end
 
+  # A channel reply is streamed as it is written, and a platform renders streamed text its own way.
   def output_style
     return PLAIN_OUTPUT_STYLE if @conversation.personal?
 
-    WorkspaceAdapter.for(@conversation.workspace).ai_output_style
+    WorkspaceAdapter.for(@conversation.workspace).ai_stream_output_style
   end
 
   # What the person reads. A turn that ran out of room says so rather than going quiet.

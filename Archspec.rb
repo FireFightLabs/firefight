@@ -60,6 +60,7 @@ component :adapters, in: plain_adapters + %w[app/adapters/alert_providers/**/*.r
 component :slack_adapter, in: "app/adapters/slack/**/*.rb"
 component :integrations_layer,
           in: %w[app/adapters/integrations/**/*.rb app/services/integrations/**/*.rb]
+component :channels, in: "app/channels/**/*.rb"
 component :jobs, in: "app/jobs/**/*.rb"
 component :workflows, in: "app/workflows/**/*.rb"
 component :mcp, in: "app/mcp/**/*.rb"
@@ -88,6 +89,10 @@ handlers.cannot_use :controllers, :api_controllers, :serializers
 workflows.cannot_use :controllers, :handlers, :dispatchers, :serializers, :adapters
 serializers.cannot_use :adapters, :handlers, :dispatchers, :jobs
 jobs.cannot_use :controllers, :api_controllers, :serializers
+
+# A socket is an entry point: it says who may watch, and streams what a service hands it.
+channels.cannot_use :controllers, :api_controllers, :handlers, :dispatchers, :adapters, :slack_adapter,
+                    :serializers, :jobs, :mcp
 
 # Controller vocabulary stays in controllers.
 models.cannot_call :render, :redirect_to, :params, :session, :cookies, :flash, receiver: :none
