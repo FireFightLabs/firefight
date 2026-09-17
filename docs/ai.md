@@ -177,6 +177,23 @@ The rules:
 - **Waiting for a person does not exist yet.** A tool needing approval says so and was not run.
 - **No environment is chosen.** A tool call passes no scope, so a connection with more than one environment cannot resolve one and the call is refused. Per run environment scoping lands with the approval work.
 
+## Similarity search
+
+`SearchEmbedding` holds one vector per record, and `search_similar` is how the agent asks what looks like a situation rather than what matches its words. Incidents, findings and postmortems are embedded, and pgvector does the ranking.
+
+The rules:
+
+- **Every incident is searchable, open ones included**, since a live incident that reads like a past one is the point. A match says whether it is still open, so an unfinished one is not presented as an answer.
+- **An incident is embedded from what people wrote**: its name, summary, alert titles, the summaries it had along the way and its milestone notes. Not its status changes, which say nothing about what happened.
+- **The embedding model is its own purpose** (`AiPurpose::EMBEDDING`, `EMBEDDING_AI_MODEL`) and deliberately not overridable per workspace. Every vector in a workspace must come from one model, so changing it means writing them all again.
+- **A record is embedded again only when its words change.** The row keeps a digest, and `WriteSearchEmbeddingJob` writes nothing when it matches.
+- **Nothing is backfilled.** Records written before this landed have no vector until they change.
+- **pgvector is required**, and the column is fixed at 1536 numbers wide.
+- **A postmortem is embedded once it is completed**, not on every save while someone is still writing it.
+- **The search is authorized as an incident read**, so a finding is left out unless the caller also holds `investigations.read`. The types a caller may see are decided per call.
+- **Rows written by an older embedding model are ignored**, since a vector from one model says nothing about a vector from another. Changing the model makes search quiet until records are written again.
+- **The tool is an MCP tool**, so our agent reaches it through its grants and an outside agent gets the same thing.
+
 ## Conversations
 
 A `Conversation` is a person talking to the agent, and an investigation is the job it starts when a question needs real work. Both run on `FirefightAi::AgentLoop`, share `Chat::Tools` and save their chat in the same table. `FirefightAi::Responder` holds the prompt, `Conversation::Runner` is the app half, and `Conversation::Delivery` is what it says while it answers.

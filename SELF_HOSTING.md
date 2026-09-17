@@ -89,7 +89,7 @@ The compose file is one arrangement, not a requirement. If you already have Post
 | | |
 |---|---|
 | **Image** | `ghcr.io/firefightlabs/firefight:latest`, listening on port 80 |
-| **Postgres** | 18 or newer, and four databases. Point `FIREFIGHT_DATABASE`, `_CACHE`, `_QUEUE` and `_CABLE` at them |
+| **Postgres** | 18 or newer with the `vector` extension available, and four databases. Point `FIREFIGHT_DATABASE`, `_CACHE`, `_QUEUE` and `_CABLE` at them. The compose file uses the `pgvector/pgvector` image, and managed Postgres on RDS, Supabase, Neon and PlanetScale all offer the extension |
 | **TLS** | Terminate it in front. Firefight sets `force_ssl`, so it redirects plain HTTP and expects the proxy to pass `X-Forwarded-Proto` |
 | **Jobs** | Either set `SOLID_QUEUE_IN_PUMA=1` to run the worker inside the web process, or run a second container with `bin/jobs` |
 | **Migrations** | `RUN_DB_PREPARE=true` migrates on boot, which is right for one container and wrong for several. With more than one web container, run `bin/rails db:prepare` as a separate step and leave the flag unset |
