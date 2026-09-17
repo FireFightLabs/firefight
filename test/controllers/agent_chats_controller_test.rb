@@ -13,9 +13,23 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the page is reachable once the agent is turned on" do
-    get agent_chats_url
+    get agent_chats_url, headers: inertia_headers
 
     assert_response :success
+    assert_equal [], inertia_props["conversations"]
+  end
+
+  test "an open chat arrives with what has been said in it" do
+    conversation = start_chat
+    chat = Chat.open!(
+      owner: conversation, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: nil)
+    )
+    chat.messages.create!(role: Chat::Message::ROLE_USER, content: "What changed today?")
+
+    get agent_chat_url(conversation), headers: inertia_headers
+
+    assert_equal "What changed today?", inertia_props["messages"].sole["body"]
+    assert_equal "What changed today?", inertia_props.dig("conversation", "title")
   end
 
   test "a workspace without the agent is sent back with the reason" do
@@ -59,7 +73,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
   test "someone else's chat is not readable" do
     theirs = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
 
-    get agent_chat_url(theirs)
+    get agent_chat_url(theirs), headers: inertia_headers
 
     assert_response :not_found
   end
@@ -69,7 +83,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
       workspace: workspaces(:slack_workspace_two), member: workspace_memberships(:alice_workspace_two)
     )
 
-    get agent_chat_url(elsewhere)
+    get agent_chat_url(elsewhere), headers: inertia_headers
 
     assert_response :not_found
   end
