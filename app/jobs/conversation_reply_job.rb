@@ -9,14 +9,17 @@ class ConversationReplyJob < ApplicationJob
   end
   discard_on ActiveRecord::RecordNotFound
 
-  # Nobody is left to answer once the job is given up on, and a person watching a spinner deserves
-  # to hear that.
+  # Nobody answers once the job is given up on, so the person is told, in the chat as well as on
+  # whatever they are watching.
   def self.say_nothing_came_of_it(job)
     conversation = Conversation.find_by(id: job.arguments.first)
-    Conversation::Delivery.for(conversation).failed! if conversation
+    return unless conversation
+
+    conversation.note!(Conversation::Delivery::FAILED)
+    Conversation::Delivery.for(conversation).failed!
   end
 
-  def perform(conversation_id, question)
-    Conversation::Runner.new(Conversation.find(conversation_id)).run(question: question)
+  def perform(conversation_id)
+    Conversation::Runner.new(Conversation.find(conversation_id)).run
   end
 end

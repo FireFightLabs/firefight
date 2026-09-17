@@ -137,6 +137,8 @@ app/frontend/
     serializers/           # Auto-generated from oj_serializers — never edit by hand
   hooks/                   # Cross-page hooks (use-mobile)
   lib/                     # Cross-page utilities (routes, utils, formatters)
+    generated/             # constants.ts, emitted by bin/rails typescript:constants
+  styles/                  # Stylesheets imported by application.css, never entrypoints themselves
   entrypoints/             # Vite entrypoints (inertia.tsx, application.css)
 ```
 
@@ -228,6 +230,15 @@ still leave the stored value inconsistent.
 The capitalization guard only protects a first word that carries its own case,
 so `iOS` and `eBay` survive but an all-lowercase tool name like `kubectl` is
 capitalized. That is the accepted trade-off, not an oversight.
+
+## The agent chat
+
+`pages/agent/` is the dashboard side of the AI SRE agent, behind the `ai_sre` flag. `/agent` and `/agent/:id` both render `agent/index.tsx`, because the list and the open chat are one master-detail screen rather than two pages.
+
+- **Everything under `entrypoints/` is a Vite entry.** vite-ruby treats each file there as its own bundle, so a stylesheet that is only imported by `application.css` lives in `app/frontend/styles/` instead. `agent-ui.css` is imported from `application.css` and holds the chat's tokens.
+- **The chat has its own token vocabulary**, taken from Beautiful UI and pointed at our palette: `bg-surface`, `text-ink`, `text-ink-2`, `bg-field`, `rounded-window`, `shadow-card`, and `bg-brand` for the one accent. It is `brand` rather than `accent` because `--accent` already means shadcn's hover grey, and the app's own `:root` is imported after this one, so any shared name silently wins there and the page loses. A new token goes in only when a component uses it.
+- **A turn arrives over Action Cable**, not by polling. `use-agent-stream.ts` subscribes to `ConversationChannel`, appends each `chunk` event to the text on screen, upserts `step` events by key, and on `answered` or `failed` reloads `messages` and `conversations` so the saved chat replaces the streamed copy. The streamed copy is hidden as soon as the last saved message is the agent's, so the two never render together.
+- **Event names, step statuses, message roles and the channel name are generated**, from `lib/typescript_constants.rb`. The page never spells one of them out.
 
 **shadcn/ui components are untouched:**
 - Never modify files in `components/ui/` — they may be updated by `npx shadcn` later

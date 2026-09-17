@@ -14,11 +14,21 @@ class InertiaController < ApplicationController
       currentUserIsAdmin: current_membership&.admin_access? || false,
       currentUserCan: current_membership ? manageable_resources : {},
       pendingApprovalsCount: current_workspace ? current_workspace.ability_approvals.pending.count : 0,
-      agentAvailable: current_workspace ? Investigation.available_for?(current_workspace) : false
+      agentAvailable: agent_available?
     }
   end
 
   private
+
+  # The agent is in the nav where it runs and the viewer may read what it writes, so nobody is
+  # offered a page the gateway will turn them away from.
+  def agent_available?
+    return false unless current_workspace && current_membership && Investigation.available_for?(current_workspace)
+
+    key = Ability::Action.system_key(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ)
+    action = Ability::Action.lookup(key, current_workspace)
+    action.present? && AbilityGateway.permitted?(current_membership, action, key, current_workspace, {})
+  end
 
   # One flag per resource, so a page offers exactly the controls the gateway would admit.
   def manageable_resources

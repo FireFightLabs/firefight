@@ -1,11 +1,6 @@
 # What the agent says while it is answering someone. The platform decides how it looks.
 class Conversation::Delivery
-  FAILED = "I could not finish that one. Ask me again, or narrow it down.".freeze
-
-  # A platform counts every append against a rate limit, so the text goes up in second-long pieces
-  # rather than token by token.
-  STREAM_INTERVAL = 1.second
-  STREAM_MAX_CHARS = 256
+  FAILED = "Something went wrong on my side, so I did not finish that one. Ask me again.".freeze
 
   def self.for(conversation)
     conversation.personal? ? Conversation::LiveDelivery.new(conversation) : new(conversation)
@@ -15,10 +10,14 @@ class Conversation::Delivery
     @conversation = conversation
     @sent_text = false
     @lost_text = false
-    @text = Conversation::ChunkBuffer.new(interval: STREAM_INTERVAL, max_chars: STREAM_MAX_CHARS) do |text|
+    cadence = adapter.agent_stream_cadence
+    @text = Conversation::ChunkBuffer.new(interval: cadence[:interval], max_chars: cadence[:max_chars]) do |text|
       append(text)
     end
   end
+
+  # The platform renders streamed text its own way, and it is the one rendering it.
+  def output_style = adapter.ai_stream_output_style
 
   def thinking!
     @answer_id = adapter.start_agent_answer(
@@ -60,8 +59,8 @@ class Conversation::Delivery
 
   private
 
-  # Text the person has already read is not repeated at the end. A piece Slack refused means they
-  # have read only part of it, so the whole answer is posted after all.
+  # Text the person has already read is not repeated at the end. A piece the platform refused means
+  # they read only part of it, so the whole answer is posted after all.
   def streamed? = @sent_text && !@lost_text
 
   def append(text)

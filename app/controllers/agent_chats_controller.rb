@@ -1,6 +1,7 @@
 # The dashboard side of talking to the agent. A chat here is personal, so only the person who
 # started it sees it, and the agent reads only what that person could read.
 class AgentChatsController < InertiaController
+  RECENT = 50
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS,
     read: %i[index show],
     create: %i[create ask]
@@ -14,7 +15,7 @@ class AgentChatsController < InertiaController
   def show
     render inertia: "agent/index", props: base_props.merge(
       conversation: AgentChatSerializer.one(conversation),
-      messages: AgentChatMessageSerializer.many(conversation.chat&.messages&.reload || [])
+      messages: AgentChatMessageSerializer.many(conversation.chat&.readable_messages || [])
     )
   end
 
@@ -28,7 +29,8 @@ class AgentChatsController < InertiaController
     question = params[:question].to_s.strip
     return redirect_to(agent_chat_path(conversation), alert: "Say something first.") if question.blank?
 
-    ConversationReplyJob.perform_later(conversation.id, question)
+    conversation.ask!(question)
+    ConversationReplyJob.perform_later(conversation.id)
     redirect_to agent_chat_path(conversation)
   end
 
@@ -45,7 +47,7 @@ class AgentChatsController < InertiaController
 
   def recent_conversations
     current_workspace.conversations.personal.where(started_by: current_membership)
-      .order(updated_at: :desc).limit(50).includes(chat: :messages)
+      .order(updated_at: :desc).limit(RECENT)
   end
 
   def require_agent!

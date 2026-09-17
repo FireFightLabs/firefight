@@ -8,6 +8,9 @@ module FirefightAi
     STATUS_REPEATED_TOOL_CALL = :repeated_tool_call
     STATUS_CANCELED = :canceled
 
+    STEP_RUNNING = :running
+    STEP_DONE = :done
+
     REMINDER = "That reply did nothing. Call a tool to keep going, or conclude with what you have.".freeze
     LAST_TURN = "This run has spent its budget. Conclude now with the evidence you already have.".freeze
 
@@ -42,8 +45,8 @@ module FirefightAi
     # The caller hears about a tool as the agent reaches for it, and again when it answers.
     def report_steps_to(on_step)
       llm = @chat.to_llm
-      llm.before_tool_call { |tool_call| on_step.call(Step.new(key: tool_call.id, tool: tool_call.name, status: :running)) }
-      llm.after_tool_result { |message| on_step.call(Step.new(key: message.tool_call_id, tool: nil, status: :done)) }
+      llm.before_tool_call { |tool_call| on_step.call(Step.new(key: tool_call.id, tool: tool_call.name, status: STEP_RUNNING)) }
+      llm.after_tool_result { |message| on_step.call(Step.new(key: message.tool_call_id, tool: nil, status: STEP_DONE)) }
     end
 
     def run(&on_turn)

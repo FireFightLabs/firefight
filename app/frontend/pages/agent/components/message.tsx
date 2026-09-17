@@ -9,7 +9,7 @@ interface MessageProps {
 export function Message({ message }: MessageProps) {
   if (message.role === CHAT_MESSAGE_ROLES.USER) {
     return (
-      <p className="self-end rounded-card bg-accent-tint px-3 py-2 text-[13.5px] text-ink">{message.body}</p>
+      <p className="self-end rounded-card bg-brand-tint px-3 py-2 text-[13.5px] text-ink">{message.body}</p>
     )
   }
 

@@ -1,5 +1,5 @@
 module ApplicationCable
-  # A socket is the same person as the page that opened it, read from the session cookie.
+  # A socket belongs to whoever the session cookie says opened the page.
   class Connection < ActionCable::Connection::Base
     identified_by :current_user
 

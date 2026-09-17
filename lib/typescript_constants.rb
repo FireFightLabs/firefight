@@ -50,6 +50,10 @@ module TypescriptConstants
         "CHUNK" => Conversation::LiveDelivery::EVENT_CHUNK, "ANSWERED" => Conversation::LiveDelivery::EVENT_ANSWERED,
         "FAILED" => Conversation::LiveDelivery::EVENT_FAILED
       }, nil),
+      Export.new("AGENT_STEP_STATUSES", {
+        "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE
+      }, nil),
+      Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("CHAT_MESSAGE_ROLES", {
         "USER" => Chat::Message::ROLE_USER, "ASSISTANT" => Chat::Message::ROLE_ASSISTANT
       }, nil),

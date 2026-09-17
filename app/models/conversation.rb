@@ -5,6 +5,12 @@ class Conversation < ApplicationRecord
   KIND_PERSONAL = "personal"
   KINDS = [ KIND_CHANNEL, KIND_PERSONAL ].freeze
 
+  TITLE_LIMIT = 80
+  UNTITLED = "New chat".freeze
+
+  # The title is the person's own words, the same customer data as the messages it was taken from.
+  encrypts :title
+
   belongs_to :workspace
   belongs_to :subject, polymorphic: true, optional: true
   belongs_to :started_by, class_name: "WorkspaceMembership", optional: true
@@ -27,10 +33,34 @@ class Conversation < ApplicationRecord
 
   def personal? = kind == KIND_PERSONAL
 
-  # The first thing the person asked, which is what a list of chats should say.
-  def opening_line
-    chat&.messages&.detect { |message| message.role == "user" }&.content.to_s.truncate(80)
+  # The question is written down before the job runs, so the person sees their own words straight
+  # away and a retried job asks the model the same thing once.
+  def ask!(question)
+    chat_record.add_message(role: Chat::Message::ROLE_USER, content: question)
+    update!(title: question.truncate(TITLE_LIMIT)) if title.blank?
   end
+
+  # What the agent says when it stops without answering. Saved, so it is still there on the next
+  # visit rather than only in whatever was on screen at the time.
+  def note!(text)
+    chat_record.add_message(role: Chat::Message::ROLE_ASSISTANT, content: text)
+  end
+
+  def display_title = title.presence || UNTITLED
+
+  # A personal chat is read by one person in the dashboard, and by nobody else.
+  def watchable_by?(user)
+    personal? && started_by.present? && started_by.user_id == user&.id
+  end
+
+  # One chat per conversation, so two questions asked at once share the one that won.
+  def chat_record
+    chat || Chat.open!(owner: self, workspace: workspace, model_choice: ai_model).tap { |opened| self.chat = opened }
+  rescue ActiveRecord::RecordNotUnique
+    reload_chat
+  end
+
+  def ai_model = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace)
 
   # The ledger and the prompt want an incident. A conversation about nothing has none.
   def incident
@@ -61,17 +91,31 @@ class Conversation < ApplicationRecord
     }
   end
 
-  # Two mentions in one thread can answer at once, so the higher count wins rather than the later write.
   # The agent holds its own grants, but an answer read by one person must not reach past what that
-  # person could have read themselves.
+  # person could have read themselves. This asks the gateway rather than running the call as them,
+  # so the ledger keeps one row for the call the agent actually makes.
   def refuse_for_asker!(action_key)
-    raise AbilityGateway::Denied.new(action_key) unless started_by
+    raise AskerDenied.new(action_key) unless asker_may?(action_key)
+  end
 
-    AbilityGateway.authorize!(
-      principal: started_by, action_key: action_key, workspace: workspace, context: ledger_context
+  # Whether the person being answered could have done this themselves.
+  def asker_may?(action_key)
+    return false unless started_by
+
+    action = Ability::Action.lookup(action_key, workspace)
+    action.present? &&
+      AbilityGateway.permitted?(started_by, action, action_key, workspace, {}) && action.configured_for?({})
+  end
+
+  # Starting a run spends money and posts in the channel, so the person asking needs the same
+  # permission they would need to type the command.
+  def asker_may_start_investigation?
+    asker_may?(
+      Ability::Action.system_key(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE)
     )
   end
 
+  # Two mentions in one thread can answer at once, so the higher count wins rather than the later write.
   def record_turn!(turns_used:, spent_cents:)
     self.class.where(id: id).update_all([
       "turns_used = GREATEST(turns_used, ?), spent_cents = GREATEST(spent_cents, ?), updated_at = ?",
@@ -80,4 +124,8 @@ class Conversation < ApplicationRecord
   end
 
   def over_budget? = spent_cents >= max_spend_cents
+
+  # The person asking is the one without the grant, not the agent, and the agent is told so it can
+  # say the right thing.
+  class AskerDenied < AbilityGateway::Denied; end
 end

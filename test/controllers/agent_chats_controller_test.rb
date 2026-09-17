@@ -21,15 +21,23 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
 
   test "an open chat arrives with what has been said in it" do
     conversation = start_chat
-    chat = Chat.open!(
-      owner: conversation, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: nil)
-    )
-    chat.messages.create!(role: Chat::Message::ROLE_USER, content: "What changed today?")
+    conversation.ask!("What changed today?")
 
     get agent_chat_url(conversation), headers: inertia_headers
 
     assert_equal "What changed today?", inertia_props["messages"].sole["body"]
     assert_equal "What changed today?", inertia_props.dig("conversation", "title")
+  end
+
+  test "the model's own scaffolding is not read back to the person" do
+    conversation = start_chat
+    conversation.ask!("What changed today?")
+    conversation.chat.messages.create!(role: "system", content: "You are Firefight, answering an engineer")
+    conversation.chat.messages.create!(role: "tool", content: '{"incidents":[{"identifier":"INC-1"}]}')
+
+    get agent_chat_url(conversation), headers: inertia_headers
+
+    assert_equal [ "What changed today?" ], inertia_props["messages"].map { |message| message["body"] }
   end
 
   test "a workspace without the agent is sent back with the reason" do
@@ -53,11 +61,13 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
   test "a question is answered in the background" do
     conversation = start_chat
 
-    assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id, "what changed today" ]) do
+    assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id ]) do
       post agent_chat_ask_url(conversation), params: { question: "what changed today" }
     end
 
     assert_redirected_to agent_chat_path(conversation)
+    assert_equal "what changed today",
+                 conversation.chat.messages.where(role: Chat::Message::ROLE_USER).sole.content
   end
 
   test "an empty question is not sent to the model" do

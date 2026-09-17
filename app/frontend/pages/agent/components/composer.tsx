@@ -43,6 +43,9 @@ export function Composer({ conversationId, busy }: ComposerProps) {
   return (
     <div className="mx-auto flex w-full max-w-2xl items-end gap-2 rounded-window bg-field p-2 shadow-hairline">
       <textarea
+        name="question"
+        id="agent-question"
+        aria-label="Ask the agent"
         value={question}
         onChange={(event) => setQuestion(event.target.value)}
         onKeyDown={sendOnEnter}
@@ -56,7 +59,7 @@ export function Composer({ conversationId, busy }: ComposerProps) {
         onClick={send}
         disabled={busy || !conversationId || question.trim().length === 0}
         aria-label="Send"
-        className="flex size-8 items-center justify-center rounded-control bg-accent text-accent-ink shadow-btn transition-opacity duration-100 disabled:opacity-40"
+        className="flex size-8 items-center justify-center rounded-control bg-brand text-brand-ink shadow-btn transition-opacity duration-100 disabled:opacity-40"
       >
         <IconArrowUp className="size-4" />
       </button>

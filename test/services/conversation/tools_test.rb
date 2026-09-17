@@ -28,7 +28,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
   end
 
   test "someone who may not start a run is refused, in their name" do
-    AbilityGateway.stubs(:authorize!).raises(AbilityGateway::Denied.new("investigations.create"))
+    AbilityGateway.stubs(:permitted?).returns(false)
 
     assert_no_difference "Investigation.count" do
       assert_match "not allowed to start an investigation", tool.execute[:error]

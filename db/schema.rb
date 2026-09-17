@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_17_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_17_152801) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -370,6 +370,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_090000) do
     t.uuid "subject_id"
     t.string "subject_type"
     t.string "thread_id"
+    t.text "title"
     t.integer "turns_used", default: 0, null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false

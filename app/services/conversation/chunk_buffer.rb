@@ -1,5 +1,5 @@
-# The model sends a token at a time. Neither Slack nor a socket wants a call per token, so text is
-# held for a moment and sent in pieces. Holding it also keeps a broken word out of the page.
+# A call per token would flood a socket and a platform's rate limit alike, so text is held briefly
+# and sent in pieces. That also keeps half a word off the page.
 class Conversation::ChunkBuffer
   INTERVAL = 0.25.seconds
   MAX_CHARS = 200

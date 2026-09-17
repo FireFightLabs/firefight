@@ -2,25 +2,18 @@
 class Conversation::Runner
   NO_ROOM_LEFT = "I could not finish that one. Ask me something narrower, or start an investigation.".freeze
 
-  # The dashboard shows an answer as it was written, so there is no markup for the model to use.
-  PLAIN_OUTPUT_STYLE = <<~STYLE.freeze
-    Write plain sentences with no markup. No asterisks, no headers, no backticks.
-    Short paragraphs, and a list as one item per line starting with a dash.
-  STYLE
-
   def initialize(conversation)
     @conversation = conversation
   end
 
-  def run(question:)
-    chat = chat_record
+  def run
+    chat = @conversation.chat_record
     chat.discard_interrupted_reply!
     delivery.thinking!
 
     outcome = responder.run(
       chat: chat,
       tools: Conversation::Tools.for(@conversation, offer: ->(tools) { chat.with_tools(*tools) }),
-      question: question,
       context: context,
       budget: budget,
       on_step: method(:report_step),
@@ -40,23 +33,20 @@ class Conversation::Runner
   def responder
     @responder ||= FirefightAi::Responder.new(
       @conversation.workspace, inferable: @conversation.subject, member: @conversation.started_by,
-      output_style: output_style
+      output_style: delivery.output_style
     )
   end
 
-  # A channel reply is streamed as it is written, and a platform renders streamed text its own way.
-  def output_style
-    return PLAIN_OUTPUT_STYLE if @conversation.personal?
-
-    WorkspaceAdapter.for(@conversation.workspace).ai_stream_output_style
-  end
-
-  # What the person reads. A turn that ran out of room says so rather than going quiet.
+  # What the person reads. A turn that ran out of room says so in the chat as well, so the answer
+  # that never came is not a silence on the next visit either.
   def reply_for(outcome, chat)
-    return NO_ROOM_LEFT unless outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
+    return chat.messages.reload.last&.content.presence || NO_ROOM_LEFT if answered?(outcome)
 
-    chat.messages.reload.last&.content.presence || NO_ROOM_LEFT
+    @conversation.note!(NO_ROOM_LEFT)
+    NO_ROOM_LEFT
   end
+
+  def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
 
   def report_step(step)
     titles[step.key] = Chat::Tools.step_title(step.tool) if step.tool.present?
@@ -77,12 +67,6 @@ class Conversation::Runner
     FirefightAi::AgentLoop::Budget.new(
       max_spend_cents: @conversation.max_spend_cents, max_turns: @conversation.max_turns,
       turns_used: @conversation.turns_used, spent_cents: @conversation.spent_cents
-    )
-  end
-
-  def chat_record
-    @conversation.chat || Chat.open!(
-      owner: @conversation, workspace: @conversation.workspace, model_choice: responder.ai_model
     )
   end
 end

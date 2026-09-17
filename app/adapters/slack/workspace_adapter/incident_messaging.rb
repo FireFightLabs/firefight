@@ -394,6 +394,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     AI_STREAM_OUTPUT_STYLE
   end
 
+  # Appends are a hundred a minute, and Slack asks for about one call a second, so text is handed
+  # over a second at a time.
+  AGENT_STREAM_CADENCE = { interval: 1.second, max_chars: 256 }.freeze
+
+  def agent_stream_cadence
+    AGENT_STREAM_CADENCE
+  end
+
   def post_ai_response(channel_id:, incident:, answer:)
     blocks = Slack::Messages::AiResponse.build(incident: incident, answer: answer)
     post_message(channel_id: channel_id, text: answer, blocks: blocks)
@@ -404,7 +412,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: answer, blocks: blocks)
   end
 
-  STEP_STATUSES = { running: "in_progress", done: "complete", failed: "error" }.freeze
+  STEP_STATUSES = { running: "in_progress", done: "complete" }.freeze
 
   def post_investigation_started(channel_id:, incident:, started_by:)
     blocks = Slack::Messages::InvestigationRun.started(incident: incident, started_by: started_by)

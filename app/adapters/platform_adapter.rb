@@ -353,6 +353,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # How often streamed text may be handed over, which is the platform's own rate limit to know.
+  # @return [Hash] { interval: ActiveSupport::Duration, max_chars: Integer }
+  def agent_stream_cadence
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Says an investigation has started, and opens the thread the rest of it goes in.
   # @return [Hash] { message_id:, channel_id: }
   def post_investigation_started(channel_id:, incident:, started_by:)
@@ -365,7 +371,7 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # One step the agent took. status is :running, :done or :failed.
+  # One step the agent took. status is :running or :done, the two the loop reports.
   # @return [Hash] { success: true }
   def report_agent_step(channel_id:, answer_id:, key:, title:, status:)
     raise NotImplemented.new(__method__, self.class)

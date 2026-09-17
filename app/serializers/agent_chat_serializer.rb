@@ -5,6 +5,6 @@ class AgentChatSerializer < BaseSerializer
 
   type :string
   def title
-    conversation.opening_line.presence || "New chat"
+    conversation.display_title
   end
 end

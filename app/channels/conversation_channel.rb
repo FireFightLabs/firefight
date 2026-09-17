@@ -1,17 +1,10 @@
-# What a dashboard chat sends while the agent is working. A personal chat belongs to one person,
-# so the socket is refused for anyone else.
+# What a dashboard chat sends while the agent works. A personal chat belongs to one person, so
+# nobody else may watch it.
 class ConversationChannel < ApplicationCable::Channel
   def subscribed
-    conversation = Conversation.personal.find_by(id: params[:id])
-    return reject unless watchable?(conversation)
+    conversation = Conversation.find_by(id: params[:id])
+    return reject unless conversation&.watchable_by?(current_user)
 
     stream_for conversation
-  end
-
-  private
-
-  def watchable?(conversation)
-    conversation.present? && conversation.started_by.present? &&
-      conversation.started_by.user_id == current_user.id
   end
 end

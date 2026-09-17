@@ -7,6 +7,12 @@ class Chat < ApplicationRecord
 
   validate :owner_in_same_workspace
 
+  # The saved chat holds the system prompt and every tool result too. A person reads the
+  # conversation, so only the two sides of it are shown.
+  def readable_messages
+    messages.where(role: Chat::Message::READABLE_ROLES).order(:created_at)
+  end
+
   # Records which model will run, without opening a connection to the provider.
   def self.open!(owner:, workspace:, model_choice:)
     chat = new(owner: owner, workspace: workspace)

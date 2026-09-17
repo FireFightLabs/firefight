@@ -16,8 +16,11 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
       ConversationChannel.broadcasting_for(conversation),
       { "type" => Conversation::LiveDelivery::EVENT_FAILED }
     ) do
-      ConversationReplyJob.perform_now(conversation.id, "what changed today")
+      ConversationReplyJob.perform_now(conversation.id)
     end
+
+    assert_equal Conversation::Delivery::FAILED,
+                 conversation.reload.chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).sole.content
   end
 
   test "a thread in Slack is told too" do
@@ -31,12 +34,12 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
       arguments[:text] == Conversation::Delivery::FAILED
     end.returns({ ok: true, ts: "1" })
 
-    ConversationReplyJob.perform_now(conversation.id, "what is going on")
+    ConversationReplyJob.perform_now(conversation.id)
   end
 
   test "a conversation that is gone is left alone" do
     Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError, "no model")
 
-    assert_nothing_raised { ConversationReplyJob.perform_now(SecureRandom.uuid, "anything") }
+    assert_nothing_raised { ConversationReplyJob.perform_now(SecureRandom.uuid) }
   end
 end

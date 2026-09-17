@@ -246,6 +246,13 @@ export const AGENT_STREAM_EVENTS = {
   "FAILED": "failed"
 } as const
 
+export const AGENT_STEP_STATUSES = {
+  "RUNNING": "running",
+  "DONE": "done"
+} as const
+
+export const AGENT_CHANNEL = "ConversationChannel" as const
+
 export const CHAT_MESSAGE_ROLES = {
   "USER": "user",
   "ASSISTANT": "assistant"

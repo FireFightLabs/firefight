@@ -24,8 +24,14 @@ SLACK_ENTRY_FILES = %w[
 
 SLACK_AUTH_FILES = %w[app/services/slack_authentication_service.rb].freeze
 
-plain_services = Dir.chdir(__dir__) { Dir.glob("app/services/*.rb") }.sort -
-                 DISPATCHER_FILES - SLACK_AUTH_FILES
+# Everything under app/services that is not a handler, a dispatcher or the integrations layer,
+# so a new folder of services is covered by the service rules the day it is added.
+handler_and_layer_files = Dir.chdir(__dir__) do
+  Dir.glob("app/services/{commands,interactions,events,integrations}/**/*.rb")
+end.sort
+
+plain_services = Dir.chdir(__dir__) { Dir.glob("app/services/**/*.rb") }.sort -
+                 DISPATCHER_FILES - SLACK_AUTH_FILES - handler_and_layer_files
 
 api_controller_files = Dir.chdir(__dir__) { Dir.glob("app/controllers/api/**/*.rb") }.sort -
                        SLACK_ENTRY_FILES
@@ -39,7 +45,7 @@ component :slack_entry_controllers, in: SLACK_ENTRY_FILES
 component :dispatchers, in: DISPATCHER_FILES
 component :slack_auth, in: SLACK_AUTH_FILES
 component :handlers, in: "app/services/{commands,interactions,events}/**/*.rb"
-component :services, in: plain_services + %w[app/services/webhooks/**/*.rb app/services/catalogue/**/*.rb]
+component :services, in: plain_services
 component :serializers, in: "app/serializers/**/*.rb"
 
 # The only file allowed to use Flipper.
