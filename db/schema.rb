@@ -10,10 +10,11 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_17_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
+  enable_extension "vector"
 
   create_table "ability_actions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workspace_id"
@@ -1222,6 +1223,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_190000) do
     t.index ["workspace_id"], name: "index_runbooks_on_workspace_id"
   end
 
+  create_table "search_embeddings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "content_digest", null: false
+    t.datetime "created_at", null: false
+    t.uuid "embeddable_id", null: false
+    t.string "embeddable_type", null: false
+    t.string "model", null: false
+    t.datetime "updated_at", null: false
+    t.vector "vector", limit: 1536, null: false
+    t.uuid "workspace_id", null: false
+    t.index ["embeddable_type", "embeddable_id"], name: "index_search_embeddings_on_embeddable", unique: true
+    t.index ["vector"], name: "index_search_embeddings_on_vector", opclass: :vector_cosine_ops, using: :hnsw
+    t.index ["workspace_id"], name: "index_search_embeddings_on_workspace_id"
+  end
+
   create_table "shoutouts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "incident_id", null: false
     t.uuid "from_member_id", null: false
@@ -1538,6 +1553,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_190000) do
   add_foreign_key "postmortems", "incidents"
   add_foreign_key "runbook_steps", "runbooks"
   add_foreign_key "runbooks", "workspaces"
+  add_foreign_key "search_embeddings", "workspaces"
   add_foreign_key "shoutouts", "incidents"
   add_foreign_key "solid_workflow_events", "solid_workflow_steps", column: "step_id", on_delete: :cascade
   add_foreign_key "solid_workflow_events", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade

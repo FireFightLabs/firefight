@@ -1,4 +1,5 @@
 class Investigation::Finding < ApplicationRecord
+  include Investigation::Finding::Searchable
   STATE_UNPUBLISHED = "unpublished"
   STATE_PUBLISHED = "published"
   # Below the workspace's confidence bar, or holding instruction-like evidence.

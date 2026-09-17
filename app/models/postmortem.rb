@@ -1,5 +1,6 @@
 class Postmortem < ApplicationRecord
   include Postmortem::Snapshots
+  include Postmortem::Searchable
 
   class StaleContent < StandardError; end
 

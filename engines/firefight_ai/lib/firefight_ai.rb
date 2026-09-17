@@ -30,7 +30,8 @@ module FirefightAi
       AiPurpose::INCIDENT_RESPONSE => "INCIDENT_AI",
       AiPurpose::SUMMARY => "SUMMARY_AI",
       AiPurpose::MILESTONES => "MILESTONES_AI",
-      AiPurpose::INVESTIGATION => "INVESTIGATION_AI"
+      AiPurpose::INVESTIGATION => "INVESTIGATION_AI",
+      AiPurpose::EMBEDDING => "EMBEDDING_AI"
     }.fetch(purpose)
   end
 
@@ -40,7 +41,8 @@ module FirefightAi
       AiPurpose::INCIDENT_RESPONSE => "gpt-4o-mini",
       AiPurpose::SUMMARY => "gpt-4o-mini",
       AiPurpose::MILESTONES => "gpt-4o-mini",
-      AiPurpose::INVESTIGATION => "gpt-4o"
+      AiPurpose::INVESTIGATION => "gpt-4o",
+      AiPurpose::EMBEDDING => "text-embedding-3-small"
     }.fetch(purpose)
   end
 
@@ -66,6 +68,21 @@ module FirefightAi
     return RubyLLM.chat(model: choice.model) if choice.provider.blank?
 
     RubyLLM.chat(model: choice.model, provider: choice.provider, assume_model_exists: !registered?(choice.model))
+  end
+
+  # One vector per call, tracked like every other model call. The dimensions are fixed by the
+  # column, so a model that answers with a different width is a configuration error, not a result.
+  def embed(text, workspace:, inferable: nil)
+    choice = model_for(AiPurpose::EMBEDDING)
+    embedding, = translating_errors do
+      Inference.track(
+        workspace: workspace, feature: "embedding", provider: choice.provider_name,
+        model: choice.model, inferable: inferable
+      ) do
+        RubyLLM.embed(text, model: choice.model, provider: choice.provider&.to_sym)
+      end
+    end
+    embedding
   end
 
   def registered?(model)

@@ -2,6 +2,7 @@ module Mcp
   # Names are the wire-level identifiers agents call. Never use raw strings elsewhere.
   module Tools
     SEARCH_INCIDENTS = "search_incidents".freeze
+    SEARCH_SIMILAR = "search_similar".freeze
     GET_INCIDENT = "get_incident".freeze
     SEARCH_ALERTS = "search_alerts".freeze
     SEARCH_CATALOG = "search_catalog".freeze
@@ -76,7 +77,7 @@ module Mcp
     DELETE_CATALOG_TYPE = "delete_catalog_type".freeze
 
     def self.all
-      [ SearchIncidents, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
+      [ SearchIncidents, SearchSimilar, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
         SearchRunbooks, GetRunbook, UpsertCatalogEntry, DeleteCatalogEntry,
         UpsertRoutingRule, DeleteRoutingRule, UpdateRoutingConfig, UpsertRunbook,
         AssignIncidentRole, AttachRunbook, DismissTimelineNote,

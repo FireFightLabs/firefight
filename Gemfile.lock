@@ -293,6 +293,8 @@ GEM
       bigdecimal (>= 3.1, < 5)
     multipart-post (2.4.1)
     mutex_m (0.3.0)
+    neighbor (1.2.0)
+      activerecord (>= 7.2)
     net-http (0.9.1)
       uri (>= 0.11.1)
     net-http-persistent (4.0.8)
@@ -848,6 +850,7 @@ DEPENDENCIES
   mcp
   minitest (~> 6.0)
   mocha
+  neighbor (~> 1.2)
   net-http-persistent
   oj_serializers
   omniauth (~> 2.1)

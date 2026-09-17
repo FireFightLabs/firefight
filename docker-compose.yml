@@ -9,7 +9,7 @@ name: firefight
 
 services:
   postgres:
-    image: postgres:18.3
+    image: pgvector/pgvector:pg18
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-firefight}
