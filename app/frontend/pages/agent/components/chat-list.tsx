@@ -1,8 +1,10 @@
-import { Link, router } from "@inertiajs/react"
-import { IconPencilPlus, IconPinFilled, IconSearch } from "@tabler/icons-react"
-import { useMemo, useState } from "react"
+import { router } from "@inertiajs/react"
+import { IconMessageCircle, IconPencilPlus, IconSearch } from "@tabler/icons-react"
+import { useMemo, useRef, useState } from "react"
 
-import { agentChatPath, agentChatsPath } from "@/lib/routes"
+import { agentChatsPath } from "@/lib/routes"
+import { ChatRow } from "@/pages/agent/components/chat-row"
+import { useSearchShortcut } from "@/pages/agent/hooks/use-search-shortcut"
 import { groupedByDay, type ChatGroup } from "@/pages/agent/lib/group-chats"
 import type { AgentChat } from "@/types/serializers"
 
@@ -39,18 +41,23 @@ function kept(chats: AgentChat[], filter: string, search: string): AgentChat[] {
 export function ChatList({ chats, currentId, className }: ChatListProps) {
   const [ filter, setFilter ] = useState(FILTER_ALL)
   const [ search, setSearch ] = useState("")
+  const field = useRef<HTMLInputElement>(null)
   const groups: ChatGroup[] = useMemo(() => groupedByDay(kept(chats, filter, search)), [ chats, filter, search ])
+  useSearchShortcut(field)
 
   function startChat() {
     router.post(agentChatsPath())
   }
 
   return (
-    <aside className={`shrink-0 flex-col gap-3 rounded-window bg-surface p-3 shadow-card ${className}`}>
-      <div className="flex items-start justify-between gap-2">
+    <aside className={`min-h-0 flex-col gap-3 overflow-hidden border-r border-line px-3 py-3.5 ${className}`}>
+      <div className="flex items-start justify-between gap-2 px-1">
         <div>
-          <h2 className="text-[13.5px] font-medium text-ink">Agent Chat</h2>
-          <p className="mt-0.5 text-[12px] leading-snug text-ink-2">
+          <h2 className="flex items-center gap-1.5 text-[14px] font-medium text-ink">
+            <IconMessageCircle className="size-4 text-ink-3" />
+            Agent Chat
+          </h2>
+          <p className="mt-1 text-[12px] leading-snug text-ink-2">
             Ask about incidents, search your systems, start an investigation.
           </p>
         </div>
@@ -58,20 +65,22 @@ export function ChatList({ chats, currentId, className }: ChatListProps) {
           type="button"
           onClick={startChat}
           aria-label="New chat"
-          className="flex size-7 shrink-0 items-center justify-center rounded-control text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
+          className="flex size-7 shrink-0 items-center justify-center rounded-control text-ink-2 shadow-btn transition-colors duration-100 hover:bg-hover hover:text-ink"
         >
           <IconPencilPlus className="size-4" />
         </button>
       </div>
 
-      <label className="flex items-center gap-2 rounded-control bg-field px-2.5 py-1.5 shadow-inset-field">
+      <label className="flex items-center gap-2 rounded-control bg-field px-2.5 py-2 shadow-inset-field">
         <IconSearch className="size-3.5 shrink-0 text-ink-3" />
         <input
+          ref={field}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search chats"
           className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-3"
         />
+        <kbd className="shrink-0 rounded-chip px-1 font-mono text-[10.5px] text-ink-3 shadow-hairline">⌘K</kbd>
       </label>
 
       <div className="flex gap-1">
@@ -89,29 +98,13 @@ export function ChatList({ chats, currentId, className }: ChatListProps) {
         ))}
       </div>
 
-      <nav className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-        {groups.length === 0 && (
-          <p className="px-1 text-[12.5px] text-ink-3">Nothing here yet.</p>
-        )}
+      <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+        {groups.length === 0 && <p className="px-1 text-[12.5px] text-ink-3">Nothing here yet.</p>}
         {groups.map((group) => (
           <div key={group.label} className="flex flex-col gap-0.5">
-            <p className="px-1 pb-1 text-[11.5px] font-medium text-ink-3">{group.label}</p>
+            <p className="px-1 pb-1 text-[11px] font-medium uppercase tracking-wide text-ink-3">{group.label}</p>
             {group.chats.map((chat) => (
-              <Link
-                key={chat.id}
-                href={agentChatPath(chat.id)}
-                className={`flex flex-col gap-0.5 rounded-control px-2.5 py-2 transition-colors duration-100 ${
-                  chat.id === currentId ? "bg-hover-2" : "hover:bg-hover"
-                }`}
-              >
-                <span className="flex items-center gap-1.5">
-                  {chat.pinned && <IconPinFilled className="size-3 shrink-0 text-ink-3" />}
-                  <span className="truncate text-[12.5px] text-ink">{chat.title}</span>
-                </span>
-                {chat.preview.length > 0 && (
-                  <span className="truncate text-[12px] text-ink-3">{chat.preview}</span>
-                )}
-              </Link>
+              <ChatRow key={chat.id} chat={chat} current={chat.id === currentId} />
             ))}
           </div>
         ))}

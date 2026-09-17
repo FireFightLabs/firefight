@@ -22,30 +22,32 @@ export default function AgentPage() {
   const stream = useAgentStream(conversation?.id, messages)
 
   // One column at a time on a phone: the list, or the chat opened from it.
-  const listClass = conversation ? "hidden w-72 md:flex" : "flex w-full md:w-72"
+  const listClass = conversation ? "hidden md:flex" : "flex"
   const threadClass = conversation ? "flex" : "hidden md:flex"
 
   return (
     <AuthenticatedLayout title="Agent">
       <Head title="Agent" />
-      <div className="agent-ui flex h-[calc(100dvh-var(--header-height)-2.5rem)] gap-4 px-4 pb-4 lg:px-6">
+      <div className="agent-ui agent-chat">
         <ChatList chats={conversations} currentId={conversation?.id} className={listClass} />
-        <div className={`min-h-0 min-w-0 flex-1 flex-col gap-3 ${threadClass}`}>
+        <section className={`min-h-0 min-w-0 flex-1 flex-col ${threadClass}`}>
           {conversation && (
             <>
-              <Link href={agentChatsPath()} className="text-[13px] text-ink-2 md:hidden">
+              <Link href={agentChatsPath()} className="px-4 pt-3 text-[13px] text-ink-2 md:hidden">
                 All chats
               </Link>
               <ThreadHeader chat={conversation} startedIso={messages?.[0]?.at} />
             </>
           )}
           <Thread messages={messages ?? []} stream={stream} empty={!conversation} />
-          <Composer
-            conversationId={conversation?.id}
-            incidents={incidents}
-            busy={stream.state === "working"}
-          />
-        </div>
+          <div className="border-t border-line p-3">
+            <Composer
+              conversationId={conversation?.id}
+              incidents={incidents}
+              busy={stream.state === "working"}
+            />
+          </div>
+        </section>
       </div>
     </AuthenticatedLayout>
   )

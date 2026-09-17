@@ -28,7 +28,9 @@ export function Message({ message }: MessageProps) {
         <span className="text-[12px] font-medium text-ink-2">Agent</span>
         {message.tools.length > 0 && <AgentSteps steps={message.tools} />}
         {message.body.trim().length > 0 && (
-          <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink">{message.body}</p>
+          <p className="w-fit max-w-full whitespace-pre-wrap rounded-card bg-surface px-3 py-2 text-[13.5px] leading-relaxed text-ink shadow-hairline">
+            {message.body}
+          </p>
         )}
         <span className="text-[11.5px] text-ink-3">{clockTime(message.at)}</span>
       </div>

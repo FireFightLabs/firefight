@@ -21,7 +21,7 @@ export function Thread({ messages, stream, empty }: ThreadProps) {
 
   if (empty) {
     return (
-      <div className="flex flex-1 items-center justify-center rounded-window bg-surface shadow-card">
+      <div className="flex flex-1 items-center justify-center">
         <p className="max-w-sm text-center text-[13px] text-ink-2">
           Ask about an incident, what changed recently, or whether this has happened before. Start a
           chat on the left.
@@ -33,8 +33,8 @@ export function Thread({ messages, stream, empty }: ThreadProps) {
   const waiting = stream.state === "working" && stream.text.length === 0
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto rounded-window bg-surface p-4 shadow-card">
-      <div className="mx-auto flex max-w-2xl flex-col gap-4">
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <div className="mx-auto flex max-w-3xl flex-col gap-5">
         {messages.map((message) => (
           <Message key={message.id} message={message} />
         ))}
@@ -42,7 +42,9 @@ export function Thread({ messages, stream, empty }: ThreadProps) {
           <div className="flex flex-col gap-2">
             {stream.steps.length > 0 && <AgentSteps steps={stream.steps} />}
             {stream.text.length > 0 && (
-              <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink">{stream.text}</p>
+              <p className="w-fit max-w-full whitespace-pre-wrap rounded-card bg-surface px-3 py-2 text-[13.5px] leading-relaxed text-ink shadow-hairline">
+                {stream.text}
+              </p>
             )}
           </div>
         )}

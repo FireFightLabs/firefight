@@ -132,6 +132,48 @@
   --ease-link: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── the chat shell, ours ───────────────────────────────── */
+
+/* The panes are sized here rather than in utilities: a chat is a full-height app, and its columns
+   are the layout, not a detail of the markup. The negative margin swallows the dashboard's own top
+   padding, which this page fills to the edge instead. */
+.agent-chat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: calc(100dvh - var(--header-height));
+  margin-top: -1.5rem;
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+}
+
+@media (min-width: 48rem) {
+  .agent-chat {
+    grid-template-columns: 20rem minmax(0, 1fr);
+  }
+}
+
+.agent-chat > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+@layer base {
+  /* The forms plugin paints a border, a background and a ring on every input and textarea in the
+     app. In here the surrounding field is what the person sees, so the control itself carries none
+     of it. Utilities still win over this, which is how a control opts back in. */
+  .agent-ui :is(input, textarea, select) {
+    background-color: transparent;
+    border-width: 0;
+    box-shadow: none;
+  }
+
+  .agent-ui :is(input, textarea, select):focus {
+    border-width: 0;
+    box-shadow: none;
+    outline: none;
+  }
+}
+
 /* ── spacing primitives, theirs ─────────────────────────── */
 .primitive-card-pad {
   padding: 12px;

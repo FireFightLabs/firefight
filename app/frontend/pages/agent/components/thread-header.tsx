@@ -53,7 +53,7 @@ export function ThreadHeader({ chat, startedIso }: ThreadHeaderProps) {
   }
 
   return (
-    <header className="flex items-start justify-between gap-3 px-1">
+    <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
       <div className="min-w-0">
         <h1 className="truncate text-[14px] font-medium text-ink">{chat.title}</h1>
         {startedIso && <p className="mt-0.5 text-[12px] text-ink-3">Started {startedAt(startedIso)}</p>}

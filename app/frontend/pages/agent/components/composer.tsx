@@ -40,15 +40,17 @@ export function Composer({ conversationId, incidents, busy }: ComposerProps) {
   }))
 
   return (
-    <PromptBar
-      demo={false}
-      busy={busy}
-      modelPicker={false}
-      dictation={false}
-      sources={sources}
-      commands={[]}
-      placeholder={placeholder()}
-      onSend={send}
-    />
+    <div className="mx-auto w-full max-w-3xl">
+      <PromptBar
+        demo={false}
+        busy={busy}
+        modelPicker={false}
+        dictation={false}
+        sources={sources}
+        commands={[]}
+        placeholder={placeholder()}
+        onSend={send}
+      />
+    </div>
   )
 }
