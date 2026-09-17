@@ -8,7 +8,7 @@ Run `bin/ci` to validate changes. It runs rubocop, archspec (architecture bounda
 
 `archspec_todo.yml` is empty and stays empty. Never add an entry to get a build green: a new boundary violation means the code is in the wrong place. The `archspec` GitHub job fails on any violation and on a non-empty todo file, and it must be a required check once branch protection is available on the repo.
 
-ArchSpec proves the named boundaries. The leaks that hide behind an allowed name (a platform's shape in a column, a permission rule inlined in a controller, logic in an entry point, a TypeScript mirror of a Ruby list) are caught by the **boundary review**: run `/boundary-review` on the diff before opening any PR that touches `app/`, `engines/`, `lib/`, or `app/frontend/`, fix what it finds, and end the PR body with its report. A PR without that report is not ready.
+ArchSpec proves the named boundaries. The leaks that hide behind an allowed name (a platform's shape in a column, a permission rule inlined in a controller, logic in an entry point, a TypeScript mirror of a Ruby list) are caught by the **boundary review**: run `/boundary-review` on the diff before opening any PR that touches `app/`, `engines/`, `lib/`, or `app/frontend/`, and fix what it finds. The PR is not ready until it has run. The report itself does not go in the PR body: what belongs there is anything the review found and you chose to leave, said in a line of its own.
 
 ## Git & PRs
 
