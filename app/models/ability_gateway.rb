@@ -7,7 +7,8 @@ class AbilityGateway
   SOURCE_WEB = "web"
   # Firefight's own work rather than a person's click, so the ledger names the origin.
   SOURCE_INVESTIGATION = "investigation"
-  SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION ].freeze
+  SOURCE_CONVERSATION = "conversation"
+  SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 

@@ -7,6 +7,16 @@ class Chat < ApplicationRecord
 
   validate :owner_in_same_workspace
 
+  # Records which model will run, without opening a connection to the provider.
+  def self.open!(owner:, workspace:, model_choice:)
+    chat = new(owner: owner, workspace: workspace)
+    chat.provider = model_choice.provider if model_choice.provider.present?
+    chat.assume_model_exists = model_choice.provider.present? && !FirefightAi.registered?(model_choice.model)
+    chat.model = model_choice.model
+    chat.save!
+    chat
+  end
+
   # A killed worker leaves an empty reply that RubyLLM reads as the final answer. Only the job holding the run may call this.
   def discard_interrupted_reply!
     last_message = messages.reload.last

@@ -17,7 +17,8 @@ class Investigation < ApplicationRecord
 
   TRIGGER_COMMAND = "command"
   TRIGGER_BUTTON = "button"
-  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON ].freeze
+  TRIGGER_CONVERSATION = "conversation"
+  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION ].freeze
 
   belongs_to :workspace
   # Polymorphic so a run can be about something other than an incident later.
@@ -105,6 +106,14 @@ class Investigation < ApplicationRecord
   end
 
   # Writing the turn and holding the lease are one statement, so a worker that lost the run writes nothing.
+  def ledger_context
+    {
+      source: AbilityGateway::SOURCE_INVESTIGATION,
+      incident_id: incident_id,
+      triggered_by_label: triggered_by.try(:principal_label)
+    }
+  end
+
   def record_turn!(turns_used:, spent_cents:)
     return false if @lease_token.blank?
 
@@ -121,6 +130,11 @@ class Investigation < ApplicationRecord
       .update_all(cancel_requested: true, updated_at: Time.current) > 0
     chat&.cancel if moved
     moved
+  end
+
+  # The shared tools call this, so what a tool call leaves behind is the run's business.
+  def tool_call(action_key:, params: {}, &block)
+    Investigation::ToolCall.run!(self, action_key: action_key, params: params, &block).value
   end
 
   def record_hypothesis!(assertion:, status: nil, confidence: nil)

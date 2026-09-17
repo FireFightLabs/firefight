@@ -31,12 +31,8 @@ class InvestigationServiceTest < ActiveSupport::TestCase
     assert_equal 150, investigation.max_spend_cents
   end
 
-  test "the channel is told the run has started" do
-    Slack::WorkspaceAdapter.any_instance.expects(:post_message).with(
-      channel_id: @incident.channel_id,
-      text: "Investigating #{@incident.identifier}. I will post what I find.",
-      blocks: nil
-    ).once
+  test "nothing is posted here, the run says so itself when it starts working" do
+    Slack::WorkspaceAdapter.any_instance.expects(:post_message).never
 
     @service.start(@incident, trigger_source: Investigation::TRIGGER_BUTTON)
   end

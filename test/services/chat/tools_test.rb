@@ -1,6 +1,6 @@
 require "test_helper"
 
-class Investigation::ToolsTest < ActiveSupport::TestCase
+class Chat::ToolsTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
@@ -33,7 +33,7 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
   test "finding a tool the agent may use offers it to the chat and says it is ready" do
     grant!(@tool)
     offered = []
-    find = Investigation::Tools::Find.new(@investigation, offer: ->(tools) { offered.concat(tools) })
+    find = Chat::Tools::Find.new(@investigation, offer: ->(tools) { offered.concat(tools) })
 
     answer = find.execute(query: "echoes text")
 
@@ -43,7 +43,7 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
   end
 
   test "a tool the workspace never granted is named rather than hidden" do
-    find = Investigation::Tools::Find.new(@investigation, offer: ->(_tools) { })
+    find = Chat::Tools::Find.new(@investigation, offer: ->(_tools) { })
 
     answer = find.execute(query: "echoes text")
 
@@ -54,7 +54,7 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
   test "Firefight's own tools are found the same way, and a granted one becomes callable" do
     grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
     offered = []
-    find = Investigation::Tools::Find.new(@investigation, offer: ->(tools) { offered.concat(tools) })
+    find = Chat::Tools::Find.new(@investigation, offer: ->(tools) { offered.concat(tools) })
 
     answer = find.execute(query: "search incidents")
 
@@ -63,20 +63,20 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
   end
 
   test "a provider nobody connected is named as not connected" do
-    find = Investigation::Tools::Find.new(@investigation, offer: ->(_tools) { })
+    find = Chat::Tools::Find.new(@investigation, offer: ->(_tools) { })
 
     assert_match "not connected", find.execute(query: "datadog")
   end
 
   test "a search that matches nothing tells the agent to say so rather than guess" do
-    find = Investigation::Tools::Find.new(@investigation, offer: ->(_tools) { })
+    find = Chat::Tools::Find.new(@investigation, offer: ->(_tools) { })
 
     assert_match "Say what you could not check", find.execute(query: "zzzz")
   end
 
   test "a found Firefight tool runs through the gateway and answers with what it found" do
     grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
-    tool = Investigation::Tools.catalog(@investigation).find { |entry| entry.name == Mcp::Tools::SEARCH_INCIDENTS }.tool
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == Mcp::Tools::SEARCH_INCIDENTS }.tool
 
     result = tool.call(query: @incident.identifier)
 
@@ -88,7 +88,7 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
 
   test "a connection tool runs through the gateway and returns what the provider said" do
     grant!(@tool)
-    tool = Investigation::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
 
     result = tool.call(text: "hi")
 
@@ -97,7 +97,7 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
   end
 
   test "a refused call comes back as a result the agent can work around" do
-    tool = Investigation::Tools::Connection.new(@investigation, @tool)
+    tool = Chat::Tools::Connection.new(@investigation, @tool)
 
     result = tool.call(text: "hi")
 
@@ -108,14 +108,14 @@ class Investigation::ToolsTest < ActiveSupport::TestCase
   test "a provider failure is reported to the agent rather than ending the run" do
     grant!(@tool)
     Integrations::NativeExecutor.stubs(:call).raises(Integrations::Error, "GitHub said no")
-    tool = Investigation::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
 
     assert_match "GitHub said no", tool.call(text: "hi")
   end
 
   test "the model sees each tool's own description and parameters" do
     grant!(@tool)
-    tool = Investigation::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
 
     assert_equal @tool.params_schema, tool.parameters_schema
     assert_equal "Echoes text back", tool.description

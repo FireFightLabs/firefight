@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -356,6 +356,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_170000) do
     t.index ["owner_type", "owner_id"], name: "index_chats_on_owner", unique: true
     t.index ["ruby_llm_model_id"], name: "index_chats_on_ruby_llm_model_id"
     t.index ["workspace_id"], name: "index_chats_on_workspace_id"
+  end
+
+  create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "channel_id"
+    t.datetime "created_at", null: false
+    t.string "kind", null: false
+    t.integer "max_spend_cents", null: false
+    t.integer "max_turns", null: false
+    t.integer "spent_cents", default: 0, null: false
+    t.uuid "started_by_id"
+    t.uuid "subject_id"
+    t.string "subject_type"
+    t.string "thread_id"
+    t.integer "turns_used", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["started_by_id"], name: "index_conversations_on_started_by_id"
+    t.index ["subject_type", "subject_id"], name: "index_conversations_on_subject"
+    t.index ["workspace_id", "channel_id", "thread_id"], name: "index_conversations_on_thread", unique: true
+    t.index ["workspace_id"], name: "index_conversations_on_workspace_id"
   end
 
   create_table "flipper_features", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1435,6 +1455,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_170000) do
   add_foreign_key "chat_messages", "chats"
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"
+  add_foreign_key "conversations", "workspace_memberships", column: "started_by_id"
+  add_foreign_key "conversations", "workspaces"
   add_foreign_key "idempotency_keys", "workspaces"
   add_foreign_key "incident_action_updates", "incident_actions"
   add_foreign_key "incident_action_updates", "incidents"
