@@ -238,6 +238,11 @@ export const ABILITY_RISK_LEVELS = [
 ] as const
 export type AbilityRiskLevel = (typeof ABILITY_RISK_LEVELS)[number]
 
+export const CHAT_MESSAGE_ROLES = {
+  "USER": "user",
+  "ASSISTANT": "assistant"
+} as const
+
 export const PRINCIPAL_KINDS = {
   "USER": "user",
   "AGENT": "agent",

@@ -1,6 +1,7 @@
 import { router } from "@inertiajs/react"
 import { useEffect, useRef, useState } from "react"
 
+import { CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
 import type { AgentChatMessage } from "@/types/serializers"
 
 const POLL_MS = 1500
@@ -9,13 +10,12 @@ const POLL_LIMIT = 80
 
 export type TurnState = "idle" | "working" | "stalled"
 
-// A turn runs in a job, so the page asks again until the agent has replied.
 function waitingForReply(messages: AgentChatMessage[] | undefined): boolean {
   const last = messages?.[messages.length - 1]
   if (!last) {
     return false
   }
-  if (last.role === "user") {
+  if (last.role === CHAT_MESSAGE_ROLES.USER) {
     return true
   }
 

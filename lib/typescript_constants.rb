@@ -45,6 +45,9 @@ module TypescriptConstants
       Export.new("ABILITY_ACTIONS", Ability::Action::ACTIONS, "AbilityAction"),
       Export.new("WEBHOOK_EVENTS", Webhook::SUBSCRIBABLE_EVENTS, "WebhookEvent"),
       Export.new("ABILITY_RISK_LEVELS", Ability::Action::RISK_LEVELS, "AbilityRiskLevel"),
+      Export.new("CHAT_MESSAGE_ROLES", {
+        "USER" => Chat::Message::ROLE_USER, "ASSISTANT" => Chat::Message::ROLE_ASSISTANT
+      }, nil),
       Export.new("PRINCIPAL_KINDS", {
         "USER" => Ability::Principal::KIND_USER, "AGENT" => Ability::Principal::KIND_AGENT,
         "API_KEY" => Ability::Principal::KIND_API_KEY, "SYSTEM_AGENT" => Ability::Principal::KIND_SYSTEM_AGENT

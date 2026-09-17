@@ -8,11 +8,11 @@ class AgentChatsController < InertiaController
   before_action :require_agent!
 
   def index
-    render inertia: "agent_chats/index", props: base_props
+    render inertia: "agent/index", props: base_props
   end
 
   def show
-    render inertia: "agent_chats/index", props: base_props.merge(
+    render inertia: "agent/index", props: base_props.merge(
       conversation: AgentChatSerializer.one(conversation),
       messages: AgentChatMessageSerializer.many(conversation.chat&.messages&.reload || [])
     )

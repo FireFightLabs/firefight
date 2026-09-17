@@ -1,25 +1,24 @@
 import { Head, Link, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { ChatList } from "@/pages/agent_chats/components/chat-list"
-import { Composer } from "@/pages/agent_chats/components/composer"
-import { Thread } from "@/pages/agent_chats/components/thread"
-import { useLiveMessages } from "@/pages/agent_chats/hooks/use-live-messages"
+import { ChatList } from "@/pages/agent/components/chat-list"
+import { Composer } from "@/pages/agent/components/composer"
+import { Thread } from "@/pages/agent/components/thread"
+import { useLiveMessages } from "@/pages/agent/hooks/use-live-messages"
 import { agentChatsPath } from "@/lib/routes"
 import type { AgentChat, AgentChatMessage } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
-interface AgentChatsPageProps extends SharedProps {
+interface AgentPageProps extends SharedProps {
   conversations: AgentChat[]
   conversation?: AgentChat
   messages?: AgentChatMessage[]
 }
 
-export default function AgentChatsPage() {
-  const { conversations, conversation, messages } = usePage<AgentChatsPageProps>().props
+export default function AgentPage() {
+  const { conversations, conversation, messages } = usePage<AgentPageProps>().props
   const state = useLiveMessages(conversation?.id, messages)
 
-  // One column at a time on a phone: the list, or the chat opened from it.
   const listClass = conversation ? "hidden w-64 md:flex" : "flex w-full md:w-64"
   const threadClass = conversation ? "flex" : "hidden md:flex"
 

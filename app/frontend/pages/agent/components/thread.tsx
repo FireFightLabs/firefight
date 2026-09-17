@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 
-import { ToolRow } from "@/pages/agent_chats/components/tool-row"
-import type { TurnState } from "@/pages/agent_chats/hooks/use-live-messages"
+import { Message } from "@/pages/agent/components/message"
+import type { TurnState } from "@/pages/agent/hooks/use-live-messages"
 import type { AgentChatMessage } from "@/types/serializers"
 
 interface ThreadProps {
@@ -40,25 +40,6 @@ export function Thread({ messages, state, empty }: ThreadProps) {
         )}
         <div ref={foot} />
       </div>
-    </div>
-  )
-}
-
-function Message({ message }: { message: AgentChatMessage }) {
-  if (message.role === "user") {
-    return (
-      <p className="self-end rounded-card bg-accent-tint px-3 py-2 text-[13.5px] text-ink">{message.body}</p>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-1">
-      {message.tools.map((tool) => (
-        <ToolRow key={tool.id} name={tool.name} answered={tool.answered} />
-      ))}
-      {message.body.trim().length > 0 && (
-        <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink">{message.body}</p>
-      )}
     </div>
   )
 }

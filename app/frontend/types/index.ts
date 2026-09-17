@@ -14,7 +14,7 @@ export type SharedProps = PageProps & {
   availableWorkspaces?: CurrentWorkspace[]
   currentUserIsAdmin?: boolean
   pendingApprovalsCount?: number
-  // Whether the AI SRE agent runs for this workspace, which is what puts it in the nav.
+  // Whether the AI SRE agent runs here, which decides the nav entry.
   agentAvailable?: boolean
   // One flag per Ability::Action resource, whether the viewer may change it.
   currentUserCan?: Record<string, boolean>

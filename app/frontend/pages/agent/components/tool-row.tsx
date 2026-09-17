@@ -5,7 +5,6 @@ interface ToolRowProps {
   answered: boolean
 }
 
-// What the agent reached for, in the order it happened.
 export function ToolRow({ name, answered }: ToolRowProps) {
   const label = name.replace(/_/g, " ")
 

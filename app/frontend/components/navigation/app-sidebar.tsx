@@ -136,7 +136,6 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
     agentAvailable,
   } = usePage<SharedProps>().props
 
-  // The agent is in the nav only where it runs.
   const agentItem: SidebarNavItem = { title: "Agent", url: agentChatsPath(), icon: IconMessageChatbot }
   const sectionsWithAgent = agentAvailable
     ? navSections.map((section) =>
