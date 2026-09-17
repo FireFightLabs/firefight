@@ -13,7 +13,8 @@ class InertiaController < ApplicationController
       availableWorkspaces: current_user ? CurrentWorkspaceSerializer.many(current_user.workspaces.order(:name)) : [],
       currentUserIsAdmin: current_membership&.admin_access? || false,
       currentUserCan: current_membership ? manageable_resources : {},
-      pendingApprovalsCount: current_workspace ? current_workspace.ability_approvals.pending.count : 0
+      pendingApprovalsCount: current_workspace ? current_workspace.ability_approvals.pending.count : 0,
+      agentAvailable: current_workspace ? Investigation.available_for?(current_workspace) : false
     }
   end
 

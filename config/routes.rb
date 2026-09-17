@@ -287,6 +287,10 @@ Rails.application.routes.draw do
     patch "/incidents/:incident_id/postmortem/status", to: "incidents#update_postmortem_status", as: :incident_postmortem_status
     get "/incidents/:incident_id/postmortem/revisions", to: "incidents#postmortem_revisions", as: :incident_postmortem_revisions
     post "/incidents/:incident_id/postmortem/ai_rewrite", to: "incidents#ai_rewrite_postmortem", as: :incident_postmortem_ai_rewrite
+    get "/agent", to: "agent_chats#index", as: :agent_chats
+    post "/agent", to: "agent_chats#create"
+    get "/agent/:id", to: "agent_chats#show", as: :agent_chat
+    post "/agent/:id/ask", to: "agent_chats#ask", as: :agent_chat_ask
     get "/catalogue", to: "catalogue#index", as: :catalogue
     get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
     post "/catalogue/types", to: "catalogue#create_type"

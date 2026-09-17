@@ -4,6 +4,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
   # Stands in for the engine, so a turn's bookkeeping is tested without calling a model.
   class FakeResponder
     attr_reader :calls
+    attr_accessor :options
 
     def initialize(chat, outcome:, reply: nil, turns: [], steps: [])
       @chat = chat
@@ -94,6 +95,27 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     Conversation::Runner.new(@conversation).run(question: "what is going on")
   end
 
+  test "a dashboard chat posts nothing, since the page reads the chat itself" do
+    personal = personal_chat
+    fake(reply: "The 14:02 deploy raised the pool size")
+    Slack::Client.expects(:start_stream).never
+    Slack::Client.expects(:post_message).never
+
+    Conversation::Runner.new(personal).run(question: "what changed today")
+
+    assert_equal "The 14:02 deploy raised the pool size",
+                 personal.reload.chat.messages.where(role: "assistant").sole.content
+  end
+
+  test "a dashboard answer is asked for without Slack markup, because the page shows it as written" do
+    personal = personal_chat
+    responder = fake(reply: "ok")
+
+    Conversation::Runner.new(personal).run(question: "what changed today")
+
+    assert_equal Conversation::Runner::PLAIN_OUTPUT_STYLE, responder.options[:output_style]
+  end
+
   test "a reply Slack refuses is logged rather than paid for twice" do
     fake(reply: "ok")
     Slack::Client.stubs(:stop_stream).raises(AdapterError, "channel_not_found")
@@ -103,13 +125,20 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
 
   private
 
+  # The fake reads the chat off @conversation, so a dashboard chat takes that place for the turn.
+  def personal_chat
+    @conversation = Conversation.start_personal!(
+      workspace: @workspace, member: workspace_memberships(:alice_workspace_one)
+    )
+  end
+
   def fake(outcome: FirefightAi::AgentLoop::STATUS_ANSWERED, reply: nil, turns: [], steps: [])
     responder = FakeResponder.new(
       -> { @conversation.reload.chat },
       outcome: FirefightAi::AgentLoop::Outcome.new(status: outcome, turns_used: turns.size, spent_cents: 0),
       reply: reply, turns: turns, steps: steps
     )
-    FirefightAi::Responder.stubs(:new).returns(responder)
+    FirefightAi::Responder.stubs(:new).with { |*, **options| responder.options = options }.returns(responder)
     responder
   end
 end

@@ -1,5 +1,9 @@
 # What the agent says while it is answering someone. The platform decides how it looks.
 class Conversation::Delivery
+  def self.for(conversation)
+    conversation.personal? ? Conversation::NullDelivery.new : new(conversation)
+  end
+
   def initialize(conversation)
     @conversation = conversation
   end

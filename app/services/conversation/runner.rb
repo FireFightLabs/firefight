@@ -2,6 +2,12 @@
 class Conversation::Runner
   NO_ROOM_LEFT = "I could not finish that one. Ask me something narrower, or start an investigation.".freeze
 
+  # The dashboard shows an answer as it was written, so there is no markup for the model to use.
+  PLAIN_OUTPUT_STYLE = <<~STYLE.freeze
+    Write plain sentences with no markup. No asterisks, no headers, no backticks.
+    Short paragraphs, and a list as one item per line starting with a dash.
+  STYLE
+
   def initialize(conversation)
     @conversation = conversation
   end
@@ -28,13 +34,19 @@ class Conversation::Runner
 
   private
 
-  def delivery = @delivery ||= Conversation::Delivery.new(@conversation)
+  def delivery = @delivery ||= Conversation::Delivery.for(@conversation)
 
   def responder
     @responder ||= FirefightAi::Responder.new(
       @conversation.workspace, inferable: @conversation.subject, member: @conversation.started_by,
-      output_style: WorkspaceAdapter.for(@conversation.workspace).ai_output_style
+      output_style: output_style
     )
+  end
+
+  def output_style
+    return PLAIN_OUTPUT_STYLE if @conversation.personal?
+
+    WorkspaceAdapter.for(@conversation.workspace).ai_output_style
   end
 
   # What the person reads. A turn that ran out of room says so rather than going quiet.

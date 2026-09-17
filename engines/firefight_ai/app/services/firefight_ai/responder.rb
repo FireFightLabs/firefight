@@ -55,7 +55,7 @@ module FirefightAi
     end
 
     def opening(question, context)
-      [ context.presence, "Question from the channel: #{question}" ].compact.join("\n\n")
+      [ context.presence, "Question: #{question}" ].compact.join("\n\n")
     end
   end
 end
