@@ -29,10 +29,9 @@ class AgentStreamTest < ApplicationSystemTestCase
 
     visit agent_chat_path(conversation)
     assert_text "Has checkout failed"
-    wait_for_socket
 
     delivery = Conversation::LiveDelivery.new(conversation)
-    delivery.thinking!
+    open_stream(delivery)
     delivery.step(key: "call_1", title: "Search similar", asked: [ [ "query", "checkout failing" ] ], status: :running)
     delivery.step(key: "call_1", title: "Search similar", asked: [ [ "query", "checkout failing" ] ], status: :done)
     delivery.step(key: "call_2", title: "Search incidents", asked: [ [ "query", "checkout" ] ], status: :running)
@@ -47,12 +46,12 @@ class AgentStreamTest < ApplicationSystemTestCase
 
   private
 
-  # Nothing broadcast before the page subscribes reaches it, and the page subscribes on its own time.
-  def wait_for_socket
+  # A subscription the server has accepted is not yet a stream it delivers on, and nothing sent in
+  # between arrives. The turn is announced until the page shows it, which proves the stream is live.
+  def open_stream(delivery)
     50.times do
-      return if ActionCable.server.connections.any? { |connection| connection.subscriptions.identifiers.any? }
-
-      sleep 0.1
+      delivery.thinking!
+      return if page.has_text?("Working", wait: 0.2)
     end
 
     flunk "the page never opened its socket"
