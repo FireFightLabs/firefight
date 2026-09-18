@@ -15,6 +15,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 interface AuthenticatedLayoutProps {
   children: ReactNode;
   title?: string;
+  // A page that is itself a workspace, like the agent chat, opens with the nav out of the way.
+  sidebarCollapsed?: boolean;
 }
 
 // Slack said the install is gone. Recorded data stays readable, so the page
@@ -58,10 +60,12 @@ function DisconnectedBanner() {
 export function AuthenticatedLayout({
   children,
   title = "Dashboard",
+  sidebarCollapsed = false,
 }: AuthenticatedLayoutProps) {
   return (
     <TooltipProvider>
       <SidebarProvider
+        defaultOpen={!sidebarCollapsed}
         style={
           {
             "--sidebar-width": "calc(var(--spacing) * 72)",
