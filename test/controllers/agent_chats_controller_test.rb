@@ -130,13 +130,13 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ older.id, newer.id ], @workspace.conversations.personal.in_reading_order.map(&:id)
   end
 
-  test "archiving takes a chat out of the list it came from" do
+  test "archiving from the list keeps the person where they were" do
     conversation = start_chat
 
-    patch agent_chat_url(conversation), params: { archived: true }
+    patch agent_chat_url(conversation), params: { archived: true }, headers: { "Referer" => agent_chats_url }
 
     assert conversation.reload.archived?
-    assert_redirected_to agent_chats_path
+    assert_redirected_to agent_chats_url
     assert_equal "Chat archived.", flash[:notice]
   end
 

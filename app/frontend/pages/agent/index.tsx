@@ -4,7 +4,6 @@ import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { ChatList } from "@/pages/agent/components/chat-list"
 import { Composer } from "@/pages/agent/components/composer"
 import { Thread } from "@/pages/agent/components/thread"
-import { ThreadHeader } from "@/pages/agent/components/thread-header"
 import { useAgentStream } from "@/pages/agent/hooks/use-agent-stream"
 import { agentChatsPath } from "@/lib/routes"
 import type { AgentChat, AgentChatIncident, AgentChatMessage } from "@/types/serializers"
@@ -32,12 +31,9 @@ export default function AgentPage() {
         <ChatList chats={conversations} currentId={conversation?.id} className={listClass} />
         <section className={`min-h-0 min-w-0 flex-1 flex-col ${threadClass}`}>
           {conversation && (
-            <>
-              <Link href={agentChatsPath()} className="px-4 pt-3 text-[13px] text-ink-2 md:hidden">
-                All chats
-              </Link>
-              <ThreadHeader chat={conversation} startedIso={messages?.[0]?.at} />
-            </>
+            <Link href={agentChatsPath()} className="px-4 pt-3 text-[13px] text-ink-2 md:hidden">
+              All chats
+            </Link>
           )}
           <Thread messages={messages ?? []} stream={stream} empty={!conversation} />
           <div className="border-t border-line p-3">

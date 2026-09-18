@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react"
 
 import LoadingState from "@/components/agent-ui/loading-state"
-import { AgentSteps } from "@/pages/agent/components/agent-steps"
 import { Message } from "@/pages/agent/components/message"
 import type { AgentStream } from "@/pages/agent/hooks/use-agent-stream"
+import { groupedTurns } from "@/pages/agent/lib/group-turns"
 import type { AgentChatMessage } from "@/types/serializers"
 
 interface ThreadProps {
@@ -35,18 +35,13 @@ export function Thread({ messages, stream, empty }: ThreadProps) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
       <div className="mx-auto flex max-w-3xl flex-col gap-5">
-        {messages.map((message) => (
-          <Message key={message.id} message={message} />
+        {groupedTurns(messages).map((turn) => (
+          <Message key={turn.id} turn={turn} />
         ))}
         {(stream.steps.length > 0 || stream.text.length > 0) && (
-          <div className="flex flex-col gap-2">
-            {stream.steps.length > 0 && <AgentSteps steps={stream.steps} />}
-            {stream.text.length > 0 && (
-              <p className="w-fit max-w-full whitespace-pre-wrap rounded-card bg-surface px-3 py-2 text-[13.5px] leading-relaxed text-ink shadow-hairline">
-                {stream.text}
-              </p>
-            )}
-          </div>
+          <Message
+            turn={{ kind: "agent", id: "live", steps: stream.steps, bodies: stream.text.length > 0 ? [ stream.text ] : [] }}
+          />
         )}
         {waiting && <LoadingState label="Working" />}
         <div ref={foot} />

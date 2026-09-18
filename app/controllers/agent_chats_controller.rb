@@ -58,26 +58,24 @@ class AgentChatsController < InertiaController
 
   def rename
     title = params[:title].to_s.strip
-    return redirect_to(agent_chat_path(conversation), alert: "A chat needs a name.") if title.blank?
+    return redirect_back_or_to(agent_chat_path(conversation), alert: "A chat needs a name.") if title.blank?
 
     conversation.rename!(title)
-    redirect_to agent_chat_path(conversation), notice: "Chat renamed."
+    redirect_back_or_to agent_chat_path(conversation), notice: "Chat renamed."
   end
 
   def pin
     pinned = ActiveModel::Type::Boolean.new.cast(params[:pinned])
     conversation.pin!(pinned)
 
-    redirect_to agent_chat_path(conversation), notice: pinned ? "Chat pinned." : "Chat unpinned."
+    redirect_back_or_to agent_chat_path(conversation), notice: pinned ? "Chat pinned." : "Chat unpinned."
   end
 
   def archive
     archived = ActiveModel::Type::Boolean.new.cast(params[:archived])
     conversation.archive!(archived)
 
-    return redirect_to agent_chats_path, notice: "Chat archived." if archived
-
-    redirect_to agent_chat_path(conversation), notice: "Chat back in the list."
+    redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat archived." : "Chat back in the list."
   end
 
   def conversation
