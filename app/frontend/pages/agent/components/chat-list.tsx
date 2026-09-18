@@ -26,7 +26,12 @@ export function ChatList({ chats, currentId, className }: ChatListProps) {
   const recent = chats.filter((chat) => !chat.pinned && !chat.archived)
   const archived = chats.filter((chat) => chat.archived)
 
+  // Already on an empty chat, there is nothing new to open.
   function startChat() {
+    if (!currentId) {
+      return
+    }
+
     router.visit(agentChatsPath())
   }
 
