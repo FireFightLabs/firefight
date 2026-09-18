@@ -36,8 +36,7 @@ export function ChatList({ chats, currentId, className }: ChatListProps) {
 
   return (
     <aside className={`min-h-0 flex-col gap-4 overflow-hidden border-r border-line px-2 py-3 ${className}`}>
-      <div className="flex items-center justify-between px-2">
-        <h2 className="text-[14px] font-medium text-ink">Chat</h2>
+      <div className="flex items-center justify-end px-2">
         <div className="flex items-center gap-0.5">
           <button
             type="button"
