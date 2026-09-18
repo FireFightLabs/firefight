@@ -8,7 +8,7 @@
    Below the tokens: their @theme mappings, spacing primitives, keyframes and StreamingText rules.
    Their site's own body, heading and nav styling is not here, and the element rules that were global
    in their file are scoped to .agent-ui. */
-@import "shadow-plugin/unprefixed";
+@import "shadow-plugin";
 
 .agent-ui {
   /* surfaces */
@@ -52,12 +52,13 @@
   --tooltip-muted: color-mix(in srgb, var(--card) 70%, var(--foreground));
   --tooltip-border: color-mix(in srgb, var(--foreground) 80%, var(--card));
 
-  /* shadows, theirs: a solid hairline ring over shadow-plugin's layered stacks */
+  /* shadows, theirs: a solid hairline ring over shadow-plugin's layered stacks. The prefixed build
+     is used so the app's own shadow-sm and friends keep their look everywhere else. */
   --shadow-hairline: 0 0 0 1px var(--line);
-  --shadow-btn: 0 0 0 1px var(--line-strong), var(--shadow-xs);
-  --shadow-card: 0 0 0 1px var(--line), var(--shadow-sm);
-  --shadow-raised: 0 0 0 1px var(--line), var(--shadow-md);
-  --shadow-overlay: 0 0 0 1px var(--line), var(--shadow-lg);
+  --shadow-btn: 0 0 0 1px var(--line-strong), var(--smooth-shadow-xs);
+  --shadow-card: 0 0 0 1px var(--line), var(--smooth-shadow-sm);
+  --shadow-raised: 0 0 0 1px var(--line), var(--smooth-shadow-md);
+  --shadow-overlay: 0 0 0 1px var(--line), var(--smooth-shadow-lg);
   --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.12);
 }
 
@@ -120,13 +121,13 @@
   --shadow-overlay: var(--shadow-overlay);
 
 
-  /* radii — chips 6, controls 8, cards 10, windows 14, pills 999 */
+  /* radii, chips 6, controls 8, cards 10, windows 14, pills 999 */
   --radius-chip: 6px;
   --radius-control: 8px;
   --radius-card: 10px;
   --radius-window: 14px;
 
-  /* easing — strong curves; built-ins are too weak */
+  /* easing, strong curves. The built-in ones are too weak */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-link: cubic-bezier(0.16, 1, 0.3, 1);
@@ -176,23 +177,23 @@
 }
 
 /* ── spacing primitives, theirs ─────────────────────────── */
-.primitive-card-pad {
+.agent-ui .primitive-card-pad {
   padding: 12px;
 }
 
-.primitive-card-bar {
+.agent-ui .primitive-card-bar {
   padding: 10px 12px;
 }
 
-.primitive-card-footer {
+.agent-ui .primitive-card-footer {
   padding: 10px;
 }
 
-.primitive-table-cell {
+.agent-ui .primitive-table-cell {
   padding: 10px 12px;
 }
 
-.primitive-icon-button {
+.agent-ui .primitive-icon-button {
   display: inline-flex;
   width: 28px;
   height: 28px;
@@ -298,15 +299,15 @@
 }
 
 /* ── StreamingText, theirs ──────────────────────────────── */
-.source-avatar {
+.agent-ui .source-avatar {
   box-shadow: 0 0 0 1px oklch(0.21 0.034 263.436 / 0.1);
 }
 
-.dark .source-avatar {
+.dark .agent-ui .source-avatar {
   box-shadow: 0 0 0 1px oklch(1 0 0 / 0.08);
 }
 
-.stream-caret {
+.agent-ui .stream-caret {
   display: inline-block;
   width: 2px;
   height: 1.05em;
@@ -318,16 +319,16 @@
   animation: agent-caret-blink 1s step-end infinite;
 }
 
-.stream-caret.is-streaming {
+.agent-ui .stream-caret.is-streaming {
   animation: none;
 }
 
 /* ── reduced motion, theirs ─────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .stream-caret {
+  .agent-ui .stream-caret {
     animation: none;
   }
-  .stream-tail {
+  .agent-ui .stream-tail {
     filter: none;
     -webkit-mask-image: none;
     mask-image: none;
@@ -335,9 +336,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  .agent-ui *,
+  .agent-ui *::before,
+  .agent-ui *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
