@@ -148,7 +148,7 @@
 
 @media (min-width: 48rem) {
   .agent-chat {
-    grid-template-columns: 20rem minmax(0, 1fr);
+    grid-template-columns: 16rem minmax(0, 1fr);
   }
 }
 
@@ -161,13 +161,14 @@
   /* The forms plugin paints a border, a background and a ring on every input and textarea in the
      app. In here the surrounding field is what the person sees, so the control itself carries none
      of it. Utilities still win over this, which is how a control opts back in. */
-  .agent-ui :is(input, textarea, select) {
+  /* The chat's search opens in a dialog outside .agent-ui, so it takes the same reset by its own name. */
+  :is(.agent-ui, .agent-search) :is(input, textarea, select) {
     background-color: transparent;
     border-width: 0;
     box-shadow: none;
   }
 
-  .agent-ui :is(input, textarea, select):focus {
+  :is(.agent-ui, .agent-search) :is(input, textarea, select):focus {
     border-width: 0;
     box-shadow: none;
     outline: none;

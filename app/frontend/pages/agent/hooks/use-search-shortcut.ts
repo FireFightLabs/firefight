@@ -1,7 +1,7 @@
-import { useEffect, type RefObject } from "react"
+import { useEffect } from "react"
 
-// Command or control K puts the cursor in the chat search, the way every list this size behaves.
-export function useSearchShortcut(field: RefObject<HTMLInputElement | null>) {
+// Command or control K opens chat search, the way it does in ChatGPT.
+export function useSearchShortcut(openSearch: () => void) {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key !== "k" || !(event.metaKey || event.ctrlKey)) {
@@ -9,11 +9,11 @@ export function useSearchShortcut(field: RefObject<HTMLInputElement | null>) {
       }
 
       event.preventDefault()
-      field.current?.focus()
+      openSearch()
     }
 
     window.addEventListener("keydown", onKey)
 
     return () => window.removeEventListener("keydown", onKey)
-  }, [ field ])
+  }, [ openSearch ])
 }

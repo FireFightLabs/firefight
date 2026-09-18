@@ -1,5 +1,5 @@
 import { router } from "@inertiajs/react"
-import { IconDots } from "@tabler/icons-react"
+import { IconDotsVertical } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
@@ -66,7 +66,7 @@ export function ChatRowActions({ chat, className }: ChatRowActionsProps) {
             aria-label={`Actions for ${chat.title}`}
             className={`flex size-6 items-center justify-center rounded-chip text-ink-3 transition-colors duration-100 hover:bg-hover-2 hover:text-ink ${className}`}
           >
-            <IconDots className="size-4" />
+            <IconDotsVertical className="size-4" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-36">

@@ -33,8 +33,8 @@ export function Thread({ messages, stream, empty }: ThreadProps) {
   const waiting = stream.state === "working" && stream.text.length === 0
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-      <div className="mx-auto flex max-w-3xl flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8">
+      <div className="mx-auto flex max-w-3xl flex-col gap-8">
         {groupedTurns(messages).map((turn) => (
           <Message key={turn.id} turn={turn} />
         ))}
