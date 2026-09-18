@@ -25,8 +25,8 @@ export default function AgentPage() {
   const threadClass = conversation ? "flex" : "hidden md:flex"
 
   return (
-    <AuthenticatedLayout title="Agent" sidebarCollapsed>
-      <Head title="Agent" />
+    <AuthenticatedLayout title="Chat" sidebarCollapsed>
+      <Head title="Chat" />
       <div className="agent-ui agent-chat">
         <ChatList chats={conversations} currentId={conversation?.id} className={listClass} />
         <section className={`min-h-0 min-w-0 flex-1 flex-col ${threadClass}`}>

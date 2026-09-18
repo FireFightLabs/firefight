@@ -73,7 +73,7 @@ interface SidebarNavItem {
 }
 
 interface SidebarNavSection {
-  label: string
+  label?: string
   items: SidebarNavItem[]
 }
 
@@ -136,14 +136,8 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
     agentAvailable,
   } = usePage<SharedProps>().props
 
-  const agentItem: SidebarNavItem = { title: "Agent", url: agentChatsPath(), icon: IconMessageChatbot }
-  const sectionsWithAgent = agentAvailable
-    ? navSections.map((section) =>
-        section.label === "Respond"
-          ? { ...section, items: [ ...section.items, agentItem ] }
-          : section,
-      )
-    : navSections
+  const chatSection: SidebarNavSection = { items: [ { title: "Chat", url: agentChatsPath(), icon: IconMessageChatbot } ] }
+  const sectionsWithAgent = agentAvailable ? [ chatSection, ...navSections ] : navSections
 
   // Only the cloud engine sets this path, so self-hosted builds never get Billing.
   const billingItem: SidebarNavItem = { title: "Billing", url: cloudBillingPath ?? "", icon: IconCreditCard }
