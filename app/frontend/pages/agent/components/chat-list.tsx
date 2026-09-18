@@ -27,7 +27,7 @@ export function ChatList({ chats, currentId, className }: ChatListProps) {
   const archived = chats.filter((chat) => chat.archived)
 
   function startChat() {
-    router.post(agentChatsPath())
+    router.visit(agentChatsPath())
   }
 
   function toggleArchived() {

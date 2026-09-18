@@ -23,8 +23,7 @@ export function Thread({ messages, stream, empty }: ThreadProps) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <p className="max-w-sm text-center text-[13px] text-ink-2">
-          Ask about an incident, what changed recently, or whether this has happened before. Start a
-          chat on the left.
+          Ask about an incident, what changed recently, or whether this has happened before.
         </p>
       </div>
     )

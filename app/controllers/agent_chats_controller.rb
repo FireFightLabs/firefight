@@ -4,6 +4,7 @@ class AgentChatsController < InertiaController
   RECENT = 50
   # What @ offers in the composer. The live ones are the ones anybody asks about.
   MENTIONABLE = 20
+  NOTHING_ASKED = "Say something first."
 
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS,
     read: %i[index show],
@@ -24,19 +25,22 @@ class AgentChatsController < InertiaController
     )
   end
 
+  # A chat only exists once something has been asked in it, so starting one never leaves an empty row.
   def create
-    chat = Conversation.start_personal!(workspace: current_workspace, member: current_membership)
+    return redirect_to(agent_chats_path, alert: NOTHING_ASKED) if question.blank?
 
-    redirect_to agent_chat_path(chat)
+    chat = Conversation.transaction do
+      Conversation.start_personal!(workspace: current_workspace, member: current_membership)
+        .tap { |started| started.ask!(question) }
+    end
+    reply_in(chat)
   end
 
   def ask
-    question = params[:question].to_s.strip
-    return redirect_to(agent_chat_path(conversation), alert: "Say something first.") if question.blank?
+    return redirect_to(agent_chat_path(conversation), alert: NOTHING_ASKED) if question.blank?
 
     conversation.ask!(question)
-    ConversationReplyJob.perform_later(conversation.id)
-    redirect_to agent_chat_path(conversation)
+    reply_in(conversation)
   end
 
   # Renaming, pinning and archiving are each one small change to the chat itself.
@@ -55,6 +59,13 @@ class AgentChatsController < InertiaController
   end
 
   private
+
+  def question = params[:question].to_s.strip
+
+  def reply_in(chat)
+    ConversationReplyJob.perform_later(chat.id)
+    redirect_to agent_chat_path(chat)
+  end
 
   def rename
     title = params[:title].to_s.strip

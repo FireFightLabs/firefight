@@ -1,7 +1,7 @@
 import { router } from "@inertiajs/react"
 
 import PromptBar from "@/components/agent-ui/prompt-bar"
-import { agentChatAskPath } from "@/lib/routes"
+import { agentChatAskPath, agentChatsPath } from "@/lib/routes"
 import type { AgentChatIncident } from "@/types/serializers"
 
 interface ComposerProps {
@@ -11,18 +11,17 @@ interface ComposerProps {
 }
 
 export function Composer({ conversationId, incidents, busy }: ComposerProps) {
+  // With no chat open, the first question is what starts one.
   function send(question: string) {
-    if (!conversationId || question.trim().length === 0) {
+    if (question.trim().length === 0) {
       return
     }
 
-    router.post(agentChatAskPath(conversationId), { question }, { preserveScroll: true })
+    const path = conversationId ? agentChatAskPath(conversationId) : agentChatsPath()
+    router.post(path, { question }, { preserveScroll: true })
   }
 
   function placeholder() {
-    if (!conversationId) {
-      return "Start a chat first"
-    }
     if (busy) {
       return "The agent is working"
     }

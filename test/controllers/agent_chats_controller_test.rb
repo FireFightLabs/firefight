@@ -49,13 +49,24 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Investigation.unavailable_reason(@workspace), flash[:alert]
   end
 
-  test "starting a chat opens it" do
+  test "the first question starts the chat and is answered in the background" do
     assert_difference -> { @workspace.conversations.personal.count }, 1 do
-      post agent_chats_url
+      post agent_chats_url, params: { question: "what changed today" }
     end
 
     conversation = @workspace.conversations.personal.find_by!(started_by: @member)
     assert_redirected_to agent_chat_path(conversation)
+    assert_equal "what changed today", conversation.title
+    assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id ])
+  end
+
+  test "a new chat with nothing asked is never created" do
+    assert_no_difference -> { @workspace.conversations.personal.count } do
+      post agent_chats_url, params: { question: "  " }
+    end
+
+    assert_redirected_to agent_chats_url
+    assert_equal "Say something first.", flash[:alert]
   end
 
   test "a question is answered in the background" do
@@ -189,7 +200,6 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
   private
 
   def start_chat
-    post agent_chats_url
-    @workspace.conversations.personal.find_by!(started_by: @member)
+    Conversation.start_personal!(workspace: @workspace, member: @member)
   end
 end
