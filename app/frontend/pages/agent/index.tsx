@@ -36,7 +36,7 @@ export default function AgentPage() {
             </Link>
           )}
           <Thread messages={messages ?? []} stream={stream} empty={!conversation} />
-          <div className="border-t border-line p-3">
+          <div className="p-3">
             <Composer
               conversationId={conversation?.id}
               incidents={incidents}
