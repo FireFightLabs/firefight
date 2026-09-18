@@ -241,7 +241,7 @@ capitalized. That is the accepted trade-off, not an oversight.
 - **Their tokens are scoped, not global.** `app/frontend/styles/agent-ui.css` carries their foundation with our palette behind it, under `.agent-ui` rather than `:root`. The page's outer div carries that class. Scoping matters: `--accent` means shadcn's hover grey app-wide and their blue inside the chat, and an unscoped block would have silently broken one of them.
 - **Everything under `entrypoints/` is a Vite entry.** vite-ruby treats each file there as its own bundle, so a stylesheet only imported by `application.css` lives in `styles/`.
 - **A turn arrives over Action Cable**, not by polling. `use-agent-stream.ts` subscribes to `ConversationChannel`, appends each `chunk` event to the text on screen, upserts `step` events by key, and on `answered` or `failed` reloads `messages` and `conversations` so the saved chat replaces the streamed copy. The streamed copy is hidden as soon as the last saved message is the agent's, so the two never render together.
-- **Laid out like ChatGPT**: it is "Chat" in the sidebar, in a section of its own. The app sidebar starts collapsed, then a slim chat list, then the open chat. The list shows Pinned and Chats as sections of one-line rows, with Archived folded away at the bottom, and each row's actions (rename, pin, archive, delete) in a vertical dots menu. Search is a spotlight dialog (`CommandDialog`), opened from the list or with Cmd/Ctrl K, over the 50 chats the controller sends. Answers are plain text, the person's messages are bubbles. Pinned and archived are timestamps on the conversation, not states invented in the page.
+- **Laid out like ChatGPT**: it is "Chat" under an "AI" section at the top of the sidebar. The app sidebar starts collapsed, then a slim chat list, then the open chat. The list shows Pinned and Chats as sections of one-line rows, with Archived folded away at the bottom, and each row's actions (rename, pin, archive, delete) in a vertical dots menu. Search is a spotlight dialog (`CommandDialog`), opened from the list or with Cmd/Ctrl K, over the 50 chats the controller sends. Answers are plain text, the person's messages are bubbles. Pinned and archived are timestamps on the conversation, not states invented in the page.
 - **A step reads the same live or saved.** `AgentStep` is the one shape: the socket sends it, the serializer returns it for a saved message, and `agent-steps.tsx` maps both onto their task row.
 - **Event names, step statuses, message roles and the channel name are generated**, from `lib/typescript_constants.rb`. The page never spells one of them out.
 
@@ -292,7 +292,7 @@ capitalized. That is the accepted trade-off, not an oversight.
 
 **Navigation:**
 - Sidebar sections: "Respond" (Incidents), "Configure" (Catalogue, Integrations, Settings)
-- Chat sits in its own unlabeled section at the top, and only when the AI SRE is available (`agentAvailable`)
+- "AI" (Chat) sits first, and only when the AI SRE is available (`agentAvailable`)
 - Active page determined by URL match
 - Inertia `<Link>` for SPA navigation, `<a>` only for external links
 - Route helpers from generated `@/lib/routes` (e.g., `dashboardPath()`, `incidentPath(id)`)

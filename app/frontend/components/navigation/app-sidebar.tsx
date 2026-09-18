@@ -73,7 +73,7 @@ interface SidebarNavItem {
 }
 
 interface SidebarNavSection {
-  label?: string
+  label: string
   items: SidebarNavItem[]
 }
 
@@ -136,7 +136,10 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
     agentAvailable,
   } = usePage<SharedProps>().props
 
-  const chatSection: SidebarNavSection = { items: [ { title: "Chat", url: agentChatsPath(), icon: IconMessageChatbot } ] }
+  const chatSection: SidebarNavSection = {
+    label: "AI",
+    items: [ { title: "Chat", url: agentChatsPath(), icon: IconMessageChatbot } ],
+  }
   const sectionsWithAgent = agentAvailable ? [ chatSection, ...navSections ] : navSections
 
   // Only the cloud engine sets this path, so self-hosted builds never get Billing.
