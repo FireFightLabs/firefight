@@ -15,16 +15,17 @@ class Conversation::Tools::StartInvestigation < RubyLLM::Tool
 
     blocked = Investigation.unavailable_reason(@conversation.workspace) || incident.investigation_blocked_reason
     return { error: blocked } if blocked
-    unless @conversation.asker_may_start_investigation?
-      return { error: "#{asker_label} is not allowed to start an investigation." }
-    end
 
-    started = InvestigationService.new(@conversation.workspace).start(
-      incident, trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @conversation.started_by
-    )
+    started = @conversation.start_investigation_as_asker do
+      InvestigationService.new(@conversation.workspace).start(
+        incident, trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @conversation.started_by
+      )
+    end
     return { error: "An investigation is already running for #{incident.identifier}." } unless started
 
     "Started. Tell the person it is running and that you will post what it finds here, then stop."
+  rescue AbilityGateway::Denied
+    { error: "#{asker_label} is not allowed to start an investigation." }
   end
 
   private

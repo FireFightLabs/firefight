@@ -128,12 +128,18 @@ class Conversation < ApplicationRecord
       AbilityGateway.permitted?(started_by, action, action_key, workspace, {}) && action.configured_for?({})
   end
 
-  # Starting a run spends money and posts in the channel, so the person asking needs the same
-  # permission they would need to type the command.
-  def asker_may_start_investigation?
-    asker_may?(
-      Ability::Action.system_key(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE)
+  # Starting a run spends money and posts in the channel, so the person asking goes through the same
+  # gateway, approval rules included, as they would typing the command. Anything short of a yes raises.
+  def start_investigation_as_asker(&)
+    action_key = Ability::Action.system_key(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE)
+    raise AskerDenied.new(action_key) unless started_by
+
+    AbilityGateway.authorize!(
+      principal: started_by, action_key: action_key, workspace: workspace,
+      context: { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: incident_id }, &
     )
+  rescue AbilityGateway::PendingApproval
+    raise AskerDenied.new(action_key)
   end
 
   # Two mentions in one thread can answer at once, so the higher count wins rather than the later write.
