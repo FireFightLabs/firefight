@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { usePage } from "@inertiajs/react";
 import { IconPlugConnectedX } from "@tabler/icons-react";
 
@@ -57,15 +57,43 @@ function DisconnectedBanner() {
   );
 }
 
+// Every page mounts its own layout, so this carries whether the nav was open across a visit. It is
+// null after a full load, when there was no previous page to animate from.
+let sidebarWasOpen: boolean | null = null;
+
+// A page that collapses the nav starts from where the last page left it and closes on the next frame,
+// so the nav slides shut rather than vanishing.
+function useSidebarOpen(collapsed: boolean) {
+  const [open, setOpen] = useState(collapsed ? sidebarWasOpen === true : true);
+
+  useEffect(() => {
+    if (!collapsed) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => setOpen(false));
+    return () => cancelAnimationFrame(frame);
+  }, [collapsed]);
+
+  useEffect(() => {
+    sidebarWasOpen = open;
+  }, [open]);
+
+  return [open, setOpen] as const;
+}
+
 export function AuthenticatedLayout({
   children,
   title = "Dashboard",
   sidebarCollapsed = false,
 }: AuthenticatedLayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useSidebarOpen(sidebarCollapsed);
+
   return (
     <TooltipProvider>
       <SidebarProvider
-        defaultOpen={!sidebarCollapsed}
+        open={sidebarOpen}
+        onOpenChange={setSidebarOpen}
         style={
           {
             "--sidebar-width": "calc(var(--spacing) * 72)",
