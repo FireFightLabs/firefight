@@ -1,5 +1,5 @@
 import { router } from "@inertiajs/react"
-import { IconChevronRight, IconPencilPlus, IconSearch } from "@tabler/icons-react"
+import { type Icon, IconChevronRight, IconPencilPlus, IconSearch } from "@tabler/icons-react"
 import { useCallback, useState } from "react"
 
 import { agentChatsPath } from "@/lib/routes"
@@ -36,27 +36,9 @@ export function ChatList({ chats, currentId, className }: ChatListProps) {
 
   return (
     <aside className={`min-h-0 flex-col gap-4 overflow-hidden border-r border-line px-2 py-3 ${className}`}>
-      <div className="flex items-center justify-end px-2">
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={openSearch}
-            aria-label="Search chats"
-            title="Search chats (⌘K)"
-            className="flex size-7 items-center justify-center rounded-control text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
-          >
-            <IconSearch className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={startChat}
-            aria-label="New chat"
-            title="New chat"
-            className="flex size-7 items-center justify-center rounded-control text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
-          >
-            <IconPencilPlus className="size-4" />
-          </button>
-        </div>
+      <div className="flex flex-col gap-0.5">
+        <ChatListAction icon={IconPencilPlus} label="New chat" onClick={startChat} />
+        <ChatListAction icon={IconSearch} label="Search chats" onClick={openSearch} />
       </div>
 
       <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
@@ -82,5 +64,24 @@ export function ChatList({ chats, currentId, className }: ChatListProps) {
 
       <ChatSearch chats={chats} open={searching} onOpenChange={setSearching} />
     </aside>
+  )
+}
+
+interface ChatListActionProps {
+  icon: Icon
+  label: string
+  onClick: () => void
+}
+
+function ChatListAction({ icon: ActionIcon, label, onClick }: ChatListActionProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-2 rounded-control py-1.5 pl-2.5 text-left text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
+    >
+      <ActionIcon className="size-4" />
+      {label}
+    </button>
   )
 }
