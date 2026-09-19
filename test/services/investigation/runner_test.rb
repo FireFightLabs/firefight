@@ -93,7 +93,7 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
 
     @investigation.reload
     assert_equal 2, @investigation.turns_used
-    assert_equal 9, @investigation.spent_cents
+    assert_equal 9, @investigation.spent_micros
   end
 
   test "the run stops when another worker has taken it over" do
@@ -104,14 +104,14 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
   end
 
   test "the engine is given what the run has already spent, so a resumed run cannot spend it twice" do
-    @investigation.update!(turns_used: 4, spent_cents: 120)
+    @investigation.update!(turns_used: 4, spent_micros: 1_200_000)
     investigator = fake(outcome: :answered, conclude: true)
 
     Investigation::Runner.new(@investigation).run
 
     budget = investigator.calls.sole[:budget]
     assert_equal 4, budget.turns_used
-    assert_equal 120, budget.spent_cents
+    assert_equal 1_200_000, budget.spent_micros
     assert_equal 400, budget.max_spend_cents
     assert_equal 10, budget.max_turns
   end
@@ -129,14 +129,14 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
 
   private
 
-  def turn(turns_used, spent_cents)
-    FirefightAi::AgentLoop::Turn.new(turns_used: turns_used, spent_cents: spent_cents)
+  def turn(turns_used, spent_micros)
+    FirefightAi::AgentLoop::Turn.new(turns_used: turns_used, spent_micros: spent_micros)
   end
 
   def fake(outcome:, turns: [], conclude: false)
     investigator = FakeInvestigator.new(
       @investigation,
-      outcome: FirefightAi::AgentLoop::Outcome.new(status: outcome, turns_used: turns.size, spent_cents: 0),
+      outcome: FirefightAi::AgentLoop::Outcome.new(status: outcome, turns_used: turns.size, spent_micros: 0),
       turns: turns, conclude: conclude
     )
     FirefightAi::Investigator.stubs(:new).returns(investigator)

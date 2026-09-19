@@ -70,23 +70,23 @@ class InvestigationTest < ActiveSupport::TestCase
     investigation = build_investigation
     investigation.claim!
 
-    assert_not Investigation.find(investigation.id).record_turn!(turns_used: 1, spent_cents: 1)
+    assert_not Investigation.find(investigation.id).record_turn!(turns_used: 1, spent_micros: 10_000)
   end
 
   test "a turn is written down only while this worker still holds the run" do
     investigation = build_investigation
     investigation.claim!
 
-    assert investigation.record_turn!(turns_used: 2, spent_cents: 7)
-    assert_equal 7, investigation.reload.spent_cents
+    assert investigation.record_turn!(turns_used: 2, spent_micros: 70_000)
+    assert_equal 70_000, investigation.reload.spent_micros
 
     travel Investigation::LEASE + 1.minute do
       Investigation.find(investigation.id).claim!
     end
 
-    assert_not investigation.record_turn!(turns_used: 3, spent_cents: 9),
+    assert_not investigation.record_turn!(turns_used: 3, spent_micros: 90_000),
                "the worker that lost the run must not write over the one that took it"
-    assert_equal 7, investigation.reload.spent_cents
+    assert_equal 70_000, investigation.reload.spent_micros
   end
 
   test "claiming a run that is over does nothing" do

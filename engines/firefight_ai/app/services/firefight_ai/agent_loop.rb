@@ -16,16 +16,18 @@ module FirefightAi
 
     MICROS_PER_CENT = 10_000
 
-    Budget = Data.define(:max_spend_cents, :max_turns, :turns_used, :spent_cents) do
-      def initialize(max_spend_cents:, max_turns:, turns_used: 0, spent_cents: 0) = super
+    # Spend is counted in micros, the ledger's unit, and never rounded, so a run of small replies costs
+    # what they cost. The cap is set in cents and compared in micros.
+    Budget = Data.define(:max_spend_cents, :max_turns, :turns_used, :spent_micros) do
+      def initialize(max_spend_cents:, max_turns:, turns_used: 0, spent_micros: 0) = super
     end
 
-    Turn = Data.define(:turns_used, :spent_cents)
+    Turn = Data.define(:turns_used, :spent_micros)
     # arguments are what the agent asked the tool for, so a caller can show the step in its own words.
     Step = Data.define(:key, :tool, :status, :arguments) do
       def initialize(key:, tool:, status:, arguments: {}) = super
     end
-    Outcome = Data.define(:status, :turns_used, :spent_cents)
+    Outcome = Data.define(:status, :turns_used, :spent_micros)
 
     # reply_is_answer is what separates a conversation from an investigation. In a chat the person
     # is waiting for a reply, in a run only a conclusion ends it.
@@ -38,7 +40,7 @@ module FirefightAi
       @canceled = canceled
       @inference = inference
       @turns = budget.turns_used
-      @spend_micros = budget.spent_cents * MICROS_PER_CENT
+      @spend_micros = budget.spent_micros
       @reminders = 0
       @reply_is_answer = reply_is_answer
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
@@ -87,7 +89,7 @@ module FirefightAi
       return STATUS_ANSWERED if @answered.call
       return STATUS_CANCELED if @canceled.call
       return STATUS_OUT_OF_TURNS if @turns >= @budget.max_turns
-      return nil if spent_cents < @budget.max_spend_cents
+      return nil if @spend_micros < @budget.max_spend_cents * MICROS_PER_CENT
       return STATUS_OUT_OF_BUDGET if @last_turn_offered
 
       # One last turn, which may go over the cap.
@@ -124,7 +126,7 @@ module FirefightAi
     def record_turn(message)
       @turns += 1
       @spend_micros += (message.cost&.total.to_f * 1_000_000).round
-      yield Turn.new(turns_used: @turns, spent_cents: spent_cents) if block_given?
+      yield Turn.new(turns_used: @turns, spent_micros: @spend_micros) if block_given?
     end
 
     # RubyLLM skips a call whose id already has a result, so a repeat pays for turns that run nothing.
@@ -153,8 +155,6 @@ module FirefightAi
     # The record's messages are rows. These are the ones the model sees.
     def messages = @chat.to_llm.messages
 
-    def spent_cents = (@spend_micros.to_f / MICROS_PER_CENT).ceil
-
-    def outcome(status) = Outcome.new(status: status, turns_used: @turns, spent_cents: spent_cents)
+    def outcome(status) = Outcome.new(status: status, turns_used: @turns, spent_micros: @spend_micros)
   end
 end

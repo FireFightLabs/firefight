@@ -59,13 +59,13 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
   end
 
   test "each turn is written down, so a long conversation cannot spend past its ceiling" do
-    fake(reply: "ok", turns: [ FirefightAi::AgentLoop::Turn.new(turns_used: 3, spent_cents: 11) ])
+    fake(reply: "ok", turns: [ FirefightAi::AgentLoop::Turn.new(turns_used: 3, spent_micros: 110_000) ])
 
     ask(@conversation, "what is going on")
 
     @conversation.reload
     assert_equal 3, @conversation.turns_used
-    assert_equal 11, @conversation.spent_cents
+    assert_equal 110_000, @conversation.spent_micros
   end
 
   test "a second question carries on in the same chat" do
@@ -181,7 +181,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
   def fake(outcome: FirefightAi::AgentLoop::STATUS_ANSWERED, reply: nil, turns: [], steps: [], pieces: [])
     responder = FakeResponder.new(
       -> { @conversation.reload.chat },
-      outcome: FirefightAi::AgentLoop::Outcome.new(status: outcome, turns_used: turns.size, spent_cents: 0),
+      outcome: FirefightAi::AgentLoop::Outcome.new(status: outcome, turns_used: turns.size, spent_micros: 0),
       reply: reply, turns: turns, steps: steps, pieces: pieces
     )
     FirefightAi::Responder.stubs(:new).with { |*, **options| responder.options = options }.returns(responder)

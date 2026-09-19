@@ -19,7 +19,7 @@ class Conversation::Runner
       on_step: method(:report_step),
       on_chunk: ->(text) { delivery.chunk(text) }
     ) do |turn|
-      @conversation.record_turn!(turns_used: turn.turns_used, spent_cents: turn.spent_cents)
+      @conversation.record_turn!(turns_used: turn.turns_used, spent_micros: turn.spent_micros)
     end
 
     delivery.answered!(reply_for(outcome, chat))
@@ -70,7 +70,7 @@ class Conversation::Runner
   def budget
     FirefightAi::AgentLoop::Budget.new(
       max_spend_cents: @conversation.max_spend_cents, max_turns: @conversation.max_turns,
-      turns_used: @conversation.turns_used, spent_cents: @conversation.spent_cents
+      turns_used: @conversation.turns_used, spent_micros: @conversation.spent_micros
     )
   end
 end

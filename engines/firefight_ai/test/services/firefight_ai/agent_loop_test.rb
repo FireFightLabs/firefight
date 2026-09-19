@@ -110,7 +110,7 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     outcome = run_loop(chat, budget: budget(max_spend_cents: 400))
 
     assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET, outcome.status
-    assert_equal 500, outcome.spent_cents
+    assert_equal 5_000_000, outcome.spent_micros
     assert_includes chat.messages.map(&:content), FirefightAi::AgentLoop::LAST_TURN
     assert_equal 2, chat.model_calls, "the last turn is one more model call, not a whole run"
   end
@@ -137,9 +137,17 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     chat = FakeChat.new([ tool_reply("call_1", cost: 0.01), tool_reply("call_2", cost: 0.02), llm_reply(content: "x") ])
 
     turns = []
-    run_loop(chat) { |turn| turns << [ turn.turns_used, turn.spent_cents ] }
+    run_loop(chat) { |turn| turns << [ turn.turns_used, turn.spent_micros ] }
 
-    assert_equal [ [ 1, 1 ], [ 2, 3 ] ], turns.first(2)
+    assert_equal [ [ 1, 10_000 ], [ 2, 30_000 ] ], turns.first(2)
+  end
+
+  test "small replies add up to what they cost, not a cent each" do
+    chat = FakeChat.new(Array.new(10) { |index| tool_reply("call_#{index}", cost: 0.003) } + [ llm_reply(content: "x") ])
+
+    outcome = run_loop(chat)
+
+    assert_equal 30_000, outcome.spent_micros
   end
 
   test "each tool the agent reaches for is reported as it runs and when it answers" do
@@ -183,17 +191,17 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
 
     assert_difference "Inference.count", 1 do
       outcome = run_loop(chat, reply_is_answer: true, on_chunk: ->(_text) { })
-      assert_equal 2, outcome.spent_cents
+      assert_equal 20_000, outcome.spent_micros
     end
   end
 
   test "a resumed run carries the turns and spend it already used" do
     chat = FakeChat.new([ tool_reply("call_1", cost: 0.01) ])
 
-    outcome = run_loop(chat, budget: budget(max_turns: 10, turns_used: 4, spent_cents: 12))
+    outcome = run_loop(chat, budget: budget(max_turns: 10, turns_used: 4, spent_micros: 123_456))
 
     assert_equal 5, outcome.turns_used
-    assert_equal 13, outcome.spent_cents
+    assert_equal 133_456, outcome.spent_micros
   end
 
   private
@@ -205,9 +213,9 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     )
   end
 
-  def budget(max_spend_cents: 400, max_turns: 500, turns_used: 0, spent_cents: 0)
+  def budget(max_spend_cents: 400, max_turns: 500, turns_used: 0, spent_micros: 0)
     FirefightAi::AgentLoop::Budget.new(
-      max_spend_cents: max_spend_cents, max_turns: max_turns, turns_used: turns_used, spent_cents: spent_cents
+      max_spend_cents: max_spend_cents, max_turns: max_turns, turns_used: turns_used, spent_micros: spent_micros
     )
   end
 

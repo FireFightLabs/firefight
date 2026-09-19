@@ -165,14 +165,12 @@ class Conversation < ApplicationRecord
   end
 
   # Two mentions in one thread can answer at once, so the higher count wins rather than the later write.
-  def record_turn!(turns_used:, spent_cents:)
+  def record_turn!(turns_used:, spent_micros:)
     self.class.where(id: id).update_all([
-      "turns_used = GREATEST(turns_used, ?), spent_cents = GREATEST(spent_cents, ?), updated_at = ?",
-      turns_used, spent_cents, Time.current
+      "turns_used = GREATEST(turns_used, ?), spent_micros = GREATEST(spent_micros, ?), updated_at = ?",
+      turns_used, spent_micros, Time.current
     ])
   end
-
-  def over_budget? = spent_cents >= max_spend_cents
 
   private
 
