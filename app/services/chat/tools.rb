@@ -5,18 +5,41 @@ module Chat::Tools
   STATE_NOT_CONNECTED = :not_connected
 
   Entry = Data.define(:name, :description, :state, :tool) do
-    # Covering more words beats repeating one, and words compare singular so severities matches severity.
+    # Each asked word counts once with its synonyms, so a tool covering more of the question wins, and the name weighs most.
     def score(query)
-      asked = terms(query)
+      asked = concepts(query)
       return 0 if asked.empty?
 
-      in_name = asked & terms(name)
-      covered = asked & (terms(name) + terms(description))
-      (covered.size * 10) + in_name.size
+      in_name = terms(name)
+      anywhere = in_name + terms(description)
+      (asked.count { |concept| concept.intersect?(anywhere) } * 10) + (asked.count { |concept| concept.intersect?(in_name) } * 5)
     end
 
-    def terms(text) = text.to_s.downcase.scan(/[a-z0-9]+/).map(&:singularize).to_set
+    def terms(text) = words(text).map(&:singularize).to_set
+
+    private
+
+    def concepts(query)
+      words(query).reject { |word| STOP_WORDS.include?(word) }.map(&:singularize).uniq
+        .map { |word| Set[word, *SYNONYMS.fetch(word, [])] }
+    end
+
+    def words(text) = text.to_s.downcase.scan(/[a-z0-9]+/)
   end
+
+  # Words that say nothing about which tool is wanted.
+  STOP_WORDS = %w[a an the to of for in on at and or is are be can could you i me my our we this that it with].to_set.freeze
+
+  # How people ask for an action, mapped to the words the tools use for it.
+  SYNONYMS = {
+    "create" => %w[declare open new start raise add], "open" => %w[declare create new start],
+    "start" => %w[declare open create begin], "raise" => %w[declare escalate], "lead" => %w[role assign],
+    "owner" => %w[role assign], "commander" => %w[role assign], "close" => %w[resolve cancel], "end" => %w[resolve],
+    "add" => %w[invite create upsert], "invite" => %w[add pull], "page" => %w[escalate],
+    "grant" => %w[give ability permission], "give" => %w[grant assign], "permission" => %w[ability grant],
+    "delete" => %w[remove revoke], "remove" => %w[delete revoke], "update" => %w[post upsert change edit],
+    "edit" => %w[update upsert change], "note" => %w[update post]
+  }.freeze
 
   # What a reader sees while the agent works. conclude and record_hypothesis are how it writes,
   # not what it looked at, so they are never shown.

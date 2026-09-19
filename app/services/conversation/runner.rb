@@ -59,7 +59,19 @@ class Conversation::Runner
 
   def seen = @seen ||= {}
 
+  # Who the agent acts for, so it can answer what they may do and say who else can.
   def context
+    [ asker_line, incident_line ].compact.join("\n")
+  end
+
+  def asker_line
+    asker = @turn.asker
+    return "You are acting for nobody known, so every tool will refuse." unless asker
+
+    "You are acting for #{asker.display_name}, whose role in this workspace is #{asker.role}. Owners and admins can change settings and permissions, members respond to incidents."
+  end
+
+  def incident_line
     incident = @conversation.incident
     return nil unless incident
 
