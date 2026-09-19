@@ -2,8 +2,9 @@
 class Conversation::Runner
   NO_ROOM_LEFT = "I could not finish that one. Ask me something narrower, or start an investigation.".freeze
 
-  def initialize(conversation)
+  def initialize(conversation, asker:)
     @conversation = conversation
+    @turn = Conversation::Turn.new(conversation, asker: asker)
   end
 
   def run
@@ -13,7 +14,7 @@ class Conversation::Runner
 
     outcome = responder.run(
       chat: chat,
-      tools: Conversation::Tools.for(@conversation, offer: ->(tools) { chat.with_tools(*tools) }),
+      tools: Conversation::Tools.for(@turn, offer: ->(tools) { chat.with_tools(*tools) }),
       context: context,
       budget: budget,
       on_step: method(:report_step),
@@ -32,7 +33,7 @@ class Conversation::Runner
 
   def responder
     @responder ||= FirefightAi::Responder.new(
-      @conversation.workspace, inferable: @conversation.subject, member: @conversation.started_by,
+      @conversation.workspace, inferable: @conversation.subject, member: @turn.asker,
       output_style: delivery.output_style
     )
   end
@@ -58,7 +59,19 @@ class Conversation::Runner
 
   def seen = @seen ||= {}
 
+  # Who the agent acts for, so it can answer what they may do and say who else can.
   def context
+    [ asker_line, incident_line ].compact.join("\n")
+  end
+
+  def asker_line
+    asker = @turn.asker
+    return "You are acting for nobody known, so every tool will refuse." unless asker
+
+    "You are acting for #{asker.display_name}, whose role in this workspace is #{asker.role}. Owners and admins can change settings and permissions, members respond to incidents."
+  end
+
+  def incident_line
     incident = @conversation.incident
     return nil unless incident
 

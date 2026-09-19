@@ -5,16 +5,17 @@ class Conversation::Asking
     conversation = Conversation.transaction do
       Conversation.start_personal!(workspace: workspace, member: member).tap { |started| started.ask!(question) }
     end
-    reply(conversation)
+    reply(conversation, member)
   end
 
-  def self.ask(conversation, question)
+  # The asker is who the turn acts as, which in a Slack thread can be someone other than whoever started it.
+  def self.ask(conversation, question, asker:)
     conversation.ask!(question)
-    reply(conversation)
+    reply(conversation, asker)
   end
 
-  def self.reply(conversation)
-    ConversationReplyJob.perform_later(conversation.id)
+  def self.reply(conversation, asker)
+    ConversationReplyJob.perform_later(conversation.id, asker&.id)
     conversation
   end
   private_class_method :reply

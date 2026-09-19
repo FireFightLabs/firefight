@@ -1,23 +1,45 @@
-# Everything the agent could reach, whoever is asking. A run or a conversation hands itself in, and
-# the grants on its account decide which entries come back callable.
+# Everything the agent could reach. The acting principal's permissions decide which entries are callable.
 module Chat::Tools
   STATE_READY = :ready
   STATE_NOT_GRANTED = :not_granted
   STATE_NOT_CONNECTED = :not_connected
 
   Entry = Data.define(:name, :description, :state, :tool) do
-    # Covering more words beats repeating one, and words compare singular so severities matches severity.
+    # Each asked word counts once with its synonyms, so a tool covering more of the question wins, and the name weighs most.
     def score(query)
-      asked = terms(query)
+      asked = concepts(query)
       return 0 if asked.empty?
 
-      in_name = asked & terms(name)
-      covered = asked & (terms(name) + terms(description))
-      (covered.size * 10) + in_name.size
+      in_name = terms(name)
+      anywhere = in_name + terms(description)
+      (asked.count { |concept| concept.intersect?(anywhere) } * 10) + (asked.count { |concept| concept.intersect?(in_name) } * 5)
     end
 
-    def terms(text) = text.to_s.downcase.scan(/[a-z0-9]+/).map(&:singularize).to_set
+    def terms(text) = words(text).map(&:singularize).to_set
+
+    private
+
+    def concepts(query)
+      words(query).reject { |word| STOP_WORDS.include?(word) }.map(&:singularize).uniq
+        .map { |word| Set[word, *SYNONYMS.fetch(word, [])] }
+    end
+
+    def words(text) = text.to_s.downcase.scan(/[a-z0-9]+/)
   end
+
+  # Words that say nothing about which tool is wanted.
+  STOP_WORDS = %w[a an the to of for in on at and or is are be can could you i me my our we this that it with].to_set.freeze
+
+  # How people ask for an action, mapped to the words the tools use for it.
+  SYNONYMS = {
+    "create" => %w[declare open new start raise add], "open" => %w[declare create new start],
+    "start" => %w[declare open create begin], "raise" => %w[declare escalate], "lead" => %w[role assign],
+    "owner" => %w[role assign], "commander" => %w[role assign], "close" => %w[resolve cancel], "end" => %w[resolve],
+    "add" => %w[invite create upsert], "invite" => %w[add pull], "page" => %w[escalate],
+    "grant" => %w[give ability permission], "give" => %w[grant assign], "permission" => %w[ability grant],
+    "delete" => %w[remove revoke], "remove" => %w[delete revoke], "update" => %w[post upsert change edit],
+    "edit" => %w[update upsert change], "note" => %w[update post]
+  }.freeze
 
   # What a reader sees while the agent works. conclude and record_hypothesis are how it writes,
   # not what it looked at, so they are never shown.
@@ -42,26 +64,27 @@ module Chat::Tools
   end
 
   def self.firefight_entries(agent_run)
-    resolved = granted(agent_run)
+    principal = agent_run.acting_principal
+    workspace = agent_run.workspace
+    keys = Mcp::Tools.all.to_h { |tool_class| [ tool_class, Ability::Action.system_key(*tool_class.authorization(workspace, {})) ] }
+    actions = Ability::Action.system_actions.where(key: keys.values).index_by(&:key)
 
-    Mcp::Tools.all.map do |tool_class|
-      resource, action = tool_class.authorization(agent_run.workspace, {})
-      action_key = Ability::Action.system_key(resource, action)
-      ready = resolved.action_keys.include?(action_key)
+    keys.map do |tool_class, action_key|
+      ready = principal.present? && principal.permitted_to?(actions[action_key], workspace)
       Entry.new(
         name: tool_class.name_value, description: tool_class.description_value.to_s,
         state: ready ? STATE_READY : STATE_NOT_GRANTED,
-        tool: (Firefight.new(agent_run, tool_class, action_key) if ready)
+        tool: (Firefight.new(agent_run, tool_class) if ready)
       )
     end
   end
 
   def self.connection_entries(agent_run)
-    principal = agent_run.agent_principal
-    resolved = granted(agent_run)
+    principal = agent_run.acting_principal
+    resolved = principal && granted(agent_run)
 
     Integration::Tool.in_workspace(agent_run.workspace).map do |tool|
-      ready = tool.callable_by?(principal, resolved)
+      ready = principal.present? && tool.callable_by?(principal, resolved)
       Entry.new(
         name: tool.model_facing_name, description: tool.description.to_s,
         state: ready ? STATE_READY : STATE_NOT_GRANTED,
@@ -80,6 +103,6 @@ module Chat::Tools
   end
 
   def self.granted(agent_run)
-    Ability::Resolver.resolve(agent_run.agent_principal, agent_run.workspace)
+    Ability::Resolver.resolve(agent_run.acting_principal, agent_run.workspace)
   end
 end

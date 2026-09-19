@@ -73,8 +73,12 @@ class Investigation < ApplicationRecord
   end
 
   # Runs as the agent, not the person, so a finding does not depend on who asked.
-  def agent_principal
+  def acting_principal
     SystemAgent.investigator
+  end
+
+  def refusal(action_key)
+    "Not allowed: this agent has no grant for #{action_key} in this workspace."
   end
 
   def live?

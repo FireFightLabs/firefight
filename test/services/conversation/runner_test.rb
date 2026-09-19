@@ -87,6 +87,16 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_match @incident.identifier, responder.calls.sole[:context]
   end
 
+  test "the agent is told who it acts for and their role, so it can say what they may do" do
+    responder = fake(reply: "ok")
+
+    ask(@conversation, "am I an admin")
+
+    context = responder.calls.sole[:context]
+    assert_match @conversation.started_by.display_name, context
+    assert_match "role in this workspace is #{@conversation.started_by.role}", context
+  end
+
   test "the question is written down before the model is asked, so the person sees their own words" do
     fake(reply: "ok")
 
@@ -168,7 +178,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
   # The question is written down by the asker, the way both entry points do it, and the job runs after.
   def ask(conversation, question)
     conversation.ask!(question)
-    Conversation::Runner.new(conversation).run
+    Conversation::Runner.new(conversation, asker: conversation.started_by).run
   end
 
   # The fake reads the chat off @conversation, so a dashboard chat takes that place for the turn.

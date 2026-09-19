@@ -20,7 +20,7 @@ class Investigation::ToolCall
     begin
       value = Chat::ToolCall.run!(
         workspace: investigation.workspace,
-        principal: investigation.agent_principal,
+        principal: investigation.acting_principal,
         action_key: action_key,
         params: params,
         context: investigation.ledger_context

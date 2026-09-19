@@ -40,8 +40,7 @@ class Conversation < ApplicationRecord
     return false unless member
 
     key = Ability::Action.system_key(Ability::Action::RESOURCE_CHATS, Ability::Action::ACTION_READ)
-    action = Ability::Action.lookup(key, member.workspace)
-    action.present? && AbilityGateway.permitted?(member, action, key, member.workspace, {})
+    member.permitted_to?(Ability::Action.lookup(key, member.workspace), member.workspace)
   end
 
   # Titles and messages are encrypted, so matching happens in Ruby, not SQL.
@@ -105,52 +104,6 @@ class Conversation < ApplicationRecord
     subject_id if subject_type == Incident.name
   end
 
-  # Answers in a channel are read by everyone there, so the agent's own account decides what it reads.
-  def agent_principal = SystemAgent.investigator
-
-  def tool_call(action_key:, params: {}, &block)
-    refuse_for_asker!(action_key) if personal?
-
-    Chat::ToolCall.run!(
-      workspace: workspace, principal: agent_principal, action_key: action_key,
-      params: params, context: ledger_context, &block
-    )
-  end
-
-  def ledger_context
-    {
-      source: AbilityGateway::SOURCE_CONVERSATION,
-      incident_id: incident_id,
-      triggered_by_label: started_by.try(:principal_label)
-    }
-  end
-
-  # Asks the gateway instead of running the call as the person, so the ledger gets one row for the agent's call.
-  def refuse_for_asker!(action_key)
-    raise AskerDenied.new(action_key) unless asker_may?(action_key)
-  end
-
-  def asker_may?(action_key)
-    return false unless started_by
-
-    action = Ability::Action.lookup(action_key, workspace)
-    action.present? &&
-      AbilityGateway.permitted?(started_by, action, action_key, workspace, {}) && action.configured_for?({})
-  end
-
-  # The person goes through the full gateway, approval rules included, as if typing the command.
-  def start_investigation_as_asker(&)
-    action_key = Ability::Action.system_key(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE)
-    raise AskerDenied.new(action_key) unless started_by
-
-    AbilityGateway.authorize!(
-      principal: started_by, action_key: action_key, workspace: workspace,
-      context: { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: incident_id }, &
-    )
-  rescue AbilityGateway::PendingApproval
-    raise AskerDenied.new(action_key)
-  end
-
   # Two mentions in one thread can answer at once, so the higher count wins rather than the later write.
   def record_turn!(turns_used:, spent_micros:)
     self.class.where(id: id).update_all([
@@ -168,7 +121,4 @@ class Conversation < ApplicationRecord
   ensure
     self.record_timestamps = true
   end
-
-  # Lets the tool tell the agent it was the person, not the agent, who lacked the grant.
-  class AskerDenied < AbilityGateway::Denied; end
 end

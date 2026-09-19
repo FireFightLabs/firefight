@@ -18,7 +18,10 @@ class ConversationReplyJob < ApplicationJob
     Conversation::Delivery.for(conversation).failed!
   end
 
-  def perform(conversation_id)
-    Conversation::Runner.new(Conversation.find(conversation_id)).run
+  # A job queued before the asker was passed along falls back to whoever started the conversation.
+  def perform(conversation_id, asker_id = nil)
+    conversation = Conversation.find(conversation_id)
+    asker = conversation.workspace.workspace_memberships.find_by(id: asker_id) || conversation.started_by
+    Conversation::Runner.new(conversation, asker: asker).run
   end
 end
