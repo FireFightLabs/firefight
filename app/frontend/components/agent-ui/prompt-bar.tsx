@@ -143,6 +143,7 @@ export default function PromptBar({
   dictation = true,
   busy = false,
   onSourceSearch,
+  sourceHint = "Type to search sources & files",
 }: {
   variant?: string;
   /** the self-running walkthrough; turn off when embedding in a real surface */
@@ -162,6 +163,8 @@ export default function PromptBar({
   busy?: boolean;
   /** @ asks the caller as the person types, and the caller answers through sources, unfiltered here */
   onSourceSearch?: (query: string) => void;
+  /** the line under the @ menu, naming what @ finds */
+  sourceHint?: string;
 }) {
   const pill = variant === "Pill";
   const [draft, setDraft] = useState("");
@@ -428,7 +431,7 @@ export default function PromptBar({
             </div>
           )}
           <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[11px] text-ink-3">
-            {menu === "at" ? "Type to search sources & files" : "Type to search commands"}
+            {menu === "at" ? sourceHint : "Type to search commands"}
           </div>
         </div>
       )}

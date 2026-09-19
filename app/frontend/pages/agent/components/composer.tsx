@@ -55,6 +55,7 @@ export function Composer({ conversationId, incidents, busy }: ComposerProps) {
         placeholder={placeholder()}
         onSend={send}
         onSourceSearch={search}
+        sourceHint="Type to search incidents"
       />
     </div>
   )
