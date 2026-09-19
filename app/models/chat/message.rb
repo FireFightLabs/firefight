@@ -5,7 +5,9 @@ class Chat::Message < ApplicationRecord
   encrypts :content, :thinking_text, :thinking_signature,
            :citations, :server_tool_calls, :raw_content, :raw_reasoning
 
+  ROLE_USER = "user"
   ROLE_ASSISTANT = "assistant"
+  READABLE_ROLES = [ ROLE_USER, ROLE_ASSISTANT ].freeze
 
   def interrupted_reply?
     role == ROLE_ASSISTANT && content.blank? && thinking_text.blank? && raw_content.blank? &&

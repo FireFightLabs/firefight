@@ -5,7 +5,21 @@ class Chat < ApplicationRecord
   belongs_to :workspace
   belongs_to :owner, polymorphic: true
 
+  # DISTINCT ON keeps one row per chat, so previews for a whole list load in one query.
+  has_one :last_readable_message,
+    -> {
+      where(role: Chat::Message::READABLE_ROLES)
+        .select("DISTINCT ON (chat_messages.chat_id) chat_messages.*")
+        .order("chat_messages.chat_id, chat_messages.created_at DESC")
+    },
+    class_name: "Chat::Message", inverse_of: false
+
   validate :owner_in_same_workspace
+
+  # Only the two sides of the conversation, not the system prompt or tool results.
+  def readable_messages
+    messages.where(role: Chat::Message::READABLE_ROLES).order(:created_at)
+  end
 
   # Records which model will run, without opening a connection to the provider.
   def self.open!(owner:, workspace:, model_choice:)

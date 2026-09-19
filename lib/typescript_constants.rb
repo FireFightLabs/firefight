@@ -45,6 +45,19 @@ module TypescriptConstants
       Export.new("ABILITY_ACTIONS", Ability::Action::ACTIONS, "AbilityAction"),
       Export.new("WEBHOOK_EVENTS", Webhook::SUBSCRIBABLE_EVENTS, "WebhookEvent"),
       Export.new("ABILITY_RISK_LEVELS", Ability::Action::RISK_LEVELS, "AbilityRiskLevel"),
+      Export.new("AGENT_STREAM_EVENTS", {
+        "THINKING" => Conversation::LiveDelivery::EVENT_THINKING, "STEP" => Conversation::LiveDelivery::EVENT_STEP,
+        "CHUNK" => Conversation::LiveDelivery::EVENT_CHUNK, "ANSWERED" => Conversation::LiveDelivery::EVENT_ANSWERED,
+        "FAILED" => Conversation::LiveDelivery::EVENT_FAILED
+      }, nil),
+      Export.new("AGENT_STEP_STATUSES", {
+        "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE
+      }, nil),
+      Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
+      Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
+      Export.new("CHAT_MESSAGE_ROLES", {
+        "USER" => Chat::Message::ROLE_USER, "ASSISTANT" => Chat::Message::ROLE_ASSISTANT
+      }, nil),
       Export.new("PRINCIPAL_KINDS", {
         "USER" => Ability::Principal::KIND_USER, "AGENT" => Ability::Principal::KIND_AGENT,
         "API_KEY" => Ability::Principal::KIND_API_KEY, "SYSTEM_AGENT" => Ability::Principal::KIND_SYSTEM_AGENT

@@ -24,8 +24,13 @@ SLACK_ENTRY_FILES = %w[
 
 SLACK_AUTH_FILES = %w[app/services/slack_authentication_service.rb].freeze
 
-plain_services = Dir.chdir(__dir__) { Dir.glob("app/services/*.rb") }.sort -
-                 DISPATCHER_FILES - SLACK_AUTH_FILES
+# Covers every folder under app/services except handlers, dispatchers and the integrations layer, so new folders are checked too.
+handler_and_layer_files = Dir.chdir(__dir__) do
+  Dir.glob("app/services/{commands,interactions,events,integrations}/**/*.rb")
+end.sort
+
+plain_services = Dir.chdir(__dir__) { Dir.glob("app/services/**/*.rb") }.sort -
+                 DISPATCHER_FILES - SLACK_AUTH_FILES - handler_and_layer_files
 
 api_controller_files = Dir.chdir(__dir__) { Dir.glob("app/controllers/api/**/*.rb") }.sort -
                        SLACK_ENTRY_FILES
@@ -39,7 +44,7 @@ component :slack_entry_controllers, in: SLACK_ENTRY_FILES
 component :dispatchers, in: DISPATCHER_FILES
 component :slack_auth, in: SLACK_AUTH_FILES
 component :handlers, in: "app/services/{commands,interactions,events}/**/*.rb"
-component :services, in: plain_services + %w[app/services/webhooks/**/*.rb app/services/catalogue/**/*.rb]
+component :services, in: plain_services
 component :serializers, in: "app/serializers/**/*.rb"
 
 # The only file allowed to use Flipper.
@@ -60,6 +65,7 @@ component :adapters, in: plain_adapters + %w[app/adapters/alert_providers/**/*.r
 component :slack_adapter, in: "app/adapters/slack/**/*.rb"
 component :integrations_layer,
           in: %w[app/adapters/integrations/**/*.rb app/services/integrations/**/*.rb]
+component :channels, in: "app/channels/**/*.rb"
 component :jobs, in: "app/jobs/**/*.rb"
 component :workflows, in: "app/workflows/**/*.rb"
 component :mcp, in: "app/mcp/**/*.rb"
@@ -88,6 +94,9 @@ handlers.cannot_use :controllers, :api_controllers, :serializers
 workflows.cannot_use :controllers, :handlers, :dispatchers, :serializers, :adapters
 serializers.cannot_use :adapters, :handlers, :dispatchers, :jobs
 jobs.cannot_use :controllers, :api_controllers, :serializers
+
+channels.cannot_use :controllers, :api_controllers, :handlers, :dispatchers, :adapters, :slack_adapter,
+                    :serializers, :jobs, :mcp
 
 # Controller vocabulary stays in controllers.
 models.cannot_call :render, :redirect_to, :params, :session, :cookies, :flash, receiver: :none

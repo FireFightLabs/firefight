@@ -1,0 +1,268 @@
+/* Beautiful UI's foundation with our colours, scoped to .agent-ui because the app's --accent means something else. */
+@import "shadow-plugin";
+
+.agent-ui {
+  /* surfaces */
+  --page: var(--background);
+  --canvas: var(--background);
+  --surface: var(--card);
+  --inset: var(--secondary);
+  --hover: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --hover-2: color-mix(in srgb, var(--foreground) 7%, transparent);
+
+  /* ink ramp */
+  --ink: var(--foreground);
+  --ink-2: var(--muted-foreground);
+  --ink-3: color-mix(in srgb, var(--muted-foreground) 70%, var(--card));
+
+  /* borders */
+  --line: var(--border);
+  --line-strong: color-mix(in srgb, var(--border) 70%, var(--foreground) 12%);
+  --line-soft: color-mix(in srgb, var(--border) 55%, var(--card));
+  --grid-line: color-mix(in srgb, var(--line) 78%, transparent);
+  --field: var(--secondary);
+  --stripe: color-mix(in srgb, var(--foreground) 7%, transparent);
+  --stripe-bg: var(--secondary);
+
+  /* accent */
+  --accent: var(--primary);
+  --accent-ink: var(--primary-foreground);
+  --accent-tint: color-mix(in srgb, var(--primary) 12%, var(--card));
+
+  /* semantic */
+  --green: var(--chart-3);
+  --green-tint: color-mix(in srgb, var(--chart-3) 12%, var(--card));
+  --orange: var(--chart-4);
+  --orange-tint: color-mix(in srgb, var(--chart-4) 14%, var(--card));
+  --red: var(--destructive);
+  --red-tint: color-mix(in srgb, var(--destructive) 12%, var(--card));
+
+  /* overlays */
+  --tooltip-bg: var(--foreground);
+  --tooltip-fg: var(--card);
+  --tooltip-muted: color-mix(in srgb, var(--card) 70%, var(--foreground));
+  --tooltip-border: color-mix(in srgb, var(--foreground) 80%, var(--card));
+
+  /* The prefixed shadow build, so the app's own shadow-sm and friends keep their look elsewhere. */
+  --shadow-hairline: 0 0 0 1px var(--line);
+  --shadow-btn: 0 0 0 1px var(--line-strong), var(--smooth-shadow-xs);
+  --shadow-card: 0 0 0 1px var(--line), var(--smooth-shadow-sm);
+  --shadow-raised: 0 0 0 1px var(--line), var(--smooth-shadow-md);
+  --shadow-overlay: 0 0 0 1px var(--line), var(--smooth-shadow-lg);
+  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.12);
+}
+
+.dark .agent-ui {
+  --hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --hover-2: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --ink-3: color-mix(in srgb, var(--muted-foreground) 70%, var(--background));
+  --line-soft: color-mix(in srgb, var(--border) 55%, var(--background));
+  --stripe: oklch(1 0 0 / 0.055);
+  --accent-tint: color-mix(in srgb, var(--primary) 22%, var(--card));
+  --green-tint: color-mix(in srgb, var(--chart-3) 22%, var(--card));
+  --orange-tint: color-mix(in srgb, var(--chart-4) 22%, var(--card));
+  --red-tint: color-mix(in srgb, var(--destructive) 22%, var(--card));
+  --tooltip-bg: var(--card);
+  --tooltip-fg: var(--foreground);
+
+  --shadow-hairline: 0 0 0 1px var(--line);
+  --shadow-btn: 0 0 0 1px oklch(1 0 0 / 0.1), 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-card:
+    0 0 0 1px oklch(1 0 0 / 0.11), 0 1px 2px oklch(0 0 0 / 0.2),
+    0 2px 6px oklch(0 0 0 / 0.2);
+  --shadow-raised:
+    0 0 0 1px oklch(1 0 0 / 0.13), 0 2px 10px oklch(0 0 0 / 0.22);
+  --shadow-overlay:
+    0 0 0 1px oklch(1 0 0 / 0.15), 0 8px 28px oklch(0 0 0 / 0.34);
+  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.4);
+}
+
+@theme inline {
+  /* colors */
+  --color-page: var(--page);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-inset: var(--inset);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-hover: var(--hover);
+  --color-hover-2: var(--hover-2);
+  --color-field: var(--field);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-tint: var(--accent-tint);
+  --color-green: var(--green);
+  --color-green-tint: var(--green-tint);
+  --color-orange: var(--orange);
+  --color-orange-tint: var(--orange-tint);
+  --color-red: var(--red);
+  --color-red-tint: var(--red-tint);
+
+  /* shadows */
+  --shadow-hairline: var(--shadow-hairline);
+  --shadow-btn: var(--shadow-btn);
+  --shadow-inset-field: var(--shadow-inset-field);
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
+
+  /* radii */
+  --radius-chip: 6px;
+  --radius-control: 8px;
+  --radius-card: 10px;
+  --radius-window: 14px;
+
+  /* easing */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-link: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The negative margin cancels the dashboard's top padding, since the chat fills the page to the edge. */
+.agent-chat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: calc(100dvh - var(--header-height));
+  margin-top: -1.5rem;
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+}
+
+@media (min-width: 48rem) {
+  .agent-chat {
+    grid-template-columns: 16rem minmax(0, 1fr);
+  }
+}
+
+.agent-chat > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+@layer base {
+  /* Undoes the forms plugin, since the chat draws its own fields. Search opens outside .agent-ui, so it is named too. */
+  :is(.agent-ui, .agent-search) :is(input, textarea, select) {
+    background-color: transparent;
+    border-width: 0;
+    box-shadow: none;
+  }
+
+  :is(.agent-ui, .agent-search) :is(input, textarea, select):focus {
+    border-width: 0;
+    box-shadow: none;
+    outline: none;
+  }
+}
+
+.agent-ui :is(button:not([disabled]):not([aria-disabled="true"]), label:has(input), a) {
+  cursor: pointer;
+}
+
+.agent-ui :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.agent-ui :is(input, textarea, select, [contenteditable]):focus-visible {
+  outline: none;
+}
+
+@keyframes shimmer-text {
+  from {
+    background-position: 150% center;
+  }
+  to {
+    background-position: -50% center;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes eq-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pixel-on {
+  0%, 100% {
+    opacity: 0.15;
+  }
+  18%, 42% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 0.15;
+  }
+}
+
+/* The typography plugin's colours from the chat's tokens, which already follow dark mode. */
+.agent-ui .agent-answer {
+  --tw-prose-body: var(--ink);
+  --tw-prose-headings: var(--ink);
+  --tw-prose-bold: var(--ink);
+  --tw-prose-links: var(--accent);
+  --tw-prose-code: var(--ink);
+  --tw-prose-pre-code: var(--ink);
+  --tw-prose-pre-bg: var(--inset);
+  --tw-prose-bullets: var(--ink-3);
+  --tw-prose-counters: var(--ink-3);
+  --tw-prose-quotes: var(--ink-2);
+  --tw-prose-quote-borders: var(--line);
+  --tw-prose-hr: var(--line);
+  --tw-prose-th-borders: var(--line);
+  --tw-prose-td-borders: var(--line-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-ui *,
+  .agent-ui *::before,
+  .agent-ui *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

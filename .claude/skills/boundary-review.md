@@ -11,7 +11,7 @@ ArchSpec proves the named boundaries (which file may reference which constant). 
 
 1. `git diff main...HEAD --stat`, then read every changed file under `app/`, `engines/`, `lib/`, `db/migrate/`, `config/`, `app/frontend/` in full.
 2. Work through the checklist. For each hit, name the file and line and say which layer the code belongs in.
-3. Fix what you found, or say in the PR body exactly what you left and why. Silence reads as complete.
+3. Fix what you found. Anything you leave gets one line in the PR body saying what and why, since silence reads as complete. The report itself stays out of the PR.
 4. Run `bundle exec archspec check` and `bin/ci`. A green ArchSpec with hits from this list is not green.
 
 ## Platform containment
@@ -59,4 +59,4 @@ Slack handlers, the API, MCP, and the dashboard normalize input and call shared 
 
 ## Report
 
-End with one list: `file:line`, the rule it breaks, what you did about it. If the list is empty say "boundary review: nothing found" so the reader knows it ran.
+End with one list: `file:line`, the rule it breaks, what you did about it. If the list is empty say "boundary review: nothing found" so the reader knows it ran. This report is for the person you are working with, not for the PR body.

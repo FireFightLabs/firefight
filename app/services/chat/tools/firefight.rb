@@ -24,6 +24,8 @@ class Chat::Tools::Firefight < RubyLLM::Tool
     @agent_run.tool_call(action_key: @action_key, params: arguments.transform_keys(&:to_s)) do
       text_of(@tool_class.perform(workspace: @agent_run.workspace, args: arguments))
     end
+  rescue Conversation::AskerDenied
+    "Not allowed: the person you are answering cannot read #{@action_key} in this workspace. Say so, and carry on with what you can reach."
   rescue AbilityGateway::Denied
     "Not allowed: this agent has no grant for #{@action_key} in this workspace."
   rescue AbilityGateway::PendingApproval

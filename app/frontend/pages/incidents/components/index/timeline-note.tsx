@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import type { TimelineEvent } from "@/pages/incidents/types"
 import { dismissIncidentEventPath } from "@/lib/routes"
 import { afterMutation } from "@/pages/incidents/lib/after-mutation"

@@ -35,9 +35,11 @@ class WorkspaceMembership < ApplicationRecord
     admin_role? || owner_role?
   end
 
-  # Responding to an incident needs no grant, from Slack, a personal token or
-  # MCP alike. Configuring the workspace stays admin territory.
-  PARTICIPATION = { Ability::Action::RESOURCE_INCIDENTS => [ Ability::Action::ACTION_CREATE, Ability::Action::ACTION_UPDATE ].freeze }.freeze
+  # Responding to an incident and tidying your own chats need no grant on any surface. Configuring the workspace stays admin territory.
+  PARTICIPATION = {
+    Ability::Action::RESOURCE_INCIDENTS => [ Ability::Action::ACTION_CREATE, Ability::Action::ACTION_UPDATE ].freeze,
+    Ability::Action::RESOURCE_CHATS => [ Ability::Action::ACTION_UPDATE, Ability::Action::ACTION_DELETE ].freeze
+  }.freeze
 
   # Admins hold every catalogued ability including integration tools, since enabling one on a
   # connection is already the deliberate step. For members anything reaching another system stays an explicit grant.

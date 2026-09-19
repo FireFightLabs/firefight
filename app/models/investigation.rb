@@ -114,12 +114,12 @@ class Investigation < ApplicationRecord
     }
   end
 
-  def record_turn!(turns_used:, spent_cents:)
+  def record_turn!(turns_used:, spent_micros:)
     return false if @lease_token.blank?
 
     self.class.where(id: id, status: STATUS_RUNNING, lease_token: @lease_token)
       .update_all(
-        turns_used: turns_used, spent_cents: spent_cents,
+        turns_used: turns_used, spent_micros: spent_micros,
         lease_until: LEASE.from_now, updated_at: Time.current
       ) > 0
   end

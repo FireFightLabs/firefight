@@ -37,7 +37,7 @@ Block form wraps execution. Handle form returns an `Authorization` the caller fi
 | Principal | Implicit authority |
 |---|---|
 | Admin or owner membership | every catalogued action, tool actions included |
-| Member membership | system reads outside `ADMIN_ONLY_RESOURCES`, plus `incidents.create` and `incidents.update` |
+| Member membership | system reads outside `ADMIN_ONLY_RESOURCES`, plus `incidents.create`, `incidents.update`, `chats.update` and `chats.delete` |
 | Personal token / OAuth connection | exactly what that human holds |
 | Service key | nothing, explicit grants only |
 | `Agent` | nothing, explicit grants only |
@@ -46,7 +46,7 @@ An `Agent` row is created under **Gateway → Agents**, which mints its first to
 
 Enabling a capability **is** the admin's deliberate decision, so it takes effect without a second grant step. The rule that must not bend: **machines never inherit a human's reach.** A service key or agent reaches an external system only through a grant someone created for it.
 
-**Incident participation is member-level authority**, because responding to an incident is what a member is for, and it has to read the same on every surface — a responder closing an incident from Slack, from the API with a personal token, and through MCP is one person doing one thing. `WorkspaceMembership::PARTICIPATION` is the whole list. Configuring the workspace stays admin territory. This is deliberately *implicit* rather than a grant every workspace would have to hand out: making it revocable would mean deny-grants, and a permission system with a deny list stops being readable.
+**Incident participation is member-level authority**, because responding to an incident is what a member is for, and it has to read the same on every surface — a responder closing an incident from Slack, from the API with a personal token, and through MCP is one person doing one thing. `WorkspaceMembership::PARTICIPATION` is the whole list. It also holds `chats.update` and `chats.delete`, since a person's chats with the agent are theirs to rename, pin, archive and delete. Asking the agent in a chat is `investigations.create`, not a chat permission, because it spends money. Configuring the workspace stays admin territory. This is deliberately *implicit* rather than a grant every workspace would have to hand out: making it revocable would mean deny-grants, and a permission system with a deny list stops being readable.
 
 `Ability::Action::ADMIN_ONLY_RESOURCES` (integrations, api_keys, permissions, workspace) are the controls that decide access itself. Their actions exist as system rows so the gateway and the ledger treat them like everything else, but `Ability::Grant`, `Ability::RoleAction` and the API key matrix refuse them, `grantable_actions` hides them, and a member is refused even the read. Only admin access reaches them, on every surface.
 

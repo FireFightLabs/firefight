@@ -26,7 +26,7 @@ import {
 import { AddSourceDialog } from "@/pages/settings/components/alert-sources/add-source-dialog"
 import { EditSourceDialog } from "@/pages/settings/components/alert-sources/edit-source-dialog"
 import { LastEventCell } from "@/pages/settings/components/alert-sources/last-event-cell"
-import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { RowActions } from "@/pages/settings/components/row-actions"
 
 export function AlertSourcesTab({

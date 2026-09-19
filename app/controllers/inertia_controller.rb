@@ -13,11 +13,18 @@ class InertiaController < ApplicationController
       availableWorkspaces: current_user ? CurrentWorkspaceSerializer.many(current_user.workspaces.order(:name)) : [],
       currentUserIsAdmin: current_membership&.admin_access? || false,
       currentUserCan: current_membership ? manageable_resources : {},
-      pendingApprovalsCount: current_workspace ? current_workspace.ability_approvals.pending.count : 0
+      pendingApprovalsCount: current_workspace ? current_workspace.ability_approvals.pending.count : 0,
+      agentAvailable: agent_available?
     }
   end
 
   private
+
+  def agent_available?
+    return false unless current_workspace && Investigation.available_for?(current_workspace)
+
+    Conversation.readable_by?(current_membership)
+  end
 
   # One flag per resource, so a page offers exactly the controls the gateway would admit.
   def manageable_resources

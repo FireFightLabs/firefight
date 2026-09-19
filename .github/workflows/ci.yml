@@ -113,6 +113,16 @@ jobs:
         with:
           bundler-cache: true
 
+      # The run includes the system tests, which render the real page.
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
       - name: Run tests
         env:
           RAILS_ENV: test
@@ -151,6 +161,16 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
+
+      # A system test renders the real page, so the assets have to be buildable.
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
 
       - name: Run System Tests
         env:

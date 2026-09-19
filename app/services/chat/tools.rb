@@ -6,23 +6,35 @@ module Chat::Tools
   STATE_NOT_CONNECTED = :not_connected
 
   Entry = Data.define(:name, :description, :state, :tool) do
-    def matches?(query)
-      words = query.to_s.downcase.scan(/[a-z0-9]+/)
-      return false if words.empty?
+    # Covering more words beats repeating one, and words compare singular so severities matches severity.
+    def score(query)
+      asked = terms(query)
+      return 0 if asked.empty?
 
-      haystack = "#{name} #{description}".downcase
-      words.any? { |word| haystack.include?(word) }
+      in_name = asked & terms(name)
+      covered = asked & (terms(name) + terms(description))
+      (covered.size * 10) + in_name.size
     end
+
+    def terms(text) = text.to_s.downcase.scan(/[a-z0-9]+/).map(&:singularize).to_set
   end
 
   # What a reader sees while the agent works. conclude and record_hypothesis are how it writes,
   # not what it looked at, so they are never shown.
   INTERNAL = %w[conclude record_hypothesis find_tools].freeze
 
-  def self.step_title(tool_name)
+  HEADLINE_ARGUMENTS = %w[query name identifier title].freeze
+  ASKED_LIMIT = 60
+
+  Step = Data.define(:title, :headline, :asked)
+
+  # nil for the agent's own bookkeeping, which is never shown.
+  def self.step(tool_name, arguments)
     return nil if tool_name.blank? || INTERNAL.include?(tool_name.to_s)
 
-    tool_name.to_s.tr("_", " ").humanize
+    asked = arguments.to_h.filter_map { |name, value| [ name.to_s, value.to_s.truncate(ASKED_LIMIT) ] if value.present? }
+    headline = HEADLINE_ARGUMENTS.filter_map { |wanted| asked.assoc(wanted)&.last }.first.to_s
+    Step.new(title: tool_name.to_s.tr("_", " ").humanize, headline: headline, asked: asked)
   end
 
   def self.catalog(agent_run)

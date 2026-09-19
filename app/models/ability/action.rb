@@ -31,6 +31,8 @@ module Ability
     # Its own resource. An investigation spends tokens and posts in the channel,
     # which updating an incident does not.
     RESOURCE_INVESTIGATIONS = "investigations"
+    # A person's own chats. Asking in one is investigations.create.
+    RESOURCE_CHATS = "chats"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
@@ -42,7 +44,7 @@ module Ability
       RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
-      RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS
+      RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -62,6 +64,7 @@ module Ability
       RESOURCE_INCIDENT_ROLES => "Incident Roles",
       RESOURCE_INCIDENT_TRANSCRIPTS => "Incident Transcripts",
       RESOURCE_INVESTIGATIONS => "Investigations",
+      RESOURCE_CHATS => "Chats",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",

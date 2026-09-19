@@ -15,6 +15,7 @@ import {
   IconBellRinging,
   IconKey,
   IconListDetails,
+  IconMessageChatbot,
   IconPlug,
   IconUrgent,
   IconUsers,
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/sidebar"
 import { SharedProps } from "@/types"
 import {
+  agentChatsPath,
   cataloguePath,
   dashboardPath,
   integrationsPath,
@@ -131,17 +133,24 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
     cloudBillingPath,
     currentUserIsAdmin,
     pendingApprovalsCount,
+    agentAvailable,
   } = usePage<SharedProps>().props
+
+  const chatSection: SidebarNavSection = {
+    label: "AI",
+    items: [ { title: "Chat", url: agentChatsPath(), icon: IconMessageChatbot } ],
+  }
+  const sectionsWithAgent = agentAvailable ? [ chatSection, ...navSections ] : navSections
 
   // Only the cloud engine sets this path, so self-hosted builds never get Billing.
   const billingItem: SidebarNavItem = { title: "Billing", url: cloudBillingPath ?? "", icon: IconCreditCard }
   const sectionsWithBilling = cloudBillingPath
-    ? navSections.map((section) =>
+    ? sectionsWithAgent.map((section) =>
         section.label === "Team"
           ? { ...section, items: [ ...section.items, billingItem ] }
           : section,
       )
-    : navSections
+    : sectionsWithAgent
 
   const sectionsWithBadges = sectionsWithBilling.map((section) =>
     section.label === "Gateway"

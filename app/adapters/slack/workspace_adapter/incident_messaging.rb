@@ -379,8 +379,25 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     Do not use markdown headers (#). Use *bold text* instead.
   STYLE
 
+  # Slack renders streamed text as markdown, not mrkdwn, so bold needs two asterisks.
+  AI_STREAM_OUTPUT_STYLE = <<~STYLE
+    Use markdown: **bold**, _italic_, bullet points, and `code` where appropriate.
+    Do not use markdown headers (#). Use **bold text** instead.
+  STYLE
+
   def ai_output_style
     AI_OUTPUT_STYLE
+  end
+
+  def ai_stream_output_style
+    AI_STREAM_OUTPUT_STYLE
+  end
+
+  # Slack allows about one append a second.
+  AGENT_STREAM_CADENCE = { interval: 1.second, max_chars: 256 }.freeze
+
+  def agent_stream_cadence
+    AGENT_STREAM_CADENCE
   end
 
   def post_ai_response(channel_id:, incident:, answer:)
@@ -393,7 +410,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: answer, blocks: blocks)
   end
 
-  STEP_STATUSES = { running: "in_progress", done: "complete", failed: "error" }.freeze
+  STEP_STATUSES = { running: "in_progress", done: "complete" }.freeze
 
   def post_investigation_started(channel_id:, incident:, started_by:)
     blocks = Slack::Messages::InvestigationRun.started(incident: incident, started_by: started_by)
@@ -423,16 +440,29 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     translate_errors do
       Slack::Client.append_stream(
         workspace: @workspace, channel: channel_id, ts: answer_id,
-        chunks: [ {
-          type: "task_update",
-          task: { task_id: key, title: title, status: STEP_STATUSES.fetch(status) }
-        } ]
+        chunks: [ { type: "task_update", id: key, title: title, status: STEP_STATUSES.fetch(status) } ]
       )
       { success: true }
     end
   rescue AdapterError => error
     Rails.logger.info("slack.agent_step.dropped error=#{error.class.name} message=#{error.message}")
     { success: true }
+  end
+
+  # A stopped or timed out stream refuses appends, so the caller falls back to posting the whole answer.
+  def append_agent_text(channel_id:, answer_id:, text:)
+    return { streaming: false } if answer_id.blank?
+
+    translate_errors do
+      Slack::Client.append_stream(
+        workspace: @workspace, channel: channel_id, ts: answer_id,
+        chunks: [ { type: "markdown_text", text: text } ]
+      )
+      { streaming: true }
+    end
+  rescue AdapterError => error
+    Rails.logger.info("slack.agent_text.dropped error=#{error.class.name} message=#{error.message}")
+    { streaming: false }
   end
 
   def post_investigation_answer(channel_id:, thread_id:, answer_id:, finding:)
@@ -450,10 +480,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:)
+  # Blocks after a stream render below the streamed text, so a reply the person already read gets none.
+  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
-      text: text, blocks: Slack::Messages::AgentReply.build(text: text)
+      text: text, blocks: streamed ? nil : Slack::Messages::AgentReply.build(text: text)
     )
   end
 

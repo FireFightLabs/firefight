@@ -43,7 +43,7 @@ module Events
         workspace: workspace, incident: incident, channel_id: channel_id,
         thread_id: thread_id, platform_user_id: event["user"]
       )
-      ConversationReplyJob.perform_later(conversation.id, user_text)
+      Conversation::Asking.ask(conversation, user_text)
     end
     private_class_method :answer_as_agent
 

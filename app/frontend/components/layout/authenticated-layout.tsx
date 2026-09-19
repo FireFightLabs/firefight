@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { usePage } from "@inertiajs/react";
 import { IconPlugConnectedX } from "@tabler/icons-react";
 
@@ -15,6 +15,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 interface AuthenticatedLayoutProps {
   children: ReactNode;
   title?: string;
+  sidebarCollapsed?: boolean;
 }
 
 // Slack said the install is gone. Recorded data stays readable, so the page
@@ -55,13 +56,41 @@ function DisconnectedBanner() {
   );
 }
 
+// Module scope because every page mounts its own layout, null after a full load.
+let sidebarWasOpen: boolean | null = null;
+
+// Renders open and collapses a frame later, so the nav slides shut instead of vanishing.
+function useSidebarOpen(collapsed: boolean) {
+  const [open, setOpen] = useState(collapsed ? sidebarWasOpen === true : true);
+
+  useEffect(() => {
+    if (!collapsed) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => setOpen(false));
+    return () => cancelAnimationFrame(frame);
+  }, [collapsed]);
+
+  useEffect(() => {
+    sidebarWasOpen = open;
+  }, [open]);
+
+  return [open, setOpen] as const;
+}
+
 export function AuthenticatedLayout({
   children,
   title = "Dashboard",
+  sidebarCollapsed = false,
 }: AuthenticatedLayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useSidebarOpen(sidebarCollapsed);
+
   return (
     <TooltipProvider>
       <SidebarProvider
+        open={sidebarOpen}
+        onOpenChange={setSidebarOpen}
         style={
           {
             "--sidebar-width": "calc(var(--spacing) * 72)",

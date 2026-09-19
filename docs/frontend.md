@@ -93,6 +93,8 @@ app/frontend/pages/dashboard/types.ts             # Manual TS types (DashboardFi
 ```
 app/frontend/
   components/              # Cross-page shared components
+    confirm-delete-dialog.tsx  # Used by settings, incidents and the agent chat
+    agent-ui/              # Vendored from Beautiful UI, outside eslint, see its README
     auth/                  # auth-layout, card-header, slack-button (used by login + onboarding)
     layout/                # App shell (authenticated-layout, theme-toggle)
     navigation/            # Sidebar, nav items, site header
@@ -137,6 +139,8 @@ app/frontend/
     serializers/           # Auto-generated from oj_serializers — never edit by hand
   hooks/                   # Cross-page hooks (use-mobile)
   lib/                     # Cross-page utilities (routes, utils, formatters)
+    generated/             # constants.ts, emitted by bin/rails typescript:constants
+  styles/                  # Stylesheets imported by application.css, never entrypoints themselves
   entrypoints/             # Vite entrypoints (inertia.tsx, application.css)
 ```
 
@@ -229,6 +233,26 @@ The capitalization guard only protects a first word that carries its own case,
 so `iOS` and `eBay` survive but an all-lowercase tool name like `kubectl` is
 capitalized. That is the accepted trade-off, not an oversight.
 
+## The agent chat
+
+`pages/agent/` is the dashboard side of the AI SRE agent, behind the `ai_sre` flag. `/agent` and `/agent/:id` both render `agent/index.tsx`, because the list and the open chat are one master-detail screen rather than two pages.
+
+- **The agent components are vendored, not written here.** `components/agent-ui/` holds files taken from Beautiful UI's shadcn registry (`npx shadcn add https://www.beautifului.dev/r/<name>.json`), kept close to source so an update is a re-pull. `components/agent-ui/README.md` lists every edit we made and why. Like `components/ui/`, the directory is outside eslint: these files are not ours to reformat.
+- **Their tokens are scoped, not global.** `app/frontend/styles/agent-ui.css` carries their foundation with our palette behind it, under `.agent-ui` rather than `:root`. The page's outer div carries that class. Scoping matters: `--accent` means shadcn's hover grey app-wide and their blue inside the chat, and an unscoped block would have silently broken one of them.
+- **Everything under `entrypoints/` is a Vite entry.** vite-ruby treats each file there as its own bundle, so a stylesheet only imported by `application.css` lives in `styles/`.
+- **A turn arrives over Action Cable**, not by polling. `use-agent-stream.ts` subscribes to `ConversationChannel`, appends each `chunk` event to the text on screen, upserts `step` events by key, and on `answered` or `failed` reloads `messages` and `conversations` so the saved chat replaces the streamed copy. The streamed copy is hidden as soon as the last saved message is the agent's, so the two never render together.
+- **Where it sits.** "Chat" is the only item under an "AI" heading at the top of the sidebar. Opening it slides the app sidebar shut (`AuthenticatedLayout sidebarCollapsed`), so the page is two columns: a 16rem chat list on the left and the open chat filling the rest. Below 48rem it is one column at a time, the list or the chat, with an "All chats" link back.
+- **The chat list.** A "Chat" heading with two icon buttons beside it, search and new chat. Under it, one plain line per chat, its title and nothing else. Pinned chats sit above the rest under a "Pinned" label, and only then does the rest get a "Chats" label. Archived chats sort last and fold under an "Archived (n)" toggle at the bottom, with `n` counted on the server. The list loads 50 chats a page (`InertiaRails.scroll` with hash metadata, `<InfiniteScroll preserveUrl onlyNext>` inside the list's own scroll area), so every chat stays reachable. The page drops a chat that arrives twice after moving up the list. Each row's actions (rename, pin, archive, delete) are in a vertical dots menu at the row's right edge, always visible on the open chat and shown on hover for the others.
+- **Search.** A dialog over the page, opened by the search button or Cmd/Ctrl K. With nothing typed it offers the loaded chats. A query goes to `GET /agent/search`, which matches the title and the last thing said across every chat the person has. Titles and messages are encrypted, so `Conversation.search_for` decrypts one person's chats and matches in Ruby rather than in SQL. The dialog composes `Dialog` and `Command` itself with `shouldFilter={false}`, since the server has already filtered.
+- **@ incidents.** The prompt bar offers the 20 newest active incidents, and once the person types after @ it asks `GET /agent/incidents` (`Incident.search` over active incidents) through its `onSourceSearch` prop. Both searches share `hooks/use-remote-search.ts`, which waits for typing to settle and cancels a request a newer query has replaced.
+- **The open chat.** No title bar of its own. The conversation runs down a centred 48rem column: the person's messages are bubbles on the right, and the agent's answers run across the column with the tools it used shown as steps above them. Answers are markdown, rendered by `answer-text.tsx` with `react-markdown` (raw HTML is never rendered) and styled by the typography plugin with the chat's own tokens under `.agent-answer`. The prompt bar sits at the bottom of the column with no divider above it.
+- **Starting a chat.** New chat only opens the empty page, and does nothing when that page is already open. The chat is created by its first question (`create` takes it), so the list never gains a row nobody typed in.
+- **State and permission.** Pinned and archived are timestamps on the conversation, not states invented in the page. Reading, renaming, pinning, archiving and deleting a chat is the `chats` resource, which every member holds for their own chats. Asking is `investigations.create`.
+- **A step reads the same live or saved.** `Chat::Tools.step` builds it once on the server (title, headline, what was asked), the socket and `AgentChatMessageSerializer` both send that, and `pages/agent/types.ts` derives `AgentStep` from the generated serializer type. The page never decides which argument is the headline.
+- **Page types live in `pages/agent/types.ts`**, not in component files, so hooks and helpers never import a type from a component. `lib/group-turns.ts` turns saved messages and the live stream into `ChatTurn`s.
+- **Event names, step statuses, message roles, the channel name and the page's prop names are generated**, from `lib/typescript_constants.rb`. The page never spells one of them out. Prop names come from `AgentChatsController::PROPS`, since partial visits ask for them by name.
+- **The list updates in place.** It loads by the page, so a visit that asked for it again would drop every page past the first. `lib/chat-updates.ts` owns every change: opening a chat, asking, and the reload after an answer ask only for the open chat and its messages and then put that chat in its row (`replaceProp`). Rename, pin, archive and delete change the row with `router.optimistic` and ask only for the archived count, so a refusal puts the row back. The list sorts itself on `pinnedAt` and `lastActiveAt`, the same order as `in_reading_order`, so a changed row lands where a reload would put it. `index` sends `conversation: nil` and `messages: []`, so a partial visit to it clears the open chat.
+
 **shadcn/ui components are untouched:**
 - Never modify files in `components/ui/` — they may be updated by `npx shadcn` later
 - Wrap or compose shadcn components if you need custom behavior
@@ -276,6 +300,7 @@ capitalized. That is the accepted trade-off, not an oversight.
 
 **Navigation:**
 - Sidebar sections: "Respond" (Incidents), "Configure" (Catalogue, Integrations, Settings)
+- "AI" (Chat) sits first, and only when the AI SRE is available (`agentAvailable`)
 - Active page determined by URL match
 - Inertia `<Link>` for SPA navigation, `<a>` only for external links
 - Route helpers from generated `@/lib/routes` (e.g., `dashboardPath()`, `incidentPath(id)`)

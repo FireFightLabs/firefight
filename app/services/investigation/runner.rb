@@ -25,7 +25,7 @@ class Investigation::Runner
       canceled: -> { @investigation.reload.cancel_requested? },
       on_step: method(:report_step)
     ) do |turn|
-      unless @investigation.record_turn!(turns_used: turn.turns_used, spent_cents: turn.spent_cents)
+      unless @investigation.record_turn!(turns_used: turn.turns_used, spent_micros: turn.spent_micros)
         raise LeaseLost, "another worker holds this run"
       end
     end
@@ -49,7 +49,7 @@ class Investigation::Runner
   end
 
   def report_step(step)
-    titles[step.key] = Chat::Tools.step_title(step.tool) if step.tool.present?
+    titles[step.key] = Chat::Tools.step(step.tool, step.arguments)&.title if step.tool.present?
     title = titles[step.key]
     delivery.step(key: step.key, title: title, status: step.status) if title
   end
@@ -70,7 +70,7 @@ class Investigation::Runner
   def budget
     FirefightAi::AgentLoop::Budget.new(
       max_spend_cents: @investigation.max_spend_cents, max_turns: @investigation.max_turns,
-      turns_used: @investigation.turns_used, spent_cents: @investigation.spent_cents
+      turns_used: @investigation.turns_used, spent_micros: @investigation.spent_micros
     )
   end
 

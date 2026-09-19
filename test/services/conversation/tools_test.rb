@@ -28,11 +28,36 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
   end
 
   test "someone who may not start a run is refused, in their name" do
-    AbilityGateway.stubs(:authorize!).raises(AbilityGateway::Denied.new("investigations.create"))
+    AbilityGateway.stubs(:permitted?).returns(false)
 
     assert_no_difference "Investigation.count" do
       assert_match "not allowed to start an investigation", tool.execute[:error]
     end
+  end
+
+  test "a run that needs approval is not started until someone approves it" do
+    start = Ability::Action.system!(
+      Ability::Action.system_key(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE)
+    )
+    @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals").policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: "risk_level", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ start.risk_level ] } ],
+      outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
+    )
+
+    assert_no_difference "Investigation.count" do
+      assert_match "not allowed to start an investigation", tool.execute[:error]
+    end
+  end
+
+  test "starting a run is written to the ledger and closed off" do
+    tool.execute
+
+    invocation = @workspace.ability_invocations.find_by!(action_key: Ability::Action.system_key(
+      Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE
+    ))
+    assert_equal Ability::Invocation::DECISION_ALLOW, invocation.decision
+    assert invocation.completed_at
   end
 
   test "the agent can hand a question over to a full investigation" do

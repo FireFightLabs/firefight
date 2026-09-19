@@ -150,6 +150,7 @@ export const ABILITY_RESOURCES = [
   "webhooks",
   "incident_transcripts",
   "investigations",
+  "chats",
   "integrations",
   "api_keys",
   "permissions",
@@ -172,7 +173,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "incident_roles",
   "webhooks",
   "incident_transcripts",
-  "investigations"
+  "investigations",
+  "chats"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -191,6 +193,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "incident_roles": "Incident Roles",
   "incident_transcripts": "Incident Transcripts",
   "investigations": "Investigations",
+  "chats": "Chats",
   "webhooks": "Webhooks",
   "integrations": "Integrations",
   "api_keys": "API Keys",
@@ -237,6 +240,34 @@ export const ABILITY_RISK_LEVELS = [
   "destructive"
 ] as const
 export type AbilityRiskLevel = (typeof ABILITY_RISK_LEVELS)[number]
+
+export const AGENT_STREAM_EVENTS = {
+  "THINKING": "thinking",
+  "STEP": "step",
+  "CHUNK": "chunk",
+  "ANSWERED": "answered",
+  "FAILED": "failed"
+} as const
+
+export const AGENT_STEP_STATUSES = {
+  "RUNNING": "running",
+  "DONE": "done"
+} as const
+
+export const AGENT_CHANNEL = "ConversationChannel" as const
+
+export const AGENT_CHAT_PROPS = {
+  "CONVERSATIONS": "conversations",
+  "ARCHIVED_COUNT": "archivedCount",
+  "CONVERSATION": "conversation",
+  "MESSAGES": "messages",
+  "INCIDENTS": "incidents"
+} as const
+
+export const CHAT_MESSAGE_ROLES = {
+  "USER": "user",
+  "ASSISTANT": "assistant"
+} as const
 
 export const PRINCIPAL_KINDS = {
   "USER": "user",

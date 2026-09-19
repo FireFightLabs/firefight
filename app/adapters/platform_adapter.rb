@@ -346,6 +346,18 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Prompt instruction for streamed text, which can use different markup than a posted message.
+  # @return [String]
+  def ai_stream_output_style
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # How often streamed text may be sent, since each platform has its own rate limit.
+  # @return [Hash] { interval: ActiveSupport::Duration, max_chars: Integer }
+  def agent_stream_cadence
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Says an investigation has started, and opens the thread the rest of it goes in.
   # @return [Hash] { message_id:, channel_id: }
   def post_investigation_started(channel_id:, incident:, started_by:)
@@ -358,7 +370,7 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # One step the agent took. status is :running, :done or :failed.
+  # One step the agent took, status is :running or :done.
   # @return [Hash] { success: true }
   def report_agent_step(channel_id:, answer_id:, key:, title:, status:)
     raise NotImplemented.new(__method__, self.class)
@@ -370,9 +382,15 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The agent's reply to a person, and the end of the working state.
+  # Appends streamed text. Returns streaming false once the platform stops taking it, so the caller posts the whole answer.
+  # @return [Hash] { streaming: true|false }
+  def append_agent_text(channel_id:, answer_id:, text:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Ends the working state with the reply. streamed means the person already read the text as it arrived.
   # @return [Hash] { message_id:, channel_id: }
-  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:)
+  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
     raise NotImplemented.new(__method__, self.class)
   end
 

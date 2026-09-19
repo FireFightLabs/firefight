@@ -10,15 +10,15 @@ module FirefightAi
       @output_style = output_style
     end
 
-    def run(chat:, tools:, question:, context:, budget:, canceled: -> { false }, on_step: nil, &on_turn)
+    # The app has already saved the question as the last message.
+    def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, &on_turn)
       FirefightAi.translating_errors do
-        chat.with_instructions(system_prompt)
+        chat.with_instructions(system_prompt(context))
         chat.with_tools(*tools)
-        chat.add_message(role: :user, content: opening(question, context))
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
-          on_step: on_step, inference: inference_context, reply_is_answer: true
+          on_step: on_step, on_chunk: on_chunk, inference: inference_context, reply_is_answer: true
         ).run(&on_turn)
       end
     end
@@ -36,7 +36,7 @@ module FirefightAi
       }
     end
 
-    def system_prompt
+    def system_prompt(context)
       <<~PROMPT
         You are Firefight, answering an engineer during an incident. Be brief and exact.
 
@@ -51,11 +51,8 @@ module FirefightAi
         - Reply in plain prose when you have the answer. Your reply is what the person reads, so it ends your turn.
         - A few sentences beats a report. No preamble, no restating the question.
         #{@output_style}
+        #{context}
       PROMPT
-    end
-
-    def opening(question, context)
-      [ context.presence, "Question from the channel: #{question}" ].compact.join("\n\n")
     end
   end
 end

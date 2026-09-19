@@ -25,6 +25,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
       environment_row = integration.resolve_environment(nil)
       text_of(integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments))
     end
+  rescue Conversation::AskerDenied
+    "Not allowed: the person you are answering cannot read #{@tool.action_key} in this workspace. Say so, and carry on with what you can reach."
   rescue AbilityGateway::Denied
     "Not allowed: this agent has no grant for #{@tool.action_key} in this workspace."
   rescue AbilityGateway::PendingApproval

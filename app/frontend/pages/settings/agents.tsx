@@ -17,7 +17,7 @@ import { TokenRevealedDialog } from "@/pages/settings/components/api-keys/token-
 import { AgentDialog } from "@/pages/settings/components/agents/agent-dialog"
 import { AgentRowActions } from "@/pages/settings/components/agents/agent-row-actions"
 import { AgentTokensDialog } from "@/pages/settings/components/agents/agent-tokens-dialog"
-import { ConfirmDeleteDialog } from "@/pages/settings/components/confirm-delete-dialog"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { useCan } from "@/lib/permissions"
 import { gatewayAgentPath } from "@/lib/routes"
 import type { Agent } from "@/types/serializers"

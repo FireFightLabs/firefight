@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_17_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_19_094212) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -360,16 +360,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_090000) do
   end
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "archived_at"
     t.string "channel_id"
     t.datetime "created_at", null: false
     t.string "kind", null: false
     t.integer "max_spend_cents", null: false
     t.integer "max_turns", null: false
-    t.integer "spent_cents", default: 0, null: false
+    t.datetime "pinned_at"
+    t.bigint "spent_micros", default: 0, null: false
     t.uuid "started_by_id"
     t.uuid "subject_id"
     t.string "subject_type"
     t.string "thread_id"
+    t.text "title"
     t.integer "turns_used", default: 0, null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
@@ -991,7 +994,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_090000) do
     t.integer "max_spend_cents", null: false
     t.integer "max_turns", null: false
     t.jsonb "seed_pack", default: {}, null: false
-    t.integer "spent_cents", default: 0, null: false
+    t.bigint "spent_micros", default: 0, null: false
     t.datetime "started_at"
     t.string "status", default: "pending", null: false
     t.uuid "subject_id", null: false
