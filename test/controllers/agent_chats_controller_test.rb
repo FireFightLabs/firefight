@@ -249,6 +249,56 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Two deploys went out.", listed["preview"]
   end
 
+  test "the list loads a page at a time, and says when there is another" do
+    AgentChatsController.any_instance.stubs(:chats_per_page).returns(2)
+    3.times { |index| Conversation.start_personal!(workspace: @workspace, member: @member).ask!("question #{index}") }
+
+    get agent_chats_url, headers: inertia_headers
+    assert_equal 2, inertia_props["conversations"].size
+    assert_equal 2, response.parsed_body.dig("scrollProps", "conversations", "nextPage")
+
+    get agent_chats_url(page: 2), headers: inertia_headers.merge(
+      "X-Inertia-Partial-Component" => "agent/index", "X-Inertia-Partial-Data" => "conversations"
+    )
+    assert_equal 1, inertia_props["conversations"].size
+    assert_nil response.parsed_body.dig("scrollProps", "conversations", "nextPage")
+  end
+
+  test "archived chats come last, and the page is told how many there are" do
+    archived = start_chat
+    archived.ask!("old question")
+    archived.archive!(true)
+    current = Conversation.start_personal!(workspace: @workspace, member: @member)
+    current.ask!("new question")
+    archived.update_columns(updated_at: 1.minute.from_now)
+
+    get agent_chats_url, headers: inertia_headers
+
+    assert_equal [ current.id, archived.id ], inertia_props["conversations"].map { |chat| chat["id"] }
+    assert_equal 1, inertia_props["archivedCount"]
+  end
+
+  test "search finds any of the person's chats, not only the loaded ones, and nobody else's" do
+    AgentChatsController.any_instance.stubs(:chats_per_page).returns(1)
+    older = start_chat
+    older.ask!("why did checkout fail")
+    Conversation.start_personal!(workspace: @workspace, member: @member).ask!("latest question")
+    Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
+      .ask!("checkout is down for bob")
+
+    get agent_chats_search_url(q: "CHECKOUT"), as: :json
+
+    assert_equal [ older.id ], response.parsed_body.map { |chat| chat["id"] }
+  end
+
+  test "@ searches every active incident by name" do
+    incident = incidents(:active_critical_ws1)
+
+    get agent_chats_incidents_url(q: incident.name.split.first), as: :json
+
+    assert_includes response.parsed_body.map { |found| found["id"] }, incident.id
+  end
+
   test "a step says what it was about without the page choosing" do
     conversation = start_chat
     conversation.ask!("what changed today")

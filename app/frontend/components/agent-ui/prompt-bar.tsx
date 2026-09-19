@@ -142,6 +142,7 @@ export default function PromptBar({
   modelPicker = true,
   dictation = true,
   busy = false,
+  onSourceSearch,
 }: {
   variant?: string;
   /** the self-running walkthrough; turn off when embedding in a real surface */
@@ -159,6 +160,8 @@ export default function PromptBar({
   dictation?: boolean;
   /** a turn is already running, so sending again is refused */
   busy?: boolean;
+  /** @ asks the caller as the person types, and the caller answers through sources, unfiltered here */
+  onSourceSearch?: (query: string) => void;
 }) {
   const pill = variant === "Pill";
   const [draft, setDraft] = useState("");
@@ -197,13 +200,13 @@ export default function PromptBar({
 
   const token = dismissed ? null : parseToken(draft);
   // A menu with nothing in it does not open, so / stays inert until there are commands to show.
-  const offered = token?.kind === "slash" ? commands.length > 0 : sources.length > 0;
+  const offered = token?.kind === "slash" ? commands.length > 0 : sources.length > 0 || Boolean(onSourceSearch);
   const menu: "at" | "slash" | null = plusOpen ? "at" : (offered ? token?.kind ?? null : null);
   const query = plusOpen ? "" : token?.query ?? "";
 
   const rows: { key: string; name: string; desc: string }[] =
     menu === "at"
-      ? sources.filter((s) => s.name.toLowerCase().includes(query))
+      ? onSourceSearch ? sources : sources.filter((s) => s.name.toLowerCase().includes(query))
       : menu === "slash"
         ? commands.filter((c) => c.name.slice(1).startsWith(query))
         : [];
@@ -211,7 +214,8 @@ export default function PromptBar({
   useEffect(() => {
     setActive(0);
     setEngaged(false);
-  }, [menu, query]);
+    if (menu === "at") onSourceSearch?.(query);
+  }, [menu, query, onSourceSearch]);
 
   /* a single highlight glides to the active row instead of each row
    * toggling its own background — matches the gliding pill in the nav */

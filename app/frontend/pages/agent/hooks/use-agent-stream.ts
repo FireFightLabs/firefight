@@ -8,7 +8,12 @@ import type { AgentChatMessage } from "@/types/serializers"
 
 // A socket that drops mid turn would leave the answer unseen, so the page asks for it once instead.
 const RECOVERY_MS = 4000
-const RELOADED_PROPS = [ "messages", "conversations" ]
+
+// The saved answer and the list it moved to the top of. The list loads by the page, so it is replaced
+// rather than merged, or the first page would be appended to itself.
+function reloadChat() {
+  router.reload({ only: [ "messages", "conversations" ], reset: [ "conversations" ] })
+}
 
 interface StreamEvent {
   type: StreamEventType
@@ -74,7 +79,7 @@ export function useAgentStream(
           }
           if (event.type === AGENT_STREAM_EVENTS.ANSWERED || event.type === AGENT_STREAM_EVENTS.FAILED) {
             setBusy(false)
-            router.reload({ only: RELOADED_PROPS })
+            reloadChat()
           }
         },
         disconnected() {
@@ -82,7 +87,7 @@ export function useAgentStream(
             return
           }
 
-          recovery.current = window.setTimeout(() => router.reload({ only: RELOADED_PROPS }), RECOVERY_MS)
+          recovery.current = window.setTimeout(reloadChat, RECOVERY_MS)
         },
       },
     )

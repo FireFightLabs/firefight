@@ -1,8 +1,13 @@
 import { router } from "@inertiajs/react"
 
 import PromptBar from "@/components/agent-ui/prompt-bar"
-import { agentChatAskPath, agentChatsPath } from "@/lib/routes"
+import { agentChatAskPath, agentChatsIncidentsPath, agentChatsPath } from "@/lib/routes"
+import { useRemoteSearch } from "@/pages/agent/hooks/use-remote-search"
 import type { AgentChatIncident } from "@/types/serializers"
+
+function incidentSearchPath(query: string) {
+  return agentChatsIncidentsPath({ q: query })
+}
 
 interface ComposerProps {
   conversationId?: string
@@ -11,6 +16,8 @@ interface ComposerProps {
 }
 
 export function Composer({ conversationId, incidents, busy }: ComposerProps) {
+  const { results, search } = useRemoteSearch<AgentChatIncident>(incidentSearchPath)
+
   // With no chat open, the first question is what starts one.
   function send(question: string) {
     if (question.trim().length === 0) {
@@ -29,9 +36,10 @@ export function Composer({ conversationId, incidents, busy }: ComposerProps) {
     return "Ask the agent, or @ an incident"
   }
 
-  // @ offers the incidents the agent can already read. The model picker and dictation are theirs
-  // and stay off until a model choice and a transcript mean something here.
-  const sources = incidents.map((incident) => ({
+  // @ offers the newest active incidents, and searches every active one once the person types. The
+  // model picker and dictation are theirs and stay off until a model choice and a transcript mean
+  // something here.
+  const sources = (results ?? incidents).map((incident) => ({
     key: incident.id,
     name: incident.identifier,
     desc: incident.name,
@@ -49,6 +57,7 @@ export function Composer({ conversationId, incidents, busy }: ComposerProps) {
         commands={[]}
         placeholder={placeholder()}
         onSend={send}
+        onSourceSearch={search}
       />
     </div>
   )

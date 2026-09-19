@@ -7,6 +7,7 @@ class Conversation < ApplicationRecord
 
   TITLE_LIMIT = 80
   PREVIEW_LIMIT = 90
+  SEARCH_LIMIT = 20
   UNTITLED = "New chat".freeze
 
   # The title is the person's own words, the same customer data as the messages it was taken from.
@@ -21,8 +22,11 @@ class Conversation < ApplicationRecord
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }
 
   scope :personal, -> { where(kind: KIND_PERSONAL) }
-  # Pinned chats sit at the top of the list, the rest by when they were last spoken to.
-  scope :in_reading_order, -> { order(Arel.sql("pinned_at DESC NULLS LAST, updated_at DESC")) }
+  scope :personal_for, ->(member) { personal.where(started_by: member) }
+  scope :archived, -> { where.not(archived_at: nil) }
+  # Pinned chats sit at the top of the list, the rest by when they were last spoken to, and archived
+  # ones last, so a list that loads page by page reaches them at the end.
+  scope :in_reading_order, -> { order(Arel.sql("archived_at IS NOT NULL, pinned_at DESC NULLS LAST, updated_at DESC")) }
 
   # A chat in the dashboard belongs to one person. Nobody else sees it, and the agent reads only
   # what that person could read.
@@ -42,6 +46,17 @@ class Conversation < ApplicationRecord
     key = Ability::Action.system_key(Ability::Action::RESOURCE_CHATS, Ability::Action::ACTION_READ)
     action = Ability::Action.lookup(key, member.workspace)
     action.present? && AbilityGateway.permitted?(member, action, key, member.workspace, {})
+  end
+
+  # Titles and messages are encrypted, so a chat is matched here after decrypting rather than in SQL.
+  # It only ever reads one person's own chats.
+  def self.search_for(member, text, limit: SEARCH_LIMIT)
+    wanted = text.to_s.strip.downcase
+    return [] if wanted.empty?
+
+    personal_for(member).includes(chat: :last_readable_message).in_reading_order.to_a
+      .select { |conversation| "#{conversation.display_title} #{conversation.preview}".downcase.include?(wanted) }
+      .first(limit)
   end
 
   def personal? = kind == KIND_PERSONAL

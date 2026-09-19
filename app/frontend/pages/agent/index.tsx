@@ -11,13 +11,14 @@ import type { SharedProps } from "@/types"
 
 interface AgentPageProps extends SharedProps {
   conversations: AgentChat[]
+  archivedCount: number
   conversation?: AgentChat
   incidents: AgentChatIncident[]
   messages?: AgentChatMessage[]
 }
 
 export default function AgentPage() {
-  const { conversations, conversation, incidents, messages } = usePage<AgentPageProps>().props
+  const { conversations, archivedCount, conversation, incidents, messages } = usePage<AgentPageProps>().props
   const stream = useAgentStream(conversation?.id, messages)
 
   // A phone shows one column at a time, the list or the chat opened from it.
@@ -28,7 +29,7 @@ export default function AgentPage() {
     <AuthenticatedLayout title="Chat" sidebarCollapsed>
       <Head title="Chat" />
       <div className="agent-ui agent-chat">
-        <ChatList chats={conversations} currentId={conversation?.id} className={listClass} />
+        <ChatList chats={conversations} archivedCount={archivedCount} currentId={conversation?.id} className={listClass} />
         <section className={`min-h-0 min-w-0 flex-1 flex-col ${threadClass}`}>
           {conversation && (
             <Link href={agentChatsPath()} className="px-4 pt-3 text-[13px] text-ink-2 md:hidden">

@@ -15,7 +15,7 @@ are not ours to reformat. Their tokens live in `app/frontend/styles/agent-ui.css
 |---|---|---|
 | `loading-state.tsx` | `loading-state` | Dropped the Surfer variant, which streams a meme video from their CDN. |
 | `task-rows.tsx` | `task-rows` | Dropped `min-h-[196px]`, which held their demo at a fixed height. |
-| `prompt-bar.tsx` | `prompt-bar` | Dropped the `glimm` WebGL sweep, which played on model change. Added `sources`, `commands`, `modelPicker`, `dictation` and `busy` props, so the two controls with nothing behind them yet are off rather than shown and dead, and a menu with nothing in it does not open. |
+| `prompt-bar.tsx` | `prompt-bar` | Dropped the `glimm` WebGL sweep, which played on model change. Added `sources`, `commands`, `modelPicker`, `dictation` and `busy` props, so the two controls with nothing behind them yet are off rather than shown and dead, and a menu with nothing in it does not open. Added `onSourceSearch`, which hands the @ query to the caller so it can search the server, and then shows `sources` as given rather than filtering them again. |
 
 Not vendored yet, and worth taking when there is something behind them: `thinking-state` (needs the
 reasoning we already store), `streaming-text` (needs sources and follow-ups), `approval-card` (the

@@ -289,6 +289,8 @@ Rails.application.routes.draw do
     post "/incidents/:incident_id/postmortem/ai_rewrite", to: "incidents#ai_rewrite_postmortem", as: :incident_postmortem_ai_rewrite
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"
+    get "/agent/search", to: "agent_chats#search", as: :agent_chats_search
+    get "/agent/incidents", to: "agent_chats#incidents", as: :agent_chats_incidents
     get "/agent/:id", to: "agent_chats#show", as: :agent_chat
     patch "/agent/:id", to: "agent_chats#update"
     delete "/agent/:id", to: "agent_chats#destroy"
