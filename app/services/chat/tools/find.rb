@@ -38,7 +38,7 @@ class Chat::Tools::Find < RubyLLM::Tool
   def line_for(entry)
     case entry.state
     when Chat::Tools::STATE_READY then "#{entry.name}: #{entry.description} (ready to call)"
-    when Chat::Tools::STATE_NOT_GRANTED then "#{entry.name}: #{entry.description} (exists, but this workspace has not granted it to you)"
+    when Chat::Tools::STATE_NOT_GRANTED then "#{entry.name}: #{entry.description} (exists, but not granted to whoever you are acting as)"
     else "#{entry.name}: not connected in this workspace"
     end
   end
