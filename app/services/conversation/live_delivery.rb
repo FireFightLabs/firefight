@@ -14,10 +14,11 @@ class Conversation::LiveDelivery
     FirefightAi::AgentLoop::STEP_RUNNING => STATUS_RUNNING, FirefightAi::AgentLoop::STEP_DONE => STATUS_DONE
   }.freeze
 
-  # The page shows an answer as it was written, so there is no markup for the model to use.
+  # The page renders markdown as it streams. Headers are left out, since an answer is a reply in a
+  # chat and not a document.
   OUTPUT_STYLE = <<~STYLE.freeze
-    Write plain sentences with no markup. No asterisks, no headers, no backticks.
-    Short paragraphs, and a list as one item per line starting with a dash.
+    Use markdown: **bold**, _italic_, bullet and numbered lists, `code`, and fenced code blocks.
+    Do not use markdown headers (#). Use **bold text** instead. Keep paragraphs short.
   STYLE
 
   def initialize(conversation)
@@ -32,9 +33,12 @@ class Conversation::LiveDelivery
   end
 
   # A tool interrupts the answer, so whatever has been written lands before the step does.
-  def step(key:, title:, status:, asked: [])
+  def step(key:, step:, status:)
     @text.flush!
-    broadcast(type: EVENT_STEP, key: key, title: title, asked: asked, status: STATUSES.fetch(status))
+    broadcast(
+      type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
+      status: STATUSES.fetch(status)
+    )
   end
 
   def chunk(text)

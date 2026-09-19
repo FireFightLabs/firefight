@@ -3,27 +3,19 @@ import { router } from "@inertiajs/react"
 import { useEffect, useRef, useState } from "react"
 
 import { AGENT_CHANNEL, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
-import type { AgentStep } from "@/pages/agent/components/agent-steps"
+import type { AgentStep, AgentStream, StepStatus, StreamEventType } from "@/pages/agent/types"
 import type { AgentChatMessage } from "@/types/serializers"
 
 // A socket that drops mid turn would leave the answer unseen, so the page asks for it once instead.
 const RECOVERY_MS = 4000
-
-export type TurnState = "idle" | "working"
-
-type StepStatus = (typeof AGENT_STEP_STATUSES)[keyof typeof AGENT_STEP_STATUSES]
-
-export interface AgentStream {
-  state: TurnState
-  text: string
-  steps: AgentStep[]
-}
+const RELOADED_PROPS = [ "messages", "conversations" ]
 
 interface StreamEvent {
-  type: string
+  type: StreamEventType
   text?: string
   key?: string
   title?: string
+  headline?: string
   asked?: [ string, string ][]
   status?: StepStatus
 }
@@ -32,7 +24,7 @@ export function useAgentStream(
   conversationId: string | undefined,
   messages: AgentChatMessage[] | undefined,
 ): AgentStream {
-  const [ state, setState ] = useState<TurnState>("idle")
+  const [ busy, setBusy ] = useState(false)
   const [ text, setText ] = useState("")
   const [ steps, setSteps ] = useState<AgentStep[]>([])
   const working = useRef(false)
@@ -41,27 +33,33 @@ export function useAgentStream(
 
   // A turn already running when the page opened has no thinking event to announce it.
   useEffect(() => {
-    setState(last?.role === CHAT_MESSAGE_ROLES.USER ? "working" : "idle")
+    setBusy(last?.role === CHAT_MESSAGE_ROLES.USER)
     setText("")
     setSteps([])
   }, [ conversationId, last?.id, last?.role ])
 
   useEffect(() => {
-    working.current = state === "working"
-  }, [ state ])
+    working.current = busy
+  }, [ busy ])
 
   useEffect(() => {
     if (!conversationId) {
       return
     }
 
+    function stopRecovery() {
+      window.clearTimeout(recovery.current)
+    }
+
     const consumer = createConsumer()
     const subscription = consumer.subscriptions.create(
       { channel: AGENT_CHANNEL, id: conversationId },
       {
+        connected: stopRecovery,
         received(event: StreamEvent) {
+          stopRecovery()
           if (event.type === AGENT_STREAM_EVENTS.THINKING) {
-            setState("working")
+            setBusy(true)
             setText("")
             setSteps([])
             return
@@ -75,8 +73,8 @@ export function useAgentStream(
             return
           }
           if (event.type === AGENT_STREAM_EVENTS.ANSWERED || event.type === AGENT_STREAM_EVENTS.FAILED) {
-            setState("idle")
-            router.reload({ only: [ "messages", "conversations" ] })
+            setBusy(false)
+            router.reload({ only: RELOADED_PROPS })
           }
         },
         disconnected() {
@@ -84,16 +82,13 @@ export function useAgentStream(
             return
           }
 
-          recovery.current = window.setTimeout(
-            () => router.reload({ only: [ "messages", "conversations" ] }),
-            RECOVERY_MS,
-          )
+          recovery.current = window.setTimeout(() => router.reload({ only: RELOADED_PROPS }), RECOVERY_MS)
         },
       },
     )
 
     return () => {
-      window.clearTimeout(recovery.current)
+      stopRecovery()
       subscription.unsubscribe()
       consumer.disconnect()
     }
@@ -103,13 +98,14 @@ export function useAgentStream(
   // not a frame later.
   const saved = last?.role !== CHAT_MESSAGE_ROLES.USER
 
-  return { state, text: saved ? "" : text, steps: saved ? [] : steps }
+  return { busy, text: saved ? "" : text, steps: saved ? [] : steps }
 }
 
 function withStep(shown: AgentStep[], event: StreamEvent): AgentStep[] {
   const step = {
     key: event.key ?? "",
     title: event.title ?? "",
+    headline: event.headline ?? "",
     asked: event.asked ?? [],
     status: event.status ?? AGENT_STEP_STATUSES.RUNNING,
   }

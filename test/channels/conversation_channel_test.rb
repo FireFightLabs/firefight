@@ -25,6 +25,15 @@ class ConversationChannelTest < ActionCable::Channel::TestCase
     assert subscription.rejected?
   end
 
+  test "the person who started it stops watching once they may not read the agent's work" do
+    stub_connection(current_user: users(:alice))
+    AbilityGateway.stubs(:permitted?).returns(false)
+
+    subscribe(id: @conversation.id)
+
+    assert subscription.rejected?
+  end
+
   test "a channel conversation is not watchable, since it is read in Slack" do
     stub_connection(current_user: users(:alice))
     channel_chat = @workspace.conversations.create!(

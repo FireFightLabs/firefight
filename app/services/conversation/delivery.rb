@@ -26,12 +26,12 @@ class Conversation::Delivery
     )[:answer_id]
   end
 
-  # A step card sits between pieces of text, so what has been written lands first. What the tool was
-  # asked for is not sent on: the platform shows the step, not the query behind it.
-  def step(key:, title:, status:, asked: [])
+  # A step card sits between pieces of text, so what has been written lands first. The platform
+  # shows the step by name, not the query behind it.
+  def step(key:, step:, status:)
     @text.flush!
     adapter.report_agent_step(
-      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: title, status: status
+      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status
     )
   end
 

@@ -54,6 +54,16 @@ class Investigation < ApplicationRecord
     unavailable_reason(workspace).nil?
   end
 
+  # Whether this person may read what the agent writes. The nav, the chat page and its socket all ask
+  # this, so none of them offers what the gateway would refuse.
+  def self.readable_by?(member)
+    return false unless member
+
+    key = Ability::Action.system_key(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ)
+    action = Ability::Action.lookup(key, member.workspace)
+    action.present? && AbilityGateway.permitted?(member, action, key, member.workspace, {})
+  end
+
   def self.already_running_message(subject)
     "Already investigating #{subject.identifier}, I will post here when I have something."
   end

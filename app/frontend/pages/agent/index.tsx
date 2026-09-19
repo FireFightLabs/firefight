@@ -20,7 +20,7 @@ export default function AgentPage() {
   const { conversations, conversation, incidents, messages } = usePage<AgentPageProps>().props
   const stream = useAgentStream(conversation?.id, messages)
 
-  // One column at a time on a phone: the list, or the chat opened from it.
+  // A phone shows one column at a time, the list or the chat opened from it.
   const listClass = conversation ? "hidden md:flex" : "flex"
   const threadClass = conversation ? "flex" : "hidden md:flex"
 
@@ -40,7 +40,7 @@ export default function AgentPage() {
             <Composer
               conversationId={conversation?.id}
               incidents={incidents}
-              busy={stream.state === "working"}
+              busy={stream.busy}
             />
           </div>
         </section>

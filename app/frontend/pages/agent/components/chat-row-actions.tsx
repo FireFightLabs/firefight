@@ -78,7 +78,7 @@ export function ChatRowActions({ chat, className }: ChatRowActionsProps) {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <RenameChatDialog open={renaming} title={chat.title} onRename={rename} onCancel={closeRename} />
+      <RenameChatDialog chatId={chat.id} open={renaming} title={chat.title} onRename={rename} onCancel={closeRename} />
       <ConfirmDeleteDialog
         open={deleting}
         title="Delete this chat?"

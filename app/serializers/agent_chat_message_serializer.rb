@@ -9,25 +9,15 @@ class AgentChatMessageSerializer < BaseSerializer
     message.content.to_s
   end
 
-  type :string
-  def at
-    message.created_at.utc.iso8601
-  end
-
-  # The same shape the page gets while a turn is running, so a step reads the same either way. The
-  # agent's own bookkeeping, like its search for tools, has no title and is not a step anyone sees.
-  type "{ key: string; title: string; asked: [string, string][]; status: string }[]"
+  # The same shape the page gets while a turn is running, so a step reads the same either way.
+  type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string }[]"
   def tools
     message.ruby_llm_tool_calls.filter_map do |call|
-      title = Chat::Tools.step_title(call.name)
-      next unless title
+      step = Chat::Tools.step(call.name, call.arguments)
+      next unless step
 
-      {
-        key: call.tool_call_id,
-        title: title,
-        asked: call.arguments.to_h.filter_map { |name, value| [ name.to_s, value.to_s.truncate(60) ] if value.present? },
-        status: call.result_id.present? ? Conversation::LiveDelivery::STATUS_DONE : Conversation::LiveDelivery::STATUS_RUNNING
-      }
+      status = call.result_id.present? ? Conversation::LiveDelivery::STATUS_DONE : Conversation::LiveDelivery::STATUS_RUNNING
+      { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked, status: status }
     end
   end
 end

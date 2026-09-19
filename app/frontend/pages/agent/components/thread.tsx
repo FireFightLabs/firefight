@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 
 import LoadingState from "@/components/agent-ui/loading-state"
 import { Message } from "@/pages/agent/components/message"
-import type { AgentStream } from "@/pages/agent/hooks/use-agent-stream"
-import { groupedTurns } from "@/pages/agent/lib/group-turns"
+import { groupedTurns, liveTurn } from "@/pages/agent/lib/group-turns"
+import type { AgentStream } from "@/pages/agent/types"
 import type { AgentChatMessage } from "@/types/serializers"
 
 interface ThreadProps {
@@ -14,6 +14,8 @@ interface ThreadProps {
 
 export function Thread({ messages, stream, empty }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
+  const turns = useMemo(() => groupedTurns(messages), [ messages ])
+  const live = liveTurn(stream)
 
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end" })
@@ -29,20 +31,14 @@ export function Thread({ messages, stream, empty }: ThreadProps) {
     )
   }
 
-  const waiting = stream.state === "working" && stream.text.length === 0
-
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
-        {groupedTurns(messages).map((turn) => (
+        {turns.map((turn) => (
           <Message key={turn.id} turn={turn} />
         ))}
-        {(stream.steps.length > 0 || stream.text.length > 0) && (
-          <Message
-            turn={{ kind: "agent", id: "live", steps: stream.steps, bodies: stream.text.length > 0 ? [ stream.text ] : [] }}
-          />
-        )}
-        {waiting && <LoadingState label="Working" />}
+        {live && <Message turn={live} />}
+        {stream.busy && stream.text.length === 0 && <LoadingState label="Working" />}
         <div ref={foot} />
       </div>
     </div>

@@ -18,9 +18,8 @@ interface ChatSearchProps {
   onOpenChange: (open: boolean) => void
 }
 
-// Searching chats opens over the page, the way it does in ChatGPT, rather than filtering the list in
-// place. What was last said is searched too, so a chat is found by its answer as well as its title.
-// It is drawn with the app's own dialog tokens, since it opens outside the chat's scoped palette.
+// Searching opens over the page, the way it does in ChatGPT, rather than filtering the list in place.
+// The last thing said is searched too, so a chat is found by its latest answer as well as its title.
 export function ChatSearch({ chats, open, onOpenChange }: ChatSearchProps) {
   function openChat(chat: AgentChat) {
     onOpenChange(false)
@@ -32,12 +31,12 @@ export function ChatSearch({ chats, open, onOpenChange }: ChatSearchProps) {
       open={open}
       onOpenChange={onOpenChange}
       title="Search chats"
-      description="Find a chat by what was asked or answered."
+      description="Find a chat by its name or the last thing said in it."
       className="agent-search sm:max-w-2xl"
     >
       <CommandInput placeholder="Search chats" />
       <CommandList>
-        <CommandEmpty>No chat says that.</CommandEmpty>
+        <CommandEmpty>No chat matches that.</CommandEmpty>
         <CommandGroup heading="Recent chats">
           {chats.map((chat) => (
             <CommandItem

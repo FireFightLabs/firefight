@@ -5,6 +5,15 @@ class Chat < ApplicationRecord
   belongs_to :workspace
   belongs_to :owner, polymorphic: true
 
+  # DISTINCT ON keeps one row per chat, so a list of chats preloads its previews in one query.
+  has_one :last_readable_message,
+    -> {
+      where(role: Chat::Message::READABLE_ROLES)
+        .select("DISTINCT ON (chat_messages.chat_id) chat_messages.*")
+        .order("chat_messages.chat_id, chat_messages.created_at DESC")
+    },
+    class_name: "Chat::Message", inverse_of: false
+
   validate :owner_in_same_workspace
 
   # The saved chat holds the system prompt and every tool result too. A person reads the

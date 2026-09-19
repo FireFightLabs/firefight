@@ -13,11 +13,6 @@ class AgentChatSerializer < BaseSerializer
     conversation.preview
   end
 
-  type :string
-  def updatedAt
-    conversation.updated_at.utc.iso8601
-  end
-
   type :boolean
   def pinned
     conversation.pinned?

@@ -20,14 +20,10 @@ class InertiaController < ApplicationController
 
   private
 
-  # The agent is in the nav where it runs and the viewer may read what it writes, so nobody is
-  # offered a page the gateway will turn them away from.
   def agent_available?
-    return false unless current_workspace && current_membership && Investigation.available_for?(current_workspace)
+    return false unless current_workspace && Investigation.available_for?(current_workspace)
 
-    key = Ability::Action.system_key(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ)
-    action = Ability::Action.lookup(key, current_workspace)
-    action.present? && AbilityGateway.permitted?(current_membership, action, key, current_workspace, {})
+    Investigation.readable_by?(current_membership)
   end
 
   # One flag per resource, so a page offers exactly the controls the gateway would admit.

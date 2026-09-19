@@ -1,12 +1,13 @@
 import { AgentSteps } from "@/pages/agent/components/agent-steps"
-import type { ChatTurn } from "@/pages/agent/lib/group-turns"
+import { AnswerText } from "@/pages/agent/components/answer-text"
+import type { ChatTurn } from "@/pages/agent/types"
 
 interface MessageProps {
   turn: ChatTurn
 }
 
-// As in ChatGPT, the person's words sit in a bubble on the right and the answer is plain text across
-// the column, so the answer reads as the page rather than as a card on it.
+// As in ChatGPT, the person's words sit in a bubble on the right and the answer runs across the
+// column, so it reads as the page rather than as a card on it.
 export function Message({ turn }: MessageProps) {
   if (turn.kind === "person") {
     return (
@@ -20,9 +21,7 @@ export function Message({ turn }: MessageProps) {
     <div className="flex flex-col gap-3">
       {turn.steps.length > 0 && <AgentSteps steps={turn.steps} />}
       {turn.bodies.map((body, index) => (
-        <p key={index} className="whitespace-pre-wrap text-[14px] leading-7 text-ink">
-          {body}
-        </p>
+        <AnswerText key={index} text={body} />
       ))}
     </div>
   )

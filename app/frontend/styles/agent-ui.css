@@ -298,6 +298,25 @@
   }
 }
 
+/* ── answers, ours ─────────────────────────────────────── */
+/* The typography plugin's colours, taken from the chat's own tokens, which already follow dark mode. */
+.agent-ui .agent-answer {
+  --tw-prose-body: var(--ink);
+  --tw-prose-headings: var(--ink);
+  --tw-prose-bold: var(--ink);
+  --tw-prose-links: var(--accent);
+  --tw-prose-code: var(--ink);
+  --tw-prose-pre-code: var(--ink);
+  --tw-prose-pre-bg: var(--inset);
+  --tw-prose-bullets: var(--ink-3);
+  --tw-prose-counters: var(--ink-3);
+  --tw-prose-quotes: var(--ink-2);
+  --tw-prose-quote-borders: var(--line);
+  --tw-prose-hr: var(--line);
+  --tw-prose-th-borders: var(--line);
+  --tw-prose-td-borders: var(--line-soft);
+}
+
 /* ── StreamingText, theirs ──────────────────────────────── */
 .agent-ui .source-avatar {
   box-shadow: 0 0 0 1px oklch(0.21 0.034 263.436 / 0.1);

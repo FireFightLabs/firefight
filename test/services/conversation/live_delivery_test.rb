@@ -31,7 +31,7 @@ class Conversation::LiveDeliveryTest < ActiveSupport::TestCase
   test "a tool lands after the text written before it" do
     @delivery.chunk("Let me check.")
 
-    @delivery.step(key: "call_1", title: "Search incidents", status: :running)
+    @delivery.step(key: "call_1", step: Chat::Tools.step("search_incidents", { "query" => "checkout" }), status: :running)
 
     assert_equal(
       [ Conversation::LiveDelivery::EVENT_CHUNK, Conversation::LiveDelivery::EVENT_STEP ],

@@ -1,5 +1,5 @@
 import { router } from "@inertiajs/react"
-import { IconChevronRight, IconPencilPlus, IconSearch } from "@tabler/icons-react"
+import { type Icon, IconChevronRight, IconPencilPlus, IconSearch } from "@tabler/icons-react"
 import { useCallback, useState } from "react"
 
 import { agentChatsPath } from "@/lib/routes"
@@ -14,17 +14,18 @@ interface ChatListProps {
   className: string
 }
 
-// Laid out the way ChatGPT lays out its history: pinned chats first, then the rest, and archived ones
-// folded away at the bottom where they are reachable without being in the way.
+// Laid out the way ChatGPT lays out its history. Pinned chats come first, then the rest, and archived
+// ones fold away at the bottom, open whenever the chat on screen is one of them.
 export function ChatList({ chats, currentId, className }: ChatListProps) {
-  const [ searching, setSearching ] = useState(false)
-  const [ showArchived, setShowArchived ] = useState(false)
-  const openSearch = useCallback(() => setSearching(true), [])
-  useSearchShortcut(openSearch)
-
   const pinned = chats.filter((chat) => chat.pinned && !chat.archived)
   const recent = chats.filter((chat) => !chat.pinned && !chat.archived)
   const archived = chats.filter((chat) => chat.archived)
+  const currentIsArchived = archived.some((chat) => chat.id === currentId)
+
+  const [ searching, setSearching ] = useState(false)
+  const [ showArchived, setShowArchived ] = useState(currentIsArchived)
+  const openSearch = useCallback(() => setSearching(true), [])
+  useSearchShortcut(openSearch)
 
   // Already on an empty chat, there is nothing new to open.
   function startChat() {
@@ -44,24 +45,8 @@ export function ChatList({ chats, currentId, className }: ChatListProps) {
       <div className="flex items-center justify-between px-2">
         <h2 className="text-[14px] font-medium text-ink">Chat</h2>
         <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={openSearch}
-            aria-label="Search chats"
-            title="Search chats (⌘K)"
-            className="flex size-7 items-center justify-center rounded-control text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
-          >
-            <IconSearch className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={startChat}
-            aria-label="New chat"
-            title="New chat"
-            className="flex size-7 items-center justify-center rounded-control text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
-          >
-            <IconPencilPlus className="size-4" />
-          </button>
+          <ListButton icon={IconSearch} label="Search chats" onClick={openSearch} />
+          <ListButton icon={IconPencilPlus} label="New chat" onClick={startChat} />
         </div>
       </div>
 
@@ -88,5 +73,25 @@ export function ChatList({ chats, currentId, className }: ChatListProps) {
 
       <ChatSearch chats={chats} open={searching} onOpenChange={setSearching} />
     </aside>
+  )
+}
+
+interface ListButtonProps {
+  icon: Icon
+  label: string
+  onClick: () => void
+}
+
+function ListButton({ icon: ButtonIcon, label, onClick }: ListButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex size-7 items-center justify-center rounded-control text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
+    >
+      <ButtonIcon className="size-4" />
+    </button>
   )
 }

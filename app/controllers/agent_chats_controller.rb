@@ -5,6 +5,7 @@ class AgentChatsController < InertiaController
   # What @ offers in the composer. The live ones are the ones anybody asks about.
   MENTIONABLE = 20
   NOTHING_ASKED = "Say something first."
+  CHAT_DELETED = "Chat deleted."
 
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS,
     read: %i[index show],
@@ -21,26 +22,22 @@ class AgentChatsController < InertiaController
   def show
     render inertia: "agent/index", props: base_props.merge(
       conversation: AgentChatSerializer.one(conversation),
-      messages: AgentChatMessageSerializer.many(conversation.chat&.readable_messages || [])
+      messages: AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:ruby_llm_tool_calls) || [])
     )
   end
 
-  # A chat only exists once something has been asked in it, so starting one never leaves an empty row.
   def create
     return redirect_to(agent_chats_path, alert: NOTHING_ASKED) if question.blank?
 
-    chat = Conversation.transaction do
-      Conversation.start_personal!(workspace: current_workspace, member: current_membership)
-        .tap { |started| started.ask!(question) }
-    end
-    reply_in(chat)
+    chat = Conversation::Asking.start_personal(workspace: current_workspace, member: current_membership, question: question)
+    redirect_to agent_chat_path(chat)
   end
 
   def ask
     return redirect_to(agent_chat_path(conversation), alert: NOTHING_ASKED) if question.blank?
 
-    conversation.ask!(question)
-    reply_in(conversation)
+    Conversation::Asking.ask(conversation, question)
+    redirect_to agent_chat_path(conversation)
   end
 
   # Renaming, pinning and archiving are each one small change to the chat itself.
@@ -52,19 +49,24 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation)
   end
 
+  # Deleting the chat that is open leaves nothing to go back to. Deleting another from the list
+  # keeps the person where they were.
   def destroy
     conversation.destroy!
 
-    redirect_to agent_chats_path, notice: "Chat deleted."
+    return redirect_to(agent_chats_path, notice: CHAT_DELETED) if came_from?(agent_chat_path(conversation))
+
+    redirect_back_or_to agent_chats_path, notice: CHAT_DELETED
   end
 
   private
 
   def question = params[:question].to_s.strip
 
-  def reply_in(chat)
-    ConversationReplyJob.perform_later(chat.id)
-    redirect_to agent_chat_path(chat)
+  def came_from?(path)
+    URI.parse(request.referer.to_s).path == path
+  rescue URI::InvalidURIError
+    false
   end
 
   def rename
@@ -108,7 +110,7 @@ class AgentChatsController < InertiaController
   # Archived chats come too, since the page keeps them behind their own filter.
   def recent_conversations
     current_workspace.conversations.personal.where(started_by: current_membership)
-      .in_reading_order.limit(RECENT)
+      .includes(chat: :last_readable_message).in_reading_order.limit(RECENT)
   end
 
   def require_agent!

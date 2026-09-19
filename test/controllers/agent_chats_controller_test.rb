@@ -141,6 +141,19 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ older.id, newer.id ], @workspace.conversations.personal.in_reading_order.map(&:id)
   end
 
+  test "renaming, pinning or archiving a chat does not move the others" do
+    older = start_chat
+    older.ask!("first question")
+    newer = Conversation.start_personal!(workspace: @workspace, member: @member)
+    newer.ask!("second question")
+    older.update_columns(updated_at: 1.hour.ago)
+
+    patch agent_chat_url(older), params: { title: "Renamed" }
+    patch agent_chat_url(older), params: { archived: false }
+
+    assert_equal [ newer.id, older.id ], @workspace.conversations.personal.in_reading_order.map(&:id)
+  end
+
   test "archiving from the list keeps the person where they were" do
     conversation = start_chat
 
@@ -175,6 +188,24 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Chat deleted.", flash[:notice]
   end
 
+  test "deleting another chat from the list keeps the open one open" do
+    open_chat = start_chat
+    other = Conversation.start_personal!(workspace: @workspace, member: @member)
+
+    delete agent_chat_url(other), headers: { "Referer" => agent_chat_url(open_chat) }
+
+    assert_redirected_to agent_chat_url(open_chat)
+    assert_equal "Chat deleted.", flash[:notice]
+  end
+
+  test "deleting the open chat goes back to a new one" do
+    conversation = start_chat
+
+    delete agent_chat_url(conversation), headers: { "Referer" => agent_chat_url(conversation) }
+
+    assert_redirected_to agent_chats_path
+  end
+
   test "someone else's chat cannot be renamed or deleted" do
     theirs = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
 
@@ -195,6 +226,21 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
 
     listed = inertia_props["conversations"].find { |chat| chat["id"] == conversation.id }
     assert_equal "Two deploys went out.", listed["preview"]
+  end
+
+  test "a step says what it was about without the page choosing" do
+    conversation = start_chat
+    conversation.ask!("what changed today")
+    reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    reply.ruby_llm_tool_calls.create!(
+      tool_call_id: "call_1", name: "search_incidents", arguments: { "limit" => 5, "query" => "checkout" }
+    )
+
+    get agent_chat_url(conversation), headers: inertia_headers
+
+    step = inertia_props["messages"].flat_map { |message| message["tools"] }.sole
+    assert_equal "Search incidents", step["title"]
+    assert_equal "checkout", step["headline"]
   end
 
   private

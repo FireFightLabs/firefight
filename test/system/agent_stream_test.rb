@@ -32,16 +32,16 @@ class AgentStreamTest < ApplicationSystemTestCase
 
     delivery = Conversation::LiveDelivery.new(conversation)
     open_stream(delivery)
-    delivery.step(key: "call_1", title: "Search similar", asked: [ [ "query", "checkout failing" ] ], status: :running)
-    delivery.step(key: "call_1", title: "Search similar", asked: [ [ "query", "checkout failing" ] ], status: :done)
-    delivery.step(key: "call_2", title: "Search incidents", asked: [ [ "query", "checkout" ] ], status: :running)
+    similar = Chat::Tools.step("search_similar", { "query" => "checkout failing" })
+    delivery.step(key: "call_1", step: similar, status: :running)
+    delivery.step(key: "call_1", step: similar, status: :done)
+    delivery.step(key: "call_2", step: Chat::Tools.step("search_incidents", { "query" => "checkout" }), status: :running)
     delivery.chunk("Twice in the last quarter. ")
     delivery.chunk("INC-118 was the same connection pool exhaustion.")
     delivery.answered!("ignored")
 
     assert_text "Search similar"
     assert_text "INC-118 was the same connection pool exhaustion."
-    take_screenshot
   end
 
   private

@@ -25,10 +25,19 @@ module Chat::Tools
   # not what it looked at, so they are never shown.
   INTERNAL = %w[conclude record_hypothesis find_tools].freeze
 
-  def self.step_title(tool_name)
+  # The arguments that say what a step was about, in the order worth showing one of them.
+  HEADLINE_ARGUMENTS = %w[query name identifier title].freeze
+  ASKED_LIMIT = 60
+
+  Step = Data.define(:title, :headline, :asked)
+
+  # How a tool call reads to a person, live or saved. nil for the agent's own bookkeeping.
+  def self.step(tool_name, arguments)
     return nil if tool_name.blank? || INTERNAL.include?(tool_name.to_s)
 
-    tool_name.to_s.tr("_", " ").humanize
+    asked = arguments.to_h.filter_map { |name, value| [ name.to_s, value.to_s.truncate(ASKED_LIMIT) ] if value.present? }
+    headline = HEADLINE_ARGUMENTS.filter_map { |wanted| asked.assoc(wanted)&.last }.first.to_s
+    Step.new(title: tool_name.to_s.tr("_", " ").humanize, headline: headline, asked: asked)
   end
 
   def self.catalog(agent_run)

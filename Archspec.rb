@@ -96,7 +96,7 @@ workflows.cannot_use :controllers, :handlers, :dispatchers, :serializers, :adapt
 serializers.cannot_use :adapters, :handlers, :dispatchers, :jobs
 jobs.cannot_use :controllers, :api_controllers, :serializers
 
-# A socket is an entry point: it says who may watch, and streams what a service hands it.
+# A socket is an entry point. It says who may watch, and streams what a service hands it.
 channels.cannot_use :controllers, :api_controllers, :handlers, :dispatchers, :adapters, :slack_adapter,
                     :serializers, :jobs, :mcp
 
