@@ -1,6 +1,6 @@
 import type { SharedProps } from "@/types"
 import type { AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
-import type { AgentChat, AgentChatIncident, AgentChatMessage } from "@/types/serializers"
+import type { AgentChat, AgentChatConfirmation, AgentChatIncident, AgentChatMessage } from "@/types/serializers"
 
 // Every prop is always sent, so a partial visit can rely on the rest staying.
 export interface AgentPageProps extends SharedProps {
@@ -9,6 +9,7 @@ export interface AgentPageProps extends SharedProps {
   conversation: AgentChat | null
   incidents: AgentChatIncident[]
   messages: AgentChatMessage[]
+  confirmations: AgentChatConfirmation[]
 }
 
 export type AgentStep = AgentChatMessage["tools"][number]

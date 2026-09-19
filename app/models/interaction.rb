@@ -5,7 +5,7 @@ class Interaction
   VIEW_CLOSED = "view_closed"
 
   attr_reader :type, :platform, :team_id, :user_id, :trigger_id,
-              :channel_id, :action_id, :callback_id, :block_id,
+              :channel_id, :message_id, :action_id, :callback_id, :block_id,
               :selected_value, :selected_user, :action_value, :private_metadata,
               :view, :view_id, :values, :raw, :approval_id, :prompt_handle
 

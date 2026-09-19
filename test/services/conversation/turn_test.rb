@@ -65,7 +65,12 @@ class Conversation::TurnTest < ActiveSupport::TestCase
   end
 
   def firefight_tool(turn, name)
-    Chat::Tools::Firefight.new(turn, Mcp::Tools.all.find { |tool_class| tool_class.name_value == name })
+    tool_class = Mcp::Tools.all.find { |candidate| candidate.name_value == name }
+    Chat::Tools::Firefight.new(turn, tool_class, action_for(tool_class))
+  end
+
+  def action_for(tool_class)
+    Ability::Action.lookup(Ability::Action.system_key(*tool_class.authorization(@workspace, {})), @workspace)
   end
 
   def grant_tool(turn) = firefight_tool(turn, "grant_ability")

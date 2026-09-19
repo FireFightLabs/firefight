@@ -12,13 +12,21 @@ class Conversation::Turn
   def acting_principal = asker
 
   # A turn nobody can be credited with does nothing.
-  def tool_call(action_key:, params: {}, &block)
+  def tool_call(action_key:, params: {}, approval_id: nil, &block)
     raise AbilityGateway::Denied.new(action_key) unless asker
 
     Chat::ToolCall.run!(
       workspace: workspace, principal: asker, action_key: action_key, params: params,
-      context: { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: conversation.incident_id }, &block
+      context: { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: conversation.incident_id, approval_id: approval_id }.compact,
+      &block
     )
+  end
+
+  # Only destructive or irreversible changes wait, plus those an approval rule lets the asker approve themselves.
+  def confirms?(action)
+    return false unless action && asker
+
+    action.risk_level == Ability::Action::RISK_DESTRUCTIVE || !action.reversible || self_approvable?(action)
   end
 
   def refusal(action_key)
@@ -37,4 +45,11 @@ class Conversation::Turn
   end
 
   def asker_name = asker.try(:display_name) || "The person asking"
+
+  private
+
+  def self_approvable?(action)
+    requirement = AbilityGateway.approval_requirement(workspace, action, action.key, {}, {})
+    requirement.present? && Ability::Approval.self_approvable_by?(asker, requirement, workspace: workspace)
+  end
 end

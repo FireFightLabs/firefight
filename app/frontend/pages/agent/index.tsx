@@ -10,7 +10,7 @@ import type { AgentPageProps } from "@/pages/agent/types"
 import { agentChatsPath } from "@/lib/routes"
 
 export default function AgentPage() {
-  const { conversations, archivedCount, conversation, incidents, messages } = usePage<AgentPageProps>().props
+  const { conversations, archivedCount, conversation, incidents, messages, confirmations } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, messages)
 
@@ -28,7 +28,13 @@ export default function AgentPage() {
               All chats
             </Link>
           )}
-          <Thread messages={messages} stream={stream} empty={!conversation} />
+          <Thread
+            conversationId={conversationId}
+            confirmations={confirmations}
+            messages={messages}
+            stream={stream}
+            empty={!conversation}
+          />
           <div className="p-3">
             <Composer
               conversationId={conversationId}

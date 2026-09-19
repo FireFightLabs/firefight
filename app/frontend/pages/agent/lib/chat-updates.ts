@@ -1,7 +1,7 @@
 import { router } from "@inertiajs/react"
 
 import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
-import { agentChatAskPath, agentChatPath, agentChatsPath } from "@/lib/routes"
+import { agentChatAskPath, agentChatConfirmPath, agentChatPath, agentChatsPath } from "@/lib/routes"
 import type { AgentPageProps } from "@/pages/agent/types"
 import type { AgentChat } from "@/types/serializers"
 
@@ -9,7 +9,7 @@ import type { AgentChat } from "@/types/serializers"
 
 type ChatChange = { title: string } | { pinned: boolean } | { archived: boolean }
 
-const OPEN_CHAT = [ AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES ]
+const OPEN_CHAT = [ AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONFIRMATIONS ]
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
 const IN_PLACE = { preserveScroll: true, preserveState: true }
@@ -28,6 +28,16 @@ export function startNewChat() {
 export function ask(conversationId: string | null, question: string) {
   const path = conversationId ? agentChatAskPath(conversationId) : agentChatsPath()
   router.post(path, { question }, { ...IN_PLACE, only: OPEN_CHAT, onSuccess: placeOpenChat })
+}
+
+export interface ConfirmationAnswer {
+  toolCallId: string
+  approved: boolean
+}
+
+export function answerConfirmations(conversationId: string, answers: ConfirmationAnswer[]) {
+  const decisions = answers.map((answer) => ({ tool_call_id: answer.toolCallId, approved: answer.approved }))
+  router.post(agentChatConfirmPath(conversationId), { decisions }, { ...IN_PLACE, only: OPEN_CHAT })
 }
 
 export function refreshOpenChat() {

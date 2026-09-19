@@ -4,9 +4,12 @@ class Conversation::LiveDelivery
   EVENT_CHUNK = "chunk"
   EVENT_ANSWERED = "answered"
   EVENT_FAILED = "failed"
+  EVENT_WAITING = "waiting"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
+  STATUS_WAITING = "waiting"
+  STATUS_CANCELLED = "cancelled"
   STATUSES = {
     FirefightAi::AgentLoop::STEP_RUNNING => STATUS_RUNNING, FirefightAi::AgentLoop::STEP_DONE => STATUS_DONE
   }.freeze
@@ -49,6 +52,12 @@ class Conversation::LiveDelivery
   # Without this the page would wait forever after a failed turn.
   def failed!
     broadcast(type: EVENT_FAILED)
+  end
+
+  # The page reads the questions from the chat, so the event only says to look.
+  def confirm!(_tool_calls)
+    @text.flush!
+    broadcast(type: EVENT_WAITING)
   end
 
   private

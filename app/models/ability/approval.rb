@@ -22,6 +22,26 @@ module Ability
 
     scope :pending, -> { where(status: STATUS_PENDING) }
 
+    # Shared so the gateway and the chat's confirm step read a rule the same way.
+    def self.requirement_attributes(requirement)
+      {
+        required_role: requirement["role"],
+        self_approvable: requirement.fetch("self_approval", true),
+        approver_ids: Ability::Principal.references(requirement["approvers"]),
+        agents_may_approve: requirement.fetch("agents_may_approve", false),
+        notify: requirement["notify"]
+      }
+    end
+
+    # Builds an unsaved approval so asking never writes a row.
+    def self.self_approvable_by?(principal, requirement, workspace:)
+      draft = new(
+        workspace: workspace, principal_type: principal.class.polymorphic_name, principal_id: principal.id,
+        **requirement_attributes(requirement)
+      )
+      draft.self_approvable? && draft.approver?(principal)
+    end
+
     def self.digest(action_key, params, scope)
       Digest::SHA256.hexdigest(JSON.generate([ action_key, canonical(params), canonical(scope) ]))
     end

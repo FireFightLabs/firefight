@@ -246,12 +246,15 @@ export const AGENT_STREAM_EVENTS = {
   "STEP": "step",
   "CHUNK": "chunk",
   "ANSWERED": "answered",
-  "FAILED": "failed"
+  "FAILED": "failed",
+  "WAITING": "waiting"
 } as const
 
 export const AGENT_STEP_STATUSES = {
   "RUNNING": "running",
-  "DONE": "done"
+  "DONE": "done",
+  "WAITING": "waiting",
+  "CANCELLED": "cancelled"
 } as const
 
 export const AGENT_CHANNEL = "ConversationChannel" as const
@@ -261,7 +264,8 @@ export const AGENT_CHAT_PROPS = {
   "ARCHIVED_COUNT": "archivedCount",
   "CONVERSATION": "conversation",
   "MESSAGES": "messages",
-  "INCIDENTS": "incidents"
+  "INCIDENTS": "incidents",
+  "CONFIRMATIONS": "confirmations"
 } as const
 
 export const CHAT_MESSAGE_ROLES = {

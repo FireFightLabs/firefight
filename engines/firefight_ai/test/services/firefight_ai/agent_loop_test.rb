@@ -13,6 +13,10 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
 
     def to_llm = self
 
+    def awaiting_approval? = @awaiting_approval || false
+
+    def wait_for_approval! = (@awaiting_approval = true)
+
     def before_tool_call(&block) = (@before_tool_call = block)
 
     # RubyLLM hands this one the tool's own return value, not a message.
@@ -184,6 +188,16 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     run_loop(chat, reply_is_answer: true)
 
     assert_nil chat.streamed
+  end
+
+  test "a tool call waiting on a person stops the turn without calling the model again" do
+    chat = FakeChat.new([ llm_reply(content: "never asked for") ])
+    chat.wait_for_approval!
+
+    outcome = run_loop(chat, reply_is_answer: true)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_WAITING, outcome.status
+    assert_equal 0, chat.model_calls
   end
 
   test "a streamed turn is still billed" do

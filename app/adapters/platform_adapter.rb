@@ -388,6 +388,18 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Ends the working state by asking the person to confirm the calls the agent paused on.
+  # @return [Hash] { message_id:, channel_id: }
+  def ask_agent_confirmation(channel_id:, thread_id:, answer_id:, conversation_id:, confirmations:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws a confirmation message once some of its calls are answered.
+  # @return [Hash] { success: true }
+  def update_agent_confirmation(channel_id:, message_id:, conversation_id:, confirmations:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Ends the working state with the reply. streamed means the person already read the text as it arrived.
   # @return [Hash] { message_id:, channel_id: }
   def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)

@@ -50,6 +50,11 @@ module Chat::Tools
 
   Step = Data.define(:title, :headline, :asked)
 
+  Confirmation = Data.define(:tool_call_id, :question, :asked, :status)
+  CONFIRMATION_STATUSES = {
+    Chat::APPROVAL_REQUESTED => :awaiting, Chat::APPROVAL_APPROVED => :confirmed, Chat::APPROVAL_DENIED => :cancelled
+  }.freeze
+
   # nil for the agent's own bookkeeping, which is never shown.
   def self.step(tool_name, arguments)
     return nil if tool_name.blank? || INTERNAL.include?(tool_name.to_s)
@@ -57,6 +62,27 @@ module Chat::Tools
     asked = arguments.to_h.filter_map { |name, value| [ name.to_s, value.to_s.truncate(ASKED_LIMIT) ] if value.present? }
     headline = HEADLINE_ARGUMENTS.filter_map { |wanted| asked.assoc(wanted)&.last }.first.to_s
     Step.new(title: tool_name.to_s.tr("_", " ").humanize, headline: headline, asked: asked)
+  end
+
+  # The person confirmed the call in the chat, so an approval they may give themselves is given, once.
+  def self.approve_for_asker(agent_run, approval)
+    approval.approve!(by: agent_run.acting_principal)
+    ApprovalNotificationService.mark_resolved!(approval)
+    true
+  rescue Ability::Approval::NotAllowed
+    false
+  end
+
+  def self.waiting_for_approval(action_key)
+    "Needs an approval and was not run: #{action_key}. Carry on with what you can reach and say what you could not check."
+  end
+
+  def self.confirmation(tool_call)
+    step = step(tool_call.name, tool_call.arguments)
+    Confirmation.new(
+      tool_call_id: tool_call.tool_call_id, question: "#{step&.title || tool_call.name.humanize}?",
+      asked: step&.asked || [], status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting)
+    )
   end
 
   def self.catalog(agent_run)
@@ -74,7 +100,7 @@ module Chat::Tools
       Entry.new(
         name: tool_class.name_value, description: tool_class.description_value.to_s,
         state: ready ? STATE_READY : STATE_NOT_GRANTED,
-        tool: (Firefight.new(agent_run, tool_class) if ready)
+        tool: (Firefight.new(agent_run, tool_class, actions[action_key]) if ready)
       )
     end
   end

@@ -49,11 +49,11 @@ function SpinnerRing({ active, children }: { active?: boolean; children?: React.
   );
 }
 
-function Badge({ tone, children }: { tone: "red" | "green"; children: React.ReactNode }) {
+function Badge({ tone, children }: { tone: "red" | "green" | "muted"; children: React.ReactNode }) {
   return (
     <span
       className={`flex size-5.5 shrink-0 items-center justify-center rounded-full text-white
-        ${tone === "red" ? "bg-red" : "bg-green"}`}
+        ${tone === "red" ? "bg-red" : tone === "muted" ? "bg-ink-3" : "bg-green"}`}
       style={{ animation: "pop-in 300ms cubic-bezier(0.23,1,0.32,1) both" }}
     >
       {children}
@@ -67,6 +67,9 @@ const XIcon = (
 const CheckIcon = (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
 );
+const PauseIcon = (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round"><path d="M9 6v12M15 6v12" /></svg>
+);
 const RetryIcon = (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" /></svg>
 );
@@ -77,13 +80,15 @@ export type TaskDetail = { label: string; meta: string };
 /* A single task row.
  *  - "done"     → green check badge + completed pill (static)
  *  - "running"  → active spinner showing `step`, no pill (static)
+ *  - "waiting"  → muted pause badge + waiting pill, for a step paused on a person
+ *  - "cancelled" → muted cross badge + cancelled pill, for a step the person turned down
  *  - "sequence" → animation-driven: pending spinner → failed → completed
  */
 export type TaskRow = {
   key: string;
   label: string;
   amount: string;
-  status: "done" | "running" | "sequence";
+  status: "done" | "running" | "waiting" | "cancelled" | "sequence";
   step?: number;
   details: TaskDetail[];
 };
@@ -91,11 +96,15 @@ export type TaskRow = {
 export type TaskRowsLabels = {
   completed: string;
   failed: string;
+  waiting: string;
+  cancelled: string;
 };
 
 const DEFAULT_LABELS: TaskRowsLabels = {
   completed: "Completed",
   failed: "Failed",
+  waiting: "Waiting",
+  cancelled: "Cancelled",
 };
 
 const TASK_ROWS: TaskRow[] = [
@@ -154,6 +163,8 @@ export default function TaskRows({
   const badgeFor = (row: TaskRow) => {
     if (row.status === "done") return <Badge tone="green">{CheckIcon}</Badge>;
     if (row.status === "running") return <SpinnerRing active>{row.step}</SpinnerRing>;
+    if (row.status === "waiting") return <Badge tone="muted">{PauseIcon}</Badge>;
+    if (row.status === "cancelled") return <Badge tone="muted">{XIcon}</Badge>;
     return row2 === "pending" ? (
       <SpinnerRing>{row.step}</SpinnerRing>
     ) : row2 === "failed" ? (
@@ -171,6 +182,12 @@ export default function TaskRows({
         </span>
       );
     if (row.status === "running") return null;
+    if (row.status === "waiting" || row.status === "cancelled")
+      return (
+        <span className="inline-flex h-5.5 items-center rounded-full bg-hover-2 px-2 text-[11.5px] font-medium text-ink-2">
+          {row.status === "waiting" ? copy.waiting : copy.cancelled}
+        </span>
+      );
     return row2 === "failed" ? (
       <span className="inline-flex h-5.5 items-center gap-1.5 rounded-full bg-red-tint px-2 text-[11.5px] font-medium text-red" style={{ animation: "fade-in 200ms ease-out both" }}>
         {copy.failed} <span style={{ animation: "spin 1.2s linear infinite" }} className="flex">{RetryIcon}</span>

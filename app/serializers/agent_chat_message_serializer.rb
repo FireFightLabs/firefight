@@ -15,8 +15,19 @@ class AgentChatMessageSerializer < BaseSerializer
       step = Chat::Tools.step(call.name, call.arguments)
       next unless step
 
-      status = call.result_id.present? ? Conversation::LiveDelivery::STATUS_DONE : Conversation::LiveDelivery::STATUS_RUNNING
+      status = self.class.step_status(call)
       { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked, status: status }
+    end
+  end
+
+  STEP_STATUS_BY_APPROVAL = {
+    Chat::APPROVAL_REQUESTED => Conversation::LiveDelivery::STATUS_WAITING,
+    Chat::APPROVAL_DENIED => Conversation::LiveDelivery::STATUS_CANCELLED
+  }.freeze
+
+  def self.step_status(call)
+    STEP_STATUS_BY_APPROVAL.fetch(call.approval) do
+      call.result_id.present? ? Conversation::LiveDelivery::STATUS_DONE : Conversation::LiveDelivery::STATUS_RUNNING
     end
   end
 end

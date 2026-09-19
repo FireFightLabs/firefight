@@ -60,7 +60,9 @@ class InteractionDispatcher
     Identifiers::APPLY_RUNBOOK => Interactions::ApplyRunbookHandler,
     Identifiers::INVESTIGATION_FEEDBACK => Interactions::InvestigationFeedbackHandler,
     Identifiers::APPROVE_ABILITY => Interactions::ApproveAbilityHandler,
-    Identifiers::DENY_ABILITY => Interactions::DenyAbilityHandler
+    Identifiers::DENY_ABILITY => Interactions::DenyAbilityHandler,
+    Identifiers::AGENT_CONFIRM => Interactions::AgentConfirmationHandler,
+    Identifiers::AGENT_CANCEL => Interactions::AgentConfirmationHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {

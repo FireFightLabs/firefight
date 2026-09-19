@@ -7,6 +7,8 @@ module FirefightAi
     STATUS_STALLED = :stalled
     STATUS_REPEATED_TOOL_CALL = :repeated_tool_call
     STATUS_CANCELED = :canceled
+    # The next run resumes from the saved chat once the person decides.
+    STATUS_WAITING = :waiting
 
     STEP_RUNNING = :running
     STEP_DONE = :done
@@ -65,6 +67,7 @@ module FirefightAi
       loop do
         stop = stop_reason
         return outcome(stop) if stop
+        return outcome(STATUS_WAITING) if @chat.to_llm.awaiting_approval?
 
         message = advance
         return outcome(STATUS_STALLED) if message.nil?

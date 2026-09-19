@@ -56,6 +56,16 @@ class Conversation::Delivery
     answered!(FAILED)
   end
 
+  def confirm!(tool_calls)
+    @text.flush!
+    adapter.ask_agent_confirmation(
+      channel_id: @conversation.channel_id, thread_id: @conversation.thread_id, answer_id: @answer_id,
+      conversation_id: @conversation.id, confirmations: tool_calls.map { |tool_call| Chat::Tools.confirmation(tool_call) }
+    )
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "conversation.confirmation_undelivered", conversation_id: @conversation.id, error: error.message }.to_json)
+  end
+
   private
 
   # Streamed text is not repeated, unless a refused piece means the person missed part of it.

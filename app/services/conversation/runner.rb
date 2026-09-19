@@ -14,7 +14,7 @@ class Conversation::Runner
 
     outcome = responder.run(
       chat: chat,
-      tools: Conversation::Tools.for(@turn, offer: ->(tools) { chat.with_tools(*tools) }),
+      tools: Conversation::Tools.for(@turn, offer: ->(tools) { chat.with_tools(*tools) }) + unfinished_tools(chat),
       context: context,
       budget: budget,
       on_step: method(:report_step),
@@ -22,6 +22,8 @@ class Conversation::Runner
     ) do |turn|
       @conversation.record_turn!(turns_used: turn.turns_used, spent_micros: turn.spent_micros)
     end
+
+    return ask_to_confirm(chat, outcome) if waiting?(outcome)
 
     delivery.answered!(reply_for(outcome, chat))
     outcome
@@ -47,6 +49,23 @@ class Conversation::Runner
   end
 
   def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
+
+  def waiting?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_WAITING
+
+  # The turn stops on calls that need the person's decision, and they are asked rather than answered.
+  def ask_to_confirm(chat, outcome)
+    chat.request_decisions!(chat.to_llm.pending_approvals.map(&:id))
+    delivery.confirm!(chat.awaiting_decision.to_a)
+    outcome
+  end
+
+  # A resumed turn starts with only its basic tools, so the ones the model already called are handed back.
+  def unfinished_tools(chat)
+    names = chat.unfinished_tool_names
+    return [] if names.empty?
+
+    Chat::Tools.catalog(@turn).filter_map { |entry| entry.tool if entry.tool && names.include?(entry.name) }
+  end
 
   # The finished report only has the key, so the step is remembered from when it started.
   def report_step(step)

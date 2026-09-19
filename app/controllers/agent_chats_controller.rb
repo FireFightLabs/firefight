@@ -8,9 +8,11 @@ class AgentChatsController < InertiaController
   PROP_CONVERSATION = "conversation"
   PROP_MESSAGES = "messages"
   PROP_INCIDENTS = "incidents"
+  PROP_CONFIRMATIONS = "confirmations"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
-    "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS
+    "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
+    "CONFIRMATIONS" => PROP_CONFIRMATIONS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -19,20 +21,21 @@ class AgentChatsController < InertiaController
 
   # Asking spends money, so it needs the same permission as starting an investigation.
   authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search], update: %i[update], delete: %i[destroy]
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
   before_action :require_agent!
 
   # Sent empty so a partial visit here clears the open chat instead of keeping the last one.
   def index
-    render inertia: "agent/index", props: base_props.merge(PROP_CONVERSATION => nil, PROP_MESSAGES => [])
+    render inertia: "agent/index", props: base_props.merge(PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [])
   end
 
   def show
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => AgentChatSerializer.one(conversation),
-      PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:ruby_llm_tool_calls) || [])
+      PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:ruby_llm_tool_calls) || []),
+      PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || [])
     )
   end
 
@@ -55,6 +58,15 @@ class AgentChatsController < InertiaController
     return redirect_to(agent_chat_path(conversation), alert: NOTHING_ASKED) if question.blank?
 
     Conversation::Asking.ask(conversation, question, asker: current_membership)
+    redirect_to agent_chat_path(conversation)
+  end
+
+  # The turn carries on as whoever answered, not whoever asked.
+  def confirm
+    decisions = Array(params[:decisions]).map do |decision|
+      { tool_call_id: decision[:tool_call_id].to_s, approved: ActiveModel::Type::Boolean.new.cast(decision[:approved]) }
+    end
+    Conversation::Confirming.decide(conversation, decisions, by: current_membership)
     redirect_to agent_chat_path(conversation)
   end
 

@@ -81,6 +81,9 @@ class Investigation < ApplicationRecord
     "Not allowed: this agent has no grant for #{action_key} in this workspace."
   end
 
+  # Nobody is watching a run to confirm anything, so its reach is set by its grants and approval rules alone.
+  def confirms?(_action) = false
+
   def live?
     LIVE_STATUSES.include?(status)
   end

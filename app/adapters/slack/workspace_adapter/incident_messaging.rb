@@ -480,6 +480,23 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
+  def ask_agent_confirmation(channel_id:, thread_id:, answer_id:, conversation_id:, confirmations:)
+    finish_agent_answer(
+      channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
+      text: Slack::Messages::AgentConfirmation.fallback(confirmations),
+      blocks: Slack::Messages::AgentConfirmation.build(conversation_id: conversation_id, confirmations: confirmations)
+    )
+  end
+
+  def update_agent_confirmation(channel_id:, message_id:, conversation_id:, confirmations:)
+    update_message(
+      channel_id: channel_id, message_id: message_id,
+      text: Slack::Messages::AgentConfirmation.fallback(confirmations),
+      blocks: Slack::Messages::AgentConfirmation.build(conversation_id: conversation_id, confirmations: confirmations)
+    )
+    { success: true }
+  end
+
   # Blocks after a stream render below the streamed text, so a reply the person already read gets none.
   def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
     finish_agent_answer(
