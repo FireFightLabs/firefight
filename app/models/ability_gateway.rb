@@ -144,11 +144,7 @@ class AbilityGateway
       request_digest: Ability::Approval.digest(action_key, params, scope),
       scope: scope,
       params: params,
-      required_role: requirement["role"],
-      self_approvable: requirement.fetch("self_approval", true),
-      approver_ids: Ability::Principal.references(requirement["approvers"]),
-      agents_may_approve: requirement.fetch("agents_may_approve", false),
-      notify: requirement["notify"],
+      **Ability::Approval.requirement_attributes(requirement),
       incident_id: context[:incident_id],
       source: context[:source]
     )

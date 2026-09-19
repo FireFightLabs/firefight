@@ -27,4 +27,17 @@ class Slack::InteractionParserTest < ActiveSupport::TestCase
     assert_nil interaction.prompt_handle
     assert_equal 1, interaction.metadata.incident_id
   end
+
+  test "a button pressed on a message carries that message's id" do
+    interaction = Slack::InteractionParser.parse(
+      "type" => Interaction::BLOCK_ACTIONS,
+      "team" => { "id" => "T12345678" },
+      "user" => { "id" => "U12345678" },
+      "channel" => { "id" => "C12345678" },
+      "container" => { "type" => "message", "message_ts" => "1700000000.000200" },
+      "actions" => [ { "action_id" => Identifiers::AGENT_CONFIRM, "value" => "id:call_1" } ]
+    )
+
+    assert_equal "1700000000.000200", interaction.message_id
+  end
 end

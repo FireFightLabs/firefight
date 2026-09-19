@@ -295,6 +295,7 @@ Rails.application.routes.draw do
     patch "/agent/:id", to: "agent_chats#update"
     delete "/agent/:id", to: "agent_chats#destroy"
     post "/agent/:id/ask", to: "agent_chats#ask", as: :agent_chat_ask
+    post "/agent/:id/confirm", to: "agent_chats#confirm", as: :agent_chat_confirm
     get "/catalogue", to: "catalogue#index", as: :catalogue
     get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
     post "/catalogue/types", to: "catalogue#create_type"

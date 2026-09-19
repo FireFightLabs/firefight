@@ -6,6 +6,9 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @tool = tool
   end
 
+  # RubyLLM pauses the turn before a call that needs the person's decision.
+  def requires_approval? = @agent_run.confirms?(@tool.ability_action)
+
   def name = @tool.model_facing_name
 
   def description = @tool.description.to_s
@@ -19,19 +22,23 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   private
 
-  def invoke(arguments)
-    @agent_run.tool_call(action_key: @tool.action_key, params: arguments) do
+  def invoke(arguments, approval_id: nil)
+    @agent_run.tool_call(action_key: @tool.action_key, params: arguments, **{ approval_id: approval_id }.compact) do
       integration = @tool.integration
       environment_row = integration.resolve_environment(nil)
       text_of(integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments))
     end
   rescue AbilityGateway::Denied
     @agent_run.refusal(@tool.action_key)
-  rescue AbilityGateway::PendingApproval
-    "Needs an approval and was not run: #{@tool.action_key}. Carry on with what you can reach and say what you could not check."
+  rescue AbilityGateway::PendingApproval => pending
+    return invoke(arguments, approval_id: pending.approval.id) if approval_id.nil? && approved_by_asker?(pending.approval)
+
+    Chat::Tools.waiting_for_approval(@tool.action_key)
   rescue Integrations::Error => error
     "#{@tool.action_key} failed: #{error.message}"
   end
+
+  def approved_by_asker?(approval) = requires_approval? && Chat::Tools.approve_for_asker(@agent_run, approval)
 
   def text_of(result)
     Array(result["content"]).filter_map { |part| part["text"] }.join("\n").presence || result.to_json

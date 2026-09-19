@@ -128,6 +128,8 @@ module Identifiers
   INVESTIGATION_FEEDBACK = "investigation_feedback"
   APPROVE_ABILITY = "approve_ability"
   DENY_ABILITY = "deny_ability"
+  AGENT_CONFIRM = "agent_confirm"
+  AGENT_CANCEL = "agent_cancel"
 
   # Slack event types (top-level Events API)
   EVENT_REACTION_ADDED  = "reaction_added"

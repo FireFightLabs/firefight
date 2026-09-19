@@ -21,6 +21,35 @@ class Chat < ApplicationRecord
     messages.where(role: Chat::Message::READABLE_ROLES).order(:created_at)
   end
 
+  # Requested is ours, RubyLLM reads anything but approved or denied as undecided.
+  APPROVAL_REQUESTED = "requested"
+  APPROVAL_APPROVED = "approved"
+  APPROVAL_DENIED = "denied"
+
+  def tool_calls
+    RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: messages.select(:id))
+  end
+
+  def awaiting_decision = tool_calls.where(approval: APPROVAL_REQUESTED).order(:created_at)
+
+  def request_decisions!(tool_call_ids)
+    tool_calls.where(tool_call_id: tool_call_ids, approval: nil).update_all(approval: APPROVAL_REQUESTED)
+  end
+
+  # One guarded update, so a second click on the same question loses rather than deciding it twice.
+  def decide!(tool_call_id, approved:)
+    decision = approved ? APPROVAL_APPROVED : APPROVAL_DENIED
+    tool_calls.where(tool_call_id: tool_call_id, approval: APPROVAL_REQUESTED).update_all(approval: decision, updated_at: Time.current) > 0
+  end
+
+  # The calls put to the person in the same pause as this one.
+  def asked_with(tool_call_id)
+    message_id = tool_calls.where(tool_call_id: tool_call_id).pick(:message_id)
+    tool_calls.where(message_id: message_id).where.not(approval: nil).order(:created_at)
+  end
+
+  def unfinished_tool_names = tool_calls.where(result_id: nil).distinct.pluck(:name)
+
   # Records which model will run, without opening a connection to the provider.
   def self.open!(owner:, workspace:, model_choice:)
     chat = new(owner: owner, workspace: workspace)

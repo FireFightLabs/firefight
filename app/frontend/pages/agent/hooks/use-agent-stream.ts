@@ -68,7 +68,11 @@ export function useAgentStream(conversationId: string | null, messages: AgentCha
             setSteps((shown) => withStep(shown, event))
             return
           }
-          if (event.type === AGENT_STREAM_EVENTS.ANSWERED || event.type === AGENT_STREAM_EVENTS.FAILED) {
+          if (
+            event.type === AGENT_STREAM_EVENTS.ANSWERED ||
+            event.type === AGENT_STREAM_EVENTS.FAILED ||
+            event.type === AGENT_STREAM_EVENTS.WAITING
+          ) {
             setBusy(false)
             refreshOpenChat()
           }

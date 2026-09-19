@@ -157,6 +157,24 @@
   }
 }
 
+/* Spacing the approval card uses. */
+.agent-ui .primitive-card-pad {
+  padding: 12px;
+}
+
+.agent-ui .primitive-card-footer {
+  padding: 10px;
+}
+
+.agent-ui .primitive-icon-button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+}
+
 .agent-ui :is(button:not([disabled]):not([aria-disabled="true"]), label:has(input), a) {
   cursor: pointer;
 }

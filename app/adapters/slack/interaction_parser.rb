@@ -9,6 +9,7 @@ module Slack
         user_id: payload.dig(:user, :id),
         trigger_id: payload[:trigger_id],
         channel_id: payload.dig(:channel, :id),
+        message_id: payload.dig(:container, :message_ts),
         action_id: payload.dig(:actions, 0, :action_id),
         callback_id: payload.dig(:view, :callback_id) || payload[:callback_id],
         selected_value: payload.dig(:actions, 0, :selected_option, :value),
