@@ -20,6 +20,16 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_equal "1700000000.000100", conversation.thread_id
   end
 
+  test "each mention acts as whoever tagged the agent, not whoever started the thread" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    bob = workspace_memberships(:bob_workspace_one)
+    mention("what is going on")
+
+    assert_enqueued_with(job: ConversationReplyJob, args: [ @workspace.conversations.sole.id, bob.id ]) do
+      mention("and who is leading", by: bob)
+    end
+  end
+
   test "a second mention in the same thread joins the conversation already there" do
     FeatureFlags.stubs(:enabled?).returns(true)
 
@@ -39,12 +49,12 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
 
   private
 
-  def mention(text, thread_ts: "1700000000.000100")
+  def mention(text, thread_ts: "1700000000.000100", by: workspace_memberships(:alice_workspace_one))
     Events::AppMentionHandler.execute(@workspace, {
       "team_id" => @workspace.platform_id,
       "event" => {
         "type" => Identifiers::EVENT_APP_MENTION, "channel" => @incident.channel_id,
-        "user" => workspace_memberships(:alice_workspace_one).platform_user_id,
+        "user" => by.platform_user_id,
         "ts" => thread_ts, "text" => "<@U123> #{text}"
       }
     })

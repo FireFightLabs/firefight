@@ -22,7 +22,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
   end
 
   test "a conversation starts with the two tools it always needs" do
-    names = Conversation::Tools.for(@conversation, offer: ->(_tools) { }).map(&:name)
+    names = Conversation::Tools.for(turn, offer: ->(_tools) { }).map(&:name)
 
     assert_equal [ "find_tools", "start_investigation" ], names
   end
@@ -85,5 +85,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
 
   private
 
-  def tool = Conversation::Tools::StartInvestigation.new(@conversation)
+  def turn = Conversation::Turn.new(@conversation, asker: workspace_memberships(:alice_workspace_one))
+
+  def tool = Conversation::Tools::StartInvestigation.new(turn)
 end

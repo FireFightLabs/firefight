@@ -56,7 +56,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation = @workspace.conversations.personal.find_by!(started_by: @member)
     assert_redirected_to agent_chat_path(conversation)
     assert_equal "what changed today", conversation.title
-    assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id ])
+    assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id, @member.id ])
   end
 
   test "a new chat with nothing asked is never created" do
@@ -71,7 +71,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
   test "a question is answered in the background" do
     conversation = start_chat
 
-    assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id ]) do
+    assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id, @member.id ]) do
       post agent_chat_ask_url(conversation), params: { question: "what changed today" }
     end
 

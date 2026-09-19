@@ -160,7 +160,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
   def grant_system!(resource, action)
     Ability::Grant.create!(
-      workspace: @workspace, principal: @investigation.agent_principal,
+      workspace: @workspace, principal: @investigation.acting_principal,
       action: Ability::Action.system!(Ability::Action.system_key(resource, action))
     )
     bust_grants!
@@ -168,13 +168,13 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
   def grant!(tool)
     Ability::Grant.create!(
-      workspace: @workspace, principal: @investigation.agent_principal, action: tool.reload.ability_action
+      workspace: @workspace, principal: @investigation.acting_principal, action: tool.reload.ability_action
     )
     bust_grants!
   end
 
   def bust_grants!
-    principal = @investigation.agent_principal
+    principal = @investigation.acting_principal
     Ability::Resolver.bust!(
       principal_type: principal.class.polymorphic_name, principal_id: principal.id, workspace_id: @workspace.id
     )

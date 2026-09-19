@@ -19,5 +19,4 @@ class Conversation::Opener
       workspace: workspace, platform_user_id: platform_user_id, adapter: workspace.adapter
     )
   end
-  private_class_method :member
 end

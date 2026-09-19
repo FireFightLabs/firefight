@@ -8,6 +8,16 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
     @member = workspace_memberships(:alice_workspace_one)
   end
 
+  test "the turn acts as the person who asked, or whoever started the chat for a job queued without one" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    bob = workspace_memberships(:bob_workspace_one)
+    Conversation::Runner.expects(:new).with(conversation, asker: bob).returns(stub(run: nil))
+    Conversation::Runner.expects(:new).with(conversation, asker: @member).returns(stub(run: nil))
+
+    ConversationReplyJob.perform_now(conversation.id, bob.id)
+    ConversationReplyJob.perform_now(conversation.id)
+  end
+
   test "a dashboard chat hears that the turn died rather than waiting on it" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError, "no model")

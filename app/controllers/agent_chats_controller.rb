@@ -54,7 +54,7 @@ class AgentChatsController < InertiaController
   def ask
     return redirect_to(agent_chat_path(conversation), alert: NOTHING_ASKED) if question.blank?
 
-    Conversation::Asking.ask(conversation, question)
+    Conversation::Asking.ask(conversation, question, asker: current_membership)
     redirect_to agent_chat_path(conversation)
   end
 

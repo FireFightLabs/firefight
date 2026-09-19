@@ -1,5 +1,4 @@
-# Everything the agent could reach, whoever is asking. A run or a conversation hands itself in, and
-# the grants on its account decide which entries come back callable.
+# Everything the agent could reach. The acting principal's permissions decide which entries are callable.
 module Chat::Tools
   STATE_READY = :ready
   STATE_NOT_GRANTED = :not_granted
@@ -42,26 +41,27 @@ module Chat::Tools
   end
 
   def self.firefight_entries(agent_run)
-    resolved = granted(agent_run)
+    principal = agent_run.acting_principal
+    workspace = agent_run.workspace
+    keys = Mcp::Tools.all.to_h { |tool_class| [ tool_class, Ability::Action.system_key(*tool_class.authorization(workspace, {})) ] }
+    actions = Ability::Action.system_actions.where(key: keys.values).index_by(&:key)
 
-    Mcp::Tools.all.map do |tool_class|
-      resource, action = tool_class.authorization(agent_run.workspace, {})
-      action_key = Ability::Action.system_key(resource, action)
-      ready = resolved.action_keys.include?(action_key)
+    keys.map do |tool_class, action_key|
+      ready = principal.present? && principal.permitted_to?(actions[action_key], workspace)
       Entry.new(
         name: tool_class.name_value, description: tool_class.description_value.to_s,
         state: ready ? STATE_READY : STATE_NOT_GRANTED,
-        tool: (Firefight.new(agent_run, tool_class, action_key) if ready)
+        tool: (Firefight.new(agent_run, tool_class) if ready)
       )
     end
   end
 
   def self.connection_entries(agent_run)
-    principal = agent_run.agent_principal
-    resolved = granted(agent_run)
+    principal = agent_run.acting_principal
+    resolved = principal && granted(agent_run)
 
     Integration::Tool.in_workspace(agent_run.workspace).map do |tool|
-      ready = tool.callable_by?(principal, resolved)
+      ready = principal.present? && tool.callable_by?(principal, resolved)
       Entry.new(
         name: tool.model_facing_name, description: tool.description.to_s,
         state: ready ? STATE_READY : STATE_NOT_GRANTED,
@@ -80,6 +80,6 @@ module Chat::Tools
   end
 
   def self.granted(agent_run)
-    Ability::Resolver.resolve(agent_run.agent_principal, agent_run.workspace)
+    Ability::Resolver.resolve(agent_run.acting_principal, agent_run.workspace)
   end
 end

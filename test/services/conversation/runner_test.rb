@@ -168,7 +168,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
   # The question is written down by the asker, the way both entry points do it, and the job runs after.
   def ask(conversation, question)
     conversation.ask!(question)
-    Conversation::Runner.new(conversation).run
+    Conversation::Runner.new(conversation, asker: conversation.started_by).run
   end
 
   # The fake reads the chat off @conversation, so a dashboard chat takes that place for the turn.

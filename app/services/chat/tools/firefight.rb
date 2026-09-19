@@ -1,11 +1,9 @@
-# One of Firefight's own tools, the same ones an outside agent reaches over MCP. The definition is
-# shared so a tool never means two things, and the gateway still authorizes each call as the agent.
+# One of Firefight's own tools, shared with MCP so a tool never means two things.
 class Chat::Tools::Firefight < RubyLLM::Tool
-  def initialize(agent_run, tool_class, action_key)
+  def initialize(agent_run, tool_class)
     super()
     @agent_run = agent_run
     @tool_class = tool_class
-    @action_key = action_key
   end
 
   def name = @tool_class.name_value
@@ -20,18 +18,21 @@ class Chat::Tools::Firefight < RubyLLM::Tool
 
   private
 
+  # The action comes from the arguments, since an upsert is a create or an update depending on its target.
   def invoke(arguments)
-    @agent_run.tool_call(action_key: @action_key, params: arguments.transform_keys(&:to_s)) do
-      text_of(@tool_class.perform(workspace: @agent_run.workspace, args: arguments))
+    action_key = Ability::Action.system_key(*@tool_class.authorization(@agent_run.workspace, arguments))
+    response = @agent_run.tool_call(action_key: action_key, params: arguments.transform_keys(&:to_s)) do
+      Mcp::ToolDispatcher.run(
+        tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments
+      )
     end
-  rescue Conversation::AskerDenied
-    "Not allowed: the person you are answering cannot read #{@action_key} in this workspace. Say so, and carry on with what you can reach."
+    text_of(response)
   rescue AbilityGateway::Denied
-    "Not allowed: this agent has no grant for #{@action_key} in this workspace."
+    @agent_run.refusal(action_key)
   rescue AbilityGateway::PendingApproval
-    "Needs an approval and was not run: #{@action_key}. Carry on with what you can reach and say what you could not check."
-  rescue ActiveRecord::RecordNotFound, ActiveRecord::RecordInvalid => error
-    "#{name} failed: #{error.message}"
+    "Needs an approval and was not run: #{action_key}. Carry on with what you can reach and say what you could not check."
+  rescue *Mcp::ToolDispatcher::TOOL_ERRORS => error
+    text_of(Mcp::ToolDispatcher.tool_error_response(error))
   end
 
   def text_of(response)

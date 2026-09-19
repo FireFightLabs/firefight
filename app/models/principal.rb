@@ -35,4 +35,9 @@ module Principal
   def implicitly_allowed?(_action)
     false
   end
+
+  # What the gateway would answer, without taking the action or writing to the ledger.
+  def permitted_to?(action, workspace)
+    action.present? && AbilityGateway.permitted?(self, action, action.key, workspace, {})
+  end
 end

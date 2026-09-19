@@ -43,7 +43,8 @@ module Events
         workspace: workspace, incident: incident, channel_id: channel_id,
         thread_id: thread_id, platform_user_id: event["user"]
       )
-      Conversation::Asking.ask(conversation, user_text)
+      asker = Conversation::Opener.member(workspace, event["user"])
+      Conversation::Asking.ask(conversation, user_text, asker: asker)
     end
     private_class_method :answer_as_agent
 
