@@ -7,11 +7,10 @@ class AgentChatsController < InertiaController
   NOTHING_ASKED = "Say something first."
   CHAT_DELETED = "Chat deleted."
 
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS,
-    read: %i[index show],
-    create: %i[create ask],
-    update: %i[update],
-    delete: %i[destroy]
+  # A chat is the person's own to read and tidy. Asking the agent spends money, so it is the same
+  # permission as starting an investigation.
+  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show], update: %i[update], delete: %i[destroy]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask]
 
   before_action :require_agent!
 

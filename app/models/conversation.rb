@@ -34,6 +34,16 @@ class Conversation < ApplicationRecord
     )
   end
 
+  # Whether this person may read chats at all. The nav and the socket ask this, so neither offers
+  # what the gateway would refuse the page.
+  def self.readable_by?(member)
+    return false unless member
+
+    key = Ability::Action.system_key(Ability::Action::RESOURCE_CHATS, Ability::Action::ACTION_READ)
+    action = Ability::Action.lookup(key, member.workspace)
+    action.present? && AbilityGateway.permitted?(member, action, key, member.workspace, {})
+  end
+
   def personal? = kind == KIND_PERSONAL
 
   # The question is written down before the job runs, so the person sees their own words straight
@@ -66,9 +76,9 @@ class Conversation < ApplicationRecord
     chat&.last_readable_message&.content.to_s.truncate(PREVIEW_LIMIT)
   end
 
-  # A personal chat is read by one person in the dashboard, and only while they may read the agent's work.
+  # A personal chat is read by one person in the dashboard, and only while they may read chats.
   def watchable_by?(user)
-    personal? && started_by.present? && started_by.user_id == user&.id && Investigation.readable_by?(started_by)
+    personal? && started_by.present? && started_by.user_id == user&.id && self.class.readable_by?(started_by)
   end
 
   # One chat per conversation, so two questions asked at once share the one that won.

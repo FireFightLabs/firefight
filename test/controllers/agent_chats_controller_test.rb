@@ -206,6 +206,27 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to agent_chats_path
   end
 
+  test "a member tidies their own chats without any grant on investigations" do
+    sign_in(users(:bob), @workspace)
+    bob = workspace_memberships(:bob_workspace_one)
+    conversation = Conversation.start_personal!(workspace: @workspace, member: bob)
+
+    patch agent_chat_url(conversation), params: { title: "Mine" }
+    assert_equal "Mine", conversation.reload.title
+
+    delete agent_chat_url(conversation)
+    assert_nil Conversation.find_by(id: conversation.id)
+  end
+
+  test "asking the agent still needs the investigations grant" do
+    sign_in(users(:bob), @workspace)
+    conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
+
+    assert_no_enqueued_jobs(only: ConversationReplyJob) do
+      post agent_chat_ask_url(conversation), params: { question: "what changed today" }
+    end
+  end
+
   test "someone else's chat cannot be renamed or deleted" do
     theirs = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
 
