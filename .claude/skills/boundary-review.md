@@ -11,7 +11,7 @@ ArchSpec proves the named boundaries (which file may reference which constant). 
 
 1. `git diff main...HEAD --stat`, then read every changed file under `app/`, `engines/`, `lib/`, `db/migrate/`, `config/`, `app/frontend/` in full.
 2. Work through the checklist. For each hit, name the file and line and say which layer the code belongs in.
-3. Fix what you found. Anything you leave gets one line in the PR body saying what and why, since silence reads as complete. The report itself stays out of the PR.
+3. Fix what you found. Anything you leave is told to the person you are working with and recorded in the internal tracker, since silence reads as complete. Neither it nor the report goes in the PR, which is public.
 4. Run `bundle exec archspec check` and `bin/ci`. A green ArchSpec with hits from this list is not green.
 
 ## Platform containment
@@ -55,7 +55,7 @@ Slack handlers, the API, MCP, and the dashboard normalize input and call shared 
 
 - **Every capability has a click path.** Name how a person reaches the new thing from a cold page, including the second time (already connected, already granted). A model plus controller plus serializer with no page is not shipped.
 - **N, not 1.** Where the schema allows many, the UI shows many.
-- **Docs.** A change a user can see has a matching change in `../firefight-landing`, opened alongside. Say so in the PR body, or say why not.
+- **Docs.** A change a user can see has a matching change in `../firefight-landing`, opened alongside. Link it in the PR body, or tell the person you are working with why not.
 
 ## Report
 
