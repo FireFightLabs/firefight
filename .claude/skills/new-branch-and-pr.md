@@ -40,7 +40,7 @@ npm run lint
 npx tsc --noEmit
 ```
 
-**The page itself.** Green CI never renders a pixel. Open the screen at `https://ff.bugrewind.com` (not `localhost:3000`, the session lives on the tunnel) and look at it. If you did not look, say so in the PR body rather than implying you did.
+**The page itself.** Green CI never renders a pixel. Open the screen at `https://ff.bugrewind.com` (not `localhost:3000`, the session lives on the tunnel) and look at it. If you did not look, tell the person you are working with rather than implying you did.
 
 Two traps that make local and CI disagree:
 
@@ -55,7 +55,7 @@ Focused commits. The message explains why the change is right, not what the diff
 
 Title and body are concise. The title is one line naming the change. The body is one short paragraph saying why, then a bullet list of what changed, with the docs PR linked as a bullet. Nothing else: no headers, no Verification section, no boundary review report, no footer. Look at the last few merged PRs for the shape.
 
-Every check in step 4 still runs before the PR opens. What it found goes into the code, not the body. If something could not be checked, or was left undone, say so in one bullet, because silence reads as complete.
+Every check in step 4 still runs before the PR opens. What it found goes into the code, not the body. The repo is public, so the body never names internal tickets, internal pages or future plans. If something could not be checked, or was left undone, tell the person you are working with and record it in the internal tracker, because silence reads as complete.
 
 ## 7. Stop
 
