@@ -6,8 +6,8 @@ interface MessageProps {
   turn: ChatTurn
 }
 
-// As in ChatGPT, the person's words sit in a bubble on the right and the answer runs across the
-// column, so it reads as the page rather than as a card on it.
+// The person's words sit in a bubble on the right and the answer runs across the column, so the
+// answer reads as the page rather than as a card on it.
 export function Message({ turn }: MessageProps) {
   if (turn.kind === "person") {
     return (

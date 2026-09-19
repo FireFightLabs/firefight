@@ -18,8 +18,8 @@ interface ChatSearchProps {
   onOpenChange: (open: boolean) => void
 }
 
-// Searching opens over the page, the way it does in ChatGPT, rather than filtering the list in place.
-// The last thing said is searched too, so a chat is found by its latest answer as well as its title.
+// Searching opens a dialog over the page rather than filtering the list in place, so the list never
+// jumps. The last thing said is searched too, so a chat is found by its latest answer as well as its title.
 export function ChatSearch({ chats, open, onOpenChange }: ChatSearchProps) {
   function openChat(chat: AgentChat) {
     onOpenChange(false)

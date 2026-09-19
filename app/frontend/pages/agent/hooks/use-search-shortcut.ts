@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 
-// Command or control K opens chat search, the way it does in ChatGPT, except from inside a dialog
+// Command or control K opens chat search from anywhere on the page, except from inside a dialog
 // that is already open.
 export function useSearchShortcut(openSearch: () => void) {
   useEffect(() => {

@@ -14,8 +14,8 @@ interface ChatListProps {
   className: string
 }
 
-// Laid out the way ChatGPT lays out its history. Pinned chats come first, then the rest, and archived
-// ones fold away at the bottom, open whenever the chat on screen is one of them.
+// Pinned chats come first, then the rest by when they were last spoken to. Archived ones fold away at
+// the bottom, open whenever the chat on screen is one of them.
 export function ChatList({ chats, currentId, className }: ChatListProps) {
   const pinned = chats.filter((chat) => chat.pinned && !chat.archived)
   const recent = chats.filter((chat) => !chat.pinned && !chat.archived)
