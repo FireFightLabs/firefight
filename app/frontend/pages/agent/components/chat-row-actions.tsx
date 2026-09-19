@@ -1,4 +1,3 @@
-import { router } from "@inertiajs/react"
 import { IconDotsVertical } from "@tabler/icons-react"
 import { useState } from "react"
 
@@ -10,35 +9,36 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { agentChatPath } from "@/lib/routes"
 import { RenameChatDialog } from "@/pages/agent/components/rename-chat-dialog"
+import { deleteChat, renameChat, setChatArchived, setChatPinned } from "@/pages/agent/lib/chat-updates"
 import type { AgentChat } from "@/types/serializers"
 
 interface ChatRowActionsProps {
   chat: AgentChat
+  open: boolean
   className: string
 }
 
-export function ChatRowActions({ chat, className }: ChatRowActionsProps) {
+export function ChatRowActions({ chat, open, className }: ChatRowActionsProps) {
   const [ renaming, setRenaming ] = useState(false)
   const [ deleting, setDeleting ] = useState(false)
 
   function rename(title: string) {
     setRenaming(false)
-    router.patch(agentChatPath(chat.id), { title }, { preserveScroll: true })
+    renameChat(chat, title)
   }
 
   function togglePin() {
-    router.patch(agentChatPath(chat.id), { pinned: !chat.pinned }, { preserveScroll: true })
+    setChatPinned(chat, !chat.pinned)
   }
 
   function toggleArchive() {
-    router.patch(agentChatPath(chat.id), { archived: !chat.archived }, { preserveScroll: true })
+    setChatArchived(chat, !chat.archived)
   }
 
   function remove() {
     setDeleting(false)
-    router.delete(agentChatPath(chat.id))
+    deleteChat(chat, open)
   }
 
   function openRename() {

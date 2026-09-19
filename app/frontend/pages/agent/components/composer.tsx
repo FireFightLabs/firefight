@@ -1,8 +1,7 @@
-import { router } from "@inertiajs/react"
-
 import PromptBar from "@/components/agent-ui/prompt-bar"
-import { agentChatAskPath, agentChatsIncidentsPath, agentChatsPath } from "@/lib/routes"
+import { agentChatsIncidentsPath } from "@/lib/routes"
 import { useRemoteSearch } from "@/pages/agent/hooks/use-remote-search"
+import { ask } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatIncident } from "@/types/serializers"
 
 function incidentSearchPath(query: string) {
@@ -10,7 +9,7 @@ function incidentSearchPath(query: string) {
 }
 
 interface ComposerProps {
-  conversationId?: string
+  conversationId: string | null
   incidents: AgentChatIncident[]
   busy: boolean
 }
@@ -18,14 +17,12 @@ interface ComposerProps {
 export function Composer({ conversationId, incidents, busy }: ComposerProps) {
   const { results, search } = useRemoteSearch<AgentChatIncident>(incidentSearchPath)
 
-  // With no chat open, the first question is what starts one.
   function send(question: string) {
     if (question.trim().length === 0) {
       return
     }
 
-    const path = conversationId ? agentChatAskPath(conversationId) : agentChatsPath()
-    router.post(path, { question }, { preserveScroll: true })
+    ask(conversationId, question)
   }
 
   function placeholder() {

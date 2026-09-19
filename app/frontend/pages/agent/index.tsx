@@ -5,6 +5,7 @@ import { ChatList } from "@/pages/agent/components/chat-list"
 import { Composer } from "@/pages/agent/components/composer"
 import { Thread } from "@/pages/agent/components/thread"
 import { useAgentStream } from "@/pages/agent/hooks/use-agent-stream"
+import { OPEN_CHAT_VISIT } from "@/pages/agent/lib/chat-updates"
 import { agentChatsPath } from "@/lib/routes"
 import type { AgentChat, AgentChatIncident, AgentChatMessage } from "@/types/serializers"
 import type { SharedProps } from "@/types"
@@ -12,14 +13,15 @@ import type { SharedProps } from "@/types"
 interface AgentPageProps extends SharedProps {
   conversations: AgentChat[]
   archivedCount: number
-  conversation?: AgentChat
+  conversation: AgentChat | null
   incidents: AgentChatIncident[]
-  messages?: AgentChatMessage[]
+  messages: AgentChatMessage[]
 }
 
 export default function AgentPage() {
   const { conversations, archivedCount, conversation, incidents, messages } = usePage<AgentPageProps>().props
-  const stream = useAgentStream(conversation?.id, messages)
+  const conversationId = conversation?.id ?? null
+  const stream = useAgentStream(conversationId, messages)
 
   // A phone shows one column at a time, the list or the chat opened from it.
   const listClass = conversation ? "hidden md:flex" : "flex"
@@ -29,17 +31,17 @@ export default function AgentPage() {
     <AuthenticatedLayout title="Chat" sidebarCollapsed>
       <Head title="Chat" />
       <div className="agent-ui agent-chat">
-        <ChatList chats={conversations} archivedCount={archivedCount} currentId={conversation?.id} className={listClass} />
+        <ChatList chats={conversations} archivedCount={archivedCount} currentId={conversationId} className={listClass} />
         <section className={`min-h-0 min-w-0 flex-1 flex-col ${threadClass}`}>
           {conversation && (
-            <Link href={agentChatsPath()} className="px-4 pt-3 text-[13px] text-ink-2 md:hidden">
+            <Link href={agentChatsPath()} {...OPEN_CHAT_VISIT} className="px-4 pt-3 text-[13px] text-ink-2 md:hidden">
               All chats
             </Link>
           )}
-          <Thread messages={messages ?? []} stream={stream} empty={!conversation} />
+          <Thread messages={messages} stream={stream} empty={!conversation} />
           <div className="p-3">
             <Composer
-              conversationId={conversation?.id}
+              conversationId={conversationId}
               incidents={incidents}
               busy={stream.busy}
             />

@@ -1,19 +1,13 @@
 import { createConsumer } from "@rails/actioncable"
-import { router } from "@inertiajs/react"
 import { useEffect, useRef, useState } from "react"
 
 import { AGENT_CHANNEL, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
+import { refreshOpenChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentStep, AgentStream, StepStatus, StreamEventType } from "@/pages/agent/types"
 import type { AgentChatMessage } from "@/types/serializers"
 
 // A socket that drops mid turn would leave the answer unseen, so the page asks for it once instead.
 const RECOVERY_MS = 4000
-
-// The saved answer and the list it moved to the top of. The list loads by the page, so it is replaced
-// rather than merged, or the first page would be appended to itself.
-function reloadChat() {
-  router.reload({ only: [ "messages", "conversations" ], reset: [ "conversations" ] })
-}
 
 interface StreamEvent {
   type: StreamEventType
@@ -25,16 +19,13 @@ interface StreamEvent {
   status?: StepStatus
 }
 
-export function useAgentStream(
-  conversationId: string | undefined,
-  messages: AgentChatMessage[] | undefined,
-): AgentStream {
+export function useAgentStream(conversationId: string | null, messages: AgentChatMessage[]): AgentStream {
   const [ busy, setBusy ] = useState(false)
   const [ text, setText ] = useState("")
   const [ steps, setSteps ] = useState<AgentStep[]>([])
   const working = useRef(false)
   const recovery = useRef<number | undefined>(undefined)
-  const last = messages?.[messages.length - 1]
+  const last = messages[messages.length - 1]
 
   // A turn already running when the page opened has no thinking event to announce it.
   useEffect(() => {
@@ -79,7 +70,7 @@ export function useAgentStream(
           }
           if (event.type === AGENT_STREAM_EVENTS.ANSWERED || event.type === AGENT_STREAM_EVENTS.FAILED) {
             setBusy(false)
-            reloadChat()
+            refreshOpenChat()
           }
         },
         disconnected() {
@@ -87,7 +78,7 @@ export function useAgentStream(
             return
           }
 
-          recovery.current = window.setTimeout(reloadChat, RECOVERY_MS)
+          recovery.current = window.setTimeout(refreshOpenChat, RECOVERY_MS)
         },
       },
     )

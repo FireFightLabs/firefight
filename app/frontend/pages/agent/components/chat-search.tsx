@@ -1,11 +1,11 @@
-import { router } from "@inertiajs/react"
 import { IconMessage } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { agentChatPath, agentChatsSearchPath } from "@/lib/routes"
+import { agentChatsSearchPath } from "@/lib/routes"
 import { useRemoteSearch } from "@/pages/agent/hooks/use-remote-search"
+import { openChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentChat } from "@/types/serializers"
 
 interface ChatSearchProps {
@@ -31,9 +31,9 @@ export function ChatSearch({ chats, open, onOpenChange }: ChatSearchProps) {
     search(next)
   }
 
-  function openChat(chat: AgentChat) {
+  function choose(chat: AgentChat) {
     onOpenChange(false)
-    router.visit(agentChatPath(chat.id))
+    openChat(chat.id)
   }
 
   return (
@@ -52,7 +52,7 @@ export function ChatSearch({ chats, open, onOpenChange }: ChatSearchProps) {
             <CommandEmpty>No chat matches that.</CommandEmpty>
             <CommandGroup heading={results ? "Matching chats" : "Recent chats"}>
               {shown.map((chat) => (
-                <CommandItem key={chat.id} value={chat.id} onSelect={() => openChat(chat)}>
+                <CommandItem key={chat.id} value={chat.id} onSelect={() => choose(chat)}>
                   <IconMessage className="size-4 text-muted-foreground" />
                   <span className="truncate">{chat.title}</span>
                 </CommandItem>

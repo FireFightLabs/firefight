@@ -18,6 +18,17 @@ class AgentChatSerializer < BaseSerializer
     conversation.pinned?
   end
 
+  # The list sorts itself on these, so a chat that is pinned or answered moves without a reload.
+  type "string | null"
+  def pinnedAt
+    conversation.pinned_at&.utc&.iso8601(3)
+  end
+
+  type :string
+  def lastActiveAt
+    conversation.updated_at.utc.iso8601(3)
+  end
+
   type :boolean
   def archived
     conversation.archived?

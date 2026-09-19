@@ -1,21 +1,21 @@
-import { InfiniteScroll, router } from "@inertiajs/react"
+import { InfiniteScroll } from "@inertiajs/react"
 import { type Icon, IconChevronRight, IconPencilPlus, IconSearch } from "@tabler/icons-react"
 import { useCallback, useState } from "react"
 
-import { agentChatsPath } from "@/lib/routes"
+import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
 import { ChatListSection } from "@/pages/agent/components/chat-list-section"
 import { ChatSearch } from "@/pages/agent/components/chat-search"
 import { useSearchShortcut } from "@/pages/agent/hooks/use-search-shortcut"
+import { startNewChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentChat } from "@/types/serializers"
 
-// The page prop the list scrolls through, and how far ahead of its end the next page is asked for.
-const CHATS_PROP = "conversations"
+// How far ahead of the list's end the next page is asked for.
 const SCROLL_BUFFER_PX = 200
 
 interface ChatListProps {
   chats: AgentChat[]
   archivedCount: number
-  currentId?: string
+  currentId: string | null
   className: string
 }
 
@@ -24,9 +24,9 @@ interface ChatListProps {
 // server, since the list may not have scrolled far enough to load them all.
 export function ChatList({ chats: loaded, archivedCount, currentId, className }: ChatListProps) {
   const chats = uniqueById(loaded)
-  const pinned = chats.filter((chat) => chat.pinned && !chat.archived)
-  const recent = chats.filter((chat) => !chat.pinned && !chat.archived)
-  const archived = chats.filter((chat) => chat.archived)
+  const pinned = chats.filter((chat) => chat.pinned && !chat.archived).sort(byNewest("pinnedAt"))
+  const recent = chats.filter((chat) => !chat.pinned && !chat.archived).sort(byNewest("lastActiveAt"))
+  const archived = chats.filter((chat) => chat.archived).sort(byNewest("lastActiveAt"))
   const currentIsArchived = archived.some((chat) => chat.id === currentId)
 
   const [ searching, setSearching ] = useState(false)
@@ -40,7 +40,7 @@ export function ChatList({ chats: loaded, archivedCount, currentId, className }:
       return
     }
 
-    router.visit(agentChatsPath())
+    startNewChat()
   }
 
   function toggleArchived() {
@@ -59,7 +59,7 @@ export function ChatList({ chats: loaded, archivedCount, currentId, className }:
 
       <nav className="min-h-0 flex-1 overflow-y-auto">
         <InfiniteScroll
-          data={CHATS_PROP}
+          data={AGENT_CHAT_PROPS.CONVERSATIONS}
           preserveUrl
           onlyNext
           buffer={SCROLL_BUFFER_PX}
@@ -123,4 +123,9 @@ function uniqueById(chats: AgentChat[]): AgentChat[] {
     seen.add(chat.id)
     return true
   })
+}
+
+// The order the server lists them in, kept here so a row that changes lands where a reload would put it.
+function byNewest(key: "pinnedAt" | "lastActiveAt") {
+  return (first: AgentChat, second: AgentChat) => (second[key] ?? "").localeCompare(first[key] ?? "")
 }

@@ -3,6 +3,17 @@
 class AgentChatsController < InertiaController
   CHATS_PER_PAGE = 50
   CHAT_PAGE_PARAM = "page"
+
+  # The page asks for these by name in partial visits, so they reach it through lib/typescript_constants.rb.
+  PROP_CONVERSATIONS = "conversations"
+  PROP_ARCHIVED_COUNT = "archivedCount"
+  PROP_CONVERSATION = "conversation"
+  PROP_MESSAGES = "messages"
+  PROP_INCIDENTS = "incidents"
+  PROPS = {
+    "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
+    "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS
+  }.freeze
   # What @ offers in the composer. The live ones are the ones anybody asks about.
   MENTIONABLE = 20
   NOTHING_ASKED = "Say something first."
@@ -16,14 +27,16 @@ class AgentChatsController < InertiaController
 
   before_action :require_agent!
 
+  # No chat open. Sent explicitly, so a visit that asks only for the open chat clears it rather than
+  # keeping the last one.
   def index
-    render inertia: "agent/index", props: base_props
+    render inertia: "agent/index", props: base_props.merge(PROP_CONVERSATION => nil, PROP_MESSAGES => [])
   end
 
   def show
     render inertia: "agent/index", props: base_props.merge(
-      conversation: AgentChatSerializer.one(conversation),
-      messages: AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:ruby_llm_tool_calls) || [])
+      PROP_CONVERSATION => AgentChatSerializer.one(conversation),
+      PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:ruby_llm_tool_calls) || [])
     )
   end
 
@@ -109,9 +122,9 @@ class AgentChatsController < InertiaController
   # The list loads a page at a time as the person scrolls, so every chat stays reachable.
   def base_props
     {
-      conversations: InertiaRails.scroll(chat_page_metadata) { AgentChatSerializer.many(chat_page) },
-      archivedCount: current_workspace.conversations.personal_for(current_membership).archived.count,
-      incidents: AgentChatIncidentSerializer.many(mentionable_incidents)
+      PROP_CONVERSATIONS => InertiaRails.scroll(chat_page_metadata) { AgentChatSerializer.many(chat_page) },
+      PROP_ARCHIVED_COUNT => current_workspace.conversations.personal_for(current_membership).archived.count,
+      PROP_INCIDENTS => AgentChatIncidentSerializer.many(mentionable_incidents)
     }
   end
 

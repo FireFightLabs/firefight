@@ -256,6 +256,14 @@ export const AGENT_STEP_STATUSES = {
 
 export const AGENT_CHANNEL = "ConversationChannel" as const
 
+export const AGENT_CHAT_PROPS = {
+  "CONVERSATIONS": "conversations",
+  "ARCHIVED_COUNT": "archivedCount",
+  "CONVERSATION": "conversation",
+  "MESSAGES": "messages",
+  "INCIDENTS": "incidents"
+} as const
+
 export const CHAT_MESSAGE_ROLES = {
   "USER": "user",
   "ASSISTANT": "assistant"

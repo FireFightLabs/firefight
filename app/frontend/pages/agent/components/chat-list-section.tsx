@@ -4,7 +4,7 @@ import type { AgentChat } from "@/types/serializers"
 interface ChatListSectionProps {
   label?: string
   chats: AgentChat[]
-  currentId?: string
+  currentId: string | null
 }
 
 export function ChatListSection({ label, chats, currentId }: ChatListSectionProps) {
