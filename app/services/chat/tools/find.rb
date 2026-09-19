@@ -26,8 +26,7 @@ class Chat::Tools::Find < RubyLLM::Tool
 
   private
 
-  # The best answers, not the first ones the catalogue happens to list. A tool that is ready wins a
-  # tie against one the workspace has not granted.
+  # Best matches first, and a ready tool beats one the workspace has not granted.
   def best_matches(query)
     Chat::Tools.catalog(@agent_run)
       .filter_map { |entry| [ entry, entry.score(query) ] if entry.score(query).positive? }

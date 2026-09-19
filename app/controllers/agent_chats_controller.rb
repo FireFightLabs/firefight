@@ -1,10 +1,8 @@
-# The dashboard side of talking to the agent. A chat here is personal, so only the person who
-# started it sees it, and the agent reads only what that person could read.
 class AgentChatsController < InertiaController
   CHATS_PER_PAGE = 50
   CHAT_PAGE_PARAM = "page"
 
-  # The page asks for these by name in partial visits, so they reach it through lib/typescript_constants.rb.
+  # Shared with the page through lib/typescript_constants.rb, since partial visits ask for props by name.
   PROP_CONVERSATIONS = "conversations"
   PROP_ARCHIVED_COUNT = "archivedCount"
   PROP_CONVERSATION = "conversation"
@@ -14,21 +12,19 @@ class AgentChatsController < InertiaController
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS
   }.freeze
-  # What @ offers in the composer. The live ones are the ones anybody asks about.
+  # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
   NOTHING_ASKED = "Say something first."
   CHAT_DELETED = "Chat deleted."
 
-  # A chat is the person's own to read and tidy. Asking the agent spends money, so it is the same
-  # permission as starting an investigation.
+  # Asking spends money, so it needs the same permission as starting an investigation.
   authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search], update: %i[update], delete: %i[destroy]
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
   before_action :require_agent!
 
-  # No chat open. Sent explicitly, so a visit that asks only for the open chat clears it rather than
-  # keeping the last one.
+  # Sent empty so a partial visit here clears the open chat instead of keeping the last one.
   def index
     render inertia: "agent/index", props: base_props.merge(PROP_CONVERSATION => nil, PROP_MESSAGES => [])
   end
@@ -40,12 +36,10 @@ class AgentChatsController < InertiaController
     )
   end
 
-  # Every chat the person has, not only the pages the list has loaded so far.
   def search
     render json: AgentChatSerializer.many(Conversation.search_for(current_membership, params[:q]))
   end
 
-  # What @ offers once the person types after it.
   def incidents
     render json: AgentChatIncidentSerializer.many(mentionable_incidents.search(params[:q].to_s.strip))
   end
@@ -64,7 +58,6 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation)
   end
 
-  # Renaming, pinning and archiving are each one small change to the chat itself.
   def update
     return rename if params.key?(:title)
     return pin if params.key?(:pinned)
@@ -73,8 +66,7 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation)
   end
 
-  # Deleting the chat that is open leaves nothing to go back to. Deleting another from the list
-  # keeps the person where they were.
+  # Deleting the open chat goes to an empty one, deleting any other keeps the person where they were.
   def destroy
     conversation.destroy!
 
@@ -116,24 +108,22 @@ class AgentChatsController < InertiaController
   end
 
   def conversation
-    @conversation ||= current_workspace.conversations.personal_for(current_membership).find(params[:id])
+    @conversation ||= own_chats.find(params[:id])
   end
 
-  # The list loads a page at a time as the person scrolls, so every chat stays reachable.
   def base_props
     {
       PROP_CONVERSATIONS => InertiaRails.scroll(chat_page_metadata) { AgentChatSerializer.many(chat_page) },
-      PROP_ARCHIVED_COUNT => current_workspace.conversations.personal_for(current_membership).archived.count,
+      PROP_ARCHIVED_COUNT => own_chats.archived.count,
       PROP_INCIDENTS => AgentChatIncidentSerializer.many(mentionable_incidents)
     }
   end
 
   def chat_page_number = [ params[CHAT_PAGE_PARAM].to_i, 1 ].max
 
-  # One more row than a page, so whether there is a next page is known without a count.
+  # One row over a page says whether there is another, without a count.
   def chat_page_rows
-    @chat_page_rows ||= current_workspace.conversations.personal_for(current_membership)
-      .includes(chat: :last_readable_message).in_reading_order
+    @chat_page_rows ||= own_chats.includes(chat: :last_readable_message).in_reading_order
       .offset((chat_page_number - 1) * chats_per_page).limit(chats_per_page + 1).to_a
   end
 
@@ -154,6 +144,7 @@ class AgentChatsController < InertiaController
     current_workspace.incidents.active.order(created_at: :desc).limit(MENTIONABLE)
   end
 
+  def own_chats = current_workspace.conversations.personal_for(current_membership)
 
   def require_agent!
     return if Investigation.available_for?(current_workspace)

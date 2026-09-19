@@ -16,14 +16,12 @@ module FirefightAi
 
     MICROS_PER_CENT = 10_000
 
-    # Spend is counted in micros, the ledger's unit, and never rounded, so a run of small replies costs
-    # what they cost. The cap is set in cents and compared in micros.
+    # Micros, the ledger's unit, never rounded. The cap is still set in cents.
     Budget = Data.define(:max_spend_cents, :max_turns, :turns_used, :spent_micros) do
       def initialize(max_spend_cents:, max_turns:, turns_used: 0, spent_micros: 0) = super
     end
 
     Turn = Data.define(:turns_used, :spent_micros)
-    # arguments are what the agent asked the tool for, so a caller can show the step in its own words.
     Step = Data.define(:key, :tool, :status, :arguments) do
       def initialize(key:, tool:, status:, arguments: {}) = super
     end
@@ -55,8 +53,7 @@ module FirefightAi
           Step.new(key: tool_call.id, tool: tool_call.name, status: STEP_RUNNING, arguments: tool_call.arguments)
         )
       end
-      # after_tool_result hands over the tool's own return value, which cannot say which call it
-      # belongs to. The saved result message can, and it arrives at the same moment.
+      # after_tool_result only gets the tool's return value, which cannot name its call, so the saved result message is used.
       llm.after_message do |message|
         next unless message.tool_result?
 

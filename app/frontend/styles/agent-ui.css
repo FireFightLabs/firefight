@@ -1,13 +1,4 @@
-/* Beautiful UI's foundation, https://www.beautifului.dev/r/foundation.json, with three edits so it
-   can live beside the app's own tokens:
-     1. Their token values are ours. The names, the scale and the relationships are theirs.
-     2. :root and .dark are scoped to .agent-ui, which the agent page carries. The app's --accent is
-        shadcn's hover grey, so an unscoped block would have one of them silently win.
-     3. Tailwind's import, the dark variant, the font mappings and the caret-blink keyframe are the
-        app's already.
-   Below the tokens: their @theme mappings, spacing primitives, keyframes and StreamingText rules.
-   Their site's own body, heading and nav styling is not here, and the element rules that were global
-   in their file are scoped to .agent-ui. */
+/* Beautiful UI's foundation with our colours, scoped to .agent-ui because the app's --accent means something else. */
 @import "shadow-plugin";
 
 .agent-ui {
@@ -52,8 +43,7 @@
   --tooltip-muted: color-mix(in srgb, var(--card) 70%, var(--foreground));
   --tooltip-border: color-mix(in srgb, var(--foreground) 80%, var(--card));
 
-  /* shadows, theirs: a solid hairline ring over shadow-plugin's layered stacks. The prefixed build
-     is used so the app's own shadow-sm and friends keep their look everywhere else. */
+  /* The prefixed shadow build, so the app's own shadow-sm and friends keep their look elsewhere. */
   --shadow-hairline: 0 0 0 1px var(--line);
   --shadow-btn: 0 0 0 1px var(--line-strong), var(--smooth-shadow-xs);
   --shadow-card: 0 0 0 1px var(--line), var(--smooth-shadow-sm);
@@ -75,7 +65,6 @@
   --tooltip-bg: var(--card);
   --tooltip-fg: var(--foreground);
 
-  /* Their dark elevation: the ring becomes a low-alpha white edge that dissolves into the shadow. */
   --shadow-hairline: 0 0 0 1px var(--line);
   --shadow-btn: 0 0 0 1px oklch(1 0 0 / 0.1), 0 1px 2px oklch(0 0 0 / 0.3);
   --shadow-card:
@@ -120,24 +109,19 @@
   --shadow-raised: var(--shadow-raised);
   --shadow-overlay: var(--shadow-overlay);
 
-
-  /* radii, chips 6, controls 8, cards 10, windows 14, pills 999 */
+  /* radii */
   --radius-chip: 6px;
   --radius-control: 8px;
   --radius-card: 10px;
   --radius-window: 14px;
 
-  /* easing, strong curves. The built-in ones are too weak */
+  /* easing */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-link: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ── the chat shell, ours ───────────────────────────────── */
-
-/* The panes are sized here rather than in utilities: a chat is a full-height app, and its columns
-   are the layout, not a detail of the markup. The negative margin swallows the dashboard's own top
-   padding, which this page fills to the edge instead. */
+/* The negative margin cancels the dashboard's top padding, since the chat fills the page to the edge. */
 .agent-chat {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -159,10 +143,7 @@
 }
 
 @layer base {
-  /* The forms plugin paints a border, a background and a ring on every input and textarea in the
-     app. In here the surrounding field is what the person sees, so the control itself carries none
-     of it. Utilities still win over this, which is how a control opts back in. */
-  /* The chat's search opens in a dialog outside .agent-ui, so it takes the same reset by its own name. */
+  /* Undoes the forms plugin, since the chat draws its own fields. Search opens outside .agent-ui, so it is named too. */
   :is(.agent-ui, .agent-search) :is(input, textarea, select) {
     background-color: transparent;
     border-width: 0;
@@ -175,34 +156,6 @@
     outline: none;
   }
 }
-
-/* ── spacing primitives, theirs ─────────────────────────── */
-.agent-ui .primitive-card-pad {
-  padding: 12px;
-}
-
-.agent-ui .primitive-card-bar {
-  padding: 10px 12px;
-}
-
-.agent-ui .primitive-card-footer {
-  padding: 10px;
-}
-
-.agent-ui .primitive-table-cell {
-  padding: 10px 12px;
-}
-
-.agent-ui .primitive-icon-button {
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-control);
-}
-
-/* ── the agent page's own hygiene, scoped so the rest of the app keeps its own ── */
 
 .agent-ui :is(button:not([disabled]):not([aria-disabled="true"]), label:has(input), a) {
   cursor: pointer;
@@ -218,8 +171,6 @@
   outline: none;
 }
 
-/* ── shared keyframes, theirs. caret-blink is renamed: tw-animate-css already
-   defines that name for the shadcn one-time-code input. ── */
 @keyframes shimmer-text {
   from {
     background-position: 150% center;
@@ -259,16 +210,6 @@
   }
 }
 
-@keyframes agent-caret-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
-}
-
 @keyframes pop-in {
   from {
     opacity: 0;
@@ -298,8 +239,7 @@
   }
 }
 
-/* ── answers, ours ─────────────────────────────────────── */
-/* The typography plugin's colours, taken from the chat's own tokens, which already follow dark mode. */
+/* The typography plugin's colours from the chat's tokens, which already follow dark mode. */
 .agent-ui .agent-answer {
   --tw-prose-body: var(--ink);
   --tw-prose-headings: var(--ink);
@@ -315,43 +255,6 @@
   --tw-prose-hr: var(--line);
   --tw-prose-th-borders: var(--line);
   --tw-prose-td-borders: var(--line-soft);
-}
-
-/* ── StreamingText, theirs ──────────────────────────────── */
-.agent-ui .source-avatar {
-  box-shadow: 0 0 0 1px oklch(0.21 0.034 263.436 / 0.1);
-}
-
-.dark .agent-ui .source-avatar {
-  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.08);
-}
-
-.agent-ui .stream-caret {
-  display: inline-block;
-  width: 2px;
-  height: 1.05em;
-  margin-left: 1.5px;
-  translate: 0 -0.5px;
-  border-radius: 1px;
-  background: var(--ink);
-  vertical-align: text-bottom;
-  animation: agent-caret-blink 1s step-end infinite;
-}
-
-.agent-ui .stream-caret.is-streaming {
-  animation: none;
-}
-
-/* ── reduced motion, theirs ─────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  .agent-ui .stream-caret {
-    animation: none;
-  }
-  .agent-ui .stream-tail {
-    filter: none;
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

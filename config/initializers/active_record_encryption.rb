@@ -1,7 +1,4 @@
-# Deployed environments inject the encryption keys as env vars from a secret manager. Rails reads
-# config.active_record.encryption while loading Active Record, which happens before this file runs,
-# so setting that config here is too late and the keys never arrive. Configuring encryption directly
-# lands whenever this runs. Credentials remain the fallback, for anywhere the env vars are absent.
+# Configured directly because Rails reads the encryption config before initializers run, so setting it there is too late.
 keys = {
   primary_key: ENV["ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY"],
   deterministic_key: ENV["ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY"],

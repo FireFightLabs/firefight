@@ -7,7 +7,7 @@ interface AnswerTextProps {
 
 const REMARK_PLUGINS = [ remarkGfm ]
 
-// The agent writes markdown. Raw HTML in it is never rendered, so a reply cannot inject markup.
+// react-markdown never renders raw HTML, so a reply cannot inject markup.
 export function AnswerText({ text }: AnswerTextProps) {
   return (
     <div className="agent-answer prose prose-sm max-w-none text-[14px] leading-7">

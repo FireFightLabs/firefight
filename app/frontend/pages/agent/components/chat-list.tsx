@@ -9,7 +9,6 @@ import { useSearchShortcut } from "@/pages/agent/hooks/use-search-shortcut"
 import { startNewChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentChat } from "@/types/serializers"
 
-// How far ahead of the list's end the next page is asked for.
 const SCROLL_BUFFER_PX = 200
 
 interface ChatListProps {
@@ -19,9 +18,7 @@ interface ChatListProps {
   className: string
 }
 
-// Pinned chats come first, then the rest by when they were last spoken to. Archived ones sort last and
-// fold away at the bottom, open whenever the chat on screen is one of them. Their count comes from the
-// server, since the list may not have scrolled far enough to load them all.
+// The archived count comes from the server, since later pages may not have loaded yet.
 export function ChatList({ chats: loaded, archivedCount, currentId, className }: ChatListProps) {
   const chats = uniqueById(loaded)
   const pinned = chats.filter((chat) => chat.pinned && !chat.archived).sort(byNewest("pinnedAt"))
@@ -31,10 +28,19 @@ export function ChatList({ chats: loaded, archivedCount, currentId, className }:
 
   const [ searching, setSearching ] = useState(false)
   const [ showArchived, setShowArchived ] = useState(currentIsArchived)
+  const [ unfoldedFor, setUnfoldedFor ] = useState(currentId)
+
+  // Opening an archived chat unfolds its section, and the person can still fold it.
+  if (currentId !== unfoldedFor) {
+    setUnfoldedFor(currentId)
+    if (currentIsArchived) {
+      setShowArchived(true)
+    }
+  }
   const openSearch = useCallback(() => setSearching(true), [])
   useSearchShortcut(openSearch)
 
-  // Already on an empty chat, there is nothing new to open.
+  // Already on a new chat, so a visit would only flicker.
   function startChat() {
     if (!currentId) {
       return
@@ -112,7 +118,7 @@ function ListButton({ icon: ButtonIcon, label, onClick }: ListButtonProps) {
   )
 }
 
-// A chat that moves up the list while more pages load can arrive twice. The first copy is the newer one.
+// A chat that moves up while pages load can arrive twice, and the first copy is the newer one.
 function uniqueById(chats: AgentChat[]): AgentChat[] {
   const seen = new Set<string>()
 
@@ -125,7 +131,7 @@ function uniqueById(chats: AgentChat[]): AgentChat[] {
   })
 }
 
-// The order the server lists them in, kept here so a row that changes lands where a reload would put it.
+// Same order as the server, so a changed row lands where a reload would put it.
 function byNewest(key: "pinnedAt" | "lastActiveAt") {
   return (first: AgentChat, second: AgentChat) => (second[key] ?? "").localeCompare(first[key] ?? "")
 }

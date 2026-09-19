@@ -1,7 +1,6 @@
 import { useEffect } from "react"
 
-// Command or control K opens chat search from anywhere on the page, except from inside a dialog
-// that is already open.
+// Ignored inside an open dialog, so search never opens on top of another dialog.
 export function useSearchShortcut(openSearch: () => void) {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {

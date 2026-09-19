@@ -15,7 +15,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 interface AuthenticatedLayoutProps {
   children: ReactNode;
   title?: string;
-  // A page that is itself a workspace, like the agent chat, opens with the nav out of the way.
   sidebarCollapsed?: boolean;
 }
 
@@ -57,12 +56,10 @@ function DisconnectedBanner() {
   );
 }
 
-// Every page mounts its own layout, so this carries whether the nav was open across a visit. It is
-// null after a full load, when there was no previous page to animate from.
+// Module scope because every page mounts its own layout, null after a full load.
 let sidebarWasOpen: boolean | null = null;
 
-// A page that collapses the nav starts from where the last page left it and closes on the next frame,
-// so the nav slides shut rather than vanishing.
+// Renders open and collapses a frame later, so the nav slides shut instead of vanishing.
 function useSidebarOpen(collapsed: boolean) {
   const [open, setOpen] = useState(collapsed ? sidebarWasOpen === true : true);
 

@@ -10,7 +10,7 @@ module FirefightAi
       @output_style = output_style
     end
 
-    # The question is already the last thing in the chat, written down by the app when it was asked.
+    # The app has already saved the question as the last message.
     def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, &on_turn)
       FirefightAi.translating_errors do
         chat.with_instructions(system_prompt(context))

@@ -379,8 +379,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     Do not use markdown headers (#). Use *bold text* instead.
   STYLE
 
-  # Streamed text is rendered by Slack as markdown, not as mrkdwn, so a single asterisk would
-  # come out italic where the model meant bold.
+  # Slack renders streamed text as markdown, not mrkdwn, so bold needs two asterisks.
   AI_STREAM_OUTPUT_STYLE = <<~STYLE
     Use markdown: **bold**, _italic_, bullet points, and `code` where appropriate.
     Do not use markdown headers (#). Use **bold text** instead.
@@ -394,8 +393,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     AI_STREAM_OUTPUT_STYLE
   end
 
-  # Appends are a hundred a minute, and Slack asks for about one call a second, so text is handed
-  # over a second at a time.
+  # Slack allows about one append a second.
   AGENT_STREAM_CADENCE = { interval: 1.second, max_chars: 256 }.freeze
 
   def agent_stream_cadence
@@ -451,8 +449,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
-  # Slack joins the pieces itself, so a chunk goes up as it was written. A stream that has gone,
-  # stopped by the person or timed out, refuses appends, so the caller hears that it is no longer streaming.
+  # A stopped or timed out stream refuses appends, so the caller falls back to posting the whole answer.
   def append_agent_text(channel_id:, answer_id:, text:)
     return { streaming: false } if answer_id.blank?
 
@@ -483,8 +480,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  # Blocks at the end of a stream render under what was streamed rather than replacing it, so a
-  # reply the person already read is finished without them.
+  # Blocks after a stream render below the streamed text, so a reply the person already read gets none.
   def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,

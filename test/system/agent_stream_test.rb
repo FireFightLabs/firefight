@@ -1,8 +1,7 @@
 require "application_system_test_case"
 
 class AgentStreamTest < ApplicationSystemTestCase
-  # The test adapter records broadcasts rather than delivering them, and this test is about the
-  # browser receiving one, so the socket runs in this process instead.
+  # The test adapter only records broadcasts, and this test needs the browser to receive one.
   setup do
     @cable = ActionCable.server.config.cable
     ActionCable.server.config.cable = { "adapter" => "async" }
@@ -20,8 +19,7 @@ class AgentStreamTest < ApplicationSystemTestCase
     FeatureFlags.enable!(workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     sign_in(users(:alice), workspace)
-    # The sign in helper stubs the controller rather than writing a session, which is what the
-    # socket reads, so the socket is told who is watching the same way.
+    # The sign in helper stubs the controller, not the session the socket reads, so the socket is stubbed too.
     ApplicationCable::Connection.any_instance.stubs(:signed_in_user).returns(users(:alice))
 
     conversation = Conversation.start_personal!(workspace: workspace, member: member)
@@ -46,8 +44,7 @@ class AgentStreamTest < ApplicationSystemTestCase
 
   private
 
-  # A subscription the server has accepted is not yet a stream it delivers on, and nothing sent in
-  # between arrives. The turn is announced until the page shows it, which proves the stream is live.
+  # An accepted subscription can miss what is sent before its stream is live, so the turn is announced until the page shows it.
   def open_stream(delivery)
     50.times do
       delivery.thinking!

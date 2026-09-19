@@ -31,7 +31,7 @@ export function RenameChatDialog({ chatId, open, title, onRename, onCancel }: Re
   )
 }
 
-// Mounted only while the dialog is open, so every opening starts from the chat's current name.
+// Mounted only while open, so each opening starts from the current name.
 function RenameChatForm({ chatId, title, onRename, onCancel }: Omit<RenameChatDialogProps, "open">) {
   const [ draft, setDraft ] = useState(title)
   const fieldId = `chat-title-${chatId}`

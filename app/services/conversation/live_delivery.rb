@@ -1,5 +1,3 @@
-# A dashboard chat watches its own conversation. Each move goes out over the socket as it happens,
-# and the saved chat is still what the page reads once the turn is done.
 class Conversation::LiveDelivery
   EVENT_THINKING = "thinking"
   EVENT_STEP = "step"
@@ -7,15 +5,13 @@ class Conversation::LiveDelivery
   EVENT_ANSWERED = "answered"
   EVENT_FAILED = "failed"
 
-  # What the page calls a step it is showing. The loop only ever reports these two.
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
   STATUSES = {
     FirefightAi::AgentLoop::STEP_RUNNING => STATUS_RUNNING, FirefightAi::AgentLoop::STEP_DONE => STATUS_DONE
   }.freeze
 
-  # The page renders markdown as it streams. Headers are left out, since an answer is a reply in a
-  # chat and not a document.
+  # No headers, since an answer is a chat reply and not a document.
   OUTPUT_STYLE = <<~STYLE.freeze
     Use markdown: **bold**, _italic_, bullet and numbered lists, `code`, and fenced code blocks.
     Do not use markdown headers (#). Use **bold text** instead. Keep paragraphs short.
@@ -32,7 +28,7 @@ class Conversation::LiveDelivery
     broadcast(type: EVENT_THINKING)
   end
 
-  # A tool interrupts the answer, so whatever has been written lands before the step does.
+  # Text written so far lands before the step.
   def step(key:, step:, status:)
     @text.flush!
     broadcast(
@@ -50,7 +46,7 @@ class Conversation::LiveDelivery
     broadcast(type: EVENT_ANSWERED)
   end
 
-  # A turn that died sends nothing else, so the page would wait forever.
+  # Without this the page would wait forever after a failed turn.
   def failed!
     broadcast(type: EVENT_FAILED)
   end

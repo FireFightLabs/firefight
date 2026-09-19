@@ -1,7 +1,6 @@
-# Every way of asking the agent something ends here: the question is saved, then answered in the
-# background. The dashboard and a Slack mention are only different ways in.
+# Both entry points ask through here, so saving the question and queueing the reply live in one place.
 class Conversation::Asking
-  # A dashboard chat exists only once something is asked in it, so there is never an empty one.
+  # The chat is created with its first question, so there is never an empty one.
   def self.start_personal(workspace:, member:, question:)
     conversation = Conversation.transaction do
       Conversation.start_personal!(workspace: workspace, member: member).tap { |started| started.ask!(question) }

@@ -1,6 +1,4 @@
-# The agent broadcasts from the job worker, which is its own process, so development runs the same
-# adapter as production. The async adapter only delivers within one process, which drops every
-# message a worker sends to a browser connected to the web server.
+# The agent broadcasts from the worker process, which the async adapter cannot reach, so development uses Solid Cable too.
 development:
   adapter: solid_cable
   connects_to:

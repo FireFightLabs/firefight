@@ -37,8 +37,7 @@ class Conversation::Runner
     )
   end
 
-  # What the person reads. A turn that ran out of room says so in the chat as well, so the answer
-  # that never came is not a silence on the next visit either.
+  # Saved too, so an unanswered turn is not silence on the next visit.
   def reply_for(outcome, chat)
     return chat.messages.reload.last&.content.presence || NO_ROOM_LEFT if answered?(outcome)
 
@@ -48,8 +47,7 @@ class Conversation::Runner
 
   def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
 
-  # The finished report carries only the key, so the step is remembered from when it started. The
-  # agent's own bookkeeping has no step and is not shown.
+  # The finished report only has the key, so the step is remembered from when it started.
   def report_step(step)
     seen[step.key] = Chat::Tools.step(step.tool, step.arguments) if step.tool.present?
     shown = seen[step.key]

@@ -1,5 +1,5 @@
 class AddChatsAbilityActions < ActiveRecord::Migration[8.1]
-  # A missing Ability::Action denies everyone, admins included, so the rows exist before the chat page asks for them.
+  # A missing action denies everyone, admins included.
   def up
     Ability::Action.sync_system_actions!
   end

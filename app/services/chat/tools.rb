@@ -6,9 +6,7 @@ module Chat::Tools
   STATE_NOT_CONNECTED = :not_connected
 
   Entry = Data.define(:name, :description, :state, :tool) do
-    # How well this answers the question. Covering more of it counts for more than matching one
-    # word twice, since a single common word like "incident" is in half the catalogue. Words are
-    # compared singular, so "severities" answers "severity".
+    # Covering more words beats repeating one, and words compare singular so severities matches severity.
     def score(query)
       asked = terms(query)
       return 0 if asked.empty?
@@ -25,13 +23,12 @@ module Chat::Tools
   # not what it looked at, so they are never shown.
   INTERNAL = %w[conclude record_hypothesis find_tools].freeze
 
-  # The arguments that say what a step was about, in the order worth showing one of them.
   HEADLINE_ARGUMENTS = %w[query name identifier title].freeze
   ASKED_LIMIT = 60
 
   Step = Data.define(:title, :headline, :asked)
 
-  # How a tool call reads to a person, live or saved. nil for the agent's own bookkeeping.
+  # nil for the agent's own bookkeeping, which is never shown.
   def self.step(tool_name, arguments)
     return nil if tool_name.blank? || INTERNAL.include?(tool_name.to_s)
 

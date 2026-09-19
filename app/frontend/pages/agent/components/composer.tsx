@@ -33,9 +33,7 @@ export function Composer({ conversationId, incidents, busy }: ComposerProps) {
     return "Ask the agent, or @ an incident"
   }
 
-  // @ offers the newest active incidents, and searches every active one once the person types. The
-  // model picker and dictation are theirs and stay off until a model choice and a transcript mean
-  // something here.
+  // The model picker and dictation stay off until there is something behind them.
   const sources = (results ?? incidents).map((incident) => ({
     key: incident.id,
     name: incident.identifier,

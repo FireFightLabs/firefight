@@ -24,8 +24,7 @@ SLACK_ENTRY_FILES = %w[
 
 SLACK_AUTH_FILES = %w[app/services/slack_authentication_service.rb].freeze
 
-# Everything under app/services that is not a handler, a dispatcher or the integrations layer,
-# so a new folder of services is covered by the service rules the day it is added.
+# Covers every folder under app/services except handlers, dispatchers and the integrations layer, so new folders are checked too.
 handler_and_layer_files = Dir.chdir(__dir__) do
   Dir.glob("app/services/{commands,interactions,events,integrations}/**/*.rb")
 end.sort
@@ -96,7 +95,6 @@ workflows.cannot_use :controllers, :handlers, :dispatchers, :serializers, :adapt
 serializers.cannot_use :adapters, :handlers, :dispatchers, :jobs
 jobs.cannot_use :controllers, :api_controllers, :serializers
 
-# A socket is an entry point. It says who may watch, and streams what a service hands it.
 channels.cannot_use :controllers, :api_controllers, :handlers, :dispatchers, :adapters, :slack_adapter,
                     :serializers, :jobs, :mcp
 

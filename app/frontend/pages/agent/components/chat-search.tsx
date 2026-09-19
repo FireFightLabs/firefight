@@ -18,13 +18,19 @@ function searchPath(query: string) {
   return agentChatsSearchPath({ q: query })
 }
 
-// Searching opens a dialog over the page rather than filtering the list in place, so the list never
-// jumps. With nothing typed it offers the chats already loaded. A query asks the server, which
-// searches every chat the person has, so the dialog does no filtering of its own.
 export function ChatSearch({ chats, open, onOpenChange }: ChatSearchProps) {
   const [ query, setQuery ] = useState("")
   const { results, search } = useRemoteSearch<AgentChat>(searchPath)
   const shown = results ?? chats
+
+  // The server filters, so the first result is selected here for Enter to open it.
+  const shownIds = shown.map((chat) => chat.id).join(" ")
+  const [ selected, setSelected ] = useState(shown[0]?.id ?? "")
+  const [ selectedFor, setSelectedFor ] = useState(shownIds)
+  if (shownIds !== selectedFor) {
+    setSelectedFor(shownIds)
+    setSelected(shown[0]?.id ?? "")
+  }
 
   function changeQuery(next: string) {
     setQuery(next)
@@ -45,6 +51,8 @@ export function ChatSearch({ chats, open, onOpenChange }: ChatSearchProps) {
       <DialogContent className="agent-search overflow-hidden p-0 sm:max-w-2xl">
         <Command
           shouldFilter={false}
+          value={selected}
+          onValueChange={setSelected}
           className="**:data-[slot=command-input-wrapper]:h-12 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]]:px-2 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3"
         >
           <CommandInput placeholder="Search chats" value={query} onValueChange={changeQuery} />

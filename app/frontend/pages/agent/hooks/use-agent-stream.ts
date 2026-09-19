@@ -6,7 +6,7 @@ import { refreshOpenChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentStep, AgentStream, StepStatus, StreamEventType } from "@/pages/agent/types"
 import type { AgentChatMessage } from "@/types/serializers"
 
-// A socket that drops mid turn would leave the answer unseen, so the page asks for it once instead.
+// If the socket drops mid turn, the answer is fetched once instead of waited for.
 const RECOVERY_MS = 4000
 
 interface StreamEvent {
@@ -27,7 +27,7 @@ export function useAgentStream(conversationId: string | null, messages: AgentCha
   const recovery = useRef<number | undefined>(undefined)
   const last = messages[messages.length - 1]
 
-  // A turn already running when the page opened has no thinking event to announce it.
+  // A turn already running when the page opened sends no thinking event.
   useEffect(() => {
     setBusy(last?.role === CHAT_MESSAGE_ROLES.USER)
     setText("")
@@ -90,8 +90,7 @@ export function useAgentStream(conversationId: string | null, messages: AgentCha
     }
   }, [ conversationId ])
 
-  // Once the reply is saved it renders from the chat, so the streamed copy goes in the same render,
-  // not a frame later.
+  // The streamed copy hides in the same render the saved reply appears, so the answer never shows twice.
   const saved = last?.role !== CHAT_MESSAGE_ROLES.USER
 
   return { busy, text: saved ? "" : text, steps: saved ? [] : steps }

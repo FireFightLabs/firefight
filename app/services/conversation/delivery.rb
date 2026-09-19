@@ -16,7 +16,6 @@ class Conversation::Delivery
     end
   end
 
-  # The platform renders streamed text its own way, and it is the one rendering it.
   def output_style = adapter.ai_stream_output_style
 
   def thinking!
@@ -26,8 +25,7 @@ class Conversation::Delivery
     )[:answer_id]
   end
 
-  # A step card sits between pieces of text, so what has been written lands first. The platform
-  # shows the step by name, not the query behind it.
+  # Text written so far lands before the step card, which shows the tool by name and not its query.
   def step(key:, step:, status:)
     @text.flush!
     adapter.report_agent_step(
@@ -53,15 +51,14 @@ class Conversation::Delivery
     }.to_json)
   end
 
-  # A turn that died leaves the person watching a spinner, so they are told instead.
+  # Tells the person, or they would watch a spinner forever.
   def failed!
     answered!(FAILED)
   end
 
   private
 
-  # Text the person has already read is not repeated at the end. A piece the platform refused means
-  # they read only part of it, so the whole answer is posted after all.
+  # Streamed text is not repeated, unless a refused piece means the person missed part of it.
   def streamed? = @sent_text && !@lost_text
 
   def append(text)

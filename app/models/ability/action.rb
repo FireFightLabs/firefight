@@ -31,7 +31,7 @@ module Ability
     # Its own resource. An investigation spends tokens and posts in the channel,
     # which updating an incident does not.
     RESOURCE_INVESTIGATIONS = "investigations"
-    # A person's own chats with the agent. Asking in one is investigations.create.
+    # A person's own chats. Asking in one is investigations.create.
     RESOURCE_CHATS = "chats"
 
     # Nobody can be granted these, so a member or an agent can never mint keys

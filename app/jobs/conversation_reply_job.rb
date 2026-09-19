@@ -9,8 +9,7 @@ class ConversationReplyJob < ApplicationJob
   end
   discard_on ActiveRecord::RecordNotFound
 
-  # Nobody answers once the job is given up on, so the person is told, in the chat as well as on
-  # whatever they are watching.
+  # The person is told when the job gives up, or they would wait forever.
   def self.say_nothing_came_of_it(job)
     conversation = Conversation.find_by(id: job.arguments.first)
     return unless conversation

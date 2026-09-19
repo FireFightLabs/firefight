@@ -1,6 +1,5 @@
 require "test_helper"
 
-# A chat in the dashboard belongs to the person who started it, and exists only where the agent does.
 class AgentChatsControllerTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
 

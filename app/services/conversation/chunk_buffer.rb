@@ -1,5 +1,4 @@
-# A call per token would flood a socket and a platform's rate limit alike, so text is held briefly
-# and sent in pieces. That also keeps half a word off the page.
+# Sends text in pieces, since a call per token would flood the socket and the platform's rate limit.
 class Conversation::ChunkBuffer
   INTERVAL = 0.25.seconds
   MAX_CHARS = 200

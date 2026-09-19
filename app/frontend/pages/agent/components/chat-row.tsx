@@ -10,8 +10,7 @@ interface ChatRowProps {
   current: boolean
 }
 
-// The menu sits beside the link rather than inside it, so opening it never opens the chat too. It is
-// always there on the open chat and appears on the others when they are hovered.
+// The menu sits beside the link, not inside it, so opening the menu never opens the chat.
 export function ChatRow({ chat, current }: ChatRowProps) {
   const reveal = current ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
 

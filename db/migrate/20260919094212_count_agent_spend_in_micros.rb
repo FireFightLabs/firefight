@@ -1,6 +1,4 @@
-# Spend was kept in whole cents, and each turn rounded up to the next one, so every question in a
-# conversation or run overstated its cost by up to a cent. Micros are what the Inference ledger uses.
-# Rows already written keep the cents they had, since the exact figure behind them is gone.
+# Rounding each turn up to a cent overstated spend. Existing rows keep their cents, since the exact figure is gone.
 class CountAgentSpendInMicros < ActiveRecord::Migration[8.1]
   TABLES = %i[conversations investigations].freeze
   MICROS_PER_CENT = 10_000

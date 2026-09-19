@@ -6,24 +6,14 @@ import { Composer } from "@/pages/agent/components/composer"
 import { Thread } from "@/pages/agent/components/thread"
 import { useAgentStream } from "@/pages/agent/hooks/use-agent-stream"
 import { OPEN_CHAT_VISIT } from "@/pages/agent/lib/chat-updates"
+import type { AgentPageProps } from "@/pages/agent/types"
 import { agentChatsPath } from "@/lib/routes"
-import type { AgentChat, AgentChatIncident, AgentChatMessage } from "@/types/serializers"
-import type { SharedProps } from "@/types"
-
-interface AgentPageProps extends SharedProps {
-  conversations: AgentChat[]
-  archivedCount: number
-  conversation: AgentChat | null
-  incidents: AgentChatIncident[]
-  messages: AgentChatMessage[]
-}
 
 export default function AgentPage() {
   const { conversations, archivedCount, conversation, incidents, messages } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, messages)
 
-  // A phone shows one column at a time, the list or the chat opened from it.
   const listClass = conversation ? "hidden md:flex" : "flex"
   const threadClass = conversation ? "flex" : "hidden md:flex"
 

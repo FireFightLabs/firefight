@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-// Keystrokes settle before the server is asked, and a newer query cancels the one still in flight.
 const SETTLE_MS = 200
 
-// Results for the latest query, or null while there is no query and the caller shows its own default.
-// A request that fails keeps the last results rather than claiming nothing matched.
+// A failed request keeps the last results rather than showing no matches.
 export function useRemoteSearch<T>(pathFor: (query: string) => string) {
   const [ results, setResults ] = useState<T[] | null>(null)
   const timer = useRef<number | undefined>(undefined)
@@ -39,7 +37,7 @@ export function useRemoteSearch<T>(pathFor: (query: string) => string) {
           setResults((await response.json()) as T[])
         }
       } catch {
-        // Aborted by a newer query, or the network dropped. Either way the last results stand.
+        // Aborted by a newer query or the network dropped, either way the last results stay.
       }
     }, SETTLE_MS)
   }, [ cancel ])
