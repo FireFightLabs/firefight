@@ -12,7 +12,7 @@ class AgentChatMessageSerializer < BaseSerializer
   type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number }[]"
   def tools
     workspace = message.chat.workspace
-    calls = message.ruby_llm_tool_calls.to_a
+    calls = message.ruby_llm_tool_calls.sort_by(&:created_at)
     calls.filter_map do |call|
       step = Chat::Tools.step(call.name, call.arguments)
       next unless step

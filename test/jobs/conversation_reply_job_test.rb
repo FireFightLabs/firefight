@@ -47,7 +47,7 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
     ConversationReplyJob.perform_now(conversation.id)
   end
 
-  test "two questions in one chat are answered one after the other, and two chats are not held up by each other" do
+  test "one chat takes one turn at a time, and another chat is not held up by it" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     other = Conversation.start_personal!(workspace: @workspace, member: @member)
 
