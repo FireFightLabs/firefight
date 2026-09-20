@@ -136,7 +136,6 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `Investigation::IncidentSeed` | the facts Firefight already holds about an incident |
 | `InvestigationService` / `InvestigationJob` | starts a run, runs it on the `investigations` queue |
 | `Commands::StartInvestigation` / `Interactions::StartInvestigationButtonHandler` | the two entry points |
-| `FirefightAi::Contracts::*` | the reasoning shapes that are swappable, `ConfidenceScorer` and `Matcher` |
 
 The rules:
 

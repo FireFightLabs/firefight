@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_19_094212) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_21_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -944,9 +944,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_094212) do
     t.decimal "confidence", precision: 3, scale: 2
     t.datetime "created_at", null: false
     t.uuid "investigation_id", null: false
-    t.integer "max_turns"
     t.integer "position", null: false
-    t.string "specialist"
     t.string "status", default: "open", null: false
     t.datetime "updated_at", null: false
     t.index ["catalog_entry_id"], name: "index_investigation_hypotheses_on_catalog_entry_id"
@@ -1000,7 +998,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_094212) do
     t.uuid "subject_id", null: false
     t.string "subject_type", null: false
     t.string "thread_id"
-    t.jsonb "tool_set", default: [], null: false
     t.string "trigger_source", null: false
     t.uuid "triggered_by_id"
     t.string "triggered_by_type"
