@@ -8,6 +8,7 @@ class Conversation::Runner
   end
 
   def run
+    @marked = Time.current
     chat = @conversation.chat_record
     chat.discard_interrupted_reply!
     delivery.thinking!
@@ -69,14 +70,31 @@ class Conversation::Runner
 
   # The finished report only has the key, so the step is remembered from when it started.
   def report_step(step)
-    seen[step.key] = Chat::Tools.step(step.tool, step.arguments) if step.tool.present?
+    if step.tool.present?
+      seen[step.key] = Chat::Tools.step(step.tool, step.arguments)
+      kinds[step.key] = Chat::Tools.kind(step.tool, @conversation.workspace)
+    end
     shown = seen[step.key]
     return unless shown
 
-    delivery.step(key: step.key, step: shown, status: step.status)
+    done = step.status == FirefightAi::AgentLoop::STEP_DONE
+    delivery.step(
+      key: step.key, step: shown, status: step.status, kind: kinds[step.key],
+      seconds: done ? seconds_since_last_step : 0
+    )
+  end
+
+  # Counted from the end of the last step, so the model's own time between calls counts as thinking.
+  def seconds_since_last_step
+    now = Time.current
+    since = now - (@marked || now)
+    @marked = now
+    since.round
   end
 
   def seen = @seen ||= {}
+
+  def kinds = @kinds ||= {}
 
   # Who the agent acts for, so it can answer what they may do and say who else can.
   def context

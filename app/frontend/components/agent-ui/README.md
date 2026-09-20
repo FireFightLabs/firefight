@@ -18,7 +18,8 @@ are not ours to reformat. Their tokens live in `app/frontend/styles/agent-ui.css
 | `approval-card.tsx` | `approval-card` | A single question sends on the first click and hides the footer, since there is nothing to step through. Added `allowCustom` to turn off the "Something else" row. `send` takes the answers it sends, so the auto advance after the last choice sends that choice, where the original sent the answers from before the click. Imports point at `button.tsx` and `glide-menu.tsx` here. |
 | `button.tsx` | `button` | None, it is what the approval card is built from. |
 | `glide-menu.tsx` | `glide-menu` | None, it is what the approval card is built from. |
+| `thinking-state.tsx` | `thinking-state` | Kept the Steps variant and dropped Reasoning, Search and Coding, which are demos of things we do not have yet. The trace is driven by props rather than by its own timer: rows show as they are given, `working` shimmers the header and spins the last row, and `done` carries our own wording. Dropped the fixed `minHeight`, which held their demo open. |
 | `prompt-bar.tsx` | `prompt-bar` | Dropped the `glimm` WebGL sweep, which played on model change. Added `sources`, `commands`, `modelPicker`, `dictation` and `busy` props, so the two controls with nothing behind them yet are off rather than shown and dead, and a menu with nothing in it does not open. Added `onSourceSearch`, which hands the @ query to the caller so it can search the server, and then shows `sources` as given rather than filtering them again. Added `sourceHint`, the line under the @ menu, since ours finds incidents and not files. |
 
-Not vendored yet, and worth taking when there is something behind them: `thinking-state` (needs the
-reasoning we already store), `streaming-text` (needs sources and follow-ups).
+Not vendored yet, and worth taking when there is something behind it: `streaming-text` (needs sources
+and follow-ups).

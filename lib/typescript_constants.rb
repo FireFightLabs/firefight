@@ -54,6 +54,9 @@ module TypescriptConstants
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
         "WAITING" => Conversation::LiveDelivery::STATUS_WAITING, "CANCELLED" => Conversation::LiveDelivery::STATUS_CANCELLED
       }, nil),
+      Export.new("AGENT_STEP_KINDS", {
+        "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT
+      }, nil),
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
       Export.new("CHAT_MESSAGE_ROLES", {

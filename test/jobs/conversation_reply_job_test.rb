@@ -47,6 +47,18 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
     ConversationReplyJob.perform_now(conversation.id)
   end
 
+  test "one chat takes one turn at a time, and another chat is not held up by it" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    other = Conversation.start_personal!(workspace: @workspace, member: @member)
+
+    first = ConversationReplyJob.new(conversation.id, @member.id)
+    second = ConversationReplyJob.new(conversation.id, nil)
+
+    assert_equal 1, ConversationReplyJob.concurrency_limit
+    assert_equal first.concurrency_key, second.concurrency_key
+    assert_not_equal first.concurrency_key, ConversationReplyJob.new(other.id).concurrency_key
+  end
+
   test "a conversation that is gone is left alone" do
     Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError, "no model")
 

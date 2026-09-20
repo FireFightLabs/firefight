@@ -26,7 +26,8 @@ class Conversation::Delivery
   end
 
   # Text written so far lands before the step card, which shows the tool by name and not its query.
-  def step(key:, step:, status:)
+  # A thread shows every step the same way, so what kind it is and how long it took are the dashboard's alone.
+  def step(key:, step:, status:, kind: nil, seconds: nil)
     @text.flush!
     adapter.report_agent_step(
       channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status
