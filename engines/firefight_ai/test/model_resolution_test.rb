@@ -20,10 +20,10 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
     ENV.update(@original_env)
   end
 
-  test "model lookups read RubyLLM's registry, not the table chats point at" do
-    assert_nil RubyLLM.config.model_registry_store
-    assert_equal 1, RubyLLM::ActiveRecord::Model.count
+  test "the table a refresh fills is the registry, so a model missing from it is unknown" do
+    assert_equal RubyLLM::ActiveRecord::Model, RubyLLM.config.model_registry_store
     assert FirefightAi.registered?("gpt-4o")
+    assert_not FirefightAi.registered?("gpt-5.6-sol")
   end
 
   test "the purpose's fallback holds when nothing is configured" do
