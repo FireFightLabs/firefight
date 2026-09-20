@@ -63,8 +63,7 @@ module FirefightAi
     ModelChoice.new(model: fallback_model(purpose), provider: nil)
   end
 
-  # Pulls the published catalog into the models table, which is the registry once it holds a row. Returns how many
-  # models it now knows.
+  # The models table is the registry once it holds a row, and only a refresh puts anything in it.
   def refresh_models!
     RubyLLM.models.refresh.all.size
   end

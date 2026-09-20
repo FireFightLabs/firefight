@@ -1,8 +1,7 @@
 _fixture:
   model_class: RubyLLM::ActiveRecord::Model
 
-# The store is the registry once it holds a row, so the models the suite names live here. A model missing from this
-# list fails as unknown, which is the same thing a deployment sees when its registry was never refreshed.
+# This table is the whole registry once it holds a row, so every model the suite names has to be here.
 claude_sonnet:
   model_id: claude-sonnet-4-5
   name: Claude Sonnet 4.5
