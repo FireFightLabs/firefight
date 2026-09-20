@@ -1,9 +1,9 @@
 import { createConsumer } from "@rails/actioncable"
 import { useEffect, useRef, useState } from "react"
 
-import { AGENT_CHANNEL, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
+import { AGENT_CHANNEL, AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
 import { refreshOpenChat } from "@/pages/agent/lib/chat-updates"
-import type { AgentStep, AgentStream, StepStatus, StreamEventType } from "@/pages/agent/types"
+import type { AgentStep, AgentStream, StepKind, StepStatus, StreamEventType } from "@/pages/agent/types"
 import type { AgentChatMessage } from "@/types/serializers"
 
 // If the socket drops mid turn, the answer is fetched once instead of waited for.
@@ -17,6 +17,8 @@ interface StreamEvent {
   headline?: string
   asked?: [ string, string ][]
   status?: StepStatus
+  kind?: StepKind
+  seconds?: number
 }
 
 export function useAgentStream(conversationId: string | null, messages: AgentChatMessage[]): AgentStream {
@@ -107,6 +109,8 @@ function withStep(shown: AgentStep[], event: StreamEvent): AgentStep[] {
     headline: event.headline ?? "",
     asked: event.asked ?? [],
     status: event.status ?? AGENT_STEP_STATUSES.RUNNING,
+    kind: event.kind ?? AGENT_STEP_KINDS.ACT,
+    seconds: event.seconds ?? 0,
   }
   const already = shown.findIndex((candidate) => candidate.key === step.key)
   if (already < 0) {

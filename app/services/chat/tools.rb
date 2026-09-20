@@ -48,7 +48,21 @@ module Chat::Tools
   HEADLINE_ARGUMENTS = %w[query name identifier title].freeze
   ASKED_LIMIT = 60
 
+  KIND_READ = "read"
+  KIND_ACT = "act"
+
   Step = Data.define(:title, :headline, :asked)
+
+  # A tool that only reads is the agent looking something up, which the page shows as thinking rather than as a change.
+  def self.kind(tool_name, workspace)
+    name = tool_name.to_s
+    reading = firefight_reading_names.include?(name) || workspace.reading_tool_names.include?(name)
+    reading ? KIND_READ : KIND_ACT
+  end
+
+  def self.firefight_reading_names
+    @firefight_reading_names ||= Mcp::Tools.all.filter_map { |tool_class| tool_class.name_value.to_s if tool_class.annotations_value&.read_only_hint }.to_set
+  end
 
   Confirmation = Data.define(:tool_call_id, :question, :asked, :status)
   CONFIRMATION_STATUSES = {

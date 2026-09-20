@@ -257,6 +257,11 @@ export const AGENT_STEP_STATUSES = {
   "CANCELLED": "cancelled"
 } as const
 
+export const AGENT_STEP_KINDS = {
+  "READ": "read",
+  "ACT": "act"
+} as const
+
 export const AGENT_CHANNEL = "ConversationChannel" as const
 
 export const AGENT_CHAT_PROPS = {

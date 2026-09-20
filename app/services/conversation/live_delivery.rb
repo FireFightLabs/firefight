@@ -32,11 +32,11 @@ class Conversation::LiveDelivery
   end
 
   # Text written so far lands before the step.
-  def step(key:, step:, status:)
+  def step(key:, step:, status:, kind: Chat::Tools::KIND_ACT, seconds: 0)
     @text.flush!
     broadcast(
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
-      status: STATUSES.fetch(status)
+      status: STATUSES.fetch(status), kind: kind, seconds: seconds
     )
   end
 
