@@ -63,6 +63,12 @@ module FirefightAi
     ModelChoice.new(model: fallback_model(purpose), provider: nil)
   end
 
+  # Pulls the published catalog into the models table, which is the registry once it holds a row. Returns how many
+  # models it now knows.
+  def refresh_models!
+    RubyLLM.models.refresh.all.size
+  end
+
   # A model the registry does not know needs its provider named. RubyLLM then trusts the id.
   def chat(choice)
     return RubyLLM.chat(model: choice.model) if choice.provider.blank?
