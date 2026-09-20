@@ -140,6 +140,11 @@ class Workspace < ApplicationRecord
     WorkspaceAdapter.for(self)
   end
 
+  # Memoized, since a page of chat messages asks this for every tool call it renders.
+  def reading_tool_names
+    @reading_tool_names ||= Integration::Tool.in_workspace(self).select(&:read_only).map(&:model_facing_name).to_set
+  end
+
   # Returns the row an admin customized, otherwise creates one from the
   # defaults so overlay rows have a real incident_form_id to attach to.
   def ensure_incident_form!(slug)

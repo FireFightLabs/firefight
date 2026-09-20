@@ -156,6 +156,14 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_nil @investigation.reload.finding.winning_hypothesis
   end
 
+
+  test "a step that only reads is thinking, a step that changes something is not" do
+    assert_equal Chat::Tools::KIND_READ, Chat::Tools.kind(Mcp::Tools::GET_WORKSPACE_CONFIG, @workspace)
+    assert_equal Chat::Tools::KIND_ACT, Chat::Tools.kind(Mcp::Tools::UPSERT_SEVERITY, @workspace)
+    assert_equal Chat::Tools::KIND_READ, Chat::Tools.kind(@tool.model_facing_name, @workspace)
+    assert_equal Chat::Tools::KIND_ACT, Chat::Tools.kind("something_nobody_declared", @workspace)
+  end
+
   private
 
   def grant_system!(resource, action)
