@@ -32,7 +32,10 @@ module FirefightAi
           feature:   "postmortem_generate",
           provider:  ai_model.provider_name,
           model:     ai_model.model,
-          inferable: incident
+          inferable: incident,
+          prompt_template: "postmortem_generate",
+          prompt_version: Prompt.version(system_prompt),
+          prompt_text: system_prompt
         ) do
           chat = FirefightAi.chat(ai_model)
           chat.with_instructions(system_prompt)

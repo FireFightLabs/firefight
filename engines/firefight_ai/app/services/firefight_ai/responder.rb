@@ -13,7 +13,7 @@ module FirefightAi
     # The app has already saved the question as the last message.
     def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, &on_turn)
       FirefightAi.translating_errors do
-        chat.with_instructions(system_prompt(context))
+        chat.with_instructions("#{template_text}\n#{context}")
         chat.with_tools(*tools)
 
         AgentLoop.new(
@@ -32,11 +32,13 @@ module FirefightAi
     def inference_context
       {
         workspace: @workspace, feature: FEATURE, provider: ai_model.provider_name,
-        model: ai_model.model, inferable: @inferable, member: @member
+        model: ai_model.model, inferable: @inferable, member: @member,
+        prompt_template: FEATURE, prompt_version: Prompt.version(template_text), prompt_text: template_text
       }
     end
 
-    def system_prompt(context)
+    # The wording, without the per run context, which is what the version is taken from.
+    def template_text
       <<~PROMPT
         You are Firefight, working for the person talking to you. You answer questions and you act in Firefight on their behalf, with exactly the permissions they have. Be brief and exact.
 
@@ -55,7 +57,6 @@ module FirefightAi
         - Reply in plain prose when you have the answer. Your reply is what the person reads, so it ends your turn.
         - A few sentences beats a report. No preamble, no restating the question.
         #{@output_style}
-        #{context}
       PROMPT
     end
   end

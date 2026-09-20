@@ -77,7 +77,10 @@ module FirefightAi
           feature:   FEATURE,
           provider:  model_choice.provider_name,
           model:     model_choice.model,
-          inferable: incident
+          inferable: incident,
+          prompt_template: FEATURE,
+          prompt_version: Prompt.version(system_prompt),
+          prompt_text: system_prompt
         ) do
           chat = FirefightAi.chat(model_choice)
           chat.with_instructions(system_prompt)

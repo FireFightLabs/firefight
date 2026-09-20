@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_21_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_21_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1193,6 +1193,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_100000) do
     t.index ["chat_type", "chat_id"], name: "index_ruby_llm_usages_on_chat_type_and_chat_id"
     t.index ["message_type", "message_id"], name: "index_ruby_llm_usages_on_message_type_and_message_id"
     t.index ["status"], name: "index_ruby_llm_usages_on_status"
+  end
+
+  create_table "prompt_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "first_seen_at", null: false
+    t.string "template", null: false
+    t.text "text", null: false
+    t.datetime "updated_at", null: false
+    t.string "version", null: false
+    t.index ["template", "version"], name: "index_prompt_versions_on_template_and_version", unique: true
   end
 
   create_table "runbook_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
