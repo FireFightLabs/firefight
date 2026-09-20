@@ -63,6 +63,22 @@ module FirefightAi
     ModelChoice.new(model: fallback_model(purpose), provider: nil)
   end
 
+  # The models table is the registry once it holds a row, and only a refresh puts anything in it.
+  def refresh_models!
+    RubyLLM.models.refresh.all.size
+  end
+
+  # A model whose price the registry does not know is billed at zero, so nothing stops a run that uses it.
+  def priced?(model_id)
+    model = RubyLLM.models.all.find { |candidate| candidate.id == model_id.to_s }
+    return false unless model
+
+    text = model.pricing.text_tokens
+    text.input.to_f.positive? && text.output.to_f.positive?
+  rescue StandardError
+    false
+  end
+
   # A model the registry does not know needs its provider named. RubyLLM then trusts the id.
   def chat(choice)
     return RubyLLM.chat(model: choice.model) if choice.provider.blank?

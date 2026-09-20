@@ -17,6 +17,10 @@ development:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events
     schedule: every 2 minutes
+  refresh_model_registry:
+    class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
+    queue: background
+    schedule: at 2am every day
   refresh_platform_credentials:
     class: RefreshPlatformCredentialsJob
     schedule: every hour
@@ -51,6 +55,10 @@ staging:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
+  refresh_model_registry:
+    class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
+    queue: background
+    schedule: at 2am every day
   refresh_platform_credentials:
     class: RefreshPlatformCredentialsJob
     schedule: every hour
@@ -85,6 +93,10 @@ production:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
+  refresh_model_registry:
+    class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
+    queue: background
+    schedule: at 2am every day
   refresh_platform_credentials:
     class: RefreshPlatformCredentialsJob
     schedule: every hour
