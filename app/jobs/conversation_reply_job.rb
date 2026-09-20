@@ -1,5 +1,12 @@
 class ConversationReplyJob < ApplicationJob
+  # A turn long enough to reach this was left behind by a dead worker, and the chat would otherwise stay blocked.
+  TURN_CEILING = 30.minutes
+
   queue_as :investigations
+
+  # One turn at a time per chat. RubyLLM saves an empty reply while it works, which a second turn would clear away as
+  # wreckage from a crash, orphaning the first turn's tool results and leaving a history no model will read.
+  limits_concurrency key: ->(conversation_id, _asker_id = nil) { conversation_id }, duration: TURN_CEILING
 
   retry_on FirefightAi::TransientError, wait: :polynomially_longer, attempts: 3 do |job, _error|
     say_nothing_came_of_it(job)
