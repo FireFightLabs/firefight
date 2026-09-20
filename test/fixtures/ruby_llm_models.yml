@@ -1,9 +1,40 @@
 _fixture:
   model_class: RubyLLM::ActiveRecord::Model
 
-# RubyLLM copies all 1,669 models into an empty table, so without this row every test that saves a chat does.
+# The store is the registry once it holds a row, so the models the suite names live here. A model missing from this
+# list fails as unknown, which is the same thing a deployment sees when its registry was never refreshed.
 claude_sonnet:
   model_id: claude-sonnet-4-5
   name: Claude Sonnet 4.5
   provider: anthropic
   capabilities: ["function_calling", "reasoning"]
+
+claude_sonnet_4:
+  model_id: claude-sonnet-4
+  name: Claude Sonnet 4
+  provider: anthropic
+  capabilities: ["function_calling", "reasoning"]
+
+claude_haiku:
+  model_id: claude-haiku-4-5
+  name: Claude Haiku 4.5
+  provider: anthropic
+  capabilities: ["function_calling", "reasoning"]
+
+gpt_4o:
+  model_id: gpt-4o
+  name: GPT-4o
+  provider: openai
+  capabilities: ["function_calling", "streaming"]
+
+gpt_4o_mini:
+  model_id: gpt-4o-mini
+  name: GPT-4o mini
+  provider: openai
+  capabilities: ["function_calling", "streaming"]
+
+text_embedding_3_small:
+  model_id: text-embedding-3-small
+  name: Text Embedding 3 Small
+  provider: openai
+  capabilities: ["embeddings"]
