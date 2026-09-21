@@ -54,6 +54,55 @@ class InvestigationTest < ActiveSupport::TestCase
     end
   end
 
+  test "a worker that stumbles gives the run back, so the retry does not wait out the lease" do
+    investigation = build_investigation
+    investigation.claim!
+
+    assert investigation.release!
+    assert Investigation.find(investigation.id).claim!, "the retry arrives seconds later, long before the lease runs out"
+  end
+
+  test "only the worker holding the run can give it back" do
+    investigation = build_investigation
+    investigation.claim!
+
+    assert_not Investigation.find(investigation.id).release!
+    assert_not Investigation.find(investigation.id).claim!, "the run is still held by the worker that claimed it"
+  end
+
+  test "a run nobody is working on counts as abandoned" do
+    expired = build_investigation
+    expired.claim!
+    held = build_investigation(subject: incidents(:active_major_ws1))
+    held.claim!
+    travel Investigation::LEASE + 1.minute do
+      held.record_turn!(turns_used: 1, spent_micros: 0)
+
+      abandoned = @workspace.investigations.abandoned
+      assert_includes abandoned, expired
+      assert_not_includes abandoned, held
+    end
+  end
+
+  test "a run whose job never arrived counts as abandoned, a fresh one does not" do
+    fresh = build_investigation
+    assert_not_includes @workspace.investigations.abandoned, fresh
+
+    travel Investigation::UNCLAIMED_AFTER + 1.minute do
+      assert_includes @workspace.investigations.abandoned, fresh
+    end
+  end
+
+  test "a finished run is never abandoned" do
+    investigation = build_investigation
+    investigation.claim!
+    investigation.finish!(status: Investigation::STATUS_SUCCEEDED)
+
+    travel Investigation::LEASE + 1.minute do
+      assert_not_includes @workspace.investigations.abandoned, investigation
+    end
+  end
+
   test "resuming keeps the start time even when the caller's copy is stale" do
     investigation = build_investigation
     stale = Investigation.find(investigation.id)
@@ -197,9 +246,9 @@ class InvestigationTest < ActiveSupport::TestCase
 
   private
 
-  def build_investigation(max_turns: 10, max_spend_cents: 400)
+  def build_investigation(subject: @incident, max_turns: 10, max_spend_cents: 400)
     @workspace.investigations.create!(
-      subject: @incident,
+      subject: subject,
       trigger_source: Investigation::TRIGGER_COMMAND,
       max_turns: max_turns,
       max_spend_cents: max_spend_cents

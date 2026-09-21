@@ -14,6 +14,8 @@ class Investigation < ApplicationRecord
 
   # A worker renews this every turn, so a dead one holds the run for at most this long.
   LEASE = 5.minutes
+  # A run this old with no worker lost its job on the way to the queue.
+  UNCLAIMED_AFTER = 2.minutes
 
   TRIGGER_COMMAND = "command"
   TRIGGER_BUTTON = "button"
@@ -39,6 +41,13 @@ class Investigation < ApplicationRecord
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }
 
   scope :live, -> { where(status: LIVE_STATUSES) }
+  # Live with nobody working on it, which holds the subject's only slot until someone takes it.
+  scope :abandoned, -> {
+    live.where(
+      "lease_until < :now OR (lease_until IS NULL AND investigations.created_at < :unclaimed)",
+      now: Time.current, unclaimed: UNCLAIMED_AFTER.ago
+    )
+  }
 
   def self.unavailable_reason(workspace)
     return "AI features are not available." unless defined?(FirefightAi)
@@ -109,6 +118,17 @@ class Investigation < ApplicationRecord
       @lease_token = token
       reload
     end
+    moved
+  end
+
+  # The queue retries within seconds, so a worker that stumbles hands the run back rather than
+  # leaving the retry to find it held. Only the holder can, so a worker that lost the run changes nothing.
+  def release!
+    return false if @lease_token.blank?
+
+    moved = self.class.where(id: id, status: STATUS_RUNNING, lease_token: @lease_token)
+      .update_all(lease_token: nil, lease_until: nil, updated_at: Time.current) > 0
+    @lease_token = nil if moved
     moved
   end
 
