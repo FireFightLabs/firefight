@@ -79,6 +79,19 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal chat_id, @conversation.reload.chat.id
   end
 
+  test "a second question is handed the tools the first one found, so it does not search for them again" do
+    # Offering to the live chat needs a provider, which the suite does not have.
+    Chat.any_instance.stubs(:with_tools)
+    first = fake(reply: "first")
+    ask(@conversation, "what incidents mention checkout?")
+    first.calls.sole[:tools].first.execute(query: "search incidents")
+
+    second = fake(reply: "second")
+    ask(@conversation.reload, "and last week?")
+
+    assert_includes second.calls.sole[:tools].map(&:name), Mcp::Tools::SEARCH_INCIDENTS
+  end
+
   test "the agent knows which incident it is standing in" do
     responder = fake(reply: "ok")
 

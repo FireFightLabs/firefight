@@ -15,7 +15,7 @@ class Conversation::Runner
 
     outcome = responder.run(
       chat: chat,
-      tools: Conversation::Tools.for(@turn, offer: ->(tools) { chat.with_tools(*tools) }) + unfinished_tools(chat),
+      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat)) + Chat::Tools.known(@turn, chat),
       context: context,
       budget: budget,
       on_step: method(:report_step),
@@ -58,14 +58,6 @@ class Conversation::Runner
     chat.request_decisions!(chat.to_llm.pending_approvals.map(&:id))
     delivery.confirm!(chat.awaiting_decision.to_a)
     outcome
-  end
-
-  # A resumed turn starts with only its basic tools, so the ones the model already called are handed back.
-  def unfinished_tools(chat)
-    names = chat.unfinished_tool_names
-    return [] if names.empty?
-
-    Chat::Tools.catalog(@turn).filter_map { |entry| entry.tool if entry.tool && names.include?(entry.name) }
   end
 
   # The finished report only has the key, so the step is remembered from when it started.

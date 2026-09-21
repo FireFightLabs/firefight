@@ -50,6 +50,16 @@ class Chat < ApplicationRecord
 
   def unfinished_tool_names = tool_calls.where(result_id: nil).distinct.pluck(:name)
 
+  # Appended, never reordered. The tool list sits at the front of every request, so the same
+  # order every turn is what lets a provider reuse what it has already read.
+  def remember_found_tools!(names)
+    added = names.map(&:to_s) - found_tool_names
+    update!(found_tool_names: found_tool_names + added) if added.any?
+  end
+
+  # A call left unfinished before tools were remembered still needs its tool.
+  def known_tool_names = found_tool_names | unfinished_tool_names
+
   # Records which model will run, without opening a connection to the provider.
   def self.open!(owner:, workspace:, model_choice:)
     chat = new(owner: owner, workspace: workspace)

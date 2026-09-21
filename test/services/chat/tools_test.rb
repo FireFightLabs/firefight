@@ -42,6 +42,38 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal [ "fake_echo_text" ], offered.map(&:name)
   end
 
+  test "a tool found earlier is handed back, so the next turn does not search for it again" do
+    grant!(@tool)
+    chat = open_chat
+    find = Chat::Tools::Find.new(@investigation, offer: ->(tools) { chat.remember_found_tools!(tools.map(&:name)) })
+    find.execute(query: "echoes text")
+
+    known = Chat::Tools.known(@investigation, Chat.find(chat.id))
+
+    assert_equal [ "fake_echo_text" ], known.map(&:name)
+  end
+
+  test "tools come back in the order they were found, so the front of the prompt stays the same" do
+    grant!(@tool)
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    chat = open_chat
+    chat.remember_found_tools!([ Mcp::Tools::SEARCH_INCIDENTS ])
+    chat.remember_found_tools!([ "fake_echo_text", Mcp::Tools::SEARCH_INCIDENTS ])
+
+    assert_equal [ Mcp::Tools::SEARCH_INCIDENTS, "fake_echo_text" ], Chat::Tools.known(@investigation, chat).map(&:name)
+  end
+
+  test "a remembered tool whose grant was taken away is not handed back" do
+    chat = open_chat
+    chat.remember_found_tools!([ "fake_echo_text" ])
+
+    assert_empty Chat::Tools.known(@investigation, chat)
+  end
+
+  test "a chat that found nothing hands nothing back" do
+    assert_empty Chat::Tools.known(@investigation, open_chat)
+  end
+
   test "a tool the workspace never granted is named rather than hidden" do
     find = Chat::Tools::Find.new(@investigation, offer: ->(_tools) { })
 
@@ -165,6 +197,13 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   private
+
+  def open_chat
+    Chat.open!(
+      owner: @investigation, workspace: @workspace,
+      model_choice: FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic")
+    )
+  end
 
   def grant_system!(resource, action)
     Ability::Grant.create!(
