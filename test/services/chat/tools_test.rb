@@ -22,12 +22,12 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     Integrations::NativePack.stubs(:for).with("fake").returns(FakeNativePack)
   end
 
-  test "the agent starts with only the three tools it always needs" do
+  test "the agent starts with only the tools it always needs" do
     grant!(@tool)
 
     names = Investigation::Tools.for(@investigation, offer: ->(_tools) { }).map(&:name)
 
-    assert_equal [ "find_tools", "record_hypothesis", "conclude" ], names
+    assert_equal [ "find_tools", "read_result", "record_hypothesis", "conclude" ], names
   end
 
   test "finding a tool the agent may use offers it to the chat and says it is ready" do
@@ -103,6 +103,37 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     tool.call(text: "hi")
 
     assert_equal "echo: hi", @investigation.steps.sole.raw_result
+  end
+
+  test "a result too large to hand over whole is saved in full, and the agent is handed a preview and its name" do
+    grant!(@tool)
+    open_chat_for_run
+    Chat.any_instance.stubs(:result_limit).returns(200)
+    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == "fake_echo_text" }.tool
+    long = (1..3_000).map { |number| "line #{number}" }.join(" | ")
+
+    result = tool.call(text: long)
+
+    saved = @investigation.chat.saved_results.sole
+    assert_equal "echo: #{long}", saved.content
+    assert_match saved.handle, result
+    assert_match Chat::Tools::ReadResult.tool_name, result
+    assert_operator result.length, :<, long.length
+  end
+
+  test "a result that fits is handed over whole and nothing is saved" do
+    grant!(@tool)
+    open_chat_for_run
+    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == "fake_echo_text" }.tool
+
+    assert_equal FirefightAi::Evidence.frame("fake_echo_text", "echo: hi"), tool.call(text: "hi")
+    assert_empty @investigation.chat.saved_results
+  end
+
+  test "the agent always holds the tool that reads a saved result" do
+    names = Investigation::Tools.for(@investigation, offer: ->(_tools) { }).map(&:name)
+
+    assert_includes names, Chat::Tools::ReadResult.tool_name
   end
 
   test "what one of Firefight's own tools found is framed as data too" do
@@ -189,6 +220,10 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   private
+
+  def open_chat_for_run
+    @workspace.chats.create!(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
+  end
 
   def grant_system!(resource, action)
     Ability::Grant.create!(

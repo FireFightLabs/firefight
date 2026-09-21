@@ -37,7 +37,7 @@ class Chat::Tools::Firefight < RubyLLM::Tool
         tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments
       ))
     end
-    FirefightAi::Evidence.frame(name, said)
+    Chat::Tools.hand_over(@agent_run, name, said)
   rescue AbilityGateway::Denied
     @agent_run.refusal(action_key)
   rescue AbilityGateway::PendingApproval => pending

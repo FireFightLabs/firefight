@@ -28,7 +28,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
       environment_row = integration.resolve_environment(nil)
       text_of(integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments))
     end
-    FirefightAi::Evidence.frame(name, said)
+    Chat::Tools.hand_over(@agent_run, name, said)
   rescue AbilityGateway::Denied
     @agent_run.refusal(@tool.action_key)
   rescue AbilityGateway::PendingApproval => pending

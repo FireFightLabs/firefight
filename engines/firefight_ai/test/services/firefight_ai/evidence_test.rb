@@ -25,18 +25,47 @@ class FirefightAi::EvidenceTest < ActiveSupport::TestCase
     assert_equal 1, framed.scan(%r{</\s*tool_result\s*>}i).size
   end
 
-  test "a result too large to hand over whole is cut, and says how much was left out" do
-    text = "x" * (FirefightAi::Evidence::LIMIT + 1_234)
+  test "the frame never cuts what it is given, since deciding what is too large is not its job" do
+    text = "x" * 500_000
 
-    framed = FirefightAi::Evidence.frame("log_query", text)
-
-    assert_operator framed.length, :<, FirefightAi::Evidence::LIMIT + 500
-    assert_match "1,234 more characters were not shown", framed
-    assert framed.end_with?("</tool_result>")
+    assert_includes FirefightAi::Evidence.frame("log_query", text), text
   end
 
-  test "a result that fits is not cut" do
-    assert_no_match(/not shown/, FirefightAi::Evidence.frame("log_query", "x" * FirefightAi::Evidence::LIMIT))
+  test "a preview shows how a large result starts and ends, how long it is, and how to read the rest" do
+    text = (1..4_000).map { |number| "line #{number} of the log" }.join("\n")
+
+    preview = FirefightAi::Evidence.preview(text, handle: "result_3", read_with: "read_result")
+
+    assert_match "line 1 of the log", preview
+    assert_match "line 4000 of the log", preview
+    assert_no_match(/line 2000 of the log/, preview)
+    assert_match "4,000 lines", preview
+    assert_match "result_3", preview
+    assert_match "read_result", preview
+  end
+
+  test "a preview is cut between lines, never inside one" do
+    text = (1..500).map { |number| "request #{number} finished in #{number * 3}ms" }.join("\n")
+
+    preview = FirefightAi::Evidence.preview(text, handle: "result_1", read_with: "read_result")
+
+    shown = preview.lines.map(&:chomp).select { |line| line.start_with?("request ") }
+    assert shown.all? { |line| line.match?(/\Arequest \d+ finished in \d+ms\z/) }, "every line shown is a whole line"
+  end
+
+  test "a preview says which lines repeat most, which is often the clue itself" do
+    noise = (1..900).map { |number| "ERROR pool exhausted after #{number}ms" }
+    text = ([ "boot ok" ] + noise + [ "shutdown" ]).join("\n")
+
+    preview = FirefightAi::Evidence.preview(text, handle: "result_1", read_with: "read_result")
+
+    assert_match(/900 lines like: ERROR pool exhausted after #ms/, preview)
+  end
+
+  test "one enormous line is still previewed without handing over all of it" do
+    preview = FirefightAi::Evidence.preview("x" * 300_000, handle: "result_1", read_with: "read_result")
+
+    assert_operator preview.length, :<, 20_000
   end
 
   test "a tool name cannot break out of the opening tag" do
