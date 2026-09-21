@@ -74,3 +74,6 @@ CLAUDE.local.md
 
 # A path-mounted engine takes its versions from the host's lockfile.
 /engines/*/Gemfile.lock
+
+# Working notes a local tool leaves behind, never part of the repo.
+/.audit/
