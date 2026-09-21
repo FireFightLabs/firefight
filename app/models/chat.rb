@@ -1,17 +1,26 @@
 # The agent's saved chat with the model. A restarted or resumed job continues from it.
 class Chat < ApplicationRecord
-  acts_as_chat messages: :messages, message_class: "Chat::Message"
+  # The library sends the model whatever this association holds, so it is the messages still in
+  # play. messages is everything ever said, which is what a person reads and a replay needs.
+  acts_as_chat messages: :sent_messages, message_class: "Chat::Message"
+  has_many :sent_messages, -> { where(archived_at: nil).order(:created_at, :id) },
+           class_name: "Chat::Message", dependent: :destroy, inverse_of: :chat
+  has_many :messages, -> { order(:created_at, :id) }, class_name: "Chat::Message", dependent: :destroy, inverse_of: :chat
+
+  include Chat::Compacting
 
   belongs_to :workspace
   belongs_to :owner, polymorphic: true
   has_many :saved_results, -> { in_order }, class_name: "Chat::SavedResult", dependent: :destroy, inverse_of: :chat
 
+  # The registry holds no context window for the model this chat runs on. Nothing is assumed in
+  # its place, so an operator adds the model to the registry with its window.
+  class UnknownWindow < StandardError; end
+
   # A tool result up to this share of the running model's window is handed over whole. A larger
   # one is saved and previewed, so a model with more room is given more without anything being retuned.
   RESULT_SHARE = 0.10
   CHARACTERS_PER_TOKEN = 4
-  # For a model the registry knows nothing about.
-  ASSUMED_WINDOW = 128_000
 
   # DISTINCT ON keeps one row per chat, so previews for a whole list load in one query.
   has_one :last_readable_message,
@@ -65,10 +74,13 @@ class Chat < ApplicationRecord
   def unfinished_tool_names = tool_calls.where(result_id: nil).distinct.pluck(:name)
 
   # In characters, since that is what a tool hands back. Tokens are only estimated from them.
-  def result_limit
+  def result_limit = (context_window! * RESULT_SHARE * CHARACTERS_PER_TOKEN).to_i
+
+  def context_window!
     window = model&.context_window.to_i
-    window = ASSUMED_WINDOW unless window.positive?
-    (window * RESULT_SHARE * CHARACTERS_PER_TOKEN).to_i
+    raise UnknownWindow, "No context window is known for #{model_id}. Add it to the model registry." unless window.positive?
+
+    window
   end
 
   # Appended, never reordered. The tool list sits at the front of every request, so the same
@@ -93,10 +105,11 @@ class Chat < ApplicationRecord
 
   # A killed worker leaves an empty reply that RubyLLM reads as the final answer. Only the job holding the run may call this.
   def discard_interrupted_reply!
-    last_message = messages.reload.last
+    last_message = sent_messages.reload.last
     return unless last_message&.interrupted_reply?
 
     last_message.destroy!
+    sent_messages.reset
     messages.reset
   end
 

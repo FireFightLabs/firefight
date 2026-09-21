@@ -190,6 +190,22 @@ The rules:
 - **Waiting for a person does not exist yet.** A tool needing approval says so and was not run.
 - **No environment is chosen.** A tool call passes no scope, so a connection with more than one environment cannot resolve one and the call is refused. Per run environment scoping lands with the approval work.
 
+## Making room in a long run
+
+One agent holds one context, and a real investigation reads more than a window holds. `FirefightAi::AgentLoop::Room` decides when a chat has to make room, and the chat's own record does it (`Chat::Compacting`). The loop is handed the saved chat as `memory:`, and the engine only ever calls `context_window!`, `clear_old_results!` and `rebuild!` on it.
+
+The rules:
+
+- **The window is known or the agent does not run.** `Chat#context_window!` reads the model registry and raises `Chat::UnknownWindow` when it holds none. Nothing is assumed in its place. `Investigation.unavailable_reason` checks it up front, so a chat, a run and a Slack mention all refuse with "not fully set up" while the log names the model (`ai.model_without_context_window`), and `RefreshModelRegistryJob` warns nightly (`ai.models_without_context_window`). A model the library does not know gets a registry row with its window, the same place it gets its price.
+- **How full it is comes from the provider.** Each reply reports what the model read, fresh and cached, and what it wrote. Before a turn `Room` adds an estimate, four characters to a token, for the tool results that arrived since, which the provider has not seen yet. After a compaction the last count no longer describes the chat, so the estimate covers the whole chat until the next reply.
+- **Stage one, at half the window, clears old tool results.** No model call. `clear_old_results!` keeps the newest `KEEP_RECENT` whole and moves each older one into a `Chat::SavedResult`, leaving a framed line that keeps its tool and step and names where the full text went. The agent reads it again with `read_result`, which is free and never touches the provider it came from. A result that was already saved because it was large is pointed at, not saved twice. A clear that would free under `MIN_FREED_SHARE` of the window is skipped, since every clear costs one uncached turn.
+- **Stage two, at three quarters, rebuilds.** Only when clearing did not free enough. The agent first gets one turn with no tools to write itself a note with everything still in view, billed like any turn. `rebuild!` then saves every remaining result, marks the working messages `archived_at` and starts again from one message: `owner.memory_brief` (for a run the seed pack, each theory with where it stands and the steps it rests on, and every step), the saved results, the note, and the last `RECENT_IN_FULL` results whole. The instructions are applied again word for word, never summarised.
+- **A conversation is never put away.** `Conversation#keeps_in_memory?` keeps what the person and the agent said to each other and puts away only the work in between. The note is marked like a nudge, so it is never read back as something the agent said to the person.
+- **Nothing is deleted.** `sent_messages` is what the model is sent, `messages` is everything, which is what a person reads and a replay needs. Step numbers never change, so a citation made before a rebuild still means the same step after it.
+- **The backstop.** A provider that still says too long gets the chat rebuilt without a note, since the model cannot be asked, and one more try. A second refusal ends the run.
+- **Every event is a `Chat::Compaction`** with the stage, the tokens in use before, what was freed and how many messages it touched, so the two thresholds are tuned from what really happened. Nothing is shown in Slack or the dashboard.
+- **Not used: the provider's own compaction.** It differs per provider, cannot point back at our steps, and does not exist on an open source model.
+
 ## Similarity search
 
 `SearchEmbedding` holds one vector per record, and `search_similar` is how the agent asks what looks like a situation rather than what matches its words. Incidents, findings and postmortems are embedded, and pgvector does the ranking.

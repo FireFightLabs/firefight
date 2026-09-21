@@ -11,7 +11,7 @@ module FirefightAi
     end
 
     # The app has already saved the question as the last message.
-    def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, nudge: nil, &on_turn)
+    def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, nudge: nil, memory: nil, &on_turn)
       FirefightAi.translating_errors do
         chat.with_instructions("#{template_text}\n#{context}")
         chat.with_tools(*tools)
@@ -20,7 +20,7 @@ module FirefightAi
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
-          on_step: on_step, on_chunk: on_chunk, nudge: nudge, inference: inference_context, reply_is_answer: true
+          on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true
         ).run(&on_turn)
       end
     end

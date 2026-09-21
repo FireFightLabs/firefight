@@ -51,10 +51,11 @@ class Chat::SavedResultTest < ActiveSupport::TestCase
     assert_operator Chat.find(@chat.id).result_limit, :>, roomy
   end
 
-  test "a model whose window is unknown still gets a limit" do
+  test "a window that is not known is never guessed at" do
     @chat.model.update!(context_window: nil)
 
-    assert_operator @chat.result_limit, :>, 0
+    error = assert_raises(Chat::UnknownWindow) { @chat.result_limit }
+    assert_match "claude-sonnet-4-5", error.message
   end
 
   test "deleting a chat takes its saved results with it" do

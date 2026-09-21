@@ -4,6 +4,7 @@ class RefreshModelRegistryJobTest < ActiveSupport::TestCase
   test "the registry is pulled in and what it now knows is written down" do
     FirefightAi.expects(:refresh_models!).returns(1722)
     FirefightAi.stubs(:priced?).returns(true)
+    FirefightAi.stubs(:context_window).returns(200_000)
     Rails.logger.expects(:info).with { |line| JSON.parse(line)["models"] == 1722 }
 
     RefreshModelRegistryJob.perform_now
@@ -14,8 +15,19 @@ class RefreshModelRegistryJobTest < ActiveSupport::TestCase
     FirefightAi.expects(:refresh_models!).returns(1722)
     FirefightAi.stubs(:priced?).returns(true)
     FirefightAi.stubs(:priced?).with("priceless-one").returns(false)
+    FirefightAi.stubs(:context_window).returns(200_000)
     Rails.logger.stubs(:info)
     Rails.logger.expects(:warn).with { |line| JSON.parse(line)["models"] == [ "priceless-one" ] }
+
+    RefreshModelRegistryJob.perform_now
+  end
+
+  test "a model the agent would run on with no known window is named, since it cannot run until it has one" do
+    FirefightAi.expects(:refresh_models!).returns(1722)
+    FirefightAi.stubs(:priced?).returns(true)
+    FirefightAi.stubs(:context_window).returns(nil)
+    Rails.logger.stubs(:info)
+    Rails.logger.expects(:warn).with { |line| JSON.parse(line)["event"] == "ai.models_without_context_window" }
 
     RefreshModelRegistryJob.perform_now
   end

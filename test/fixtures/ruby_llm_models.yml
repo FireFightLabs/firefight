@@ -4,36 +4,42 @@ _fixture:
 # This table is the whole registry once it holds a row, so every model the suite names has to be here.
 claude_sonnet:
   model_id: claude-sonnet-4-5
+  context_window: 200000
   name: Claude Sonnet 4.5
   provider: anthropic
   capabilities: ["function_calling", "reasoning"]
 
 claude_sonnet_4:
   model_id: claude-sonnet-4
+  context_window: 200000
   name: Claude Sonnet 4
   provider: anthropic
   capabilities: ["function_calling", "reasoning"]
 
 claude_haiku:
   model_id: claude-haiku-4-5
+  context_window: 200000
   name: Claude Haiku 4.5
   provider: anthropic
   capabilities: ["function_calling", "reasoning"]
 
 gpt_4o:
   model_id: gpt-4o
+  context_window: 200000
   name: GPT-4o
   provider: openai
   capabilities: ["function_calling", "streaming"]
 
 gpt_4o_mini:
   model_id: gpt-4o-mini
+  context_window: 200000
   name: GPT-4o mini
   provider: openai
   capabilities: ["function_calling", "streaming"]
 
 text_embedding_3_small:
   model_id: text-embedding-3-small
+  context_window: 200000
   name: Text Embedding 3 Small
   provider: openai
   capabilities: ["embeddings"]

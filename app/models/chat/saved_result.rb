@@ -19,9 +19,9 @@ class Chat::SavedResult < ApplicationRecord
 
   # Called on a chat's own results, so the name counts within that chat. One worker holds a chat
   # at a time, and the unique index settles it if two ever meet.
-  def self.keep!(tool_name:, text:)
+  def self.keep!(tool_name:, text:, step: nil)
     kept = text.to_s[0, MAX_KEPT]
-    create!(handle: "result_#{count + 1}", tool_name: tool_name, content: kept, line_count: kept.lines.size)
+    create!(handle: "result_#{count + 1}", tool_name: tool_name, content: kept, line_count: kept.lines.size, step: step)
   rescue ActiveRecord::RecordNotUnique
     retry
   end

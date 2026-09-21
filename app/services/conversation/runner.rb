@@ -20,7 +20,8 @@ class Conversation::Runner
       budget: budget,
       on_step: method(:report_step),
       on_chunk: ->(text) { delivery.chunk(text) },
-      nudge: chat.method(:nudge!)
+      nudge: chat.method(:nudge!),
+      memory: chat
     ) do |turn|
       record(turn)
     end

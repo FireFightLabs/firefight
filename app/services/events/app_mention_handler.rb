@@ -16,6 +16,9 @@ module Events
       gate = Entitlements.check(workspace, Entitlements::AI)
       return notify_blocked(workspace, channel_id, event["user"], gate.message) if gate.blocked?
 
+      unready = agent?(workspace) && Investigation.unknown_window_reason(workspace)
+      return notify_blocked(workspace, channel_id, event["user"], unready) if unready
+
       acknowledge(workspace, channel_id, event["ts"])
 
       parent_thread_ts = event["thread_ts"]

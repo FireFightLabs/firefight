@@ -20,6 +20,24 @@ module FirefightAi
     REPEATS_SHOWN = 3
     SHAPE_LIMIT = 160
 
+    OPENING_TAG = /\A<#{TAG} tool="(?<tool>[^"]*)"(?: step="(?<step>\d+)")? trust="untrusted">\n/
+    SAVED_AS = /saved in full as (?<handle>result_\d+)/
+
+    Unframed = Data.define(:tool, :step, :body)
+
+    # What a framed result said, taken back out of its frame. Text that was never framed is all body.
+    def self.unframe(framed)
+      text = framed.to_s
+      opening = text.match(OPENING_TAG)
+      return Unframed.new(tool: nil, step: nil, body: text) unless opening
+
+      body = text[opening.end(0)..].delete_suffix("\n</#{TAG}>")
+      Unframed.new(tool: opening[:tool], step: opening[:step]&.to_i, body: body)
+    end
+
+    # The name a preview says its full text was saved under, so it is never saved a second time.
+    def self.saved_handle(body) = body.to_s.match(SAVED_AS)&.[](:handle)
+
     # step is the number a run recorded the call under, which is what a conclusion cites it by.
     def self.frame(tool_name, text, step: nil)
       body = text.to_s.gsub(CLOSING_TAG, "<\\/#{TAG}>")

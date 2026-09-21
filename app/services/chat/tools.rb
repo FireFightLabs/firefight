@@ -96,7 +96,7 @@ module Chat::Tools
     text = outcome.value
     return FirefightAi::Evidence.frame(tool_name, text, step: outcome.step) if chat.nil? || text.to_s.length <= chat.result_limit
 
-    saved = chat.saved_results.keep!(tool_name: tool_name, text: text)
+    saved = chat.saved_results.keep!(tool_name: tool_name, text: text, step: outcome.step)
     preview = FirefightAi::Evidence.preview(text, handle: saved.handle, read_with: ReadResult.tool_name)
     FirefightAi::Evidence.frame(tool_name, preview, step: outcome.step)
   end

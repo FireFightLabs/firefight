@@ -20,6 +20,14 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_equal "1700000000.000100", conversation.thread_id
   end
 
+  test "a mention is told setup is not finished when the model's window is not known, rather than left with a spinner" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    FirefightAi.stubs(:context_window).returns(nil)
+    Slack::Client.expects(:post_ephemeral).with { |arguments| arguments[:text].include?("not fully set up") }.returns({ ok: true })
+
+    assert_no_enqueued_jobs(only: ConversationReplyJob) { mention("what is going on") }
+  end
+
   test "each mention acts as whoever tagged the agent, not whoever started the thread" do
     FeatureFlags.stubs(:enabled?).returns(true)
     bob = workspace_memberships(:bob_workspace_one)

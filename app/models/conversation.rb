@@ -55,6 +55,15 @@ class Conversation < ApplicationRecord
 
   def personal? = kind == KIND_PERSONAL
 
+  # What the person and the agent said to each other is the conversation, so it is never put away.
+  # The work in between is, meaning the tool calls, their results and the agent's nudges to itself.
+  def keeps_in_memory?(message)
+    Chat::Message::READABLE_ROLES.include?(message.role) && !message.nudge && message.ruby_llm_tool_calls.empty?
+  end
+
+  # A conversation holds no records of its own beyond the chat, so there is nothing to add.
+  def memory_brief = nil
+
   # Saved before the job runs, so the person sees it at once and a retried job asks only once.
   def ask!(question)
     chat_record.add_message(role: Chat::Message::ROLE_USER, content: question)
