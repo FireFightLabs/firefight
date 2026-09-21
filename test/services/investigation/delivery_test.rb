@@ -39,7 +39,7 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
   test "an answer is posted and the working state is cleared" do
     delivery = Investigation::Delivery.new(@investigation)
     delivery.start!
-    finding = @investigation.conclude!(summary: "The 14:02 deploy did it", evidence: [ "commit abc123" ], gaps: "logs")
+    finding = @investigation.conclude!(summary: "The 14:02 deploy did it", gaps: "logs")
     Slack::Client.expects(:stop_stream).with { |arguments| arguments[:blocks].present? }.returns({ ok: true, ts: "1" })
     Slack::Client.expects(:set_agent_session_status).with { |arguments| arguments[:status] == "active" }.returns({ ok: true })
 

@@ -6,8 +6,13 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     investigation = @incident.workspace.investigations.create!(
       subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400
     )
+    investigation.steps.create!(
+      position: 1, tool_name: "commit_lookup", label: "Commit lookup abc123", action_key: "github.commit_lookup",
+      status: Investigation::Step::STATUS_SUCCEEDED, started_at: Time.current
+    )
     @finding = investigation.conclude!(
-      summary: "The **14:02 deploy** raised the pool size", evidence: [ "commit abc123" ], gaps: "production logs"
+      summary: "The **14:02 deploy** raised the pool size",
+      evidence: [ { claim: "The commit raised the pool size", steps: [ 1 ] } ], gaps: "production logs"
     )
   end
 
@@ -22,7 +27,7 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     blocks = Slack::Messages::InvestigationRun.finding(finding: @finding)
 
     assert_equal "*14:02 deploy* raised the pool size", blocks.first.dig(:text, :text).split("The ").last
-    assert_match "commit abc123", blocks.second.dig(:text, :text)
+    assert_match "• The commit raised the pool size _(Commit lookup abc123)_", blocks.second.dig(:text, :text)
     assert_match "production logs", blocks.third[:elements].sole[:text]
 
     feedback = blocks.last[:elements].sole
@@ -50,7 +55,8 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
 
   test "an answer with nothing to cite leaves the evidence out rather than showing an empty list" do
     finding = @finding.investigation.finding
-    finding.update!(evidence: [], gaps: nil)
+    finding.evidence_items.destroy_all
+    finding.update!(gaps: nil)
 
     blocks = Slack::Messages::InvestigationRun.finding(finding: finding)
 

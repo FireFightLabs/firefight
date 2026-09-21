@@ -4,6 +4,7 @@ module Slack
     module InvestigationRun
       SECTION_TEXT_LIMIT = 3000
       EVIDENCE_LIMIT = 6
+      SOURCES_SHOWN = 3
 
       def self.started(incident:, started_by:)
         [
@@ -20,7 +21,7 @@ module Slack
 
       def self.finding(finding:)
         blocks = [ { type: "section", text: { type: "mrkdwn", text: summary_text(finding) } } ]
-        blocks << evidence_block(finding) if finding.evidence.present?
+        blocks << evidence_block(finding) if finding.evidence_items.any?
         blocks << gaps_block(finding) if finding.gaps.present?
         blocks << feedback_block(finding)
         blocks
@@ -52,11 +53,18 @@ module Slack
       end
 
       def self.evidence_block(finding)
-        lines = finding.evidence.first(EVIDENCE_LIMIT).map { |item| "• #{Formatting.markdown_to_mrkdwn(item.to_s)}" }
+        lines = finding.evidence_items.first(EVIDENCE_LIMIT).map { |item| evidence_line(item) }
         {
           type: "section",
           text: { type: "mrkdwn", text: "*Why I think so*\n#{lines.join("\n")}".truncate(SECTION_TEXT_LIMIT) }
         }
+      end
+
+      # The claim, then what it rests on, so a reader sees where each line came from.
+      def self.evidence_line(item)
+        sources = item.source_labels.first(SOURCES_SHOWN).join(", ")
+        line = "• #{Formatting.markdown_to_mrkdwn(item.claim)}"
+        sources.present? ? "#{line} _(#{Formatting.markdown_to_mrkdwn(sources)})_" : line
       end
 
       def self.gaps_block(finding)

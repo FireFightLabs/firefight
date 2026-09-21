@@ -4,7 +4,7 @@ module Investigation::Finding::Searchable
   include SearchEmbedding::Writing
 
   def search_text
-    [ summary, winning_hypothesis&.assertion, evidence.join("\n"), gaps ].compact_blank.join("\n")
+    [ summary, winning_hypothesis&.assertion, evidence_items.map(&:claim).join("\n"), gaps ].compact_blank.join("\n")
   end
 
   def workspace = investigation.workspace

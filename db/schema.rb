@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_21_120004) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_21_120005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -928,11 +928,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120004) do
     t.index ["workspace_id", "slug"], name: "index_integrations_on_active_slug", unique: true, where: "(deleted_at IS NULL)"
   end
 
+  create_table "investigation_citations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "cited_by_id", null: false
+    t.string "cited_by_type", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "locator", default: {}, null: false
+    t.uuid "source_id", null: false
+    t.string "source_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cited_by_type", "cited_by_id"], name: "index_investigation_citations_on_cited_by"
+    t.index ["source_type", "source_id"], name: "index_investigation_citations_on_source"
+  end
+
+  create_table "investigation_evidence", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "claim", null: false
+    t.datetime "created_at", null: false
+    t.uuid "finding_id", null: false
+    t.integer "position", null: false
+    t.datetime "updated_at", null: false
+    t.index ["finding_id"], name: "index_investigation_evidence_on_finding_id"
+  end
+
   create_table "investigation_findings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.decimal "confidence", precision: 3, scale: 2
     t.jsonb "confidence_factors", default: {}, null: false
     t.datetime "created_at", null: false
-    t.jsonb "evidence", default: [], null: false
     t.text "gaps"
     t.uuid "investigation_id", null: false
     t.string "outcome"
@@ -974,12 +994,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120004) do
     t.uuid "hypothesis_id"
     t.uuid "investigation_id", null: false
     t.uuid "invocation_id"
+    t.string "label"
     t.jsonb "params", default: {}, null: false
+    t.integer "position"
     t.text "raw_result"
     t.text "reasoning"
     t.datetime "started_at"
     t.string "status", default: "pending", null: false
+    t.string "tool_name"
     t.datetime "updated_at", null: false
+    t.index ["investigation_id", "position"], name: "index_investigation_steps_on_investigation_id_and_position", unique: true, where: "(\"position\" IS NOT NULL)"
     t.index ["hypothesis_id"], name: "index_investigation_steps_on_hypothesis_id"
     t.index ["investigation_id", "created_at"], name: "index_investigation_steps_on_investigation_id_and_created_at"
     t.index ["investigation_id"], name: "index_investigation_steps_on_investigation_id"
@@ -1558,6 +1582,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120004) do
   add_foreign_key "integration_environments", "integrations"
   add_foreign_key "integration_tools", "integrations"
   add_foreign_key "integrations", "workspaces"
+  add_foreign_key "investigation_evidence", "investigation_findings", column: "finding_id"
   add_foreign_key "investigation_findings", "investigation_hypotheses", column: "winning_hypothesis_id"
   add_foreign_key "investigation_findings", "investigations"
   add_foreign_key "investigation_hypotheses", "catalog_entries"

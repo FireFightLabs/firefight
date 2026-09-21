@@ -126,6 +126,7 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `Investigation::Hypothesis` | one theory |
 | `Investigation::Step` | one tool call |
 | `Investigation::Finding` | the one answer, with its named confidence factors |
+| `Investigation::Evidence` / `Investigation::Citation` | one claim of a finding, and the steps it or a settled theory rests on |
 | `Chat` / `Chat::Message` | the agent's saved conversation with the model, see Saved chat |
 | `Investigation::ToolCall` | the gateway wrapper every tool call goes through, always as the agent |
 | `FirefightAi::AgentLoop` / `FirefightAi::Investigator` | the loop and the prompts, in the engine |
@@ -142,7 +143,7 @@ Phase 1 of the AI SRE build. Where the pieces are:
 
 The rules:
 
-- Evidence is a reference (a ledger invocation, a PR, a file range, an incident), never a copied blob.
+- Evidence is a reference (a step, and later a PR, a file range, an Issue), never a copied blob. See Evidence points at steps below.
 - **A run acts as the agent, not as the person who asked.** A conversation is the opposite, see below. `SystemAgent.investigator` is one global row, because the software is the same for every customer and only the grants differ. `Investigation::ToolCall` takes no principal argument, so no caller can run a tool as the human by mistake. A workspace grants the agent what it may reach under Gateway, Permissions, where built in agents are their own section, hidden until the workspace has `FeatureFlags::AI_SRE`. An agent granted nothing is denied, whoever asked.
 - Built in agents are defined in code (`SystemAgent::BUILT_IN`) and created on demand, so a fresh install loading `schema.rb` gets them without running the migration.
 - Every tool call goes through `AbilityGateway` carrying `SOURCE_INVESTIGATION`, and stores its invocation id on the step. Tool output lives on the step, encrypted, and never reaches the ledger. `params` is the binding the ledger stores, so it names what was asked and never carries a payload.
@@ -168,6 +169,7 @@ Not built yet: the posted Finding, MCP tools, the dashboard page, a deadline on 
 
 The rules:
 
+- **Evidence points at steps, it is never a sentence on its own.** Every tool result in a run is handed over with the number its `Investigation::Step` was recorded under (`step="7"` in the frame). `conclude` takes evidence as claims, each with the step numbers it rests on, and `Investigation#conclude!` writes one `Investigation::Evidence` per claim with an `Investigation::Citation` per step. A claim that cites nothing, a step that does not exist or a step that failed raises `Investigation::Evidence::Refused`, nothing is written, and the tool hands the reason back so the agent fixes it before the run can end. Naming a cause needs at least one claim, and concluding that nothing explains it needs none. `record_hypothesis` takes steps the same way, and a theory cannot be marked supported or refuted without them, so a ruled out theory carries its why. A citation's source is polymorphic and has a `locator`, so a file range, a pull request or an Issue can be cited later without a new shape. A step also keeps its `tool_name` and a `label` such as "Get form declare", which is what the Slack message shows after each claim.
 - **Only `conclude` ends a run.** It writes `Investigation::Finding` unpublished. A plain reply does nothing: the agent is reminded once, and a second one ends the run as stalled with its hypotheses kept. Theories are written as the agent goes, through `record_hypothesis`.
 - **Spend is the budget.** Each model reply's cost is added to `spent_micros`, the ledger's unit and never rounded, so many small replies cost what they cost rather than a cent each. At `max_spend_cents` the agent gets one last turn to conclude with what it has, which may go slightly over. `max_turns` is only a runaway guard, and the only stop for a model whose price is unknown. A tool call id repeated in the chat ends the run, since RubyLLM would skip the tool and pay for another turn forever.
 - **A model call is billed, running its tools is not.** The loop wraps only the generate move in `Inference.track`.

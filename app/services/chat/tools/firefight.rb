@@ -32,7 +32,10 @@ class Chat::Tools::Firefight < RubyLLM::Tool
 
   def attempt(action_key, arguments, approval_id: nil)
     # The block answers with the text, so a run's step keeps what the tool said rather than a response object.
-    said = @agent_run.tool_call(action_key: action_key, params: arguments.transform_keys(&:to_s), **{ approval_id: approval_id }.compact) do
+    said = @agent_run.tool_call(
+      action_key: action_key, params: arguments.transform_keys(&:to_s), tool_name: name,
+      label: Chat::Tools.label(name, arguments), **{ approval_id: approval_id }.compact
+    ) do
       text_of(Mcp::ToolDispatcher.run(
         tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments
       ))
