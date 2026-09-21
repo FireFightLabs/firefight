@@ -109,6 +109,77 @@ class InvestigationJobTest < ActiveSupport::TestCase
     assert @investigation.reload.live?, "one stumble must not burn the run"
   end
 
+  test "a run that stumbles after it was claimed is finished by the retry" do
+    succeeded = Investigation::Runner::Result.new(status: Investigation::STATUS_SUCCEEDED, error_summary: nil)
+    Investigation::Runner.any_instance.stubs(:run).raises(RuntimeError, "deadlock").then.returns(succeeded)
+
+    perform_enqueued_jobs { InvestigationJob.perform_later(@investigation.id) }
+
+    assert_equal Investigation::STATUS_SUCCEEDED, @investigation.reload.status,
+                 "the retry has to be able to take a run its own first attempt still held"
+  end
+
+  test "a job the queue hands out again after a deploy carries on at once" do
+    job = InvestigationJob.new(@investigation.id)
+    @investigation.claim!(by: job.job_id)
+    stub_runner
+
+    job.perform_now
+
+    assert_equal Investigation::STATUS_SUCCEEDED, @investigation.reload.status,
+                 "the worker that held the run is gone, so nothing is left to wait for"
+  end
+
+  test "a run that keeps losing its worker is given up on rather than picked up forever" do
+    @investigation.update!(attempts: Investigation::MAX_ATTEMPTS, thread_id: "1700000000.000100")
+    Investigation::Runner.any_instance.expects(:run).never
+    Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
+      has_entries(reason: InvestigationJob::GAVE_UP, rerun: @incident)
+    )
+
+    InvestigationJob.perform_now(@investigation.id)
+
+    @investigation.reload
+    assert_equal Investigation::STATUS_FAILED, @investigation.status
+    assert_equal InvestigationJob::TOO_MANY_ATTEMPTS, @investigation.error_summary
+  end
+
+  test "an error no retry can fix ends the run at once" do
+    Investigation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError.new("too long"))
+
+    assert_no_enqueued_jobs { InvestigationJob.perform_now(@investigation.id) }
+
+    @investigation.reload
+    assert_equal Investigation::STATUS_FAILED, @investigation.status
+    assert @investigation.over?, "a run that cannot finish must not hold the incident's only live slot"
+  end
+
+  test "a run that gave up says so in its thread" do
+    @investigation.update!(thread_id: "1700000000.000100")
+    Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
+      has_entries(thread_id: "1700000000.000100", reason: InvestigationJob::GAVE_UP, rerun: @incident)
+    )
+
+    InvestigationJob.new(@investigation.id).mark_failed(RuntimeError.new("worker died"))
+  end
+
+  test "the precise cause is kept on the run for us, and never said in the thread" do
+    error = FirefightAi::TerminalError.new("too long", reason: "ContextLengthExceededError")
+
+    InvestigationJob.new(@investigation.id).mark_failed(error)
+
+    assert_equal "ContextLengthExceededError", @investigation.reload.error_summary
+  end
+
+  test "a thread that cannot be told still leaves the run failed" do
+    @investigation.update!(thread_id: "1700000000.000100")
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_investigation_stopped).raises(AdapterError, "channel archived")
+
+    InvestigationJob.new(@investigation.id).mark_failed(RuntimeError.new("worker died"))
+
+    assert_equal Investigation::STATUS_FAILED, @investigation.reload.status
+  end
+
   test "the run is marked failed once the retries are gone" do
     InvestigationJob.new(@investigation.id).mark_failed(RuntimeError.new("worker died"))
 

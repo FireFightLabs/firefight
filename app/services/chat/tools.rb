@@ -110,6 +110,23 @@ module Chat::Tools
     FirefightAi::Evidence.frame(tool_name, preview)
   end
 
+  # What the chat found earlier, for whoever acts now, so a grant taken away since is not handed back.
+  def self.known(agent_run, chat)
+    names = chat.known_tool_names
+    return [] if names.empty?
+
+    ready = catalog(agent_run).select(&:tool).index_by(&:name)
+    names.filter_map { |name| ready[name]&.tool }
+  end
+
+  # Offered to the live chat and remembered, so a later turn or a resumed run starts with them.
+  def self.offer_to(chat)
+    lambda do |tools|
+      chat.remember_found_tools!(tools.map(&:name))
+      chat.with_tools(*tools)
+    end
+  end
+
   def self.catalog(agent_run)
     firefight_entries(agent_run) + connection_entries(agent_run) + unconnected_entries(agent_run)
   end

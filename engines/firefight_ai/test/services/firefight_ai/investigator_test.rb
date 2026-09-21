@@ -29,6 +29,14 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
     investigator.run(chat: chat, tools: [], seed_pack: @seed_pack, budget: budget, answered: -> { false })
   end
 
+  # One agent resends its whole history every turn, so without the provider's cache a long run pays for it each time.
+  test "a run asks the provider to cache what it has already read" do
+    chat = chat_double(messages: [])
+    chat.expects(:with_caching)
+
+    investigator.run(chat: chat, tools: [], seed_pack: @seed_pack, budget: budget, answered: -> { false })
+  end
+
   test "a client error stops at the engine boundary" do
     chat = chat_double(messages: [])
     chat.stubs(:with_instructions).raises(RubyLLM::RateLimitError.new("slow down"))
@@ -49,6 +57,7 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
     chat = mock("chat")
     chat.stubs(:to_llm).returns(stub(messages: messages))
     chat.stubs(:with_tools)
+    chat.stubs(:with_caching)
     chat.stubs(:with_instructions)
     chat.stubs(:add_message)
     chat

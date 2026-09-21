@@ -360,6 +360,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120004) do
   create_table "chats", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "cancelled", default: false, null: false
     t.datetime "created_at", null: false
+    t.jsonb "found_tool_names", default: [], null: false
     t.uuid "owner_id", null: false
     t.string "owner_type", null: false
     t.uuid "ruby_llm_model_id"
@@ -994,10 +995,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120004) do
   end
 
   create_table "investigations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "attempts", default: 0, null: false
     t.boolean "cancel_requested", default: false, null: false
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.string "error_summary"
+    t.string "lease_holder"
     t.uuid "lease_token"
     t.datetime "lease_until"
     t.integer "max_spend_cents", null: false
