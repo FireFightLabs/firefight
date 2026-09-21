@@ -44,8 +44,10 @@ class Chat::Tools::Open < RubyLLM::Tool
   end
 
   # The arguments match the schema above, not an execute signature, so skip the base check.
+  # They arrive keyed by text, as the model sent them.
   def call(tool_call: nil, **arguments)
-    open(arguments[:group].to_s, Array(arguments[:tools]).map(&:to_s))
+    asked = arguments.symbolize_keys
+    open(asked[:group].to_s, Array(asked[:tools]).map(&:to_s))
   end
 
   private
@@ -56,13 +58,19 @@ class Chat::Tools::Open < RubyLLM::Tool
     view = Chat::Tools::Groups.for(@agent_run).find { |one| one.key == key }
     return "There is no group called #{key}. The groups are: #{views.map(&:key).join(', ')}." unless view
     return nothing_connected(view) if view.entries.empty?
-    return listed_first(view) if large?(view) && wanted.empty?
-
-    chosen = wanted.empty? ? view.entries : view.entries.select { |entry| wanted.include?(entry.name) }
-    return "None of those are in #{view.title}. It holds: #{view.entries.map(&:name).join(', ')}." if chosen.empty?
+    chosen = chosen_from(view, wanted)
+    return listed_first(view) if chosen.empty?
 
     @offer.call(chosen.filter_map(&:tool))
     listing(chosen)
+  end
+
+  # Names only narrow a large group. A small one opens whole whatever was named, since a model
+  # that guesses at names before reading any would otherwise lose a turn to being corrected.
+  def chosen_from(view, wanted)
+    return view.entries unless large?(view)
+
+    view.entries.select { |entry| wanted.include?(entry.name) }
   end
 
   def large?(view) = view.entries.size > LARGE_GROUP

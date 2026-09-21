@@ -90,6 +90,28 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_empty Chat::Tools.known(@investigation, open_chat)
   end
 
+  # The library hands a tool the model's arguments as they arrived, keyed by text.
+  test "a group opens when the arguments arrive the way the library passes them" do
+    grant!(@tool)
+    offered = []
+
+    open_tool(offer: ->(tools) { offered.concat(tools) }).call("group" => "connection_#{@integration.slug}", "tools" => [])
+
+    assert_equal [ "fake_echo_text" ], offered.map(&:name)
+  end
+
+  # Seen in a real chat. The model guessed at names before it had read any, and lost a turn to being told off.
+  test "names guessed for a group small enough to open whole are ignored, and the group opens" do
+    grant!(@tool)
+    offered = []
+
+    answer = open_tool(offer: ->(tools) { offered.concat(tools) })
+      .call("group" => "connection_#{@integration.slug}", "tools" => [ "list_everything" ])
+
+    assert_match "fake_echo_text", answer
+    assert_equal [ "fake_echo_text" ], offered.map(&:name)
+  end
+
   test "a tool the workspace never granted is named rather than hidden" do
     answer = open_tool.call(group: "connection_#{@integration.slug}")
 
