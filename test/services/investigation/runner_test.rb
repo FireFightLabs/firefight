@@ -127,6 +127,20 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     assert_not Chat::Message.exists?(interrupted.id)
   end
 
+  test "a resumed run is handed back the tools it had found" do
+    action = Ability::Action.system!(
+      Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    )
+    Ability::Grant.create!(workspace: @workspace, principal: @investigation.acting_principal, action: action)
+    chat = @investigation.create_chat!(workspace: @workspace, model: "claude-sonnet-4-5", provider: :anthropic)
+    chat.remember_found_tools!([ Mcp::Tools::SEARCH_INCIDENTS ])
+    investigator = fake(outcome: :answered, conclude: true)
+
+    Investigation::Runner.new(@investigation).run
+
+    assert_includes investigator.calls.sole[:tools].map(&:name), Mcp::Tools::SEARCH_INCIDENTS
+  end
+
   private
 
   def turn(turns_used, spent_micros)

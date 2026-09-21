@@ -4,6 +4,14 @@ class Chat < ApplicationRecord
 
   belongs_to :workspace
   belongs_to :owner, polymorphic: true
+  has_many :saved_results, -> { in_order }, class_name: "Chat::SavedResult", dependent: :destroy, inverse_of: :chat
+
+  # A tool result up to this share of the running model's window is handed over whole. A larger
+  # one is saved and previewed, so a model with more room is given more without anything being retuned.
+  RESULT_SHARE = 0.10
+  CHARACTERS_PER_TOKEN = 4
+  # For a model the registry knows nothing about.
+  ASSUMED_WINDOW = 128_000
 
   # DISTINCT ON keeps one row per chat, so previews for a whole list load in one query.
   has_one :last_readable_message,
@@ -55,6 +63,23 @@ class Chat < ApplicationRecord
   end
 
   def unfinished_tool_names = tool_calls.where(result_id: nil).distinct.pluck(:name)
+
+  # In characters, since that is what a tool hands back. Tokens are only estimated from them.
+  def result_limit
+    window = model&.context_window.to_i
+    window = ASSUMED_WINDOW unless window.positive?
+    (window * RESULT_SHARE * CHARACTERS_PER_TOKEN).to_i
+  end
+
+  # Appended, never reordered. The tool list sits at the front of every request, so the same
+  # order every turn is what lets a provider reuse what it has already read.
+  def remember_found_tools!(names)
+    added = names.map(&:to_s) - found_tool_names
+    update!(found_tool_names: found_tool_names + added) if added.any?
+  end
+
+  # A call left unfinished before tools were remembered still needs its tool.
+  def known_tool_names = found_tool_names | unfinished_tool_names
 
   # Records which model will run, without opening a connection to the provider.
   def self.open!(owner:, workspace:, model_choice:)

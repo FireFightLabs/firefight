@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_21_120002) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_21_120004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -347,9 +347,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120002) do
     t.index ["chat_id", "created_at"], name: "index_chat_messages_on_chat_id_and_created_at"
   end
 
+  create_table "chat_saved_results", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.string "handle", null: false
+    t.integer "line_count", null: false
+    t.string "tool_name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_id", "handle"], name: "index_chat_saved_results_on_chat_id_and_handle", unique: true
+  end
+
   create_table "chats", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "cancelled", default: false, null: false
     t.datetime "created_at", null: false
+    t.jsonb "found_tool_names", default: [], null: false
     t.uuid "owner_id", null: false
     t.string "owner_type", null: false
     t.uuid "ruby_llm_model_id"
@@ -984,10 +996,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120002) do
   end
 
   create_table "investigations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "attempts", default: 0, null: false
     t.boolean "cancel_requested", default: false, null: false
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.string "error_summary"
+    t.string "lease_holder"
     t.uuid "lease_token"
     t.datetime "lease_until"
     t.integer "max_spend_cents", null: false
@@ -1479,6 +1493,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120002) do
   add_foreign_key "catalog_entry_relationships", "workspaces"
   add_foreign_key "catalog_types", "workspaces"
   add_foreign_key "chat_messages", "chats"
+  add_foreign_key "chat_saved_results", "chats"
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"
   add_foreign_key "conversations", "workspace_memberships", column: "started_by_id"

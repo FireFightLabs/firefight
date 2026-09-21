@@ -33,6 +33,21 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     assert_equal "#{@finding.id}:#{Investigation::Finding::OUTCOME_WRONG}", feedback[:negative_button][:value]
   end
 
+  test "a run that stopped on our side offers one button to run it again" do
+    blocks = Slack::Messages::InvestigationRun.stopped(reason: "Something went wrong on my side", rerun: @incident)
+
+    button = blocks.last[:elements].sole
+    assert_equal "actions", blocks.last[:type]
+    assert_equal Identifiers::START_INVESTIGATION, button[:action_id]
+    assert_equal @incident.id, button[:value]
+  end
+
+  test "a run that stopped for its own reasons offers no button, since running it again would end the same way" do
+    blocks = Slack::Messages::InvestigationRun.stopped(reason: "Budget spent before it could answer")
+
+    assert_equal [ "section" ], blocks.map { |block| block[:type] }
+  end
+
   test "an answer with nothing to cite leaves the evidence out rather than showing an empty list" do
     finding = @finding.investigation.finding
     finding.update!(evidence: [], gaps: nil)

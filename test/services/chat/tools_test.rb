@@ -22,12 +22,12 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     Integrations::NativePack.stubs(:for).with("fake").returns(FakeNativePack)
   end
 
-  test "the agent starts with only the three tools it always needs" do
+  test "the agent starts with only the tools it always needs" do
     grant!(@tool)
 
     names = Investigation::Tools.for(@investigation, offer: ->(_tools) { }).map(&:name)
 
-    assert_equal [ "find_tools", "record_hypothesis", "conclude" ], names
+    assert_equal [ "find_tools", "read_result", "record_hypothesis", "conclude" ], names
   end
 
   test "finding a tool the agent may use offers it to the chat and says it is ready" do
@@ -40,6 +40,38 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_match "fake_echo_text", answer
     assert_match "ready to call", answer
     assert_equal [ "fake_echo_text" ], offered.map(&:name)
+  end
+
+  test "a tool found earlier is handed back, so the next turn does not search for it again" do
+    grant!(@tool)
+    chat = open_chat
+    find = Chat::Tools::Find.new(@investigation, offer: ->(tools) { chat.remember_found_tools!(tools.map(&:name)) })
+    find.execute(query: "echoes text")
+
+    known = Chat::Tools.known(@investigation, Chat.find(chat.id))
+
+    assert_equal [ "fake_echo_text" ], known.map(&:name)
+  end
+
+  test "tools come back in the order they were found, so the front of the prompt stays the same" do
+    grant!(@tool)
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    chat = open_chat
+    chat.remember_found_tools!([ Mcp::Tools::SEARCH_INCIDENTS ])
+    chat.remember_found_tools!([ "fake_echo_text", Mcp::Tools::SEARCH_INCIDENTS ])
+
+    assert_equal [ Mcp::Tools::SEARCH_INCIDENTS, "fake_echo_text" ], Chat::Tools.known(@investigation, chat).map(&:name)
+  end
+
+  test "a remembered tool whose grant was taken away is not handed back" do
+    chat = open_chat
+    chat.remember_found_tools!([ "fake_echo_text" ])
+
+    assert_empty Chat::Tools.known(@investigation, chat)
+  end
+
+  test "a chat that found nothing hands nothing back" do
+    assert_empty Chat::Tools.known(@investigation, open_chat)
   end
 
   test "a tool the workspace never granted is named rather than hidden" do
@@ -92,8 +124,63 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     result = tool.call(text: "hi")
 
-    assert_equal "echo: hi", result
+    assert_equal FirefightAi::Evidence.frame("fake_echo_text", "echo: hi"), result
     assert_equal "fake.echo_text", @investigation.steps.sole.action_key
+  end
+
+  test "the step keeps what the provider said as it was, only the model is handed the frame" do
+    grant!(@tool)
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
+
+    tool.call(text: "hi")
+
+    assert_equal "echo: hi", @investigation.steps.sole.raw_result
+  end
+
+  test "a result too large to hand over whole is saved in full, and the agent is handed a preview and its name" do
+    grant!(@tool)
+    open_chat_for_run
+    Chat.any_instance.stubs(:result_limit).returns(200)
+    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == "fake_echo_text" }.tool
+    long = (1..3_000).map { |number| "line #{number}" }.join(" | ")
+
+    result = tool.call(text: long)
+
+    saved = @investigation.chat.saved_results.sole
+    assert_equal "echo: #{long}", saved.content
+    assert_match saved.handle, result
+    assert_match Chat::Tools::ReadResult.tool_name, result
+    assert_operator result.length, :<, long.length
+  end
+
+  test "a result that fits is handed over whole and nothing is saved" do
+    grant!(@tool)
+    open_chat_for_run
+    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == "fake_echo_text" }.tool
+
+    assert_equal FirefightAi::Evidence.frame("fake_echo_text", "echo: hi"), tool.call(text: "hi")
+    assert_empty @investigation.chat.saved_results
+  end
+
+  test "the agent always holds the tool that reads a saved result" do
+    names = Investigation::Tools.for(@investigation, offer: ->(_tools) { }).map(&:name)
+
+    assert_includes names, Chat::Tools::ReadResult.tool_name
+  end
+
+  test "what one of Firefight's own tools found is framed as data too" do
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == Mcp::Tools::SEARCH_INCIDENTS }.tool
+
+    result = tool.call(query: @incident.identifier)
+
+    assert result.start_with?("<tool_result tool=\"#{Mcp::Tools::SEARCH_INCIDENTS}\" trust=\"untrusted\">")
+  end
+
+  test "a refusal is Firefight speaking, so it is not framed as something a tool said" do
+    tool = Chat::Tools::Connection.new(@investigation, @tool)
+
+    assert_no_match(/tool_result/, tool.call(text: "hi"))
   end
 
   test "a refused call comes back as a result the agent can work around" do
@@ -165,6 +252,17 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   private
+
+  def open_chat_for_run
+    @workspace.chats.create!(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
+  end
+
+  def open_chat
+    Chat.open!(
+      owner: @investigation, workspace: @workspace,
+      model_choice: FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic")
+    )
+  end
 
   def grant_system!(resource, action)
     Ability::Grant.create!(

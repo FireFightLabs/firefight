@@ -2,7 +2,7 @@
 class Conversation::Turn
   attr_reader :conversation, :asker
 
-  delegate :workspace, :incident, to: :conversation
+  delegate :workspace, :incident, :chat, to: :conversation
 
   def initialize(conversation, asker:)
     @conversation = conversation

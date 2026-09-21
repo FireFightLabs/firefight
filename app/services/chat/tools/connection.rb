@@ -23,11 +23,12 @@ class Chat::Tools::Connection < RubyLLM::Tool
   private
 
   def invoke(arguments, approval_id: nil)
-    @agent_run.tool_call(action_key: @tool.action_key, params: arguments, **{ approval_id: approval_id }.compact) do
+    said = @agent_run.tool_call(action_key: @tool.action_key, params: arguments, **{ approval_id: approval_id }.compact) do
       integration = @tool.integration
       environment_row = integration.resolve_environment(nil)
       text_of(integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments))
     end
+    Chat::Tools.hand_over(@agent_run, name, said)
   rescue AbilityGateway::Denied
     @agent_run.refusal(@tool.action_key)
   rescue AbilityGateway::PendingApproval => pending
@@ -35,7 +36,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
     Chat::Tools.waiting_for_approval(@tool.action_key)
   rescue Integrations::Error => error
-    "#{@tool.action_key} failed: #{error.message}"
+    # The provider's own words, so they are framed like anything else it said.
+    FirefightAi::Evidence.frame(name, "#{@tool.action_key} failed: #{error.message}")
   end
 
   def approved_by_asker?(approval) = requires_approval? && Chat::Tools.approve_for_asker(@agent_run, approval)

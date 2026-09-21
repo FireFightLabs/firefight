@@ -18,7 +18,7 @@ class Investigation::Runner
 
     outcome = investigator.run(
       chat: chat,
-      tools: Investigation::Tools.for(@investigation, offer: ->(tools) { chat.with_tools(*tools) }),
+      tools: Investigation::Tools.for(@investigation, offer: Chat::Tools.offer_to(chat)) + Chat::Tools.known(@investigation, chat),
       seed_pack: @investigation.seed_pack,
       budget: budget,
       answered: -> { @investigation.reload.finding.present? },
