@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_21_120005) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_21_120006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -329,7 +329,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120005) do
     t.index ["workspace_id"], name: "index_catalog_types_on_workspace_id"
   end
 
+  create_table "chat_compactions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "messages_affected", default: 0, null: false
+    t.text "note"
+    t.string "stage", null: false
+    t.integer "tokens_before", null: false
+    t.integer "tokens_freed", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_id"], name: "index_chat_compactions_on_chat_id"
+  end
+
   create_table "chat_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "archived_at"
     t.boolean "cache_until_here", default: false, null: false
     t.uuid "chat_id", null: false
     t.jsonb "citations"
@@ -353,6 +366,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120005) do
     t.datetime "created_at", null: false
     t.string "handle", null: false
     t.integer "line_count", null: false
+    t.integer "step"
     t.string "tool_name", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id", "handle"], name: "index_chat_saved_results_on_chat_id_and_handle", unique: true
@@ -1516,6 +1530,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120005) do
   add_foreign_key "catalog_entry_relationships", "catalog_entries", column: "target_entry_id"
   add_foreign_key "catalog_entry_relationships", "workspaces"
   add_foreign_key "catalog_types", "workspaces"
+  add_foreign_key "chat_compactions", "chats"
   add_foreign_key "chat_messages", "chats"
   add_foreign_key "chat_saved_results", "chats"
   add_foreign_key "chats", "ruby_llm_models"

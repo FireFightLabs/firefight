@@ -39,7 +39,9 @@ class Chat::Tools::ReadResult < RubyLLM::Tool
 
   def unknown(result, saved) = "Nothing is saved as #{result}. Saved here: #{names(saved)}."
 
-  def names(saved) = saved.map { |one| "#{one.handle} (#{one.tool_name}, #{one.line_count} lines)" }.join(", ")
+  def names(saved)
+    saved.map { |one| "#{one.handle} (#{[ ("step #{one.step}" if one.step), one.tool_name, "#{one.line_count} lines" ].compact.join(', ')})" }.join(", ")
+  end
 
   def page(saved, from_line, to_line)
     first = [ from_line.to_i, 1 ].max

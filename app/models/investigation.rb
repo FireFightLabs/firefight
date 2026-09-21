@@ -59,7 +59,17 @@ class Investigation < ApplicationRecord
     gate = Entitlements.check(workspace, Entitlements::AI)
     return gate.message if gate.blocked?
 
-    nil
+    unknown_window_reason(workspace)
+  end
+
+  # The agent makes room from how full the model's window is, so a model with no known window does
+  # not run. The operator is told which model, the person only that setup is not finished.
+  def self.unknown_window_reason(workspace)
+    model = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace).model
+    return nil if FirefightAi.context_window(model)
+
+    Rails.logger.warn({ event: "ai.model_without_context_window", model: model, workspace_id: workspace.id }.to_json)
+    "The AI model is not fully set up yet. An admin needs to finish setting it up."
   end
 
   def self.available_for?(workspace)
@@ -129,6 +139,24 @@ class Investigation < ApplicationRecord
   end
 
   def worn_out? = attempts > MAX_ATTEMPTS
+
+  # A run has no conversation to keep. Everything it has worked out is in its own records.
+  def keeps_in_memory?(_message) = false
+
+  # Where a run stands, from its own records, for a chat that is starting again with room to think.
+  def memory_brief
+    theories = hypotheses.includes(citations: :source).map do |theory|
+      rests_on = theory.citations.filter_map { |citation| "step #{citation.source.position}" if citation.source.respond_to?(:position) }
+      "- #{theory.assertion} (#{theory.status}#{", rests on #{rests_on.to_sentence}" if rests_on.any?})"
+    end
+    done = steps.where.not(position: nil).map { |step| "- step #{step.position}: #{step.label.presence || step.tool_name} (#{step.status})" }
+
+    [
+      "The facts Firefight already holds:\n#{JSON.pretty_generate(seed_pack)}",
+      ("Your theories so far:\n#{theories.join("\n")}" if theories.any?),
+      ("The steps you have taken:\n#{done.join("\n")}" if done.any?)
+    ].compact.join("\n\n")
+  end
 
   # The queue retries within seconds, so a worker that stumbles hands the run back rather than
   # leaving the retry to find it held. Only the holder can, so a worker that lost the run changes nothing.

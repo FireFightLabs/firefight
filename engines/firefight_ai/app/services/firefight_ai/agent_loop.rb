@@ -32,9 +32,11 @@ module FirefightAi
     # reply_is_answer is what separates a conversation from an investigation. In a chat the person
     # is waiting for a reply, in a run only a conclusion ends it.
     # nudge is how the app saves the loop's own words, so it can tell them from what a person said.
+    # memory is the saved chat when it can make room for itself, which lets a long run outlive its window.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
-                   reply_is_answer: false, nudge: nil)
+                   reply_is_answer: false, nudge: nil, memory: nil)
       @chat = chat
+      @room = Room.new(chat, memory)
       @nudge = nudge || ->(text) { chat.add_message(role: :user, content: text) }
       @on_chunk = on_chunk
       @budget = budget
@@ -66,6 +68,7 @@ module FirefightAi
     end
 
     def run(&on_turn)
+      @on_turn = on_turn
       loop do
         stop = stop_reason
         return outcome(stop) if stop
@@ -75,7 +78,7 @@ module FirefightAi
         return outcome(STATUS_STALLED) if message.nil?
         next unless message.role == :assistant
 
-        record_turn(message, &on_turn)
+        record_turn(message)
 
         repeated = repeated_tool_call_ids(message)
         return outcome(STATUS_REPEATED_TOOL_CALL) if repeated.any?
@@ -104,7 +107,32 @@ module FirefightAi
     def advance
       return @chat.step if tools_pending?
 
+      @room.make { handover_note }
+      generate
+    end
+
+    # A provider that still says too long gets the chat rebuilt and one more try, never a second.
+    def generate
       Inference.track(@inference) { @chat.step(&streamer) }.first
+    rescue RubyLLM::ContextLengthExceededError
+      raise if @made_room_after_refusal || !@room.possible?
+
+      @made_room_after_refusal = true
+      @room.make_after_refusal
+      retry
+    end
+
+    # Written with everything still in view, which is what makes it worth more than a summary written
+    # afterwards. No tools, since this turn is only for the note.
+    def handover_note
+      llm = @chat.to_llm
+      llm.with_tool_options(choice: :none)
+      @nudge.call(Room::HANDOVER)
+      note = Inference.track(@inference) { @chat.step }.first
+      record_turn(note) if note
+      note&.content.to_s
+    ensure
+      llm&.with_tool_options(choice: nil)
     end
 
     # Streaming still reports usage, so a streamed turn is billed like any other.
@@ -128,7 +156,8 @@ module FirefightAi
     def record_turn(message)
       @turns += 1
       @spend_micros += (message.cost&.total.to_f * 1_000_000).round
-      yield Turn.new(turns_used: @turns, spent_micros: @spend_micros) if block_given?
+      @room.saw(message)
+      @on_turn&.call(Turn.new(turns_used: @turns, spent_micros: @spend_micros))
     end
 
     # RubyLLM skips a call whose id already has a result, so a repeat pays for turns that run nothing.

@@ -80,6 +80,15 @@ module FirefightAi
     false
   end
 
+  # How much the model can read at once, from the registry. Nil when it is not known, and nothing
+  # is assumed in its place, since a wrong number fails a run halfway through.
+  def context_window(model_id)
+    window = RubyLLM.models.find(model_id.to_s).context_window.to_i
+    window.positive? ? window : nil
+  rescue RubyLLM::ModelNotFoundError
+    nil
+  end
+
   # A model the registry does not know needs its provider named. RubyLLM then trusts the id.
   def chat(choice)
     return RubyLLM.chat(model: choice.model) if choice.provider.blank?
