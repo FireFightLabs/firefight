@@ -41,7 +41,7 @@ function LookingUp({ steps }: { steps: AgentStep[] }) {
 
   return (
     <ThinkingState
-      rows={steps.map((step) => ({ primary: step.title, secondary: step.headline || undefined }))}
+      rows={steps.map((step) => ({ id: step.key, primary: step.title, secondary: step.headline || undefined }))}
       active="Thinking"
       done={timeSpent(seconds)}
       working={working}

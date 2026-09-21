@@ -52,8 +52,20 @@ module Chat::Tools
     return nil if tool_name.blank? || internal_names.include?(tool_name.to_s)
 
     asked = arguments.to_h.filter_map { |name, value| [ name.to_s, value.to_s.truncate(ASKED_LIMIT) ] if value.present? }
-    headline = HEADLINE_ARGUMENTS.filter_map { |wanted| asked.assoc(wanted)&.last }.first.to_s
-    Step.new(title: tool_name.to_s.tr("_", " ").humanize, headline: headline, asked: asked)
+    Step.new(title: tool_name.to_s.tr("_", " ").humanize, headline: headline_for(tool_name, asked), asked: asked)
+  end
+
+  # What tells one call from the next. An argument named for what is being looked for comes first,
+  # then whatever the tool cannot be called without, so four reads of four forms do not all read the same.
+  def self.headline_for(tool_name, asked)
+    wanted = HEADLINE_ARGUMENTS + required_arguments.fetch(tool_name.to_s, [])
+    wanted.filter_map { |name| asked.assoc(name)&.last }.first.to_s
+  end
+
+  def self.required_arguments
+    @required_arguments ||= Mcp::Tools.all.to_h do |tool_class|
+      [ tool_class.name_value.to_s, Array(tool_class.input_schema_value.to_h[:required]).map(&:to_s) ]
+    end
   end
 
   # The person confirmed the call in the chat, so an approval they may give themselves is given, once.

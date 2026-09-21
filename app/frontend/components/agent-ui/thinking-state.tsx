@@ -9,6 +9,8 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
  * ───────────────────────────────────────────────────────── */
 
 export type ThinkingRow = {
+  /** what tells two rows with the same words apart */
+  id: string;
   primary: string;
   secondary?: string;
 };
@@ -109,7 +111,7 @@ export default function ThinkingState({
             <div ref={traceRef} className="flex flex-col gap-1 py-1">
             {rows.map((row, i) => (
               <div
-                key={row.primary}
+                key={row.id}
                 className="flex min-h-7 w-full items-center gap-2 rounded-[6px] px-1.5 py-0.5 text-left"
                 style={{ animation: `fade-up 320ms cubic-bezier(0.23,1,0.32,1) ${i * 120}ms both` }}
               >

@@ -316,6 +316,24 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
 
+  # Seen in a real chat, four steps in a row that all read "Get form" with nothing to tell them apart.
+  test "a step is told apart by the argument its tool cannot be called without" do
+    step = Chat::Tools.step(Mcp::Tools::GET_FORM, { "form" => "declare" })
+
+    assert_equal "Get form", step.title
+    assert_equal "declare", step.headline
+  end
+
+  test "an argument named for what is being looked for still comes first" do
+    step = Chat::Tools.step(Mcp::Tools::SEARCH_INCIDENTS, { "limit" => 5, "query" => "checkout" })
+
+    assert_equal "checkout", step.headline
+  end
+
+  test "a tool with nothing it must be given has no headline rather than a guessed one" do
+    assert_equal "", Chat::Tools.step(Mcp::Tools::SEARCH_ALERTS, { "limit" => 50 }).headline
+  end
+
   test "a step that only reads is thinking, a step that changes something is not" do
     assert_equal Chat::Tools::KIND_READ, Chat::Tools.kind(Mcp::Tools::GET_WORKSPACE_CONFIG, @workspace)
     assert_equal Chat::Tools::KIND_ACT, Chat::Tools.kind(Mcp::Tools::UPSERT_SEVERITY, @workspace)
