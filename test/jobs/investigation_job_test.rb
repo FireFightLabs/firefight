@@ -119,6 +119,31 @@ class InvestigationJobTest < ActiveSupport::TestCase
                  "the retry has to be able to take a run its own first attempt still held"
   end
 
+  test "a job the queue hands out again after a deploy carries on at once" do
+    job = InvestigationJob.new(@investigation.id)
+    @investigation.claim!(by: job.job_id)
+    stub_runner
+
+    job.perform_now
+
+    assert_equal Investigation::STATUS_SUCCEEDED, @investigation.reload.status,
+                 "the worker that held the run is gone, so nothing is left to wait for"
+  end
+
+  test "a run that keeps losing its worker is given up on rather than picked up forever" do
+    @investigation.update!(attempts: Investigation::MAX_ATTEMPTS, thread_id: "1700000000.000100")
+    Investigation::Runner.any_instance.expects(:run).never
+    Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
+      has_entries(reason: InvestigationJob::GAVE_UP, rerun: @incident)
+    )
+
+    InvestigationJob.perform_now(@investigation.id)
+
+    @investigation.reload
+    assert_equal Investigation::STATUS_FAILED, @investigation.status
+    assert_equal InvestigationJob::TOO_MANY_ATTEMPTS, @investigation.error_summary
+  end
+
   test "an error no retry can fix ends the run at once" do
     Investigation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError.new("too long"))
 

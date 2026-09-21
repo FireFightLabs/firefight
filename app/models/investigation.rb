@@ -14,6 +14,8 @@ class Investigation < ApplicationRecord
 
   # A worker renews this every turn, so a dead one holds the run for at most this long.
   LEASE = 5.minutes
+  # A run taken this many times keeps losing its worker, and may be what is killing it.
+  MAX_ATTEMPTS = 5
   # A run this old with no worker lost its job on the way to the queue.
   UNCLAIMED_AFTER = 2.minutes
 
@@ -101,16 +103,20 @@ class Investigation < ApplicationRecord
     !live?
   end
 
-  # Takes a waiting run, or a running one whose worker stopped renewing the lease. The start time
-  # is kept in SQL, so a caller holding a stale copy cannot move it.
-  def claim!
+  # Takes a waiting run, or a running one whose worker stopped renewing the lease. The queue only
+  # hands a job out again once its worker is gone, so the job that holds the run takes it back at
+  # once, while any other job waits out the lease, since the first worker may only be slow. The
+  # start time and the count stay in SQL, so a caller holding a stale copy cannot move them.
+  def claim!(by: nil)
     token = SecureRandom.uuid
     moved = self.class.where(id: id, status: LIVE_STATUSES)
-      .where(lease_until: [ nil, ...Time.current ])
+      .where("lease_until IS NULL OR lease_until < :now OR lease_holder = :holder", now: Time.current, holder: by)
       .update_all(
         status: STATUS_RUNNING,
         lease_token: token,
+        lease_holder: by,
         lease_until: LEASE.from_now,
+        attempts: Arel.sql("attempts + 1"),
         started_at: Arel.sql("COALESCE(started_at, now())"),
         updated_at: Time.current
       ) > 0
@@ -121,13 +127,15 @@ class Investigation < ApplicationRecord
     moved
   end
 
+  def worn_out? = attempts > MAX_ATTEMPTS
+
   # The queue retries within seconds, so a worker that stumbles hands the run back rather than
   # leaving the retry to find it held. Only the holder can, so a worker that lost the run changes nothing.
   def release!
     return false if @lease_token.blank?
 
     moved = self.class.where(id: id, status: STATUS_RUNNING, lease_token: @lease_token)
-      .update_all(lease_token: nil, lease_until: nil, updated_at: Time.current) > 0
+      .update_all(lease_token: nil, lease_holder: nil, lease_until: nil, updated_at: Time.current) > 0
     @lease_token = nil if moved
     moved
   end

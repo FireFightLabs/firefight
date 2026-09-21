@@ -54,6 +54,38 @@ class InvestigationTest < ActiveSupport::TestCase
     end
   end
 
+  test "the same job coming back takes the run at once, since the queue only hands a job out again once its worker is gone" do
+    investigation = build_investigation
+    investigation.claim!(by: "job-1")
+
+    assert Investigation.find(investigation.id).claim!(by: "job-1"),
+           "a deploy that killed the worker must not leave the run waiting out its lease"
+  end
+
+  test "a different job still waits for the lease, since the first worker may only be slow" do
+    investigation = build_investigation
+    investigation.claim!(by: "job-1")
+
+    assert_not Investigation.find(investigation.id).claim!(by: "job-2")
+  end
+
+  test "every time a worker takes the run counts as an attempt" do
+    investigation = build_investigation
+    investigation.claim!(by: "job-1")
+    Investigation.find(investigation.id).claim!(by: "job-1")
+
+    assert_equal 2, investigation.reload.attempts
+    assert_not investigation.worn_out?
+  end
+
+  test "a run that has been taken too many times is worn out" do
+    investigation = build_investigation
+    investigation.update!(attempts: Investigation::MAX_ATTEMPTS)
+    investigation.claim!(by: "job-1")
+
+    assert investigation.worn_out?
+  end
+
   test "a worker that stumbles gives the run back, so the retry does not wait out the lease" do
     investigation = build_investigation
     investigation.claim!

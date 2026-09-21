@@ -1,5 +1,7 @@
 class InvestigationJob < ApplicationJob
   GAVE_UP = "Something went wrong on my side".freeze
+  # Kept on the run for whoever debugs it.
+  TOO_MANY_ATTEMPTS = "TooManyAttempts".freeze
 
   queue_as :investigations
 
@@ -19,7 +21,8 @@ class InvestigationJob < ApplicationJob
 
   def perform(investigation_id)
     investigation = Investigation.find(investigation_id)
-    return unless investigation.claim!
+    return unless investigation.claim!(by: job_id)
+    return give_up(investigation, TOO_MANY_ATTEMPTS) if investigation.worn_out?
 
     work(investigation)
   end
@@ -29,17 +32,20 @@ class InvestigationJob < ApplicationJob
   def mark_failed(error)
     investigation_id, = arguments
     investigation = Investigation.find_by(id: investigation_id)
-    cause = error.try(:reason) || error.class.name
-    return unless investigation&.finish!(status: Investigation::STATUS_FAILED, error_summary: cause)
+    give_up(investigation, error.try(:reason) || error.class.name) if investigation
+  end
+
+  private
+
+  def give_up(investigation, cause)
+    return unless investigation.finish!(status: Investigation::STATUS_FAILED, error_summary: cause)
 
     Investigation::Delivery.new(investigation).stopped!(GAVE_UP, rerunnable: true)
   rescue AdapterError => undelivered
     Rails.logger.warn({
-      event: "investigation.failure_undelivered", investigation_id: investigation_id, error: undelivered.message
+      event: "investigation.failure_undelivered", investigation_id: investigation.id, error: undelivered.message
     }.to_json)
   end
-
-  private
 
   # The retry arrives long before the lease runs out, so an error hands the run back first.
   def work(investigation)
