@@ -15,6 +15,8 @@ module FirefightAi
       FirefightAi.translating_errors do
         chat.with_instructions("#{template_text}\n#{context}")
         chat.with_tools(*tools)
+        # A chat grows with every question and each turn resends all of it, so the provider is asked to cache it.
+        chat.with_caching
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
