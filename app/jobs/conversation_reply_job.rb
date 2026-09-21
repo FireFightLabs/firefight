@@ -2,7 +2,8 @@ class ConversationReplyJob < ApplicationJob
   # A turn still holding the lock this long belongs to a dead worker, and the chat would wait forever on it.
   TURN_CEILING = 30.minutes
 
-  queue_as :investigations
+  # Its own queue, so an answer someone is waiting for never sits behind an investigation.
+  queue_as :conversations
 
   # A second turn would clear away the empty reply RubyLLM saves while the first is working, orphaning its tool results.
   limits_concurrency key: ->(conversation_id, _asker_id = nil) { conversation_id }, duration: TURN_CEILING

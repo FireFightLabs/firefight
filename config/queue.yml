@@ -18,13 +18,19 @@ default: &default
       threads: 3
       processes: <%= ENV.fetch("WEBHOOK_JOB_CONCURRENCY", 1) %>
       polling_interval: 0.5
-    # Dedicated worker for investigations queue
+    # Investigations run for minutes, so they have their own worker and nothing else picks them up
     - queues: investigations
       threads: 3
       processes: <%= ENV.fetch("INVESTIGATION_JOB_CONCURRENCY", 1) %>
       polling_interval: 0.5
-    # Default worker for all other queues
-    - queues: "*"
+    # A person is waiting on a chat answer, so it never queues behind an investigation
+    - queues: conversations
+      threads: 3
+      processes: <%= ENV.fetch("CONVERSATION_JOB_CONCURRENCY", 1) %>
+      polling_interval: 0.1
+    # Everything else, listed by name. A wildcard would also take the long running queues above,
+    # and test/config/queue_config_test.rb fails when a job asks for a queue that is not here
+    - queues: [ default, background, solid_queue_recurring, events, webhooks, workflows ]
       threads: 3
       processes: <%= ENV.fetch("JOB_CONCURRENCY", 1) %>
       polling_interval: 0.1
