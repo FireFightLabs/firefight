@@ -13,6 +13,8 @@ module FirefightAi
       FirefightAi.translating_errors do
         chat.with_instructions(system_prompt)
         chat.with_tools(*tools)
+        # One agent resends everything it has read on every turn, so the provider is asked to cache it.
+        chat.with_caching
         chat.add_message(role: :user, content: opening(seed_pack)) if chat.to_llm.messages.none? { |message| message.role == :user }
 
         AgentLoop.new(
