@@ -132,10 +132,18 @@ class InvestigationJobTest < ActiveSupport::TestCase
   test "a run that gave up says so in its thread" do
     @investigation.update!(thread_id: "1700000000.000100")
     Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
-      has_entries(thread_id: "1700000000.000100", reason: InvestigationJob::GAVE_UP)
+      has_entries(thread_id: "1700000000.000100", reason: InvestigationJob::GAVE_UP, rerun: @incident)
     )
 
     InvestigationJob.new(@investigation.id).mark_failed(RuntimeError.new("worker died"))
+  end
+
+  test "the precise cause is kept on the run for us, and never said in the thread" do
+    error = FirefightAi::TerminalError.new("too long", reason: "ContextLengthExceededError")
+
+    InvestigationJob.new(@investigation.id).mark_failed(error)
+
+    assert_equal "ContextLengthExceededError", @investigation.reload.error_summary
   end
 
   test "a thread that cannot be told still leaves the run failed" do

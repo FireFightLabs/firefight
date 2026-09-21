@@ -24,13 +24,15 @@ class InvestigationJob < ApplicationJob
     work(investigation)
   end
 
-  # The thread is told, or it would show a spinner over a run nobody is working on.
+  # The thread is told, or it would show a spinner over a run nobody is working on. The precise
+  # cause stays on the run for whoever debugs it and is never said to the people in the thread.
   def mark_failed(error)
     investigation_id, = arguments
     investigation = Investigation.find_by(id: investigation_id)
-    return unless investigation&.finish!(status: Investigation::STATUS_FAILED, error_summary: error.class.name)
+    cause = error.try(:reason) || error.class.name
+    return unless investigation&.finish!(status: Investigation::STATUS_FAILED, error_summary: cause)
 
-    Investigation::Delivery.new(investigation).stopped!(GAVE_UP)
+    Investigation::Delivery.new(investigation).stopped!(GAVE_UP, rerunnable: true)
   rescue AdapterError => undelivered
     Rails.logger.warn({
       event: "investigation.failure_undelivered", investigation_id: investigation_id, error: undelivered.message
