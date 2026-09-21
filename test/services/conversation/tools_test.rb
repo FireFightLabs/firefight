@@ -24,7 +24,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
   test "a conversation starts with only the tools it always needs" do
     names = Conversation::Tools.for(turn, offer: ->(_tools) { }).map(&:name)
 
-    assert_equal [ "find_tools", "read_result", "start_investigation" ], names
+    assert_equal [ "open_tools", "read_result", "start_investigation" ], names
   end
 
   test "someone who may not start a run is refused, in their name" do
