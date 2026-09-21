@@ -58,14 +58,39 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     ask(@conversation, "what is going on")
   end
 
-  test "each turn is written down, so a long conversation cannot spend past its ceiling" do
-    fake(reply: "ok", turns: [ FirefightAi::AgentLoop::Turn.new(turns_used: 3, spent_micros: 110_000) ])
+  test "a question starts with its own budget, whatever the questions before it spent" do
+    @conversation.update!(turns_used: 39, spent_micros: 490_000)
+    responder = fake(reply: "ok")
+
+    ask(@conversation, "what is going on")
+
+    budget = responder.calls.sole[:budget]
+    assert_equal 0, budget.turns_used
+    assert_equal 0, budget.spent_micros
+    assert_equal 50, budget.max_spend_cents
+  end
+
+  test "what each question spent adds up on the conversation" do
+    @conversation.update!(turns_used: 4, spent_micros: 200_000)
+    fake(reply: "ok", turns: [
+      FirefightAi::AgentLoop::Turn.new(turns_used: 1, spent_micros: 40_000),
+      FirefightAi::AgentLoop::Turn.new(turns_used: 3, spent_micros: 110_000)
+    ])
 
     ask(@conversation, "what is going on")
 
     @conversation.reload
-    assert_equal 3, @conversation.turns_used
-    assert_equal 110_000, @conversation.spent_micros
+    assert_equal 7, @conversation.turns_used
+    assert_equal 310_000, @conversation.spent_micros
+  end
+
+  test "the agent's own nudges are saved as nudges" do
+    responder = fake(reply: "ok")
+
+    ask(@conversation, "what is going on")
+    responder.calls.sole[:nudge].call(FirefightAi::AgentLoop::LAST_TURN)
+
+    assert_equal [ "what is going on", "ok" ], @conversation.reload.chat.readable_messages.map(&:content)
   end
 
   test "a second question carries on in the same chat" do

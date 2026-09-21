@@ -19,9 +19,10 @@ class Conversation::Runner
       context: context,
       budget: budget,
       on_step: method(:report_step),
-      on_chunk: ->(text) { delivery.chunk(text) }
+      on_chunk: ->(text) { delivery.chunk(text) },
+      nudge: chat.method(:nudge!)
     ) do |turn|
-      @conversation.record_turn!(turns_used: turn.turns_used, spent_micros: turn.spent_micros)
+      record(turn)
     end
 
     return ask_to_confirm(chat, outcome) if waiting?(outcome)
@@ -115,10 +116,21 @@ class Conversation::Runner
     "You are in the channel for #{incident.identifier} #{incident.name}, status #{incident.incident_status.name}."
   end
 
+  # The loop counts from the start of this question, so the conversation is given what each turn added.
+  def record(turn)
+    @conversation.add_turn!(
+      turns: turn.turns_used - counted.turns_used, spent_micros: turn.spent_micros - counted.spent_micros
+    )
+    @counted = turn
+  end
+
+  def counted = @counted ||= FirefightAi::AgentLoop::Turn.new(turns_used: 0, spent_micros: 0)
+
+  # A question gets its own budget, so a long chat does not run dry for good. What every question
+  # spent still adds up on the conversation.
   def budget
     FirefightAi::AgentLoop::Budget.new(
-      max_spend_cents: @conversation.max_spend_cents, max_turns: @conversation.max_turns,
-      turns_used: @conversation.turns_used, spent_micros: @conversation.spent_micros
+      max_spend_cents: @conversation.max_spend_cents, max_turns: @conversation.max_turns
     )
   end
 end

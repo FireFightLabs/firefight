@@ -31,9 +31,11 @@ module FirefightAi
 
     # reply_is_answer is what separates a conversation from an investigation. In a chat the person
     # is waiting for a reply, in a run only a conclusion ends it.
+    # nudge is how the app saves the loop's own words, so it can tell them from what a person said.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
-                   reply_is_answer: false)
+                   reply_is_answer: false, nudge: nil)
       @chat = chat
+      @nudge = nudge || ->(text) { chat.add_message(role: :user, content: text) }
       @on_chunk = on_chunk
       @budget = budget
       @answered = answered
@@ -94,7 +96,7 @@ module FirefightAi
 
       # One last turn, which may go over the cap.
       @last_turn_offered = true
-      @chat.add_message(role: :user, content: LAST_TURN)
+      @nudge.call(LAST_TURN)
       nil
     end
 
@@ -148,7 +150,7 @@ module FirefightAi
       return STATUS_STALLED if @reminders.positive?
 
       @reminders += 1
-      @chat.add_message(role: :user, content: REMINDER)
+      @nudge.call(REMINDER)
       nil
     end
 

@@ -108,6 +108,15 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal [ FirefightAi::AgentLoop::REMINDER ], chat.messages.select { |m| m.role == :user }.last(1).map(&:content)
   end
 
+  test "the loop's own nudges go through the caller, so the app can tell them from what a person said" do
+    chat = FakeChat.new([ llm_reply(content: "I think it was the deploy"), llm_reply(content: "Still thinking") ])
+    nudges = []
+
+    run_loop(chat, nudge: ->(text) { nudges << text })
+
+    assert_equal [ FirefightAi::AgentLoop::REMINDER ], nudges
+  end
+
   test "spending the budget buys one last turn, then the run stops" do
     chat = FakeChat.new([ tool_reply("call_1", cost: 5.00), tool_reply("call_2"), tool_reply("call_3") ])
 
@@ -234,10 +243,10 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
   end
 
   def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, on_chunk: nil, reply_is_answer: false,
-               &on_turn)
+               nudge: nil, &on_turn)
     FirefightAi::AgentLoop.new(
       chat: chat, budget: budget, answered: answered, on_step: on_step, on_chunk: on_chunk,
-      reply_is_answer: reply_is_answer,
+      reply_is_answer: reply_is_answer, nudge: nudge,
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
     ).run(&on_turn)
   end
