@@ -39,6 +39,16 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "What changed today?" ], inertia_props["messages"].map { |message| message["body"] }
   end
 
+  test "the agent's nudge to itself is not read back as something the person said" do
+    conversation = start_chat
+    conversation.ask!("What changed today?")
+    conversation.chat.nudge!(FirefightAi::AgentLoop::LAST_TURN)
+
+    get agent_chat_url(conversation), headers: inertia_headers
+
+    assert_equal [ "What changed today?" ], inertia_props["messages"].map { |message| message["body"] }
+  end
+
   test "a workspace without the agent is sent back with the reason" do
     FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
 

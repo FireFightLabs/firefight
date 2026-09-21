@@ -74,6 +74,15 @@ class ChatTest < ActiveSupport::TestCase
     assert_equal 2, RubyLLM::ActiveRecord::ToolCall.where(tool_call_id: "call_0").count
   end
 
+  test "a nudge from the loop is something the model reads, not something the person said" do
+    @chat.add_message(role: :user, content: "What changed today?")
+    @chat.nudge!("This run has spent its budget. Conclude now with the evidence you already have.")
+
+    assert_equal [ "What changed today?" ], @chat.readable_messages.map(&:content)
+    assert_equal 2, @chat.messages.where(role: Chat::Message::ROLE_USER).count, "the model still reads the nudge"
+    assert_equal "What changed today?", Chat.find(@chat.id).last_readable_message.content
+  end
+
   test "a chat belongs to its owner's workspace" do
     chat = workspaces(:slack_workspace_two).chats.build(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
 

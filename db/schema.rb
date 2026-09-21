@@ -336,6 +336,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_21_120004) do
     t.text "content"
     t.datetime "created_at", null: false
     t.string "finish_reason"
+    t.boolean "nudge", default: false, null: false
     t.jsonb "raw_content"
     t.jsonb "raw_reasoning"
     t.string "role", null: false

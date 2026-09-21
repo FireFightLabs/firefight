@@ -104,11 +104,11 @@ class Conversation < ApplicationRecord
     subject_id if subject_type == Incident.name
   end
 
-  # Two mentions in one thread can answer at once, so the higher count wins rather than the later write.
-  def record_turn!(turns_used:, spent_micros:)
+  # Added in SQL, so a caller holding a stale copy cannot write an old total back.
+  def add_turn!(turns:, spent_micros:)
     self.class.where(id: id).update_all([
-      "turns_used = GREATEST(turns_used, ?), spent_micros = GREATEST(spent_micros, ?), updated_at = ?",
-      turns_used, spent_micros, Time.current
+      "turns_used = turns_used + ?, spent_micros = spent_micros + ?, updated_at = ?",
+      turns, spent_micros, Time.current
     ])
   end
 

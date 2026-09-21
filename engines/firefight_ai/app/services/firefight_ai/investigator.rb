@@ -9,7 +9,7 @@ module FirefightAi
       @member = member
     end
 
-    def run(chat:, tools:, seed_pack:, budget:, answered:, canceled: -> { false }, on_step: nil, &on_turn)
+    def run(chat:, tools:, seed_pack:, budget:, answered:, canceled: -> { false }, on_step: nil, nudge: nil, &on_turn)
       FirefightAi.translating_errors do
         chat.with_instructions(system_prompt)
         chat.with_tools(*tools)
@@ -19,7 +19,7 @@ module FirefightAi
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: answered, canceled: canceled,
-          on_step: on_step, inference: inference_context
+          on_step: on_step, nudge: nudge, inference: inference_context
         ).run(&on_turn)
       end
     end

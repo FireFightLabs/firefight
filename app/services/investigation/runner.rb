@@ -23,7 +23,8 @@ class Investigation::Runner
       budget: budget,
       answered: -> { @investigation.reload.finding.present? },
       canceled: -> { @investigation.reload.cancel_requested? },
-      on_step: method(:report_step)
+      on_step: method(:report_step),
+      nudge: chat.method(:nudge!)
     ) do |turn|
       unless @investigation.record_turn!(turns_used: turn.turns_used, spent_micros: turn.spent_micros)
         raise LeaseLost, "another worker holds this run"

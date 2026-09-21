@@ -16,7 +16,7 @@ class Chat < ApplicationRecord
   # DISTINCT ON keeps one row per chat, so previews for a whole list load in one query.
   has_one :last_readable_message,
     -> {
-      where(role: Chat::Message::READABLE_ROLES)
+      where(role: Chat::Message::READABLE_ROLES, nudge: false)
         .select("DISTINCT ON (chat_messages.chat_id) chat_messages.*")
         .order("chat_messages.chat_id, chat_messages.created_at DESC")
     },
@@ -24,9 +24,15 @@ class Chat < ApplicationRecord
 
   validate :owner_in_same_workspace
 
-  # Only the two sides of the conversation, not the system prompt or tool results.
+  # Only the two sides of the conversation, not the system prompt, tool results or the agent's nudges to itself.
   def readable_messages
-    messages.where(role: Chat::Message::READABLE_ROLES).order(:created_at)
+    messages.where(role: Chat::Message::READABLE_ROLES, nudge: false).order(:created_at)
+  end
+
+  # The loop keeps the agent moving by speaking as the user, which is how a model reads it.
+  # Marked, because the content is encrypted and nothing else could tell it from the person's words.
+  def nudge!(text)
+    add_message(role: Chat::Message::ROLE_USER, content: text).tap { |message| message.update!(nudge: true) }
   end
 
   # Requested is ours, RubyLLM reads anything but approved or denied as undecided.
