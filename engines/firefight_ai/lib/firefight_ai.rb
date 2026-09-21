@@ -3,6 +3,7 @@ require "schematist"
 require "firefight_ai/version"
 require "firefight_ai/configuration"
 require "firefight_ai/errors"
+require "firefight_ai/prompt"
 require "firefight_ai/engine"
 
 module FirefightAi

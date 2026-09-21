@@ -48,6 +48,8 @@ The answer is a `FirefightAi::ModelChoice` (`model`, `provider`). A provider onl
 
 ## Inference ledger — every call is tracked
 
+Every row says which prompt produced it. `prompt_template` is the prompt's name and `prompt_version` is `FirefightAi::Prompt.version`, a digest of the wording itself, so an edited prompt cannot keep an old version and two wordings cannot share one. Per run values (the asker, the incident, the seed pack) are excluded, since they change every call and live in the saved chat. `PromptVersion` holds each wording once, written the first time the ledger sees it, so a version can be read back as the words the model was given. Ordering comes from when a version was first seen, not from the digest.
+
 Every LLM call is wrapped in `Inference.track` (`app/models/inference.rb`), which records feature, provider, model, token counts (input/output/cache), `cost_micros`, latency, finish reason (`stop_reason`), the provider's request id, and status — success or error — plus who triggered it (`member` or `api_key`) and what it was about (`inferable` polymorphic).
 
 ```ruby

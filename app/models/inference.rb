@@ -16,6 +16,9 @@ class Inference < ApplicationRecord
   def self.track(context)
     attrs   = context.slice(*CONTEXT_KEYS)
     started = monotonic_now
+    PromptVersion.remember!(
+      template: context[:prompt_template], version: context[:prompt_version], text: context[:prompt_text]
+    )
 
     begin
       response = yield

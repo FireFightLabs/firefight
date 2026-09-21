@@ -35,7 +35,10 @@ module FirefightAi
         provider: ai_model.provider_name,
         model: ai_model.model,
         inferable: @inferable,
-        member: @member
+        member: @member,
+        prompt_template: FEATURE,
+        prompt_version: Prompt.version(system_prompt),
+        prompt_text: system_prompt
       }
     end
 
