@@ -56,7 +56,7 @@ module Chat::Tools
   # A tool that only reads is the agent looking something up, which the page shows as thinking rather than as a change.
   def self.kind(tool_name, workspace)
     name = tool_name.to_s
-    reading = firefight_reading_names.include?(name) || workspace.reading_tool_names.include?(name)
+    reading = name == ReadResult.tool_name || firefight_reading_names.include?(name) || workspace.reading_tool_names.include?(name)
     reading ? KIND_READ : KIND_ACT
   end
 
@@ -97,6 +97,17 @@ module Chat::Tools
       tool_call_id: tool_call.tool_call_id, question: "#{step&.title || tool_call.name.humanize}?",
       asked: step&.asked || [], status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting)
     )
+  end
+
+  # A result that fits the running model is handed over whole. A larger one is kept in full and the
+  # agent is shown how it starts and ends, with the name to read the rest by.
+  def self.hand_over(agent_run, tool_name, text)
+    chat = agent_run.chat
+    return FirefightAi::Evidence.frame(tool_name, text) if chat.nil? || text.to_s.length <= chat.result_limit
+
+    saved = chat.saved_results.keep!(tool_name: tool_name, text: text)
+    preview = FirefightAi::Evidence.preview(text, handle: saved.handle, read_with: ReadResult.tool_name)
+    FirefightAi::Evidence.frame(tool_name, preview)
   end
 
   # What the chat found earlier, for whoever acts now, so a grant taken away since is not handed back.
