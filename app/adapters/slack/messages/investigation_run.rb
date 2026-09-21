@@ -26,8 +26,25 @@ module Slack
         blocks
       end
 
-      def self.stopped(reason:)
-        [ { type: "section", text: { type: "mrkdwn", text: ":warning: *Stopped without an answer.* #{reason}." } } ]
+      # The button is offered only when running it again could end differently.
+      def self.stopped(reason:, rerun: nil)
+        blocks = [ { type: "section", text: { type: "mrkdwn", text: ":warning: *Stopped without an answer.* #{reason}." } } ]
+        blocks << rerun_block(rerun) if rerun
+        blocks
+      end
+
+      def self.rerun_block(incident)
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: ":mag: Run again", emoji: true },
+              action_id: Identifiers::START_INVESTIGATION,
+              value: incident.id
+            }
+          ]
+        }
       end
 
       def self.summary_text(finding)
