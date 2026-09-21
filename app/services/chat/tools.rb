@@ -4,46 +4,17 @@ module Chat::Tools
   STATE_NOT_GRANTED = :not_granted
   STATE_NOT_CONNECTED = :not_connected
 
-  Entry = Data.define(:name, :description, :state, :tool) do
-    # Each asked word counts once with its synonyms, so a tool covering more of the question wins, and the name weighs most.
-    def score(query)
-      asked = concepts(query)
-      return 0 if asked.empty?
+  # One line is what the agent reads about a tool before it opens it. Another system's words about
+  # itself are cut to that and stripped of anything that is not text.
+  ONE_LINE = 200
+  TITLE_LIMIT = 60
+  FULL_DESCRIPTION = 2_000
 
-      in_name = terms(name)
-      anywhere = in_name + terms(description)
-      (asked.count { |concept| concept.intersect?(anywhere) } * 10) + (asked.count { |concept| concept.intersect?(in_name) } * 5)
-    end
+  Entry = Data.define(:name, :description, :state, :tool, :group)
 
-    def terms(text) = words(text).map(&:singularize).to_set
-
-    private
-
-    def concepts(query)
-      words(query).reject { |word| STOP_WORDS.include?(word) }.map(&:singularize).uniq
-        .map { |word| Set[word, *SYNONYMS.fetch(word, [])] }
-    end
-
-    def words(text) = text.to_s.downcase.scan(/[a-z0-9]+/)
+  def self.clean(text, limit)
+    text.to_s.gsub(/[[:cntrl:]]/, " ").squish.truncate(limit)
   end
-
-  # Words that say nothing about which tool is wanted.
-  STOP_WORDS = %w[a an the to of for in on at and or is are be can could you i me my our we this that it with].to_set.freeze
-
-  # How people ask for an action, mapped to the words the tools use for it.
-  SYNONYMS = {
-    "create" => %w[declare open new start raise add], "open" => %w[declare create new start],
-    "start" => %w[declare open create begin], "raise" => %w[declare escalate], "lead" => %w[role assign],
-    "owner" => %w[role assign], "commander" => %w[role assign], "close" => %w[resolve cancel], "end" => %w[resolve],
-    "add" => %w[invite create upsert], "invite" => %w[add pull], "page" => %w[escalate],
-    "grant" => %w[give ability permission], "give" => %w[grant assign], "permission" => %w[ability grant],
-    "delete" => %w[remove revoke], "remove" => %w[delete revoke], "update" => %w[post upsert change edit],
-    "edit" => %w[update upsert change], "note" => %w[update post]
-  }.freeze
-
-  # What a reader sees while the agent works. conclude and record_hypothesis are how it writes,
-  # not what it looked at, so they are never shown.
-  INTERNAL = %w[conclude record_hypothesis find_tools].freeze
 
   HEADLINE_ARGUMENTS = %w[query name identifier title].freeze
   ASKED_LIMIT = 60
@@ -69,9 +40,16 @@ module Chat::Tools
     Chat::APPROVAL_REQUESTED => :awaiting, Chat::APPROVAL_APPROVED => :confirmed, Chat::APPROVAL_DENIED => :cancelled
   }.freeze
 
+  # How the agent writes and finds its way, not what it looked at, so a reader is never shown them.
+  def self.internal_names
+    @internal_names ||= [
+      Open.tool_name, Investigation::Tools::Conclude.tool_name, Investigation::Tools::RecordHypothesis.tool_name
+    ].freeze
+  end
+
   # nil for the agent's own bookkeeping, which is never shown.
   def self.step(tool_name, arguments)
-    return nil if tool_name.blank? || INTERNAL.include?(tool_name.to_s)
+    return nil if tool_name.blank? || internal_names.include?(tool_name.to_s)
 
     asked = arguments.to_h.filter_map { |name, value| [ name.to_s, value.to_s.truncate(ASKED_LIMIT) ] if value.present? }
     headline = HEADLINE_ARGUMENTS.filter_map { |wanted| asked.assoc(wanted)&.last }.first.to_s
@@ -128,7 +106,7 @@ module Chat::Tools
   end
 
   def self.catalog(agent_run)
-    firefight_entries(agent_run) + connection_entries(agent_run) + unconnected_entries(agent_run)
+    firefight_entries(agent_run) + connection_entries(agent_run)
   end
 
   def self.firefight_entries(agent_run)
@@ -140,9 +118,10 @@ module Chat::Tools
     keys.map do |tool_class, action_key|
       ready = principal.present? && principal.permitted_to?(actions[action_key], workspace)
       Entry.new(
-        name: tool_class.name_value, description: tool_class.description_value.to_s,
+        name: tool_class.name_value, description: clean(tool_class.description_value, ONE_LINE),
         state: ready ? STATE_READY : STATE_NOT_GRANTED,
-        tool: (Firefight.new(agent_run, tool_class, actions[action_key]) if ready)
+        tool: (Firefight.new(agent_run, tool_class, actions[action_key]) if ready),
+        group: Groups.of_firefight_tool(tool_class.name_value)
       )
     end
   end
@@ -154,19 +133,11 @@ module Chat::Tools
     Integration::Tool.in_workspace(agent_run.workspace).map do |tool|
       ready = principal.present? && tool.callable_by?(principal, resolved)
       Entry.new(
-        name: tool.model_facing_name, description: tool.description.to_s,
+        name: tool.model_facing_name, description: clean(tool.description, ONE_LINE),
         state: ready ? STATE_READY : STATE_NOT_GRANTED,
-        tool: (Connection.new(agent_run, tool) if ready)
+        tool: (Connection.new(agent_run, tool) if ready),
+        group: Groups.of_connection(tool.integration)
       )
-    end
-  end
-
-  # Named so the agent can say a provider is not wired up rather than that it found nothing.
-  def self.unconnected_entries(agent_run)
-    connected = agent_run.workspace.integrations.active.pluck(:provider)
-
-    IntegrationProvider.all.reject { |provider| connected.include?(provider.key) }.map do |provider|
-      Entry.new(name: provider.name, description: provider.description, state: STATE_NOT_CONNECTED, tool: nil)
     end
   end
 

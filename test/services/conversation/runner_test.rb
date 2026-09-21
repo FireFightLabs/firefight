@@ -109,7 +109,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     Chat.any_instance.stubs(:with_tools)
     first = fake(reply: "first")
     ask(@conversation, "what incidents mention checkout?")
-    first.calls.sole[:tools].first.execute(query: "search incidents")
+    first.calls.sole[:tools].first.call(group: Chat::Tools::Groups::INCIDENT_HISTORY)
 
     second = fake(reply: "second")
     ask(@conversation.reload, "and last week?")

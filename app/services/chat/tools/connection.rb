@@ -11,7 +11,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   def name = @tool.model_facing_name
 
-  def description = @tool.description.to_s
+  # Another system's words, so only text reaches the model and a runaway description is capped.
+  def description = Chat::Tools.clean(@tool.description, Chat::Tools::FULL_DESCRIPTION)
 
   def parameters_schema = @tool.params_schema.presence || { "type" => "object", "properties" => {} }
 
