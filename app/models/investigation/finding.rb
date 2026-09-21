@@ -28,6 +28,7 @@ class Investigation::Finding < ApplicationRecord
     joins(:investigation).where(investigations: { workspace_id: workspace.id })
   }
 
+  has_many :evidence_items, -> { ordered }, class_name: "Investigation::Evidence", dependent: :destroy, inverse_of: :finding
   has_many :verdicts, class_name: "Investigation::Verdict", dependent: :destroy, inverse_of: :finding
 
   validates :published_state, inclusion: { in: STATES }
@@ -44,6 +45,12 @@ class Investigation::Finding < ApplicationRecord
     verdict.save!
     settle_outcome!
     verdict
+  end
+
+  def add_evidence!(claim:, sources:, position:)
+    item = evidence_items.create!(claim: claim, position: position)
+    sources.each { |source| item.citations.create!(source: source) }
+    item
   end
 
   def tally

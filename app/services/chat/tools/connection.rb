@@ -24,7 +24,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
   private
 
   def invoke(arguments, approval_id: nil)
-    said = @agent_run.tool_call(action_key: @tool.action_key, params: arguments, **{ approval_id: approval_id }.compact) do
+    said = @agent_run.tool_call(
+      action_key: @tool.action_key, params: arguments, tool_name: name,
+      label: Chat::Tools.label(name, arguments), **{ approval_id: approval_id }.compact
+    ) do
       integration = @tool.integration
       environment_row = integration.resolve_environment(nil)
       text_of(integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments))

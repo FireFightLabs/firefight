@@ -1,5 +1,6 @@
 class Investigation < ApplicationRecord
   include Investigation::Seeding
+  include Investigation::Citing
 
   STATUS_PENDING = "pending"
   STATUS_RUNNING = "running"
@@ -167,26 +168,43 @@ class Investigation < ApplicationRecord
     moved
   end
 
-  # The shared tools call this, so what a tool call leaves behind is the run's business.
-  def tool_call(action_key:, params: {}, &block)
-    Investigation::ToolCall.run!(self, action_key: action_key, params: params, &block).value
+  # The shared tools call this, so what a tool call leaves behind is the run's business. The step's
+  # number travels back with the value, since it is what the agent cites the result by.
+  def tool_call(action_key:, params: {}, tool_name: nil, label: nil, &block)
+    result = Investigation::ToolCall.run!(self, action_key: action_key, params: params, tool_name: tool_name, label: label, &block)
+    Chat::ToolCall::Outcome.new(value: result.value, step: result.step.position)
   end
 
-  def record_hypothesis!(assertion:, status: nil, confidence: nil)
-    hypothesis = hypotheses.find_or_initialize_by(assertion: assertion)
-    hypothesis.position ||= (hypotheses.maximum(:position) || 0) + 1
-    hypothesis.status = status if status.present?
-    hypothesis.confidence = confidence unless confidence.nil?
-    hypothesis.save!
-    hypothesis
+  # A theory that is settled says which steps settled it, so a ruled out one carries its why.
+  def record_hypothesis!(assertion:, status: nil, confidence: nil, steps: [])
+    settled = [ Investigation::Hypothesis::STATUS_SUPPORTED, Investigation::Hypothesis::STATUS_REFUTED ].include?(status.to_s)
+    cited = cited_steps!(steps, what: "This theory") if settled || Array(steps).any?
+
+    transaction do
+      hypothesis = hypotheses.find_or_initialize_by(assertion: assertion)
+      hypothesis.position ||= (hypotheses.maximum(:position) || 0) + 1
+      hypothesis.status = status if status.present?
+      hypothesis.confidence = confidence unless confidence.nil?
+      hypothesis.save!
+      hypothesis.cite!(cited) if cited
+      hypothesis
+    end
   end
 
-  # Posting, confidence factors and citation checks come later.
+  # Each line of evidence is a claim and the steps it rests on. One that cites nothing real is
+  # refused and nothing is written, so the agent fixes it before the run can end.
   def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil)
     winner = hypotheses.find_by(assertion: hypothesis_assertion) if hypothesis_assertion.present?
-    create_finding!(
-      summary: summary, winning_hypothesis: winner, evidence: Array(evidence).map(&:to_s), gaps: gaps
-    )
+    items = Array(evidence).map(&:to_h).map(&:symbolize_keys)
+    raise Investigation::Evidence::Refused, "Naming a cause needs evidence behind it. Give each claim and the steps it rests on." if winner && items.empty?
+
+    cited = items.each_with_index.map { |item, index| [ item[:claim].to_s, cited_steps!(item[:steps], what: "Evidence #{index + 1}") ] }
+
+    transaction do
+      finding = create_finding!(summary: summary, winning_hypothesis: winner, gaps: gaps)
+      cited.each_with_index { |(claim, sources), index| finding.add_evidence!(claim: claim, sources: sources, position: index + 1) }
+      finding
+    end
   end
 
   def finish!(status:, error_summary: nil)

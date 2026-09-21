@@ -20,9 +20,11 @@ module FirefightAi
     REPEATS_SHOWN = 3
     SHAPE_LIMIT = 160
 
-    def self.frame(tool_name, text)
+    # step is the number a run recorded the call under, which is what a conclusion cites it by.
+    def self.frame(tool_name, text, step: nil)
       body = text.to_s.gsub(CLOSING_TAG, "<\\/#{TAG}>")
-      "<#{TAG} tool=\"#{tool_name.to_s.delete('"<>')}\" trust=\"untrusted\">\n#{body}\n</#{TAG}>"
+      cited_by = step ? " step=\"#{step.to_i}\"" : ""
+      "<#{TAG} tool=\"#{tool_name.to_s.delete('"<>')}\"#{cited_by} trust=\"untrusted\">\n#{body}\n</#{TAG}>"
     end
 
     # How a result starts and ends, how long it is and what repeats in it, with the name it was

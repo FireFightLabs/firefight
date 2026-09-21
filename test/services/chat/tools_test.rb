@@ -196,7 +196,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     result = tool.call(text: "hi")
 
-    assert_equal FirefightAi::Evidence.frame("fake_echo_text", "echo: hi"), result
+    assert_equal FirefightAi::Evidence.frame("fake_echo_text", "echo: hi", step: 1), result
     assert_equal "fake.echo_text", @investigation.steps.sole.action_key
   end
 
@@ -230,7 +230,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     open_chat_for_run
     tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == "fake_echo_text" }.tool
 
-    assert_equal FirefightAi::Evidence.frame("fake_echo_text", "echo: hi"), tool.call(text: "hi")
+    assert_equal FirefightAi::Evidence.frame("fake_echo_text", "echo: hi", step: 1), tool.call(text: "hi")
     assert_empty @investigation.chat.saved_results
   end
 
@@ -246,7 +246,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     result = tool.call(query: @incident.identifier)
 
-    assert result.start_with?("<tool_result tool=\"#{Mcp::Tools::SEARCH_INCIDENTS}\" trust=\"untrusted\">")
+    assert result.start_with?("<tool_result tool=\"#{Mcp::Tools::SEARCH_INCIDENTS}\" step=\"1\" trust=\"untrusted\">")
   end
 
   test "a refusal is Firefight speaking, so it is not framed as something a tool said" do
@@ -283,8 +283,10 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   test "recording a theory writes it once and updates it after that" do
     tool = Investigation::Tools::RecordHypothesis.new(@investigation)
 
-    tool.execute(assertion: "The 14:02 deploy did it")
-    tool.execute(assertion: "The 14:02 deploy did it", status: Investigation::Hypothesis::STATUS_SUPPORTED, confidence: 0.8)
+    grant!(@tool)
+    Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
+    tool.call("assertion" => "The 14:02 deploy did it")
+    tool.call("assertion" => "The 14:02 deploy did it", "status" => Investigation::Hypothesis::STATUS_SUPPORTED, "confidence" => 0.8, "steps" => [ 1 ])
 
     hypothesis = @investigation.hypotheses.sole
     assert_equal Investigation::Hypothesis::STATUS_SUPPORTED, hypothesis.status
@@ -292,25 +294,66 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal 1, hypothesis.position
   end
 
-  test "concluding writes the answer against the theory it names" do
-    @investigation.record_hypothesis!(assertion: "The 14:02 deploy did it")
-    tool = Investigation::Tools::Conclude.new(@investigation)
+  test "what a tool found in a run is handed over with the step number it is cited by, and the step says what it was" do
+    grant!(@tool)
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
 
-    tool.execute(
-      summary: "The deploy raised the pool size", hypothesis: "The 14:02 deploy did it",
-      evidence: [ "commit abc123" ], gaps: "Could not read the logs"
+    result = tool.call(text: "hi")
+
+    step = @investigation.steps.sole
+    assert_equal 1, step.position
+    assert_equal "fake_echo_text", step.tool_name
+    assert_equal "Fake echo text", step.label
+    assert result.start_with?("<tool_result tool=\"fake_echo_text\" step=\"1\" trust=\"untrusted\">")
+  end
+
+  test "concluding writes the answer against the theory it names, with evidence that points at steps" do
+    grant!(@tool)
+    Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
+    @investigation.record_hypothesis!(assertion: "The 14:02 deploy did it")
+
+    Investigation::Tools::Conclude.new(@investigation).call(
+      "summary" => "The deploy raised the pool size", "hypothesis" => "The 14:02 deploy did it",
+      "evidence" => [ { "claim" => "The echo came back", "steps" => [ 1 ] } ], "gaps" => "Could not read the logs"
     )
 
     finding = @investigation.reload.finding
     assert_equal "The deploy raised the pool size", finding.summary
     assert_equal "The 14:02 deploy did it", finding.winning_hypothesis.assertion
-    assert_equal [ "commit abc123" ], finding.evidence
+    assert_equal [ "The echo came back" ], finding.evidence_items.map(&:claim)
+    assert_equal @investigation.steps.to_a, finding.evidence_items.sole.citations.map(&:source)
     assert_equal "Could not read the logs", finding.gaps
     assert_equal Investigation::Finding::STATE_UNPUBLISHED, finding.published_state
   end
 
+  test "a conclusion that cites a step that never happened comes back as something the agent can fix" do
+    answer = Investigation::Tools::Conclude.new(@investigation).call(
+      "summary" => "It was the deploy", "evidence" => [ { "claim" => "A deploy went out", "steps" => [ 4 ] } ]
+    )
+
+    assert_match "step 4", answer[:error]
+    assert_nil @investigation.reload.finding
+  end
+
+  test "the model is told the shape evidence takes" do
+    items = Investigation::Tools::Conclude.new(@investigation).parameters_schema.dig("properties", "evidence", "items")
+
+    assert_equal %w[claim steps], items["required"]
+  end
+
+  test "settling a theory through the tool takes the steps that settled it" do
+    grant!(@tool)
+    Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
+
+    Investigation::Tools::RecordHypothesis.new(@investigation).call(
+      "assertion" => "The cache was cold", "status" => Investigation::Hypothesis::STATUS_REFUTED, "steps" => [ 1 ]
+    )
+
+    assert_equal @investigation.steps.to_a, @investigation.hypotheses.sole.citations.map(&:source)
+  end
+
   test "concluding with no theory still records the answer" do
-    Investigation::Tools::Conclude.new(@investigation).execute(summary: "Nothing in the evidence explains it")
+    Investigation::Tools::Conclude.new(@investigation).call("summary" => "Nothing in the evidence explains it")
 
     assert_nil @investigation.reload.finding.winning_hypothesis
   end

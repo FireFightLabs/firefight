@@ -91,13 +91,20 @@ module Chat::Tools
 
   # A result that fits the running model is handed over whole. A larger one is kept in full and the
   # agent is shown how it starts and ends, with the name to read the rest by.
-  def self.hand_over(agent_run, tool_name, text)
+  def self.hand_over(agent_run, tool_name, outcome)
     chat = agent_run.chat
-    return FirefightAi::Evidence.frame(tool_name, text) if chat.nil? || text.to_s.length <= chat.result_limit
+    text = outcome.value
+    return FirefightAi::Evidence.frame(tool_name, text, step: outcome.step) if chat.nil? || text.to_s.length <= chat.result_limit
 
     saved = chat.saved_results.keep!(tool_name: tool_name, text: text)
     preview = FirefightAi::Evidence.preview(text, handle: saved.handle, read_with: ReadResult.tool_name)
-    FirefightAi::Evidence.frame(tool_name, preview)
+    FirefightAi::Evidence.frame(tool_name, preview, step: outcome.step)
+  end
+
+  # What a step is called wherever it is cited later, such as "Get form declare".
+  def self.label(tool_name, arguments)
+    shown = step(tool_name, arguments)
+    [ shown&.title, shown&.headline ].compact_blank.join(" ")
   end
 
   # What the chat found earlier, for whoever acts now, so a grant taken away since is not handed back.

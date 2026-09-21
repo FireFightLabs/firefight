@@ -7,14 +7,11 @@ class Investigation::ToolCall
 
   Result = Data.define(:step, :value)
 
-  def self.run!(investigation, action_key:, params: {}, hypothesis: nil, reasoning: nil)
-    step = investigation.steps.create!(
-      hypothesis: hypothesis,
-      action_key: action_key,
-      params: params,
-      reasoning: reasoning,
-      status: Investigation::Step::STATUS_RUNNING,
-      started_at: Time.current
+  def self.run!(investigation, action_key:, params: {}, hypothesis: nil, reasoning: nil, tool_name: nil, label: nil)
+    step = numbered_step(
+      investigation,
+      tool_name: tool_name, label: label, hypothesis: hypothesis, action_key: action_key, params: params,
+      reasoning: reasoning, status: Investigation::Step::STATUS_RUNNING, started_at: Time.current
     )
 
     begin
@@ -38,4 +35,13 @@ class Investigation::ToolCall
     step.succeed!(compacted_result: text.truncate(MAX_COMPACTED), raw_result: text.truncate(MAX_RAW))
     Result.new(step: step, value: value)
   end
+
+  # The number is read and then written, so two calls at once could pick the same one. The unique
+  # index refuses the second, which takes the next number.
+  def self.numbered_step(investigation, **attributes)
+    investigation.steps.create!(position: investigation.next_step_position, **attributes)
+  rescue ActiveRecord::RecordNotUnique
+    retry
+  end
+  private_class_method :numbered_step
 end
