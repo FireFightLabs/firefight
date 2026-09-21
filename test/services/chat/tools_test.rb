@@ -92,8 +92,32 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     result = tool.call(text: "hi")
 
-    assert_equal "echo: hi", result
+    assert_equal FirefightAi::Evidence.frame("fake_echo_text", "echo: hi"), result
     assert_equal "fake.echo_text", @investigation.steps.sole.action_key
+  end
+
+  test "the step keeps what the provider said as it was, only the model is handed the frame" do
+    grant!(@tool)
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
+
+    tool.call(text: "hi")
+
+    assert_equal "echo: hi", @investigation.steps.sole.raw_result
+  end
+
+  test "what one of Firefight's own tools found is framed as data too" do
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == Mcp::Tools::SEARCH_INCIDENTS }.tool
+
+    result = tool.call(query: @incident.identifier)
+
+    assert result.start_with?("<tool_result tool=\"#{Mcp::Tools::SEARCH_INCIDENTS}\" trust=\"untrusted\">")
+  end
+
+  test "a refusal is Firefight speaking, so it is not framed as something a tool said" do
+    tool = Chat::Tools::Connection.new(@investigation, @tool)
+
+    assert_no_match(/tool_result/, tool.call(text: "hi"))
   end
 
   test "a refused call comes back as a result the agent can work around" do

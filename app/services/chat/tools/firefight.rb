@@ -31,12 +31,13 @@ class Chat::Tools::Firefight < RubyLLM::Tool
   end
 
   def attempt(action_key, arguments, approval_id: nil)
-    response = @agent_run.tool_call(action_key: action_key, params: arguments.transform_keys(&:to_s), **{ approval_id: approval_id }.compact) do
-      Mcp::ToolDispatcher.run(
+    # The block answers with the text, so a run's step keeps what the tool said rather than a response object.
+    said = @agent_run.tool_call(action_key: action_key, params: arguments.transform_keys(&:to_s), **{ approval_id: approval_id }.compact) do
+      text_of(Mcp::ToolDispatcher.run(
         tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments
-      )
+      ))
     end
-    text_of(response)
+    FirefightAi::Evidence.frame(name, said)
   rescue AbilityGateway::Denied
     @agent_run.refusal(action_key)
   rescue AbilityGateway::PendingApproval => pending
