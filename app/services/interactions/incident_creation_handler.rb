@@ -50,7 +50,7 @@ module Interactions
       })
 
       workspace.adapter.form_update_response(workspace.adapter.build_modal(PlatformAdapter::Modal::INCIDENT_CREATED, incident))
-    rescue ActiveRecord::RecordNotFound => e
+    rescue ActiveRecord::RecordNotFound, IncidentFormResolver::ValidationError => e
       Rails.logger.error({ event: "incident.creation_severity_not_found", error: e.message })
       workspace.adapter.form_error_response(IncidentSystemField::KEY_SEVERITY, "Invalid severity selection. Please try again.")
     rescue => e

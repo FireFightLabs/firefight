@@ -76,6 +76,11 @@ module Mcp
     UPSERT_CATALOG_TYPE = "upsert_catalog_type".freeze
     DELETE_CATALOG_TYPE = "delete_catalog_type".freeze
 
+    # Each tool listed with this workspace's own choices in its parameters. Calls still go to the class.
+    def self.for_workspace(workspace)
+      all.map { |tool_class| WorkspaceTool.new(tool_class, workspace) }
+    end
+
     def self.all
       [ SearchIncidents, SearchSimilar, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
         SearchRunbooks, GetRunbook, UpsertCatalogEntry, DeleteCatalogEntry,
