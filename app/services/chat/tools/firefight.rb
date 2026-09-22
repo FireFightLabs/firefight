@@ -14,7 +14,7 @@ class Chat::Tools::Firefight < RubyLLM::Tool
 
   def description = @tool_class.description_value.to_s
 
-  def parameters_schema = @tool_class.input_schema_value.to_h
+  def parameters_schema = @tool_class.schema_for(@agent_run.workspace)
 
   def call(tool_call: nil, **arguments)
     invoke(arguments.symbolize_keys)

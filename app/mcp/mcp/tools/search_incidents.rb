@@ -10,8 +10,8 @@ module Mcp
       annotations(**READ_ONLY)
       input_schema(
         properties: {
-          status: { type: "string", description: "Incident status slug, e.g. investigating" },
-          severity: { type: "string", description: "Severity slug, e.g. sev1" },
+          status: { type: "string", description: "Incident status slug" },
+          severity: { type: "string", description: "Severity slug" },
           stage: { type: "string", description: "Lifecycle stage key: triage, active, closed or canceled" },
           query: { type: "string", description: "Matches incident name or identifier" },
           since: { type: "string", description: "ISO8601: only incidents declared after this time" },
@@ -20,6 +20,9 @@ module Mcp
         },
         required: []
       )
+
+      choice :status, from: ->(workspace) { workspace.incident_statuses.active.ordered }
+      choice :severity, from: ->(workspace) { workspace.incident_severities.active.by_rank }
 
       def self.perform(workspace:, args:)
         scope = workspace.incidents.where(deleted_at: nil).with_list_associations.recent
