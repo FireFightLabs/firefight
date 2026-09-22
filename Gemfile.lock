@@ -3,7 +3,7 @@ PATH
   specs:
     firefight_ai (0.1.0)
       rails (>= 8.0)
-      ruby_llm (>= 2.0.0.rc3, < 3)
+      ruby_llm (>= 2.0.0, < 3)
 
 PATH
   remote: engines/solid_workflow
@@ -688,7 +688,7 @@ GEM
       ffi (~> 1.12)
       logger
     ruby2_keywords (0.0.5)
-    ruby_llm (2.0.0.rc3)
+    ruby_llm (2.0.0)
       base64
       event_stream_parser (~> 1)
       faraday (>= 1.10.0)
