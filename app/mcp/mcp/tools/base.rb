@@ -19,10 +19,67 @@ module Mcp
         idempotent_hint: true, open_world_hint: false
       }.freeze
 
+      # What a person parameter's description ends with, so a model knows it can name whoever is asking.
+      ME = "Pass \"me\" for the person you are acting for".freeze
+
       class << self
         def call(server_context:, **args)
           Mcp::ToolDispatcher.call(tool: self, server_context: server_context, args: args)
         end
+
+        # A parameter whose values are the workspace's own, such as a role or a severity. The
+        # schema handed to a model lists them, so it picks from what exists rather than guessing.
+        def choice(parameter, from:)
+          choices[parameter.to_sym] = from
+        end
+
+        def choices = @choices ||= {}
+
+        # A parameter naming a person, which also takes "me".
+        def person(*parameters)
+          people.concat(parameters.map(&:to_sym))
+        end
+
+        def people = @people ||= []
+
+        # The schema as this workspace should see it, choices filled in from what it has now.
+        def schema_for(workspace)
+          schema = input_schema_value.to_h
+          return schema if choices.empty? && people.empty?
+
+          schema = deep_dup_schema(schema)
+          choices.each { |parameter, from| append_to(schema, parameter, listed(from.call(workspace))) }
+          people.each { |parameter| append_to(schema, parameter, ME) }
+          schema
+        end
+
+        # What the MCP server lists for this workspace, the same class with the workspace's choices.
+        def definition_for(workspace)
+          to_h.merge(inputSchema: schema_for(workspace))
+        end
+
+        private
+
+        def listed(records)
+          rows = records.map { |record| "#{record.slug} (#{record.name})" }
+          return "None is configured yet" if rows.empty?
+          return "The only one is #{rows.first}" if rows.one?
+
+          "One of: #{rows.join(', ')}"
+        end
+
+        def append_to(schema, parameter, text)
+          property = schema.dig(:properties, parameter)
+          return unless property
+
+          property[:description] = [ property[:description], text ].compact_blank.join(". ")
+        end
+
+        def deep_dup_schema(schema)
+          schema.to_h { |key, value| [ key, value.is_a?(Hash) ? deep_dup_schema(value) : value.dup ] }
+        end
+
+        public
 
         def perform(workspace:, args:)
           raise NotImplementedError

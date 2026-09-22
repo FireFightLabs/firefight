@@ -36,6 +36,12 @@ module FirefightAi
     RubyLLM::ModelNotFoundError
   ].freeze
 
+  # A provider's rate limit does not always arrive under the class the library has for it. OpenAI's
+  # tokens per minute limit came back as a bad request, and a bad request is given up on, so the
+  # status and the words decide before the class does.
+  RATE_LIMIT_STATUS = 429
+  RATE_LIMIT_WORDS = /rate limit/i
+
   def self.translating_errors
     yield
   rescue RubyLLM::CancelledError => e
@@ -43,6 +49,12 @@ module FirefightAi
   rescue *TRANSIENT_CLIENT_ERRORS => e
     raise TransientError.new(e.message, reason: e.class.name.demodulize)
   rescue *TERMINAL_CLIENT_ERRORS => e
+    raise TransientError.new(e.message, reason: RubyLLM::RateLimitError.name.demodulize) if rate_limited?(e)
+
     raise TerminalError.new(e.message, reason: e.class.name.demodulize)
+  end
+
+  def self.rate_limited?(error)
+    error.try(:response).try(:status) == RATE_LIMIT_STATUS || error.message.to_s.match?(RATE_LIMIT_WORDS)
   end
 end

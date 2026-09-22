@@ -17,7 +17,7 @@ module Mcp
         )
 
         attrs = submission.attributes
-        attrs[:lead] = workspace.workspace_memberships.resolve!(submission.lead_value) if submission.lead_value
+        attrs[:lead] = workspace.workspace_memberships.resolve!(submission.lead_value, acting: principal) if submission.lead_value
 
         IncidentLifecycleService.new(workspace).change_status(
           incident, attrs, changed_by: principal, message: submission.message

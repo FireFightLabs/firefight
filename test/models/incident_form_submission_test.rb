@@ -18,6 +18,30 @@ class IncidentFormSubmissionTest < ActiveSupport::TestCase
     assert_equal second, attrs[:incident_status]
   end
 
+  # Seen in a real chat. get_form lists a choice as its slug and its name, the agent sent the name,
+  # validation let it through, and creation then failed with "Not found in this workspace".
+  test "a severity, a type or a status may be given by its name as well as its slug" do
+    minor = @workspace.incident_severities.find_by!(slug: "minor")
+
+    assert_equal minor, submission(IncidentForm::SLUG_DECLARE, { "severity" => "Minor" }).creation_attributes[:incident_severity]
+    assert_equal minor, submission(IncidentForm::SLUG_DECLARE, { "severity" => "minor" }).creation_attributes[:incident_severity]
+  end
+
+  test "a name is matched whatever its case, since a person types it" do
+    minor = @workspace.incident_severities.find_by!(slug: "minor")
+
+    assert_equal minor, submission(IncidentForm::SLUG_DECLARE, { "severity" => "MINOR" }).creation_attributes[:incident_severity]
+  end
+
+  test "a value that is neither a slug nor a name is refused up front, naming the choices" do
+    error = assert_raises(IncidentFormResolver::ValidationError) do
+      submission(IncidentForm::SLUG_DECLARE, { "severity" => "Sev-9" }).creation_attributes
+    end
+
+    assert_match(/severity.*Sev-9/i, error.field_errors.to_sentence)
+    assert_match "minor", error.field_errors.to_sentence
+  end
+
   test "a resolve with no status picked lands on the first closed one" do
     attrs = submission(IncidentForm::SLUG_RESOLVE, {}).attributes
 

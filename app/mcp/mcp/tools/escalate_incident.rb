@@ -20,9 +20,11 @@ module Mcp
         required: [ "incident", "member", "reason" ]
       )
 
+      person :member
+
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = IncidentWrite.find!(workspace, args[:incident])
-        target = workspace.workspace_memberships.resolve!(args[:member])
+        target = workspace.workspace_memberships.resolve!(args[:member], acting: principal)
 
         event = IncidentLifecycleService.new(workspace).escalate(
           incident, escalated_to: target, reason: args[:reason].to_s, changed_by: principal
