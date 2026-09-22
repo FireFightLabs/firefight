@@ -12,10 +12,9 @@ interface ThreadProps {
   confirmations: AgentChatConfirmation[]
   messages: AgentChatMessage[]
   stream: AgentStream
-  empty: boolean
 }
 
-export function Thread({ conversationId, confirmations, messages, stream, empty }: ThreadProps) {
+export function Thread({ conversationId, confirmations, messages, stream }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const turns = useMemo(() => groupedTurns(messages), [ messages ])
   const live = liveTurn(stream)
@@ -23,16 +22,6 @@ export function Thread({ conversationId, confirmations, messages, stream, empty 
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end" })
   }, [ messages.length, stream.text, stream.steps.length ])
-
-  if (empty) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <p className="max-w-sm text-center text-[13px] text-ink-2">
-          Ask about an incident, what changed recently, or whether this has happened before.
-        </p>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8">
