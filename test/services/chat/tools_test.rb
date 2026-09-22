@@ -174,8 +174,16 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
   test "every one of Firefight's tools belongs to exactly one group, so a new tool cannot be left unreachable" do
     grouped = Chat::Tools::Groups::FIREFIGHT.flat_map(&:tools)
+    offered = Mcp::Tools.all.map { |tool| tool.name_value.to_s } - Chat::Tools::Groups::NOT_FOR_HALON
 
-    assert_equal Mcp::Tools.all.map { |tool| tool.name_value.to_s }.sort, grouped.sort
+    assert_equal offered.sort, grouped.sort
+  end
+
+  test "Halon is never offered the ways in built for an outside agent" do
+    names = Chat::Tools.catalog(@investigation).map(&:name)
+
+    assert_not_includes names, Mcp::Tools::ASK_HALON
+    assert_not_includes names, Mcp::Tools::START_INVESTIGATION
   end
 
   test "a found Firefight tool runs through the gateway and answers with what it found" do

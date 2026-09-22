@@ -160,7 +160,8 @@ module Chat::Tools
   def self.firefight_entries(agent_run)
     principal = agent_run.acting_principal
     workspace = agent_run.workspace
-    keys = Mcp::Tools.all.to_h { |tool_class| [ tool_class, Ability::Action.system_key(*tool_class.authorization(workspace, {})) ] }
+    offered = Mcp::Tools.all.reject { |tool_class| Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }
+    keys = offered.to_h { |tool_class| [ tool_class, Ability::Action.system_key(*tool_class.authorization(workspace, {})) ] }
     actions = Ability::Action.system_actions.where(key: keys.values).index_by(&:key)
 
     keys.map do |tool_class, action_key|

@@ -128,6 +128,18 @@ Authorization is the gateway's: admin personal tokens carry the admin's authorit
 
 The server is self-describing for agents: server instructions, tool descriptions, and guidance-worthy responses (permission errors, no routing policy, unmatched dry runs) link to the relevant public docs page via `Mcp::Docs` constants — each page is fetchable as raw markdown (`https://firefight.app/docs/**/*.md`, index at `/llms.txt`).
 
+## Halon, the agent
+
+Three tools put Halon in front of an outside agent, such as one in a person's editor. All three go through the gateway as whoever the credential resolves to: a personal token as the person, an agent token as the agent, a service key as itself.
+
+| Tool | Does | Permission |
+|---|---|---|
+| `start_investigation` | Starts a run on an incident (`Investigation::TRIGGER_MCP`). One live run per incident, a second request is told which one is running. | `investigations: create` |
+| `get_investigation` | One run by id, or an incident's newest: status, theories with the steps behind them, every step's label and status, the finding with each claim, its step numbers and its sources. Never a step's raw output, never a technical failure cause, which stays in `error_summary` for debugging. | `investigations: read` |
+| `ask_halon` | One chat turn, synchronously, and the answer. The chat is a `Conversation` of `KIND_MCP`, one per principal (`Conversation.for_mcp!`), so questions carry on. Delivery is `Conversation::QuietDelivery`, nothing streams. A turn that pauses on a confirmation returns `status: waiting` with the questions in the words the dashboard shows, since an MCP call has no Confirm button. | `investigations: create` |
+
+`ask_halon` and `start_investigation` are never offered to Halon itself (`Chat::Tools::Groups::NOT_FOR_HALON`). `get_investigation` is, under Incidents and what happened before. A conversation's `started_by` is polymorphic for this, the same shape as `Investigation#triggered_by`.
+
 ## Configuring the workspace
 
 Everything a person can change on a settings screen has a tool, because the
