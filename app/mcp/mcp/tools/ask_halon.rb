@@ -47,7 +47,7 @@ module Mcp
         {
           status: STATUS_WAITING, conversation_id: conversation.id, waiting_on: questions,
           answer: "Halon needs a confirmation before it can go on: #{questions.to_sentence} " \
-                  "Confirm it in the Firefight dashboard chat or Slack, then ask again."
+                  "Confirm it in Firefight, then ask again."
         }
       end
       private_class_method :waiting
