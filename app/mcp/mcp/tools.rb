@@ -74,6 +74,9 @@ module Mcp
     UPDATE_POSTMORTEM = "update_postmortem".freeze
     SET_POSTMORTEM_STATUS = "set_postmortem_status".freeze
     GET_INCIDENT_TRANSCRIPT = "get_incident_transcript".freeze
+    START_INVESTIGATION = "start_investigation".freeze
+    GET_INVESTIGATION = "get_investigation".freeze
+    ASK_HALON = "ask_halon".freeze
     UPSERT_CATALOG_TYPE = "upsert_catalog_type".freeze
     DELETE_CATALOG_TYPE = "delete_catalog_type".freeze
 
@@ -101,7 +104,8 @@ module Mcp
         ListAgents, UpsertAgent, RotateAgentToken, RevokeAgentToken, DeleteAgent,
         ListApiKeys, UpsertApiKey, DeleteApiKey,
         GetPostmortem, StartPostmortem, UpdatePostmortem, SetPostmortemStatus,
-        GetIncidentTranscript, UpsertCatalogType, DeleteCatalogType ]
+        GetIncidentTranscript, UpsertCatalogType, DeleteCatalogType,
+        StartInvestigation, GetInvestigation, AskHalon ]
     end
   end
 end

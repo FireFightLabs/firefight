@@ -6,6 +6,15 @@ class Investigation::Runner
   Result = Data.define(:status, :error_summary)
 
   STOPPED_BY_A_RESPONDER = "Stopped by a responder".freeze
+  ENDED_WITHOUT_AN_ANSWER = "Ended without an answer".freeze
+  # The plain sentences a run stops with. Anything else in error_summary is a technical cause for debugging.
+  STOP_REASONS = {
+    FirefightAi::AgentLoop::STATUS_CANCELED => STOPPED_BY_A_RESPONDER,
+    FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET => "Budget spent before it could answer",
+    FirefightAi::AgentLoop::STATUS_OUT_OF_TURNS => "Stopped after too many turns",
+    FirefightAi::AgentLoop::STATUS_STALLED => "Stopped talking without an answer",
+    FirefightAi::AgentLoop::STATUS_REPEATED_TOOL_CALL => "Repeated the same tool call"
+  }.freeze
 
   def initialize(investigation)
     @investigation = investigation
@@ -92,13 +101,5 @@ class Investigation::Runner
     Result.new(status: Investigation::STATUS_FAILED, error_summary: reason_for(outcome.status))
   end
 
-  def reason_for(status)
-    {
-      FirefightAi::AgentLoop::STATUS_CANCELED => STOPPED_BY_A_RESPONDER,
-      FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET => "Budget spent before it could answer",
-      FirefightAi::AgentLoop::STATUS_OUT_OF_TURNS => "Stopped after too many turns",
-      FirefightAi::AgentLoop::STATUS_STALLED => "Stopped talking without an answer",
-      FirefightAi::AgentLoop::STATUS_REPEATED_TOOL_CALL => "Repeated the same tool call"
-    }.fetch(status, "Ended without an answer")
-  end
+  def reason_for(status) = STOP_REASONS.fetch(status, ENDED_WITHOUT_AN_ANSWER)
 end

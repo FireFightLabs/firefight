@@ -3,6 +3,7 @@ class Conversation::Delivery
   FAILED = "Something went wrong on my side, so I did not finish that one. Ask me again.".freeze
 
   def self.for(conversation)
+    return Conversation::QuietDelivery.new(conversation) if conversation.mcp?
     conversation.personal? ? Conversation::LiveDelivery.new(conversation) : new(conversation)
   end
 

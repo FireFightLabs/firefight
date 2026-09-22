@@ -28,9 +28,13 @@ class Conversation::Runner
 
     return ask_to_confirm(chat, outcome) if waiting?(outcome)
 
-    delivery.answered!(reply_for(outcome, chat))
+    @reply = reply_for(outcome, chat)
+    delivery.answered!(@reply)
     outcome
   end
+
+  # What the person was told, for a caller that waits for the answer rather than watching it arrive.
+  attr_reader :reply
 
   private
 

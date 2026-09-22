@@ -11,6 +11,9 @@ module Chat::Tools::Groups
   PERMISSIONS = "permissions".freeze
   ACCESS = "machine_access".freeze
 
+  # Ways in for an outside agent. Halon does not ask itself a question, and a chat has its own start_investigation.
+  NOT_FOR_HALON = [ Mcp::Tools::ASK_HALON, Mcp::Tools::START_INVESTIGATION ].freeze
+
   # The registry's catch all, whose connections have nothing in common but their kind.
   CUSTOM_CATEGORY = "Custom".freeze
   CONNECTION_PREFIX = "connection_".freeze
@@ -22,8 +25,11 @@ module Chat::Tools::Groups
   FIREFIGHT = [
     Firefight.new(
       key: INCIDENT_HISTORY, title: "Incidents and what happened before",
-      covers: "search incidents, find ones that read like this, read one and what was said in its channel",
-      tools: [ Mcp::Tools::SEARCH_INCIDENTS, Mcp::Tools::SEARCH_SIMILAR, Mcp::Tools::GET_INCIDENT, Mcp::Tools::GET_INCIDENT_TRANSCRIPT ]
+      covers: "search incidents, find ones that read like this, read one, what was said in its channel, past investigations",
+      tools: [
+        Mcp::Tools::SEARCH_INCIDENTS, Mcp::Tools::SEARCH_SIMILAR, Mcp::Tools::GET_INCIDENT,
+        Mcp::Tools::GET_INCIDENT_TRANSCRIPT, Mcp::Tools::GET_INVESTIGATION
+      ]
     ),
     Firefight.new(
       key: INCIDENT_RESPONSE, title: "Running an incident",

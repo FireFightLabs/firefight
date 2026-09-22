@@ -3,7 +3,9 @@
 class Conversation < ApplicationRecord
   KIND_CHANNEL = "channel"
   KIND_PERSONAL = "personal"
-  KINDS = [ KIND_CHANNEL, KIND_PERSONAL ].freeze
+  # Another agent asking over MCP, one chat per principal, as that principal.
+  KIND_MCP = "mcp"
+  KINDS = [ KIND_CHANNEL, KIND_PERSONAL, KIND_MCP ].freeze
 
   TITLE_LIMIT = 80
   PREVIEW_LIMIT = 90
@@ -15,7 +17,8 @@ class Conversation < ApplicationRecord
 
   belongs_to :workspace
   belongs_to :subject, polymorphic: true, optional: true
-  belongs_to :started_by, class_name: "WorkspaceMembership", optional: true
+  # A person, a service key or an agent, whoever the way in resolved to.
+  belongs_to :started_by, polymorphic: true, optional: true
   has_one :chat, as: :owner, dependent: :destroy
 
   validates :kind, inclusion: { in: KINDS }
@@ -26,6 +29,19 @@ class Conversation < ApplicationRecord
   scope :archived, -> { where.not(archived_at: nil) }
   # Archived last, so a list that loads page by page reaches them at the end.
   scope :in_reading_order, -> { order(Arel.sql("archived_at IS NOT NULL, pinned_at DESC NULLS LAST, updated_at DESC")) }
+
+  # The chat an outside agent has with Halon, one per principal and per incident it asks about, so
+  # questions carry on and a question about one incident never lands in another's chat.
+  def self.for_mcp!(workspace:, principal:, incident: nil)
+    scope = workspace.conversations.where(kind: KIND_MCP, started_by: principal, subject: incident)
+    scope.first || begin
+      limits = workspace.conversation_limits
+      workspace.conversations.create!(
+        kind: KIND_MCP, started_by: principal, subject: incident,
+        max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents
+      )
+    end
+  end
 
   def self.start_personal!(workspace:, member:)
     limits = workspace.conversation_limits
@@ -54,6 +70,8 @@ class Conversation < ApplicationRecord
   end
 
   def personal? = kind == KIND_PERSONAL
+
+  def mcp? = kind == KIND_MCP
 
   # What the person and the agent said to each other is the conversation, so it is never put away.
   # The work in between is, meaning the tool calls, their results and the agent's nudges to itself.
@@ -92,7 +110,7 @@ class Conversation < ApplicationRecord
   end
 
   def watchable_by?(user)
-    personal? && started_by.present? && started_by.user_id == user&.id && self.class.readable_by?(started_by)
+    personal? && started_by.is_a?(WorkspaceMembership) && started_by.user_id == user&.id && self.class.readable_by?(started_by)
   end
 
   # Two questions asked at once share the chat that won the insert.
