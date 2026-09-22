@@ -46,6 +46,10 @@ claude mcp add --transport http firefight https://<your-host>/mcp \
 
 Any other client: Streamable HTTP transport with either OAuth (discovery via `/.well-known/oauth-protected-resource`, RFC 7591 registration, PKCE required) or an `Authorization: Bearer` header token. Headless agents and CI should use header tokens — machines can't click consent screens.
 
+## Choices come from the workspace
+
+A parameter whose values are the workspace's own is declared on the tool with `choice :role, from: ->(workspace) { ... }`, and a parameter naming a person with `person :member`. `Base.schema_for(workspace)` fills the choices into the parameter description at the moment the tool is offered ("one of: incident_lead (Incident Lead), ..."), and says a person parameter takes `"me"`. The agent's wrapper and the MCP server (`Mcp::Tools.for_workspace`, `Mcp::WorkspaceTool`) both hand out that schema, so a model picks from what exists rather than guessing a name, and an outside client sees the same. `WorkspaceMembership.resolve!(reference, acting:)` turns `"me"` into whoever is acting, and refuses it when a machine is acting, since a key has no seat in an incident.
+
 ## Read tools
 
 | Tool | Answers |
