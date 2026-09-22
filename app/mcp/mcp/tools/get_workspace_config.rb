@@ -7,7 +7,7 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_INCIDENTS
       description "Everything about how this workspace is configured, in one call: its severities, " \
                   "statuses with their lifecycle stage, incident types, incident roles, alert " \
-                  "sources and webhooks. Slugs from here are what the upsert and delete tools " \
+                  "sources, webhooks, and the workspace settings. Slugs from here are what the upsert and delete tools " \
                   "take. Disabled entries are included and marked, since disabling is how a list " \
                   "retires something without breaking the incidents pointing at it. " \
                   "Docs: #{Docs::INCIDENTS}"
@@ -21,7 +21,8 @@ module Mcp
           incident_types: options(workspace.incident_types),
           incident_roles: options(workspace.incident_roles),
           alert_sources: alert_sources(workspace),
-          webhooks: webhooks(workspace)
+          webhooks: webhooks(workspace),
+          settings: UpdateWorkspaceSettings.current(workspace)
         )
       end
 

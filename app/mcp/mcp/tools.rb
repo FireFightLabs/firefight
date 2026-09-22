@@ -47,6 +47,7 @@ module Mcp
     ESCALATE_INCIDENT = "escalate_incident".freeze
     INVITE_RESPONDERS = "invite_responders".freeze
     GET_WORKSPACE_CONFIG = "get_workspace_config".freeze
+    UPDATE_WORKSPACE_SETTINGS = "update_workspace_settings".freeze
     UPSERT_SEVERITY = "upsert_severity".freeze
     DELETE_SEVERITY = "delete_severity".freeze
     UPSERT_STATUS = "upsert_status".freeze
@@ -88,7 +89,7 @@ module Mcp
         UpsertApprovalRule, DeleteApprovalRule, SearchActivity,
         CreateActionItem, AssignActionItem, CompleteActionItem, ClaimRunbookStep,
         LinkIncident, GiveShoutout, EscalateIncident, InviteResponders,
-        GetWorkspaceConfig,
+        GetWorkspaceConfig, UpdateWorkspaceSettings,
         UpsertSeverity, DeleteSeverity, UpsertStatus, DeleteStatus,
         UpsertIncidentType, DeleteIncidentType, UpsertIncidentRole, DeleteIncidentRole,
         UpsertAlertSource, DeleteAlertSource, UpsertWebhook, DeleteWebhook, TestWebhook,

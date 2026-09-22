@@ -31,12 +31,15 @@ module Workspace::ChannelArchival
     archive_channel_enabled ? archive_channel_delay_minutes.to_s : ARCHIVE_DELAY_NEVER
   end
 
+  # Takes the value or the label, since a person or an agent reading the choices sends either.
   def archive_channel_delay=(value)
-    if value.to_s == ARCHIVE_DELAY_NEVER
+    given = value.to_s.strip
+    given = ARCHIVE_DELAY_CHOICES.find { |choice| choice.label.casecmp?(given) }&.value || given
+    if given.casecmp?(ARCHIVE_DELAY_NEVER)
       self.archive_channel_enabled = false
     else
       self.archive_channel_enabled = true
-      self.archive_channel_delay_minutes = Integer(value.to_s, exception: false)
+      self.archive_channel_delay_minutes = Integer(given, exception: false)
     end
   end
 
