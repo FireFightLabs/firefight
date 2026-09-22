@@ -1,13 +1,14 @@
-import TaskRows from "@/components/agent-ui/task-rows"
+import TaskRows, { type TaskRowStatus } from "@/components/agent-ui/task-rows"
 import ThinkingState from "@/components/agent-ui/thinking-state"
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES } from "@/lib/generated/constants"
 import type { AgentStep, StepKind, StepStatus } from "@/pages/agent/types"
 
-const ROW_STATUS: Record<StepStatus, "done" | "running" | "waiting" | "cancelled"> = {
+const ROW_STATUS: Record<StepStatus, TaskRowStatus> = {
   [AGENT_STEP_STATUSES.DONE]: "done",
   [AGENT_STEP_STATUSES.RUNNING]: "running",
   [AGENT_STEP_STATUSES.WAITING]: "waiting",
   [AGENT_STEP_STATUSES.CANCELLED]: "cancelled",
+  [AGENT_STEP_STATUSES.FAILED]: "failed",
 }
 
 interface StepGroup {

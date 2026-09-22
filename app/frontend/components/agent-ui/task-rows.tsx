@@ -1,29 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 /* ─────────────────────────────────────────────────────────
  * TASK ROWS
  *
- *     0ms   rows enter staggered (80ms apart)
- *   600ms   row 1 ring sweeps 0 → 66%
- *  1500ms   row 1 expands — detail steps drop down
- *  3900ms   row 1 collapses; row 2 flips to Failed + retry
- *  5300ms   row 2 resolves to Completed
- * The status run completes once; task details stay clickable.
+ * One card per thing the agent did. Rows enter staggered (80ms apart) and
+ * each opens to show what the tool was given.
  * ───────────────────────────────────────────────────────── */
-
-const TICKS = [600, 900, 2400, 1400, 2400, 600];
-
-function useTick(intervals: number[]) {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (tick >= intervals.length - 1) return;
-    const t = setTimeout(() => setTick((x) => x + 1), intervals[tick]);
-    return () => clearTimeout(t);
-  }, [tick, intervals]);
-  return tick;
-}
 
 function SpinnerRing({ active, children }: { active?: boolean; children?: React.ReactNode }) {
   const size = 24, stroke = 2;
@@ -70,25 +54,24 @@ const CheckIcon = (
 const PauseIcon = (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round"><path d="M9 6v12M15 6v12" /></svg>
 );
-const RetryIcon = (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" /></svg>
-);
 
 /* One detail line shown when a task row is expanded. */
 export type TaskDetail = { label: string; meta: string };
 
+export type TaskRowStatus = "done" | "running" | "waiting" | "cancelled" | "failed";
+
 /* A single task row.
- *  - "done"     → green check badge + completed pill (static)
- *  - "running"  → active spinner showing `step`, no pill (static)
- *  - "waiting"  → muted pause badge + waiting pill, for a step paused on a person
+ *  - "done"      → green check badge + completed pill
+ *  - "running"   → active spinner showing `step`, no pill
+ *  - "waiting"   → muted pause badge + waiting pill, for a step paused on a person
  *  - "cancelled" → muted cross badge + cancelled pill, for a step the person turned down
- *  - "sequence" → animation-driven: pending spinner → failed → completed
+ *  - "failed"    → red cross badge + failed pill, for a tool that refused or errored
  */
 export type TaskRow = {
   key: string;
   label: string;
   amount: string;
-  status: "done" | "running" | "waiting" | "cancelled" | "sequence";
+  status: TaskRowStatus;
   step?: number;
   details: TaskDetail[];
 };
@@ -107,57 +90,21 @@ const DEFAULT_LABELS: TaskRowsLabels = {
   cancelled: "Cancelled",
 };
 
-const TASK_ROWS: TaskRow[] = [
-  {
-    key: "verify",
-    label: "Verified vendor records",
-    amount: "12 suppliers",
-    status: "done",
-    details: [
-      { label: "Matched tax and contact IDs", meta: "12/12" },
-      { label: "Flagged stale records", meta: "0" },
-    ],
-  },
-  {
-    key: "index",
-    label: "Build reorder task list",
-    amount: "7 SKUs",
-    status: "running",
-    step: 2,
-    details: [
-      { label: "Reading POS export", meta: "3 files" },
-      { label: "Scoring stockout risk", meta: "68%" },
-    ],
-  },
-  {
-    key: "draft",
-    label: "Draft supplier emails",
-    amount: "2 messages",
-    status: "sequence",
-    step: 3,
-    details: [
-      { label: "Cone supplier follow-up", meta: "draft" },
-      { label: "Pistachio reorder note", meta: "draft" },
-    ],
-  },
-];
 
 export default function TaskRows({
   variant = "Capsules",
-  rows = TASK_ROWS,
+  rows,
   labels,
   className,
   onToggleRow,
 }: {
   variant?: string;
-  rows?: TaskRow[];
+  rows: TaskRow[];
   labels?: Partial<TaskRowsLabels>;
   className?: string;
   onToggleRow?: (key: string, open: boolean) => void;
 }) {
-  const tick = useTick(TICKS);
   const [manualOpen, setManualOpen] = useState<Record<string, boolean>>({});
-  const row2: "pending" | "failed" | "done" = tick < 3 ? "pending" : tick === 3 ? "failed" : "done";
   const copy = { ...DEFAULT_LABELS, ...labels };
 
   const badgeFor = (row: TaskRow) => {
@@ -165,13 +112,7 @@ export default function TaskRows({
     if (row.status === "running") return <SpinnerRing active>{row.step}</SpinnerRing>;
     if (row.status === "waiting") return <Badge tone="muted">{PauseIcon}</Badge>;
     if (row.status === "cancelled") return <Badge tone="muted">{XIcon}</Badge>;
-    return row2 === "pending" ? (
-      <SpinnerRing>{row.step}</SpinnerRing>
-    ) : row2 === "failed" ? (
-      <Badge tone="red">{XIcon}</Badge>
-    ) : (
-      <Badge tone="green">{CheckIcon}</Badge>
-    );
+    return <Badge tone="red">{XIcon}</Badge>;
   };
 
   const pillFor = (row: TaskRow) => {
@@ -188,15 +129,11 @@ export default function TaskRows({
           {row.status === "waiting" ? copy.waiting : copy.cancelled}
         </span>
       );
-    return row2 === "failed" ? (
-      <span className="inline-flex h-5.5 items-center gap-1.5 rounded-full bg-red-tint px-2 text-[11.5px] font-medium text-red" style={{ animation: "fade-in 200ms ease-out both" }}>
-        {copy.failed} <span style={{ animation: "spin 1.2s linear infinite" }} className="flex">{RetryIcon}</span>
+    return (
+      <span className="inline-flex h-5.5 items-center rounded-full bg-red-tint px-2 text-[11.5px] font-medium text-red" style={{ animation: "fade-in 200ms ease-out both" }}>
+        {copy.failed}
       </span>
-    ) : row2 === "done" ? (
-      <span className="inline-flex h-5.5 items-center gap-1.5 rounded-full bg-green-tint px-2 text-[11.5px] font-medium text-green" style={{ animation: "fade-in 200ms ease-out both" }}>
-        {copy.completed}
-      </span>
-    ) : null;
+    );
   };
 
   const list = variant === "List";
@@ -207,7 +144,7 @@ export default function TaskRows({
       }${className ? ` ${className}` : ""}`}
     >
       {rows.map((row, i) => {
-        const open = manualOpen[row.key] ?? (row.key === "index" && tick === 2);
+        const open = manualOpen[row.key] ?? false;
         return (
           <div
             key={row.key}

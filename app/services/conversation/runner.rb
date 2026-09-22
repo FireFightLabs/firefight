@@ -74,9 +74,12 @@ class Conversation::Runner
     done = step.status == FirefightAi::AgentLoop::STEP_DONE
     delivery.step(
       key: step.key, step: shown, status: step.status, kind: kinds[step.key],
-      seconds: done ? seconds_since_last_step : 0
+      seconds: done ? seconds_since_last_step : 0, failed: done && failed?(step.key)
     )
   end
+
+  # The wrapper marked the call as the tool answered, before the loop reports the step done.
+  def failed?(key) = @conversation.chat.failed_tool_call_ids.include?(key)
 
   # Counted from the end of the last step, so the model's own time between calls counts as thinking.
   def seconds_since_last_step
