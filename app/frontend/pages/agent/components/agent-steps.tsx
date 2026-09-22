@@ -1,6 +1,7 @@
 import TaskRows from "@/components/agent-ui/task-rows"
 import ThinkingState from "@/components/agent-ui/thinking-state"
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES } from "@/lib/generated/constants"
+import { useSettledSteps } from "@/pages/agent/hooks/use-settled-steps"
 import type { AgentStep, StepKind, StepStatus } from "@/pages/agent/types"
 
 interface StepGroup {
@@ -14,9 +15,11 @@ interface AgentStepsProps {
 }
 
 export function AgentSteps({ steps }: AgentStepsProps) {
+  const settled = useSettledSteps(steps)
+
   return (
     <div className="flex flex-col gap-3">
-      {groupedSteps(steps).map((group) =>
+      {groupedSteps(settled).map((group) =>
         group.kind === AGENT_STEP_KINDS.READ ? (
           <LookingUp key={group.key} steps={group.steps} />
         ) : (
