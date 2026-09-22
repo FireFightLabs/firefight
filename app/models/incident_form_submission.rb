@@ -75,17 +75,11 @@ class IncidentFormSubmission
   end
 
   def chosen_status(scope = @workspace.incident_statuses.active)
-    slug = value(IncidentSystemField::KEY_STATUS)
-    return nil if slug.blank?
-
-    scope.find_by(slug: slug)
+    choose(IncidentSystemField::KEY_STATUS, scope)
   end
 
   def severity
-    slug = value(IncidentSystemField::KEY_SEVERITY)
-    return nil if slug.blank?
-
-    @workspace.incident_severities.active.find_by!(slug: slug)
+    choose(IncidentSystemField::KEY_SEVERITY, @workspace.incident_severities.active)
   end
 
   # Blanking a field that was on the form clears the attribute. A field never
@@ -97,10 +91,18 @@ class IncidentFormSubmission
   end
 
   def incident_type
-    slug = value(IncidentSystemField::KEY_INCIDENT_TYPE)
-    return nil if slug.blank?
+    choose(IncidentSystemField::KEY_INCIDENT_TYPE, @workspace.incident_types.active)
+  end
 
-    @workspace.incident_types.active.find_by!(slug: slug)
+  # A choice is asked for by its slug, but a person or an agent reading the form sees the name
+  # beside it and sends that just as often. Either is accepted. Anything else is refused here, with
+  # the choices named, rather than falling over later as a record that could not be found.
+  def choose(key, scope)
+    given = value(key).to_s.strip
+    return nil if given.blank?
+
+    scope.find_by(slug: given) || scope.find { |record| record.name.casecmp?(given) } ||
+      raise(IncidentFormResolver::ValidationError.new([ "#{key} #{given.inspect} is not one of: #{scope.map(&:slug).join(', ')}" ]))
   end
 
   # Absent leaves next_update_at alone, present but blank clears it. Written with the status,
