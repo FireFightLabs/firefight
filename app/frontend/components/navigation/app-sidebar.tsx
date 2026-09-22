@@ -137,7 +137,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   } = usePage<SharedProps>().props
 
   const chatSection: SidebarNavSection = {
-    label: "AI",
+    label: "Halon",
     items: [ { title: "Chat", url: agentChatsPath(), icon: IconMessageChatbot } ],
   }
   const sectionsWithAgent = agentAvailable ? [ chatSection, ...navSections ] : navSections
