@@ -6,19 +6,22 @@ module Mcp
       description "Assign an incident role to one person, or clear it. A role names who is " \
                   "accountable, so each role has a single holder and assigning replaces whoever " \
                   "held it. Identify the person by email or platform user id; omit member to " \
-                  "clear the role. Call get_incident for the roles this workspace configured and " \
-                  "who holds them. If the call requires approval, retry the identical call with " \
+                  "clear the role. Call get_incident for who holds each role now. If the call " \
+                  "requires approval, retry the identical call with " \
                   "approval_id once approved. Docs: #{Docs::INCIDENTS}"
       annotations(**WRITE)
       input_schema(
         properties: {
           incident: { type: "string", description: "Incident UUID or identifier like INC-42" },
-          role: { type: "string", description: "Incident role slug, e.g. incident_lead" },
+          role: { type: "string", description: "Incident role slug" },
           member: { type: "string", description: "Email or platform user id of the person; omit to clear the role" },
           approval_id: { type: "string", description: "Approval id when retrying an approved call" }
         },
         required: [ "incident", "role" ]
       )
+
+      choice :role, from: ->(workspace) { workspace.incident_roles.active.ordered }
+      person :member
 
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), args[:incident].to_s)
@@ -28,7 +31,7 @@ module Mcp
         return unknown_role_error(workspace, args[:role]) unless role
 
         requested_member = args[:member].to_s
-        member = requested_member.present? ? find_member(workspace, requested_member) : nil
+        member = requested_member.present? ? find_member(workspace, requested_member, principal) : nil
 
         return unknown_member_error(requested_member) if requested_member.present? && member.nil?
         return Mcp::ToolDispatcher.error_response(role.unassign_blocked_reason) if member.nil? && role.unassign_blocked_reason
@@ -44,8 +47,8 @@ module Mcp
         )
       end
 
-      def self.find_member(workspace, reference)
-        workspace.workspace_memberships.resolve(reference)
+      def self.find_member(workspace, reference, acting)
+        workspace.workspace_memberships.resolve(reference, acting: acting)
       end
       private_class_method :find_member
 
