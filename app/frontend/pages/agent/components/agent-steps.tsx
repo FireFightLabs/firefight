@@ -1,15 +1,7 @@
-import TaskRows, { type TaskRowStatus } from "@/components/agent-ui/task-rows"
+import TaskRows from "@/components/agent-ui/task-rows"
 import ThinkingState from "@/components/agent-ui/thinking-state"
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES } from "@/lib/generated/constants"
 import type { AgentStep, StepKind, StepStatus } from "@/pages/agent/types"
-
-const ROW_STATUS: Record<StepStatus, TaskRowStatus> = {
-  [AGENT_STEP_STATUSES.DONE]: "done",
-  [AGENT_STEP_STATUSES.RUNNING]: "running",
-  [AGENT_STEP_STATUSES.WAITING]: "waiting",
-  [AGENT_STEP_STATUSES.CANCELLED]: "cancelled",
-  [AGENT_STEP_STATUSES.FAILED]: "failed",
-}
 
 interface StepGroup {
   key: string
@@ -68,7 +60,7 @@ function toRow(step: AgentStep) {
     key: step.key,
     label: step.title,
     amount: step.headline,
-    status: isStepStatus(step.status) ? ROW_STATUS[step.status] : ("running" as const),
+    status: isStepStatus(step.status) ? step.status : AGENT_STEP_STATUSES.RUNNING,
     details: step.asked.map(([ name, value ]) => ({ label: name, meta: value })),
   }
 }

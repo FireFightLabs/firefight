@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AGENT_STEP_STATUSES } from "@/lib/generated/constants";
 
 /* ─────────────────────────────────────────────────────────
  * TASK ROWS
@@ -58,7 +59,8 @@ const PauseIcon = (
 /* One detail line shown when a task row is expanded. */
 export type TaskDetail = { label: string; meta: string };
 
-export type TaskRowStatus = "done" | "running" | "waiting" | "cancelled" | "failed";
+// The same words the server uses for a step, so the two cannot drift apart.
+export type TaskRowStatus = (typeof AGENT_STEP_STATUSES)[keyof typeof AGENT_STEP_STATUSES];
 
 /* A single task row.
  *  - "done"      → green check badge + completed pill
@@ -108,25 +110,25 @@ export default function TaskRows({
   const copy = { ...DEFAULT_LABELS, ...labels };
 
   const badgeFor = (row: TaskRow) => {
-    if (row.status === "done") return <Badge tone="green">{CheckIcon}</Badge>;
-    if (row.status === "running") return <SpinnerRing active>{row.step}</SpinnerRing>;
-    if (row.status === "waiting") return <Badge tone="muted">{PauseIcon}</Badge>;
-    if (row.status === "cancelled") return <Badge tone="muted">{XIcon}</Badge>;
+    if (row.status === AGENT_STEP_STATUSES.DONE) return <Badge tone="green">{CheckIcon}</Badge>;
+    if (row.status === AGENT_STEP_STATUSES.RUNNING) return <SpinnerRing active>{row.step}</SpinnerRing>;
+    if (row.status === AGENT_STEP_STATUSES.WAITING) return <Badge tone="muted">{PauseIcon}</Badge>;
+    if (row.status === AGENT_STEP_STATUSES.CANCELLED) return <Badge tone="muted">{XIcon}</Badge>;
     return <Badge tone="red">{XIcon}</Badge>;
   };
 
   const pillFor = (row: TaskRow) => {
-    if (row.status === "done")
+    if (row.status === AGENT_STEP_STATUSES.DONE)
       return (
         <span className="inline-flex h-5.5 items-center rounded-full bg-green-tint px-2 text-[11.5px] font-medium text-green">
           {copy.completed}
         </span>
       );
-    if (row.status === "running") return null;
-    if (row.status === "waiting" || row.status === "cancelled")
+    if (row.status === AGENT_STEP_STATUSES.RUNNING) return null;
+    if (row.status === AGENT_STEP_STATUSES.WAITING || row.status === AGENT_STEP_STATUSES.CANCELLED)
       return (
         <span className="inline-flex h-5.5 items-center rounded-full bg-hover-2 px-2 text-[11.5px] font-medium text-ink-2">
-          {row.status === "waiting" ? copy.waiting : copy.cancelled}
+          {row.status === AGENT_STEP_STATUSES.WAITING ? copy.waiting : copy.cancelled}
         </span>
       );
     return (
