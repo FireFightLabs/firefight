@@ -51,6 +51,22 @@ Slack handlers, the API, MCP, and the dashboard normalize input and call shared 
 - **AI records belong to the app.** `engines/firefight_ai` never names `Investigation`, `Chat` or anything nested under them: it returns a result, the app writes the row. A new AI SRE record is a nested `Investigation::*` model, or `Chat::*` when every agent run needs it, in `app/models`, not another generic name at the top level.
 - **Raced writes are one statement.** A status two workers could reach moves with a guarded `update_all` whose `WHERE` names the states it may leave, never a read followed by a write, and the row count is what says who won. A value that has to survive the race is computed in SQL, not read off a record that may be stale. A new `lock_version` column is a different answer to a solved problem.
 
+## The agent and its tools
+
+What a model is handed decides what it does. Each of these was found in a real chat during the AI SRE base work, September 2026.
+
+- **A choice lives in the parameter, not in advice.** A tool parameter whose values are the workspace's own (a role, a severity, a status) declares `choice :name, from:` so `Base.schema_for(workspace)` lists them. A description saying "call get_incident for the roles" is advice the model forgets at the moment it matters, and it typed `lead`.
+- **A person parameter takes "me".** Any tool that resolves a person declares `person :member` and resolves through `WorkspaceMembership.resolve!(reference, acting:)`. A tool that only takes an email makes the agent ask the person for their own address.
+- **One lookup, both spellings.** A value a person or a model can give by slug or by name is resolved once, on the model (`IncidentFormSubmission#choose`), and refused there with the choices named. Validation letting a name through and creation failing on the slug later is the same rule in two places disagreeing.
+- **Tool arguments arrive keyed by text.** `RubyLLM::Tool#call` gets `"group"`, not `:group`. A wrapper that reads symbols reads nothing, and the tests pass because they call it with symbols. Test the way the library calls.
+- **Outside agents get the same schema.** What the MCP server lists (`Mcp::Tools.for_workspace`) and what the agent is offered (`Chat::Tools::Firefight#parameters_schema`) come from one `schema_for`. Two schemas is two vocabularies.
+- **A refusal is still a result.** A tool that was denied or errored hands the model text, so the saved call looks finished. It is marked failed (`Chat::Tools.mark_failed`) so a card does not say Completed.
+- **The engine never learns who is asking.** The versioned prompt template carries no per person or per incident words. `test/models/prompt_version_test.rb` holds it. Put those in the context the runner appends, never in the template.
+- **Halon is not offered the ways in built for outside agents.** `ask_halon` and `start_investigation` over MCP sit in `Chat::Tools::Groups::NOT_FOR_HALON`. A tool that asks the agent a question, offered to the agent, is a loop.
+- **Nothing about a model is assumed.** No fallback context window, no assumed price. `Chat#context_window!` raises and the way in refuses with "not fully set up". A guessed number fails a run halfway through.
+- **A component ships no demo.** Fake rows, a timer that flips states, a `variant` nobody passes. `TaskRows` shipped with all three. If a prop has a default that is sample data, delete the default.
+- **A row is keyed by its id, never its words.** Two steps with the same title shared a React key and one vanished. `row.key` is the step's own key.
+
 ## Reach
 
 - **Every capability has a click path.** Name how a person reaches the new thing from a cold page, including the second time (already connected, already granted). A model plus controller plus serializer with no page is not shipped.
