@@ -75,9 +75,12 @@ module Chat::Tools
 
   # What tells one call from the next. An argument named for what is being looked for comes first,
   # then whatever the tool cannot be called without, so four reads of four forms do not all read the same.
+  # The incident is where a step happens, not what tells it apart, so it never makes the headline.
+  NOT_A_HEADLINE = %w[incident].freeze
+
   def self.headline_for(tool_name, asked)
     # A form's own name field is what tells two declares apart, so it counts before the argument that held the form.
-    wanted = HEADLINE_ARGUMENTS + required_arguments.fetch(tool_name.to_s, [])
+    wanted = (HEADLINE_ARGUMENTS + required_arguments.fetch(tool_name.to_s, [])) - NOT_A_HEADLINE
     wanted.filter_map { |name| asked.assoc(name)&.last }.first.to_s
   end
 

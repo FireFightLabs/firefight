@@ -403,6 +403,20 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_no_match(/=>/, step.asked.to_s)
   end
 
+  # Seen in a real chat, three cards in a row titled by the incident's UUID.
+  test "the incident is where a step happens, not what tells it apart, so it is never the headline" do
+    step = Chat::Tools.step(Mcp::Tools::ASSIGN_INCIDENT_ROLE, { "incident" => "8472d293-97c5-41b8-ab22-ccba74f691d2", "role" => "incident_lead", "member" => "me" })
+
+    assert_equal "incident_lead", step.headline
+  end
+
+  test "a tool that takes only the incident has no headline, and its title says what it did" do
+    step = Chat::Tools.step(Mcp::Tools::RESOLVE_INCIDENT, { "incident" => "INC-4" })
+
+    assert_equal "Resolve incident", step.title
+    assert_equal "", step.headline
+  end
+
   test "a tool with nothing it must be given has no headline rather than a guessed one" do
     assert_equal "", Chat::Tools.step(Mcp::Tools::SEARCH_ALERTS, { "limit" => 50 }).headline
   end
