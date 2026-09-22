@@ -249,6 +249,19 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert result.start_with?("<tool_result tool=\"#{Mcp::Tools::SEARCH_INCIDENTS}\" step=\"1\" trust=\"untrusted\">")
   end
 
+  test "a call that came back as an error is remembered as failed, so a card does not say Completed" do
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)
+    chat = open_chat_for_run
+    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == Mcp::Tools::DECLARE_INCIDENT }.tool
+    call = RubyLLM::ToolCall.new(id: "call_1", name: Mcp::Tools::DECLARE_INCIDENT, arguments: { "answers" => { "name" => "x", "severity" => "sev-9" } })
+    # The loop saves the model's call before running the tool. Here the call is saved by hand.
+    chat.add_message(RubyLLM::Message.new(role: :assistant, content: "", tool_calls: { "call_1" => call }))
+
+    tool.call(tool_call: call, answers: { "name" => "x", "severity" => "sev-9" })
+
+    assert_equal [ "call_1" ], @investigation.chat.failed_tool_call_ids
+  end
+
   test "a refusal is Firefight speaking, so it is not framed as something a tool said" do
     tool = Chat::Tools::Connection.new(@investigation, @tool)
 
@@ -371,6 +384,23 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     step = Chat::Tools.step(Mcp::Tools::SEARCH_INCIDENTS, { "limit" => 5, "query" => "checkout" })
 
     assert_equal "checkout", step.headline
+  end
+
+  # Seen in a real chat. declare_incident takes one argument holding a whole form, and the card showed
+  # the raw hash twice and nothing a person would recognise.
+  test "arguments that hold a form are shown as the form's own fields, and the headline is the name inside" do
+    step = Chat::Tools.step(Mcp::Tools::DECLARE_INCIDENT, { "answers" => { "name" => "Checkout failing", "severity" => "minor", "summary" => "Carts empty" } })
+
+    assert_equal "Checkout failing", step.headline
+    assert_equal [ [ "name", "Checkout failing" ], [ "severity", "minor" ], [ "summary", "Carts empty" ] ], step.asked
+  end
+
+  test "a nested value that is not a form is shown as one line, never as a Ruby hash" do
+    step = Chat::Tools.step(Mcp::Tools::UPSERT_ROUTING_RULE, { "name" => "Pager", "conditions" => [ { "field" => "severity", "equals" => "critical" } ] })
+
+    assert_equal "Pager", step.headline
+    assert_equal [ "name", "Pager" ], step.asked.first
+    assert_no_match(/=>/, step.asked.to_s)
   end
 
   test "a tool with nothing it must be given has no headline rather than a guessed one" do

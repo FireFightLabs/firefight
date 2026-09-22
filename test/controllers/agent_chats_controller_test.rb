@@ -39,6 +39,21 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "What changed today?" ], inertia_props["messages"].map { |message| message["body"] }
   end
 
+  test "a step whose tool refused is read back as failed, not completed" do
+    conversation = start_chat
+    conversation.ask!("declare it")
+    reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::DECLARE_INCIDENT, arguments: { "answers" => { "name" => "x" } })
+    conversation.chat.add_message(role: :tool, content: "Not found in this workspace.", tool_call_id: "call_1")
+    conversation.chat.mark_failed!("call_1")
+
+    get agent_chat_url(conversation), headers: inertia_headers
+
+    step = inertia_props["messages"].flat_map { |message| message["tools"] }.sole
+    assert_equal Conversation::LiveDelivery::STATUS_FAILED, step["status"]
+    assert_equal "x", step["headline"]
+  end
+
   test "the agent's nudge to itself is not read back as something the person said" do
     conversation = start_chat
     conversation.ask!("What changed today?")

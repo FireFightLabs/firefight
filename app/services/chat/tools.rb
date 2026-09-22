@@ -51,13 +51,32 @@ module Chat::Tools
   def self.step(tool_name, arguments)
     return nil if tool_name.blank? || internal_names.include?(tool_name.to_s)
 
-    asked = arguments.to_h.filter_map { |name, value| [ name.to_s, value.to_s.truncate(ASKED_LIMIT) ] if value.present? }
+    asked = shown_arguments(arguments)
     Step.new(title: tool_name.to_s.tr("_", " ").humanize, headline: headline_for(tool_name, asked), asked: asked)
+  end
+
+  # A tool that takes a whole form in one argument is shown as the form's own fields, so a reader
+  # sees the incident's name rather than a hash. Anything else nested is one line of JSON.
+  def self.shown_arguments(arguments)
+    arguments.to_h.flat_map do |name, value|
+      next [] if value.blank?
+      next value.to_h.filter_map { |key, inner| [ key.to_s, shown_value(inner) ] if inner.present? } if form?(value)
+
+      [ [ name.to_s, shown_value(value) ] ]
+    end
+  end
+
+  def self.form?(value) = value.is_a?(Hash) && value.values.all? { |inner| !inner.is_a?(Hash) && !inner.is_a?(Array) }
+
+  def self.shown_value(value)
+    text = value.is_a?(Hash) || value.is_a?(Array) ? value.to_json : value.to_s
+    text.truncate(ASKED_LIMIT)
   end
 
   # What tells one call from the next. An argument named for what is being looked for comes first,
   # then whatever the tool cannot be called without, so four reads of four forms do not all read the same.
   def self.headline_for(tool_name, asked)
+    # A form's own name field is what tells two declares apart, so it counts before the argument that held the form.
     wanted = HEADLINE_ARGUMENTS + required_arguments.fetch(tool_name.to_s, [])
     wanted.filter_map { |name| asked.assoc(name)&.last }.first.to_s
   end
@@ -99,6 +118,13 @@ module Chat::Tools
     saved = chat.saved_results.keep!(tool_name: tool_name, text: text, step: outcome.step)
     preview = FirefightAi::Evidence.preview(text, handle: saved.handle, read_with: ReadResult.tool_name)
     FirefightAi::Evidence.frame(tool_name, preview, step: outcome.step)
+  end
+
+  # Read fresh, since a run's chat may have been opened after the run was loaded.
+  def self.mark_failed(agent_run, tool_call_id)
+    return if tool_call_id.blank?
+
+    Chat.find_by(owner: agent_run.respond_to?(:conversation) ? agent_run.conversation : agent_run)&.mark_failed!(tool_call_id)
   end
 
   # What a step is called wherever it is cited later, such as "Get form declare".

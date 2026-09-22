@@ -52,7 +52,8 @@ module TypescriptConstants
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
-        "WAITING" => Conversation::LiveDelivery::STATUS_WAITING, "CANCELLED" => Conversation::LiveDelivery::STATUS_CANCELLED
+        "WAITING" => Conversation::LiveDelivery::STATUS_WAITING, "CANCELLED" => Conversation::LiveDelivery::STATUS_CANCELLED,
+        "FAILED" => Conversation::LiveDelivery::STATUS_FAILED
       }, nil),
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT

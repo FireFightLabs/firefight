@@ -254,7 +254,8 @@ export const AGENT_STEP_STATUSES = {
   "RUNNING": "running",
   "DONE": "done",
   "WAITING": "waiting",
-  "CANCELLED": "cancelled"
+  "CANCELLED": "cancelled",
+  "FAILED": "failed"
 } as const
 
 export const AGENT_STEP_KINDS = {

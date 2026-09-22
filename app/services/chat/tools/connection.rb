@@ -18,12 +18,12 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   # The arguments match the tool's own schema, not an execute signature, so skip the base check.
   def call(tool_call: nil, **arguments)
-    invoke(arguments.transform_keys(&:to_s))
+    invoke(arguments.transform_keys(&:to_s), tool_call_id: tool_call&.id)
   end
 
   private
 
-  def invoke(arguments, approval_id: nil)
+  def invoke(arguments, tool_call_id:, approval_id: nil)
     said = @agent_run.tool_call(
       action_key: @tool.action_key, params: arguments, tool_name: name,
       label: Chat::Tools.label(name, arguments), **{ approval_id: approval_id }.compact
@@ -34,14 +34,22 @@ class Chat::Tools::Connection < RubyLLM::Tool
     end
     Chat::Tools.hand_over(@agent_run, name, said)
   rescue AbilityGateway::Denied
-    @agent_run.refusal(@tool.action_key)
+    failed(tool_call_id, @agent_run.refusal(@tool.action_key))
   rescue AbilityGateway::PendingApproval => pending
-    return invoke(arguments, approval_id: pending.approval.id) if approval_id.nil? && approved_by_asker?(pending.approval)
+    if approval_id.nil? && approved_by_asker?(pending.approval)
+      return invoke(arguments, tool_call_id: tool_call_id, approval_id: pending.approval.id)
+    end
 
     Chat::Tools.waiting_for_approval(@tool.action_key)
   rescue Integrations::Error => error
     # The provider's own words, so they are framed like anything else it said.
-    FirefightAi::Evidence.frame(name, "#{@tool.action_key} failed: #{error.message}")
+    failed(tool_call_id, FirefightAi::Evidence.frame(name, "#{@tool.action_key} failed: #{error.message}"))
+  end
+
+  # The words still go to the model. The mark is for whoever reads the chat afterwards.
+  def failed(tool_call_id, text)
+    Chat::Tools.mark_failed(@agent_run, tool_call_id)
+    text
   end
 
   def approved_by_asker?(approval) = requires_approval? && Chat::Tools.approve_for_asker(@agent_run, approval)

@@ -10,6 +10,7 @@ class Conversation::LiveDelivery
   STATUS_DONE = "done"
   STATUS_WAITING = "waiting"
   STATUS_CANCELLED = "cancelled"
+  STATUS_FAILED = "failed"
   STATUSES = {
     FirefightAi::AgentLoop::STEP_RUNNING => STATUS_RUNNING, FirefightAi::AgentLoop::STEP_DONE => STATUS_DONE
   }.freeze
@@ -32,11 +33,11 @@ class Conversation::LiveDelivery
   end
 
   # Text written so far lands before the step.
-  def step(key:, step:, status:, kind: Chat::Tools::KIND_ACT, seconds: 0)
+  def step(key:, step:, status:, kind: Chat::Tools::KIND_ACT, seconds: 0, failed: false)
     @text.flush!
     broadcast(
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
-      status: STATUSES.fetch(status), kind: kind, seconds: seconds
+      status: failed ? STATUS_FAILED : STATUSES.fetch(status), kind: kind, seconds: seconds
     )
   end
 

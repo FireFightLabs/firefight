@@ -40,6 +40,7 @@ class AgentChatMessageSerializer < BaseSerializer
 
   def self.step_status(call)
     STEP_STATUS_BY_APPROVAL.fetch(call.approval) do
+      next Conversation::LiveDelivery::STATUS_FAILED if call.failed
       call.result_id.present? ? Conversation::LiveDelivery::STATUS_DONE : Conversation::LiveDelivery::STATUS_RUNNING
     end
   end
