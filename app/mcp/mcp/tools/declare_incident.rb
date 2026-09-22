@@ -15,7 +15,8 @@ module Mcp
           answers: {
             type: "object",
             description: "The declare form's answers, keyed by the field keys get_form returned, " \
-                         "e.g. { \"name\": \"Checkout failing\", \"severity\": \"critical\" }"
+                         "e.g. { \"name\": \"Checkout failing\", \"severity\": \"critical\" }. A choice " \
+                         "such as severity, type or status takes the value or the label get_form listed"
           },
           approval_id: { type: "string", description: "Approval id when retrying an approved call" }
         },

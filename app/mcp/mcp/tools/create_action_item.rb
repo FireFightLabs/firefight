@@ -21,6 +21,8 @@ module Mcp
         required: [ "incident", "description" ]
       )
 
+      person :member
+
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = IncidentWrite.find!(workspace, args[:incident])
 
@@ -29,7 +31,7 @@ module Mcp
           created_by: principal,
           action_type: args[:kind].presence || IncidentAction::ACTION_TYPE_ACTION,
           description: args[:description].to_s,
-          assignee: workspace.workspace_memberships.resolve!(args[:member])
+          assignee: workspace.workspace_memberships.resolve!(args[:member], acting: principal)
         )
 
         respond(ActionItemWrite.summary(action))

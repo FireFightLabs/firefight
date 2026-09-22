@@ -17,9 +17,11 @@ module Mcp
         required: [ "incident", "member", "message" ]
       )
 
+      person :member
+
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = IncidentWrite.find!(workspace, args[:incident])
-        recipient = workspace.workspace_memberships.resolve!(args[:member])
+        recipient = workspace.workspace_memberships.resolve!(args[:member], acting: principal)
 
         ShoutoutService.new(workspace).give(
           incident: incident, from: principal, to: recipient, message: args[:message].to_s

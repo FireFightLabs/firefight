@@ -47,6 +47,7 @@ module Mcp
     ESCALATE_INCIDENT = "escalate_incident".freeze
     INVITE_RESPONDERS = "invite_responders".freeze
     GET_WORKSPACE_CONFIG = "get_workspace_config".freeze
+    UPDATE_WORKSPACE_SETTINGS = "update_workspace_settings".freeze
     UPSERT_SEVERITY = "upsert_severity".freeze
     DELETE_SEVERITY = "delete_severity".freeze
     UPSERT_STATUS = "upsert_status".freeze
@@ -76,6 +77,11 @@ module Mcp
     UPSERT_CATALOG_TYPE = "upsert_catalog_type".freeze
     DELETE_CATALOG_TYPE = "delete_catalog_type".freeze
 
+    # Each tool listed with this workspace's own choices in its parameters. Calls still go to the class.
+    def self.for_workspace(workspace)
+      all.map { |tool_class| WorkspaceTool.new(tool_class, workspace) }
+    end
+
     def self.all
       [ SearchIncidents, SearchSimilar, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
         SearchRunbooks, GetRunbook, UpsertCatalogEntry, DeleteCatalogEntry,
@@ -88,7 +94,7 @@ module Mcp
         UpsertApprovalRule, DeleteApprovalRule, SearchActivity,
         CreateActionItem, AssignActionItem, CompleteActionItem, ClaimRunbookStep,
         LinkIncident, GiveShoutout, EscalateIncident, InviteResponders,
-        GetWorkspaceConfig,
+        GetWorkspaceConfig, UpdateWorkspaceSettings,
         UpsertSeverity, DeleteSeverity, UpsertStatus, DeleteStatus,
         UpsertIncidentType, DeleteIncidentType, UpsertIncidentRole, DeleteIncidentRole,
         UpsertAlertSource, DeleteAlertSource, UpsertWebhook, DeleteWebhook, TestWebhook,

@@ -20,6 +20,8 @@ module Mcp
         required: [ "incident", "runbook", "step" ]
       )
 
+      person :member
+
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = IncidentWrite.find!(workspace, args[:incident])
         attachment = incident.incident_runbooks.find(args[:runbook].to_s)
@@ -28,7 +30,7 @@ module Mcp
         action = IncidentActionService.new(workspace).assign_step(
           incident: incident,
           runbook_step: step,
-          assignee: workspace.workspace_memberships.resolve!(args[:member]) || principal,
+          assignee: workspace.workspace_memberships.resolve!(args[:member], acting: principal) || principal,
           assigned_by: principal
         )
 

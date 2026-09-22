@@ -70,10 +70,16 @@ class WorkspaceMembership < ApplicationRecord
   scope :members, -> { where(role: :member) }
 
   # Never provisions, creating a member is billable and belongs to a deliberate flow.
-  def self.resolve(reference)
+  # Whoever is acting, so a person can say "make me the lead" without giving their own email.
+  ME = "me".freeze
+
+  # acting is who asked. A machine acting is not a person and has no seat in an incident.
+  def self.resolve(reference, acting: nil)
     return nil if reference.blank?
 
     reference = reference.to_s
+    return (acting if acting.is_a?(WorkspaceMembership)) if reference.casecmp?(ME)
+
     find_by(id: reference) ||
       find_by(platform_user_id: reference) ||
       joins(:user).find_by(users: { email: reference.downcase })
@@ -81,12 +87,18 @@ class WorkspaceMembership < ApplicationRecord
 
   # A reference matching nobody raises. A blank reference means nobody and
   # resolves to nil.
-  def self.resolve!(reference)
+  def self.resolve!(reference, acting: nil)
     return nil if reference.blank?
 
-    resolve(reference) ||
-      raise(ActiveRecord::RecordNotFound, "No workspace member matches #{reference.inspect}")
+    resolve(reference, acting: acting) || raise(ActiveRecord::RecordNotFound, unresolved(reference, acting))
   end
+
+  def self.unresolved(reference, acting)
+    return "\"me\" is not a person here, since #{acting.principal_label} is acting" if reference.to_s.casecmp?(ME) && acting
+
+    "No workspace member matches #{reference.inspect}"
+  end
+  private_class_method :unresolved
 
   # Locks the workspace so "am I the first member" and the insert are one
   # step. Two installs finishing at once would otherwise both become owner.

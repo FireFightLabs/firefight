@@ -19,12 +19,14 @@ module Mcp
         required: [ "incident", "action_item" ]
       )
 
+      person :member
+
       def self.perform_with_principal(workspace:, principal:, args:)
         action = ActionItemWrite.find!(workspace, args[:incident], args[:action_item])
 
         IncidentActionService.new(workspace).assign_action(
           action: action,
-          assignee: workspace.workspace_memberships.resolve!(args[:member]) || principal,
+          assignee: workspace.workspace_memberships.resolve!(args[:member], acting: principal) || principal,
           assigned_by: principal
         )
 
