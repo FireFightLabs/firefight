@@ -19,6 +19,14 @@ export const RUNBOOK_QUERY_PARAM = "runbook" as const
 
 export const INTEGRATION_DETAILS_QUERY_PARAM = "integration" as const
 
+export const INTEGRATION_CONNECT_QUERY_PARAM = "connect" as const
+
+export const INTEGRATION_CARD_ACTIONS = {
+  "CONNECT": "connect",
+  "RECONNECT": "reconnect",
+  "MANAGE": "manage"
+} as const
+
 export const INCIDENT_FORM_SLUGS = [
   "declare",
   "update",

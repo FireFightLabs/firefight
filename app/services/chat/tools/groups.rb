@@ -127,7 +127,7 @@ module Chat::Tools::Groups
     category_key(category)
   end
 
-  def self.category_key(category) = category.parameterize(separator: "_")
+  def self.category_key(category) = IntegrationProvider.category_slug(category)
 
   def self.for(agent_run)
     entries = Chat::Tools.catalog(agent_run).group_by(&:group)

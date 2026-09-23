@@ -17,9 +17,7 @@ class IntegrationsController < InertiaController
       ),
       providers: IntegrationProviderSerializer.many(IntegrationProvider.all),
       categories: IntegrationProvider.categories,
-      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
-      # A link from Slack or a chat opens this provider's connect dialog straight away.
-      connect: IntegrationProvider.find(params[Integration::CONNECT_QUERY_PARAM].to_s)&.key
+      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries)
     }
   end
 
@@ -180,7 +178,7 @@ class IntegrationsController < InertiaController
     return nil unless path.start_with?("/") && !path.start_with?("//")
 
     route = Rails.application.routes.recognize_path(path)
-    path if route[:controller] == "agent_chats" && %w[index show].include?(route[:action])
+    path if route[:controller] == AgentChatsController.controller_path && %w[index show].include?(route[:action])
   rescue ActionController::RoutingError
     nil
   end

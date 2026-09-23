@@ -30,10 +30,7 @@ module Mcp
       # answers who may read investigations, so a member it lets in without a grant row is let in here too.
       def self.readable_types(workspace, principal)
         types = [ Incident.name, Postmortem.name ]
-        findings_key = Ability::Action.system_key(
-          Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ
-        )
-        types << Investigation::Finding.name if principal.permitted_to?(Ability::Action.lookup(findings_key, workspace), workspace)
+        types << Investigation::Finding.name if principal.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ, workspace)
         types
       end
 

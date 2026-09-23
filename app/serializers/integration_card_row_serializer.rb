@@ -11,6 +11,21 @@ class IntegrationCardRowSerializer < BaseSerializer
     row.state
   end
 
+  type :string
+  def stateLabel
+    row.state_label
+  end
+
+  type IntegrationProvider::ACTIONS.map(&:inspect).join(" | ")
+  def action
+    row.action
+  end
+
+  type :string
+  def actionLabel
+    row.action_label
+  end
+
   type "{ id: string; name: string }[]"
   def connections
     row.connections

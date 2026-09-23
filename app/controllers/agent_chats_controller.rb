@@ -138,8 +138,7 @@ class AgentChatsController < InertiaController
   end
 
   def reads_integrations?
-    key = Ability::Action.system_key(Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_READ)
-    current_membership.permitted_to?(Ability::Action.lookup(key, current_workspace), current_workspace)
+    current_membership.may?(Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_READ, current_workspace)
   end
 
   def chat_page_number = [ params[CHAT_PAGE_PARAM].to_i, 1 ].max

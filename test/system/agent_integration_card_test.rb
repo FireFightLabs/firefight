@@ -60,4 +60,10 @@ class AgentIntegrationCardTest < ApplicationSystemTestCase
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => datadog.id)
     assert_text "Connection details"
   end
+
+  test "a link naming a provider opens its connect dialog" do
+    visit integrations_path(Integration::CONNECT_QUERY_PARAM => "linear")
+
+    assert_text "Connect Linear"
+  end
 end

@@ -39,6 +39,23 @@ class IntegrationProviderTest < ActiveSupport::TestCase
     assert_equal IntegrationProvider::STATE_TURNED_OFF, states["grafana"]
   end
 
+  test "a row says what a person can do from it, so the page and Slack offer the same" do
+    connect!("datadog").integration_environments.sole.record_health!(false, error: "401")
+    connect!("grafana")
+
+    rows = IntegrationProvider.card_for(@workspace, @telemetry).rows.index_by { |row| row.provider.key }
+
+    assert_equal IntegrationProvider::ACTION_RECONNECT, rows["datadog"].action
+    assert_equal IntegrationProvider::ACTION_MANAGE, rows["grafana"].action
+    assert_equal IntegrationProvider::ACTION_CONNECT, rows["newrelic"].action
+    assert rows["datadog"].opens_connect?
+    assert_not rows["grafana"].opens_connect?
+  end
+
+  test "a category's key is the same one the agent's tool groups use" do
+    assert_equal Chat::Tools::Groups.category_key("Telemetry"), @telemetry.slug
+  end
+
   test "a connection that was removed counts as never connected" do
     connect!("datadog").update!(deleted_at: Time.current)
 

@@ -233,8 +233,6 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
 
   test "a category of integrations shown in a thread is posted under the answer, with a way to connect or manage each" do
     grafana = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "grafana", name: "Grafana", settings: { "server_url" => "https://gf.example/mcp" })
-    ENV.stubs(:[]).returns(nil)
-    ENV.stubs(:[]).with("APP_HOST").returns("app.example")
     fake(reply: "Here are the telemetry tools.", steps: [
       FirefightAi::AgentLoop::Step.new(key: "call_1", tool: Mcp::Tools::LIST_INTEGRATIONS, status: FirefightAi::AgentLoop::STEP_RUNNING, arguments: { "category" => "telemetry" }),
       FirefightAi::AgentLoop::Step.new(key: "call_1", tool: nil, status: FirefightAi::AgentLoop::STEP_DONE)
@@ -245,10 +243,18 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
       arguments[:thread_ts] == @conversation.thread_id && blocks.include?("connect=datadog") && blocks.include?("integration=#{grafana.id}")
     end.returns({ ok: true, ts: "2" })
 
-    ask(@conversation, "what can we connect for logs")
+    with_app_host { ask(@conversation, "what can we connect for logs") }
   end
 
   private
+
+  def with_app_host
+    previous = ENV["APP_HOST"]
+    ENV["APP_HOST"] = "app.example.com"
+    yield
+  ensure
+    ENV["APP_HOST"] = previous
+  end
 
   # The question is written down by the asker, the way both entry points do it, and the job runs after.
   def ask(conversation, question)

@@ -286,12 +286,6 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, @workspace.integrations.where(provider: "linear").count
   end
 
-  test "a link naming a provider opens its connect dialog" do
-    get integrations_url(connect: "datadog"), headers: inertia_headers
-
-    assert_equal "datadog", inertia_props["connect"]
-  end
-
   test "connecting from a chat goes back to that chat and says so" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
 

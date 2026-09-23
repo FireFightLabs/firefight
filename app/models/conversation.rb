@@ -57,8 +57,7 @@ class Conversation < ApplicationRecord
   def self.readable_by?(member)
     return false unless member
 
-    key = Ability::Action.system_key(Ability::Action::RESOURCE_CHATS, Ability::Action::ACTION_READ)
-    member.permitted_to?(Ability::Action.lookup(key, member.workspace), member.workspace)
+    member.may?(Ability::Action::RESOURCE_CHATS, Ability::Action::ACTION_READ, member.workspace)
   end
 
   # Titles and messages are encrypted, so matching happens in Ruby, not SQL.

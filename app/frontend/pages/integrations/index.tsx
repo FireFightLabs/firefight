@@ -11,11 +11,17 @@ import type { EnvironmentOption, Integration } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 import { whenClosed } from "@/lib/handlers"
 import { useCan } from "@/lib/permissions"
-import { INTEGRATION_DETAILS_QUERY_PARAM } from "@/lib/generated/constants"
+import { INTEGRATION_CONNECT_QUERY_PARAM, INTEGRATION_DETAILS_QUERY_PARAM } from "@/lib/generated/constants"
 
 // The details sheet lives in the address, so a link from a chat or a teammate opens the same connection.
 function detailsFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get(INTEGRATION_DETAILS_QUERY_PARAM)
+}
+
+// A link from Slack or a chat names the provider to connect, so its dialog is already open.
+function connectFromUrl(providers: IntegrationProvider[]): IntegrationProvider | null {
+  const requested = new URLSearchParams(window.location.search).get(INTEGRATION_CONNECT_QUERY_PARAM)
+  return providers.find((provider) => provider.key === requested) ?? null
 }
 
 interface IntegrationsPageProps extends SharedProps {
@@ -24,16 +30,12 @@ interface IntegrationsPageProps extends SharedProps {
   providers: IntegrationProvider[]
   categories: Record<string, string>
   environments: EnvironmentOption[]
-  connect: string | null
 }
 
 export default function Integrations() {
-  const { integrations, providers, categories, environments, connect } = usePage<IntegrationsPageProps>().props
+  const { integrations, providers, categories, environments } = usePage<IntegrationsPageProps>().props
   const canManage = useCan("integrations")
-  // A link from Slack or a chat names the provider to connect, so its dialog is already open.
-  const [connecting, setConnecting] = useState<IntegrationProvider | null>(() =>
-    canManage ? (providers.find((provider) => provider.key === connect) ?? null) : null,
-  )
+  const [connecting, setConnecting] = useState<IntegrationProvider | null>(() => (canManage ? connectFromUrl(providers) : null))
   const [detailsId, setDetailsIdState] = useState<string | null>(detailsFromUrl)
 
   const setDetailsId = useCallback((id: string | null) => {

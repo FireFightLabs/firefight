@@ -29,8 +29,11 @@ class IntegrationProvider
 
   # A category as something a person or a model can name, by its slug or its name.
   def self.category_list
-    @category_list ||= categories.map { |name, tagline| Category.new(slug: name.parameterize(separator: "_"), name: name, tagline: tagline) }.freeze
+    @category_list ||= categories.map { |name, tagline| Category.new(slug: category_slug(name), name: name, tagline: tagline) }.freeze
   end
+
+  # What a category is called wherever it is a key: the agent's tool groups, a card, a tool parameter.
+  def self.category_slug(name) = name.parameterize(separator: "_")
 
   def self.category_for!(value)
     wanted = value.to_s.strip.downcase
@@ -45,7 +48,31 @@ class IntegrationProvider
   # Connected first, so a card also says what is already set up.
   STATES = [ STATE_CONNECTED, STATE_NEEDS_ATTENTION, STATE_TURNED_OFF, STATE_NOT_CONNECTED ].freeze
 
-  Row = Data.define(:provider, :state, :connections)
+  STATE_LABELS = {
+    STATE_CONNECTED => "Connected", STATE_NEEDS_ATTENTION => "Needs attention",
+    STATE_TURNED_OFF => "Turned off", STATE_NOT_CONNECTED => "Not connected"
+  }.freeze
+
+  # What a person can do from a row. Connecting is offered where nothing works yet, managing where something does.
+  ACTION_CONNECT = "connect".freeze
+  ACTION_RECONNECT = "reconnect".freeze
+  ACTION_MANAGE = "manage".freeze
+  ACTIONS = [ ACTION_CONNECT, ACTION_RECONNECT, ACTION_MANAGE ].freeze
+  ACTION_LABELS = { ACTION_CONNECT => "Connect", ACTION_RECONNECT => "Reconnect", ACTION_MANAGE => "Manage" }.freeze
+  ACTION_BY_STATE = {
+    STATE_CONNECTED => ACTION_MANAGE, STATE_NEEDS_ATTENTION => ACTION_RECONNECT,
+    STATE_TURNED_OFF => ACTION_MANAGE, STATE_NOT_CONNECTED => ACTION_CONNECT
+  }.freeze
+
+  Row = Data.define(:provider, :state, :connections) do
+    def state_label = STATE_LABELS.fetch(state)
+
+    def action = ACTION_BY_STATE.fetch(state)
+
+    def action_label = ACTION_LABELS.fetch(action)
+
+    def opens_connect? = action != ACTION_MANAGE
+  end
   Card = Data.define(:category, :rows)
 
   # One category as a workspace sees it: every provider in it, and where each stands.

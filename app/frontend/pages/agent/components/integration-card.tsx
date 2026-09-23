@@ -1,10 +1,10 @@
-import { usePage } from "@inertiajs/react"
+import { Link, usePage } from "@inertiajs/react"
 import { useState } from "react"
 
 import { Button } from "@/components/agent-ui/button"
 import { ConnectDialog } from "@/components/integrations/connect-dialog"
 import { ProviderMark } from "@/components/integrations/provider-mark"
-import { INTEGRATION_CARD_STATES, INTEGRATION_DETAILS_QUERY_PARAM } from "@/lib/generated/constants"
+import { INTEGRATION_CARD_ACTIONS, INTEGRATION_CARD_STATES, INTEGRATION_DETAILS_QUERY_PARAM } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { agentChatPath, integrationsPath } from "@/lib/routes"
 import type { AgentPageProps } from "@/pages/agent/types"
@@ -15,22 +15,12 @@ const FILTER_FROM = 8
 
 type CardState = IntegrationCardRow["state"]
 
-const STATE_LABELS: Record<CardState, string> = {
-  [INTEGRATION_CARD_STATES.CONNECTED]: "Connected",
-  [INTEGRATION_CARD_STATES.NEEDS_ATTENTION]: "Needs attention",
-  [INTEGRATION_CARD_STATES.TURNED_OFF]: "Turned off",
-  [INTEGRATION_CARD_STATES.NOT_CONNECTED]: "Not connected",
-}
-
 const STATE_TONES: Record<CardState, string> = {
   [INTEGRATION_CARD_STATES.CONNECTED]: "bg-green-tint text-green",
   [INTEGRATION_CARD_STATES.NEEDS_ATTENTION]: "bg-orange-tint text-orange",
   [INTEGRATION_CARD_STATES.TURNED_OFF]: "bg-hover-2 text-ink-2",
   [INTEGRATION_CARD_STATES.NOT_CONNECTED]: "bg-hover-2 text-ink-2",
 }
-
-// Connecting a provider that is not connected, or connecting again one whose credentials stopped working.
-const OPENS_DIALOG: CardState[] = [ INTEGRATION_CARD_STATES.NOT_CONNECTED, INTEGRATION_CARD_STATES.NEEDS_ATTENTION ]
 
 interface IntegrationCardProps {
   category: string
@@ -81,9 +71,9 @@ export function IntegrationCard({ category }: IntegrationCardProps) {
         {rows.length === 0 && <li className="px-3.5 py-3 text-[12.5px] text-ink-3">Nothing matches that.</li>}
       </ul>
 
-      <a href={integrationsPath()} className="border-t border-line px-3.5 py-2.5 text-[12.5px] text-ink-2 hover:text-ink">
+      <Link href={integrationsPath()} className="border-t border-line px-3.5 py-2.5 text-[12.5px] text-ink-2 hover:text-ink">
         See all integrations
-      </a>
+      </Link>
 
       <ConnectDialog
         provider={connecting}
@@ -116,7 +106,7 @@ function CardRow({ row, canConnect, onConnect }: CardRowProps) {
         <div className="flex items-center gap-2">
           <span className="truncate text-[13px] font-medium text-ink">{provider.name}</span>
           <span className={`shrink-0 rounded-full px-2 py-px text-[11px] font-medium ${STATE_TONES[state]}`}>
-            {STATE_LABELS[state]}
+            {row.stateLabel}
           </span>
         </div>
         <p className="truncate text-[12px] text-ink-2">{provider.description}</p>
@@ -138,22 +128,22 @@ function detailsPath(id: string) {
 
 // One connection is managed from its own details. A provider backing several accounts names each, so none is hidden.
 function RowAction({ row, canConnect, onConnect }: RowActionProps) {
-  const { state, connections } = row
-  if (!OPENS_DIALOG.includes(state)) {
+  const { action, actionLabel, connections } = row
+  if (action === INTEGRATION_CARD_ACTIONS.MANAGE) {
     if (connections.length === 1) {
       return (
-        <a href={detailsPath(connections[0].id)} className="shrink-0 text-[12.5px] text-ink-2 hover:text-ink">
-          Manage
-        </a>
+        <Link href={detailsPath(connections[0].id)} className="shrink-0 text-[12.5px] text-ink-2 hover:text-ink">
+          {actionLabel}
+        </Link>
       )
     }
 
     return (
       <div className="flex shrink-0 flex-col items-end gap-0.5">
         {connections.map((connection) => (
-          <a key={connection.id} href={detailsPath(connection.id)} className="text-[12.5px] text-ink-2 hover:text-ink">
+          <Link key={connection.id} href={detailsPath(connection.id)} className="text-[12.5px] text-ink-2 hover:text-ink">
             {connection.name}
-          </a>
+          </Link>
         ))}
       </div>
     )
@@ -163,8 +153,8 @@ function RowAction({ row, canConnect, onConnect }: RowActionProps) {
   }
 
   return (
-    <Button size="sm" variant={state === INTEGRATION_CARD_STATES.NOT_CONNECTED ? "primary" : "secondary"} onClick={onConnect}>
-      {state === INTEGRATION_CARD_STATES.NOT_CONNECTED ? "Connect" : "Reconnect"}
+    <Button size="sm" variant={action === INTEGRATION_CARD_ACTIONS.CONNECT ? "primary" : "secondary"} onClick={onConnect}>
+      {actionLabel}
     </Button>
   )
 }
