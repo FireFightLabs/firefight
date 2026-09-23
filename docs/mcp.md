@@ -102,7 +102,7 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 | `dismiss_timeline_note` | Dismiss one AI-noted milestone from an incident's timeline by id |
 | `declare_incident` | Open an incident against the workspace's Declare form |
 | `post_incident_update` | Post an update against the Update form |
-| `resolve_incident` / `cancel_incident` / `reopen_incident` | Move an incident through its lifecycle |
+| `resolve_incident` / `cancel_incident` / `reopen_incident` | Move an incident through its lifecycle. On the update, resolve and cancel forms a required answer left out takes the incident's current value (`IncidentFormPrompt#answers_with_current`), the same prefill the Slack modal and the dashboard give a person, and only a value the field would offer counts, so a resolve with two closed statuses still asks which. `get_form` marks a field the resolver will not ask right now with `asked: false` and its `inactive_reason` |
 | `create_action_item` | Add a piece of work and post it to the channel |
 | `assign_action_item` | Take a piece of work, or hand it to someone (omit `member` to take it) |
 | `complete_action_item` | Mark a piece of work done |

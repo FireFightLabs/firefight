@@ -157,6 +157,20 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
     assert_equal @membership, event.actor
   end
 
+  # Seen in a real chat. The resolve form requires the severity, the Slack modal prefills it, and an agent
+  # with no modal was told the severity was missing on an incident that already had one.
+  test "a required answer left out keeps what the incident already has" do
+    severity = @incident.incident_severity
+
+    _, is_error, text = call_tool(Mcp::Tools::RESOLVE_INCIDENT, {
+      incident: @incident.identifier, answers: { summary: "Pool limit raised" }
+    })
+
+    assert_not is_error, text
+    assert @incident.reload.closed?
+    assert_equal severity, @incident.incident_severity
+  end
+
   test "an agent cancels an incident that was not one" do
     _, is_error = call_tool(Mcp::Tools::CANCEL_INCIDENT, { incident: @incident.identifier, answers: {} })
 
@@ -208,10 +222,15 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
     assert_not @incident.reload.canceled?
   end
 
+  # By id, since both workspaces number their first incident INC-1 and the identifier would find this workspace's own.
   test "another workspace's incident is not reachable" do
-    _, is_error = call_tool(Mcp::Tools::RESOLVE_INCIDENT, { incident: incidents(:active_p0_ws2).identifier })
+    other = incidents(:active_p0_ws2)
+
+    _, is_error = call_tool(Mcp::Tools::RESOLVE_INCIDENT, { incident: other.id })
 
     assert is_error
+    assert_not other.reload.closed?
+    assert_not @incident.reload.closed?
   end
 
   private
