@@ -5,7 +5,8 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Resolve an incident, meaning the response is over and this was a real incident. " \
                   "Closing it is what makes a postmortem available. Call get_form with " \
-                  "form: \"resolve\" first for what this workspace asks. Use cancel_incident instead " \
+                  "form: \"resolve\" first for what this workspace asks. A required answer left out " \
+                  "keeps what the incident already has, so send only what changes. Use cancel_incident instead " \
                   "when it turned out not to be an incident. If the call requires approval, retry the " \
                   "identical call with approval_id once approved. Docs: #{Docs::INCIDENTS}"
       annotations(**WRITE)

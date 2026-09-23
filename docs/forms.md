@@ -109,7 +109,8 @@ that has no row yet.
   anyway), Incident Type in a workspace with no types, and a select or catalog
   custom field with nothing to pick. Each is dropped from `resolve(slug)` and
   kept under `include_hidden` carrying the sentence saying why, which the
-  serializer ships as `inactive_reason`. A field that appears in Slack without
+  serializer ships as `inactive_reason` and `get_form` ships as `inactive_reason`
+  with `asked: false`, so an agent reading the form does not answer it. A field that appears in Slack without
   appearing in configuration is inexplicable, and so is the reverse.
 
   **This must live in the resolver, never in a block builder.**

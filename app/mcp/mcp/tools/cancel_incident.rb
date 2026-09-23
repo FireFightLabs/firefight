@@ -6,7 +6,8 @@ module Mcp
       description "Cancel an incident, meaning it turned out not to be one: a false positive, a " \
                   "duplicate, or a mistake. It keeps its channel and timeline but never counts as " \
                   "resolved and gets no postmortem. Use resolve_incident for something that was real. " \
-                  "Call get_form with form: \"cancel\" first for what this workspace asks. If the " \
+                  "Call get_form with form: \"cancel\" first for what this workspace asks. " \
+                  "A required answer left out keeps what the incident already has, so send only what changes. If the " \
                   "call requires approval, retry the identical call with approval_id once approved. " \
                   "Docs: #{Docs::INCIDENTS}"
       annotations(**WRITE)
