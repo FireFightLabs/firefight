@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/agent-ui/button"
 import { ConnectDialog } from "@/components/integrations/connect-dialog"
 import { ProviderMark } from "@/components/integrations/provider-mark"
-import { INTEGRATION_CARD_STATES } from "@/lib/generated/constants"
+import { INTEGRATION_CARD_STATES, INTEGRATION_DETAILS_QUERY_PARAM } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { agentChatPath, integrationsPath } from "@/lib/routes"
 import type { AgentPageProps } from "@/pages/agent/types"
@@ -49,7 +49,7 @@ export function IntegrationCard({ category }: IntegrationCardProps) {
 
   const wanted = filter.trim().toLowerCase()
   const rows = card.rows.filter((row) => row.provider.name.toLowerCase().includes(wanted))
-  const existingNames = card.rows.find((row) => row.provider.key === connecting?.key)?.connections ?? []
+  const existingNames = card.rows.find((row) => row.provider.key === connecting?.key)?.connections.map((connection) => connection.name) ?? []
   const returnTo = conversation ? agentChatPath(conversation.id) : undefined
 
   function stopConnecting() {
@@ -121,23 +121,41 @@ function CardRow({ row, canConnect, onConnect }: CardRowProps) {
         </div>
         <p className="truncate text-[12px] text-ink-2">{provider.description}</p>
       </div>
-      <RowAction state={state} canConnect={canConnect} onConnect={connect} />
+      <RowAction row={row} canConnect={canConnect} onConnect={connect} />
     </li>
   )
 }
 
 interface RowActionProps {
-  state: CardState
+  row: IntegrationCardRow
   canConnect: boolean
   onConnect: () => void
 }
 
-function RowAction({ state, canConnect, onConnect }: RowActionProps) {
+function detailsPath(id: string) {
+  return integrationsPath({ [INTEGRATION_DETAILS_QUERY_PARAM]: id })
+}
+
+// One connection is managed from its own details. A provider backing several accounts names each, so none is hidden.
+function RowAction({ row, canConnect, onConnect }: RowActionProps) {
+  const { state, connections } = row
   if (!OPENS_DIALOG.includes(state)) {
+    if (connections.length === 1) {
+      return (
+        <a href={detailsPath(connections[0].id)} className="shrink-0 text-[12.5px] text-ink-2 hover:text-ink">
+          Manage
+        </a>
+      )
+    }
+
     return (
-      <a href={integrationsPath()} className="shrink-0 text-[12.5px] text-ink-2 hover:text-ink">
-        Manage
-      </a>
+      <div className="flex shrink-0 flex-col items-end gap-0.5">
+        {connections.map((connection) => (
+          <a key={connection.id} href={detailsPath(connection.id)} className="text-[12.5px] text-ink-2 hover:text-ink">
+            {connection.name}
+          </a>
+        ))}
+      </div>
     )
   }
   if (!canConnect) {

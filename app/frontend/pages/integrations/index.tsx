@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
@@ -11,6 +11,12 @@ import type { EnvironmentOption, Integration } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 import { whenClosed } from "@/lib/handlers"
 import { useCan } from "@/lib/permissions"
+import { INTEGRATION_DETAILS_QUERY_PARAM } from "@/lib/generated/constants"
+
+// The details sheet lives in the address, so a link from a chat or a teammate opens the same connection.
+function detailsFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get(INTEGRATION_DETAILS_QUERY_PARAM)
+}
 
 interface IntegrationsPageProps extends SharedProps {
   [key: string]: unknown
@@ -28,7 +34,19 @@ export default function Integrations() {
   const [connecting, setConnecting] = useState<IntegrationProvider | null>(() =>
     canManage ? (providers.find((provider) => provider.key === connect) ?? null) : null,
   )
-  const [detailsId, setDetailsId] = useState<string | null>(null)
+  const [detailsId, setDetailsIdState] = useState<string | null>(detailsFromUrl)
+
+  const setDetailsId = useCallback((id: string | null) => {
+    setDetailsIdState(id)
+    const params = new URLSearchParams(window.location.search)
+    if (id) {
+      params.set(INTEGRATION_DETAILS_QUERY_PARAM, id)
+    } else {
+      params.delete(INTEGRATION_DETAILS_QUERY_PARAM)
+    }
+    const query = params.toString()
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`)
+  }, [])
 
   const details = integrations.find((integration) => integration.id === detailsId) ?? null
 

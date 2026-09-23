@@ -17,6 +17,8 @@ export const CUSTOM_MCP_PROVIDER_KEY = "custom_mcp" as const
 
 export const RUNBOOK_QUERY_PARAM = "runbook" as const
 
+export const INTEGRATION_DETAILS_QUERY_PARAM = "integration" as const
+
 export const INCIDENT_FORM_SLUGS = [
   "declare",
   "update",

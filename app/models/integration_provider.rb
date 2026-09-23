@@ -53,7 +53,7 @@ class IntegrationProvider
     by_provider = workspace.integrations.where(deleted_at: nil).includes(:integration_environments).group_by(&:provider)
     rows = all.select { |provider| provider.category == category.name }.map do |provider|
       connections = by_provider.fetch(provider.key, [])
-      Row.new(provider: provider, state: state_for(connections), connections: connections.map(&:name))
+      Row.new(provider: provider, state: state_for(connections), connections: connections.map { |integration| { id: integration.id, name: integration.name } })
     end
     Card.new(category: category, rows: rows.sort_by.with_index { |row, index| [ STATES.index(row.state), index ] })
   end

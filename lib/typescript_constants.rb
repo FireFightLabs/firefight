@@ -17,6 +17,7 @@ module TypescriptConstants
       }, nil),
       Export.new("CUSTOM_MCP_PROVIDER_KEY", Integration::PROVIDER_CUSTOM_MCP, nil),
       Export.new("RUNBOOK_QUERY_PARAM", Runbook::QUERY_PARAM, nil),
+      Export.new("INTEGRATION_DETAILS_QUERY_PARAM", Integration::DETAILS_QUERY_PARAM, nil),
       Export.new("INCIDENT_FORM_SLUGS", IncidentForm::SLUGS, "IncidentFormSlug"),
       Export.new("INCIDENT_RELATIONSHIPS", {
         "RELATED" => IncidentRelationship::RELATED, "DUPLICATE" => IncidentRelationship::DUPLICATE

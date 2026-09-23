@@ -37,7 +37,7 @@ module Mcp
       end
 
       def self.row_payload(row)
-        { key: row.provider.key, name: row.provider.name, about: row.provider.description, state: row.state, connections: row.connections }
+        { key: row.provider.key, name: row.provider.name, about: row.provider.description, state: row.state, connections: row.connections.pluck(:name) }
       end
     end
   end

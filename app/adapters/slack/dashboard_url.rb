@@ -10,7 +10,7 @@ module Slack
 
     # The integrations page with one provider's connect dialog already open.
     def self.connect_integration(provider_key)
-      build(:integrations_url, connect: provider_key)
+      build(:integrations_url, Integration::CONNECT_QUERY_PARAM => provider_key)
     end
 
     def self.build(helper, params)

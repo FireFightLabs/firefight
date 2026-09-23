@@ -18,14 +18,14 @@ class IntegrationProviderTest < ActiveSupport::TestCase
   end
 
   test "a card holds every provider in the category, connected ones first" do
-    connect!("datadog")
+    datadog = connect!("datadog")
 
     rows = IntegrationProvider.card_for(@workspace, @telemetry).rows
 
     assert_equal IntegrationProvider.all.count { |provider| provider.category == "Telemetry" }, rows.size
     assert_equal "datadog", rows.first.provider.key
     assert_equal IntegrationProvider::STATE_CONNECTED, rows.first.state
-    assert_equal [ "Datadog" ], rows.first.connections
+    assert_equal [ { id: datadog.id, name: "Datadog" } ], rows.first.connections
     assert rows.drop(1).all? { |row| row.state == IntegrationProvider::STATE_NOT_CONNECTED }
   end
 

@@ -11,7 +11,7 @@ class IntegrationCardRowSerializer < BaseSerializer
     row.state
   end
 
-  type "string[]"
+  type "{ id: string; name: string }[]"
   def connections
     row.connections
   end

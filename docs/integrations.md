@@ -124,6 +124,7 @@ The agent never connects anything. `list_integrations` says what a category hold
 
 - **Back to the chat.** The dialog passes `return_to`, which `create`, `oauth_start` and the callbacks carry through the session and honour only when it is a chat on this dashboard (`safe_return_to`), so a crafted link cannot send someone elsewhere. The chat gets a toast saying the connection is made. From the Integrations page nothing changes.
 - **A link that opens the dialog.** `/integrations?connect=<provider key>` opens that provider's dialog on arrival, for whoever may manage integrations. The Slack card's buttons use it, since OAuth cannot happen in Slack.
+- **A connection's details have an address.** `/integrations?integration=<id>` (`Integration::DETAILS_QUERY_PARAM`) opens that connection's details sheet, and opening or closing the sheet rewrites the address, so it can be shared. The card's Manage link uses it, and names each connection when a provider backs several.
 - **The rows are read fresh.** The chat page loads every category's rows on each visit (`integrationCards`), so coming back from connecting shows it connected without the agent being asked again.
 
 ## Credentials

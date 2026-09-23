@@ -19,7 +19,7 @@ class IntegrationsController < InertiaController
       categories: IntegrationProvider.categories,
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       # A link from Slack or a chat opens this provider's connect dialog straight away.
-      connect: IntegrationProvider.find(params[:connect].to_s)&.key
+      connect: IntegrationProvider.find(params[Integration::CONNECT_QUERY_PARAM].to_s)&.key
     }
   end
 
