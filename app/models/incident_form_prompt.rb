@@ -46,8 +46,10 @@ class IncidentFormPrompt
 
   # What the Slack modal and the dashboard prefill from the incident, given to a caller that has no form to
   # prefill. A required field left out takes the incident's current value, but only one the field would offer,
-  # so a resolve form still asks which closed status when there are two.
+  # so a resolve form still asks which closed status when there are two. A declare has no incident to read.
   def answers_with_current
+    return @answers.dup if @incident.nil?
+
     fields.each_with_object(@answers.dup) do |field, filled|
       next if filled.key?(field.key) || !field.required || field.value.blank?
       next if field.choices && !Array(field.value).all? { |value| field.choices.any? { |choice| choice.value == value } }

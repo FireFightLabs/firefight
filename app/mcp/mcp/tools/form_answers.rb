@@ -8,9 +8,9 @@ module Mcp
           workspace, incident: incident, form_slug: form_slug, answers: answers
         )
         # An agent has no prefilled form, so an existing incident's own values stand in for what it left out.
-        answers = prompt.answers_with_current if incident
-
-        validated = IncidentFormResolver.new(workspace).validate_submission!(form_slug, answers, context: prompt.context)
+        validated = IncidentFormResolver.new(workspace).validate_submission!(
+          form_slug, prompt.answers_with_current, context: prompt.context
+        )
 
         IncidentFormSubmission.new(
           workspace,
