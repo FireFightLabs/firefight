@@ -7,34 +7,57 @@ import { StartExamples, StartHeading } from "@/pages/agent/components/chat-start
 import { Composer, type ComposerFill } from "@/pages/agent/components/composer"
 import { Thread } from "@/pages/agent/components/thread"
 import { useAgentStream } from "@/pages/agent/hooks/use-agent-stream"
-import { OPEN_CHAT_VISIT } from "@/pages/agent/lib/chat-updates"
+import { OPEN_CHAT_VISIT, startNewChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentPageProps } from "@/pages/agent/types"
 import { agentChatsPath } from "@/lib/routes"
+
+const BACK_LINK_CLASS = "px-4 pt-3 text-left text-[13px] text-ink-2 md:hidden"
 
 export default function AgentPage() {
   const { conversations, archivedCount, conversation, incidents, messages, confirmations } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, messages)
   const [ fill, setFill ] = useState<ComposerFill | null>(null)
+  // Below 48rem the page is one panel at a time, and New chat has to show the start page rather than the list.
+  const [ composing, setComposing ] = useState(false)
 
   function fillComposer(draft: string) {
     setFill((current) => ({ draft, key: (current?.key ?? 0) + 1 }))
   }
 
-  const listClass = conversation ? "hidden md:flex" : "flex"
+  // Already on a new chat, so a visit would only flicker.
+  function beginNewChat() {
+    setComposing(true)
+    if (conversationId) {
+      startNewChat()
+    }
+  }
+
+  function backToList() {
+    setComposing(false)
+  }
+
+  const starting = !conversation && composing
+  const listClass = conversation || starting ? "hidden md:flex" : "flex"
   // A new chat holds the composer in the middle, an open chat at the foot, and the move between the two is animated.
-  const threadClass = conversation ? "agent-thread-open grid" : "hidden md:grid"
+  const threadClass = conversation ? "agent-thread-open grid" : starting ? "grid" : "hidden md:grid"
 
   return (
     <AuthenticatedLayout title="Chat" sidebarCollapsed>
       <Head title="Chat" />
       <div className="agent-ui agent-chat">
-        <ChatList chats={conversations} archivedCount={archivedCount} currentId={conversationId} className={listClass} />
+        <ChatList
+          chats={conversations}
+          archivedCount={archivedCount}
+          currentId={conversationId}
+          className={listClass}
+          onNewChat={beginNewChat}
+        />
         <section className={`agent-thread min-w-0 ${threadClass}`}>
           <div className="flex min-h-0 flex-col">
             {conversation ? (
               <>
-                <Link href={agentChatsPath()} {...OPEN_CHAT_VISIT} className="px-4 pt-3 text-[13px] text-ink-2 md:hidden">
+                <Link href={agentChatsPath()} {...OPEN_CHAT_VISIT} onClick={backToList} className={BACK_LINK_CLASS}>
                   All chats
                 </Link>
                 <Thread
@@ -45,7 +68,12 @@ export default function AgentPage() {
                 />
               </>
             ) : (
-              <StartHeading />
+              <>
+                <button type="button" onClick={backToList} className={BACK_LINK_CLASS}>
+                  All chats
+                </button>
+                <StartHeading />
+              </>
             )}
           </div>
           <div className="p-3">

@@ -6,7 +6,6 @@ import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
 import { ChatListSection } from "@/pages/agent/components/chat-list-section"
 import { ChatSearch } from "@/pages/agent/components/chat-search"
 import { useSearchShortcut } from "@/pages/agent/hooks/use-search-shortcut"
-import { startNewChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentChat } from "@/types/serializers"
 
 const SCROLL_BUFFER_PX = 200
@@ -16,10 +15,11 @@ interface ChatListProps {
   archivedCount: number
   currentId: string | null
   className: string
+  onNewChat: () => void
 }
 
 // The archived count comes from the server, since later pages may not have loaded yet.
-export function ChatList({ chats: loaded, archivedCount, currentId, className }: ChatListProps) {
+export function ChatList({ chats: loaded, archivedCount, currentId, className, onNewChat }: ChatListProps) {
   const chats = uniqueById(loaded)
   const pinned = chats.filter((chat) => chat.pinned && !chat.archived).sort(byNewest("pinnedAt"))
   const recent = chats.filter((chat) => !chat.pinned && !chat.archived).sort(byNewest("lastActiveAt"))
@@ -40,15 +40,6 @@ export function ChatList({ chats: loaded, archivedCount, currentId, className }:
   const openSearch = useCallback(() => setSearching(true), [])
   useSearchShortcut(openSearch)
 
-  // Already on a new chat, so a visit would only flicker.
-  function startChat() {
-    if (!currentId) {
-      return
-    }
-
-    startNewChat()
-  }
-
   function toggleArchived() {
     setShowArchived((shown) => !shown)
   }
@@ -59,7 +50,7 @@ export function ChatList({ chats: loaded, archivedCount, currentId, className }:
         <h2 className="text-[14px] font-medium text-ink">Chat</h2>
         <div className="flex items-center gap-0.5">
           <ListButton icon={IconSearch} label="Search chats" onClick={openSearch} />
-          <ListButton icon={IconPencilPlus} label="New chat" onClick={startChat} />
+          <ListButton icon={IconPencilPlus} label="New chat" onClick={onNewChat} />
         </div>
       </div>
 
