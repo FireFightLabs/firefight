@@ -38,13 +38,16 @@ class Investigation::Finding < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }, allow_nil: true
 
   # Everyone who read the finding gets a say, and anyone may change their mind. The outcome the
-  # record carries is what the room agreed, or nothing while the room is split.
+  # record carries is what the room agreed, or nothing while the room is split. The row is locked
+  # first, so two thumbs pressed together tally each other rather than settling on a count that missed one.
   def record_verdict!(outcome, by:)
-    verdict = verdicts.find_or_initialize_by(member: by)
-    verdict.outcome = outcome
-    verdict.save!
-    settle_outcome!
-    verdict
+    with_lock do
+      verdict = verdicts.find_or_initialize_by(member: by)
+      verdict.outcome = outcome
+      verdict.save!
+      settle_outcome!
+      verdict
+    end
   end
 
   def add_evidence!(claim:, sources:, position:)

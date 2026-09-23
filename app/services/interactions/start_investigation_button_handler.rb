@@ -7,11 +7,8 @@ module Interactions
       workspace = interaction.workspace
       incident = workspace.incidents.find(interaction.action_value)
 
-      blocked = incident.investigation_blocked_reason
-      return TerminalNotice.post(workspace, incident, interaction.user_id, blocked) if blocked
-
-      refusal = Investigation.unavailable_reason(workspace)
-      return tell(workspace, incident, interaction, refusal) if refusal
+      refusal = Investigation.start_refusal(incident)
+      return TerminalNotice.post(workspace, incident, interaction.user_id, refusal) if refusal
 
       started = InvestigationService.new(workspace).start(
         incident,
@@ -29,7 +26,7 @@ module Interactions
       nil
     end
 
-    # These refusals are not the incident being over, so they are a plain ephemeral.
+    # A run already going is not a refusal, so it is a plain ephemeral.
     private_class_method def self.tell(workspace, incident, interaction, text)
       workspace.adapter.post_ephemeral(
         channel_id: incident.channel_id, user_id: interaction.user_id, text: text

@@ -31,4 +31,17 @@ class PromptVersionTest < ActiveSupport::TestCase
     assert_equal FirefightAi::Prompt.version(context[:prompt_text]), context[:prompt_version]
     assert_no_match(/acting for/, context[:prompt_text])
   end
+
+  # The incident arrives in the opening message, so the versioned wording never names one.
+  test "the investigator's prompt carries no incident of its own either" do
+    workspace = workspaces(:slack_workspace_one)
+    incident = incidents(:active_critical_ws1)
+    investigator = FirefightAi::Investigator.new(workspace, inferable: incident)
+
+    context = investigator.send(:inference_context)
+
+    assert_equal FirefightAi::Investigator::FEATURE, context[:prompt_template]
+    assert_equal FirefightAi::Prompt.version(context[:prompt_text]), context[:prompt_version]
+    assert_no_match(/#{incident.identifier}|#{incident.name}|acting for/, context[:prompt_text])
+  end
 end

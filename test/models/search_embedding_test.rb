@@ -19,22 +19,22 @@ class SearchEmbeddingTest < ActiveSupport::TestCase
   test "embedding a record once is enough until its words change" do
     stub_embedding
 
-    @incident.write_search_embedding!
+    SearchEmbeddingService.new(@workspace).write!(@incident)
     first = @incident.reload.search_embedding
 
     FirefightAi.expects(:embed).never
-    @incident.write_search_embedding!
+    SearchEmbeddingService.new(@workspace).write!(@incident)
 
     assert_equal first.updated_at, @incident.reload.search_embedding.updated_at
   end
 
   test "changed words are embedded again" do
     stub_embedding
-    @incident.write_search_embedding!
+    SearchEmbeddingService.new(@workspace).write!(@incident)
     digest = @incident.reload.search_embedding.content_digest
 
     @incident.update!(summary: "Checkout is failing for EU customers only")
-    @incident.write_search_embedding!
+    SearchEmbeddingService.new(@workspace).write!(@incident)
 
     assert_not_equal digest, @incident.reload.search_embedding.content_digest
   end
@@ -42,10 +42,10 @@ class SearchEmbeddingTest < ActiveSupport::TestCase
   test "the closest match to a question comes back first, with what it needs to judge it" do
     other = incidents(:resolved_minor_ws1)
     stub_embedding(vectors: { @incident.search_text => near, other.search_text => far, "Checkout is broken" => near })
-    @incident.write_search_embedding!
-    other.write_search_embedding!
+    SearchEmbeddingService.new(@workspace).write!(@incident)
+    SearchEmbeddingService.new(@workspace).write!(other)
 
-    matches = SearchEmbedding.similar_to("Checkout is broken", workspace: @workspace)
+    matches = SearchEmbeddingService.new(@workspace).similar_to("Checkout is broken")
 
     assert_equal @incident, matches.first.record
     assert_equal "incident", matches.first.kind
@@ -56,9 +56,9 @@ class SearchEmbeddingTest < ActiveSupport::TestCase
   test "another workspace's incidents are never a match" do
     stub_embedding
     other = incidents(:active_p0_ws2)
-    other.write_search_embedding!
+    SearchEmbeddingService.new(other.workspace).write!(other)
 
-    matches = SearchEmbedding.similar_to("anything", workspace: @workspace)
+    matches = SearchEmbeddingService.new(@workspace).similar_to("anything")
 
     assert_empty matches
   end
@@ -70,7 +70,7 @@ class SearchEmbeddingTest < ActiveSupport::TestCase
     )
     finding = investigation.conclude!(summary: "The 14:02 deploy raised the pool size")
 
-    finding.write_search_embedding!
+    SearchEmbeddingService.new(@workspace).write!(finding)
 
     assert_equal @workspace, finding.reload.search_embedding.workspace
     assert_match "pool size", finding.search_text
@@ -78,10 +78,10 @@ class SearchEmbeddingTest < ActiveSupport::TestCase
 
   test "a row written by an older embedding model is not compared against a new one" do
     stub_embedding
-    @incident.write_search_embedding!
+    SearchEmbeddingService.new(@workspace).write!(@incident)
     @incident.search_embedding.update!(model: "some-older-model")
 
-    assert_empty SearchEmbedding.similar_to("anything", workspace: @workspace)
+    assert_empty SearchEmbeddingService.new(@workspace).similar_to("anything")
   end
 
   test "a postmortem is embedded once it is written, not while it is being drafted" do

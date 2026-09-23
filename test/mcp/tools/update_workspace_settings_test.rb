@@ -87,7 +87,7 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
   test "the settings are read back with the rest of the workspace's configuration" do
     @workspace.update!(transcript_access_enabled: true, transcript_retention_days: 14)
 
-    body = Mcp::Tools::GetWorkspaceConfig.perform(workspace: @workspace, args: {}).structured_content
+    body = Mcp::Tools::GetWorkspaceConfig.perform_with_principal(workspace: @workspace, principal: @admin, args: {}).structured_content
 
     assert_equal({ transcript_access_enabled: true, transcript_retention_days: 14, archive_channel_delay: @workspace.archive_channel_delay }, body[:settings])
   end

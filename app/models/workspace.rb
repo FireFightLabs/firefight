@@ -4,6 +4,7 @@ class Workspace < ApplicationRecord
   include Workspace::Suspension
   include Workspace::Connection
   include Workspace::ChannelArchival
+  include Workspace::Settings
   include Workspace::InvestigationLimits
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
