@@ -211,6 +211,26 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_nothing_raised { ask(@conversation, "what is going on") }
   end
 
+  # The page shows the agent working from this, so it has to be cleared by the turn itself and not by a reload.
+  test "an answer is owed until the turn answers, and no longer once it has" do
+    personal = personal_chat
+    fake(reply: "The 14:02 deploy raised the pool size")
+
+    ask(personal, "what changed today")
+
+    assert_not personal.reload.answer_owed?
+  end
+
+  test "a turn that stops to ask the person no longer owes an answer, since the question is theirs now" do
+    personal = personal_chat
+    fake(outcome: FirefightAi::AgentLoop::STATUS_WAITING)
+    Chat.any_instance.stubs(:to_llm).returns(stub(pending_approvals: []))
+
+    ask(personal, "close every incident")
+
+    assert_not personal.reload.answer_owed?
+  end
+
   private
 
   # The question is written down by the asker, the way both entry points do it, and the job runs after.

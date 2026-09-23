@@ -29,6 +29,8 @@ class Conversation::Runner
     return ask_to_confirm(chat, outcome) if waiting?(outcome)
 
     @reply = reply_for(outcome, chat)
+    # Cleared before the page is told, so its reload sees the turn as over.
+    @conversation.reply_delivered!
     delivery.answered!(@reply)
     outcome
   end
@@ -62,6 +64,7 @@ class Conversation::Runner
   # The turn stops on calls that need the person's decision, and they are asked rather than answered.
   def ask_to_confirm(chat, outcome)
     chat.request_decisions!(chat.to_llm.pending_approvals.map(&:id))
+    @conversation.reply_delivered!
     delivery.confirm!(chat.awaiting_decision.to_a)
     outcome
   end

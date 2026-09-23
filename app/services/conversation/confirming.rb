@@ -9,7 +9,10 @@ class Conversation::Confirming
       decided = decisions.count { |decision| chat.decide!(decision[:tool_call_id], approved: decision[:approved]) }
       decided.positive? && chat.awaiting_decision.none?
     end
-    ConversationReplyJob.perform_later(conversation.id, by.id) if resume
+    if resume
+      conversation.expect_reply!
+      ConversationReplyJob.perform_later(conversation.id, by.id)
+    end
     resume
   end
 

@@ -25,7 +25,10 @@ export type ChatTurn =
   | { kind: "agent"; id: string; steps: AgentStep[]; bodies: string[] }
 
 export interface AgentStream {
+  // The agent is working on an answer and has not said it is done.
   busy: boolean
+  // The server owes an answer, so what is saved after the last question is the turn in progress.
+  owed: boolean
   text: string
   steps: AgentStep[]
 }

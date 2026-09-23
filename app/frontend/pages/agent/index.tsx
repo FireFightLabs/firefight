@@ -16,7 +16,7 @@ const BACK_LINK_CLASS = "px-4 pt-3 text-left text-[13px] text-ink-2 md:hidden"
 export default function AgentPage() {
   const { conversations, archivedCount, conversation, incidents, messages, confirmations } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
-  const stream = useAgentStream(conversationId, messages)
+  const stream = useAgentStream(conversationId, conversation?.busy ?? false)
   const [ fill, setFill ] = useState<ComposerFill | null>(null)
   // Below 48rem the page is one panel at a time, and New chat has to show the start page rather than the list.
   const [ composing, setComposing ] = useState(false)

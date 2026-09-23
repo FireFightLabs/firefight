@@ -33,4 +33,10 @@ class AgentChatSerializer < BaseSerializer
   def archived
     conversation.archived?
   end
+
+  # An answer is owed, so the page shows the agent working and keeps the live stream over the saved copy.
+  type :boolean
+  def busy
+    conversation.answer_owed?
+  end
 end

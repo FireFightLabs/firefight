@@ -9,6 +9,8 @@ class Conversation < ApplicationRecord
 
   TITLE_LIMIT = 80
   PREVIEW_LIMIT = 90
+  # How long an owed answer counts as still coming. Shared with the reply job's lock, so the two give up together.
+  REPLY_CEILING = 30.minutes
   SEARCH_LIMIT = 20
   UNTITLED = "New chat".freeze
 
@@ -82,11 +84,21 @@ class Conversation < ApplicationRecord
   # A conversation holds no records of its own beyond the chat, so there is nothing to add.
   def memory_brief = nil
 
-  # Saved before the job runs, so the person sees it at once and a retried job asks only once.
+  # Saved before the job runs, so the person sees it at once and a retried job asks only once. From here an answer is owed.
   def ask!(question)
     chat_record.add_message(role: Chat::Message::ROLE_USER, content: question)
     update!(title: question.truncate(TITLE_LIMIT)) if title.blank?
+    expect_reply!
   end
+
+  # The page shows the agent working from this, never from the shape of the last message, which the empty reply
+  # RubyLLM saves before the model answers changes within milliseconds of the question.
+  def expect_reply! = update_in_place!(answer_owed_since: Time.current)
+
+  def reply_delivered! = update_in_place!(answer_owed_since: nil)
+
+  # A turn owed this long belongs to a dead worker, and neither the page nor the queue waits on it.
+  def answer_owed? = answer_owed_since.present? && answer_owed_since > REPLY_CEILING.ago
 
   # Saved, so the notice is still there on the next visit.
   def note!(text)

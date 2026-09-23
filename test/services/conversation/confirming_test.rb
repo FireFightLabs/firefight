@@ -47,6 +47,7 @@ class Conversation::ConfirmingTest < ActiveSupport::TestCase
     assert_enqueued_with(job: ConversationReplyJob, args: [ @conversation.id, other.id ]) do
       assert Conversation::Confirming.decide(@conversation, [ { tool_call_id: "call_2", approved: false } ], by: other)
     end
+    assert @conversation.reload.answer_owed?, "the resumed turn owes an answer again"
   end
 
   test "a Slack button answers the question and redraws the message with the answer" do
