@@ -2,7 +2,7 @@ module Mcp
   # Exposes a workspace's allowlisted connection tools through Firefight's own
   # MCP server. Every call flows through AbilityGateway, then the integration's executor.
   class ConnectionToolFactory
-    ENVIRONMENT_ARG = :environment
+    ENVIRONMENT_ARG = Integration::Tool::ENVIRONMENT_ARG.to_sym
     APPROVAL_ID_ARG = :approval_id
 
     # Lists only what the principal could call, so a narrowly scoped service key
@@ -31,10 +31,10 @@ module Mcp
       tool = Integration::Tool.find(tool_id)
       workspace = server_context[:workspace]
 
-      environment_entry = nil
-      if args[ENVIRONMENT_ARG].present?
-        environment_entry = workspace.catalog_entries.active.find_by(slug: args[ENVIRONMENT_ARG].to_s)
-        return ToolDispatcher.error_response("Unknown environment '#{args[ENVIRONMENT_ARG]}'.") unless environment_entry
+      begin
+        environment_entry = tool.integration.environment_entry_for(args[ENVIRONMENT_ARG])
+      rescue Integration::UnknownEnvironment => e
+        return ToolDispatcher.error_response(e.message)
       end
 
       scope = environment_entry ? { "environment" => environment_entry.id } : {}
@@ -73,14 +73,9 @@ module Mcp
     end
 
     # A deny for a missing environment really means "pick one", so name them.
-    # Slugs are catalog data any member can read, so nothing is disclosed.
     def self.environment_hint(tool)
-      integration = tool.integration
-      return "" if integration.resolve_environment(nil).present?
-
-      slugs = integration.integration_environments.enabled.includes(:environment)
-                         .filter_map { |row| row.environment&.slug }
-      return "" if slugs.size < 2
+      slugs = tool.integration.environment_choices
+      return "" if slugs.empty?
 
       " This connection is wired per environment. Retry with environment set to one of: #{slugs.join(', ')}."
     end
@@ -90,10 +85,10 @@ module Mcp
       "#{base} (via the #{tool.integration.name} connection; governed by the Ability Gateway)"
     end
 
+    # The schema the agent is handed, plus the approval id only an outside client retries with.
     def self.augmented_schema(tool)
-      schema = (tool.params_schema.presence || { "type" => "object" }).deep_dup
-      schema["properties"] = (schema["properties"] || {}).merge(
-        ENVIRONMENT_ARG.to_s => { "type" => "string", "description" => "Environment slug (e.g. production); omit when the connection has one environment" },
+      schema = tool.offered_schema
+      schema["properties"] = schema["properties"].merge(
         APPROVAL_ID_ARG.to_s => { "type" => "string", "description" => "Approval id when retrying an approved call" }
       )
       schema

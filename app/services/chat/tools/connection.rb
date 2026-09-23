@@ -14,7 +14,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # Another system's words, so only text reaches the model and a runaway description is capped.
   def description = Chat::Tools.clean(@tool.description, Chat::Tools::FULL_DESCRIPTION)
 
-  def parameters_schema = @tool.params_schema.presence || { "type" => "object", "properties" => {} }
+  # The same schema an outside MCP client is handed, so a connection wired per environment is reachable from a chat.
+  def parameters_schema = @tool.offered_schema
 
   # The arguments match the tool's own schema, not an execute signature, so skip the base check.
   def call(tool_call: nil, **arguments)
@@ -23,21 +24,27 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   private
 
-  def invoke(arguments, tool_call_id:, approval_id: nil)
+  def invoke(given, tool_call_id:, approval_id: nil)
+    environment_entry = @tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
+    arguments = given.except(Integration::Tool::ENVIRONMENT_ARG)
+    scope = environment_entry ? { "environment" => environment_entry.id } : {}
+
     said = @agent_run.tool_call(
-      action_key: @tool.action_key, params: arguments, tool_name: name,
+      action_key: @tool.action_key, params: arguments, scope: scope, tool_name: name,
       label: Chat::Tools.label(name, arguments), **{ approval_id: approval_id }.compact
     ) do
       integration = @tool.integration
-      environment_row = integration.resolve_environment(nil)
+      environment_row = integration.resolve_environment(environment_entry&.id)
       text_of(integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments))
     end
     Chat::Tools.hand_over(@agent_run, name, said)
+  rescue Integration::UnknownEnvironment => error
+    failed(tool_call_id, error.message)
   rescue AbilityGateway::Denied
-    failed(tool_call_id, @agent_run.refusal(@tool.action_key))
+    failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))
   rescue AbilityGateway::PendingApproval => pending
     if approval_id.nil? && approved_by_asker?(pending.approval)
-      return invoke(arguments, tool_call_id: tool_call_id, approval_id: pending.approval.id)
+      return invoke(given, tool_call_id: tool_call_id, approval_id: pending.approval.id)
     end
 
     Chat::Tools.waiting_for_approval(@tool.action_key)

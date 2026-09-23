@@ -154,7 +154,6 @@ export default function ApprovalCard({
   resettable?: boolean;
   /** the "Something else" row, off where only the given options make sense */
   allowCustom?: boolean;
-  variant?: string;
 } = {}) {
   const t = { ...DEFAULT_LABELS, ...labels };
   const [qi, setQi] = useState(0);

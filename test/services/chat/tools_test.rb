@@ -208,6 +208,28 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal "fake.echo_text", @investigation.steps.sole.action_key
   end
 
+  # Seen in review. The chat wrapper had no environment argument, so a connection wired per environment
+  # was reachable over MCP and not from a chat.
+  test "a connection wired per environment lists them, takes one in a chat, and refuses a name that is not one" do
+    @integration.integration_environments.destroy_all
+    production = catalog_entries(:production_env)
+    @integration.integration_environments.create!(catalog_entry_id: production.id)
+    @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:development_env).id)
+    grant!(@tool)
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
+
+    assert_equal [ production.slug, catalog_entries(:development_env).slug ].sort,
+                 tool.parameters_schema.dig("properties", Integration::Tool::ENVIRONMENT_ARG, "enum").sort
+
+    result = tool.call(text: "hi", environment: production.slug)
+
+    assert_equal FirefightAi::Evidence.frame("fake_echo_text", "echo: hi", step: 1), result
+    invocation = Ability::Invocation.find(@investigation.steps.sole.invocation_id)
+    assert_equal({ "environment" => production.id }, invocation.scope)
+
+    assert_match "Unknown environment 'moon'", tool.call(text: "hi", environment: "moon")
+  end
+
   test "the step keeps what the provider said as it was, only the model is handed the frame" do
     grant!(@tool)
     tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
@@ -297,7 +319,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     grant!(@tool)
     tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
 
-    assert_equal @tool.params_schema, tool.parameters_schema
+    assert_equal @tool.params_schema["properties"].keys + [ Integration::Tool::ENVIRONMENT_ARG ], tool.parameters_schema["properties"].keys
     assert_equal "Echoes text back", tool.description
   end
 

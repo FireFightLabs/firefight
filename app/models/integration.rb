@@ -67,6 +67,26 @@ class Integration < ApplicationRecord
     rows.find_by(catalog_entry_id: nil) || (rows.limit(2).to_a.then { |r| r.size == 1 ? r.first : nil })
   end
 
+  class UnknownEnvironment < StandardError; end
+
+  # The environment a caller named by slug, or nil for the connection's default. Every way in
+  # resolves it here, so an unknown one is refused with the same words from a chat and over MCP.
+  def environment_entry_for(slug)
+    return nil if slug.blank?
+
+    workspace.catalog_entries.active.find_by(slug: slug.to_s) ||
+      raise(UnknownEnvironment, "Unknown environment '#{slug}'.")
+  end
+
+  # The slugs a caller has to choose between, empty when the connection resolves one on its own.
+  # Slugs are catalog data any member can read, so nothing is disclosed.
+  def environment_choices
+    return [] if resolve_environment(nil).present?
+
+    slugs = integration_environments.enabled.includes(:environment).filter_map { |row| row.environment&.slug }
+    slugs.size < 2 ? [] : slugs
+  end
+
   private
 
   # Action keys derive from the slug, renaming would orphan grants, policies

@@ -23,9 +23,15 @@ export type StreamEventType = (typeof AGENT_STREAM_EVENTS)[keyof typeof AGENT_ST
 // Who a drawn turn belongs to. Page only, since the server saves messages by role and the page groups them.
 export const TURN_KINDS = { PERSON: "person", AGENT: "agent" } as const
 
+// One piece of an answer, keyed by the message it was saved as, or by the live stream.
+export interface TurnBody {
+  id: string
+  text: string
+}
+
 export type ChatTurn =
   | { kind: typeof TURN_KINDS.PERSON; id: string; body: string }
-  | { kind: typeof TURN_KINDS.AGENT; id: string; steps: AgentStep[]; bodies: string[] }
+  | { kind: typeof TURN_KINDS.AGENT; id: string; steps: AgentStep[]; bodies: TurnBody[] }
 
 export interface AgentStream {
   // The agent is working on an answer and has not said it is done.

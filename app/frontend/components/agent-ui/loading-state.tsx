@@ -75,14 +75,12 @@ function useElapsed() {
 
 export default function LoadingState({
   label,
-  variant = "Drive",
 }: {
   label?: string;
-  variant?: string;
 }) {
   const elapsed = useElapsed();
   const resolvedLabel = label ?? "Churning";
-  const { delays, dur, round } = PATTERNS[variant] ?? PATTERNS.Drive;
+  const { delays, dur, round } = PATTERNS.Drive;
 
   const labelEl = (
     <span

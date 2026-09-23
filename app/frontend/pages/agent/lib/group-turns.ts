@@ -15,7 +15,7 @@ export function groupedTurns(messages: AgentChatMessage[]): ChatTurn[] {
     }
 
     const previous = turns[turns.length - 1]
-    const bodies = message.body.trim().length > 0 ? [ message.body ] : []
+    const bodies = message.body.trim().length > 0 ? [ { id: message.id, text: message.body } ] : []
     if (previous?.kind === TURN_KINDS.AGENT) {
       previous.steps.push(...message.tools)
       previous.bodies.push(...bodies)
@@ -48,7 +48,7 @@ export function liveTurn(stream: AgentStream, messages: AgentChatMessage[]): Cha
   const savedSteps = saved?.kind === TURN_KINDS.AGENT ? saved.steps : []
   const savedBodies = saved?.kind === TURN_KINDS.AGENT ? saved.bodies : []
   const steps = mergeSteps(savedSteps, stream.steps)
-  const bodies = stream.text.length > 0 ? [ stream.text ] : savedBodies
+  const bodies = stream.text.length > 0 ? [ { id: LIVE_TURN_ID, text: stream.text } ] : savedBodies
   if (steps.length === 0 && bodies.length === 0) {
     return null
   }
