@@ -25,6 +25,7 @@ module Slack
 
       def self.row_block(row)
         text = "*#{Mrkdwn.escape(row.provider.name)}*  ·  #{STATE_LABELS.fetch(row.state)}\n#{Mrkdwn.escape(row.provider.description)}"
+        text += "\n#{connection_links(row)}" if row.connections.any?
         block = { type: "section", text: { type: "mrkdwn", text: text } }
         action = ACTION_LABELS[row.state]
         url = action && DashboardUrl.connect_integration(row.provider.key)
@@ -33,6 +34,15 @@ module Slack
         block.merge(accessory: { type: "button", text: { type: "plain_text", text: action }, url: url })
       end
       private_class_method :row_block
+
+      # Each connection opens its own details, so a provider backing several accounts names each.
+      def self.connection_links(row)
+        row.connections.filter_map do |connection|
+          url = DashboardUrl.integration_details(connection[:id])
+          url && "<#{url}|#{Mrkdwn.escape(connection[:name])}>"
+        end.join("  ·  ")
+      end
+      private_class_method :connection_links
     end
   end
 end

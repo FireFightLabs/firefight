@@ -13,6 +13,11 @@ module Slack
       build(:integrations_url, Integration::CONNECT_QUERY_PARAM => provider_key)
     end
 
+    # One connection's details on the integrations page.
+    def self.integration_details(integration_id)
+      build(:integrations_url, Integration::DETAILS_QUERY_PARAM => integration_id)
+    end
+
     def self.build(helper, params)
       host = ENV["APP_HOST"].presence
       return nil unless host

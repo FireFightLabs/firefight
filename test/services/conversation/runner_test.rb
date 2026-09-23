@@ -231,7 +231,8 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_not personal.reload.answer_owed?
   end
 
-  test "a category of integrations shown in a thread is posted under the answer, with a way to connect each" do
+  test "a category of integrations shown in a thread is posted under the answer, with a way to connect or manage each" do
+    grafana = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "grafana", name: "Grafana", settings: { "server_url" => "https://gf.example/mcp" })
     ENV.stubs(:[]).returns(nil)
     ENV.stubs(:[]).with("APP_HOST").returns("app.example")
     fake(reply: "Here are the telemetry tools.", steps: [
@@ -240,7 +241,8 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     ])
     Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
     Slack::Client.expects(:post_message).with do |arguments|
-      arguments[:thread_ts] == @conversation.thread_id && arguments[:blocks].to_json.include?("connect=datadog")
+      blocks = arguments[:blocks].to_json
+      arguments[:thread_ts] == @conversation.thread_id && blocks.include?("connect=datadog") && blocks.include?("integration=#{grafana.id}")
     end.returns({ ok: true, ts: "2" })
 
     ask(@conversation, "what can we connect for logs")
