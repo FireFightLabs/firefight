@@ -4,11 +4,13 @@ module Mcp
     # the agent's own answers brought into scope is refused.
     module FormAnswers
       def self.validate!(workspace, incident:, form_slug:, answers:)
-        context = IncidentFormPrompt.new(
+        prompt = IncidentFormPrompt.new(
           workspace, incident: incident, form_slug: form_slug, answers: answers
-        ).context
+        )
+        # An agent has no prefilled form, so an existing incident's own values stand in for what it left out.
+        answers = prompt.answers_with_current if incident
 
-        validated = IncidentFormResolver.new(workspace).validate_submission!(form_slug, answers, context: context)
+        validated = IncidentFormResolver.new(workspace).validate_submission!(form_slug, answers, context: prompt.context)
 
         IncidentFormSubmission.new(
           workspace,

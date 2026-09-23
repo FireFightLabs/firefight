@@ -8,7 +8,8 @@ module Mcp
                   "is happening, so use it whenever you learn something or change something. It can " \
                   "also move status, severity and type in the same call. Call get_form with " \
                   "form: \"update\" first, since this workspace decides what is asked and what is " \
-                  "required. If the call requires approval, retry the identical call with " \
+                  "required. A required answer left out keeps what the incident already has, so " \
+                  "send only what changes. If the call requires approval, retry the identical call with " \
                   "approval_id once approved. Docs: #{Docs::INCIDENTS}"
       annotations(**WRITE)
       input_schema(
