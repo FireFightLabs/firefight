@@ -8,13 +8,20 @@ function incidentSearchPath(query: string) {
   return agentChatsIncidentsPath({ q: query })
 }
 
+// A question handed to the composer to finish. The key changes on every hand over, so the same example can be picked twice.
+export interface ComposerFill {
+  draft: string
+  key: number
+}
+
 interface ComposerProps {
   conversationId: string | null
   incidents: AgentChatIncident[]
   busy: boolean
+  fill: ComposerFill | null
 }
 
-export function Composer({ conversationId, incidents, busy }: ComposerProps) {
+export function Composer({ conversationId, incidents, busy, fill }: ComposerProps) {
   const { results, search } = useRemoteSearch<AgentChatIncident>(incidentSearchPath)
 
   function send(question: string) {
@@ -41,9 +48,13 @@ export function Composer({ conversationId, incidents, busy }: ComposerProps) {
     glyph: "layers",
   }))
 
+  // A new chat and a handed over question take the caret. An opened chat does not, so the keyboard stays down on a phone.
+  const takesFocus = fill !== null || conversationId === null
+
   return (
     <div className="mx-auto w-full max-w-3xl">
       <PromptBar
+        key={fill?.key ?? 0}
         demo={false}
         busy={busy}
         modelPicker={false}
@@ -51,6 +62,8 @@ export function Composer({ conversationId, incidents, busy }: ComposerProps) {
         sources={sources}
         commands={[]}
         placeholder={placeholder()}
+        initialDraft={fill?.draft}
+        autoFocus={takesFocus}
         onSend={send}
         onSourceSearch={search}
         sourceHint="Type to search incidents"

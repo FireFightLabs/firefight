@@ -144,6 +144,8 @@ export default function PromptBar({
   busy = false,
   onSourceSearch,
   sourceHint = "Type to search sources & files",
+  initialDraft = "",
+  autoFocus = false,
 }: {
   variant?: string;
   /** the self-running walkthrough; turn off when embedding in a real surface */
@@ -165,9 +167,13 @@ export default function PromptBar({
   onSourceSearch?: (query: string) => void;
   /** the line under the @ menu, naming what @ finds */
   sourceHint?: string;
+  /** what the input holds when it mounts, so a caller can hand it a question to finish */
+  initialDraft?: string;
+  /** put the caret in the input on mount, at the end of the draft */
+  autoFocus?: boolean;
 }) {
   const pill = variant === "Pill";
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialDraft);
   const [dismissed, setDismissed] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
@@ -249,6 +255,14 @@ export default function PromptBar({
   useEffect(() => {
     if (!modelOpen) setModelHovered(null);
   }, [modelOpen]);
+
+  /* focus once asked to, with the caret after whatever the input was handed */
+  useEffect(() => {
+    if (!autoFocus || !inputRef.current) return;
+    const input = inputRef.current;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, [autoFocus]);
 
   /* Their rainbow sweep played on model change through a WebGL dependency. Neither the sweep nor
      the model picker is vendored, so this is where it was. */
