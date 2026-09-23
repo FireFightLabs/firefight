@@ -9,6 +9,6 @@ class WriteSearchEmbeddingJob < ApplicationJob
     record = record_type.constantize.find(record_id)
     return unless Entitlements.allows?(record.workspace, Entitlements::AI)
 
-    record.write_search_embedding!
+    SearchEmbeddingService.new(record.workspace).write!(record)
   end
 end

@@ -31,7 +31,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     AbilityGateway.stubs(:permitted?).returns(false)
 
     assert_no_difference "Investigation.count" do
-      assert_match "not allowed to start an investigation", tool.execute[:error]
+      assert_match "not allowed to start an investigation", tool.call[:error]
     end
   end
 
@@ -46,12 +46,12 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     )
 
     assert_no_difference "Investigation.count" do
-      assert_match "not allowed to start an investigation", tool.execute[:error]
+      assert_match "not allowed to start an investigation", tool.call[:error]
     end
   end
 
   test "starting a run is written to the ledger and closed off" do
-    tool.execute
+    tool.call
 
     invocation = @workspace.ability_invocations.find_by!(action_key: Ability::Action.system_key(
       Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE
@@ -62,7 +62,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
 
   test "the agent can hand a question over to a full investigation" do
     assert_difference "Investigation.count", 1 do
-      assert_match "Started", tool.execute
+      assert_match "Started", tool.call
     end
 
     investigation = @workspace.investigations.sole
@@ -72,15 +72,26 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
   end
 
   test "a run already going is said plainly rather than started twice" do
-    tool.execute
+    tool.call
 
-    assert_match "already running", tool.execute[:error]
+    assert_equal Investigation.already_running_message(@incident), tool.call[:error]
   end
 
   test "a conversation about no incident says so" do
     @conversation.update!(subject: nil)
 
-    assert_match "no incident here", tool.execute[:error]
+    assert_match "no incident here", tool.call[:error]
+  end
+
+  # The refusal still goes to the model as text, so without the mark the card would say Completed.
+  test "a refusal is remembered as failed on the saved call" do
+    @conversation.update!(subject: nil)
+    call = RubyLLM::ToolCall.new(id: "call_1", name: Mcp::Tools::START_INVESTIGATION, arguments: {})
+    @conversation.chat_record.add_message(RubyLLM::Message.new(role: :assistant, content: "", tool_calls: { "call_1" => call }))
+
+    tool.call(tool_call: call)
+
+    assert_equal [ "call_1" ], @conversation.chat.failed_tool_call_ids
   end
 
   private

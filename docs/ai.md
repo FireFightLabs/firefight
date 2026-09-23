@@ -216,6 +216,7 @@ The rules:
 - **An incident is embedded from what people wrote**: its name, summary, alert titles, the summaries it had along the way and its milestone notes. Not its status changes, which say nothing about what happened.
 - **The embedding model is its own purpose** (`AiPurpose::EMBEDDING`, `EMBEDDING_AI_MODEL`) and deliberately not overridable per workspace. Every vector in a workspace must come from one model, so changing it means writing them all again.
 - **A record is embedded again only when its words change.** The row keeps a digest, and `WriteSearchEmbeddingJob` writes nothing when it matches.
+- **Asking for a vector is a call to another system, so it lives in `SearchEmbeddingService`.** `write!(record)` and `similar_to(query)` are the only two places `FirefightAi.embed` is called. The models say what to embed (`search_text`, `search_embeddable?`) and rank a given vector (`SearchEmbedding.nearest`), and never call the engine.
 - **Nothing is backfilled.** Records written before this landed have no vector until they change.
 - **pgvector is required**, and the column is fixed at 1536 numbers wide.
 - **A postmortem is embedded once it is completed**, not on every save while someone is still writing it.

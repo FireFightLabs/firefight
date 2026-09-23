@@ -7,7 +7,7 @@ module Commands
       workspace = command.workspace
       return Command.ephemeral("This command must be run from an incident channel.") unless command.incident
 
-      refusal = Investigation.unavailable_reason(workspace) || command.incident.investigation_blocked_reason
+      refusal = Investigation.start_refusal(command.incident)
       return Command.ephemeral(refusal) if refusal
 
       started = InvestigationService.new(workspace).start(

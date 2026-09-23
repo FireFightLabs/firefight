@@ -8,7 +8,7 @@ class Mcp::Tools::SearchSimilarTest < ActiveSupport::TestCase
     FirefightAi.stubs(:embed).returns(
       Struct.new(:vectors, :model).new(Array.new(SearchEmbedding::DIMENSIONS) { 0.0 }.tap { |v| v[0] = 1.0 }, "text-embedding-3-small")
     )
-    @incident.write_search_embedding!
+    SearchEmbeddingService.new(@workspace).write!(@incident)
   end
 
   test "a question finds the incident that reads like it, and says whether it is still open" do
@@ -37,7 +37,7 @@ class Mcp::Tools::SearchSimilarTest < ActiveSupport::TestCase
     investigation = @workspace.investigations.create!(
       subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400
     )
-    investigation.conclude!(summary: "The 14:02 deploy raised the pool size").write_search_embedding!
+    SearchEmbeddingService.new(@workspace).write!(investigation.conclude!(summary: "The 14:02 deploy raised the pool size"))
 
     types = Mcp::Tools::SearchSimilar.perform_with_principal(
       workspace: @workspace, principal: agent, args: { query: "pool size" }
@@ -50,11 +50,26 @@ class Mcp::Tools::SearchSimilarTest < ActiveSupport::TestCase
     investigation = @workspace.investigations.create!(
       subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400
     )
-    investigation.conclude!(summary: "The 14:02 deploy raised the pool size").write_search_embedding!
+    SearchEmbeddingService.new(@workspace).write!(investigation.conclude!(summary: "The 14:02 deploy raised the pool size"))
     grant_investigations!
 
     types = Mcp::Tools::SearchSimilar.perform_with_principal(
       workspace: @workspace, principal: agent, args: { query: "pool size" }
+    ).structured_content[:matches].map { |match| match[:type] }
+
+    assert_includes types, "finding"
+  end
+
+  # Seen in review. The tool read grant rows itself and refused a member the gateway would have let in.
+  test "a member the gateway lets read investigations without a grant row sees the findings" do
+    investigation = @workspace.investigations.create!(
+      subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400
+    )
+    SearchEmbeddingService.new(@workspace).write!(investigation.conclude!(summary: "The 14:02 deploy raised the pool size"))
+    member = workspace_memberships(:alice_workspace_one)
+
+    types = Mcp::Tools::SearchSimilar.perform_with_principal(
+      workspace: @workspace, principal: member, args: { query: "pool size" }
     ).structured_content[:matches].map { |match| match[:type] }
 
     assert_includes types, "finding"

@@ -18,7 +18,7 @@ module Mcp
 
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = IncidentWrite.find!(workspace, args[:incident])
-        blocked = Investigation.unavailable_reason(workspace) || incident.investigation_blocked_reason
+        blocked = Investigation.start_refusal(incident)
         return Mcp::ToolDispatcher.error_response(blocked) if blocked
 
         started = InvestigationService.new(workspace).start(

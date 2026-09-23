@@ -56,6 +56,7 @@ A parameter whose values are the workspace's own is declared on the tool with `c
 |---|---|
 | `search_incidents` | "What's open? What resolved this week?" — filters: status, severity, stage, text, time range |
 | `get_incident` | "Tell me everything about INC-42" — detail, timeline, postmortem state, attached alerts, roles and their holders |
+| `search_similar` | "Has this happened before?" — incidents, postmortems and findings nearest by meaning (`SearchEmbeddingService`, pgvector), findings only when the caller may read investigations |
 | `search_alerts` | "What's firing and how did it route?" — source, routing state, matched rule, incident link |
 | `search_catalog` | "Who owns checkout?" — entries, attributes, relationships |
 | `evaluate_routing` | "If this alert arrived, what would happen?" — matched rule, outcome, per-condition trace |
