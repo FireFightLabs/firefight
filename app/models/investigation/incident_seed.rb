@@ -17,7 +17,8 @@ class Investigation::IncidentSeed
       "alerts" => alerts.map { |alert| alert_facts(alert) },
       "alerts_held_back" => [ @incident.alerts.count - alerts.size, 0 ].max,
       "runbooks" => runbook_facts,
-      "past_incidents" => past_incident_facts(alerts)
+      "past_incidents" => past_incident_facts(alerts),
+      "services" => service_facts
     }
   end
 
@@ -70,6 +71,14 @@ class Investigation::IncidentSeed
       "last_seen_at" => alert.last_seen_at.iso8601,
       "fields" => alert.fields
     }
+  end
+
+  # The services named on the incident, and where each keeps its code, so the run knows which repositories to read.
+  def service_facts
+    services = @incident.incident_field_values.includes(catalog_entry: { catalog_type: :catalog_attribute_definitions })
+                        .filter_map(&:catalog_entry)
+                        .select { |entry| entry.catalog_type.system_key == CatalogType::SYSTEM_KEY_SERVICE && entry.deleted_at.nil? }
+    services.uniq.map { |entry| { "name" => entry.name, "repository" => entry.repository } }
   end
 
   def runbook_facts

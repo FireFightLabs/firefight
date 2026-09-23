@@ -50,6 +50,7 @@ class InvestigationJob < ApplicationJob
   # The retry arrives long before the lease runs out, so an error hands the run back first.
   def work(investigation)
     investigation.build_seed_pack!
+    Investigation::RunningCode.new(investigation).note!
 
     result = Investigation::Runner.new(investigation).run
     investigation.finish!(status: result.status, error_summary: result.error_summary)

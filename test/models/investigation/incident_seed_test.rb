@@ -118,6 +118,21 @@ class Investigation::IncidentSeedTest < ActiveSupport::TestCase
     assert_equal "INC-001", @investigation.reload.seed_pack["incident"]["identifier"]
   end
 
+  test "the services on the incident are named with where each keeps its code" do
+    service_type = catalog_types(:service_ws1)
+    service_type.catalog_attribute_definitions.create!(
+      name: "Repository", slug: "repository", attribute_type: CatalogAttributeDefinition::TYPE_TEXT,
+      role: CatalogAttributeDefinition::ROLE_REPOSITORY, position: 9
+    )
+    service = catalog_entries(:auth_service)
+    service.update!(attributes: service.entry_attributes.merge("repository" => "https://github.com/acme/auth.git"))
+    @incident.update!(custom_fields: { "affected_services" => [ service.id ] })
+
+    services = @investigation.build_seed_pack!["services"]
+
+    assert_equal [ { "name" => "Auth Service", "repository" => "acme/auth" } ], services
+  end
+
   private
 
   def investigation_for(incident)

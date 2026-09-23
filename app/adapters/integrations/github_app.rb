@@ -36,6 +36,20 @@ module Integrations
         parse_response(Http.request(uri, request, error_class: Error))
       end
 
+      # Blame at a given commit exists only in GitHub's GraphQL API.
+      def graphql(query, variables, token:)
+        uri = URI.parse("#{API_ROOT}/graphql")
+        request = Net::HTTP::Post.new(uri)
+        request["Authorization"] = "Bearer #{token}"
+        request["Content-Type"] = "application/json"
+        apply_api_headers(request)
+        request.body = { query: query, variables: variables }.to_json
+        body = parse_response(Http.request(uri, request, error_class: Error))
+        raise Error, "GitHub: #{body['errors'].map { |error| error['message'] }.join('; ')}" if body["errors"].present?
+
+        body.fetch("data")
+      end
+
       private
 
       def mint_token(environment_row)

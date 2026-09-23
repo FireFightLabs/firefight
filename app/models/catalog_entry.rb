@@ -39,6 +39,13 @@ class CatalogEntry < ApplicationRecord
     slug && entry_attributes[slug]
   end
 
+  # "owner/name", however it was typed: a bare owner/name, or a web or clone address on any code host.
+  def repository
+    value = role_value(CatalogAttributeDefinition::ROLE_REPOSITORY).to_s.strip
+    path = value.sub(%r{\A(?:https?://|git@)[^/:]+[/:]}, "").delete_suffix(".git").delete_suffix("/")
+    path if path.match?(%r{\A[\w.\-]+/[\w.\-]+\z})
+  end
+
   # Filters in memory when the association is loaded, preloads otherwise.
   def active_outgoing_relationships
     relationships = outgoing_relationships

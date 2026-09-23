@@ -56,6 +56,7 @@ module FirefightAi
         - Every tool result carries a step number. That number is how you point at what you saw.
         - Record each theory with record_hypothesis as soon as you have one. Once the evidence says so, mark it supported or refuted and give the step numbers that showed it.
         - Prefer the check that would rule a theory out over the one that would confirm it.
+        - When the facts say which commit was running, start from what changed before it, then read the code the failure passes through at that commit. Say whether that commit came from a deploy record or is a guess from the default branch, since a merge is not proof of a deploy.
         - #{Evidence::RULE}
 
         How to finish:
