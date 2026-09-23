@@ -12,11 +12,11 @@ class Conversation::Turn
   def acting_principal = asker
 
   # A turn nobody can be credited with does nothing.
-  def tool_call(action_key:, params: {}, approval_id: nil, **, &block)
+  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, **, &block)
     raise AbilityGateway::Denied.new(action_key) unless asker
 
     value = Chat::ToolCall.run!(
-      workspace: workspace, principal: asker, action_key: action_key, params: params,
+      workspace: workspace, principal: asker, action_key: action_key, params: params, scope: scope,
       context: { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: conversation.incident_id, approval_id: approval_id }.compact,
       &block
     )

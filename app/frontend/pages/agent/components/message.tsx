@@ -18,8 +18,8 @@ export function Message({ turn }: MessageProps) {
   return (
     <div className="flex flex-col gap-3">
       {turn.steps.length > 0 && <AgentSteps steps={turn.steps} />}
-      {turn.bodies.map((body, index) => (
-        <AnswerText key={index} text={body} />
+      {turn.bodies.map((body) => (
+        <AnswerText key={body.id} text={body.text} />
       ))}
     </div>
   )

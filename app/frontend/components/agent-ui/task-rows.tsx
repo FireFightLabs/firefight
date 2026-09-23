@@ -94,13 +94,11 @@ const DEFAULT_LABELS: TaskRowsLabels = {
 
 
 export default function TaskRows({
-  variant = "Capsules",
   rows,
   labels,
   className,
   onToggleRow,
 }: {
-  variant?: string;
   rows: TaskRow[];
   labels?: Partial<TaskRowsLabels>;
   className?: string;
@@ -138,23 +136,18 @@ export default function TaskRows({
     );
   };
 
-  const list = variant === "List";
   return (
     <div
-      className={`flex w-full max-w-110 flex-col ${
-        list ? "gap-0 self-start overflow-hidden rounded-card bg-surface shadow-card" : "gap-2"
-      }${className ? ` ${className}` : ""}`}
+      className={`flex w-full max-w-110 flex-col gap-2${className ? ` ${className}` : ""}`}
     >
       {rows.map((row, i) => {
         const open = manualOpen[row.key] ?? false;
         return (
           <div
             key={row.key}
-            className={`self-stretch overflow-hidden transition-[border-radius,background-color] duration-300 hover:bg-inset ${
-              list ? "border-b border-line last:border-0" : "bg-surface shadow-card"
-            }`}
+            className={`self-stretch overflow-hidden transition-[border-radius,background-color] duration-300 hover:bg-inset bg-surface shadow-card`}
             style={{
-              borderRadius: list ? 0 : open ? 14 : 22,
+              borderRadius: open ? 14 : 22,
               animation: `fade-up 450ms cubic-bezier(0.23,1,0.32,1) ${i * 80}ms both`,
             }}
           >
@@ -204,7 +197,7 @@ export default function TaskRows({
                     <div className="flex flex-col gap-1.5">
                       {row.details.map((d, j) => (
                         <div
-                          key={d.label}
+                          key={`${row.key}:${j}`}
                           className="flex items-center justify-between"
                           style={
                             open

@@ -55,7 +55,6 @@ export function Composer({ conversationId, incidents, busy, fill }: ComposerProp
     <div className="mx-auto w-full max-w-3xl">
       <PromptBar
         key={fill?.key ?? 0}
-        demo={false}
         busy={busy}
         modelPicker={false}
         dictation={false}

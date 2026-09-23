@@ -204,8 +204,8 @@ class Investigation < ApplicationRecord
 
   # The shared tools call this, so what a tool call leaves behind is the run's business. The step's
   # number travels back with the value, since it is what the agent cites the result by.
-  def tool_call(action_key:, params: {}, tool_name: nil, label: nil, &block)
-    result = Investigation::ToolCall.run!(self, action_key: action_key, params: params, tool_name: tool_name, label: label, &block)
+  def tool_call(action_key:, params: {}, scope: {}, tool_name: nil, label: nil, **, &block)
+    result = Investigation::ToolCall.run!(self, action_key: action_key, params: params, scope: scope, tool_name: tool_name, label: label, &block)
     Chat::ToolCall::Outcome.new(value: result.value, step: result.step.position)
   end
 

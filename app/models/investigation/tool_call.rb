@@ -7,7 +7,7 @@ class Investigation::ToolCall
 
   Result = Data.define(:step, :value)
 
-  def self.run!(investigation, action_key:, params: {}, hypothesis: nil, reasoning: nil, tool_name: nil, label: nil)
+  def self.run!(investigation, action_key:, params: {}, scope: {}, hypothesis: nil, reasoning: nil, tool_name: nil, label: nil)
     step = numbered_step(
       investigation,
       tool_name: tool_name, label: label, hypothesis: hypothesis, action_key: action_key, params: params,
@@ -20,6 +20,7 @@ class Investigation::ToolCall
         principal: investigation.acting_principal,
         action_key: action_key,
         params: params,
+        scope: scope,
         context: investigation.ledger_context
       ) do |authorization|
         step.update!(invocation_id: authorization.invocation_id)

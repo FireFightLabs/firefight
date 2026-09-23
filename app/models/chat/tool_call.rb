@@ -6,9 +6,9 @@ class Chat::ToolCall
     def initialize(value:, step: nil) = super
   end
 
-  def self.run!(workspace:, principal:, action_key:, params: {}, context: {})
+  def self.run!(workspace:, principal:, action_key:, params: {}, scope: {}, context: {})
     authorization = AbilityGateway.authorize!(
-      principal: principal, action_key: action_key, workspace: workspace, params: params, context: context
+      principal: principal, action_key: action_key, workspace: workspace, scope: scope, params: params, context: context
     )
 
     begin
