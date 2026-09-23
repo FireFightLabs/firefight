@@ -77,6 +77,11 @@ class Investigation < ApplicationRecord
     unavailable_reason(workspace).nil?
   end
 
+  # Every way in asks this, so a refusal reads the same from the command, the button, the chat and MCP.
+  def self.start_refusal(incident)
+    unavailable_reason(incident.workspace) || incident.investigation_blocked_reason
+  end
+
   def self.already_running_message(subject)
     "Already investigating #{subject.identifier}, I will post here when I have something."
   end

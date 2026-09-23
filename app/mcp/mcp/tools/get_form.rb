@@ -4,7 +4,10 @@ module Mcp
       tool_name GET_FORM
       description "Fetch one lifecycle form and every field on it, hidden ones included, with " \
                   "each field's key, type, whether it is visible, required, locked, and any " \
-                  "conditions gating it. Read this before changing a form so an update replaces " \
+                  "conditions gating it. A field with asked: false is not on the form right now " \
+                  "and inactive_reason says why, so do not answer it. On the update, resolve and " \
+                  "cancel forms a required field left out keeps the incident's current value. " \
+                  "Read this before changing a form so an update replaces " \
                   "what is actually there. Docs: #{Docs::INCIDENT_FORMS}"
       annotations(**READ_ONLY)
       input_schema(
@@ -38,6 +41,8 @@ module Mcp
           visible: form_field.visibility_mode == IncidentFormField::VISIBILITY_MODE_VISIBLE,
           required: form_field.required_mode != IncidentFormField::REQUIRED_MODE_OPTIONAL,
           locked: form_field.locked_required?,
+          asked: form_field.visibility_mode == IncidentFormField::VISIBILITY_MODE_VISIBLE && form_field.inactive_reason.nil?,
+          inactive_reason: form_field.inactive_reason,
           conditions: form_field.incident_conditions.map do |condition|
             { condition_field: condition.condition_field, operator: condition.operator, values: condition.values }
           end

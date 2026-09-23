@@ -20,20 +20,20 @@ module Mcp
         query = args[:query].to_s.squish
         return Mcp::ToolDispatcher.error_response("Say what is happening first.") if query.blank?
 
-        matches = SearchEmbedding.similar_to(
-          query, workspace: workspace, limit: limit_for(args), types: readable_types(workspace, principal)
+        matches = SearchEmbeddingService.new(workspace).similar_to(
+          query, limit: limit_for(args), types: readable_types(workspace, principal)
         )
         respond(matches: matches.map { |match| summary(match) })
       end
 
-      # A finding is an investigation's answer, and this call was authorized to read incidents.
+      # A finding is an investigation's answer, and this call was authorized to read incidents. The gateway
+      # answers who may read investigations, so a member it lets in without a grant row is let in here too.
       def self.readable_types(workspace, principal)
         types = [ Incident.name, Postmortem.name ]
-        resolved = Ability::Resolver.resolve(principal, workspace)
         findings_key = Ability::Action.system_key(
           Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ
         )
-        types << Investigation::Finding.name if resolved.action_keys.include?(findings_key)
+        types << Investigation::Finding.name if principal.permitted_to?(Ability::Action.lookup(findings_key, workspace), workspace)
         types
       end
 

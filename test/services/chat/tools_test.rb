@@ -412,17 +412,18 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   # Seen in a real chat, three cards in a row titled by the incident's UUID.
-  test "the incident is where a step happens, not what tells it apart, so it is never the headline" do
+  test "the incident is where a step happens, so anything else that tells it apart comes first" do
     step = Chat::Tools.step(Mcp::Tools::ASSIGN_INCIDENT_ROLE, { "incident" => "8472d293-97c5-41b8-ab22-ccba74f691d2", "role" => "incident_lead", "member" => "me" })
 
     assert_equal "incident_lead", step.headline
   end
 
-  test "a tool that takes only the incident has no headline, and its title says what it did" do
+  # Seen in a real chat, eight cards in a row reading only "Resolve incident".
+  test "a tool that takes only the incident is told apart by it" do
     step = Chat::Tools.step(Mcp::Tools::RESOLVE_INCIDENT, { "incident" => "INC-4" })
 
     assert_equal "Resolve incident", step.title
-    assert_equal "", step.headline
+    assert_equal "INC-4", step.headline
   end
 
   test "a tool with nothing it must be given has no headline rather than a guessed one" do

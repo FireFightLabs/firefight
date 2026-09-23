@@ -21,10 +21,11 @@ class SearchEmbedding < ApplicationRecord
     def facts = record.search_facts
   end
 
+  DEFAULT_LIMIT = 25
+
   # Nearest by meaning, within one workspace. Rows written by an older embedding model are left
   # out, since a vector from one model says nothing about a vector from another.
-  def self.similar_to(query, workspace:, limit: 25, types: nil)
-    vector = FirefightAi.embed(query, workspace: workspace).vectors
+  def self.nearest(vector, workspace:, limit: DEFAULT_LIMIT, types: nil)
     scope = in_workspace(workspace).where(model: FirefightAi.embedding_model)
     scope = scope.of_type(types) if types
 

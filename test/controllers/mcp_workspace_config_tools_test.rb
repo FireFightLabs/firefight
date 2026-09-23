@@ -52,6 +52,22 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     assert content.key?("webhooks")
   end
 
+  # The settings page is admin only, so the same values are not handed to a key that may only read incidents.
+  test "the workspace settings are shown only to a caller who may read the workspace" do
+    content, = call_tool(Mcp::Tools::GET_WORKSPACE_CONFIG)
+    assert content.key?("settings"), "an admin's key sees the settings"
+
+    _, reader_token = create_agent(
+      workspace: @workspace, created_by: @membership, name: "Reader", slug: "reader",
+      permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read] }
+    )
+    content, is_error = call_tool(Mcp::Tools::GET_WORKSPACE_CONFIG, {}, token: reader_token)
+
+    assert_not is_error
+    assert_not content.key?("settings")
+    assert content.key?("severities")
+  end
+
   test "creating a severity without a position puts it at the end of the list, as the least severe" do
     content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
       name: "Cosmetic", description: "Nobody noticed", color: "#e5484d"

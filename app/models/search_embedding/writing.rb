@@ -1,12 +1,12 @@
-# What a record contributes to search, and when it is rewritten.
+# What a record contributes to search, and when it is rewritten. The writing itself is
+# SearchEmbeddingService, since it asks the model for the vector.
 module SearchEmbedding::Writing
   extend ActiveSupport::Concern
 
   included do
     has_one :search_embedding, as: :embeddable, dependent: :destroy
 
-    # The job re-reads the record and writes nothing when the words have not changed, so a noisy
-    # incident costs one embedding per real change rather than one per save.
+    # The job re-reads the record and writes nothing when the words have not changed.
     after_commit :schedule_search_embedding, on: [ :create, :update ]
   end
 
@@ -18,18 +18,4 @@ module SearchEmbedding::Writing
 
   # A record says when it is worth embedding. Most are worth it as soon as they exist.
   def search_embeddable? = true
-
-  # Nothing to embed is not an error, it is a record with nothing worth finding yet.
-  def write_search_embedding!
-    text = search_text.to_s.squish
-    return if text.blank?
-
-    digest = SearchEmbedding.digest_for(text)
-    embedding = search_embedding || build_search_embedding(workspace: workspace)
-    return embedding if embedding.persisted? && embedding.content_digest == digest
-
-    result = FirefightAi.embed(text, workspace: workspace)
-    embedding.update!(vector: result.vectors, model: result.model, content_digest: digest)
-    embedding
-  end
 end

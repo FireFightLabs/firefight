@@ -80,7 +80,28 @@ class IncidentFormPromptTest < ActiveSupport::TestCase
     end
   end
 
+  test "a required field left out takes the incident's current value, an answered one is kept" do
+    filled = prompt(IncidentForm::SLUG_RESOLVE, answers: { "summary" => "Pool limit raised" }).answers_with_current
+
+    assert_equal @incident.incident_severity.slug, filled[IncidentSystemField::KEY_SEVERITY]
+    assert_equal "Pool limit raised", filled[IncidentSystemField::KEY_SUMMARY]
+    assert_not filled.key?(IncidentSystemField::KEY_LEAD), "an optional field is left alone"
+  end
+
+  test "a current value the form would not offer is not filled in, so a resolve still asks which closed status" do
+    add_closed_status
+
+    filled = prompt(IncidentForm::SLUG_RESOLVE).answers_with_current
+
+    assert_not filled.key?(IncidentSystemField::KEY_STATUS)
+    assert_equal @incident.incident_severity.slug, filled[IncidentSystemField::KEY_SEVERITY]
+  end
+
   private
+
+  def prompt(slug, answers: {})
+    IncidentFormPrompt.new(@workspace, incident: @incident, form_slug: slug, answers: answers)
+  end
 
   def add_closed_status
     @workspace.incident_statuses.create!(

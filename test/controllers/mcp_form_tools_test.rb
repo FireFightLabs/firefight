@@ -133,6 +133,22 @@ class McpFormToolsTest < ActionDispatch::IntegrationTest
     assert_not name_field["visible"]
   end
 
+  # Seen in a real chat. Status showed as required on the resolve form, an agent answered it, and the
+  # answer was refused as unknown because a single closed status means nothing is asked.
+  test "get_form says when a field is not asked right now, and why" do
+    content, is_error = call_tool(Mcp::Tools::GET_FORM, { form: IncidentForm::SLUG_RESOLVE })
+
+    assert_not is_error
+    status = content["fields"].find { |f| f["slug"] == IncidentSystemField::KEY_STATUS }
+    assert status["visible"]
+    assert_not status["asked"]
+    assert_match(/only one closed status/, status["inactive_reason"])
+
+    severity = content["fields"].find { |f| f["slug"] == IncidentSystemField::KEY_SEVERITY }
+    assert severity["asked"]
+    assert_nil severity["inactive_reason"]
+  end
+
   test "an unknown form is refused with the valid slugs named" do
     content, is_error = call_tool(Mcp::Tools::GET_FORM, { form: "postmortem" })
 
