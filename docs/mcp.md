@@ -151,6 +151,7 @@ and the gateway is what tells them apart.
 | Tool | Manages |
 |---|---|
 | `get_workspace_config` | One read behind all of it: severities, statuses with their stage, types, roles, alert sources, webhooks and the workspace settings |
+| `list_integrations` | What can be connected and where each provider stands, by registry category (`IntegrationProvider.card_for`). Without a category, one line per category with what is connected in it. `integrations: read`. In the dashboard chat a category's answer is drawn as a card, see docs/ai.md. It never connects anything, since OAuth and keys belong in the connect dialog |
 | `update_workspace_settings` | The three settings under Settings, Workspace: transcript access, transcript retention and the channel archive delay. `workspace: update`, admin-only. Annotated destructive, so a chat asks before any of them, since they are workspace wide and an ordinary update verb would not ask |
 | `upsert_severity` / `delete_severity` | Severities. `position` says how severe, 1 being the most, and `rank` in the response is derived from it |
 | `upsert_status` / `delete_status` | Statuses, with `lifecycle_stage` |

@@ -118,6 +118,14 @@ Integration (kind: mcp | http | native, immutable slug, kill switch)
 - Disabling an integration is a kill switch: its tools leave the outward MCP registry entirely.
 - Every connect and refresh path goes through `Integrations::ConnectionRefresh`, so an unreachable server always lands as a readable error on the row instead of an exception a caller has to remember to catch.
 
+## Connecting from a chat
+
+The agent never connects anything. `list_integrations` says what a category holds, and the dashboard chat draws it as a card (`pages/agent/components/integration-card.tsx`) whose Connect button opens the same `ConnectDialog` the Integrations page uses, moved to `components/integrations/` so both pages share it. Where a provider stands (connected, needs attention, turned off, not connected) is decided once, in `IntegrationProvider.card_for`, from the workspace's rows and their health, and the page and the Slack list both show that.
+
+- **Back to the chat.** The dialog passes `return_to`, which `create`, `oauth_start` and the callbacks carry through the session and honour only when it is a chat on this dashboard (`safe_return_to`), so a crafted link cannot send someone elsewhere. The chat gets a toast saying the connection is made. From the Integrations page nothing changes.
+- **A link that opens the dialog.** `/integrations?connect=<provider key>` opens that provider's dialog on arrival, for whoever may manage integrations. The Slack card's buttons use it, since OAuth cannot happen in Slack.
+- **The rows are read fresh.** The chat page loads every category's rows on each visit (`integrationCards`), so coming back from connecting shows it connected without the agent being asked again.
+
 ## Credentials
 
 - `Integrations::OauthClient` owns the credential shape: `exchange` produces it, `refresh` consumes and reproduces it, `stale?` reads its expiry. **Nothing else indexes into it.**

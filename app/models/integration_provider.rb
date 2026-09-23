@@ -25,6 +25,54 @@ class IntegrationProvider
     @categories ||= registry.fetch("categories", {}).freeze
   end
 
+  Category = Data.define(:slug, :name, :tagline)
+
+  # A category as something a person or a model can name, by its slug or its name.
+  def self.category_list
+    @category_list ||= categories.map { |name, tagline| Category.new(slug: name.parameterize(separator: "_"), name: name, tagline: tagline) }.freeze
+  end
+
+  def self.category_for!(value)
+    wanted = value.to_s.strip.downcase
+    category_list.find { |category| category.slug == wanted || category.name.downcase == wanted } ||
+      raise(ArgumentError, "Unknown category '#{value}'. One of: #{category_list.map { |category| "#{category.slug} (#{category.name})" }.join(', ')}")
+  end
+
+  STATE_CONNECTED = "connected".freeze
+  STATE_NEEDS_ATTENTION = "needs_attention".freeze
+  STATE_TURNED_OFF = "turned_off".freeze
+  STATE_NOT_CONNECTED = "not_connected".freeze
+  # Connected first, so a card also says what is already set up.
+  STATES = [ STATE_CONNECTED, STATE_NEEDS_ATTENTION, STATE_TURNED_OFF, STATE_NOT_CONNECTED ].freeze
+
+  Row = Data.define(:provider, :state, :connections)
+  Card = Data.define(:category, :rows)
+
+  # One category as a workspace sees it: every provider in it, and where each stands.
+  def self.card_for(workspace, category)
+    by_provider = workspace.integrations.where(deleted_at: nil).includes(:integration_environments).group_by(&:provider)
+    rows = all.select { |provider| provider.category == category.name }.map do |provider|
+      connections = by_provider.fetch(provider.key, [])
+      Row.new(provider: provider, state: state_for(connections), connections: connections.map(&:name))
+    end
+    Card.new(category: category, rows: rows.sort_by.with_index { |row, index| [ STATES.index(row.state), index ] })
+  end
+
+  def self.cards_for(workspace)
+    category_list.map { |category| card_for(workspace, category) }
+  end
+
+  def self.state_for(connections)
+    return STATE_NOT_CONNECTED if connections.empty?
+
+    live = connections.reject(&:disabled_at)
+    return STATE_TURNED_OFF if live.empty?
+
+    failing = live.any? { |integration| integration.integration_environments.any? { |row| row.enabled && row.health_status == IntegrationEnvironment::HEALTH_FAILING } }
+    failing ? STATE_NEEDS_ATTENTION : STATE_CONNECTED
+  end
+  private_class_method :state_for
+
   def self.registry
     @registry ||= YAML.load_file(REGISTRY_PATH)
   end

@@ -263,6 +263,17 @@ export const AGENT_STEP_KINDS = {
   "ACT": "act"
 } as const
 
+export const AGENT_CARD_KINDS = {
+  "INTEGRATIONS": "integrations"
+} as const
+
+export const INTEGRATION_CARD_STATES = {
+  "CONNECTED": "connected",
+  "NEEDS_ATTENTION": "needs_attention",
+  "TURNED_OFF": "turned_off",
+  "NOT_CONNECTED": "not_connected"
+} as const
+
 export const AGENT_CHANNEL = "ConversationChannel" as const
 
 export const AGENT_CHAT_PROPS = {
@@ -271,7 +282,9 @@ export const AGENT_CHAT_PROPS = {
   "CONVERSATION": "conversation",
   "MESSAGES": "messages",
   "INCIDENTS": "incidents",
-  "CONFIRMATIONS": "confirmations"
+  "CONFIRMATIONS": "confirmations",
+  "INTEGRATION_CARDS": "integrationCards",
+  "ENVIRONMENTS": "environments"
 } as const
 
 export const CHAT_MESSAGE_ROLES = {

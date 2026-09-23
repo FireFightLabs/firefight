@@ -448,6 +448,16 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal "INC-4", step.headline
   end
 
+  test "showing a category of integrations carries a card to draw, and nothing else does" do
+    card = Chat::Tools.step(Mcp::Tools::LIST_INTEGRATIONS, { "category" => "Telemetry" }).card
+
+    assert_equal Chat::Tools::CARD_INTEGRATIONS, card.kind
+    assert_equal "telemetry", card.category
+    assert_nil Chat::Tools.step(Mcp::Tools::LIST_INTEGRATIONS, {}).card
+    assert_nil Chat::Tools.step(Mcp::Tools::LIST_INTEGRATIONS, { "category" => "monitoring" }).card
+    assert_nil Chat::Tools.step(Mcp::Tools::SEARCH_INCIDENTS, { "query" => "checkout" }).card
+  end
+
   test "a tool with nothing it must be given has no headline rather than a guessed one" do
     assert_equal "", Chat::Tools.step(Mcp::Tools::SEARCH_ALERTS, { "limit" => 50 }).headline
   end

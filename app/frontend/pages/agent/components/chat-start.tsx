@@ -1,5 +1,7 @@
 // What a new chat shows around the composer before the first question: a heading above it and example questions below it.
 
+import { useCan } from "@/lib/permissions"
+
 interface Example {
   label: string
   draft: string
@@ -11,6 +13,9 @@ const EXAMPLES: Example[] = [
   { label: "What changed before an incident?", draft: "What changed before @" },
   { label: "Has this happened before?", draft: "Has this happened before with @" },
 ]
+
+// Setting up is for whoever may change the workspace, so only they are offered it, first.
+const SET_UP: Example = { label: "Set up Firefight", draft: "Help me set up Firefight" }
 
 const RISE = "fade-up 450ms var(--ease-out-strong)"
 
@@ -29,9 +34,12 @@ interface StartExamplesProps {
 }
 
 export function StartExamples({ onPick }: StartExamplesProps) {
+  const setsUp = useCan("workspace")
+  const examples = setsUp ? [ SET_UP, ...EXAMPLES ] : EXAMPLES
+
   return (
     <div className="flex flex-wrap justify-center gap-2 px-4 pt-1">
-      {EXAMPLES.map((example, index) => (
+      {examples.map((example, index) => (
         <ExampleButton key={example.label} example={example} index={index} onPick={onPick} />
       ))}
     </div>

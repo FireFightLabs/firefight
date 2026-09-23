@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { ConnectDialog } from "@/pages/integrations/components/connect-dialog"
+import { ConnectDialog } from "@/components/integrations/connect-dialog"
 import { ConnectedCard } from "@/pages/integrations/components/connected-card"
 import { ProviderGallery } from "@/pages/integrations/components/provider-gallery"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -18,12 +18,16 @@ interface IntegrationsPageProps extends SharedProps {
   providers: IntegrationProvider[]
   categories: Record<string, string>
   environments: EnvironmentOption[]
+  connect: string | null
 }
 
 export default function Integrations() {
-  const { integrations, providers, categories, environments } = usePage<IntegrationsPageProps>().props
+  const { integrations, providers, categories, environments, connect } = usePage<IntegrationsPageProps>().props
   const canManage = useCan("integrations")
-  const [connecting, setConnecting] = useState<IntegrationProvider | null>(null)
+  // A link from Slack or a chat names the provider to connect, so its dialog is already open.
+  const [connecting, setConnecting] = useState<IntegrationProvider | null>(() =>
+    canManage ? (providers.find((provider) => provider.key === connect) ?? null) : null,
+  )
   const [detailsId, setDetailsId] = useState<string | null>(null)
 
   const details = integrations.find((integration) => integration.id === detailsId) ?? null

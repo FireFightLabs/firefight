@@ -22,7 +22,24 @@ module Chat::Tools
   KIND_READ = "read"
   KIND_ACT = "act"
 
-  Step = Data.define(:title, :headline, :asked)
+  Step = Data.define(:title, :headline, :asked, :card)
+
+  # A result the page draws as something other than text. The step carries only what to draw, and the page
+  # reads the rows from the workspace as they are now, so a card says the truth after the person acts on it.
+  Card = Data.define(:kind, :category)
+  CARD_INTEGRATIONS = "integrations".freeze
+  CARD_KINDS = [ CARD_INTEGRATIONS ].freeze
+
+  def self.card_for(tool_name, arguments)
+    return nil unless tool_name.to_s == Mcp::Tools::LIST_INTEGRATIONS
+
+    category = arguments.to_h.stringify_keys["category"]
+    return nil if category.blank?
+
+    Card.new(kind: CARD_INTEGRATIONS, category: IntegrationProvider.category_for!(category).slug)
+  rescue ArgumentError
+    nil
+  end
 
   # A tool that only reads is the agent looking something up, which the page shows as thinking rather than as a change.
   def self.kind(tool_name, workspace)
@@ -52,7 +69,10 @@ module Chat::Tools
     return nil if tool_name.blank? || internal_names.include?(tool_name.to_s)
 
     asked = shown_arguments(arguments)
-    Step.new(title: tool_name.to_s.tr("_", " ").humanize, headline: headline_for(tool_name, asked), asked: asked)
+    Step.new(
+      title: tool_name.to_s.tr("_", " ").humanize, headline: headline_for(tool_name, asked), asked: asked,
+      card: card_for(tool_name, arguments)
+    )
   end
 
   # A tool that takes a whole form in one argument is shown as the form's own fields, so a reader

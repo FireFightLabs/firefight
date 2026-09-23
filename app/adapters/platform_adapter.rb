@@ -400,6 +400,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # One category of integrations under an agent's answer, each with a way to connect it on the dashboard.
+  # @param card [IntegrationProvider::Card]
+  # @return [Hash] { message_id:, channel_id: }
+  def post_integration_card(channel_id:, thread_id:, card:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Ends the working state with the reply. streamed means the person already read the text as it arrived.
   # @return [Hash] { message_id:, channel_id: }
   def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)

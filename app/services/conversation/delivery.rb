@@ -29,6 +29,7 @@ class Conversation::Delivery
   # Text written so far lands before the step card, which shows the tool by name and not its query.
   # A thread shows every step the same way, so what kind it is and how long it took are the dashboard's alone.
   def step(key:, step:, status:, kind: nil, seconds: nil, failed: false)
+    cards << step.card if step.card && status == FirefightAi::AgentLoop::STEP_DONE && !failed
     @text.flush!
     adapter.report_agent_step(
       channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status
@@ -47,6 +48,7 @@ class Conversation::Delivery
       channel_id: @conversation.channel_id, thread_id: @conversation.thread_id,
       answer_id: @answer_id, text: reply, streamed: streamed?
     )
+    post_cards
   rescue AdapterError => error
     Rails.logger.warn({
       event: "conversation.reply_undelivered", conversation_id: @conversation.id, error: error.message
@@ -69,6 +71,20 @@ class Conversation::Delivery
   end
 
   private
+
+  def cards = @cards ||= []
+
+  # Posted under the answer rather than into the stream, so the reply reads first and the table follows it.
+  def post_cards
+    cards.uniq.each do |card|
+      next unless card.kind == Chat::Tools::CARD_INTEGRATIONS
+
+      adapter.post_integration_card(
+        channel_id: @conversation.channel_id, thread_id: @conversation.thread_id,
+        card: IntegrationProvider.card_for(@conversation.workspace, IntegrationProvider.category_for!(card.category))
+      )
+    end
+  end
 
   # Streamed text is not repeated, unless a refused piece means the person missed part of it.
   def streamed? = @sent_text && !@lost_text

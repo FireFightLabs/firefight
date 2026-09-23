@@ -2,7 +2,7 @@ import { router } from "@inertiajs/react"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { ProviderMark } from "@/pages/integrations/components/provider-mark"
+import { ProviderMark } from "@/components/integrations/provider-mark"
 import { toggleIntegrationPath } from "@/lib/routes"
 import type { Integration } from "@/types/serializers"
 import type { IntegrationProvider } from "@/types/serializers"

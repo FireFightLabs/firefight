@@ -58,6 +58,11 @@ module TypescriptConstants
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT
       }, nil),
+      Export.new("AGENT_CARD_KINDS", { "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS }, nil),
+      Export.new("INTEGRATION_CARD_STATES", {
+        "CONNECTED" => IntegrationProvider::STATE_CONNECTED, "NEEDS_ATTENTION" => IntegrationProvider::STATE_NEEDS_ATTENTION,
+        "TURNED_OFF" => IntegrationProvider::STATE_TURNED_OFF, "NOT_CONNECTED" => IntegrationProvider::STATE_NOT_CONNECTED
+      }, nil),
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
       Export.new("CHAT_MESSAGE_ROLES", {

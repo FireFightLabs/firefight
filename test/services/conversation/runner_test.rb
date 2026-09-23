@@ -231,6 +231,21 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_not personal.reload.answer_owed?
   end
 
+  test "a category of integrations shown in a thread is posted under the answer, with a way to connect each" do
+    ENV.stubs(:[]).returns(nil)
+    ENV.stubs(:[]).with("APP_HOST").returns("app.example")
+    fake(reply: "Here are the telemetry tools.", steps: [
+      FirefightAi::AgentLoop::Step.new(key: "call_1", tool: Mcp::Tools::LIST_INTEGRATIONS, status: FirefightAi::AgentLoop::STEP_RUNNING, arguments: { "category" => "telemetry" }),
+      FirefightAi::AgentLoop::Step.new(key: "call_1", tool: nil, status: FirefightAi::AgentLoop::STEP_DONE)
+    ])
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
+    Slack::Client.expects(:post_message).with do |arguments|
+      arguments[:thread_ts] == @conversation.thread_id && arguments[:blocks].to_json.include?("connect=datadog")
+    end.returns({ ok: true, ts: "2" })
+
+    ask(@conversation, "what can we connect for logs")
+  end
+
   private
 
   # The question is written down by the asker, the way both entry points do it, and the job runs after.

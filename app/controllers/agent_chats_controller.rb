@@ -9,10 +9,13 @@ class AgentChatsController < InertiaController
   PROP_MESSAGES = "messages"
   PROP_INCIDENTS = "incidents"
   PROP_CONFIRMATIONS = "confirmations"
+  PROP_INTEGRATION_CARDS = "integrationCards"
+  PROP_ENVIRONMENTS = "environments"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
-    "CONFIRMATIONS" => PROP_CONFIRMATIONS
+    "CONFIRMATIONS" => PROP_CONFIRMATIONS, "INTEGRATION_CARDS" => PROP_INTEGRATION_CARDS,
+    "ENVIRONMENTS" => PROP_ENVIRONMENTS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -127,8 +130,16 @@ class AgentChatsController < InertiaController
     {
       PROP_CONVERSATIONS => InertiaRails.scroll(chat_page_metadata) { AgentChatSerializer.many(chat_page) },
       PROP_ARCHIVED_COUNT => own_chats.archived.count,
-      PROP_INCIDENTS => AgentChatIncidentSerializer.many(mentionable_incidents)
+      PROP_INCIDENTS => AgentChatIncidentSerializer.many(mentionable_incidents),
+      # What an integrations card draws, read fresh on every visit, so returning from connecting shows it connected.
+      PROP_INTEGRATION_CARDS => reads_integrations? ? IntegrationCardSerializer.many(IntegrationProvider.cards_for(current_workspace)) : [],
+      PROP_ENVIRONMENTS => reads_integrations? ? EnvironmentOptionSerializer.many(current_workspace.environment_entries) : []
     }
+  end
+
+  def reads_integrations?
+    key = Ability::Action.system_key(Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_READ)
+    current_membership.permitted_to?(Ability::Action.lookup(key, current_workspace), current_workspace)
   end
 
   def chat_page_number = [ params[CHAT_PAGE_PARAM].to_i, 1 ].max

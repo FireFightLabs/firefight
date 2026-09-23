@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { AGENT_CHANNEL, AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import { refreshOpenChat } from "@/pages/agent/lib/chat-updates"
-import type { AgentStep, AgentStream, StepKind, StepStatus, StreamEventType } from "@/pages/agent/types"
+import type { AgentCard, AgentStep, AgentStream, StepKind, StepStatus, StreamEventType } from "@/pages/agent/types"
 
 // If the socket drops mid turn, the answer is fetched once instead of waited for.
 const RECOVERY_MS = 4000
@@ -18,6 +18,7 @@ interface StreamEvent {
   status?: StepStatus
   kind?: StepKind
   seconds?: number
+  card?: AgentCard | null
 }
 
 // The server says whether an answer is owed. The page never guesses it from the last message, which the empty reply
@@ -109,6 +110,7 @@ function withStep(shown: AgentStep[], event: StreamEvent): AgentStep[] {
     status: event.status ?? AGENT_STEP_STATUSES.RUNNING,
     kind: event.kind ?? AGENT_STEP_KINDS.ACT,
     seconds: event.seconds ?? 0,
+    card: event.card ?? null,
   }
   const already = shown.findIndex((candidate) => candidate.key === step.key)
   if (already < 0) {

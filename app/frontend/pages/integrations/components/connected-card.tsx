@@ -17,8 +17,8 @@ import { Switch } from "@/components/ui/switch";
 import {
   EnvironmentSelect,
   toEnvironmentId,
-} from "@/pages/integrations/components/environment-select";
-import { ProviderMark } from "@/pages/integrations/components/provider-mark";
+} from "@/components/integrations/environment-select";
+import { ProviderMark } from "@/components/integrations/provider-mark";
 import { Blocked } from "@/pages/settings/components/blocked-tooltip";
 
 type HealthStatus = Integration["environments"][number]["healthStatus"];
