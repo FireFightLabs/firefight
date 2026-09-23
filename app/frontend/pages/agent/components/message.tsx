@@ -1,13 +1,13 @@
 import { AgentSteps } from "@/pages/agent/components/agent-steps"
 import { AnswerText } from "@/pages/agent/components/answer-text"
-import type { ChatTurn } from "@/pages/agent/types"
+import { type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 
 interface MessageProps {
   turn: ChatTurn
 }
 
 export function Message({ turn }: MessageProps) {
-  if (turn.kind === "person") {
+  if (turn.kind === TURN_KINDS.PERSON) {
     return (
       <p className="max-w-[75%] self-end whitespace-pre-wrap rounded-[18px] bg-accent-tint px-4 py-2 text-[14px] leading-relaxed text-ink">
         {turn.body}

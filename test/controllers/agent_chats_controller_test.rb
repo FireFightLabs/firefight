@@ -28,6 +28,20 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "What changed today?", inertia_props.dig("conversation", "title")
   end
 
+  # Seen in a real chat. The page guessed from the last message's role, and the empty reply saved before the
+  # model answers made it hide the agent's work until the answer landed.
+  test "the page is told an answer is owed until the turn delivers it" do
+    conversation = start_chat
+    conversation.ask!("What changed today?")
+
+    get agent_chat_url(conversation), headers: inertia_headers
+    assert inertia_props.dig("conversation", "busy")
+
+    conversation.reply_delivered!
+    get agent_chat_url(conversation), headers: inertia_headers
+    assert_not inertia_props.dig("conversation", "busy")
+  end
+
   test "the model's own scaffolding is not read back to the person" do
     conversation = start_chat
     conversation.ask!("What changed today?")

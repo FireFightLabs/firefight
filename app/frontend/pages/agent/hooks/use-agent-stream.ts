@@ -1,10 +1,9 @@
 import { createConsumer } from "@rails/actioncable"
 import { useEffect, useRef, useState } from "react"
 
-import { AGENT_CHANNEL, AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
+import { AGENT_CHANNEL, AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import { refreshOpenChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentStep, AgentStream, StepKind, StepStatus, StreamEventType } from "@/pages/agent/types"
-import type { AgentChatMessage } from "@/types/serializers"
 
 // If the socket drops mid turn, the answer is fetched once instead of waited for.
 const RECOVERY_MS = 4000
@@ -21,20 +20,21 @@ interface StreamEvent {
   seconds?: number
 }
 
-export function useAgentStream(conversationId: string | null, messages: AgentChatMessage[]): AgentStream {
-  const [ busy, setBusy ] = useState(false)
+// The server says whether an answer is owed. The page never guesses it from the last message, which the empty reply
+// saved before the model answers would flip within milliseconds of the question.
+export function useAgentStream(conversationId: string | null, owed: boolean): AgentStream {
+  const [ ended, setEnded ] = useState(false)
   const [ text, setText ] = useState("")
   const [ steps, setSteps ] = useState<AgentStep[]>([])
   const working = useRef(false)
   const recovery = useRef<number | undefined>(undefined)
-  const last = messages[messages.length - 1]
+  const busy = owed && !ended
 
-  // A turn already running when the page opened sends no thinking event.
   useEffect(() => {
-    setBusy(last?.role === CHAT_MESSAGE_ROLES.USER)
+    setEnded(false)
     setText("")
     setSteps([])
-  }, [ conversationId, last?.id, last?.role ])
+  }, [ conversationId, owed ])
 
   useEffect(() => {
     working.current = busy
@@ -57,7 +57,7 @@ export function useAgentStream(conversationId: string | null, messages: AgentCha
         received(event: StreamEvent) {
           stopRecovery()
           if (event.type === AGENT_STREAM_EVENTS.THINKING) {
-            setBusy(true)
+            setEnded(false)
             setText("")
             setSteps([])
             return
@@ -75,7 +75,7 @@ export function useAgentStream(conversationId: string | null, messages: AgentCha
             event.type === AGENT_STREAM_EVENTS.FAILED ||
             event.type === AGENT_STREAM_EVENTS.WAITING
           ) {
-            setBusy(false)
+            setEnded(true)
             refreshOpenChat()
           }
         },
@@ -96,10 +96,8 @@ export function useAgentStream(conversationId: string | null, messages: AgentCha
     }
   }, [ conversationId ])
 
-  // The streamed copy hides in the same render the saved reply appears, so the answer never shows twice.
-  const saved = last?.role !== CHAT_MESSAGE_ROLES.USER
-
-  return { busy, text: saved ? "" : text, steps: saved ? [] : steps }
+  // The streamed copy is shown only while the server owes an answer, so it hides in the same render the saved reply appears.
+  return { busy, owed, text: owed ? text : "", steps: owed ? steps : [] }
 }
 
 function withStep(shown: AgentStep[], event: StreamEvent): AgentStep[] {

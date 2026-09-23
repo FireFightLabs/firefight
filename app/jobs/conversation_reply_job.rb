@@ -1,12 +1,10 @@
 class ConversationReplyJob < ApplicationJob
-  # A turn still holding the lock this long belongs to a dead worker, and the chat would wait forever on it.
-  TURN_CEILING = 30.minutes
-
   # Its own queue, so an answer someone is waiting for never sits behind an investigation.
   queue_as :conversations
 
   # A second turn would clear away the empty reply RubyLLM saves while the first is working, orphaning its tool results.
-  limits_concurrency key: ->(conversation_id, _asker_id = nil) { conversation_id }, duration: TURN_CEILING
+  # The lock outlives a dead worker no longer than the page waits on it.
+  limits_concurrency key: ->(conversation_id, _asker_id = nil) { conversation_id }, duration: Conversation::REPLY_CEILING
 
   retry_on FirefightAi::TransientError, wait: :polynomially_longer, attempts: 3 do |job, _error|
     say_nothing_came_of_it(job)
@@ -22,6 +20,7 @@ class ConversationReplyJob < ApplicationJob
     return unless conversation
 
     conversation.note!(Conversation::Delivery::FAILED)
+    conversation.reply_delivered!
     Conversation::Delivery.for(conversation).failed!
   end
 

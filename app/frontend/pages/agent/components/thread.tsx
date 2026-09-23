@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from "react"
 import LoadingState from "@/components/agent-ui/loading-state"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
 import { Message } from "@/pages/agent/components/message"
-import { groupedTurns, liveTurn } from "@/pages/agent/lib/group-turns"
+import { groupedTurns, liveTurn, settledMessages } from "@/pages/agent/lib/group-turns"
 import type { AgentStream } from "@/pages/agent/types"
 import type { AgentChatConfirmation, AgentChatMessage } from "@/types/serializers"
 
@@ -16,8 +16,8 @@ interface ThreadProps {
 
 export function Thread({ conversationId, confirmations, messages, stream }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
-  const turns = useMemo(() => groupedTurns(messages), [ messages ])
-  const live = liveTurn(stream)
+  const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed)), [ messages, stream.owed ])
+  const live = liveTurn(stream, messages)
 
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end" })

@@ -33,6 +33,16 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
                  conversation.reload.chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).sole.content
   end
 
+  test "a turn the job gave up on no longer owes an answer, so the page stops waiting" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    conversation.ask!("what changed today")
+    Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError, "no model")
+
+    ConversationReplyJob.perform_now(conversation.id)
+
+    assert_not conversation.reload.answer_owed?
+  end
+
   test "a thread in Slack is told too" do
     conversation = @workspace.conversations.create!(
       kind: Conversation::KIND_CHANNEL, channel_id: "C_INCIDENT", thread_id: "1700000000.000100",
