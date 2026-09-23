@@ -49,7 +49,7 @@ Product docs live in a separate repo, `../firefight-landing`, and are served at 
 
 - **Any change a user can see requires a matching docs update.** New or changed `/ff` commands, dialogs, settings screens, API endpoints, MCP tools, webhook events, or renamed navigation. A feature that ships undocumented is half-shipped.
 - **`../firefight-landing/CLAUDE.md` owns how docs are written**, covering audience, voice, punctuation, page shape and sidebar wiring. Read it before touching `src/content/docs/`, and follow it over any instinct carried across from this repo.
-- **Docs ship as their own PR** in that repo, opened alongside the code PR here, with the code PR naming it.
+- **Docs ship as their own PR** in that repo, opened alongside the code PR here. Tell the person you are working with its number in chat. The code PR body never links or names that repo, since it is private and this one is public.
 - Repo-internal docs under `docs/` are engineering references and a separate obligation: update the relevant one in the same PR as the code.
 - If a change turns out to need no docs update, say so explicitly rather than leaving it unmentioned.
 
