@@ -60,6 +60,10 @@ class Integration < ApplicationRecord
     end
   end
 
+  # The Integrations page reads these from its address, so a link opens one connection's details or one provider's connect dialog.
+  DETAILS_QUERY_PARAM = "integration".freeze
+  CONNECT_QUERY_PARAM = "connect".freeze
+
   def resolve_environment(catalog_entry_id)
     rows = integration_environments.where(enabled: true)
     return rows.find_by(catalog_entry_id: catalog_entry_id) if catalog_entry_id.present?

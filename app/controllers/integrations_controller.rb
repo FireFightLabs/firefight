@@ -37,7 +37,7 @@ class IntegrationsController < InertiaController
     )
     Integrations::ConnectionRefresh.run!(integration)
 
-    redirect_to integrations_path
+    connected(integration.name, return_to_param)
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: integrations_path, inertia: { errors: e.record.errors.to_hash }
   end
@@ -97,7 +97,8 @@ class IntegrationsController < InertiaController
       "provider" => provider.key, "name" => params[:name].presence || provider.name,
       "environment_id" => environment_id_param,
       "state" => flow[:state], "verifier" => flow[:verifier],
-      "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint]
+      "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
+      "return_to" => return_to_param
     }
     redirect_to flow[:authorize_url], allow_other_host: true
   rescue Integrations::OauthFlow::Error => e
@@ -121,7 +122,7 @@ class IntegrationsController < InertiaController
     environment_row.store_oauth!(credentials)
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
-    redirect_to integrations_path
+    connected(environment_row.integration.name, safe_return_to(pending["return_to"]))
   rescue Integrations::OauthFlow::Error => e
     redirect_to integrations_path, alert: "Could not connect: #{e.message}"
   rescue NameTaken
@@ -145,7 +146,7 @@ class IntegrationsController < InertiaController
 
     session[:integration_oauth] = {
       "provider" => provider.key, "name" => params[:name].presence || provider.name,
-      "environment_id" => environment_id_param, "state" => state
+      "environment_id" => environment_id_param, "state" => state, "return_to" => return_to_param
     }
     redirect_to install_url, allow_other_host: true
   end
@@ -159,7 +160,27 @@ class IntegrationsController < InertiaController
     environment_row.store_installation!(params[:installation_id])
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
-    redirect_to integrations_path
+    connected(environment_row.integration.name, safe_return_to(pending["return_to"]))
+  end
+
+  # Connecting from a chat goes back to that chat and says so there. From this page nothing changes.
+  def connected(name, return_to)
+    return redirect_to(integrations_path) unless return_to
+
+    redirect_to return_to, notice: "#{name} is connected."
+  end
+
+  def return_to_param = safe_return_to(params[:return_to])
+
+  # Only a chat on this dashboard, so a crafted link cannot send someone elsewhere after they connect.
+  def safe_return_to(path)
+    path = path.to_s
+    return nil unless path.start_with?("/") && !path.start_with?("//")
+
+    route = Rails.application.routes.recognize_path(path)
+    path if route[:controller] == AgentChatsController.controller_path && %w[index show].include?(route[:action])
+  rescue ActionController::RoutingError
+    nil
   end
 
   # Keyed on the slug so one provider can back several accounts with their own credentials.

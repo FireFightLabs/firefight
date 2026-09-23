@@ -35,9 +35,10 @@ class Conversation::LiveDelivery
   # Text written so far lands before the step.
   def step(key:, step:, status:, kind: Chat::Tools::KIND_ACT, seconds: 0, failed: false)
     @text.flush!
+    shown = failed ? STATUS_FAILED : STATUSES.fetch(status)
     broadcast(
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
-      status: failed ? STATUS_FAILED : STATUSES.fetch(status), kind: kind, seconds: seconds
+      status: shown, kind: kind, seconds: seconds, card: (step.card&.to_h if shown == STATUS_DONE)
     )
   end
 

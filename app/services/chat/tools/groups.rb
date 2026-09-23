@@ -77,9 +77,9 @@ module Chat::Tools::Groups
     ),
     Firefight.new(
       key: SETUP, title: "Workspace setup",
-      covers: "what is configured, the workspace settings, severities, statuses, incident types, roles, forms and custom fields",
+      covers: "what is configured, the workspace settings, severities, statuses, incident types, roles, forms and custom fields, and what can be connected",
       tools: [
-        Mcp::Tools::GET_WORKSPACE_CONFIG, Mcp::Tools::UPDATE_WORKSPACE_SETTINGS, Mcp::Tools::UPSERT_SEVERITY, Mcp::Tools::DELETE_SEVERITY,
+        Mcp::Tools::GET_WORKSPACE_CONFIG, Mcp::Tools::UPDATE_WORKSPACE_SETTINGS, Mcp::Tools::LIST_INTEGRATIONS, Mcp::Tools::UPSERT_SEVERITY, Mcp::Tools::DELETE_SEVERITY,
         Mcp::Tools::UPSERT_STATUS, Mcp::Tools::DELETE_STATUS, Mcp::Tools::UPSERT_INCIDENT_TYPE,
         Mcp::Tools::DELETE_INCIDENT_TYPE, Mcp::Tools::UPSERT_INCIDENT_ROLE, Mcp::Tools::DELETE_INCIDENT_ROLE,
         Mcp::Tools::GET_FORM, Mcp::Tools::UPSERT_FORM_FIELD, Mcp::Tools::UPSERT_CUSTOM_FIELD
@@ -127,7 +127,7 @@ module Chat::Tools::Groups
     category_key(category)
   end
 
-  def self.category_key(category) = category.parameterize(separator: "_")
+  def self.category_key(category) = IntegrationProvider.category_slug(category)
 
   def self.for(agent_run)
     entries = Chat::Tools.catalog(agent_run).group_by(&:group)

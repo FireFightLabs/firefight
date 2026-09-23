@@ -498,6 +498,16 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   # Blocks after a stream render below the streamed text, so a reply the person already read gets none.
+  def post_integration_card(channel_id:, thread_id:, card:)
+    translate_errors do
+      result = Slack::Client.post_message(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: Slack::Messages::IntegrationCard.fallback(card), blocks: Slack::Messages::IntegrationCard.build(card)
+      )
+      { message_id: result[:ts], channel_id: channel_id }
+    end
+  end
+
   def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,

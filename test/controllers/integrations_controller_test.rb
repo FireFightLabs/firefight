@@ -286,6 +286,26 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, @workspace.integrations.where(provider: "linear").count
   end
 
+  test "connecting from a chat goes back to that chat and says so" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
+
+    complete_oauth_flow(start: { return_to: agent_chat_path(conversation) })
+
+    assert_redirected_to agent_chat_path(conversation)
+    assert_equal "Linear is connected.", flash[:notice]
+  end
+
+  test "a return address that is not a chat on this dashboard is ignored" do
+    complete_oauth_flow(start: { return_to: "https://evil.example/phish" })
+    assert_redirected_to integrations_path
+
+    complete_oauth_flow(start: { return_to: "//evil.example" })
+    assert_redirected_to integrations_path
+
+    complete_oauth_flow(start: { return_to: settings_workspace_path })
+    assert_redirected_to integrations_path
+  end
+
   test "oauth callback with the right state stores tokens and discovers tools" do
     complete_oauth_flow
 

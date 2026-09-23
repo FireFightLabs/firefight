@@ -22,12 +22,15 @@ import {
   ALL_ENVIRONMENTS,
   EnvironmentSelect,
   toEnvironmentId,
-} from "@/pages/integrations/components/environment-select";
-import { ProviderMark } from "@/pages/integrations/components/provider-mark";
+} from "@/components/integrations/environment-select";
+import { ProviderMark } from "@/components/integrations/provider-mark";
 import { whenClosed } from "@/lib/handlers";
 
-function oauthHref(providerKey: string, name: string, environmentId: string) {
+function oauthHref(providerKey: string, name: string, environmentId: string, returnTo?: string) {
   const params = new URLSearchParams({ provider: providerKey });
+  if (returnTo) {
+    params.set("return_to", returnTo);
+  }
   if (name) {
     params.set("name", name);
   }
@@ -38,15 +41,18 @@ function oauthHref(providerKey: string, name: string, environmentId: string) {
   return `${oauthStartIntegrationsPath()}?${params.toString()}`;
 }
 
+// returnTo is the dashboard page to come back to once connected, such as the chat the dialog was opened from.
 export function ConnectDialog({
   provider,
   environments,
   existingNames,
+  returnTo,
   onDismiss,
 }: {
   provider: IntegrationProvider | null;
   environments: EnvironmentOption[];
   existingNames: string[];
+  returnTo?: string;
   onDismiss: () => void;
 }) {
   // Keyed on the provider so a different tile mounts a fresh form. The last provider
@@ -65,6 +71,7 @@ export function ConnectDialog({
             provider={shownProvider}
             environments={environments}
             existingNames={existingNames}
+            returnTo={returnTo}
             onDismiss={onDismiss}
           />
         )}
@@ -77,11 +84,13 @@ function ConnectForm({
   provider,
   environments,
   existingNames,
+  returnTo,
   onDismiss,
 }: {
   provider: IntegrationProvider;
   environments: EnvironmentOption[];
   existingNames: string[];
+  returnTo?: string;
   onDismiss: () => void;
 }) {
   const [name, setName] = useState(
@@ -118,6 +127,7 @@ function ConnectForm({
         server_url: serverUrl,
         authorization,
         environment_id: toEnvironmentId(environmentId),
+        return_to: returnTo,
       },
       { onFinish: () => onDismiss() },
     );
@@ -208,7 +218,7 @@ function ConnectForm({
               </Button>
             ) : (
               <Button asChild size="lg" className="w-full">
-                <a href={oauthHref(provider.key, name, environmentId)}>
+                <a href={oauthHref(provider.key, name, environmentId, returnTo)}>
                   Continue with {provider.name}
                 </a>
               </Button>

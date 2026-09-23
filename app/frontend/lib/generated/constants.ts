@@ -17,6 +17,16 @@ export const CUSTOM_MCP_PROVIDER_KEY = "custom_mcp" as const
 
 export const RUNBOOK_QUERY_PARAM = "runbook" as const
 
+export const INTEGRATION_DETAILS_QUERY_PARAM = "integration" as const
+
+export const INTEGRATION_CONNECT_QUERY_PARAM = "connect" as const
+
+export const INTEGRATION_CARD_ACTIONS = {
+  "CONNECT": "connect",
+  "RECONNECT": "reconnect",
+  "MANAGE": "manage"
+} as const
+
 export const INCIDENT_FORM_SLUGS = [
   "declare",
   "update",
@@ -263,6 +273,17 @@ export const AGENT_STEP_KINDS = {
   "ACT": "act"
 } as const
 
+export const AGENT_CARD_KINDS = {
+  "INTEGRATIONS": "integrations"
+} as const
+
+export const INTEGRATION_CARD_STATES = {
+  "CONNECTED": "connected",
+  "NEEDS_ATTENTION": "needs_attention",
+  "TURNED_OFF": "turned_off",
+  "NOT_CONNECTED": "not_connected"
+} as const
+
 export const AGENT_CHANNEL = "ConversationChannel" as const
 
 export const AGENT_CHAT_PROPS = {
@@ -271,7 +292,9 @@ export const AGENT_CHAT_PROPS = {
   "CONVERSATION": "conversation",
   "MESSAGES": "messages",
   "INCIDENTS": "incidents",
-  "CONFIRMATIONS": "confirmations"
+  "CONFIRMATIONS": "confirmations",
+  "INTEGRATION_CARDS": "integrationCards",
+  "ENVIRONMENTS": "environments"
 } as const
 
 export const CHAT_MESSAGE_ROLES = {

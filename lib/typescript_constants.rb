@@ -17,6 +17,12 @@ module TypescriptConstants
       }, nil),
       Export.new("CUSTOM_MCP_PROVIDER_KEY", Integration::PROVIDER_CUSTOM_MCP, nil),
       Export.new("RUNBOOK_QUERY_PARAM", Runbook::QUERY_PARAM, nil),
+      Export.new("INTEGRATION_DETAILS_QUERY_PARAM", Integration::DETAILS_QUERY_PARAM, nil),
+      Export.new("INTEGRATION_CONNECT_QUERY_PARAM", Integration::CONNECT_QUERY_PARAM, nil),
+      Export.new("INTEGRATION_CARD_ACTIONS", {
+        "CONNECT" => IntegrationProvider::ACTION_CONNECT, "RECONNECT" => IntegrationProvider::ACTION_RECONNECT,
+        "MANAGE" => IntegrationProvider::ACTION_MANAGE
+      }, nil),
       Export.new("INCIDENT_FORM_SLUGS", IncidentForm::SLUGS, "IncidentFormSlug"),
       Export.new("INCIDENT_RELATIONSHIPS", {
         "RELATED" => IncidentRelationship::RELATED, "DUPLICATE" => IncidentRelationship::DUPLICATE
@@ -57,6 +63,11 @@ module TypescriptConstants
       }, nil),
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT
+      }, nil),
+      Export.new("AGENT_CARD_KINDS", { "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS }, nil),
+      Export.new("INTEGRATION_CARD_STATES", {
+        "CONNECTED" => IntegrationProvider::STATE_CONNECTED, "NEEDS_ATTENTION" => IntegrationProvider::STATE_NEEDS_ATTENTION,
+        "TURNED_OFF" => IntegrationProvider::STATE_TURNED_OFF, "NOT_CONNECTED" => IntegrationProvider::STATE_NOT_CONNECTED
       }, nil),
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),

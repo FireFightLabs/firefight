@@ -1,3 +1,4 @@
+import { AgentCard } from "@/pages/agent/components/agent-card"
 import { AgentSteps } from "@/pages/agent/components/agent-steps"
 import { AnswerText } from "@/pages/agent/components/answer-text"
 import { type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
@@ -15,12 +16,16 @@ export function Message({ turn }: MessageProps) {
     )
   }
 
+  // The answer reads first and a card follows it, the same order Slack posts them in.
+  const cards = turn.steps.filter((step) => step.card !== null)
+
   return (
     <div className="flex flex-col gap-3">
       {turn.steps.length > 0 && <AgentSteps steps={turn.steps} />}
       {turn.bodies.map((body) => (
         <AnswerText key={body.id} text={body.text} />
       ))}
+      {cards.map((step) => step.card && <AgentCard key={step.key} card={step.card} />)}
     </div>
   )
 }

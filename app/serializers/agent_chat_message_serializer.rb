@@ -9,7 +9,7 @@ class AgentChatMessageSerializer < BaseSerializer
   end
 
   # Same shape as the live step event, so a step reads the same either way.
-  type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number }[]"
+  type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number; card: { kind: string; category: string } | null }[]"
   def tools
     workspace = message.chat.workspace
     calls = message.ruby_llm_tool_calls.sort_by(&:created_at)
@@ -17,9 +17,11 @@ class AgentChatMessageSerializer < BaseSerializer
       step = Chat::Tools.step(call.name, call.arguments)
       next unless step
 
+      status = self.class.step_status(call)
       { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked,
-        status: self.class.step_status(call), kind: Chat::Tools.kind(call.name, workspace),
-        seconds: self.class.step_seconds(call, message, last: call == calls.last) }
+        status: status, kind: Chat::Tools.kind(call.name, workspace),
+        seconds: self.class.step_seconds(call, message, last: call == calls.last),
+        card: (step.card&.to_h if status == Conversation::LiveDelivery::STATUS_DONE) }
     end
   end
 

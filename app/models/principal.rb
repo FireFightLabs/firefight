@@ -40,4 +40,9 @@ module Principal
   def permitted_to?(action, workspace)
     action.present? && AbilityGateway.permitted?(self, action, action.key, workspace, {})
   end
+
+  # The same answer for one of Firefight's own resources, named by resource and verb rather than by action.
+  def may?(resource, verb, workspace)
+    permitted_to?(Ability::Action.lookup(Ability::Action.system_key(resource, verb), workspace), workspace)
+  end
 end

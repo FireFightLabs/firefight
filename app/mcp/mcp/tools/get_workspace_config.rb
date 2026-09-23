@@ -28,8 +28,7 @@ module Mcp
 
       # The settings page is for admins, so they are shown here on the same permission it asks for.
       def self.settings_for(workspace, principal)
-        key = Ability::Action.system_key(Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_READ)
-        return {} unless principal.permitted_to?(Ability::Action.lookup(key, workspace), workspace)
+        return {} unless principal.may?(Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_READ, workspace)
 
         { settings: workspace.settings }
       end
