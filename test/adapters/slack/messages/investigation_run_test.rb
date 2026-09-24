@@ -16,6 +16,37 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     )
   end
 
+  test "a question with no incident is announced by its own words, escaped" do
+    text = Slack::Messages::InvestigationRun.started(incident: nil, question: "is <checkout> slow", started_by: "Alice").sole.dig(:text, :text)
+
+    assert_match "is &lt;checkout&gt; slow", text
+  end
+
+  test "an answer that says users are hurt now, with no incident, offers to declare one" do
+    run = @incident.workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400,
+      brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }
+    )
+    finding = run.conclude!(summary: "Checkout writes time out", suggest_incident: true)
+
+    buttons = Slack::Messages::InvestigationRun.finding(finding: finding).select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }
+
+    declare = buttons.find { |button| button[:action_id] == Identifiers::DECLARE_INCIDENT_FROM_INVESTIGATION }
+    assert_equal run.id, declare[:value]
+  end
+
+  test "an answer on an incident never offers to declare another, even when the agent asks to" do
+    run = @incident.workspace.investigations.create!(
+      subject: incidents(:active_major_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400
+    )
+    finding = run.conclude!(summary: "Checkout writes time out", suggest_incident: true)
+
+    buttons = Slack::Messages::InvestigationRun.finding(finding: finding).select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }
+
+    assert_nil buttons.find { |button| button[:action_id] == Identifiers::DECLARE_INCIDENT_FROM_INVESTIGATION }
+    assert_not finding.suggests_incident
+  end
+
   test "the opening message names the incident and who asked" do
     text = Slack::Messages::InvestigationRun.started(incident: @incident, started_by: "Alice").sole.dig(:text, :text)
 

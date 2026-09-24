@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_24_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -996,6 +996,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_150000) do
     t.datetime "published_at"
     t.string "published_state", default: "unpublished", null: false
     t.string "remediation_type"
+    t.boolean "suggests_incident", default: false, null: false
     t.text "summary"
     t.datetime "updated_at", null: false
     t.uuid "winning_hypothesis_id"
@@ -1056,7 +1057,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_150000) do
     t.integer "attempts", default: 0, null: false
     t.jsonb "brief", default: {}, null: false
     t.boolean "cancel_requested", default: false, null: false
+    t.string "channel_id"
     t.datetime "completed_at"
+    t.uuid "conversation_id"
     t.datetime "created_at", null: false
     t.datetime "critique_asked_at"
     t.string "error_summary"
@@ -1073,17 +1076,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_150000) do
     t.bigint "spent_micros", default: 0, null: false
     t.datetime "started_at"
     t.string "status", default: "pending", null: false
-    t.uuid "subject_id", null: false
-    t.string "subject_type", null: false
+    t.uuid "subject_id"
+    t.string "subject_type"
     t.string "thread_id"
+    t.string "tool_call_id"
     t.string "trigger_source", null: false
     t.uuid "triggered_by_id"
     t.string "triggered_by_type"
     t.integer "turns_used", default: 0, null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.index ["conversation_id"], name: "index_investigations_on_conversation_id"
     t.index ["replay_of_id"], name: "index_investigations_on_replay_of_id"
-    t.index ["subject_type", "subject_id"], name: "index_investigations_on_live_subject", unique: true, where: "(((status)::text = ANY ((ARRAY['pending'::character varying, 'running'::character varying])::text[])) AND (rehearsal = false))"
+    t.index ["subject_type", "subject_id"], name: "index_investigations_on_live_subject", unique: true, where: "(((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('running'::character varying)::text])) AND (rehearsal = false))"
     t.index ["subject_type", "subject_id"], name: "index_investigations_on_subject"
     t.index ["triggered_by_type", "triggered_by_id"], name: "index_investigations_on_triggered_by"
     t.index ["workspace_id", "created_at"], name: "index_investigations_on_workspace_id_and_created_at"
@@ -1633,6 +1638,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_150000) do
   add_foreign_key "investigation_steps", "investigations"
   add_foreign_key "investigation_verdicts", "investigation_findings", column: "finding_id"
   add_foreign_key "investigation_verdicts", "workspace_memberships", column: "member_id"
+  add_foreign_key "investigations", "conversations", on_delete: :nullify
   add_foreign_key "investigations", "investigations", column: "replay_of_id"
   add_foreign_key "investigations", "workspaces"
   add_foreign_key "invite_codes", "users", column: "redeemed_by_id"

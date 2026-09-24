@@ -31,7 +31,11 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
             "required" => %w[claim steps]
           }
         },
-        "gaps" => { "type" => "string", "description" => "What you could not check, and why it matters" }
+        "gaps" => { "type" => "string", "description" => "What you could not check, and why it matters" },
+        "suggest_incident" => {
+          "type" => "boolean",
+          "description" => "Only when there is no incident yet: true when what you found is hurting users now and the team should declare one"
+        }
       },
       "required" => [ "summary" ]
     }
@@ -50,7 +54,8 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
     refuse_emptied_cause!(asked[:hypothesis], reread)
 
     @investigation.conclude!(
-      summary: asked[:summary], hypothesis_assertion: asked[:hypothesis], evidence: reread.kept, gaps: asked[:gaps]
+      summary: asked[:summary], hypothesis_assertion: asked[:hypothesis], evidence: reread.kept, gaps: asked[:gaps],
+      suggest_incident: asked[:suggest_incident] == true
     )
     "Answer recorded. The run is over."
   rescue Investigation::Evidence::Refused => refused

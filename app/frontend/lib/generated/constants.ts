@@ -257,7 +257,8 @@ export const AGENT_STREAM_EVENTS = {
   "CHUNK": "chunk",
   "ANSWERED": "answered",
   "FAILED": "failed",
-  "WAITING": "waiting"
+  "WAITING": "waiting",
+  "INVESTIGATION": "investigation"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -274,7 +275,8 @@ export const AGENT_STEP_KINDS = {
 } as const
 
 export const AGENT_CARD_KINDS = {
-  "INTEGRATIONS": "integrations"
+  "INTEGRATIONS": "integrations",
+  "INVESTIGATION": "investigation"
 } as const
 
 export const INTEGRATION_CARD_STATES = {
@@ -294,7 +296,9 @@ export const AGENT_CHAT_PROPS = {
   "INCIDENTS": "incidents",
   "CONFIRMATIONS": "confirmations",
   "INTEGRATION_CARDS": "integrationCards",
-  "ENVIRONMENTS": "environments"
+  "ENVIRONMENTS": "environments",
+  "INVESTIGATIONS": "investigations",
+  "OPEN_INVESTIGATION": "openInvestigation"
 } as const
 
 export const INVESTIGATION_QUERY_PARAM = "investigation" as const

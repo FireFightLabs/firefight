@@ -23,7 +23,8 @@ class IncidentLifecycleController < InertiaController
       **submission.creation_attributes,
       is_test: ActiveModel::Type::Boolean.new.cast(params[:test]) == true,
       declared_by: current_member,
-      source: Incident::SOURCE_DASHBOARD
+      source: Incident::SOURCE_DASHBOARD,
+      from_investigation: from_investigation
     )
 
     redirect_to incident_path(incident), notice: "#{incident.identifier} was declared."
@@ -98,6 +99,11 @@ class IncidentLifecycleController < InertiaController
   end
 
   private
+
+  # The run whose answer offered this incident, when it was declared from one.
+  def from_investigation
+    params[:investigation_id].presence && current_workspace.investigations.seen.find_by(id: params[:investigation_id])
+  end
 
   def find_incident
     current_workspace.incidents.where(deleted_at: nil).find(params[:incident_id])

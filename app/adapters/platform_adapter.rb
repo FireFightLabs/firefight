@@ -358,9 +358,11 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Says an investigation has started, and opens the thread the rest of it goes in.
+  # Says an investigation has started, and opens the thread the rest of it goes in. incident is nil for a question
+  # nobody has declared an incident for, which is then named by the question. Where the app cannot post, it goes to
+  # fallback_user_id directly when one is given, and channel_id says where it went.
   # @return [Hash] { message_id:, channel_id: }
-  def post_investigation_started(channel_id:, incident:, started_by:)
+  def post_investigation_started(channel_id:, incident:, started_by:, question: nil, fallback_user_id: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 

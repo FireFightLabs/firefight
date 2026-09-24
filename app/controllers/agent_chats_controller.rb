@@ -11,11 +11,15 @@ class AgentChatsController < InertiaController
   PROP_CONFIRMATIONS = "confirmations"
   PROP_INTEGRATION_CARDS = "integrationCards"
   PROP_ENVIRONMENTS = "environments"
+  # The runs the open chat started, which its cards draw, and the one the address asks to open over the chat.
+  PROP_INVESTIGATIONS = "investigations"
+  PROP_OPEN_INVESTIGATION = "openInvestigation"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
     "CONFIRMATIONS" => PROP_CONFIRMATIONS, "INTEGRATION_CARDS" => PROP_INTEGRATION_CARDS,
-    "ENVIRONMENTS" => PROP_ENVIRONMENTS
+    "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
+    "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -31,14 +35,18 @@ class AgentChatsController < InertiaController
 
   # Sent empty so a partial visit here clears the open chat instead of keeping the last one.
   def index
-    render inertia: "agent/index", props: base_props.merge(PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [])
+    render inertia: "agent/index", props: base_props.merge(
+      PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil
+    )
   end
 
   def show
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => AgentChatSerializer.one(conversation),
       PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(ruby_llm_tool_calls: :result) || []),
-      PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || [])
+      PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || []),
+      PROP_INVESTIGATIONS => InvestigationCardSerializer.many(started_investigations),
+      PROP_OPEN_INVESTIGATION => open_investigation
     )
   end
 
@@ -91,6 +99,17 @@ class AgentChatsController < InertiaController
   end
 
   private
+
+  def started_investigations
+    conversation.investigations.seen.includes(:subject, :finding).order(:created_at)
+  end
+
+  # Only a run this chat started opens over it. Any other opens nothing.
+  def open_investigation
+    id = params[Investigation::QUERY_PARAM]
+    investigation = id.presence && conversation.investigations.seen.find_by(id: id)
+    investigation && InvestigationDetailSerializer.one(investigation)
+  end
 
   def question = params[:question].to_s.strip
 

@@ -57,6 +57,14 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_nil inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION]
   end
 
+  test "a run asked without an incident is shown on its own" do
+    question = investigation_run(subject: nil, brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" })
+
+    get investigation_url(question), headers: inertia_headers
+
+    assert_equal "checkout is slow", inertia_props.dig(InvestigationsController::PROP_INVESTIGATION, "question")
+  end
+
   test "a rehearsal cannot be opened" do
     rehearsal = investigation_run(rehearsal: true, trigger_source: Investigation::TRIGGER_REHEARSAL)
 

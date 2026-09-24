@@ -84,13 +84,29 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_equal 0, @workspace.conversations.count
   end
 
+  test "outside an incident's channel a mention that starts with investigate investigates the question there" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+
+    assert_enqueued_with(job: InvestigationJob) { mention("investigate billing is slow", channel: "C0GENERAL") }
+
+    investigation = @workspace.investigations.find_by!(channel_id: "C0GENERAL")
+    assert_nil investigation.subject
+    assert_equal "billing is slow", investigation.question
+  end
+
+  test "outside an incident's channel any other mention is left alone" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+
+    assert_no_enqueued_jobs { mention("what is going on", channel: "C0GENERAL") }
+  end
+
   private
 
-  def mention(text, thread_ts: "1700000000.000100", by: workspace_memberships(:alice_workspace_one))
+  def mention(text, thread_ts: "1700000000.000100", by: workspace_memberships(:alice_workspace_one), channel: @incident.channel_id)
     Events::AppMentionHandler.execute(@workspace, {
       "team_id" => @workspace.platform_id,
       "event" => {
-        "type" => Identifiers::EVENT_APP_MENTION, "channel" => @incident.channel_id,
+        "type" => Identifiers::EVENT_APP_MENTION, "channel" => channel,
         "user" => by.platform_user_id,
         "ts" => thread_ts, "text" => "<@U123> #{text}"
       }

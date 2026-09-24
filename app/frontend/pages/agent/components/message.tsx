@@ -25,7 +25,7 @@ export function Message({ turn }: MessageProps) {
       {turn.bodies.map((body) => (
         <AnswerText key={body.id} text={body.text} />
       ))}
-      {cards.map((step) => step.card && <AgentCard key={step.key} card={step.card} />)}
+      {cards.map((step) => step.card && <AgentCard key={step.key} card={step.card} stepKey={step.key} />)}
     </div>
   )
 }

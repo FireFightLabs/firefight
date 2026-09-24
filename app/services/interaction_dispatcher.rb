@@ -38,6 +38,7 @@ class InteractionDispatcher
     Identifiers::UPDATE_INCIDENT_SUMMARY => Interactions::UpdateSummaryButtonHandler,
     Identifiers::ESCALATE_INCIDENT => Interactions::EscalateIncidentButtonHandler,
     Identifiers::START_INVESTIGATION => Interactions::StartInvestigationButtonHandler,
+    Identifiers::DECLARE_INCIDENT_FROM_INVESTIGATION => Interactions::DeclareFromInvestigationHandler,
     Identifiers::SEND_INCIDENT_UPDATE => Interactions::SendIncidentUpdateButtonHandler,
     Identifiers::PICK_UP_ACTION => Interactions::PickUpActionHandler,
     Identifiers::MARK_ACTION_DONE => Interactions::MarkActionDoneHandler,

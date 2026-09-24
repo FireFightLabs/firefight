@@ -1,6 +1,7 @@
 import { IconAlertTriangle, IconCircleCheck, IconLoader2 } from "@tabler/icons-react"
 import type { ReactNode } from "react"
 
+import { Button } from "@/components/ui/button"
 import { StepLinks } from "@/components/investigations/step-links"
 import { OUTCOME_LABELS, labelFor } from "@/components/investigations/labels"
 import { TONE_CLASSES } from "@/components/investigations/tone"
@@ -22,7 +23,12 @@ function Heading({ children }: { children: ReactNode }) {
 
 // The answer first, since it is what someone opening a run came for. While it works, what it is doing. When it
 // stopped, why.
-export function Answer({ investigation }: { investigation: InvestigationDetail }) {
+interface AnswerProps {
+  investigation: InvestigationDetail
+  onDeclare?: () => void
+}
+
+export function Answer({ investigation, onDeclare }: AnswerProps) {
   const finding = investigation.finding
 
   if (!finding && isLive(investigation.status)) {
@@ -53,6 +59,7 @@ export function Answer({ investigation }: { investigation: InvestigationDetail }
   }
 
   const verdicts = Object.entries(finding.verdicts)
+  const hasParts = Boolean(finding.cause || finding.evidence.length > 0 || finding.gaps || finding.outcome || verdicts.length > 0)
 
   return (
     <section className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-5 dark:border-emerald-400/30 dark:bg-emerald-400/[0.04]">
@@ -63,36 +70,46 @@ export function Answer({ investigation }: { investigation: InvestigationDetail }
         </span>
       </Heading>
       <p className="mt-3 text-base leading-relaxed text-foreground text-pretty">{finding.summary}</p>
+      {finding.suggestsIncident && !investigation.incidentId && onDeclare && (
+        <div className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 ${TONE_CLASSES.rose}`}>
+          <span className="text-sm text-foreground">Halon thinks this is hurting users now.</span>
+          <Button size="sm" variant="destructive" onClick={onDeclare}>
+            Declare incident
+          </Button>
+        </div>
+      )}
 
-      <div className="mt-5 flex flex-col gap-4 border-t border-emerald-500/20 pt-5">
-        {finding.cause && <Part label="Cause">{finding.cause}</Part>}
-        {finding.evidence.length > 0 && (
-          <Part label="Why it thinks so">
-            <ul className="flex flex-col gap-2.5">
-              {finding.evidence.map((item) => (
-                <li key={item.id} className="flex flex-col gap-1">
-                  <span>{item.claim}</span>
-                  <StepLinks steps={item.steps} />
-                </li>
-              ))}
-            </ul>
-          </Part>
-        )}
-        {finding.gaps && (
-          <Part label="Could not check">
-            <span className="text-muted-foreground">{finding.gaps}</span>
-          </Part>
-        )}
-        {(finding.outcome || verdicts.length > 0) && (
-          <Part label="The team says">
-            <span className="text-muted-foreground">
-              {finding.outcome
-                ? labelFor(OUTCOME_LABELS, finding.outcome)
-                : verdicts.map(([outcome, count]) => `${count} ${labelFor(OUTCOME_LABELS, outcome)?.toLowerCase()}`).join(", ")}
-            </span>
-          </Part>
-        )}
-      </div>
+      {hasParts && (
+        <div className="mt-5 flex flex-col gap-4 border-t border-emerald-500/20 pt-5">
+          {finding.cause && <Part label="Cause">{finding.cause}</Part>}
+          {finding.evidence.length > 0 && (
+            <Part label="Why it thinks so">
+              <ul className="flex flex-col gap-2.5">
+                {finding.evidence.map((item) => (
+                  <li key={item.id} className="flex flex-col gap-1">
+                    <span>{item.claim}</span>
+                    <StepLinks steps={item.steps} />
+                  </li>
+                ))}
+              </ul>
+            </Part>
+          )}
+          {finding.gaps && (
+            <Part label="Could not check">
+              <span className="text-muted-foreground">{finding.gaps}</span>
+            </Part>
+          )}
+          {(finding.outcome || verdicts.length > 0) && (
+            <Part label="The team says">
+              <span className="text-muted-foreground">
+                {finding.outcome
+                  ? labelFor(OUTCOME_LABELS, finding.outcome)
+                  : verdicts.map(([outcome, count]) => `${count} ${labelFor(OUTCOME_LABELS, outcome)?.toLowerCase()}`).join(", ")}
+              </span>
+            </Part>
+          )}
+        </div>
+      )}
     </section>
   )
 }

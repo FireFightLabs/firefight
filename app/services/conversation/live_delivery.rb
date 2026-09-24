@@ -5,6 +5,8 @@ class Conversation::LiveDelivery
   EVENT_ANSWERED = "answered"
   EVENT_FAILED = "failed"
   EVENT_WAITING = "waiting"
+  # A run this chat started moved, so its card looks again.
+  EVENT_INVESTIGATION = "investigation"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"

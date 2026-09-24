@@ -29,9 +29,12 @@ module Chat::Tools
   # reads the rows from the workspace as they are now, so a card says the truth after the person acts on it.
   Card = Data.define(:kind, :category)
   CARD_INTEGRATIONS = "integrations".freeze
-  CARD_KINDS = [ CARD_INTEGRATIONS ].freeze
+  # The run a chat started. The page finds it by the step's tool call, since the run exists only once the tool has run.
+  CARD_INVESTIGATION = "investigation".freeze
+  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION ].freeze
 
   def self.card_for(tool_name, arguments)
+    return Card.new(kind: CARD_INVESTIGATION, category: nil) if tool_name.to_s == Mcp::Tools::START_INVESTIGATION
     return nil unless tool_name.to_s == Mcp::Tools::LIST_INTEGRATIONS
 
     category = arguments.to_h.stringify_keys["category"]
@@ -149,7 +152,7 @@ module Chat::Tools
   def self.mark_failed(agent_run, tool_call_id)
     return if tool_call_id.blank?
 
-    Chat.find_by(owner: agent_run.respond_to?(:conversation) ? agent_run.conversation : agent_run)&.mark_failed!(tool_call_id)
+    Chat.find_by(owner: agent_run.chat_owner)&.mark_failed!(tool_call_id)
   end
 
   # What a step is called wherever it is cited later, such as "Get form declare".

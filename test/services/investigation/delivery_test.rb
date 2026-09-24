@@ -1,6 +1,7 @@
 require "test_helper"
 
 class Investigation::DeliveryTest < ActiveSupport::TestCase
+  include ActionCable::TestHelper
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
@@ -83,5 +84,50 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     Slack::Client.expects(:post_message).never
 
     Investigation::Delivery.new(@investigation).start!
+  end
+
+  test "a question asked in a channel is announced there by its own words" do
+    question = question_run(channel_id: "C0GENERAL")
+    Slack::Client.expects(:post_message).with do |arguments|
+      arguments[:channel] == "C0GENERAL" && arguments[:blocks].first.dig(:text, :text).include?("checkout is slow")
+    end.returns({ ok: true, ts: "1234567890.123456" })
+
+    Investigation::Delivery.new(question).start!
+
+    assert_equal "C0GENERAL", question.reload.channel_id
+  end
+
+  test "a question asked where Firefight cannot post is answered to whoever asked, directly" do
+    question = question_run(channel_id: "C0PRIVATE")
+    alice = workspace_memberships(:alice_workspace_one)
+    Slack::Client.stubs(:post_message).with { |arguments| arguments[:channel] == "C0PRIVATE" }.raises(AdapterError::NotInChannel, "not_in_channel")
+    Slack::Client.expects(:post_message).with { |arguments| arguments[:channel] == alice.platform_user_id }
+                 .returns({ ok: true, ts: "1234567890.123456", channel: "D0ALICE" })
+
+    Investigation::Delivery.new(question).start!
+
+    assert_equal "D0ALICE", question.reload.channel_id
+  end
+
+  test "a run a chat started tells the chat each time it moves" do
+    conversation = @workspace.conversations.create!(
+      kind: Conversation::KIND_PERSONAL, started_by: workspace_memberships(:alice_workspace_one), max_turns: 10, max_spend_cents: 50
+    )
+    question = question_run(conversation: conversation)
+
+    assert_broadcasts(ConversationChannel.broadcasting_for(conversation), 2) do
+      delivery = Investigation::Delivery.new(question)
+      delivery.start!
+      delivery.stopped!(Investigation::BUDGET_SPENT)
+    end
+  end
+
+  private
+
+  def question_run(**answer_in)
+    @workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: workspace_memberships(:alice_workspace_one),
+      max_turns: 10, max_spend_cents: 400, brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }, **answer_in
+    )
   end
 end

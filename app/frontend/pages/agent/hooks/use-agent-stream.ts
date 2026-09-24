@@ -2,7 +2,7 @@ import { createConsumer } from "@rails/actioncable"
 import { useEffect, useRef, useState } from "react"
 
 import { AGENT_CHANNEL, AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
-import { refreshOpenChat } from "@/pages/agent/lib/chat-updates"
+import { refreshOpenChat, refreshRuns } from "@/pages/agent/lib/chat-updates"
 import type { AgentCard, AgentStep, AgentStream, StepKind, StepStatus, StreamEventType } from "@/pages/agent/types"
 
 // If the socket drops mid turn, the answer is fetched once instead of waited for.
@@ -65,6 +65,10 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
           }
           if (event.type === AGENT_STREAM_EVENTS.CHUNK) {
             setText((written) => written + (event.text ?? ""))
+            return
+          }
+          if (event.type === AGENT_STREAM_EVENTS.INVESTIGATION) {
+            refreshRuns()
             return
           }
           if (event.type === AGENT_STREAM_EVENTS.STEP) {

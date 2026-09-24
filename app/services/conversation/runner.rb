@@ -106,7 +106,7 @@ class Conversation::Runner
 
   # Who the agent acts for, so it can answer what they may do and say who else can.
   def context
-    [ asker_line, incident_line ].compact.join("\n")
+    [ asker_line, incident_line, investigations_line ].compact.join("\n")
   end
 
   def asker_line
@@ -121,6 +121,20 @@ class Conversation::Runner
     return nil unless incident
 
     "You are in the channel for #{incident.identifier} #{incident.name}, status #{incident.incident_status.name}."
+  end
+
+  RUNS_REMEMBERED = 5
+
+  # A run answers on its own, after the turn that started it ended, so the chat is told how its runs went.
+  def investigations_line
+    runs = @conversation.investigations.seen.includes(:finding).order(created_at: :desc).limit(RUNS_REMEMBERED).to_a
+    return nil if runs.empty?
+
+    lines = runs.reverse.map do |run|
+      outcome = run.finding&.summary || run.stopped_because || "still running"
+      "- #{run.question || run.incident&.identifier}: #{outcome}"
+    end
+    "Investigations started from this chat, and how each went:\n#{lines.join("\n")}"
   end
 
   # The loop counts from the start of this question, so the conversation is given what each turn added.

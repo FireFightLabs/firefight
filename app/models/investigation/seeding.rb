@@ -3,7 +3,9 @@ module Investigation::Seeding
 
   # One seeder per subject type. A new kind of subject adds a class and a line here.
   SEEDERS = {
-    "Incident" => "Investigation::IncidentSeed"
+    "Incident" => "Investigation::IncidentSeed",
+    # A question asked before anyone declared an incident.
+    nil => "Investigation::QuestionSeed"
   }.freeze
 
   class UnknownSubject < StandardError; end

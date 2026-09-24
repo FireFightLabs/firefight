@@ -9,8 +9,11 @@ class IncidentLifecycleService
     @workspace = workspace
   end
 
-  def create(create_channel_sync: false, workflow_context: {}, **attrs)
+  # from_investigation is a run asked without an incident whose answer this incident was declared from, which the
+  # incident then carries on its timeline.
+  def create(create_channel_sync: false, workflow_context: {}, from_investigation: nil, **attrs)
     incident = Incident.create!(**attrs, workspace: workspace)
+    from_investigation&.attach_to!(incident)
 
     IncidentCreationService.new(workspace).create_channel(incident) if create_channel_sync
 

@@ -9,7 +9,7 @@ class AgentChatMessageSerializer < BaseSerializer
   end
 
   # Same shape as the live step event, so a step reads the same either way.
-  type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number; card: { kind: string; category: string } | null }[]"
+  type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number; card: { kind: string; category: string | null } | null }[]"
   def tools
     workspace = message.chat.workspace
     calls = message.ruby_llm_tool_calls.sort_by(&:created_at)

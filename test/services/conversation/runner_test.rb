@@ -135,6 +135,19 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_match "role in this workspace is #{@conversation.started_by.role}", context
   end
 
+  test "the agent is told how the runs it started went, since a run answers after the turn that started it" do
+    responder = fake(reply: "ok")
+    run = @conversation.workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_CONVERSATION, conversation: @conversation, max_turns: 10, max_spend_cents: 400,
+      brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }
+    )
+    run.conclude!(summary: "Checkout writes time out on the orders database")
+
+    ask(@conversation, "what did it find")
+
+    assert_match "checkout is slow: Checkout writes time out on the orders database", responder.calls.sole[:context]
+  end
+
   test "the question is written down before the model is asked, so the person sees their own words" do
     fake(reply: "ok")
 
