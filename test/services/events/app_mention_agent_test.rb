@@ -47,6 +47,35 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_equal 1, @workspace.conversations.count
   end
 
+  test "a mention that starts with investigate starts a run with the rest as its brief, and opens no chat" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+
+    assert_enqueued_with(job: InvestigationJob) { mention("investigate checkout 500s since 2pm") }
+
+    investigation = @incident.investigations.live.sole
+    assert_equal "checkout 500s since 2pm", investigation.brief[Investigation::Brief::KEY_SYMPTOM]
+    assert_equal workspace_memberships(:alice_workspace_one), investigation.triggered_by
+    assert_equal 0, @workspace.conversations.count
+  end
+
+  test "investigate later in the message is a question, answered in the chat" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+
+    assert_enqueued_with(job: ConversationReplyJob) { mention("should we investigate the cache first?") }
+
+    assert_empty @incident.investigations
+  end
+
+  test "a run that cannot start says why to the person who asked, and only to them" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    mention("investigate")
+    Slack::Client.expects(:post_ephemeral).with do |arguments|
+      arguments[:user] == workspace_memberships(:alice_workspace_one).platform_user_id && arguments[:text].include?("Already investigating")
+    end.returns({ ok: true })
+
+    mention("Investigate again")
+  end
+
   test "without the flag the old reply stands" do
     FeatureFlags.stubs(:enabled?).returns(false)
 
