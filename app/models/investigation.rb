@@ -184,6 +184,17 @@ class Investigation < ApplicationRecord
     }
   end
 
+  # Once per run, and the row decides, so a resumed run is not asked twice.
+  def ask_for_critique!
+    self.class.where(id: id, critique_asked_at: nil).update_all(critique_asked_at: Time.current, updated_at: Time.current) > 0
+  end
+
+  # Read from the row, since each turn's spend is written in SQL and never onto this copy.
+  def budget_spent?
+    spent, cap = self.class.where(id: id).pick(:spent_micros, :max_spend_cents)
+    spent >= cap * FirefightAi::AgentLoop::MICROS_PER_CENT
+  end
+
   def record_turn!(turns_used:, spent_micros:)
     return false if @lease_token.blank?
 

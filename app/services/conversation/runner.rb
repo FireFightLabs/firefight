@@ -21,7 +21,9 @@ class Conversation::Runner
       on_step: method(:report_step),
       on_chunk: ->(text) { delivery.chunk(text) },
       nudge: chat.method(:nudge!),
-      memory: chat
+      memory: chat,
+      check: -> { FirefightAi::Responder::CHECK if @looked_outside },
+      hold: chat.method(:hold_last_reply!)
     ) do |turn|
       record(turn)
     end
@@ -70,10 +72,12 @@ class Conversation::Runner
   end
 
   # The finished report only has the key, so the step is remembered from when it started.
+  # A connected system is what an answer's claims about a cause rest on, so reading one is what owes the answer a check.
   def report_step(step)
     if step.tool.present?
       seen[step.key] = Chat::Tools.step(step.tool, step.arguments)
       kinds[step.key] = Chat::Tools.kind(step.tool, @conversation.workspace)
+      @looked_outside ||= @conversation.workspace.reading_tool_names.include?(step.tool.to_s)
     end
     shown = seen[step.key]
     return unless shown

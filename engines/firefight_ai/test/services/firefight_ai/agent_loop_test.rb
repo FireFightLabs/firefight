@@ -199,6 +199,46 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_nil chat.streamed
   end
 
+  test "an answer owed a check is held back, and only the answer written after the check is handed over" do
+    chat = FakeChat.new([ tool_reply("call_1"), llm_reply(content: "It was the database"), llm_reply(content: "It was a missing method") ])
+    pieces = []
+    nudges = []
+    held = 0
+
+    outcome = run_loop(
+      chat, reply_is_answer: true, on_chunk: ->(text) { pieces << text }, nudge: ->(text) { nudges << text },
+      check: -> { "Try to prove it wrong." }, hold: -> { held += 1 }
+    )
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    assert_equal "It was a missing method", pieces.join
+    assert_equal [ "Try to prove it wrong." ], nudges
+    assert_equal 1, held
+  end
+
+  test "an answer no check is owed goes out as it is written" do
+    chat = FakeChat.new([ tool_reply("call_1"), llm_reply(content: "INC-4 is resolved") ])
+    pieces = []
+
+    outcome = run_loop(chat, reply_is_answer: true, on_chunk: ->(text) { pieces << text }, check: -> { nil }, hold: -> { flunk })
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    assert_equal "INC-4 is resolved", pieces.join
+  end
+
+  test "an answer on the last turn a budget buys goes out without a check" do
+    chat = FakeChat.new([ llm_reply(content: "It was the database") ])
+    pieces = []
+
+    outcome = run_loop(
+      chat, budget: budget(max_spend_cents: 1, spent_micros: 20_000), reply_is_answer: true, on_chunk: ->(text) { pieces << text },
+      nudge: ->(_text) { }, check: -> { "Try to prove it wrong." }, hold: -> { flunk }
+    )
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    assert_equal "It was the database", pieces.join
+  end
+
   test "a tool call waiting on a person stops the turn without calling the model again" do
     chat = FakeChat.new([ llm_reply(content: "never asked for") ])
     chat.wait_for_approval!
@@ -243,10 +283,10 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
   end
 
   def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, on_chunk: nil, reply_is_answer: false,
-               nudge: nil, &on_turn)
+               nudge: nil, check: nil, hold: nil, &on_turn)
     FirefightAi::AgentLoop.new(
       chat: chat, budget: budget, answered: answered, on_step: on_step, on_chunk: on_chunk,
-      reply_is_answer: reply_is_answer, nudge: nudge,
+      reply_is_answer: reply_is_answer, nudge: nudge, check: check, hold: hold,
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
     ).run(&on_turn)
   end

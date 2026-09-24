@@ -107,11 +107,15 @@ module Chat::Tools::Groups
     )
   ].freeze
 
-  View = Data.define(:key, :title, :covers, :entries, :could_connect) do
-    def state
-      return Chat::Tools::STATE_NOT_CONNECTED if entries.empty?
+  # connected names the connections behind a group, which can be there with every tool switched off.
+  View = Data.define(:key, :title, :covers, :entries, :could_connect, :connected) do
+    def initialize(key:, title:, covers:, entries:, could_connect: [], connected: []) = super
 
-      entries.any?(&:tool) ? Chat::Tools::STATE_READY : Chat::Tools::STATE_NOT_GRANTED
+    def state
+      return Chat::Tools::STATE_READY if entries.any?(&:tool)
+      return Chat::Tools::STATE_NOT_GRANTED if entries.any?
+
+      connected.any? ? Chat::Tools::STATE_SWITCHED_OFF : Chat::Tools::STATE_NOT_CONNECTED
     end
   end
 
@@ -138,7 +142,7 @@ module Chat::Tools::Groups
 
   def self.firefight_views(entries)
     FIREFIGHT.map do |group|
-      View.new(key: group.key, title: group.title, covers: group.covers, entries: entries.fetch(group.key, []), could_connect: [])
+      View.new(key: group.key, title: group.title, covers: group.covers, entries: entries.fetch(group.key, []))
     end
   end
 
@@ -148,7 +152,7 @@ module Chat::Tools::Groups
       connected = integrations.select { |integration| of_connection(integration) == key }.map(&:name)
       covers = connected.any? ? "#{tagline}, through #{connected.to_sentence}" : tagline
       offered = IntegrationProvider.all.select { |provider| provider.category == category }.map(&:name)
-      View.new(key: key, title: category, covers: covers, entries: entries.fetch(key, []), could_connect: offered)
+      View.new(key: key, title: category, covers: covers, entries: entries.fetch(key, []), could_connect: offered, connected: connected)
     end
   end
 
@@ -163,7 +167,8 @@ module Chat::Tools::Groups
       covers += " and #{names.size - NAMES_SHOWN} more" if names.size > NAMES_SHOWN
       View.new(
         key: key, title: Chat::Tools.clean(integration.name, Chat::Tools::TITLE_LIMIT),
-        covers: Chat::Tools.clean(covers, Chat::Tools::ONE_LINE), entries: entries.fetch(key, []), could_connect: []
+        covers: Chat::Tools.clean(covers, Chat::Tools::ONE_LINE), entries: entries.fetch(key, []),
+        connected: [ Chat::Tools.clean(integration.name, Chat::Tools::TITLE_LIMIT) ]
       )
     end
   end

@@ -3,6 +3,7 @@ module Chat::Tools
   STATE_READY = :ready
   STATE_NOT_GRANTED = :not_granted
   STATE_NOT_CONNECTED = :not_connected
+  STATE_SWITCHED_OFF = :switched_off
 
   # One line is what the agent reads about a tool before it opens it. Another system's words about
   # itself are cut to that and stripped of anything that is not text.

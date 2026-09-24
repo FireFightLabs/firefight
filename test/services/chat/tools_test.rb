@@ -139,6 +139,18 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_match "Datadog", answer
   end
 
+  test "a provider that is connected with every tool switched off says so, rather than that nothing is connected" do
+    github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
+    github.tools.create!(name: "recent_deployments", description: "List recent deployments", read_only: true, enabled: false)
+
+    assert_match(/^Code: .*through GitHub \(connected, but no tools switched on\)$/, open_tool.description)
+
+    answer = open_tool.call(group: "code")
+
+    assert_match "GitHub is connected, but none of its tools are switched on", answer
+    assert_no_match "Nothing is connected", answer
+  end
+
   test "a connected provider sits under the question it answers, not under its own name" do
     github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
     github.tools.create!(name: "recent_deployments", description: "List recent deployments", read_only: true, enabled: true)
@@ -355,6 +367,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
     @investigation.record_hypothesis!(assertion: "The 14:02 deploy did it")
 
+    critiqued!
     Investigation::Tools::Conclude.new(@investigation).call(
       "summary" => "The deploy raised the pool size", "hypothesis" => "The 14:02 deploy did it",
       "evidence" => [ { "claim" => "The echo came back", "steps" => [ 1 ] } ], "gaps" => "Could not read the logs"
@@ -370,12 +383,89 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   test "a conclusion that cites a step that never happened comes back as something the agent can fix" do
+    critiqued!
     answer = Investigation::Tools::Conclude.new(@investigation).call(
       "summary" => "It was the deploy", "evidence" => [ { "claim" => "A deploy went out", "steps" => [ 4 ] } ]
     )
 
     assert_match "step 4", answer[:error]
     assert_nil @investigation.reload.finding
+  end
+
+  test "the first conclusion is answered with a request to prove it wrong, and nothing is recorded yet" do
+    answer = Investigation::Tools::Conclude.new(@investigation).call("summary" => "It was the deploy")
+
+    assert_equal FirefightAi::Investigator::CRITIQUE, answer
+    assert_nil @investigation.reload.finding
+
+    FirefightAi::CitationCheck.any_instance.stubs(:check).returns([])
+    Investigation::Tools::Conclude.new(@investigation).call("summary" => "It was the deploy")
+    assert_equal "It was the deploy", @investigation.reload.finding.summary
+  end
+
+  test "on the last turn a budget buys, the answer is recorded without the critique" do
+    @investigation.update!(spent_micros: @investigation.max_spend_cents * FirefightAi::AgentLoop::MICROS_PER_CENT)
+    FirefightAi::CitationCheck.any_instance.stubs(:check).returns([])
+
+    Investigation::Tools::Conclude.new(@investigation).call("summary" => "It was the deploy")
+
+    assert_equal "It was the deploy", @investigation.reload.finding.summary
+  end
+
+  test "a claim its steps do not show is dropped before the answer is recorded" do
+    critiqued!
+    two_steps!
+    judge(1 => [ false, "step 1 says nothing about a deploy" ], 2 => [ true, "step 2 echoes it" ])
+
+    Investigation::Tools::Conclude.new(@investigation).call(
+      "summary" => "It was the deploy",
+      "evidence" => [ { "claim" => "A deploy went out", "steps" => [ 1 ] }, { "claim" => "The echo came back", "steps" => [ 2 ] } ]
+    )
+
+    assert_equal [ "The echo came back" ], @investigation.reload.finding.evidence_items.map(&:claim)
+  end
+
+  test "when every claim behind a named cause is dropped, the agent is told why and nothing is recorded" do
+    critiqued!
+    two_steps!
+    @investigation.record_hypothesis!(assertion: "The 14:02 deploy did it")
+    judge(1 => [ false, "step 1 says nothing about a deploy" ])
+
+    answer = Investigation::Tools::Conclude.new(@investigation).call(
+      "summary" => "It was the deploy", "hypothesis" => "The 14:02 deploy did it",
+      "evidence" => [ { "claim" => "A deploy went out", "steps" => [ 1 ] } ]
+    )
+
+    assert_match "step 1 says nothing about a deploy", answer[:error]
+    assert_nil @investigation.reload.finding
+  end
+
+  test "a re-read that cannot run keeps every claim rather than dropping them on our failure" do
+    critiqued!
+    two_steps!
+    FirefightAi::CitationCheck.any_instance.stubs(:check).raises(FirefightAi::TransientError, "overloaded")
+
+    Investigation::Tools::Conclude.new(@investigation).call(
+      "summary" => "It was the deploy", "evidence" => [ { "claim" => "The echo came back", "steps" => [ 1 ] } ]
+    )
+
+    assert_equal [ "The echo came back" ], @investigation.reload.finding.evidence_items.map(&:claim)
+  end
+
+  test "the re-read is handed each claim and what its steps returned" do
+    critiqued!
+    two_steps!
+    handed = nil
+    FirefightAi::CitationCheck.any_instance.stubs(:check).with { |claims:, sources:| handed = [ claims, sources ] }.returns([])
+
+    Investigation::Tools::Conclude.new(@investigation).call(
+      "summary" => "It was the deploy", "evidence" => [ { "claim" => "The echo came back", "steps" => [ 2 ] } ]
+    )
+
+    claims, sources = handed
+    assert_equal [ [ 1, "The echo came back", [ 2 ] ] ], claims.map { |claim| [ claim.number, claim.text, claim.steps ] }
+    assert_equal [ 2 ], sources.map(&:step)
+    assert_match "second", sources.sole.text
   end
 
   test "the model is told the shape evidence takes" do
@@ -396,6 +486,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   test "concluding with no theory still records the answer" do
+    critiqued!
     Investigation::Tools::Conclude.new(@investigation).call("summary" => "Nothing in the evidence explains it")
 
     assert_nil @investigation.reload.finding.winning_hypothesis
@@ -470,6 +561,26 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   private
+
+  # Past the critique, with a re-read that judges nothing unless a test says otherwise.
+  def critiqued!
+    @investigation.update!(critique_asked_at: Time.current)
+    FirefightAi::CitationCheck.any_instance.stubs(:check).returns([])
+  end
+
+  # Two steps that ran, each echoing its own text, so a claim can cite either.
+  def two_steps!
+    grant!(@tool)
+    echo = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
+    echo.call(text: "first")
+    echo.call(text: "second")
+  end
+
+  def judge(verdicts)
+    FirefightAi::CitationCheck.any_instance.stubs(:check).returns(
+      verdicts.map { |number, (shown, reason)| FirefightAi::CitationCheck::Verdict.new(number: number, shown: shown, reason: reason) }
+    )
+  end
 
   def open_tool(offer: ->(_tools) { })
     Chat::Tools::Open.new(@investigation, offer: offer)

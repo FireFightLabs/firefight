@@ -7,7 +7,8 @@ class Chat::Tools::Open < RubyLLM::Tool
   STATE_WORDS = {
     Chat::Tools::STATE_READY => "ready",
     Chat::Tools::STATE_NOT_GRANTED => "not granted to whoever you are acting as",
-    Chat::Tools::STATE_NOT_CONNECTED => "nothing connected"
+    Chat::Tools::STATE_NOT_CONNECTED => "nothing connected",
+    Chat::Tools::STATE_SWITCHED_OFF => "connected, but no tools switched on"
   }.freeze
 
   def self.tool_name = "open_tools"
@@ -25,7 +26,7 @@ class Chat::Tools::Open < RubyLLM::Tool
     @description ||= <<~TEXT.strip
       Make a group of tools callable. You hold almost no tools until you open the group that fits what you need next. The groups:
       #{views.map { |view| "#{view.title}: #{view.covers} (#{STATE_WORDS.fetch(view.state)})" }.join("\n")}
-      A group that is not granted or has nothing connected cannot be used, and that is worth saying in your answer.
+      A group that is not granted, has nothing connected or has no tools switched on cannot be used, and that is worth saying in your answer.
     TEXT
   end
 
@@ -57,6 +58,7 @@ class Chat::Tools::Open < RubyLLM::Tool
   def open(key, wanted)
     view = Chat::Tools::Groups.for(@agent_run).find { |one| one.key == key }
     return "There is no group called #{key}. The groups are: #{views.map(&:key).join(', ')}." unless view
+    return switched_off(view) if view.state == Chat::Tools::STATE_SWITCHED_OFF
     return nothing_connected(view) if view.entries.empty?
     chosen = chosen_from(view, wanted)
     return listed_first(view) if chosen.empty?
@@ -82,6 +84,12 @@ class Chat::Tools::Open < RubyLLM::Tool
 
   def nothing_connected(view)
     "Nothing is connected for #{view.title} in this workspace. #{view.could_connect.to_sentence} can be connected by an admin. Say this is what you could not check rather than guessing."
+  end
+
+  def switched_off(view)
+    one = view.connected.one?
+    "#{view.connected.to_sentence} #{one ? 'is' : 'are'} connected, but none of #{one ? 'its' : 'their'} tools are switched on. " \
+      "An admin can switch them on under Integrations. Say this is what you could not check rather than guessing."
   end
 
   def listing(entries)

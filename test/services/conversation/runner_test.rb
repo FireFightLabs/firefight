@@ -154,6 +154,36 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     ask(@conversation, "what is going on")
   end
 
+  test "an answer that rests on what a connected system showed is checked before it goes out" do
+    github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
+    read = github.tools.create!(name: "fetch_file", description: "Read a file", read_only: true, enabled: true)
+    responder = fake(reply: "ok", steps: [ FirefightAi::AgentLoop::Step.new(key: "call_1", tool: read.model_facing_name, status: :running) ])
+    Slack::Client.stubs(:append_stream).returns({ ok: true })
+
+    ask(@conversation, "why does billing fail")
+
+    assert_equal FirefightAi::Responder::CHECK, responder.calls.sole[:check].call
+  end
+
+  test "an answer from Firefight's own records goes out as written" do
+    responder = fake(reply: "ok", steps: [ FirefightAi::AgentLoop::Step.new(key: "call_1", tool: "search_incidents", status: :running) ])
+    Slack::Client.stubs(:append_stream).returns({ ok: true })
+
+    ask(@conversation, "what is going on")
+
+    assert_nil responder.calls.sole[:check].call
+  end
+
+  test "a held draft is kept out of what the person reads" do
+    responder = fake(reply: "ok")
+
+    ask(@conversation, "what is going on")
+    @conversation.chat.add_message(role: :assistant, content: "a draft")
+    responder.calls.sole[:hold].call
+
+    assert_not_includes @conversation.chat.readable_messages.map(&:content), "a draft"
+  end
+
   test "the reply is streamed into the thread as the model writes it" do
     fake(reply: "The 14:02 deploy raised the pool size", pieces: [ "The 14:02 deploy ", "raised the pool size" ])
     appended = []
