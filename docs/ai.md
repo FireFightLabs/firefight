@@ -139,7 +139,7 @@ Phase 1 of the AI SRE build. Where the pieces are:
 | `Investigation::IncidentSeed` | the facts Firefight already holds about an incident |
 | `InvestigationService` / `InvestigationJob` | starts a run, runs it on the `investigations` queue |
 | `ConversationReplyJob` | answers one chat turn, on the `conversations` queue |
-| `Commands::StartInvestigation` / `Interactions::StartInvestigationButtonHandler` | the two entry points |
+| `Commands::StartInvestigation` / `Interactions::StartInvestigationButtonHandler` | the entry points. A mention whose first word is investigate (`Events::AppMentionHandler`) is dispatched as the same command, so no model decides it and the permission, refusals and brief are the command's |
 
 The rules:
 

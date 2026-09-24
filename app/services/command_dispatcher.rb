@@ -2,8 +2,8 @@ class CommandDispatcher
   class UnknownCommandError < StandardError; end
 
   COMMAND_HANDLERS = {
-    "firefight" => Commands::HomeHandler,
-    "ff" => Commands::HomeHandler
+    Identifiers::COMMAND_FIREFIGHT => Commands::HomeHandler,
+    Identifiers::COMMAND_FF => Commands::HomeHandler
   }.freeze
 
   def self.find(command)

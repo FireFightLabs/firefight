@@ -26,6 +26,10 @@ module Identifiers
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
 
+  # The slash command's names, without the slash.
+  COMMAND_FIREFIGHT     = "firefight"
+  COMMAND_FF            = "ff"
+
   # Slash command subcommands
   SUBCOMMAND_NEW        = "new"
   SUBCOMMAND_HOME       = "home"

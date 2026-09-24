@@ -24,7 +24,11 @@ module Events
       parent_thread_ts = event["thread_ts"]
       reply_thread_ts = parent_thread_ts || event["ts"]
 
-      return answer_as_agent(workspace, incident, channel_id, reply_thread_ts, event, user_text) if agent?(workspace)
+      if agent?(workspace)
+        return investigate(workspace, channel_id, event, user_text) if investigate?(user_text)
+
+        return answer_as_agent(workspace, incident, channel_id, reply_thread_ts, event, user_text)
+      end
 
       IncidentAiResponseJob.perform_later(
         incident.id,
@@ -40,6 +44,21 @@ module Events
       FeatureFlags.enabled?(workspace, FeatureFlags::AI_SRE)
     end
     private_class_method :agent?
+
+    # Only as the first word, so a question that mentions investigating is still a question.
+    def self.investigate?(user_text) = user_text.split(/\s+/, 2).first.to_s.casecmp?(Identifiers::SUBCOMMAND_INVESTIGATE)
+    private_class_method :investigate?
+
+    # The same command /ff investigate runs, so the permission, the refusals and the brief are decided in one place.
+    def self.investigate(workspace, channel_id, event, user_text)
+      command = Command.new(
+        platform: workspace.platform, workspace_id: workspace.id, user_id: event["user"], text: user_text,
+        channel_id: channel_id, metadata: { command: Identifiers::COMMAND_FF }
+      )
+      refusal = CommandDispatcher.dispatch(command)
+      notify_blocked(workspace, channel_id, event["user"], refusal[:text]) if refusal.is_a?(Hash)
+    end
+    private_class_method :investigate
 
     def self.answer_as_agent(workspace, incident, channel_id, thread_id, event, user_text)
       conversation = Conversation::Opener.call(
