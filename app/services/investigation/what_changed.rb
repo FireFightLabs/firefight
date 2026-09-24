@@ -25,11 +25,12 @@ class Investigation::WhatChanged
 
   private
 
+  # Each connection sees only its own repositories, so every one is asked, each answer its own step.
   def changes(clues)
-    tool = changes_before_tool
-    return NOT_CONNECTED unless tool
+    tools = changes_before_tools
+    return NOT_CONNECTED if tools.empty?
 
-    Chat::Tools::Connection.new(@investigation, tool).call(**arguments(clues))
+    tools.map { |tool| Chat::Tools::Connection.new(@investigation, tool).call(**arguments(clues)) }.join("\n\n")
   end
 
   def arguments(clues)
@@ -45,9 +46,9 @@ class Investigation::WhatChanged
 
   def values(clues, key) = Array(clues[key]).map { |clue| clue["value"] }
 
-  def changes_before_tool
+  def changes_before_tools
     Integration::Tool.in_workspace(@investigation.workspace)
       .where(name: Integrations::Packs::Github::CHANGES_BEFORE, integrations: { provider: Integrations::GithubApp::PROVIDER_KEY })
-      .first
+      .order(:created_at).to_a
   end
 end

@@ -61,7 +61,8 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
   end
 
   test "the chat hands over what the person said, so the run starts from it" do
-    tool.call(symptom: "checkout is slow", started_around: "2026-09-24T12:00:00Z", names: [ "checkout" ])
+    # RubyLLM hands arguments over keyed by text.
+    tool.call(**{ "symptom" => "checkout is slow", "started_around" => "2026-09-24T12:00:00Z", "names" => [ "checkout" ] })
 
     brief = @workspace.investigations.sole.brief
     assert_equal "checkout is slow", brief[Investigation::Brief::KEY_SYMPTOM]

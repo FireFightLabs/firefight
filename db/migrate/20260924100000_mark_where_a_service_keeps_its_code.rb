@@ -18,6 +18,14 @@ class MarkWhereAServiceKeepsItsCode < ActiveRecord::Migration[8.1]
   end
 
   def down
-    execute "UPDATE catalog_attribute_definitions SET role = NULL WHERE role = 'repository'"
+    execute <<~SQL.squish
+      UPDATE catalog_attribute_definitions AS definition
+      SET role = NULL, updated_at = now()
+      FROM catalog_types AS catalog_type
+      WHERE definition.catalog_type_id = catalog_type.id
+        AND catalog_type.system_key = 'service'
+        AND definition.slug = 'repository'
+        AND definition.role = 'repository'
+    SQL
   end
 end

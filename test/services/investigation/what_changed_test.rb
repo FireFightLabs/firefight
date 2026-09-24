@@ -32,10 +32,21 @@ class Investigation::WhatChangedTest < ActiveSupport::TestCase
     assert_match "Suspects", @investigation.reload.seed_pack[Investigation::WhatChanged::KEY]
   end
 
+  test "every GitHub connection is read, since each sees its own repositories" do
+    changes_before_tool(name: "GitHub Acme")
+    changes_before_tool(name: "GitHub Acme Labs")
+    Chat::Tools::Connection.any_instance.expects(:call).twice.returns("Suspects in one org", "Suspects in the other")
+
+    facts = Investigation::WhatChanged.new(@investigation).note!
+
+    assert_match "Suspects in one org", facts[Investigation::WhatChanged::KEY]
+    assert_match "Suspects in the other", facts[Investigation::WhatChanged::KEY]
+  end
+
   private
 
-  def changes_before_tool
-    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: Integrations::GithubApp::PROVIDER_KEY, name: "GitHub")
+  def changes_before_tool(name: "GitHub")
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: Integrations::GithubApp::PROVIDER_KEY, name: name)
     integration.integration_environments.create!(base_config: { "installation_id" => "1" })
     integration.tools.create!(
       name: Integrations::Packs::Github::CHANGES_BEFORE, description: "What changed before", read_only: true, enabled: true,

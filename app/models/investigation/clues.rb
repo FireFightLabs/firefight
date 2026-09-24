@@ -72,19 +72,11 @@ class Investigation::Clues
 
   def repository_clues
     from_alerts = alert_clues(REPOSITORY_KEYS) { |value| CodeChange.repository_name(value) }
+    services = @incident ? @incident.catalog_services : []
     from_catalog = services.filter_map do |service|
       { "value" => service.repository, "source" => "catalog service #{service.name}" } if service.repository
     end
     from_alerts + from_catalog
-  end
-
-  def services
-    return [] unless @incident
-
-    @incident.incident_field_values.includes(catalog_entry: { catalog_type: :catalog_attribute_definitions })
-             .filter_map(&:catalog_entry)
-             .select { |entry| entry.catalog_type.system_key == CatalogType::SYSTEM_KEY_SERVICE && entry.deleted_at.nil? }
-             .uniq
   end
 
   def path_clues
