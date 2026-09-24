@@ -10,6 +10,14 @@ class McpConnectionToolsTest < ActiveSupport::TestCase
     @tool = @integration.tools.create!(name: "logs_query", read_only: true, enabled: true)
   end
 
+  test "an outside agent's calls carry its own box key, so its code reads share one sandbox" do
+    alice = workspace_memberships(:alice_workspace_one)
+    @integration.integration_environments.create!
+    Integrations::McpExecutor.expects(:call).with(has_entry(:box_key, alice.code_box_key)).returns("content" => [])
+
+    Mcp::ConnectionToolFactory.invoke(@tool.id, { workspace: @workspace, principal: alice }, {})
+  end
+
   test "a tool the provider no longer offers is not published over MCP" do
     @tool.update!(removed_at: Time.current)
 

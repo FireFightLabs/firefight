@@ -29,5 +29,7 @@ class ConversationReplyJob < ApplicationJob
     conversation = Conversation.find(conversation_id)
     asker = conversation.workspace.workspace_memberships.find_by(id: asker_id) || conversation.started_by
     Conversation::Runner.new(conversation, asker: asker).run
+    # The next question may read the same code, so the box waits a while before it is let go.
+    CodeBoxIdleJob.set(wait: CodeBox::IDLE_AFTER).perform_later(conversation.code_box_key) if CodeBox.live.exists?(key: conversation.code_box_key)
   end
 end

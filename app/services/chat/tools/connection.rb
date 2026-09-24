@@ -35,7 +35,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     ) do
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)
-      text_of(integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments))
+      text_of(integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key))
     end
     Chat::Tools.hand_over(@agent_run, name, said)
   rescue Integration::UnknownEnvironment => error

@@ -110,10 +110,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+  # The box Halon reads code in, published beside the app so an install pulls both at the same version.
+  sandbox-image:
+    if: github.event.repository.visibility == 'public'
+    needs: tag
+    uses: docker/github-builder/.github/workflows/build.yml@v1
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      output: image
+      push: true
+      context: sandbox
+      platforms: linux/amd64,linux/arm64
+      cache: true
+      cache-mode: max
+      set-meta-labels: true
+      meta-images: ghcr.io/${{ github.repository }}-sandbox
+      meta-tags: |
+        type=raw,value=${{ needs.tag.outputs.version }}
+        type=raw,value=latest
+    secrets:
+      registry-auths: |
+        - registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
   release:
-    needs: [tag, image]
+    needs: [tag, image, sandbox-image]
     # Draft even when the image job is skipped (private repo), never after a failed build.
-    if: always() && needs.tag.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.image.result)
+    if: always() && needs.tag.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.image.result) && contains(fromJSON('["success", "skipped"]'), needs.sandbox-image.result)
     runs-on: ubuntu-latest
 
     steps:
@@ -132,6 +159,7 @@ jobs:
 
           ```
           docker pull ghcr.io/${{ github.repository }}:${{ needs.tag.outputs.version }}
+          docker pull ghcr.io/${{ github.repository }}-sandbox:${{ needs.tag.outputs.version }}
           ```
           NOTES
           gh release create "${{ needs.tag.outputs.tag }}" \

@@ -25,6 +25,9 @@ module Principal
     "#{actor_kind}:#{actor_display_name}"
   end
 
+  # An outside agent reads code in one box of its own, whatever it is working on.
+  def code_box_key = "mcp-#{self.class.name.underscore.tr('/', '-')}-#{id}"
+
   # Anything resolving to a human reads everything in the workspace.
   # Credential principals override.
   def mcp_readable?(_resource)

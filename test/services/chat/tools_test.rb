@@ -22,6 +22,13 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     Integrations::NativePack.stubs(:for).with("fake").returns(FakeNativePack)
   end
 
+  test "a connection tool is handed the run's box key, so every code read in the run shares one sandbox" do
+    grant!(@tool)
+    Integrations::NativePack.expects(:fetch!).with(@integration, box_key: @investigation.code_box_key).returns(FakeNativePack.new(@integration))
+
+    Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
+  end
+
   test "the agent starts with only the tools it always needs" do
     grant!(@tool)
 

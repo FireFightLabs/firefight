@@ -65,6 +65,8 @@ module FirefightAi
         - Prefer the check that would rule a theory out over the one that would confirm it.
         - The facts say where the clues point and what changed before it started, with suspects ranked and the reasons for each. Start from the top suspects and try to rule each one out. Say whether a commit came from a deploy record or is a guess from the default branch, since a merge is not proof of a deploy.
         - If no change in the window explains it, look at when the failing lines last changed and at the week before, then look past code: traffic, dependencies, infrastructure. An old change hit by a new condition is a common cause.
+        - Code is read in a sandbox holding every commit: search it, find where a name is defined and used, read its history, ask a language server, and run its tests. Read at the commit that was running.
+        - For a failing page or endpoint, find its route and the code that handles it, then check that everything that runs before the handler, its filters and callbacks and the methods they call, is defined. Only then look at data or configuration.
         - #{Evidence::RULE}
 
         How to finish:

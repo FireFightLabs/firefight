@@ -128,6 +128,34 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal 2, chat.model_calls, "the last turn is one more model call, not a whole run"
   end
 
+  # Seen in a real chat. OpenAI refuses a chat with a message between a tool call and its result, so the run died.
+  test "the last turn waits for the tools already asked for, so nothing sits between a call and its result" do
+    chat = FakeChat.new([ tool_reply("call_1", cost: 5.00), llm_reply(content: "It was the database") ])
+
+    outcome = run_loop(chat, budget: budget(max_spend_cents: 400), reply_is_answer: true)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    contents = chat.messages.map(&:content)
+    assert_operator chat.messages.index(&:tool_result?), :<, contents.index(FirefightAi::AgentLoop::LAST_TURN)
+  end
+
+  test "a tool asked for on the last turn still gets its result, so the saved chat can be sent again" do
+    chat = FakeChat.new([ tool_reply("call_1", cost: 5.00), tool_reply("call_2") ])
+
+    outcome = run_loop(chat, budget: budget(max_spend_cents: 400))
+
+    assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET, outcome.status
+    assert_equal [ "call_1", "call_2" ], chat.messages.select(&:tool_result?).map(&:tool_call_id)
+  end
+
+  test "a run stopped by the turn guard still saves the result of the tool it last asked for" do
+    chat = FakeChat.new(Array.new(5) { |index| tool_reply("call_#{index}") })
+
+    run_loop(chat, budget: budget(max_turns: 2))
+
+    assert_equal [ "call_0", "call_1" ], chat.messages.select(&:tool_result?).map(&:tool_call_id)
+  end
+
   test "a run that reaches the turn guard stops" do
     chat = FakeChat.new(Array.new(5) { |index| tool_reply("call_#{index}") })
 

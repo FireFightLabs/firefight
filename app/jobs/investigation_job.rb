@@ -40,6 +40,7 @@ class InvestigationJob < ApplicationJob
   def give_up(investigation, cause)
     return unless investigation.finish!(status: Investigation::STATUS_FAILED, error_summary: cause)
 
+    Integrations::CodeReading.close(investigation.code_box_key)
     Investigation::Delivery.new(investigation).stopped!(GAVE_UP, rerunnable: true)
   rescue AdapterError => undelivered
     Rails.logger.warn({
@@ -54,6 +55,8 @@ class InvestigationJob < ApplicationJob
 
     result = Investigation::Runner.new(investigation).run
     investigation.finish!(status: result.status, error_summary: result.error_summary)
+    # Nothing reads code once the run is over, and a box costs while it runs. A retry keeps it, since it reads there again.
+    Integrations::CodeReading.close(investigation.code_box_key)
   rescue StandardError
     investigation.release!
     raise

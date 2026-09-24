@@ -1,7 +1,8 @@
 module Integrations
   # The gateway has already said yes before call is reached. This only executes.
   class McpExecutor
-    def self.call(tool:, environment_row:, arguments:)
+    # A remote server keeps its own state, so the run's box key means nothing to it.
+    def self.call(tool:, environment_row:, arguments:, box_key: nil)
       result = client_for(tool.integration, environment_row)
                .call_tool(name: tool.remote_name, arguments: arguments)
       ToolResult.normalize(result)

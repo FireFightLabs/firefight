@@ -149,6 +149,9 @@ class Investigation < ApplicationRecord
   # A run has no conversation to keep. Everything it has worked out is in its own records.
   def keeps_in_memory?(_message) = false
 
+  # Every tool that reads code in this run reads it in the same box.
+  def code_box_key = "investigation-#{id}"
+
   # Where a run stands, from its own records, for a chat that is starting again with room to think.
   def memory_brief
     theories = hypotheses.includes(citations: :source).map do |theory|

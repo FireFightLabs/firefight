@@ -99,6 +99,16 @@ The compose file is one arrangement, not a requirement. If you already have Post
 
 Every variable Firefight reads is listed in [`.env.example`](.env.example).
 
+## Letting Halon read code
+
+Halon reads a repository in a sandbox of its own, one per investigation or conversation, holding the repository's whole history and no credential. It starts from `ghcr.io/firefightlabs/firefight-sandbox`, pulled by the same version as the app.
+
+With the compose file, uncomment the three lines under the Halon comment and the socket mount, then set `DOCKER_GID` in `.env` to the group that owns the socket (`stat -c %g /var/run/docker.sock`). Mounting the socket gives Firefight control of your Docker daemon, which is why it is off by default. `firefight_default` is the network compose makes for this project, so check `docker network ls` if you named the project something else.
+
+Boxes can reach the internet, so a repository's own tests can too. Running commands and tests is only offered to workspaces with Halon switched on.
+
+Every setting is described in [`.env.example`](.env.example).
+
 ## When something is wrong
 
 **The page will not load and Caddy logs a certificate error.** The DNS record is not pointing at the machine yet, or port 80 is closed. Let's Encrypt has to reach it to issue.
