@@ -9,6 +9,32 @@ module Integrations
     TOKEN_CACHE_KEY = "github_app_token".freeze
     JWT_LIFETIME = 9.minutes
     TOKEN_REFRESH_MARGIN = 5.minutes
+    # A deployment gathers a handful of statuses (queued, in progress, success, inactive), so this reads all of them.
+    DEPLOYMENT_STATUS_LIMIT = 20
+
+    BLAME_QUERY = <<~GRAPHQL.freeze
+      query($owner: String!, $name: String!, $expression: String!, $path: String!) {
+        repository(owner: $owner, name: $name) {
+          object(expression: $expression) {
+            ... on Commit {
+              blame(path: $path) {
+                ranges {
+                  startingLine
+                  endingLine
+                  commit {
+                    oid
+                    committedDate
+                    messageHeadline
+                    author { name user { login } }
+                    associatedPullRequests(first: 1) { nodes { number title } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    GRAPHQL
 
     class << self
       def install_url(state:)
@@ -48,6 +74,21 @@ module Integrations
         raise Error, "GitHub: #{body['errors'].map { |error| error['message'] }.join('; ')}" if body["errors"].present?
 
         body.fetch("data")
+      end
+
+      # When a deployment succeeded, or nil. GitHub marks an older deployment inactive once a newer one goes out, so its
+      # latest status is no longer success. Any success among its statuses counts, timed when that status was written.
+      def deployment_succeeded_at(repo, deployment_id, token:)
+        statuses = Array(get("/repos/#{repo}/deployments/#{deployment_id}/statuses?per_page=#{DEPLOYMENT_STATUS_LIMIT}", token: token))
+        success = statuses.find { |status| status["state"] == "success" }
+        success && Time.zone.parse(success["created_at"].to_s)
+      end
+
+      # Who last changed each range of a file as it stood at a commit, branch or tag.
+      def blame(repo, path, expression, token:)
+        owner, name = repo.split("/", 2)
+        data = graphql(BLAME_QUERY, { owner: owner, name: name, expression: expression, path: path }, token: token)
+        Array(data.dig("repository", "object", "blame", "ranges"))
       end
 
       private

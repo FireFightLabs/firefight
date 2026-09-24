@@ -63,6 +63,38 @@ module Integrations
            read_only: true
 
       RUNNING_COMMIT = "running_commit".freeze
+      CHANGES_BEFORE = "changes_before".freeze
+      LIST_REPOSITORIES = "list_repositories".freeze
+      DEFAULT_WINDOW_HOURS = 6
+      MAX_WINDOW_HOURS = 24 * 14
+
+      tool CHANGES_BEFORE,
+           description: "What changed before a time, across every repository this connection can see, ranked by how likely " \
+                        "each change is to have caused a failure that started then, with the reasons shown. Give whatever " \
+                        "clues you have: repository or service names, stack trace frames as path:line, error text, a commit. " \
+                        "It finds which repositories they point at, reads every deploy and merge in the window, blames the " \
+                        "failing lines however long ago they changed, summarises the week before for a slow burn, and says " \
+                        "what it could not check",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "at" => { "type" => "string", "description" => "When the failure started, as ISO 8601" },
+               "window_hours" => { "type" => "integer", "description" => "How far back to read every change in detail (optional, #{DEFAULT_WINDOW_HOURS} hours)" },
+               "repositories" => { "type" => "array", "items" => { "type" => "string" }, "description" => "Repositories in owner/name form the clues name (optional)" },
+               "names" => { "type" => "array", "items" => { "type" => "string" }, "description" => "Service or app names mentioned, e.g. checkout (optional)" },
+               "paths" => { "type" => "array", "items" => { "type" => "string" }, "description" => "Stack trace frames as path:line, e.g. app/models/pool.rb:42 (optional)" },
+               "error_texts" => { "type" => "array", "items" => { "type" => "string" }, "description" => "Error names or messages as written in code, e.g. PoolExhausted (optional)" },
+               "commits" => { "type" => "array", "items" => { "type" => "string" }, "description" => "A commit SHA an alert named as running (optional)" },
+               "started_from" => { "type" => "string", "description" => "How the start time was chosen, e.g. first alert received (optional)" }
+             },
+             "required" => [ "at" ]
+           },
+           read_only: true
+
+      tool LIST_REPOSITORIES,
+           description: "List the repositories this GitHub connection can see, with each one's default branch and last push",
+           params_schema: { "type" => "object", "properties" => {} },
+           read_only: true
 
       tool RUNNING_COMMIT,
            description: "Which commit was running at a given time: the last deploy that succeeded before it, and the one before " \
@@ -244,6 +276,26 @@ module Integrations
         default_branch_text(repo, at, token)
       end
 
+      def changes_before(environment_row:, arguments:)
+        started = time_argument(arguments, "at")
+        hours = Integer(arguments["window_hours"].presence || DEFAULT_WINDOW_HOURS, exception: false)
+        fail! "window_hours must be a whole number from 1 to #{MAX_WINDOW_HOURS}" unless hours&.between?(1, MAX_WINDOW_HOURS)
+
+        ChangesBefore.new(
+          token: GithubApp.installation_token(environment_row), started: started, window: hours.hours, clues: given_clues(arguments)
+        ).text
+      end
+
+      def list_repositories(environment_row:, arguments:)
+        token = GithubApp.installation_token(environment_row)
+        body = GithubApp.get("/installation/repositories?per_page=100", token: token)
+        listed = Array(body["repositories"]).map do |repository|
+          "#{repository['full_name']}  default branch #{repository['default_branch']}  last push #{repository['pushed_at']}"
+        end
+        more = body["total_count"].to_i > listed.size ? "\n#{body['total_count'].to_i - listed.size} more not listed." : ""
+        listed.empty? ? "This connection can see no repositories." : "#{listed.join("\n")}#{more}"
+      end
+
       def compare_commits(environment_row:, arguments:)
         repo = repo_argument(arguments)
         base = ref_argument(arguments, "base", required: true)
@@ -351,34 +403,9 @@ module Integrations
         fail! "No file at '#{path}' #{ref ? "at #{ref}" : 'on the default branch'}."
       end
 
-      BLAME_QUERY = <<~GRAPHQL.freeze
-        query($owner: String!, $name: String!, $expression: String!, $path: String!) {
-          repository(owner: $owner, name: $name) {
-            object(expression: $expression) {
-              ... on Commit {
-                blame(path: $path) {
-                  ranges {
-                    startingLine
-                    endingLine
-                    commit {
-                      oid
-                      committedDate
-                      messageHeadline
-                      author { name user { login } }
-                      associatedPullRequests(first: 1) { nodes { number title } }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      GRAPHQL
 
       def blame_ranges(repo, path, expression, token)
-        owner, name = repo.split("/", 2)
-        data = GithubApp.graphql(BLAME_QUERY, { owner: owner, name: name, expression: expression, path: path }, token: token)
-        Array(data.dig("repository", "object", "blame", "ranges"))
+        GithubApp.blame(repo, path, expression, token: token)
       rescue GithubApp::Error => error
         fail! "Could not blame '#{path}': #{error.message}"
       end
@@ -389,7 +416,10 @@ module Integrations
         before = deployments.select { |deployment| Time.zone.parse(deployment["created_at"].to_s)&.<=(at) }
         in_scope = scoped_to_environment(before, environment)
 
-        in_scope.lazy.select { |deployment| deployment_state(repo, deployment["id"], token) == "success" }.first(2)
+        in_scope.lazy.filter_map do |deployment|
+          at = GithubApp.deployment_succeeded_at(repo, deployment["id"], token: token)
+          deployment.merge("succeeded_at" => at.iso8601) if at
+        end.first(2)
       end
 
       # An environment asked for by name, else anything that looks like production, else every environment.
@@ -403,11 +433,11 @@ module Integrations
       def deployed_text(repo, at, running, previous = nil)
         lines = [
           "Running in #{repo} at #{at.iso8601}: #{running['sha']}",
-          "Source: a deploy record. #{running['environment']} deployment created #{running['created_at']} " \
-            "by #{running.dig('creator', 'login') || 'unknown'}, ref #{running['ref']}, status success."
+          "Source: a deploy record. #{running['environment']} deployment succeeded #{running['succeeded_at']} " \
+            "by #{running.dig('creator', 'login') || 'unknown'}, ref #{running['ref']}."
         ]
         if previous
-          lines << "Deployed before it: #{previous['sha']} at #{previous['created_at']}."
+          lines << "Deployed before it: #{previous['sha']}, succeeded #{previous['succeeded_at']}."
           lines << "What this deploy changed: compare_commits with base #{previous['sha']} and head #{running['sha']}."
         else
           lines << "No earlier successful deployment is recorded, so there is nothing to compare this deploy against."
@@ -552,6 +582,20 @@ module Integrations
         fail! "#{key} must be a commit SHA, branch or tag" unless ref.match?(REF_FORMAT) && !ref.include?("..")
 
         ref
+      end
+
+      # What the agent or the first step passed, in the shape the clue reader gives, each marked as given.
+      def given_clues(arguments)
+        listed = ->(key) { Array(arguments[key]).map { |value| { "value" => value.to_s.strip, "source" => "what was given" } }.reject { |clue| clue["value"].empty? } }
+        frames = Array(arguments["paths"]).filter_map do |frame|
+          path, line = frame.to_s.strip.split(":", 2)
+          { "value" => path.delete_prefix("/"), "line" => line.to_i, "source" => "what was given" } if path.present?
+        end
+        {
+          "started" => { "source" => arguments["started_from"].presence || "the time given", "estimated" => false },
+          "repositories" => listed.call("repositories").filter_map { |clue| clue.merge("value" => CodeChange.repository_name(clue["value"])) if CodeChange.repository_name(clue["value"]) },
+          "names" => listed.call("names"), "paths" => frames, "error_texts" => listed.call("error_texts"), "commits" => listed.call("commits")
+        }
       end
 
       def time_argument(arguments, key)

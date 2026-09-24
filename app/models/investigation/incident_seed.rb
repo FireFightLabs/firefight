@@ -18,8 +18,9 @@ class Investigation::IncidentSeed
       "alerts_held_back" => [ @incident.alerts.count - alerts.size, 0 ].max,
       "runbooks" => runbook_facts,
       "past_incidents" => past_incident_facts(alerts),
-      "services" => service_facts
-    }
+      "services" => service_facts,
+      "brief" => @investigation.brief.presence
+    }.compact
   end
 
   private

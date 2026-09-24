@@ -60,6 +60,15 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     assert invocation.completed_at
   end
 
+  test "the chat hands over what the person said, so the run starts from it" do
+    tool.call(symptom: "checkout is slow", started_around: "2026-09-24T12:00:00Z", names: [ "checkout" ])
+
+    brief = @workspace.investigations.sole.brief
+    assert_equal "checkout is slow", brief[Investigation::Brief::KEY_SYMPTOM]
+    assert_equal "2026-09-24T12:00:00Z", brief[Investigation::Brief::KEY_STARTED_AROUND]
+    assert_equal Investigation::Brief::SOURCE_CHAT, brief[Investigation::Brief::KEY_SOURCE]
+  end
+
   test "the agent can hand a question over to a full investigation" do
     assert_difference "Investigation.count", 1 do
       assert_match "Started", tool.call

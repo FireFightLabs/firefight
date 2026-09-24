@@ -33,4 +33,10 @@ module CodeChange
   def self.kind_for(path)
     PATTERNS.find { |_kind, pattern| path.to_s.match?(pattern) }&.first || KIND_CODE
   end
+
+  # "owner/name", however it was written: a bare owner/name, or a web or clone address on any code host. Nil for anything else.
+  def self.repository_name(text)
+    path = text.to_s.strip.sub(%r{\A(?:https?://|git@)[^/:]+[/:]}, "").delete_suffix(".git").delete_suffix("/")
+    path if path.match?(%r{\A[\w.\-]+/[\w.\-]+\z})
+  end
 end

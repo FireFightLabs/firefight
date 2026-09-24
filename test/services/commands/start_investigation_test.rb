@@ -21,6 +21,14 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
     assert_equal @member, investigation.triggered_by
   end
 
+  test "the words after the command are what the person already knows, kept for the run" do
+    Commands::StartInvestigation.execute(build_command(text: "#{Identifiers::SUBCOMMAND_INVESTIGATE} checkout 500s since 2pm"))
+
+    brief = @incident.investigations.sole.brief
+    assert_equal "checkout 500s since 2pm", brief[Investigation::Brief::KEY_SYMPTOM]
+    assert_equal Investigation::Brief::SOURCE_COMMAND, brief[Investigation::Brief::KEY_SOURCE]
+  end
+
   test "a workspace without the flag is told the feature is not on" do
     FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
 
@@ -73,10 +81,10 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
 
   private
 
-  def build_command(channel_id: nil)
+  def build_command(channel_id: nil, text: Identifiers::SUBCOMMAND_INVESTIGATE)
     Command.new(
       platform: Platforms::SLACK, workspace_id: @workspace.id, user_id: @member.platform_user_id,
-      text: Identifiers::SUBCOMMAND_INVESTIGATE, trigger_id: "12345.trigger",
+      text: text, trigger_id: "12345.trigger",
       channel_id: channel_id || @incident.channel_id, metadata: { command: "/ff" }
     )
   end

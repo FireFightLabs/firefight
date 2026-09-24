@@ -262,8 +262,10 @@ module Integrations
           deployment(2, "running", "production", "2026-09-24T13:00:00Z"),
           deployment(1, "previous", "production", "2026-09-23T10:00:00Z")
         ])
-        { 3 => "failure", 2 => "success", 1 => "success" }.each do |id, state|
-          GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/#{id}/statuses?per_page=1", token: "ghs_token").returns([ { "state" => state } ])
+        # GitHub marks an older deployment inactive once a newer one goes out, so its success is further down.
+        { 3 => [ "failure" ], 2 => [ "success" ], 1 => [ "inactive", "success" ] }.each do |id, states|
+          GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/#{id}/statuses?per_page=#{GithubApp::DEPLOYMENT_STATUS_LIMIT}", token: "ghs_token")
+                   .returns(states.map { |state| { "state" => state, "created_at" => "2026-09-24T12:00:00Z" } })
         end
 
         text = @pack.running_commit(environment_row: @row, arguments: { "repo" => "acme/checkout", "at" => "2026-09-24T14:05:00Z" })
@@ -316,11 +318,19 @@ module Integrations
         assert_includes text, "+  pool: 5"
       end
 
-      test "the two new tools are declared read only" do
+      test "the new tools are declared read only" do
         definitions = Github.tool_definitions.index_by(&:name)
 
-        assert definitions[Github::RUNNING_COMMIT].read_only
-        assert definitions["compare_commits"].read_only
+        [ Github::RUNNING_COMMIT, Github::CHANGES_BEFORE, Github::LIST_REPOSITORIES, "compare_commits" ].each do |name|
+          assert definitions[name].read_only, name
+        end
+      end
+
+      test "changes_before refuses a window it cannot use" do
+        error = assert_raises(NativePack::Error) do
+          @pack.changes_before(environment_row: @row, arguments: { "at" => "2026-09-24T14:05:00Z", "window_hours" => 0 })
+        end
+        assert_match(/window_hours/, error.message)
       end
 
       test "blame validates its line range" do
