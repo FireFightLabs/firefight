@@ -1,5 +1,4 @@
 class InvestigationJob < ApplicationJob
-  GAVE_UP = "Something went wrong on my side".freeze
   # Kept on the run for whoever debugs it.
   TOO_MANY_ATTEMPTS = "TooManyAttempts".freeze
 
@@ -41,7 +40,7 @@ class InvestigationJob < ApplicationJob
     return unless investigation.finish!(status: Investigation::STATUS_FAILED, error_summary: cause)
 
     Integrations::CodeReading.close(investigation.code_box_key)
-    Investigation::Delivery.new(investigation).stopped!(GAVE_UP, rerunnable: true)
+    Investigation::Delivery.new(investigation).stopped!(Investigation::GAVE_UP, rerunnable: true)
   rescue AdapterError => undelivered
     Rails.logger.warn({
       event: "investigation.failure_undelivered", investigation_id: investigation.id, error: undelivered.message

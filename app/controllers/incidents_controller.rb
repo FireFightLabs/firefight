@@ -1,5 +1,7 @@
 class IncidentsController < InertiaController
   LINKABLE_LIMIT = 50
+  # Asked for by name when a run opens or closes, so the rest of the page is not loaded again.
+  PROP_OPEN_INVESTIGATION = "openInvestigation"
 
   authorizes Ability::Action::RESOURCE_INCIDENTS,
     read: %i[show postmortem postmortem_revisions],
@@ -26,8 +28,17 @@ class IncidentsController < InertiaController
       subscribed: incident.subscribed?(current_membership),
       hasPostmortem: incident.postmortem.present?,
       postmortemStatus: incident.postmortem&.status,
-      postmortemGenerationState: incident.postmortem&.generation_state
+      postmortemGenerationState: incident.postmortem&.generation_state,
+      PROP_OPEN_INVESTIGATION => open_investigation(incident)
     }
+  end
+
+  # The run a timeline entry or a Slack button asked for, drawn over the incident. A link to a run
+  # that is not this incident's opens nothing.
+  def open_investigation(incident)
+    id = params[Investigation::QUERY_PARAM]
+    investigation = id.presence && incident.investigations.seen.find_by(id: id)
+    investigation && InvestigationDetailSerializer.one(investigation)
   end
 
   # Capped, the picker searches rather than scrolls.

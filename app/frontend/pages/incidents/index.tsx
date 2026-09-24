@@ -6,6 +6,7 @@ import { AlertsPanel } from "@/pages/incidents/components/index/alerts-panel";
 import { IncidentHeader } from "@/pages/incidents/components/index/incident-header";
 import { TestIncidentBanner } from "@/pages/incidents/components/index/test-incident-banner";
 import { IncidentTimeline } from "@/pages/incidents/components/index/incident-timeline";
+import { InvestigationSheet } from "@/pages/incidents/components/index/investigation-sheet";
 import { IncidentActionsSidebar } from "@/pages/incidents/components/index/incident-actions-sidebar";
 import { IncidentPostmortemCard } from "@/pages/incidents/components/index/incident-postmortem-card";
 import { RolesPanel } from "@/pages/incidents/components/index/roles-panel";
@@ -29,6 +30,7 @@ export default function IncidentPage() {
     linkableIncidents,
     memberChoices,
     subscribed,
+    openInvestigation,
   } = usePage<IncidentPageProps>().props;
   const canEditIncident = useCan("incidents");
   const rolesBlockedReason = canEditIncident
@@ -126,6 +128,7 @@ export default function IncidentPage() {
           </aside>
         </div>
       </div>
+      <InvestigationSheet incidentId={incident.id} investigation={openInvestigation} />
     </AuthenticatedLayout>
   );
 }

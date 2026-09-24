@@ -1,6 +1,7 @@
 class Investigation < ApplicationRecord
   include Investigation::Seeding
   include Investigation::Citing
+  include Investigation::Timeline
 
   STATUS_PENDING = "pending"
   STATUS_RUNNING = "running"
@@ -12,6 +13,22 @@ class Investigation < ApplicationRecord
   ].freeze
 
   LIVE_STATUSES = [ STATUS_PENDING, STATUS_RUNNING ].freeze
+
+  # Opens a run over the page of what it is about, since a run is read where it was asked for.
+  QUERY_PARAM = "investigation"
+
+  # The plain sentences a run stops with, the only ones people are shown. Anything else in error_summary is a technical
+  # cause kept for whoever debugs it.
+  STOPPED_BY_A_RESPONDER = "Stopped by a responder".freeze
+  BUDGET_SPENT = "Budget spent before it could answer".freeze
+  TOO_MANY_TURNS = "Stopped after too many turns".freeze
+  STALLED = "Stopped talking without an answer".freeze
+  REPEATED_CALL = "Repeated the same tool call".freeze
+  ENDED_WITHOUT_AN_ANSWER = "Ended without an answer".freeze
+  GAVE_UP = "Something went wrong on my side".freeze
+  PLAIN_STOP_REASONS = [
+    STOPPED_BY_A_RESPONDER, BUDGET_SPENT, TOO_MANY_TURNS, STALLED, REPEATED_CALL, ENDED_WITHOUT_AN_ANSWER, GAVE_UP
+  ].freeze
 
   # A worker renews this every turn, so a dead one holds the run for at most this long.
   LEASE = 5.minutes
@@ -155,6 +172,22 @@ class Investigation < ApplicationRecord
 
   # A run has no conversation to keep. Everything it has worked out is in its own records.
   def keeps_in_memory?(_message) = false
+
+  # From the first turn to the last, or so far for a run still working.
+  def duration_seconds
+    return nil unless started_at
+
+    ((completed_at || Time.current) - started_at).round
+  end
+
+  def spent_cents = (spent_micros / 10_000.0).round(2)
+
+  # Why a failed run stopped, in the words the thread was told. A technical cause is never shown to people.
+  def stopped_because
+    return nil unless status == STATUS_FAILED
+
+    PLAIN_STOP_REASONS.include?(error_summary.to_s) ? error_summary : GAVE_UP
+  end
 
   # The model a rehearsal was told to use, or nil for the workspace's own.
   def model_choice

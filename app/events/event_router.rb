@@ -11,7 +11,8 @@ class EventRouter
     IncidentEvent::ALERT_RESOLVED,
     # Nothing emits this since bulk-apply became step-by-step claiming.
     # Listed so the coverage assertion stays exact.
-    IncidentEvent::RUNBOOK_APPLIED
+    IncidentEvent::RUNBOOK_APPLIED,
+    *IncidentEvent::INVESTIGATION_EVENTS
   ].freeze
 
   def self.route(event)

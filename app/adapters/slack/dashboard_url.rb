@@ -8,6 +8,10 @@ module Slack
       build(:incident_postmortem_url, incident_id: incident.id)
     end
 
+    def self.investigation(investigation)
+      build(:investigation_url, id: investigation.id)
+    end
+
     # The integrations page with one provider's connect dialog already open.
     def self.connect_integration(provider_key)
       build(:integrations_url, Integration::CONNECT_QUERY_PARAM => provider_key)

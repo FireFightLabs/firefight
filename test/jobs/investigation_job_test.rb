@@ -77,7 +77,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
   test "a job that lost the run to another worker is dropped rather than retried" do
     Investigation::Runner.any_instance.stubs(:run).raises(Investigation::Runner::LeaseLost, "taken over")
 
-    assert_no_enqueued_jobs { InvestigationJob.perform_now(@investigation.id) }
+    assert_no_enqueued_jobs(only: InvestigationJob) { InvestigationJob.perform_now(@investigation.id) }
   end
 
   test "a second pass over a finished run changes nothing" do
@@ -134,7 +134,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
     @investigation.update!(attempts: Investigation::MAX_ATTEMPTS, thread_id: "1700000000.000100")
     Investigation::Runner.any_instance.expects(:run).never
     Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
-      has_entries(reason: InvestigationJob::GAVE_UP, rerun: @incident)
+      has_entries(reason: Investigation::GAVE_UP, rerun: @incident)
     )
 
     InvestigationJob.perform_now(@investigation.id)
@@ -147,7 +147,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
   test "an error no retry can fix ends the run at once" do
     Investigation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError.new("too long"))
 
-    assert_no_enqueued_jobs { InvestigationJob.perform_now(@investigation.id) }
+    assert_no_enqueued_jobs(only: InvestigationJob) { InvestigationJob.perform_now(@investigation.id) }
 
     @investigation.reload
     assert_equal Investigation::STATUS_FAILED, @investigation.status
@@ -157,7 +157,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
   test "a run that gave up says so in its thread" do
     @investigation.update!(thread_id: "1700000000.000100")
     Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
-      has_entries(thread_id: "1700000000.000100", reason: InvestigationJob::GAVE_UP, rerun: @incident)
+      has_entries(thread_id: "1700000000.000100", reason: Investigation::GAVE_UP, rerun: @incident)
     )
 
     InvestigationJob.new(@investigation.id).mark_failed(RuntimeError.new("worker died"))

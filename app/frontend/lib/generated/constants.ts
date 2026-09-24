@@ -297,6 +297,83 @@ export const AGENT_CHAT_PROPS = {
   "ENVIRONMENTS": "environments"
 } as const
 
+export const INVESTIGATION_QUERY_PARAM = "investigation" as const
+
+export const INVESTIGATION_EVENT_TYPES = [
+  "investigation.started",
+  "investigation.answered",
+  "investigation.stopped"
+] as const
+
+export const INVESTIGATION_PROP = "investigation" as const
+
+export const OPEN_INVESTIGATION_PROP = "openInvestigation" as const
+
+export const INVESTIGATION_STATUSES = [
+  "pending",
+  "running",
+  "succeeded",
+  "failed",
+  "canceled"
+] as const
+export type InvestigationStatus = (typeof INVESTIGATION_STATUSES)[number]
+
+export const INVESTIGATION_LIVE_STATUSES = [
+  "pending",
+  "running"
+] as const
+
+export const INVESTIGATION_TRIGGERS = [
+  "command",
+  "button",
+  "conversation",
+  "mcp",
+  "rehearsal"
+] as const
+export type InvestigationTrigger = (typeof INVESTIGATION_TRIGGERS)[number]
+
+export const HYPOTHESIS_STATUSES = [
+  "open",
+  "supported",
+  "refuted"
+] as const
+export type HypothesisStatus = (typeof HYPOTHESIS_STATUSES)[number]
+
+export const INVESTIGATION_STEP_STATUSES = [
+  "pending",
+  "running",
+  "succeeded",
+  "failed"
+] as const
+export type InvestigationStepStatus = (typeof INVESTIGATION_STEP_STATUSES)[number]
+
+export const HYPOTHESIS_STATUS = {
+  "OPEN": "open",
+  "SUPPORTED": "supported",
+  "REFUTED": "refuted"
+} as const
+
+export const INVESTIGATION_STEP_STATUS = {
+  "PENDING": "pending",
+  "RUNNING": "running",
+  "SUCCEEDED": "succeeded",
+  "FAILED": "failed"
+} as const
+
+export const FINDING_OUTCOMES = [
+  "confirmed",
+  "partial",
+  "wrong"
+] as const
+export type FindingOutcome = (typeof FINDING_OUTCOMES)[number]
+
+export const LEDGER_DECISIONS = [
+  "allow",
+  "deny",
+  "pending"
+] as const
+export type LedgerDecision = (typeof LEDGER_DECISIONS)[number]
+
 export const CHAT_MESSAGE_ROLES = {
   "USER": "user",
   "ASSISTANT": "assistant"

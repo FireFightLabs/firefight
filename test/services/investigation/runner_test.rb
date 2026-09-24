@@ -85,7 +85,7 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
 
   test "a run someone stopped ends as canceled and says so" do
     fake(outcome: :canceled)
-    Investigation::Delivery.any_instance.expects(:stopped!).with(Investigation::Runner::STOPPED_BY_A_RESPONDER)
+    Investigation::Delivery.any_instance.expects(:stopped!).with(Investigation::STOPPED_BY_A_RESPONDER)
 
     result = Investigation::Runner.new(@investigation).run
 
@@ -100,7 +100,7 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     result = Investigation::Runner.new(@investigation).run
 
     assert_equal Investigation::STATUS_CANCELED, result.status
-    assert_equal Investigation::Runner::STOPPED_BY_A_RESPONDER, result.error_summary
+    assert_equal Investigation::STOPPED_BY_A_RESPONDER, result.error_summary
   end
 
   test "each turn is written down as it happens" do

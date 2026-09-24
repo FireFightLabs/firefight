@@ -71,6 +71,25 @@ module TypescriptConstants
       }, nil),
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
+      Export.new("INVESTIGATION_QUERY_PARAM", Investigation::QUERY_PARAM, nil),
+      Export.new("INVESTIGATION_EVENT_TYPES", IncidentEvent::INVESTIGATION_EVENTS, nil),
+      Export.new("INVESTIGATION_PROP", InvestigationsController::PROP_INVESTIGATION, nil),
+      Export.new("OPEN_INVESTIGATION_PROP", IncidentsController::PROP_OPEN_INVESTIGATION, nil),
+      Export.new("INVESTIGATION_STATUSES", Investigation::STATUSES, "InvestigationStatus"),
+      Export.new("INVESTIGATION_LIVE_STATUSES", Investigation::LIVE_STATUSES, nil),
+      Export.new("INVESTIGATION_TRIGGERS", Investigation::TRIGGER_SOURCES, "InvestigationTrigger"),
+      Export.new("HYPOTHESIS_STATUSES", Investigation::Hypothesis::STATUSES, "HypothesisStatus"),
+      Export.new("INVESTIGATION_STEP_STATUSES", Investigation::Step::STATUSES, "InvestigationStepStatus"),
+      Export.new("HYPOTHESIS_STATUS", {
+        "OPEN" => Investigation::Hypothesis::STATUS_OPEN, "SUPPORTED" => Investigation::Hypothesis::STATUS_SUPPORTED,
+        "REFUTED" => Investigation::Hypothesis::STATUS_REFUTED
+      }, nil),
+      Export.new("INVESTIGATION_STEP_STATUS", {
+        "PENDING" => Investigation::Step::STATUS_PENDING, "RUNNING" => Investigation::Step::STATUS_RUNNING,
+        "SUCCEEDED" => Investigation::Step::STATUS_SUCCEEDED, "FAILED" => Investigation::Step::STATUS_FAILED
+      }, nil),
+      Export.new("FINDING_OUTCOMES", Investigation::Finding::OUTCOMES, "FindingOutcome"),
+      Export.new("LEDGER_DECISIONS", Ability::Invocation::DECISIONS, "LedgerDecision"),
       Export.new("CHAT_MESSAGE_ROLES", {
         "USER" => Chat::Message::ROLE_USER, "ASSISTANT" => Chat::Message::ROLE_ASSISTANT
       }, nil),

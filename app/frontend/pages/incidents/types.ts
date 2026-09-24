@@ -1,7 +1,7 @@
 import type { SharedProps } from "@/types"
 import type { AttachableRunbook } from "@/pages/incidents/components/index/attach-runbook-dialog"
 import type { LinkableIncident } from "@/pages/incidents/components/index/link-incident-dialog"
-import type { IncidentAction, IncidentDetail, TimelineEvent } from "@/types/serializers"
+import type { IncidentAction, IncidentDetail, InvestigationDetail, TimelineEvent } from "@/types/serializers"
 
 export type { IncidentDetail as Incident } from "@/types/serializers"
 export type { IncidentAction } from "@/types/serializers"
@@ -22,6 +22,8 @@ export interface IncidentPageOwnProps {
   linkableIncidents: LinkableIncident[]
   memberChoices: { value: string; label: string }[]
   subscribed: boolean
+  // The run the address asks for, drawn over the page.
+  openInvestigation: InvestigationDetail | null
 }
 
 export type IncidentPageProps = SharedProps & IncidentPageOwnProps

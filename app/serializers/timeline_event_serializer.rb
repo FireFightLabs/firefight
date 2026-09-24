@@ -213,6 +213,8 @@ class TimelineEventSerializer < BaseSerializer
     when IncidentEvent::MERGED_INTO
       canonical = references.incident(meta[:canonical_incident_id])
       canonical && url_helpers.incident_path(canonical)
+    when *IncidentEvent::INVESTIGATION_EVENTS
+      url_helpers.incident_path(event.incident_id, Investigation::QUERY_PARAM => meta[:investigation_id])
     end
   end
 
