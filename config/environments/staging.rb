@@ -19,7 +19,8 @@ Rails.application.configure do
 
   config.log_tags  = [ :request_id ]
   config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
-  config.rails_semantic_logger.format = :json
+  # Declaring an appender replaces the gem's default log file, which no platform collects.
+  config.rails_semantic_logger.appenders { |appenders| appenders.add(io: $stdout, formatter: :json) }
 
   config.silence_healthcheck_path = "/up"
 
