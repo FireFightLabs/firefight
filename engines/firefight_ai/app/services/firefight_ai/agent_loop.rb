@@ -97,6 +97,9 @@ module FirefightAi
     def stop_reason
       return STATUS_ANSWERED if @answered.call
       return STATUS_CANCELED if @canceled.call
+      # Running tools already asked for costs nothing, and a provider refuses a chat with anything between a call and its
+      # result, including the next question in a chat that stopped before the result was saved.
+      return nil if tools_pending?
       return STATUS_OUT_OF_TURNS if @turns >= @budget.max_turns
       return nil if @spend_micros < @budget.max_spend_cents * MICROS_PER_CENT
       return STATUS_OUT_OF_BUDGET if @last_turn_offered
