@@ -33,8 +33,10 @@ module FirefightAi
     # is waiting for a reply, in a run only a conclusion ends it.
     # nudge is how the app saves the loop's own words, so it can tell them from what a person said.
     # memory is the saved chat when it can make room for itself, which lets a long run outlive its window.
+    # check is what to ask before an answer goes out, or nil when none is owed yet. An answer it is owed is held back
+    # unseen, hold is how the app keeps that draft out of what the person reads, and the answer after the check goes out.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
-                   reply_is_answer: false, nudge: nil, memory: nil)
+                   reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil)
       @chat = chat
       @room = Room.new(chat, memory)
       @nudge = nudge || ->(text) { chat.add_message(role: :user, content: text) }
@@ -47,6 +49,8 @@ module FirefightAi
       @spend_micros = budget.spent_micros
       @reminders = 0
       @reply_is_answer = reply_is_answer
+      @check = check
+      @hold = hold
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
     end
@@ -135,9 +139,9 @@ module FirefightAi
       llm&.with_tool_options(choice: nil)
     end
 
-    # Streaming still reports usage, so a streamed turn is billed like any other.
+    # Streaming still reports usage, so a streamed turn is billed like any other. A reply that may be held is not streamed.
     def streamer
-      return nil unless @on_chunk
+      return nil if @on_chunk.nil? || check_owed
 
       lambda do |chunk|
         text = chunk.content
@@ -174,13 +178,35 @@ module FirefightAi
         return nil
       end
 
-      return STATUS_ANSWERED if @reply_is_answer
+      if @reply_is_answer
+        return nil if asked_for_check?
+
+        return STATUS_ANSWERED
+      end
 
       return STATUS_STALLED if @reminders.positive?
 
       @reminders += 1
       @nudge.call(REMINDER)
       nil
+    end
+
+    # The draft stays in the chat, so the check can argue with it, and the reply after it is the answer.
+    def asked_for_check?
+      text = check_owed
+      return false unless text
+
+      @checked = true
+      @hold&.call
+      @nudge.call(text)
+      true
+    end
+
+    # Once per question, and never on the last turn a budget buys, which has no room for another.
+    def check_owed
+      return nil if @check.nil? || @checked || @last_turn_offered
+
+      @check.call.presence
     end
 
     # The record's messages are rows. These are the ones the model sees.

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_24_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_24_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1041,6 +1041,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_110000) do
     t.boolean "cancel_requested", default: false, null: false
     t.datetime "completed_at"
     t.datetime "created_at", null: false
+    t.datetime "critique_asked_at"
     t.string "error_summary"
     t.string "lease_holder"
     t.uuid "lease_token"

@@ -44,6 +44,11 @@ class Chat < ApplicationRecord
     add_message(role: Chat::Message::ROLE_USER, content: text).tap { |message| message.update!(nudge: true) }
   end
 
+  # An answer held back for a check is the agent's own too, so it is marked like a nudge and never read to a person.
+  def hold_last_reply!
+    messages.where(role: Chat::Message::ROLE_ASSISTANT).reorder(created_at: :desc, id: :desc).first&.update!(nudge: true)
+  end
+
   # Requested is ours, RubyLLM reads anything but approved or denied as undecided.
   APPROVAL_REQUESTED = "requested"
   APPROVAL_APPROVED = "approved"

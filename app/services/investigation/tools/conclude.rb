@@ -39,15 +39,34 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
 
   # The arguments match the schema above, not an execute signature, so skip the base check.
   # They arrive keyed by text, as the model sent them.
+  # The first answer is argued with before it is recorded, unless the budget has no room left for that.
   def call(tool_call: nil, **arguments)
+    return FirefightAi::Investigator::CRITIQUE if !@investigation.budget_spent? && @investigation.ask_for_critique!
+
     asked = arguments.symbolize_keys
+    evidence = Array(asked[:evidence])
+    evidence.each_with_index { |item, index| @investigation.cited_steps!(item.to_h.stringify_keys["steps"], what: "Evidence #{index + 1}") }
+    reread = Investigation::Rereading.new(@investigation).check(evidence)
+    refuse_emptied_cause!(asked[:hypothesis], reread)
+
     @investigation.conclude!(
-      summary: asked[:summary], hypothesis_assertion: asked[:hypothesis], evidence: Array(asked[:evidence]), gaps: asked[:gaps]
+      summary: asked[:summary], hypothesis_assertion: asked[:hypothesis], evidence: reread.kept, gaps: asked[:gaps]
     )
     "Answer recorded. The run is over."
   rescue Investigation::Evidence::Refused => refused
     { error: refused.message }
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => error
     { error: error.message }
+  end
+
+  private
+
+  # A cause with nothing left behind it is sent back with why, so the agent can cite what shows it or name no cause.
+  def refuse_emptied_cause!(hypothesis, reread)
+    return if hypothesis.blank? || reread.kept.any? || reread.dropped.empty?
+
+    why = reread.dropped.map { |dropped| "\"#{dropped.claim}\": #{dropped.reason}" }.join(" ")
+    raise Investigation::Evidence::Refused,
+      "Every claim was dropped when read against the steps it cites. #{why} Conclude with claims those steps show, or with no cause."
   end
 end

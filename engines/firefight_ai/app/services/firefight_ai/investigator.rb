@@ -3,6 +3,13 @@ module FirefightAi
   class Investigator
     FEATURE = "investigation".freeze
 
+    # What the first conclude of a run is answered with. The same agent argues with its own answer, and may only run a
+    # check it can name, so a critic told to find fault cannot make doubt up.
+    CRITIQUE = "Not recorded yet. Before it is, try to prove it wrong. For each claim, name the check that would show it " \
+               "false. If you can name one you have not run, run it now and record what it shows against the theory. Only a " \
+               "result you read can change the answer, never a doubt you reasoned your way to without one. Then call " \
+               "conclude again, changed or not.".freeze
+
     def initialize(workspace, inferable:, member: nil)
       @workspace = workspace
       @inferable = inferable
@@ -62,6 +69,7 @@ module FirefightAi
 
         How to finish:
         - Call conclude with the theory the evidence supports, the evidence behind it, and what you could not check. Each line of evidence is one claim and the step numbers it rests on. A claim with no step behind it is refused, so do not state what no result showed.
+        - The first conclude asks you to try to prove the answer wrong before it is recorded. Each claim is then read against the steps it cites, and one they do not show is dropped.
         - If the evidence supports no cause, conclude saying that. A wrong answer costs the team more than no answer.
         - A reply without a tool call does nothing. Only conclude ends the run.
       PROMPT

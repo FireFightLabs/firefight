@@ -3,6 +3,14 @@ module FirefightAi
   class Responder
     FEATURE = "conversation".freeze
 
+    # Asked once before an answer built on what was looked up goes out. The draft is held, so the person reads only what follows.
+    CHECK = "Before this answer goes out, try to prove it wrong. Name the claim it rests on and the check that would show " \
+            "that claim false. If you have not run that check and can, run it now. Only a result you read can change the " \
+            "answer: correct a claim a result contradicts, and never replace it with one you reasoned your way to without a " \
+            "result that shows it. Say a possibility you could not check is unchecked, or leave it out. Then write the answer " \
+            "the person will read, in full, changed or not, as a plain answer that never mentions this check. They have not " \
+            "seen your draft.".freeze
+
     def initialize(workspace, inferable:, member: nil, output_style: nil)
       @workspace = workspace
       @inferable = inferable
@@ -11,7 +19,9 @@ module FirefightAi
     end
 
     # The app has already saved the question as the last message.
-    def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, nudge: nil, memory: nil, &on_turn)
+    # check and hold go to the loop, see AgentLoop.
+    def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, nudge: nil, memory: nil,
+            check: nil, hold: nil, &on_turn)
       FirefightAi.translating_errors do
         chat.with_instructions("#{template_text}\n#{context}")
         chat.with_tools(*tools)
@@ -20,7 +30,8 @@ module FirefightAi
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
-          on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true
+          on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true,
+          check: check, hold: hold
         ).run(&on_turn)
       end
     end
@@ -55,6 +66,7 @@ module FirefightAi
         - When a tool refuses, tell the person plainly and who can do it instead.
         - #{Evidence::RULE}
         - When a question needs real work, several tools and a written answer, call start_investigation instead of doing it here.
+        - When an investigation has finished without checking something it can reach now, such as a tool granted since, offer to run it again and call start_investigation when the person agrees. Never tell them to start it themselves.
         - When someone asks to set up Firefight, go one step at a time. Read what is configured first, then offer the most useful missing piece: where alerts come from, then code, then the rest. Change a setting only once they agree to it.
         - Integrations are connected by the person, never by you. Ask which kind they want, then show that category with list_integrations and they connect from the table it draws. Never ask for, accept or repeat a key, token or password. If one is pasted, say it was not used and point them to the table.
 
