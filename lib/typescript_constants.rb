@@ -54,7 +54,8 @@ module TypescriptConstants
       Export.new("AGENT_STREAM_EVENTS", {
         "THINKING" => Conversation::LiveDelivery::EVENT_THINKING, "STEP" => Conversation::LiveDelivery::EVENT_STEP,
         "CHUNK" => Conversation::LiveDelivery::EVENT_CHUNK, "ANSWERED" => Conversation::LiveDelivery::EVENT_ANSWERED,
-        "FAILED" => Conversation::LiveDelivery::EVENT_FAILED, "WAITING" => Conversation::LiveDelivery::EVENT_WAITING
+        "FAILED" => Conversation::LiveDelivery::EVENT_FAILED, "WAITING" => Conversation::LiveDelivery::EVENT_WAITING,
+        "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
@@ -64,7 +65,9 @@ module TypescriptConstants
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT
       }, nil),
-      Export.new("AGENT_CARD_KINDS", { "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS }, nil),
+      Export.new("AGENT_CARD_KINDS", {
+        "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS, "INVESTIGATION" => Chat::Tools::CARD_INVESTIGATION
+      }, nil),
       Export.new("INTEGRATION_CARD_STATES", {
         "CONNECTED" => IntegrationProvider::STATE_CONNECTED, "NEEDS_ATTENTION" => IntegrationProvider::STATE_NEEDS_ATTENTION,
         "TURNED_OFF" => IntegrationProvider::STATE_TURNED_OFF, "NOT_CONNECTED" => IntegrationProvider::STATE_NOT_CONNECTED
@@ -72,6 +75,7 @@ module TypescriptConstants
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
       Export.new("INVESTIGATION_QUERY_PARAM", Investigation::QUERY_PARAM, nil),
+      Export.new("INCIDENT_NAME_FIELD_KEY", IncidentSystemField::KEY_NAME, nil),
       Export.new("INVESTIGATION_EVENT_TYPES", IncidentEvent::INVESTIGATION_EVENTS, nil),
       Export.new("INVESTIGATION_PROP", InvestigationsController::PROP_INVESTIGATION, nil),
       Export.new("OPEN_INVESTIGATION_PROP", IncidentsController::PROP_OPEN_INVESTIGATION, nil),

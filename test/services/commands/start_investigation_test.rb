@@ -48,20 +48,39 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
     assert_empty @incident.investigations
   end
 
-  test "outside an incident channel it says where to run it" do
+  test "outside an incident channel it investigates what the person said, and answers in that channel" do
+    assert_enqueued_with(job: InvestigationJob) do
+      assert_nil Commands::StartInvestigation.execute(build_command(channel_id: "C00000000", text: "#{Identifiers::SUBCOMMAND_INVESTIGATE} checkout is slow"))
+    end
+
+    investigation = @workspace.investigations.find_by!(channel_id: "C00000000")
+    assert_nil investigation.subject
+    assert_equal "checkout is slow", investigation.question
+  end
+
+  test "with AI SRE off, outside an incident channel it says the feature is off before asking anything" do
+    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
+
     result = Commands::StartInvestigation.execute(build_command(channel_id: "C00000000"))
 
-    assert_match "incident channel", result[:text]
+    assert_match "not turned on", result[:text]
+  end
+
+  test "outside an incident channel, with nothing said, it asks what is wrong" do
+    result = nil
+    assert_no_enqueued_jobs(only: InvestigationJob) { result = Commands::StartInvestigation.execute(build_command(channel_id: "C00000000")) }
+
+    assert_equal Investigation::NEEDS_A_QUESTION, result[:text]
   end
 
   # A command only resolves a live incident, so a finished channel reads as no incident at all.
-  test "in a channel whose incident is over it says where to run it" do
+  test "in a channel whose incident is over it investigates the question, not the finished incident" do
     resolved = incidents(:resolved_minor_ws1)
 
-    result = Commands::StartInvestigation.execute(build_command(channel_id: resolved.channel_id))
+    Commands::StartInvestigation.execute(build_command(channel_id: resolved.channel_id, text: "#{Identifiers::SUBCOMMAND_INVESTIGATE} is it back"))
 
-    assert_match "incident channel", result[:text]
     assert_empty resolved.investigations
+    assert_equal "is it back", @workspace.investigations.find_by!(channel_id: resolved.channel_id).question
   end
 
   test "a second ask is told about the run already going" do

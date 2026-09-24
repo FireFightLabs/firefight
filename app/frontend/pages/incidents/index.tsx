@@ -1,4 +1,4 @@
-import { Deferred, Head, Link, usePage } from "@inertiajs/react";
+import { Deferred, Head, Link, router, usePage } from "@inertiajs/react";
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout";
 import { ActionsSkeleton } from "@/pages/incidents/components/index/actions-skeleton";
@@ -6,7 +6,7 @@ import { AlertsPanel } from "@/pages/incidents/components/index/alerts-panel";
 import { IncidentHeader } from "@/pages/incidents/components/index/incident-header";
 import { TestIncidentBanner } from "@/pages/incidents/components/index/test-incident-banner";
 import { IncidentTimeline } from "@/pages/incidents/components/index/incident-timeline";
-import { InvestigationSheet } from "@/pages/incidents/components/index/investigation-sheet";
+import { InvestigationSheet } from "@/components/investigations/investigation-sheet";
 import { IncidentActionsSidebar } from "@/pages/incidents/components/index/incident-actions-sidebar";
 import { IncidentPostmortemCard } from "@/pages/incidents/components/index/incident-postmortem-card";
 import { RolesPanel } from "@/pages/incidents/components/index/roles-panel";
@@ -15,7 +15,8 @@ import { RunbooksPanel } from "@/pages/incidents/components/index/runbooks-panel
 import { TimelineSkeleton } from "@/pages/incidents/components/index/timeline-skeleton";
 import type { IncidentPageProps } from "@/pages/incidents/types";
 import { useCan } from "@/lib/permissions";
-import { dashboardPath } from "@/lib/routes";
+import { dashboardPath, incidentPath } from "@/lib/routes";
+import { OPEN_INVESTIGATION_PROP } from "@/lib/generated/constants";
 
 export default function IncidentPage() {
   const {
@@ -33,6 +34,11 @@ export default function IncidentPage() {
     openInvestigation,
   } = usePage<IncidentPageProps>().props;
   const canEditIncident = useCan("incidents");
+
+  // Closing a run drops it from the address and loads nothing else.
+  function closeInvestigation() {
+    router.get(incidentPath(incident.id), {}, { only: [OPEN_INVESTIGATION_PROP], preserveScroll: true, preserveState: true, replace: true });
+  }
   const rolesBlockedReason = canEditIncident
     ? incident.changeBlockedReason
     : "You do not have permission to change incidents.";
@@ -128,7 +134,7 @@ export default function IncidentPage() {
           </aside>
         </div>
       </div>
-      <InvestigationSheet incidentId={incident.id} investigation={openInvestigation} />
+      <InvestigationSheet investigation={openInvestigation} prop={OPEN_INVESTIGATION_PROP} onClose={closeInvestigation} />
     </AuthenticatedLayout>
   );
 }

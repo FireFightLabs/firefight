@@ -16,7 +16,7 @@ class Investigation::Rehearsal
   class << self
     def replay!(original, model: nil, provider: nil)
       run = rehearse!(
-        original.subject, replay_of: original, seed_pack: original.seed_pack, brief: original.brief,
+        original.workspace, original.subject, replay_of: original, seed_pack: original.seed_pack, brief: original.brief,
         max_turns: original.max_turns, max_spend_cents: original.max_spend_cents, model: model, provider: provider
       )
       copy_steps_before_the_loop(original, run)
@@ -28,7 +28,7 @@ class Investigation::Rehearsal
       limits = incident.workspace.investigation_limits
       brief = Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => said }, source: Investigation::Brief::SOURCE_REHEARSAL)
       run = rehearse!(
-        incident, brief: brief, max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents, model: model, provider: provider
+        incident.workspace, incident, brief: brief, max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents, model: model, provider: provider
       )
       run.build_seed_pack!
       Investigation::WhatChanged.new(run).note!
@@ -48,8 +48,9 @@ class Investigation::Rehearsal
 
     private
 
-    def rehearse!(subject, model:, provider:, **attributes)
-      subject.workspace.investigations.create!(
+    # A run asked without an incident has no subject, so the workspace is named on its own.
+    def rehearse!(workspace, subject, model:, provider:, **attributes)
+      workspace.investigations.create!(
         subject: subject, trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true,
         model_override: model.presence, provider_override: provider.presence, **attributes
       )

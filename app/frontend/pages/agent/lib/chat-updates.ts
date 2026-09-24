@@ -1,6 +1,6 @@
 import { router } from "@inertiajs/react"
 
-import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
+import { AGENT_CHAT_PROPS, CHAT_MESSAGE_ROLES, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
 import { agentChatAskPath, agentChatConfirmPath, agentChatPath, agentChatsPath } from "@/lib/routes"
 import type { AgentPageProps } from "@/pages/agent/types"
 import type { AgentChat } from "@/types/serializers"
@@ -9,7 +9,11 @@ import type { AgentChat } from "@/types/serializers"
 
 type ChatChange = { title: string } | { pinned: boolean } | { archived: boolean }
 
-const OPEN_CHAT = [ AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONFIRMATIONS ]
+const OPEN_CHAT = [
+  AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONFIRMATIONS,
+  AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION,
+]
+const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
 const IN_PLACE = { preserveScroll: true, preserveState: true }
@@ -25,9 +29,24 @@ export function startNewChat() {
   router.visit(agentChatsPath(), { ...IN_PLACE, only: OPEN_CHAT })
 }
 
+// The question and the working state show the moment it is sent, so the chat never sits still while the request is out.
+// The server's answer replaces both, and a refusal puts the page back.
 export function ask(conversationId: string | null, question: string) {
   const path = conversationId ? agentChatAskPath(conversationId) : agentChatsPath()
-  router.post(path, { question }, { ...IN_PLACE, only: OPEN_CHAT, onSuccess: placeOpenChat })
+  router
+    .optimistic<AgentPageProps>((props) => askedNow(props, question))
+    .post(path, { question }, { ...IN_PLACE, only: OPEN_CHAT, onSuccess: placeOpenChat })
+}
+
+// A new chat has no id until the server makes it, and an empty one opens no live connection.
+function askedNow(props: AgentPageProps, question: string): Partial<AgentPageProps> {
+  const asked = { id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [] }
+  const conversation = props.conversation ?? {
+    id: "", title: question, preview: question, archived: false, pinned: false, pinnedAt: null,
+    lastActiveAt: new Date().toISOString(), busy: true,
+  }
+
+  return { conversation: { ...conversation, busy: true }, messages: [ ...props.messages, asked ] }
 }
 
 export interface ConfirmationAnswer {
@@ -38,6 +57,20 @@ export interface ConfirmationAnswer {
 export function answerConfirmations(conversationId: string, answers: ConfirmationAnswer[]) {
   const decisions = answers.map((answer) => ({ tool_call_id: answer.toolCallId, approved: answer.approved }))
   router.post(agentChatConfirmPath(conversationId), { decisions }, { ...IN_PLACE, only: OPEN_CHAT })
+}
+
+// A run opens over the chat that started it, and only the run is loaded.
+export function openRun(chatId: string, investigationId: string) {
+  router.visit(agentChatPath(chatId, { [INVESTIGATION_QUERY_PARAM]: investigationId }), { ...IN_PLACE, only: RUNS })
+}
+
+export function closeRun(chatId: string) {
+  router.visit(agentChatPath(chatId), { ...IN_PLACE, only: RUNS, replace: true })
+}
+
+// A run answers after the turn that started it, so its card is told to look again whenever it moves.
+export function refreshRuns() {
+  router.reload({ only: RUNS })
 }
 
 export function refreshOpenChat() {

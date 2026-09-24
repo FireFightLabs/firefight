@@ -4,9 +4,9 @@ module ModalState
   InvalidError = Class.new(StandardError)
 
   Result = Data.define(:incident_id, :incident_runbook_id, :temp_message_ts, :channel_id,
-                       :source_message_text, :source_message_link, :prompt_handle, :test) do
+                       :source_message_text, :source_message_link, :prompt_handle, :test, :investigation_id) do
     def initialize(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil,
-                   source_message_text: nil, source_message_link: nil, prompt_handle: nil, test: false)
+                   source_message_text: nil, source_message_link: nil, prompt_handle: nil, test: false, investigation_id: nil)
       super
     end
   end
@@ -15,7 +15,7 @@ module ModalState
 
   # test is encoded only when true.
   def self.encode(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil,
-                  source_message_text: nil, source_message_link: nil, prompt_handle: nil, test: false)
+                  source_message_text: nil, source_message_link: nil, prompt_handle: nil, test: false, investigation_id: nil)
     {
       incident_id: incident_id,
       incident_runbook_id: incident_runbook_id,
@@ -24,7 +24,8 @@ module ModalState
       source_message_text: source_message_text,
       source_message_link: source_message_link,
       prompt_handle: prompt_handle,
-      test: (true if test)
+      test: (true if test),
+      investigation_id: investigation_id
     }.compact.to_json
   end
 
@@ -42,7 +43,8 @@ module ModalState
       source_message_text: parsed["source_message_text"],
       source_message_link: parsed["source_message_link"],
       prompt_handle: parsed["prompt_handle"],
-      test: parsed["test"] == true
+      test: parsed["test"] == true,
+      investigation_id: parsed["investigation_id"]
     )
   rescue JSON::ParserError => e
     raise InvalidError, "modal state is not valid JSON: #{e.message}"

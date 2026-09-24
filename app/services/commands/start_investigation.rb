@@ -3,22 +3,26 @@ module Commands
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE
 
+    # In an incident's channel it investigates the incident. Anywhere else it investigates what the person says is
+    # wrong and answers in that channel, so a question does not wait for someone to declare an incident.
     def self.execute(command)
       workspace = command.workspace
-      return Command.ephemeral("This command must be run from an incident channel.") unless command.incident
-
-      refusal = Investigation.start_refusal(command.incident)
+      incident = command.incident
+      brief = brief(command)
+      refusal = Investigation.start_refusal(workspace, incident)
       return Command.ephemeral(refusal) if refusal
+      return Command.ephemeral(Investigation::NEEDS_A_QUESTION) if incident.nil? && brief.empty?
 
       started = InvestigationService.new(workspace).start(
-        command.incident,
+        incident,
         trigger_source: Investigation::TRIGGER_COMMAND,
         triggered_by: workspace.workspace_memberships.find_by!(platform_user_id: command.user_id),
-        brief: brief(command)
+        brief: brief,
+        channel_id: (command.channel_id unless incident)
       )
       return nil if started
 
-      Command.ephemeral(Investigation.already_running_message(command.incident))
+      Command.ephemeral(Investigation.already_running_message(incident))
     end
 
     # Whatever follows the subcommand is what the person already knows, such as "checkout 500s since 2pm".

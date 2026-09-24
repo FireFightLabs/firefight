@@ -8,6 +8,19 @@ class Slack::Modals::IncidentCreationTest < ActiveSupport::TestCase
     assert_equal Slack::Modals::IncidentCreation::TEST_NOTE, view[:blocks].first[:elements].first[:text]
   end
 
+  test "a declare opened from an investigation starts with its question as the name, and keeps it when the form changes" do
+    workspace = workspaces(:slack_workspace_one)
+    run = workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400,
+      brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }
+    )
+
+    view = Slack::Modals::IncidentCreation.build(workspace: workspace, private_metadata: ModalState.encode(investigation_id: run.id))
+
+    name = view[:blocks].find { |block| block[:block_id] == Slack::Modals::FieldBlocks.block_id(IncidentSystemField::KEY_NAME) }
+    assert_equal "checkout is slow", name.dig(:element, :initial_value)
+  end
+
   test "a plain declare carries no state and no note" do
     view = Slack::Modals::IncidentCreation.build(workspace: workspaces(:slack_workspace_one))
 

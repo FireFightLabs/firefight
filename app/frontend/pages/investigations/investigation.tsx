@@ -1,9 +1,11 @@
 import { Head, usePage } from "@inertiajs/react"
+import { useState } from "react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { InvestigationStory, investigationTitle } from "@/components/investigations/investigation-story"
 import { useLiveInvestigation } from "@/components/investigations/use-live-investigation"
 import { INVESTIGATION_PROP } from "@/lib/generated/constants"
+import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
 import type { InvestigationPageProps } from "@/pages/investigations/types"
 
 // A run with nothing of its own to be drawn over. A run on an incident opens over the incident instead.
@@ -11,6 +13,11 @@ export default function Investigation() {
   const { investigation } = usePage<InvestigationPageProps>().props
   useLiveInvestigation(investigation.status, INVESTIGATION_PROP)
   const title = investigationTitle(investigation)
+  const [ declaring, setDeclaring ] = useState(false)
+
+  function startDeclaring() {
+    setDeclaring(true)
+  }
 
   return (
     <AuthenticatedLayout title="Investigation">
@@ -18,9 +25,11 @@ export default function Investigation() {
       <div className="mx-auto w-full max-w-3xl px-6 py-4 md:py-8 lg:px-10">
         <InvestigationStory
           investigation={investigation}
+          onDeclare={startDeclaring}
           title={<h1 className="text-3xl font-semibold tracking-tight text-balance">{title}</h1>}
         />
       </div>
+      <LifecycleFormDialog incidentId={null} form="declare" open={declaring} onOpenChange={setDeclaring} fromInvestigationId={investigation.id} suggestedName={investigation.question} />
     </AuthenticatedLayout>
   )
 }

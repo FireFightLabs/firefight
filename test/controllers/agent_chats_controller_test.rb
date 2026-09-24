@@ -383,6 +383,20 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "checkout", step["headline"]
   end
 
+  test "an open chat carries the runs it started, and opens one of them over itself" do
+    chat = Conversation.start_personal!(workspace: @workspace, member: @member)
+    run = @workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @member, max_turns: 10, max_spend_cents: 400,
+      conversation: chat, tool_call_id: "call_1", brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }
+    )
+
+    get agent_chat_url(chat, Investigation::QUERY_PARAM => run.id), headers: inertia_headers
+
+    card = inertia_props[AgentChatsController::PROP_INVESTIGATIONS].sole
+    assert_equal [ "call_1", "checkout is slow" ], [ card["toolCallId"], card["question"] ]
+    assert_equal run.id, inertia_props.dig(AgentChatsController::PROP_OPEN_INVESTIGATION, "id")
+  end
+
   private
 
   def start_chat

@@ -7,7 +7,7 @@ module Interactions
       workspace = interaction.workspace
       incident = workspace.incidents.find(interaction.action_value)
 
-      refusal = Investigation.start_refusal(incident)
+      refusal = Investigation.start_refusal(workspace, incident)
       return TerminalNotice.post(workspace, incident, interaction.user_id, refusal) if refusal
 
       started = InvestigationService.new(workspace).start(

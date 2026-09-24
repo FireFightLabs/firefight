@@ -412,9 +412,17 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   STEP_STATUSES = { running: "in_progress", done: "complete" }.freeze
 
-  def post_investigation_started(channel_id:, incident:, started_by:)
-    blocks = Slack::Messages::InvestigationRun.started(incident: incident, started_by: started_by)
-    post_message(channel_id: channel_id, text: "Investigating #{incident.identifier}", blocks: blocks)
+  # A bot posts to any public channel, but not to a private one it is not in. Posting to a person opens their DM with it.
+  def post_investigation_started(channel_id:, incident:, started_by:, question: nil, fallback_user_id: nil)
+    blocks = Slack::Messages::InvestigationRun.started(incident: incident, question: question, started_by: started_by)
+    text = Slack::Messages::InvestigationRun.started_text(incident: incident, question: question)
+    begin
+      post_message(channel_id: channel_id, text: text, blocks: blocks)
+    rescue AdapterError::NotInChannel, AdapterError::NotFound
+      raise if fallback_user_id.blank?
+
+      post_message(channel_id: fallback_user_id, text: text, blocks: blocks)
+    end
   end
 
   # A workspace without the agent features still gets the answer, just posted in one go at the end.
@@ -465,6 +473,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { streaming: false }
   end
 
+  def post_investigation_carried_over(channel_id:, finding:)
+    post_message(
+      channel_id: channel_id, text: finding.summary.to_s,
+      blocks: Slack::Messages::InvestigationRun.carried_over(finding: finding)
+    )
+  end
+
   def post_investigation_answer(channel_id:, thread_id:, answer_id:, finding:)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
@@ -472,11 +487,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, investigation: nil)
+  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, rerun_question: nil, investigation: nil)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
       text: "Stopped without an answer. #{reason}.",
-      blocks: Slack::Messages::InvestigationRun.stopped(reason: reason, rerun: rerun, investigation: investigation)
+      blocks: Slack::Messages::InvestigationRun.stopped(reason: reason, rerun: rerun, rerun_question: rerun_question, investigation: investigation)
     )
   end
 

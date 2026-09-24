@@ -37,6 +37,23 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
                  (Mcp::Tools::StartInvestigation.input_schema_value.to_h[:properties].keys.map(&:to_s) - [ "incident" ]).sort
   end
 
+  test "an outside agent can investigate a problem nobody has declared an incident for, given what is wrong" do
+    response = Mcp::Tools::StartInvestigation.perform_with_principal(
+      workspace: @workspace, principal: @member, args: { symptom: "checkout is slow" }
+    )
+
+    run = @workspace.investigations.find_by!(id: response.structured_content[:id])
+    assert_nil run.subject
+    assert_equal "checkout is slow", response.structured_content[:question]
+  end
+
+  test "with neither an incident nor what is wrong, nothing starts" do
+    response = Mcp::Tools::StartInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: {})
+
+    assert response.error?
+    assert_equal 0, @workspace.investigations.count
+  end
+
   test "a second request while one is running is told so rather than starting another" do
     Mcp::Tools::StartInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: { incident: @incident.identifier })
 

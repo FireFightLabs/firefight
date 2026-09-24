@@ -30,13 +30,13 @@ module Slack
 
       # `selected` is keyed by system key and holds option values (slugs for
       # severity, type and status, the raw value for visibility).
-      def self.build_system(workspace, form_field, incident: nil, dispatching: [], selected: {}, terminal_stage: nil)
+      def self.build_system(workspace, form_field, incident: nil, dispatching: [], selected: {}, terminal_stage: nil, initial_name: nil)
         key = form_field.system_field_key
         dispatch = dispatching.include?(key)
 
         case key
         when IncidentSystemField::KEY_NAME
-          name_block(form_field, incident: incident)
+          name_block(form_field, incident: incident, initial_name: initial_name)
         when IncidentSystemField::KEY_SUMMARY
           summary_block(form_field, incident: incident)
         when IncidentSystemField::KEY_SEVERITY
@@ -157,14 +157,16 @@ module Slack
         }
       end
 
-      def self.name_block(form_field, incident: nil)
+      # initial_name is a suggestion for a new incident, such as the question an investigation answered.
+      def self.name_block(form_field, incident: nil, initial_name: nil)
         element = {
           type: "plain_text_input",
           action_id: input_id(IncidentSystemField::KEY_NAME),
           placeholder: copy_placeholder(IncidentSystemField::KEY_NAME),
           max_length: 200
         }
-        element[:initial_value] = incident.name if incident&.name.present?
+        name = incident&.name.presence || initial_name.presence
+        element[:initial_value] = name.truncate(200) if name
 
         {
           type: "input",

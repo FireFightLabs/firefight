@@ -87,10 +87,23 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     assert_equal Investigation.already_running_message(@incident), tool.call[:error]
   end
 
-  test "a conversation about no incident says so" do
+  test "a chat about no incident investigates what the person said, and the answer comes back to it" do
     @conversation.update!(subject: nil)
 
-    assert_match "no incident here", tool.call[:error]
+    tool.call(tool_call: RubyLLM::ToolCall.new(id: "call_7", name: Mcp::Tools::START_INVESTIGATION, arguments: {}), symptom: "checkout is slow")
+
+    investigation = @conversation.investigations.sole
+    assert_nil investigation.subject
+    assert_equal "checkout is slow", investigation.question
+    assert_equal "call_7", investigation.tool_call_id
+  end
+
+  test "a chat about no incident needs to be told what is wrong" do
+    @conversation.update!(subject: nil)
+
+    assert_no_difference "Investigation.count" do
+      assert_match "symptom", tool.call[:error]
+    end
   end
 
   # The refusal still goes to the model as text, so without the mark the card would say Completed.

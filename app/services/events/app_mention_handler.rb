@@ -7,11 +7,11 @@ module Events
       return unless channel_id
 
       incident = workspace.incidents.active.in_channel(channel_id).first
-      return unless incident
-
       user_text = strip_mention(event["text"])
       return if user_text.blank?
       return unless defined?(FirefightAi)
+      # Outside an incident's channel the agent only takes an investigation, which answers in that channel.
+      return unless incident || (agent?(workspace) && investigate?(user_text))
 
       gate = Entitlements.check(workspace, Entitlements::AI)
       return notify_blocked(workspace, channel_id, event["user"], gate.message) if gate.blocked?

@@ -63,6 +63,17 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_equal @workspace.incident_statuses.default_status, incident.incident_status
   end
 
+  test "declaring from an answer ties the run to the new incident" do
+    run = @workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @member, max_turns: 10, max_spend_cents: 400,
+      brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }
+    )
+
+    post declare_incident_path, params: { answers: declare_answers, investigation_id: run.id }
+
+    assert_equal @workspace.incidents.find_by!(name: "Checkout is failing"), run.reload.subject
+  end
+
   test "declaring with test set makes a test incident, and without it a real one" do
     post declare_incident_path, params: { answers: declare_answers, test: true }
     assert @workspace.incidents.find_by!(name: "Checkout is failing").is_test?

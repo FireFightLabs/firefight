@@ -358,9 +358,11 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Says an investigation has started, and opens the thread the rest of it goes in.
+  # Says an investigation has started, and opens the thread the rest of it goes in. incident is nil for a question
+  # nobody has declared an incident for, which is then named by the question. Where the app cannot post, it goes to
+  # fallback_user_id directly when one is given, and channel_id says where it went.
   # @return [Hash] { message_id:, channel_id: }
-  def post_investigation_started(channel_id:, incident:, started_by:)
+  def post_investigation_started(channel_id:, incident:, started_by:, question: nil, fallback_user_id: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -373,6 +375,12 @@ class PlatformAdapter
   # One step the agent took, status is :running or :done.
   # @return [Hash] { success: true }
   def report_agent_step(channel_id:, answer_id:, key:, title:, status:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # An answer given before its incident existed, posted in the channel of the incident declared from it.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_investigation_carried_over(channel_id:, finding:)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -414,10 +422,11 @@ class PlatformAdapter
   end
 
   # Why the run stopped without an answer, and the end of the working state. rerun is the incident
-  # to offer another run on, given only when running it again could end differently. investigation
-  # is the run, so the message can link to it.
+  # to offer another run on, and rerun_question the run whose question to ask again when it had no
+  # incident, each given only when running it again could end differently. investigation is the run,
+  # so the message can link to it.
   # @return [Hash] { message_id:, channel_id: }
-  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, investigation: nil)
+  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, rerun_question: nil, investigation: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 

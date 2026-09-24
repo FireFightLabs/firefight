@@ -14,7 +14,7 @@ module Investigation::Finding::Searchable
 
   def search_facts
     {
-      id: id, incident: investigation.incident&.identifier, summary: summary,
+      id: id, incident: investigation.incident&.identifier, question: investigation.question, summary: summary,
       cause: winning_hypothesis&.assertion, gaps: gaps, outcome: outcome
     }.compact
   end

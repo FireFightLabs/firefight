@@ -63,6 +63,17 @@ class IncidentCreationService
     { message_ts: result[:message_id] }
   end
 
+  # An incident declared from an investigation's answer opens its channel with that answer.
+  def post_carried_over_investigation(incident)
+    return { skipped: true } if incident.channel_id.blank?
+
+    finding = incident.investigations.seen.where(created_at: ...incident.created_at).filter_map(&:finding).last
+    return { skipped: true } unless finding
+
+    result = @workspace.adapter.post_investigation_carried_over(channel_id: incident.channel_id, finding: finding)
+    { message_ts: result[:message_id] }
+  end
+
   # An agent has no platform account, so there is nobody to put in the room.
   def invite_declarer(incident)
     platform_user_id = incident.declared_by&.platform_user_id

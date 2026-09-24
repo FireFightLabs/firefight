@@ -34,7 +34,14 @@ export function investigationTitle(investigation: InvestigationDetail): string {
 
 // One run told in order, with what it was asked, the answer, the theories it weighed and every step on the way.
 // The same story is drawn over an incident, in a chat and on the run's own page, so it knows nothing of where.
-export function InvestigationStory({ investigation, title }: { investigation: InvestigationDetail; title: ReactNode }) {
+interface InvestigationStoryProps {
+  investigation: InvestigationDetail
+  title: ReactNode
+  // Offered where an incident can be declared from the answer.
+  onDeclare?: () => void
+}
+
+export function InvestigationStory({ investigation, title, onDeclare }: InvestigationStoryProps) {
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-4">
@@ -50,7 +57,7 @@ export function InvestigationStory({ investigation, title }: { investigation: In
         </div>
       </header>
 
-      <Answer investigation={investigation} />
+      <Answer investigation={investigation} onDeclare={onDeclare} />
 
       <section>
         <SectionHeading title="Theories" count={investigation.hypotheses.length} />

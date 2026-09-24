@@ -46,8 +46,11 @@ class Investigation < ApplicationRecord
   TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_REHEARSAL ].freeze
 
   belongs_to :workspace
-  # Polymorphic so a run can be about something other than an incident later.
-  belongs_to :subject, polymorphic: true
+  # What the run is about. None for a question asked before anyone declared an incident, which is answered where it
+  # was asked and can be tied to an incident declared from its answer.
+  belongs_to :subject, polymorphic: true, optional: true
+  # The chat that asked for it, which the answer goes back to.
+  belongs_to :conversation, optional: true
   # Polymorphic because a person, an agent or a key can ask.
   belongs_to :triggered_by, polymorphic: true, optional: true
   # A replay answers every tool call from this run's record instead of reaching anything.
@@ -64,6 +67,7 @@ class Investigation < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :trigger_source, inclusion: { in: TRIGGER_SOURCES }
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }
+  validate :asks_something
 
   scope :live, -> { where(status: LIVE_STATUSES) }
   # The runs people see. A rehearsal is not one, wherever runs are listed, read back or learned from.
@@ -102,13 +106,15 @@ class Investigation < ApplicationRecord
   end
 
   # Every way in asks this, so a refusal reads the same from the command, the button, the chat and MCP.
-  def self.start_refusal(incident)
-    unavailable_reason(incident.workspace) || incident.investigation_blocked_reason
+  def self.start_refusal(workspace, incident = nil)
+    unavailable_reason(workspace) || incident&.investigation_blocked_reason
   end
 
   def self.already_running_message(subject)
     "Already investigating #{subject.identifier}, I will post here when I have something."
   end
+
+  NEEDS_A_QUESTION = "Say what is wrong, for example: investigate checkout returns 500 since 14:00.".freeze
 
   # The ledger wants an incident id. A subject that is not an incident has none.
   def incident
@@ -119,9 +125,28 @@ class Investigation < ApplicationRecord
     subject_id if subject_type == Incident.name
   end
 
-  # Only an incident has a channel, so any other subject gets nil.
+  # A run on an incident speaks in the incident's channel. A question asked in a channel is answered there.
   def channel_id
-    incident&.channel_id
+    incident ? incident.channel_id : super
+  end
+
+  # What whoever asked said was wrong. A run with no incident is named by it.
+  def question
+    brief&.dig(Investigation::Brief::KEY_SYMPTOM)
+  end
+
+  # Ties a run asked without an incident to the one declared from its answer. Only once, and only from no incident.
+  def attach_to!(incident)
+    moved = self.class.where(id: id, subject_id: nil)
+      .update_all(subject_type: Incident.name, subject_id: incident.id, updated_at: Time.current) > 0
+    return false unless moved
+
+    reload
+    note_started!
+    note_answered!(finding) if finding
+    true
+  rescue ActiveRecord::RecordNotUnique
+    false
   end
 
   # Runs as the agent, not the person, so a finding does not depend on who asked.
@@ -193,6 +218,9 @@ class Investigation < ApplicationRecord
   def model_choice
     FirefightAi::ModelChoice.new(model: model_override, provider: provider_override.presence) if model_override.present?
   end
+
+  # A run keeps its own chat with the model.
+  def chat_owner = self
 
   # Every tool that reads code in this run reads it in the same box.
   def code_box_key = "investigation-#{id}"
@@ -290,7 +318,8 @@ class Investigation < ApplicationRecord
 
   # Each line of evidence is a claim and the steps it rests on. One that cites nothing real is
   # refused and nothing is written, so the agent fixes it before the run can end.
-  def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil)
+  # A run with no incident may say one is due, which its answer then offers to declare. A run on an incident has one.
+  def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil, suggest_incident: false)
     winner = hypotheses.find_by(assertion: hypothesis_assertion) if hypothesis_assertion.present?
     items = Array(evidence).map(&:to_h).map(&:symbolize_keys)
     raise Investigation::Evidence::Refused, "Naming a cause needs evidence behind it. Give each claim and the steps it rests on." if winner && items.empty?
@@ -298,7 +327,7 @@ class Investigation < ApplicationRecord
     cited = items.each_with_index.map { |item, index| [ item[:claim].to_s, cited_steps!(item[:steps], what: "Evidence #{index + 1}") ] }
 
     transaction do
-      finding = create_finding!(summary: summary, winning_hypothesis: winner, gaps: gaps)
+      finding = create_finding!(summary: summary, winning_hypothesis: winner, gaps: gaps, suggests_incident: subject.nil? && suggest_incident == true)
       cited.each_with_index { |(claim, sources), index| finding.add_evidence!(claim: claim, sources: sources, position: index + 1) }
       finding
     end
@@ -313,5 +342,11 @@ class Investigation < ApplicationRecord
       ) > 0
     reload if moved
     moved
+  end
+
+  private
+
+  def asks_something
+    errors.add(:brief, "needs a question when there is no incident") if subject.nil? && question.blank?
   end
 end

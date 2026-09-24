@@ -38,7 +38,8 @@ module Interactions
         is_test: interaction.metadata.test,
         declared_by: member,
         source: Incident::SOURCE_SLACK,
-        create_channel_sync: true
+        create_channel_sync: true,
+        from_investigation: from_investigation(workspace, interaction)
       )
 
       Rails.logger.info({
@@ -57,5 +58,12 @@ module Interactions
       Rails.logger.error({ event: "incident.creation_error", error: e.message })
       workspace.adapter.form_error_response(IncidentSystemField::KEY_NAME, "Failed to create incident. Please try again.")
     end
+
+    # The run whose answer offered this incident, when the modal was opened from it.
+    def self.from_investigation(workspace, interaction)
+      id = interaction.metadata.investigation_id
+      id.presence && workspace.investigations.seen.find_by(id: id)
+    end
+    private_class_method :from_investigation
   end
 end

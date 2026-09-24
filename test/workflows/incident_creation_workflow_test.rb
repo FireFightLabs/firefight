@@ -26,8 +26,30 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     workflow = IncidentCreationWorkflow.start_inline!(@incident)
 
     assert_equal "succeeded", workflow.state
-    assert_equal 9, workflow.steps.count
+    assert_equal 10, workflow.steps.count
     assert workflow.steps.all? { |s| s.succeeded? || s.skipped? }
+  end
+
+  test "an incident declared from an investigation opens its channel with that answer, and any other posts nothing extra" do
+    stub_successful_slack_workflow
+    run = @workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400, created_at: 1.hour.ago,
+      brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }
+    )
+    run.conclude!(summary: "Checkout writes time out on the orders database")
+    run.attach_to!(@incident)
+    Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_carried_over).with do |arguments|
+      arguments[:finding] == run.finding
+    end.returns({ message_id: "1.2", channel_id: "C1" })
+
+    IncidentCreationWorkflow.start_inline!(@incident)
+  end
+
+  test "an incident not declared from an investigation posts no answer" do
+    stub_successful_slack_workflow
+    Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_carried_over).never
+
+    assert_equal "succeeded", IncidentCreationWorkflow.start_inline!(@incident).state
   end
 
   test "the walkthrough is skipped for every incident but the workspace's first test incident" do

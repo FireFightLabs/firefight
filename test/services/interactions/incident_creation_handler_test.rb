@@ -32,6 +32,36 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
     assert_equal "C12345678", incident.channel_id
   end
 
+  test "an incident declared from an answer carries the run that offered it, on its timeline" do
+    stub_create_channel
+    IncidentCreationWorkflow.stubs(:start!)
+    run = question_run
+    run.conclude!(summary: "Checkout writes time out on the orders database", suggest_incident: true)
+
+    Interactions::IncidentCreationHandler.execute(
+      build_interaction(name: "Checkout is slow", private_metadata: ModalState.encode(investigation_id: run.id))
+    )
+
+    incident = @workspace.incidents.find_by!(name: "Checkout is slow")
+    assert_equal incident, run.reload.subject
+    assert_equal [ IncidentEvent::INVESTIGATION_STARTED, IncidentEvent::INVESTIGATION_ANSWERED ],
+                 incident.incident_events.where(event_type: IncidentEvent::INVESTIGATION_EVENTS).order(:created_at).pluck(:event_type)
+  end
+
+  test "the declare button on an answer opens the declare form holding the run" do
+    run = question_run
+    Slack::Client.expects(:open_modal).with do |arguments|
+      ModalState.parse(arguments[:view][:private_metadata]).investigation_id == run.id
+    end.returns({ ok: true })
+
+    Interactions::DeclareFromInvestigationHandler.execute(
+      Interaction.new(
+        platform: Platforms::SLACK, type: Interaction::BLOCK_ACTIONS, team_id: @workspace.platform_id, user_id: @member.platform_user_id,
+        action_id: Identifiers::DECLARE_INCIDENT_FROM_INVESTIGATION, action_value: run.id, trigger_id: "trigger"
+      )
+    )
+  end
+
   test "confirmation modal contains channel deep link" do
     stub_create_channel
 
@@ -123,7 +153,14 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
 
   private
 
-  def build_interaction(severity: "minor", name: "Test Incident", summary: nil, visibility: "public", user_id: @member.platform_user_id, custom_fields: {})
+  def question_run
+    @workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @member, max_turns: 10, max_spend_cents: 400,
+      status: Investigation::STATUS_SUCCEEDED, brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }
+    )
+  end
+
+  def build_interaction(severity: "minor", name: "Test Incident", summary: nil, visibility: "public", user_id: @member.platform_user_id, custom_fields: {}, private_metadata: nil)
     values = {
       "field_name_block" => { "field_name_input" => { "value" => name } },
       "field_severity_block" => { Identifiers::INCIDENT_CREATION_SEVERITY_SELECT => { "selected_option" => { "value" => severity } } },
@@ -150,7 +187,8 @@ class Interactions::IncidentCreationHandlerTest < ActiveSupport::TestCase
       team_id: @workspace.platform_id,
       user_id: user_id,
       callback_id: Identifiers::INCIDENT_CREATION_MODAL,
-      values: values
+      values: values,
+      private_metadata: private_metadata
     )
   end
 end

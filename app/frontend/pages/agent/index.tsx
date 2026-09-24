@@ -7,19 +7,23 @@ import { StartExamples, StartHeading } from "@/pages/agent/components/chat-start
 import { Composer, type ComposerFill } from "@/pages/agent/components/composer"
 import { Thread } from "@/pages/agent/components/thread"
 import { useAgentStream } from "@/pages/agent/hooks/use-agent-stream"
-import { OPEN_CHAT_VISIT, startNewChat } from "@/pages/agent/lib/chat-updates"
+import { OPEN_CHAT_VISIT, closeRun, startNewChat } from "@/pages/agent/lib/chat-updates"
+import { InvestigationSheet } from "@/components/investigations/investigation-sheet"
+import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
+import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
 import type { AgentPageProps } from "@/pages/agent/types"
 import { agentChatsPath } from "@/lib/routes"
 
 const BACK_LINK_CLASS = "px-4 pt-3 text-left text-[13px] text-ink-2 md:hidden"
 
 export default function AgentPage() {
-  const { conversations, archivedCount, conversation, incidents, messages, confirmations } = usePage<AgentPageProps>().props
+  const { conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, conversation?.busy ?? false)
   const [ fill, setFill ] = useState<ComposerFill | null>(null)
   // Below 48rem the page is one panel at a time, and New chat has to show the start page rather than the list.
   const [ composing, setComposing ] = useState(false)
+  const [ declaring, setDeclaring ] = useState(false)
 
   function fillComposer(draft: string) {
     setFill((current) => ({ draft, key: (current?.key ?? 0) + 1 }))
@@ -35,6 +39,16 @@ export default function AgentPage() {
 
   function backToList() {
     setComposing(false)
+  }
+
+  function closeInvestigation() {
+    if (conversationId) {
+      closeRun(conversationId)
+    }
+  }
+
+  function startDeclaring() {
+    setDeclaring(true)
   }
 
   const starting = !conversation && composing
@@ -89,6 +103,20 @@ export default function AgentPage() {
           </div>
         </section>
       </div>
+      <InvestigationSheet
+        investigation={openInvestigation}
+        prop={AGENT_CHAT_PROPS.OPEN_INVESTIGATION}
+        onClose={closeInvestigation}
+        onDeclare={startDeclaring}
+      />
+      <LifecycleFormDialog
+        incidentId={null}
+        form="declare"
+        open={declaring}
+        onOpenChange={setDeclaring}
+        fromInvestigationId={openInvestigation?.id ?? null}
+        suggestedName={openInvestigation?.question}
+      />
     </AuthenticatedLayout>
   )
 }

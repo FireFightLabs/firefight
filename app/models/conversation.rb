@@ -22,6 +22,8 @@ class Conversation < ApplicationRecord
   # A person, a service key or an agent, whoever the way in resolved to.
   belongs_to :started_by, polymorphic: true, optional: true
   has_one :chat, as: :owner, dependent: :destroy
+  # The runs this chat started. A run outlives the chat that asked for it.
+  has_many :investigations, dependent: :nullify
 
   validates :kind, inclusion: { in: KINDS }
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }

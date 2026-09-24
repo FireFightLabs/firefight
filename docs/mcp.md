@@ -135,7 +135,7 @@ Three tools put Halon in front of an outside agent, such as one in a person's ed
 
 | Tool | Does | Permission |
 |---|---|---|
-| `start_investigation` | Starts a run on an incident (`Investigation::TRIGGER_MCP`), with an optional brief: what is failing, roughly when it started, names and error text (`Investigation::Brief::SCHEMA`, the same fields the chat hands over). One live run per incident, a second request is told which one is running. | `investigations: create` |
+| `start_investigation` | Starts a run on an incident (`Investigation::TRIGGER_MCP`), or on a problem with no incident when `symptom` says what is wrong, with a brief: what is failing, roughly when it started, names and error text (`Investigation::Brief::SCHEMA`, the same fields the chat hands over). One live run per incident, a second request is told which one is running. | `investigations: create` |
 | `get_investigation` | One run by id, or an incident's newest: status, theories with the steps behind them, every step's label and status, the finding with each claim, its step numbers and its sources. Never a step's raw output, never a technical failure cause, which stays in `error_summary` for debugging. | `investigations: read` |
 | `ask_halon` | One chat turn, synchronously, and the answer. The chat is a `Conversation` of `KIND_MCP`, one per principal (`Conversation.for_mcp!`), so questions carry on. Delivery is `Conversation::QuietDelivery`, nothing streams. A turn that pauses on a confirmation returns `status: waiting` with the questions in the words the dashboard shows, since an MCP call has no Confirm button. | `investigations: create` |
 

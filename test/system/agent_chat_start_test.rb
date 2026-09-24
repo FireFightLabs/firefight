@@ -38,6 +38,21 @@ class AgentChatStartTest < ApplicationSystemTestCase
     assert_no_text "What do you want to know?"
   end
 
+  # Seen through a slow connection. The composer emptied and nothing showed until the server answered, which read as a reload.
+  test "the question and the working state show the moment it is sent, before the server answers" do
+    conversation = Conversation.start_personal!(workspace: workspaces(:slack_workspace_one), member: workspace_memberships(:alice_workspace_one))
+    conversation.ask!("what is open")
+    conversation.note!("Nothing is open.")
+    conversation.reply_delivered!
+    Conversation::Asking.stubs(:ask).with { sleep 2 }.returns(nil)
+    visit agent_chat_path(conversation)
+
+    prompt.send_keys("and now?", :enter)
+
+    assert_text "and now?", wait: 1
+    assert_text "Working", wait: 1
+  end
+
   test "on a phone, New chat shows the start page and All chats goes back to the list" do
     page.driver.browser.manage.window.resize_to(*PHONE)
     visit agent_chats_path

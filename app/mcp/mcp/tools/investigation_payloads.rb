@@ -7,6 +7,7 @@ module Mcp
         {
           id: investigation.id,
           incident: investigation.incident&.identifier,
+          question: investigation.question,
           status: investigation.status,
           trigger: investigation.trigger_source,
           started_by: investigation.triggered_by.try(:principal_label),

@@ -102,6 +102,10 @@ module Identifiers
   UPDATE_INCIDENT_SUMMARY = "update_incident_summary"
   ESCALATE_INCIDENT = "escalate_incident"
   START_INVESTIGATION = "start_investigation"
+  # On an answer that says an incident is due. The run is tied to the incident declared from it.
+  DECLARE_INCIDENT_FROM_INVESTIGATION = "declare_incident_from_investigation"
+  # On a run with no incident that stopped on our side. Asks its question again where it was asked.
+  RERUN_INVESTIGATION_QUESTION = "rerun_investigation_question"
   PICK_UP_ACTION = "pick_up_action"
   MARK_ACTION_DONE = "mark_action_done"
   ADD_NEW_ACTION = "add_new_action"

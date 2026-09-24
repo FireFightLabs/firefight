@@ -2,7 +2,10 @@
 class InvestigationFindingSerializer < BaseSerializer
   object_as :finding
 
-  attributes(summary: { type: :string }, gaps: { type: :string, optional: true }, outcome: { type: :string, optional: true })
+  attributes(
+    summary: { type: :string }, gaps: { type: :string, optional: true }, outcome: { type: :string, optional: true },
+    suggests_incident: { type: :boolean }
+  )
 
   type :string, optional: true
   def cause

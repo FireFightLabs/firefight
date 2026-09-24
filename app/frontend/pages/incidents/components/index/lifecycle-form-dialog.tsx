@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { router } from "@inertiajs/react"
 
 import { Button } from "@/components/ui/button"
@@ -25,7 +25,7 @@ import {
   incidentLifecyclePath,
 } from "@/lib/routes"
 import type { IncidentPromptField } from "@/types/serializers"
-import type { IncidentFormSlug } from "@/lib/generated/constants"
+import { INCIDENT_NAME_FIELD_KEY, type IncidentFormSlug } from "@/lib/generated/constants"
 
 export type LifecycleForm = IncidentFormSlug
 
@@ -52,7 +52,8 @@ function initialAnswers(fields: IncidentPromptField[]): Answers {
 
 // The server decides which fields the form asks. A dispatching field changing
 // means re-resolving, since a condition or a terminal status can add or drop questions.
-function useResolvedForm(incidentId: string | null, form: LifecycleForm, open: boolean) {
+// seed is what the form starts with before anyone types, such as a suggested name.
+function useResolvedForm(incidentId: string | null, form: LifecycleForm, open: boolean, seed: Answers) {
   const [fields, setFields] = useState<IncidentPromptField[] | null>(null)
   const [answers, setAnswers] = useState<Answers>({})
 
@@ -79,13 +80,18 @@ function useResolvedForm(incidentId: string | null, form: LifecycleForm, open: b
     [incidentId, form],
   )
 
+  // The seed is read once per opening, so a new object from the parent's render does not reset what was typed.
+  const seedRef = useRef(seed)
+  seedRef.current = seed
+
   useEffect(() => {
     if (!open) {
       setFields(null)
       setAnswers({})
       return
     }
-    void resolve({})
+    setAnswers(seedRef.current)
+    void resolve(seedRef.current)
   }, [open, resolve])
 
   return { fields, answers, setAnswers, resolve }
@@ -171,6 +177,7 @@ const TITLES: Record<LifecycleForm, { title: string; description: string; confir
 }
 
 const TEST_DESCRIPTION = "A test incident works like a real one and is not counted in your metrics."
+const FROM_INVESTIGATION_DESCRIPTION = "The investigation and its answer go on the new incident's timeline."
 
 export function LifecycleFormDialog({
   incidentId,
@@ -178,6 +185,8 @@ export function LifecycleFormDialog({
   open,
   onOpenChange,
   test = false,
+  fromInvestigationId = null,
+  suggestedName = null,
 }: {
   // Null while declaring.
   incidentId: string | null
@@ -186,11 +195,16 @@ export function LifecycleFormDialog({
   onOpenChange: (open: boolean) => void
   // Declares a test incident. Declare form only.
   test?: boolean
+  // The run whose answer this incident is declared from, which the incident then carries. Declare form only.
+  fromInvestigationId?: string | null
+  // What the name starts as, which the person can change. Declare form only.
+  suggestedName?: string | null
 }) {
-  const { fields, answers, setAnswers, resolve } = useResolvedForm(incidentId, form, open)
+  const seed: Answers = suggestedName ? { [INCIDENT_NAME_FIELD_KEY]: suggestedName } : {}
+  const { fields, answers, setAnswers, resolve } = useResolvedForm(incidentId, form, open, seed)
   const [saving, setSaving] = useState(false)
   const copy = TITLES[form]
-  const description = test ? TEST_DESCRIPTION : copy.description
+  const description = test ? TEST_DESCRIPTION : fromInvestigationId ? FROM_INVESTIGATION_DESCRIPTION : copy.description
 
   function close() {
     onOpenChange(false)
@@ -218,7 +232,7 @@ export function LifecycleFormDialog({
     if (incidentId) {
       router.patch(path, { answers }, { ...afterMutation("incident", "timelineEvents"), ...callbacks })
     } else {
-      router.post(path, { answers, test }, { preserveScroll: true, ...callbacks })
+      router.post(path, { answers, test, investigation_id: fromInvestigationId }, { preserveScroll: true, ...callbacks })
     }
   }
 
