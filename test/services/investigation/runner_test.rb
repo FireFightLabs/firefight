@@ -37,6 +37,23 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     @stopped = Investigation::Delivery.any_instance.stubs(:stopped!)
   end
 
+  test "a rehearsal says nothing anywhere, and runs on the model it was told to" do
+    rehearsal = @workspace.investigations.create!(
+      subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true,
+      model_override: "gpt-5-mini", provider_override: "openai", max_turns: 10, max_spend_cents: 400
+    )
+    rehearsal.claim!
+    Investigation::Delivery.expects(:new).never
+    investigator = FakeInvestigator.new(
+      rehearsal, outcome: FirefightAi::AgentLoop::Outcome.new(status: :answered, turns_used: 0, spent_micros: 0), conclude: true
+    )
+    FirefightAi::Investigator.expects(:new).with(
+      @workspace, inferable: rehearsal, member: nil, model: FirefightAi::ModelChoice.new(model: "gpt-5-mini", provider: "openai")
+    ).returns(investigator)
+
+    assert_equal Investigation::STATUS_SUCCEEDED, Investigation::Runner.new(rehearsal).run.status
+  end
+
   test "an answered run succeeds and keeps the chat that produced it" do
     investigator = fake(outcome: :answered, conclude: true)
 

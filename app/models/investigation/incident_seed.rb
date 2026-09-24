@@ -96,7 +96,7 @@ class Investigation::IncidentSeed
         "summary" => past.summary,
         "declared_at" => past.declared_at&.iso8601,
         "resolved_at" => past.resolved_at&.iso8601,
-        "finding" => past.investigations.filter_map { |run| run.finding&.summary }.first
+        "finding" => past.investigations.seen.filter_map { |run| run.finding&.summary }.first
       }
     end
   end

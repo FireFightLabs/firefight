@@ -10,10 +10,12 @@ module FirefightAi
                "result you read can change the answer, never a doubt you reasoned your way to without one. Then call " \
                "conclude again, changed or not.".freeze
 
-    def initialize(workspace, inferable:, member: nil)
+    # model is a ModelChoice for a run told to use one, such as a rehearsal comparing models. nil means the workspace's.
+    def initialize(workspace, inferable:, member: nil, model: nil)
       @workspace = workspace
       @inferable = inferable
       @member = member
+      @ai_model = model
     end
 
     def run(chat:, tools:, seed_pack:, budget:, answered:, canceled: -> { false }, on_step: nil, nudge: nil, memory: nil, &on_turn)

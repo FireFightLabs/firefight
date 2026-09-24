@@ -101,6 +101,19 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     assert_equal newer.id, response.structured_content[:id]
   end
 
+  test "a rehearsal is never read back, by its incident or by its id" do
+    real = @workspace.investigations.create!(subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400)
+    rehearsal = @workspace.investigations.create!(
+      subject: @incident, trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true, max_turns: 10, max_spend_cents: 400
+    )
+
+    response = Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { incident: @incident.identifier })
+    assert_equal real.id, response.structured_content[:id]
+    assert_raises(ActiveRecord::RecordNotFound) do
+      Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { investigation: rehearsal.id })
+    end
+  end
+
   test "a run in another workspace is out of reach" do
     other = workspaces(:slack_workspace_two)
     run = other.investigations.create!(subject: other.incidents.first, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400)

@@ -48,7 +48,7 @@ class Investigation::Runner
 
   private
 
-  def delivery = @delivery ||= Investigation::Delivery.new(@investigation)
+  def delivery = @delivery ||= (@investigation.rehearsal? ? Investigation::QuietDelivery : Investigation::Delivery).new(@investigation)
 
   def deliver(result)
     if @investigation.reload.finding
@@ -69,7 +69,7 @@ class Investigation::Runner
 
   def investigator
     @investigator ||= FirefightAi::Investigator.new(
-      @investigation.workspace, inferable: @investigation, member: member
+      @investigation.workspace, inferable: @investigation, member: member, model: @investigation.model_choice
     )
   end
 

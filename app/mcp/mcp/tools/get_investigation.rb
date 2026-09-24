@@ -20,11 +20,11 @@ module Mcp
       end
 
       def self.find!(workspace, args)
-        return workspace.investigations.find(args[:investigation].to_s) if args[:investigation].present?
+        return workspace.investigations.seen.find(args[:investigation].to_s) if args[:investigation].present?
         raise ArgumentError, "Give investigation or incident." if args[:incident].blank?
 
         incident = IncidentWrite.find!(workspace, args[:incident])
-        incident.investigations.order(created_at: :desc).first || raise(ActiveRecord::RecordNotFound)
+        incident.investigations.seen.order(created_at: :desc).first || raise(ActiveRecord::RecordNotFound)
       end
       private_class_method :find!
     end
