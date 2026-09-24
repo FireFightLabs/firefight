@@ -17,4 +17,11 @@ class IntegrationProviderSerializer < BaseSerializer
   def kind
     provider.kind
   end
+
+  CONNECT_WITH_UNION = IntegrationProvider::CONNECT_WITH.map(&:inspect).join(" | ")
+
+  type CONNECT_WITH_UNION, optional: true
+  def connect_with
+    provider.connect_with
+  end
 end

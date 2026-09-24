@@ -23,6 +23,8 @@ class IntegrationsController < InertiaController
 
   def create
     provider = IntegrationProvider.find(params[:provider]) || IntegrationProvider.find(Integration::PROVIDER_CUSTOM_MCP)
+    return connect_with_url(provider) if provider&.connection_url?
+
     kind = provider&.kind || Integration::KIND_MCP
 
     integration = current_workspace.integrations.create!(
@@ -135,6 +137,23 @@ class IntegrationsController < InertiaController
   end
 
   private
+
+  # The same name connects another environment, or replaces the URL of one already connected. The URL is checked before
+  # anything is saved, so a mistyped or private address is said on the form.
+  def connect_with_url(provider)
+    pack = Integrations::NativePack.for(provider.key)
+    url = params[:connection_url].to_s
+    refusal = pack.connection_url_refusal(url)
+    return redirect_back(fallback_location: integrations_path, inertia: { errors: { connection_url: refusal } }) if refusal
+
+    environment_row = connect!(provider, params.require(:name), environment_id_param)
+    pack.store_connection_url!(environment_row, url)
+    Integrations::ConnectionRefresh.run!(environment_row.integration)
+
+    connected(environment_row.integration.name, return_to_param)
+  rescue NameTaken
+    redirect_back fallback_location: integrations_path, inertia: { errors: { name: "Another connection already uses that name. Pick a different one." } }
+  end
 
   # The callback brings back an installation id, not tokens. Server-to-server tokens are minted from it at call time.
   def native_install_start(provider)

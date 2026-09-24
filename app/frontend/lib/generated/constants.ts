@@ -7,6 +7,10 @@ export const LIFECYCLE_STAGES = {
   "CANCELED": "canceled"
 } as const
 
+export const INTEGRATION_CONNECT_WITH = {
+  "CONNECTION_URL": "connection_url"
+} as const
+
 export const INTEGRATION_KINDS = {
   "MCP": "mcp",
   "HTTP": "http",

@@ -108,8 +108,10 @@ providers:
     category: Databases
     mark: PG
     color: "#336791"
-    description: Read-only database queries through a connected MCP server.
+    description: Read-only queries, table shapes and live activity on your database, straight from a connection URL.
     server_url: ""
+    kind: native
+    connect_with: connection_url
   - key: custom_mcp
     name: Custom MCP server
     category: Custom

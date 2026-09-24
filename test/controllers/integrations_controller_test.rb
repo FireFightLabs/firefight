@@ -48,6 +48,44 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, integration.integration_environments.first.health_status
   end
 
+  test "a database connects from a URL, discovers its tools and records health, and the URL is never sent back" do
+    Integrations::Packs::Postgres.stubs(:connection_url_refusal).returns(nil)
+    Integrations::Packs::Postgres.any_instance.stubs(:check_health!).returns(true)
+
+    post integrations_path, params: { provider: "postgresql", name: "Orders DB", connection_url: "postgresql://reader:s3cret@db.example.com/orders" }
+
+    integration = @workspace.integrations.find_by!(name: "Orders DB")
+    assert_equal Integration::KIND_NATIVE, integration.kind
+    row = integration.integration_environments.sole
+    assert_equal "postgresql://reader:s3cret@db.example.com/orders", row.credentials_hash[Integrations::Packs::Postgres::CONNECTION_URL]
+    assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
+    assert_includes integration.tools.pluck(:name), "run_query"
+
+    get integrations_path, headers: inertia_headers
+    assert_not_includes response.body, "s3cret"
+  end
+
+  test "the same name adds another environment to a database connection rather than a second connection" do
+    Integrations::Packs::Postgres.stubs(:connection_url_refusal).returns(nil)
+    Integrations::Packs::Postgres.any_instance.stubs(:check_health!).returns(true)
+    staging = @workspace.environment_entries.first || skip("no environment entries in fixtures")
+
+    post integrations_path, params: { provider: "postgresql", name: "Orders DB", connection_url: "postgresql://reader:a@db.example.com/orders" }
+    post integrations_path, params: { provider: "postgresql", name: "Orders DB", connection_url: "postgresql://reader:b@staging.example.com/orders", environment_id: staging.id }
+
+    assert_equal 2, @workspace.integrations.find_by!(name: "Orders DB").integration_environments.count
+  end
+
+  test "a database URL that cannot be used is said on the form and nothing is saved" do
+    assert_no_difference -> { @workspace.integrations.count } do
+      post integrations_path, params: { provider: "postgresql", name: "Orders DB", connection_url: "postgresql://reader:secret@10.1.2.3/orders" },
+                              headers: { "HTTP_REFERER" => integrations_url }
+    end
+
+    assert_redirected_to integrations_url
+    assert_match "private network", session[:inertia_errors].to_h.with_indifferent_access[:connection_url].to_s
+  end
+
   test "an unreachable server still connects, marked failing" do
     Integrations::McpClient.any_instance.stubs(:tools_list).raises(Integrations::McpClient::Error, "down")
 

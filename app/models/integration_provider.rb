@@ -2,7 +2,15 @@
 class IntegrationProvider
   REGISTRY_PATH = Rails.root.join("config/integration_providers.yml")
 
-  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind)
+  # connect_with names a connect flow other than OAuth or an app install. A connection URL is pasted per environment.
+  CONNECT_CONNECTION_URL = "connection_url".freeze
+  CONNECT_WITH = [ CONNECT_CONNECTION_URL ].freeze
+
+  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with) do
+    def initialize(connect_with: nil, **) = super
+
+    def connection_url? = connect_with == CONNECT_CONNECTION_URL
+  end
 
   def self.all
     @all ||= registry.fetch("providers").map do |raw|
@@ -11,7 +19,8 @@ class IntegrationProvider
         mark: raw.fetch("mark"), color: raw.fetch("color"),
         description: raw.fetch("description"), server_url: raw["server_url"].to_s,
         # kind: native runs through Integrations::NativePack instead of an MCP server.
-        kind: raw["kind"] || Integration::KIND_MCP
+        kind: raw["kind"] || Integration::KIND_MCP,
+        connect_with: raw["connect_with"]
       )
     end.freeze
   end

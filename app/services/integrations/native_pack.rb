@@ -7,7 +7,8 @@ module Integrations
     # Providers listed here execute through the pack instead of an MCP server, their
     # registry entry declares kind: native so connect skips the server URL.
     REGISTRY = {
-      "github" => "Integrations::Packs::Github"
+      "github" => "Integrations::Packs::Github",
+      "postgresql" => "Integrations::Packs::Postgres"
     }.freeze
 
     class << self
@@ -30,6 +31,16 @@ module Integrations
 
       def tool_definitions
         @tool_definitions ||= []
+      end
+
+      # A pack connected from a pasted URL (connect_with: connection_url) says why a URL cannot be used, or nil, and
+      # stores one on an environment row. It owns the credential's shape, so nothing else reads it.
+      def connection_url_refusal(_url)
+        raise NotImplementedError, "#{name} does not connect from a URL"
+      end
+
+      def store_connection_url!(_environment_row, _url)
+        raise NotImplementedError, "#{name} does not connect from a URL"
       end
 
       def tool(name, description:, params_schema:, read_only:)
