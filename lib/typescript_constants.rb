@@ -71,6 +71,14 @@ module TypescriptConstants
       }, nil),
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
+      Export.new("INVESTIGATION_PROPS", InvestigationsController::PROPS, nil),
+      Export.new("INVESTIGATION_STATUSES", Investigation::STATUSES, "InvestigationStatus"),
+      Export.new("INVESTIGATION_LIVE_STATUSES", Investigation::LIVE_STATUSES, nil),
+      Export.new("INVESTIGATION_TRIGGERS", Investigation::TRIGGER_SOURCES, "InvestigationTrigger"),
+      Export.new("HYPOTHESIS_STATUSES", Investigation::Hypothesis::STATUSES, "HypothesisStatus"),
+      Export.new("INVESTIGATION_STEP_STATUSES", Investigation::Step::STATUSES, "InvestigationStepStatus"),
+      Export.new("FINDING_OUTCOMES", Investigation::Finding::OUTCOMES, "FindingOutcome"),
+      Export.new("LEDGER_DECISIONS", Ability::Invocation::DECISIONS, "LedgerDecision"),
       Export.new("CHAT_MESSAGE_ROLES", {
         "USER" => Chat::Message::ROLE_USER, "ASSISTANT" => Chat::Message::ROLE_ASSISTANT
       }, nil),

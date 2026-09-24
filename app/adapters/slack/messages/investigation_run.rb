@@ -23,15 +23,27 @@ module Slack
         blocks = [ { type: "section", text: { type: "mrkdwn", text: summary_text(finding) } } ]
         blocks << evidence_block(finding) if finding.evidence_items.any?
         blocks << gaps_block(finding) if finding.gaps.present?
+        link = open_block(finding.investigation)
+        blocks << link if link
         blocks << feedback_block(finding)
         blocks
       end
 
       # The button is offered only when running it again could end differently.
-      def self.stopped(reason:, rerun: nil)
+      def self.stopped(reason:, rerun: nil, investigation: nil)
         blocks = [ { type: "section", text: { type: "mrkdwn", text: ":warning: *Stopped without an answer.* #{reason}." } } ]
         blocks << rerun_block(rerun) if rerun
+        link = investigation && open_block(investigation)
+        blocks << link if link
         blocks
+      end
+
+      # Every step, theory and receipt of the run are on its page, which the thread only summarises.
+      def self.open_block(investigation)
+        url = DashboardUrl.investigation(investigation)
+        return nil unless url
+
+        { type: "actions", elements: [ { type: "button", text: { type: "plain_text", text: "Open in Firefight" }, url: url } ] }
       end
 
       def self.rerun_block(incident)

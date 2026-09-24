@@ -134,7 +134,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
     @investigation.update!(attempts: Investigation::MAX_ATTEMPTS, thread_id: "1700000000.000100")
     Investigation::Runner.any_instance.expects(:run).never
     Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
-      has_entries(reason: InvestigationJob::GAVE_UP, rerun: @incident)
+      has_entries(reason: Investigation::GAVE_UP, rerun: @incident)
     )
 
     InvestigationJob.perform_now(@investigation.id)
@@ -157,7 +157,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
   test "a run that gave up says so in its thread" do
     @investigation.update!(thread_id: "1700000000.000100")
     Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
-      has_entries(thread_id: "1700000000.000100", reason: InvestigationJob::GAVE_UP, rerun: @incident)
+      has_entries(thread_id: "1700000000.000100", reason: Investigation::GAVE_UP, rerun: @incident)
     )
 
     InvestigationJob.new(@investigation.id).mark_failed(RuntimeError.new("worker died"))

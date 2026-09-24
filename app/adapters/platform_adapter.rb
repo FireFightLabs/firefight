@@ -414,9 +414,10 @@ class PlatformAdapter
   end
 
   # Why the run stopped without an answer, and the end of the working state. rerun is the incident
-  # to offer another run on, given only when running it again could end differently.
+  # to offer another run on, given only when running it again could end differently. investigation
+  # is the run, so the message can link to it.
   # @return [Hash] { message_id:, channel_id: }
-  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil)
+  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, investigation: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 

@@ -5,15 +5,13 @@ class Investigation::Runner
 
   Result = Data.define(:status, :error_summary)
 
-  STOPPED_BY_A_RESPONDER = "Stopped by a responder".freeze
-  ENDED_WITHOUT_AN_ANSWER = "Ended without an answer".freeze
-  # The plain sentences a run stops with. Anything else in error_summary is a technical cause for debugging.
+  # Why the loop stopped, in the plain words the model keeps.
   STOP_REASONS = {
-    FirefightAi::AgentLoop::STATUS_CANCELED => STOPPED_BY_A_RESPONDER,
-    FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET => "Budget spent before it could answer",
-    FirefightAi::AgentLoop::STATUS_OUT_OF_TURNS => "Stopped after too many turns",
-    FirefightAi::AgentLoop::STATUS_STALLED => "Stopped talking without an answer",
-    FirefightAi::AgentLoop::STATUS_REPEATED_TOOL_CALL => "Repeated the same tool call"
+    FirefightAi::AgentLoop::STATUS_CANCELED => Investigation::STOPPED_BY_A_RESPONDER,
+    FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET => Investigation::BUDGET_SPENT,
+    FirefightAi::AgentLoop::STATUS_OUT_OF_TURNS => Investigation::TOO_MANY_TURNS,
+    FirefightAi::AgentLoop::STATUS_STALLED => Investigation::STALLED,
+    FirefightAi::AgentLoop::STATUS_REPEATED_TOOL_CALL => Investigation::REPEATED_CALL
   }.freeze
 
   def initialize(investigation)
@@ -43,7 +41,7 @@ class Investigation::Runner
 
     deliver(result_for(outcome))
   rescue FirefightAi::Canceled
-    deliver(Result.new(status: Investigation::STATUS_CANCELED, error_summary: STOPPED_BY_A_RESPONDER))
+    deliver(Result.new(status: Investigation::STATUS_CANCELED, error_summary: Investigation::STOPPED_BY_A_RESPONDER))
   end
 
   private
@@ -95,11 +93,11 @@ class Investigation::Runner
   def result_for(outcome)
     return Result.new(status: Investigation::STATUS_SUCCEEDED, error_summary: nil) if @investigation.reload.finding
     if outcome.status == FirefightAi::AgentLoop::STATUS_CANCELED
-      return Result.new(status: Investigation::STATUS_CANCELED, error_summary: STOPPED_BY_A_RESPONDER)
+      return Result.new(status: Investigation::STATUS_CANCELED, error_summary: Investigation::STOPPED_BY_A_RESPONDER)
     end
 
     Result.new(status: Investigation::STATUS_FAILED, error_summary: reason_for(outcome.status))
   end
 
-  def reason_for(status) = STOP_REASONS.fetch(status, ENDED_WITHOUT_AN_ANSWER)
+  def reason_for(status) = STOP_REASONS.fetch(status, Investigation::ENDED_WITHOUT_AN_ANSWER)
 end

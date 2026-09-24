@@ -12,8 +12,8 @@ module Mcp
           started_by: investigation.triggered_by.try(:principal_label),
           started_at: investigation.started_at&.utc&.iso8601,
           completed_at: investigation.completed_at&.utc&.iso8601,
-          spent_cents: (investigation.spent_micros / 10_000.0).round(2),
-          stopped_because: stopped_because(investigation)
+          spent_cents: investigation.spent_cents,
+          stopped_because: investigation.stopped_because
         }.compact
       end
 
@@ -47,15 +47,6 @@ module Mcp
 
       def self.positions(citations)
         citations.filter_map { |citation| citation.source.try(:position) }
-      end
-
-      # The people in the thread saw a plain sentence, and so does an outside agent.
-      def self.stopped_because(investigation)
-        return nil unless investigation.status == Investigation::STATUS_FAILED
-
-        cause = investigation.error_summary.to_s
-        plain = Investigation::Runner::STOP_REASONS.values + [ Investigation::Runner::ENDED_WITHOUT_AN_ANSWER ]
-        plain.include?(cause) ? cause : InvestigationJob::GAVE_UP
       end
     end
   end

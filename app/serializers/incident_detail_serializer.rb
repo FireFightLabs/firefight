@@ -1,6 +1,17 @@
 class IncidentDetailSerializer < BaseSerializer
   object_as :incident
 
+  # The newest run people can see. The header opens it, or the list of them all when there are several.
+  type :string, optional: true
+  def latest_investigation_id
+    investigation_ids.first
+  end
+
+  type :number
+  def investigation_count
+    investigation_ids.size
+  end
+
   attributes(
     id: { type: :string },
     identifier: { type: :string },
@@ -121,5 +132,11 @@ class IncidentDetailSerializer < BaseSerializer
 
   def runbooks
     incident.incident_runbooks.includes(runbook: :runbook_steps).order(:created_at)
+  end
+
+  private
+
+  def investigation_ids
+    memo.fetch([ :investigation_ids, incident.id ]) { incident.investigations.seen.order(created_at: :desc).pluck(:id) }
   end
 end

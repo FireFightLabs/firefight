@@ -38,6 +38,18 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     assert_equal "#{@finding.id}:#{Investigation::Finding::OUTCOME_WRONG}", feedback[:negative_button][:value]
   end
 
+  test "an answer and a stop both link to the run in Firefight, where every step and receipt is" do
+    with_app_host do
+      investigation = @finding.investigation
+      answer_link = Slack::Messages::InvestigationRun.finding(finding: @finding).find { |block| block[:type] == "actions" }
+      stop_link = Slack::Messages::InvestigationRun.stopped(reason: "Budget spent before it could answer", investigation: investigation).last
+
+      expected = "https://app.example.com/app/investigations/#{investigation.id}"
+      assert_equal expected, answer_link[:elements].sole[:url]
+      assert_equal expected, stop_link[:elements].sole[:url]
+    end
+  end
+
   test "a run that stopped on our side offers one button to run it again" do
     blocks = Slack::Messages::InvestigationRun.stopped(reason: "Something went wrong on my side", rerun: @incident)
 
@@ -62,5 +74,15 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
 
     assert_equal 2, blocks.size
     assert_equal "context_actions", blocks.last[:type]
+  end
+
+  private
+
+  def with_app_host
+    previous = ENV["APP_HOST"]
+    ENV["APP_HOST"] = "app.example.com"
+    yield
+  ensure
+    ENV["APP_HOST"] = previous
   end
 end

@@ -7,6 +7,8 @@ class Investigation::Step < ApplicationRecord
 
   belongs_to :investigation
   belongs_to :hypothesis, class_name: "Investigation::Hypothesis", optional: true
+  # The ledger row written before the call. A replayed step has none.
+  belongs_to :invocation, class_name: "Ability::Invocation", optional: true
   has_many :citations, class_name: "Investigation::Citation", as: :source, dependent: :destroy, inverse_of: :source
 
   # Tool output is the customer's data, and a replay needs it in full.

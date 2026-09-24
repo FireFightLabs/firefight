@@ -287,6 +287,8 @@ Rails.application.routes.draw do
     patch "/incidents/:incident_id/postmortem/status", to: "incidents#update_postmortem_status", as: :incident_postmortem_status
     get "/incidents/:incident_id/postmortem/revisions", to: "incidents#postmortem_revisions", as: :incident_postmortem_revisions
     post "/incidents/:incident_id/postmortem/ai_rewrite", to: "incidents#ai_rewrite_postmortem", as: :incident_postmortem_ai_rewrite
+    get "/investigations", to: "investigations#index", as: :investigations
+    get "/investigations/:id", to: "investigations#show", as: :investigation
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"
     get "/agent/search", to: "agent_chats#search", as: :agent_chats_search
