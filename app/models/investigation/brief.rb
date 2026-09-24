@@ -15,6 +15,7 @@ class Investigation::Brief
   SOURCE_COMMAND = "the investigate command".freeze
   SOURCE_CHAT = "the chat that asked for it".freeze
   SOURCE_MCP = "an outside agent over MCP".freeze
+  SOURCE_REHEARSAL = "a bench case".freeze
 
   # The same fields for the chat's tool and the MCP tool, so an outside agent and Halon hand over the same thing.
   SCHEMA = {

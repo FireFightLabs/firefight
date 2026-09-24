@@ -171,6 +171,15 @@ Not built yet: the dashboard page, a deadline on a run (nothing runs long enough
 
 Code is read in a sandbox per run, through the GitHub connection's code tools, so every read is a numbered step through the gateway like any other connection call. The run's `code_box_key` (`Investigation#code_box_key`, `Conversation#code_box_key`, or `Principal#code_box_key` for an outside agent over MCP) names its box, `Integrations::CodeReading` starts it on the first read and pushes each repository with its whole history the first time the run names it, and the box holds no credential. An investigation closes its box when it finishes, a conversation's box closes once idle, and a sweep catches the rest. Both prompts tell the agent to read at the running commit and, for a failing page or endpoint, to check that everything running before the handler is defined before it looks at data or configuration, which is what `find_definition` answers across repositories. See Code sandbox in [integrations.md](integrations.md).
 
+## Rehearsals: replays and the bench
+
+A rehearsal is an investigation nobody in the workspace sees, made to measure Halon (`Investigation::Rehearsal`). It is `rehearsal: true` with `TRIGGER_REHEARSAL`, delivers through `Investigation::QuietDelivery`, is left out of the one live run per incident index, the sweep, `get_investigation`, past incidents in the seed pack (`Investigation.seen`) and similarity search (`Finding#search_embeddable?`), and can be told a model (`model_override`, `provider_override`, handed to `FirefightAi::Investigator` as a `ModelChoice`).
+
+- **A replay** (`bin/rails 'halon:replay[INVESTIGATION_ID,MODEL,PROVIDER]'`) reruns a finished run from its seed pack and the steps taken before the loop, and `Investigation::ToolCall.replay!` answers each call with what the original recorded for the same action and arguments, in order, failures included. A call the original never made is answered `NOT_RECORDED`, and the count says how much of the replay was really compared, since a model that explores differently leaves the record quickly.
+- **The bench** (`bin/rails 'halon:bench[CASES_YAML,MODEL,PROVIDER]'`) runs cases whose cause is known against live systems, sandbox included, and scores a case found when the finding names every expected text. A case is `workspace` (an id), `incident` (its identifier), `said` (what the person asked, the run's brief) and `expect`. Cases name private repositories, so they are kept outside this repository.
+
+Both print turns, spend, steps and time, and close the run's code box whatever happens.
+
 ## The agent loop
 
 `FirefightAi::AgentLoop` drives one run over the saved chat, and `FirefightAi::Investigator` holds the prompts and the model choice. The app hands over a `Chat` record, the tools and the budget, and gets back why the run stopped. `Investigation::Runner` is the app half: it makes the chat, builds the tools, writes down what each turn spent, and turns the outcome into the run's status.

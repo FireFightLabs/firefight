@@ -9,6 +9,9 @@ module Investigation::Finding::Searchable
 
   def workspace = investigation.workspace
 
+  # A rehearsal's answer is a measurement, never something to find again as a past answer.
+  def search_embeddable? = !investigation.rehearsal?
+
   def search_facts
     {
       id: id, incident: investigation.incident&.identifier, summary: summary,

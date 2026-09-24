@@ -24,13 +24,17 @@ class Investigation < ApplicationRecord
   TRIGGER_BUTTON = "button"
   TRIGGER_CONVERSATION = "conversation"
   TRIGGER_MCP = "mcp"
-  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP ].freeze
+  # Started to measure Halon, and seen by nobody in the workspace. See Investigation::Rehearsal.
+  TRIGGER_REHEARSAL = "rehearsal"
+  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_REHEARSAL ].freeze
 
   belongs_to :workspace
   # Polymorphic so a run can be about something other than an incident later.
   belongs_to :subject, polymorphic: true
   # Polymorphic because a person, an agent or a key can ask.
   belongs_to :triggered_by, polymorphic: true, optional: true
+  # A replay answers every tool call from this run's record instead of reaching anything.
+  belongs_to :replay_of, class_name: "Investigation", optional: true
 
   # Destroyed in declaration order, so the rows holding a hypothesis id go first.
   has_one :finding, class_name: "Investigation::Finding", dependent: :destroy
@@ -45,9 +49,12 @@ class Investigation < ApplicationRecord
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }
 
   scope :live, -> { where(status: LIVE_STATUSES) }
-  # Live with nobody working on it, which holds the subject's only slot until someone takes it.
+  # The runs people see. A rehearsal is not one, wherever runs are listed, read back or learned from.
+  scope :seen, -> { where(rehearsal: false) }
+  # Live with nobody working on it, which holds the subject's only slot until someone takes it. A rehearsal runs in
+  # the process that started it, so no worker is owed it.
   scope :abandoned, -> {
-    live.where(
+    live.seen.where(
       "lease_until < :now OR (lease_until IS NULL AND investigations.created_at < :unclaimed)",
       now: Time.current, unclaimed: UNCLAIMED_AFTER.ago
     )
@@ -149,6 +156,11 @@ class Investigation < ApplicationRecord
   # A run has no conversation to keep. Everything it has worked out is in its own records.
   def keeps_in_memory?(_message) = false
 
+  # The model a rehearsal was told to use, or nil for the workspace's own.
+  def model_choice
+    FirefightAi::ModelChoice.new(model: model_override, provider: provider_override.presence) if model_override.present?
+  end
+
   # Every tool that reads code in this run reads it in the same box.
   def code_box_key = "investigation-#{id}"
 
@@ -219,7 +231,11 @@ class Investigation < ApplicationRecord
   # The shared tools call this, so what a tool call leaves behind is the run's business. The step's
   # number travels back with the value, since it is what the agent cites the result by.
   def tool_call(action_key:, params: {}, scope: {}, tool_name: nil, label: nil, **, &block)
-    result = Investigation::ToolCall.run!(self, action_key: action_key, params: params, scope: scope, tool_name: tool_name, label: label, &block)
+    result = if replay_of_id
+      Investigation::ToolCall.replay!(self, action_key: action_key, params: params, tool_name: tool_name, label: label)
+    else
+      Investigation::ToolCall.run!(self, action_key: action_key, params: params, scope: scope, tool_name: tool_name, label: label, &block)
+    end
     Chat::ToolCall::Outcome.new(value: result.value, step: result.step.position)
   end
 
