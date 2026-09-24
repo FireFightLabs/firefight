@@ -37,6 +37,7 @@ class AgentInvestigationCardTest < ApplicationSystemTestCase
       click_button "Declare incident"
     end
     assert_text "The investigation and its answer go on the new incident's timeline."
+    assert_field with: "Checkout is slow"
     page.save_screenshot(Rails.root.join("tmp/screenshots/chat-investigation-declare.png"))
   end
 end

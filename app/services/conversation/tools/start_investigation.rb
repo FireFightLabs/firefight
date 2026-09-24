@@ -21,10 +21,9 @@ class Conversation::Tools::StartInvestigation < RubyLLM::Tool
   def call(tool_call: nil, **arguments)
     incident = @turn.incident
     brief = Investigation::Brief.from(arguments, source: Investigation::Brief::SOURCE_CHAT)
-    return refused(tool_call, "Say what is failing in the symptom, in the person's words.") if incident.nil? && brief.empty?
-
     blocked = Investigation.start_refusal(@turn.workspace, incident)
     return refused(tool_call, blocked) if blocked
+    return refused(tool_call, "Say what is failing in the symptom, in the person's words.") if incident.nil? && brief.empty?
 
     started = @turn.start_investigation do
       InvestigationService.new(@turn.workspace).start(

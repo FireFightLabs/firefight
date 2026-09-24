@@ -55,7 +55,7 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
           </Link>
         )}
       </div>
-      <LifecycleFormDialog incidentId={null} form="declare" open={declaring} onOpenChange={setDeclaring} fromInvestigationId={runId} />
+      <LifecycleFormDialog incidentId={null} form="declare" open={declaring} onOpenChange={setDeclaring} fromInvestigationId={runId} suggestedName={run.question} />
     </section>
   )
 }

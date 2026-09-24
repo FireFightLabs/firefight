@@ -58,6 +58,14 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
     assert_equal "checkout is slow", investigation.question
   end
 
+  test "with AI SRE off, outside an incident channel it says the feature is off before asking anything" do
+    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
+
+    result = Commands::StartInvestigation.execute(build_command(channel_id: "C00000000"))
+
+    assert_match "not turned on", result[:text]
+  end
+
   test "outside an incident channel, with nothing said, it asks what is wrong" do
     result = nil
     assert_no_enqueued_jobs(only: InvestigationJob) { result = Commands::StartInvestigation.execute(build_command(channel_id: "C00000000")) }

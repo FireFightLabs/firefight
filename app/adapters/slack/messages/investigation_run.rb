@@ -25,6 +25,14 @@ module Slack
         incident ? "Investigating #{incident.identifier}" : "Investigating: #{question.to_s.truncate(200)}"
       end
 
+      # The answer that led someone to declare this incident, so whoever joins the channel starts from it.
+      def self.carried_over(finding:)
+        question = finding.investigation.question
+        intro = ":mag: *Declared from an investigation*" \
+                "#{question.present? ? " into \"#{Mrkdwn.escape(question.to_s.truncate(200))}\"" : ''}. This is what it found."
+        [ { type: "section", text: { type: "mrkdwn", text: intro } }, *finding(finding: finding) ]
+      end
+
       def self.finding(finding:)
         blocks = [ { type: "section", text: { type: "mrkdwn", text: summary_text(finding) } } ]
         blocks << evidence_block(finding) if finding.evidence_items.any?
@@ -36,9 +44,10 @@ module Slack
       end
 
       # The button is offered only when running it again could end differently.
-      def self.stopped(reason:, rerun: nil, investigation: nil)
+      def self.stopped(reason:, rerun: nil, rerun_question: nil, investigation: nil)
         blocks = [ { type: "section", text: { type: "mrkdwn", text: ":warning: *Stopped without an answer.* #{reason}." } } ]
         blocks << rerun_block(rerun) if rerun
+        blocks << rerun_question_block(rerun_question) if rerun_question
         link = investigation && open_block(investigation)
         blocks << link if link
         blocks
@@ -81,6 +90,21 @@ module Slack
               text: { type: "plain_text", text: ":mag: Run again", emoji: true },
               action_id: Identifiers::START_INVESTIGATION,
               value: incident.id
+            }
+          ]
+        }
+      end
+
+      # A question asked again, in the same place, by whoever presses it.
+      def self.rerun_question_block(investigation)
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: ":mag: Run again", emoji: true },
+              action_id: Identifiers::RERUN_INVESTIGATION_QUESTION,
+              value: investigation.id
             }
           ]
         }

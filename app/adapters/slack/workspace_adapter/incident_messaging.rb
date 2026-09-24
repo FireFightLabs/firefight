@@ -473,6 +473,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { streaming: false }
   end
 
+  def post_investigation_carried_over(channel_id:, finding:)
+    post_message(
+      channel_id: channel_id, text: finding.summary.to_s,
+      blocks: Slack::Messages::InvestigationRun.carried_over(finding: finding)
+    )
+  end
+
   def post_investigation_answer(channel_id:, thread_id:, answer_id:, finding:)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
@@ -480,11 +487,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, investigation: nil)
+  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, rerun_question: nil, investigation: nil)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
       text: "Stopped without an answer. #{reason}.",
-      blocks: Slack::Messages::InvestigationRun.stopped(reason: reason, rerun: rerun, investigation: investigation)
+      blocks: Slack::Messages::InvestigationRun.stopped(reason: reason, rerun: rerun, rerun_question: rerun_question, investigation: investigation)
     )
   end
 

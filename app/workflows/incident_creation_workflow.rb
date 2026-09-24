@@ -9,6 +9,7 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
   step :invite_declarer, depends_on: [ :post_quick_actions_message ]
   step :invite_responders, depends_on: [ :create_slack_channel ]
   step :attach_runbooks, depends_on: [ :post_quick_actions_message ]
+  step :post_carried_over_investigation, depends_on: [ :post_quick_actions_message ]
   step :create_incident_event
 
   def create_slack_channel(workflow:, step:, input:)
@@ -39,6 +40,11 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
 
   def invite_responders(workflow:, step:, input:)
     service(workflow).invite_members(workflow.subject, workflow.context["invite_membership_ids"])
+  end
+
+  # Posted once, since a retried step would post the answer twice.
+  def post_carried_over_investigation(workflow:, step:, input:)
+    checkpointed(step) { service(workflow).post_carried_over_investigation(workflow.subject) }
   end
 
   def attach_runbooks(workflow:, step:, input:)

@@ -9,10 +9,9 @@ module Commands
       workspace = command.workspace
       incident = command.incident
       brief = brief(command)
-      return Command.ephemeral(Investigation::NEEDS_A_QUESTION) if incident.nil? && brief.empty?
-
       refusal = Investigation.start_refusal(workspace, incident)
       return Command.ephemeral(refusal) if refusal
+      return Command.ephemeral(Investigation::NEEDS_A_QUESTION) if incident.nil? && brief.empty?
 
       started = InvestigationService.new(workspace).start(
         incident,

@@ -51,7 +51,8 @@ class Investigation::Delivery
 
     adapter.post_investigation_stopped(
       channel_id: channel_id, thread_id: thread_id, answer_id: @answer_id, reason: reason,
-      rerun: (@investigation.incident if rerunnable), investigation: @investigation
+      rerun: (@investigation.incident if rerunnable),
+      rerun_question: (@investigation if rerunnable && @investigation.incident.nil?), investigation: @investigation
     )
   end
 

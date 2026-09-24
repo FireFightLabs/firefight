@@ -378,6 +378,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # An answer given before its incident existed, posted in the channel of the incident declared from it.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_investigation_carried_over(channel_id:, finding:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # The answer, and the end of the working state.
   # @return [Hash] { message_id:, channel_id: }
   def post_investigation_answer(channel_id:, thread_id:, answer_id:, finding:)
@@ -416,10 +422,11 @@ class PlatformAdapter
   end
 
   # Why the run stopped without an answer, and the end of the working state. rerun is the incident
-  # to offer another run on, given only when running it again could end differently. investigation
-  # is the run, so the message can link to it.
+  # to offer another run on, and rerun_question the run whose question to ask again when it had no
+  # incident, each given only when running it again could end differently. investigation is the run,
+  # so the message can link to it.
   # @return [Hash] { message_id:, channel_id: }
-  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, investigation: nil)
+  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, rerun_question: nil, investigation: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 

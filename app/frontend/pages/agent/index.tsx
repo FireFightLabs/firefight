@@ -115,6 +115,7 @@ export default function AgentPage() {
         open={declaring}
         onOpenChange={setDeclaring}
         fromInvestigationId={openInvestigation?.id ?? null}
+        suggestedName={openInvestigation?.question}
       />
     </AuthenticatedLayout>
   )

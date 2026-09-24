@@ -13,11 +13,13 @@ module Slack
 
       def self.build(workspace:, state: {}, private_metadata: nil, test: false)
         selected = selections(workspace, state)
+        initial_name = question_from(workspace, private_metadata)
 
         blocks = resolve_visible_fields(workspace, selected).filter_map do |form_field|
           if form_field.system?
             FieldBlocks.build_system(
               workspace, form_field,
+              initial_name: initial_name,
               dispatching: DISPATCHING,
               selected: {
                 IncidentSystemField::KEY_SEVERITY => selected[:severity_slug],
@@ -41,6 +43,14 @@ module Slack
           private_metadata: private_metadata,
           blocks: blocks
         }.compact
+      end
+
+      # Declared from an investigation's answer, the incident is first named by the question the run was asked.
+      def self.question_from(workspace, private_metadata)
+        id = private_metadata.present? && ModalState.parse(private_metadata).investigation_id
+        id.present? ? workspace.investigations.find_by(id: id)&.question : nil
+      rescue ModalState::InvalidError
+        nil
       end
 
       def self.selections(workspace, state)

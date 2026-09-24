@@ -19,10 +19,9 @@ module Mcp
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = IncidentWrite.find!(workspace, args[:incident]) if args[:incident].present?
         brief = Investigation::Brief.from(args, source: Investigation::Brief::SOURCE_MCP)
-        return Mcp::ToolDispatcher.error_response("Give an incident, or a symptom saying what is wrong.") if incident.nil? && brief.empty?
-
         blocked = Investigation.start_refusal(workspace, incident)
         return Mcp::ToolDispatcher.error_response(blocked) if blocked
+        return Mcp::ToolDispatcher.error_response("Give an incident, or a symptom saying what is wrong.") if incident.nil? && brief.empty?
 
         started = InvestigationService.new(workspace).start(
           incident, trigger_source: Investigation::TRIGGER_MCP, triggered_by: principal, brief: brief

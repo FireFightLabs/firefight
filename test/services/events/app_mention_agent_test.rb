@@ -94,6 +94,14 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_equal "billing is slow", investigation.question
   end
 
+  test "with AI SRE off, a mention outside an incident's channel is left alone, investigate or not" do
+    FeatureFlags.stubs(:enabled?).returns(false)
+    Slack::Client.expects(:add_reaction).never
+
+    assert_no_enqueued_jobs { mention("investigate billing is slow", channel: "C0GENERAL") }
+    assert_equal 0, @workspace.investigations.count
+  end
+
   test "outside an incident's channel any other mention is left alone" do
     FeatureFlags.stubs(:enabled?).returns(true)
 

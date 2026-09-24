@@ -303,6 +303,8 @@ export const AGENT_CHAT_PROPS = {
 
 export const INVESTIGATION_QUERY_PARAM = "investigation" as const
 
+export const INCIDENT_NAME_FIELD_KEY = "name" as const
+
 export const INVESTIGATION_EVENT_TYPES = [
   "investigation.started",
   "investigation.answered",
