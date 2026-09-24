@@ -1,6 +1,8 @@
 class Conversation::Tools::StartInvestigation < RubyLLM::Tool
   description "Start a full investigation when answering needs real work rather than a lookup. " \
-              "It runs on its own and posts what it finds in this channel."
+              "It runs on its own and posts what it finds in this channel. Hand over what the person told you: what " \
+              "is failing, roughly when it started, any names and any error text. If nobody has said when it started, " \
+              "ask first, since that decides what changes it looks at."
 
   def self.tool_name = Mcp::Tools::START_INVESTIGATION
 
@@ -9,8 +11,12 @@ class Conversation::Tools::StartInvestigation < RubyLLM::Tool
     @turn = turn
   end
 
-  # Takes nothing, so the base argument check is skipped the way the other wrappers skip it.
-  def call(tool_call: nil, **)
+  def parameters_schema
+    { "type" => "object", "properties" => Investigation::Brief::SCHEMA.deep_stringify_keys, "required" => [] }
+  end
+
+  # The arguments match the schema above, not an execute signature, so skip the base check.
+  def call(tool_call: nil, **arguments)
     incident = @turn.incident
     return refused(tool_call, "There is no incident here to investigate.") unless incident
 
@@ -19,7 +25,8 @@ class Conversation::Tools::StartInvestigation < RubyLLM::Tool
 
     started = @turn.start_investigation do
       InvestigationService.new(@turn.workspace).start(
-        incident, trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @turn.asker
+        incident, trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @turn.asker,
+        brief: Investigation::Brief.from(arguments, source: Investigation::Brief::SOURCE_CHAT)
       )
     end
     return refused(tool_call, Investigation.already_running_message(incident)) unless started

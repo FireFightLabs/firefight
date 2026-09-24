@@ -16,23 +16,27 @@ class CatalogAttributeDefinition < ApplicationRecord
   # Values are workspace membership ids.
   MEMBER_TYPES = [ TYPE_WORKSPACE_MEMBER, TYPE_WORKSPACE_MEMBERS ].freeze
 
-  # Routing asks for the role, never a slug, so a workspace can name its
+  # Routing and investigations ask for the role, never a slug, so a workspace can name its
   # attributes anything.
   ROLE_MEMBERS = "members"
   ROLE_MANAGER = "manager"
   ROLE_NOTIFICATION_CHANNEL = "notification_channel"
-  ROLES = [ ROLE_MEMBERS, ROLE_MANAGER, ROLE_NOTIFICATION_CHANNEL ].freeze
+  # Where an entry's code lives, so an investigation knows which repository to read.
+  ROLE_REPOSITORY = "repository"
+  ROLES = [ ROLE_MEMBERS, ROLE_MANAGER, ROLE_NOTIFICATION_CHANNEL, ROLE_REPOSITORY ].freeze
 
   ROLE_LABELS = {
     ROLE_MEMBERS => "Members",
     ROLE_MANAGER => "Manager",
-    ROLE_NOTIFICATION_CHANNEL => "Notification channel"
+    ROLE_NOTIFICATION_CHANNEL => "Notification channel",
+    ROLE_REPOSITORY => "Repository"
   }.freeze
 
   ATTRIBUTE_TYPES_BY_ROLE = {
     ROLE_MEMBERS => MEMBER_TYPES,
     ROLE_MANAGER => [ TYPE_WORKSPACE_MEMBER ],
-    ROLE_NOTIFICATION_CHANNEL => [ TYPE_SLACK_CHANNEL ]
+    ROLE_NOTIFICATION_CHANNEL => [ TYPE_SLACK_CHANNEL ],
+    ROLE_REPOSITORY => [ TYPE_TEXT ]
   }.freeze
 
   belongs_to :catalog_type

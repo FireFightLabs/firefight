@@ -234,6 +234,14 @@ class Incident < ApplicationRecord
     workspace.runbooks.active.ordered.where.not(id: incident_runbooks.select(:runbook_id))
   end
 
+  # The live catalog services picked on the incident's fields.
+  def catalog_services
+    incident_field_values.includes(catalog_entry: { catalog_type: :catalog_attribute_definitions })
+      .filter_map(&:catalog_entry)
+      .select { |entry| entry.catalog_type.system_key == CatalogType::SYSTEM_KEY_SERVICE && entry.deleted_at.nil? }
+      .uniq
+  end
+
   def related_incidents
     ids = IncidentRelationship.related
       .where(incident_id: id)

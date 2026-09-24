@@ -24,7 +24,7 @@ module Mcp
                          "[{\"name\": \"Owning team\", \"attribute_type\": \"reference\", \"reference_type\": \"team\"}]. " \
                          "attribute_type is one of #{CatalogAttributeDefinition::ATTRIBUTE_TYPES.join(', ')}. " \
                          "A select takes options, a reference takes reference_type. role tags an " \
-                         "attribute for alert routing and is one of #{CatalogAttributeDefinition::ROLES.join(', ')}",
+                         "attribute for alert routing, or as where the entry's code lives, and is one of #{CatalogAttributeDefinition::ROLES.join(', ')}",
             items: { type: "object" }
           },
           approval_id: { type: "string", description: "Approval id when retrying an approved call" }

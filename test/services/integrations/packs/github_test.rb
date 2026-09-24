@@ -184,15 +184,27 @@ module Integrations
         assert_equal Github, NativePack.for("github")
       end
 
-      test "fetch_file returns a numbered slice with context around the requested lines" do
-        with_fixture_clone do
-          text = @pack.fetch_file(environment_row: @row,
-                                  arguments: { "repo" => "acme/checkout", "path" => "payment.rb",
-                                               "start_line" => 3, "end_line" => 3 })
+      test "fetch_file reads the file at the commit asked for, numbered, with a link pinned to that commit" do
+        source = (1..9).map { |number| number == 3 ? "  retry_budget(amount)\n" : "  line #{number}\n" }.join
+        GithubApp.stubs(:get).with("/repos/acme/checkout/contents/payment.rb?ref=a1b2c3", token: "ghs_token")
+                 .returns("content" => Base64.encode64(source))
 
-          assert_match(/payment\.rb:1-9 \(of 9 lines\)/, text)
-          assert_match(/   3\s+retry_budget\(amount\)/, text)
+        text = @pack.fetch_file(environment_row: @row,
+                                arguments: { "repo" => "acme/checkout", "path" => "payment.rb", "ref" => "a1b2c3",
+                                             "start_line" => 3, "end_line" => 3 })
+
+        assert_match(/payment\.rb:1-9 \(of 9 lines\) at a1b2c3/, text)
+        assert_match(/   3\s+retry_budget\(amount\)/, text)
+        assert_includes text, "https://github.com/acme/checkout/blob/a1b2c3/payment.rb#L1-L9"
+      end
+
+      test "fetch_file says plainly when the file is not there at that commit" do
+        GithubApp.stubs(:get).raises(GithubApp::Error, "GitHub: Not Found")
+
+        error = assert_raises(NativePack::Error) do
+          @pack.fetch_file(environment_row: @row, arguments: { "repo" => "acme/checkout", "path" => "gone.rb", "ref" => "a1b2c3" })
         end
+        assert_equal "No file at 'gone.rb' at a1b2c3.", error.message
       end
 
       test "fetch_file refuses secrets-shaped and traversal paths" do
@@ -224,16 +236,101 @@ module Integrations
         end
       end
 
-      test "blame attributes lines to their commits and points at the lookup tools" do
-        with_fixture_clone do
-          text = @pack.blame(environment_row: @row,
-                             arguments: { "repo" => "acme/checkout", "path" => "payment.rb",
-                                          "start_line" => 1, "end_line" => 6 })
+      test "blame attributes the lines at a commit to the changes and pull requests that last touched them" do
+        GithubApp.expects(:graphql).with do |_query, variables, token:|
+          variables[:expression] == "a1b2c3" && variables[:path] == "payment.rb" && token == "ghs_token"
+        end.returns("repository" => { "object" => { "blame" => { "ranges" => [
+          blame_range(1, 2, "1111aaaa2222", "Add payment charging", "ada", nil),
+          blame_range(3, 6, "3333bbbb4444", "Tighten retry budget", "grace", 412),
+          blame_range(7, 40, "5555cccc6666", "Unrelated", "linus", nil)
+        ] } } })
 
-          assert_match(/Tighten retry budget \(Grace Retries\)/, text)
-          assert_match(/Add payment charging \(Ada Payments\)/, text)
-          assert_match(/Use commit_lookup or pr_lookup/, text)
+        text = @pack.blame(environment_row: @row,
+                           arguments: { "repo" => "acme/checkout", "path" => "payment.rb", "ref" => "a1b2c3",
+                                        "start_line" => 1, "end_line" => 6 })
+
+        assert_match(/L3-6 .*3333bbbb4444 .*Tighten retry budget \(grace\) PR #412/, text)
+        assert_match(/L1-2 .*Add payment charging \(ada\)/, text)
+        assert_no_match(/Unrelated/, text, "a range outside the lines asked about is left out")
+        assert_includes text, "https://github.com/acme/checkout/blob/a1b2c3/payment.rb#L1-L6"
+      end
+
+      test "running_commit names the last deploy that worked before the time, and the one to compare it with" do
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments?per_page=#{Github::DEPLOYMENT_CANDIDATES}", token: "ghs_token").returns([
+          deployment(4, "after", "production", "2026-09-24T15:00:00Z"),
+          deployment(3, "failed", "production", "2026-09-24T14:02:00Z"),
+          deployment(2, "running", "production", "2026-09-24T13:00:00Z"),
+          deployment(1, "previous", "production", "2026-09-23T10:00:00Z")
+        ])
+        # GitHub marks an older deployment inactive once a newer one goes out, so its success is further down.
+        { 3 => [ "failure" ], 2 => [ "success" ], 1 => [ "inactive", "success" ] }.each do |id, states|
+          GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/#{id}/statuses?per_page=#{GithubApp::DEPLOYMENT_STATUS_LIMIT}", token: "ghs_token")
+                   .returns(states.map { |state| { "state" => state, "created_at" => "2026-09-24T12:00:00Z" } })
         end
+
+        text = @pack.running_commit(environment_row: @row, arguments: { "repo" => "acme/checkout", "at" => "2026-09-24T14:05:00Z" })
+
+        assert_includes text, "Running in acme/checkout at 2026-09-24T14:05:00Z: running"
+        assert_includes text, "Source: a deploy record"
+        assert_includes text, "compare_commits with base previous and head running"
+      end
+
+      test "running_commit without a deploy record says it is a guess from the default branch" do
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments?per_page=#{Github::DEPLOYMENT_CANDIDATES}", token: "ghs_token").returns([])
+        GithubApp.stubs(:get).with("/repos/acme/checkout", token: "ghs_token").returns("default_branch" => "main")
+        GithubApp.stubs(:get).with { |path, **| path.start_with?("/repos/acme/checkout/commits?") && path.include?("until=2026-09-24T14%3A05%3A00Z") }
+                 .returns([ { "sha" => "tipsha", "commit" => { "committer" => { "date" => "2026-09-24T13:50:00Z" } } } ])
+        GithubApp.stubs(:get).with { |path, **| path.start_with?("/repos/acme/checkout/commits?") && path.include?("until=2026-09-23T14%3A05%3A00Z") }
+                 .returns([ { "sha" => "daybefore" } ])
+
+        text = @pack.running_commit(environment_row: @row, arguments: { "repo" => "acme/checkout", "at" => "2026-09-24T14:05:00Z" })
+
+        assert_includes text, "not known. There is no successful deploy record"
+        assert_includes text, "Tip of main at that time: tipsha"
+        assert_includes text, "not proof it was deployed"
+        assert_includes text, "compare_commits with base daybefore and head tipsha"
+      end
+
+      test "compare_commits puts migrations and config first, names dependency bumps, owners and pull requests" do
+        GithubApp.stubs(:get).with("/repos/acme/checkout/compare/base1...head1", token: "ghs_token").returns(
+          "base_commit" => { "sha" => "base1" },
+          "commits" => [ comparison_commit("head1", "Raise pool timeout") ],
+          "files" => [
+            { "filename" => "app/models/pool.rb", "status" => "modified", "additions" => 2, "deletions" => 1, "patch" => "@@ -1 +1 @@\n-a\n+b" },
+            { "filename" => "config/database.yml", "status" => "modified", "additions" => 1, "deletions" => 1, "patch" => "@@\n-  pool: 20\n+  pool: 5" },
+            { "filename" => "Gemfile.lock", "status" => "modified", "additions" => 1, "deletions" => 1, "patch" => "@@\n-    pg (1.4.0)\n+    pg (1.5.0)" }
+          ]
+        )
+        GithubApp.stubs(:get).with("/repos/acme/checkout/commits/head1/pulls", token: "ghs_token").returns([
+          { "number" => 412, "title" => "Raise pool timeout", "user" => { "login" => "grace" }, "html_url" => "https://github.com/acme/checkout/pull/412" }
+        ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/412/reviews", token: "ghs_token").returns([ { "user" => { "login" => "ada" } } ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/contents/.github/CODEOWNERS?ref=head1", token: "ghs_token")
+                 .returns("content" => Base64.encode64("* @acme/app\nconfig/ @acme/platform\n"))
+
+        text = @pack.compare_commits(environment_row: @row, arguments: { "repo" => "acme/checkout", "base" => "base1", "head" => "head1" })
+
+        assert_operator text.index("Configuration:"), :<, text.index("Application code:"), "config is listed before code"
+        assert_includes text, "pg 1.4.0 to 1.5.0"
+        assert_includes text, "PR #412 Raise pool timeout by grace, reviewed by ada"
+        assert_includes text, "@acme/platform: config/database.yml"
+        assert_includes text, "https://github.com/acme/checkout/blob/head1/config/database.yml"
+        assert_includes text, "+  pool: 5"
+      end
+
+      test "the new tools are declared read only" do
+        definitions = Github.tool_definitions.index_by(&:name)
+
+        [ Github::RUNNING_COMMIT, Github::CHANGES_BEFORE, Github::LIST_REPOSITORIES, "compare_commits" ].each do |name|
+          assert definitions[name].read_only, name
+        end
+      end
+
+      test "changes_before refuses a window it cannot use" do
+        error = assert_raises(NativePack::Error) do
+          @pack.changes_before(environment_row: @row, arguments: { "at" => "2026-09-24T14:05:00Z", "window_hours" => 0 })
+        end
+        assert_match(/window_hours/, error.message)
       end
 
       test "blame validates its line range" do
@@ -252,6 +349,22 @@ module Integrations
 
       def with_fixture_clone(&block)
         FixtureRepo.with_clone_env(&block)
+      end
+
+      def blame_range(from, to, sha, headline, login, pull_number)
+        pulls = pull_number ? [ { "number" => pull_number, "title" => headline } ] : []
+        { "startingLine" => from, "endingLine" => to,
+          "commit" => { "oid" => sha, "committedDate" => "2026-09-20T10:00:00Z", "messageHeadline" => headline,
+                        "author" => { "name" => login, "user" => { "login" => login } },
+                        "associatedPullRequests" => { "nodes" => pulls } } }
+      end
+
+      def deployment(id, sha, environment, created_at)
+        { "id" => id, "sha" => sha, "ref" => "main", "environment" => environment, "created_at" => created_at, "creator" => { "login" => "deployer" } }
+      end
+
+      def comparison_commit(sha, message)
+        { "sha" => sha, "author" => { "login" => "grace" }, "commit" => { "message" => message, "author" => { "date" => "2026-09-24T13:00:00Z", "name" => "Grace" } } }
       end
     end
   end

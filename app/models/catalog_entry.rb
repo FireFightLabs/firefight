@@ -39,6 +39,8 @@ class CatalogEntry < ApplicationRecord
     slug && entry_attributes[slug]
   end
 
+  def repository = CodeChange.repository_name(role_value(CatalogAttributeDefinition::ROLE_REPOSITORY))
+
   # Filters in memory when the association is loaded, preloads otherwise.
   def active_outgoing_relationships
     relationships = outgoing_relationships

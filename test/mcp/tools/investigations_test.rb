@@ -24,6 +24,19 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     assert_enqueued_with(job: InvestigationJob, args: [ run.id ])
   end
 
+  test "an outside agent hands over what it knows, the same fields the chat uses" do
+    Mcp::Tools::StartInvestigation.perform_with_principal(
+      workspace: @workspace, principal: @member,
+      args: { incident: @incident.identifier, symptom: "checkout returns 500", error_text: "PoolExhausted" }
+    )
+
+    brief = @workspace.investigations.sole.brief
+    assert_equal "PoolExhausted", brief[Investigation::Brief::KEY_ERROR_TEXT]
+    assert_equal Investigation::Brief::SOURCE_MCP, brief[Investigation::Brief::KEY_SOURCE]
+    assert_equal Investigation::Brief::SCHEMA.keys.map(&:to_s).sort,
+                 (Mcp::Tools::StartInvestigation.input_schema_value.to_h[:properties].keys.map(&:to_s) - [ "incident" ]).sort
+  end
+
   test "a second request while one is running is told so rather than starting another" do
     Mcp::Tools::StartInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: { incident: @incident.identifier })
 

@@ -11,7 +11,8 @@ module Mcp
       annotations(**WRITE)
       input_schema(
         properties: {
-          incident: { type: "string", description: "Incident UUID or identifier like INC-42" }
+          incident: { type: "string", description: "Incident UUID or identifier like INC-42" },
+          **Investigation::Brief::SCHEMA
         },
         required: [ "incident" ]
       )
@@ -22,7 +23,8 @@ module Mcp
         return Mcp::ToolDispatcher.error_response(blocked) if blocked
 
         started = InvestigationService.new(workspace).start(
-          incident, trigger_source: Investigation::TRIGGER_MCP, triggered_by: principal
+          incident, trigger_source: Investigation::TRIGGER_MCP, triggered_by: principal,
+          brief: Investigation::Brief.from(args, source: Investigation::Brief::SOURCE_MCP)
         )
         return Mcp::ToolDispatcher.error_response(Investigation.already_running_message(incident)) unless started
 
