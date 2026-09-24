@@ -1,0 +1,4 @@
+---
+# The sandbox image's command service is not part of the Rails app. It runs inside the box and never sees a request.
+:skip_files:
+  - sandbox/

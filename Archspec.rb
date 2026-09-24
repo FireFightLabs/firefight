@@ -79,8 +79,8 @@ component :solid_workflow_namespace, namespace: "SolidWorkflow"
 component :ability_gateway, constants: %w[AbilityGateway]
 component :ability_ledger, constants: %w[Ability::Invocation]
 component :integration_clients,
-          constants: %w[Integrations::McpClient Integrations::OauthClient Integrations::GithubApp
-                        Integrations::CloneManager Integrations::Http]
+          constants: %w[Integrations::McpClient Integrations::OauthClient Integrations::GithubApp Integrations::Http]
+component :sandbox_clients, namespace: "Integrations::Sandboxes"
 
 # Handlers naming Slack::Modals and the like are grandfathered debt, not precedent.
 slack_namespace.can_only_be_used_by :slack_adapter, :slack_client, :slack_entry_controllers, :slack_auth, :platform_factory
@@ -134,7 +134,10 @@ firefight_ai_engine.can_only_use :models, :firefight_ai_engine
 firefight_ai_engine.cannot_reference_constants "Investigation", "Chat"
 
 # Provider clients and credential shapes stay behind the integrations layer.
-integration_clients.can_only_be_used_by :integrations_layer
+integration_clients.can_only_be_used_by :integrations_layer, :sandbox_clients
+
+# A box is started, reached and stopped only through Integrations::CodeReading, so a new provider changes one class.
+sandbox_clients.can_only_be_used_by :integrations_layer
 
 feature_flags.can_only_use :models
 

@@ -167,6 +167,10 @@ The rules:
 Not built yet: the dashboard page, a deadline on a run (nothing runs long enough to need one yet), and the per person environment cap on a run (the scope a person may investigate lands with the agent loop, which is what decides the environment a tool call targets). `inferences.prompt_template` and `prompt_version` exist and nothing writes them. No implementation stands behind `ConfidenceScorer` or `Matcher` yet.
 - **One agent with tools, no sub-agents.** The Investigator reads every tool result into one context itself. There is no planner handing theories to branch runners and no specialist agents returning summaries, because a handoff passes on only part of what the previous step knew. Theories are `Investigation::Hypothesis` rows the same agent writes as it works.
 
+## Reading code
+
+Code is read in a sandbox per run, through the GitHub connection's code tools, so every read is a numbered step through the gateway like any other connection call. The run's `code_box_key` (`Investigation#code_box_key`, `Conversation#code_box_key`, or `Principal#code_box_key` for an outside agent over MCP) names its box, `Integrations::CodeReading` starts it on the first read and pushes each repository with its whole history the first time the run names it, and the box holds no credential. An investigation closes its box when it finishes, a conversation's box closes once idle, and a sweep catches the rest. Both prompts tell the agent to read at the running commit and, for a failing page or endpoint, to check that everything running before the handler is defined before it looks at data or configuration, which is what `find_definition` answers across repositories. See Code sandbox in [integrations.md](integrations.md).
+
 ## The agent loop
 
 `FirefightAi::AgentLoop` drives one run over the saved chat, and `FirefightAi::Investigator` holds the prompts and the model choice. The app hands over a `Chat` record, the tools and the budget, and gets back why the run stopped. `Investigation::Runner` is the app half: it makes the chat, builds the tools, writes down what each turn spent, and turns the outcome into the run's status.

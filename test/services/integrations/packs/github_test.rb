@@ -218,24 +218,6 @@ module Integrations
         end
       end
 
-      test "code_search returns path:line references and hides sensitive files" do
-        with_fixture_clone do
-          text = @pack.code_search(environment_row: @row,
-                                   arguments: { "repo" => "acme/checkout", "pattern" => "retry_budget|SECRET" })
-
-          assert_match(/payment\.rb:3:/, text)
-          assert_no_match(/\.env/, text, "denylisted paths never appear in results")
-        end
-      end
-
-      test "code_search reports zero matches readably" do
-        with_fixture_clone do
-          assert_equal "No matches.",
-                       @pack.code_search(environment_row: @row,
-                                         arguments: { "repo" => "acme/checkout", "pattern" => "nothing_matches_this" })
-        end
-      end
-
       test "blame attributes the lines at a commit to the changes and pull requests that last touched them" do
         GithubApp.expects(:graphql).with do |_query, variables, token:|
           variables[:expression] == "a1b2c3" && variables[:path] == "payment.rb" && token == "ghs_token"
@@ -345,10 +327,6 @@ module Integrations
 
       def closed_pulls_path
         "/repos/acme/checkout/pulls?state=closed&sort=updated&direction=desc&per_page=#{Github::CLOSED_CANDIDATES}"
-      end
-
-      def with_fixture_clone(&block)
-        FixtureRepo.with_clone_env(&block)
       end
 
       def blame_range(from, to, sha, headline, login, pull_number)

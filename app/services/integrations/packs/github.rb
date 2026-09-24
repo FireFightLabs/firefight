@@ -1,15 +1,16 @@
 module Integrations
   module Packs
-    # File reads and blame come from GitHub's API at a given commit. Search still runs against a local clone through git
-    # object commands only, so repo content never touches the filesystem API.
+    # Pull requests, deploys, file reads and blame come from GitHub's API. Reading code by search, definition, history
+    # and language server happens in the run's sandbox, see Github::Code.
     class Github < NativePack
+      include Code
+
       REPO_FORMAT = /\A[\w.\-]+\/[\w.\-]+\z/
       PATH_FORMAT = /\A[^\/\0][^\0]*\z/
       # Refused in the executor, not the prompt. Prompts can be talked around.
       SENSITIVE_PATHS = /\.env|credential|secret|\.pem\z|\.key\z|id_rsa|id_ed25519|\.p12\z|\.pfx\z/i
       FILE_LIMIT = 30
       LINE_LIMIT = 200
-      MATCH_LIMIT = 50
       CONTEXT_LINES = 10
       # Each deployment needs a second call for its state.
       DEPLOYMENT_LIMIT = 3
@@ -153,19 +154,6 @@ module Integrations
            },
            read_only: true
 
-      tool :code_search,
-           description: "Regex search across the repository's current code, returning path:line references with a matching snippet",
-           params_schema: {
-             "type" => "object",
-             "properties" => {
-               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
-               "pattern" => { "type" => "string", "description" => "Extended regex to search for, e.g. def assign_clinician|AssignmentService" },
-               "path_prefix" => { "type" => "string", "description" => "Limit the search to paths under this prefix (optional)" }
-             },
-             "required" => [ "repo", "pattern" ]
-           },
-           read_only: true
-
       tool :blame,
            description: "Attribute a line range, as it stood at a given commit, to the commits and pull requests that last touched it",
            params_schema: {
@@ -304,23 +292,6 @@ module Integrations
 
         comparison = GithubApp.get("/repos/#{repo}/compare/#{base}...#{head}", token: token)
         comparison_text(repo, comparison, token)
-      end
-
-      def code_search(environment_row:, arguments:)
-        repo = repo_argument(arguments)
-        pattern = arguments["pattern"].to_s
-        fail! "pattern is required" if pattern.blank?
-
-        CloneManager.with_repo(environment_row: environment_row, repo: repo) do |dir|
-          hits = CloneManager.grep(dir, pattern, arguments["path_prefix"].presence)
-                             .reject { |line| line.split(":", 2).first.to_s.match?(SENSITIVE_PATHS) }
-          shown = hits.first(MATCH_LIMIT).map { |line| line.truncate(200) }
-          return "No matches." if shown.empty?
-
-          result = shown.join("\n")
-          result += "\n... #{hits.size - shown.size} more matches. Refine the pattern." if hits.size > shown.size
-          result
-        end
       end
 
       def blame(environment_row:, arguments:)

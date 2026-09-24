@@ -49,7 +49,9 @@ module Mcp
         context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] }
       ) do
         environment_row = tool.integration.resolve_environment(environment_entry&.id)
-        tool.integration.executor.call(tool: tool, environment_row: environment_row, arguments: arguments)
+        tool.integration.executor.call(
+          tool: tool, environment_row: environment_row, arguments: arguments, box_key: server_context[:principal].code_box_key
+        )
       end
       ToolDispatcher.log_call(tool.action_key, server_context, started_at)
 

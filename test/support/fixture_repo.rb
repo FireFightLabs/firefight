@@ -1,5 +1,5 @@
 # A real git repo in a tempdir. Two commits by different authors so blame has history, a nested file
-# for path handling, and a secrets-shaped file for denylist coverage. Tests point CloneManager.remote_url at it.
+# for path handling, and a secrets-shaped file for denylist coverage. Sandbox tests push it into a real box.
 module FixtureRepo
   FIRST_AUTHOR = [ "Ada Payments", "ada@example.com" ].freeze
   SECOND_AUTHOR = [ "Grace Retries", "grace@example.com" ].freeze
@@ -55,17 +55,5 @@ module FixtureRepo
   def self.run(dir, *args)
     _, stderr, status = Open3.capture3("git", "-C", dir, *args)
     raise "fixture repo git #{args.first} failed: #{stderr}" unless status.success?
-  end
-
-  # Yields [fixture_path, clone_root] with CloneManager pointed at both.
-  def self.with_clone_env
-    fixture = create!
-    clone_root = Dir.mktmpdir("clone-root")
-    Integrations::CloneManager.stubs(:root).returns(Pathname.new(clone_root))
-    Integrations::CloneManager.stubs(:remote_url).returns(fixture)
-    yield fixture, Pathname.new(clone_root)
-  ensure
-    FileUtils.rm_rf(fixture) if fixture
-    FileUtils.rm_rf(clone_root) if clone_root
   end
 end

@@ -10,6 +10,10 @@
 #     schedule: at 5am every day
 
 development:
+  code_box_sweep:
+    class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
+    queue: background
+    schedule: every 10 minutes
   integration_health_sweep:
     class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
     schedule: every 30 minutes
@@ -38,6 +42,10 @@ development:
     schedule: at 4am every day
 
 staging:
+  code_box_sweep:
+    class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
+    queue: background
+    schedule: every 10 minutes
   integration_health_sweep:
     class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
     schedule: every 30 minutes
@@ -80,6 +88,10 @@ staging:
     schedule: at 4am every day
 
 production:
+  code_box_sweep:
+    class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
+    queue: background
+    schedule: every 10 minutes
   integration_health_sweep:
     class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
     schedule: every 30 minutes

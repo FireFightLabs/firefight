@@ -21,11 +21,11 @@ module Integrations
         nil
       end
 
-      def fetch!(integration)
+      def fetch!(integration, box_key: nil)
         pack_class = self.for(integration.provider)
         raise Error, "No native pack registered for '#{integration.provider}'" unless pack_class
 
-        pack_class.new(integration)
+        pack_class.new(integration, box_key: box_key)
       end
 
       def tool_definitions
@@ -44,10 +44,12 @@ module Integrations
       end
     end
 
-    attr_reader :integration
+    # box_key names the run a call belongs to, so tools that read code share that run's sandbox.
+    attr_reader :integration, :box_key
 
-    def initialize(integration)
+    def initialize(integration, box_key: nil)
       @integration = integration
+      @box_key = box_key
     end
 
     def tool_definitions
