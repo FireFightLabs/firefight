@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_24_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_24_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -384,6 +384,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_120000) do
     t.index ["owner_type", "owner_id"], name: "index_chats_on_owner", unique: true
     t.index ["ruby_llm_model_id"], name: "index_chats_on_ruby_llm_model_id"
     t.index ["workspace_id"], name: "index_chats_on_workspace_id"
+  end
+
+  create_table "code_boxes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "address", null: false
+    t.string "box_ref", null: false
+    t.datetime "created_at", null: false
+    t.string "key", null: false
+    t.datetime "last_used_at", null: false
+    t.string "provider", null: false
+    t.jsonb "repositories", default: {}, null: false
+    t.string "secret", null: false
+    t.datetime "stopped_at"
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["key"], name: "index_code_boxes_on_open_key", unique: true, where: "(stopped_at IS NULL)"
+    t.index ["last_used_at"], name: "index_code_boxes_on_open_last_used", where: "(stopped_at IS NULL)"
+    t.index ["workspace_id"], name: "index_code_boxes_on_workspace_id"
   end
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1061,7 +1078,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_120000) do
     t.integer "turns_used", default: 0, null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
-    t.index ["subject_type", "subject_id"], name: "index_investigations_on_live_subject", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'running'::character varying])::text[]))"
+    t.index ["subject_type", "subject_id"], name: "index_investigations_on_live_subject", unique: true, where: "((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('running'::character varying)::text]))"
     t.index ["subject_type", "subject_id"], name: "index_investigations_on_subject"
     t.index ["triggered_by_type", "triggered_by_id"], name: "index_investigations_on_triggered_by"
     t.index ["workspace_id", "created_at"], name: "index_investigations_on_workspace_id_and_created_at"
@@ -1540,6 +1557,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_120000) do
   add_foreign_key "chat_saved_results", "chats"
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"
+  add_foreign_key "code_boxes", "workspaces"
   add_foreign_key "conversations", "workspaces"
   add_foreign_key "idempotency_keys", "workspaces"
   add_foreign_key "incident_action_updates", "incident_actions"

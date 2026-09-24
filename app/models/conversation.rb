@@ -83,6 +83,9 @@ class Conversation < ApplicationRecord
   # A conversation holds no records of its own beyond the chat, so there is nothing to add.
   def memory_brief = nil
 
+  # One box for the whole conversation, so a follow up question reads code it already has.
+  def code_box_key = "conversation-#{id}"
+
   # Saved before the job runs, so the person sees it at once and a retried job asks only once. From here an answer is owed.
   def ask!(question)
     chat_record.add_message(role: Chat::Message::ROLE_USER, content: question)

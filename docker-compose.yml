@@ -67,8 +67,17 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
       ACTIVE_STORAGE_SERVICE: local
+
+      # Halon reads code in a sandbox per run, started on this machine's Docker.
+      # The socket below gives Firefight control of the Docker daemon, so this
+      # stays off unless you choose it. See SELF_HOSTING.md.
+      # SANDBOX_PROVIDER: docker
+      # SANDBOX_DOCKER_NETWORK: firefight_default
+    # group_add:
+    #   - "${DOCKER_GID}"
     volumes:
       - storage:/rails/storage
+      # - /var/run/docker.sock:/var/run/docker.sock
 
   caddy:
     image: caddy:2

@@ -1,8 +1,8 @@
 module Integrations
   # Same contract as McpExecutor, so callers never branch on kind.
   class NativeExecutor
-    def self.call(tool:, environment_row:, arguments:)
-      pack = NativePack.fetch!(tool.integration)
+    def self.call(tool:, environment_row:, arguments:, box_key: nil)
+      pack = NativePack.fetch!(tool.integration, box_key: box_key)
       ToolResult.normalize(pack.call(tool.remote_name, environment_row: environment_row, arguments: arguments))
     end
 
