@@ -1,6 +1,6 @@
 import { router } from "@inertiajs/react"
 
-import { AGENT_CHAT_PROPS, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
+import { AGENT_CHAT_PROPS, CHAT_MESSAGE_ROLES, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
 import { agentChatAskPath, agentChatConfirmPath, agentChatPath, agentChatsPath } from "@/lib/routes"
 import type { AgentPageProps } from "@/pages/agent/types"
 import type { AgentChat } from "@/types/serializers"
@@ -29,9 +29,24 @@ export function startNewChat() {
   router.visit(agentChatsPath(), { ...IN_PLACE, only: OPEN_CHAT })
 }
 
+// The question and the working state show the moment it is sent, so the chat never sits still while the request is out.
+// The server's answer replaces both, and a refusal puts the page back.
 export function ask(conversationId: string | null, question: string) {
   const path = conversationId ? agentChatAskPath(conversationId) : agentChatsPath()
-  router.post(path, { question }, { ...IN_PLACE, only: OPEN_CHAT, onSuccess: placeOpenChat })
+  router
+    .optimistic<AgentPageProps>((props) => askedNow(props, question))
+    .post(path, { question }, { ...IN_PLACE, only: OPEN_CHAT, onSuccess: placeOpenChat })
+}
+
+// A new chat has no id until the server makes it, and an empty one opens no live connection.
+function askedNow(props: AgentPageProps, question: string): Partial<AgentPageProps> {
+  const asked = { id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [] }
+  const conversation = props.conversation ?? {
+    id: "", title: question, preview: question, archived: false, pinned: false, pinnedAt: null,
+    lastActiveAt: new Date().toISOString(), busy: true,
+  }
+
+  return { conversation: { ...conversation, busy: true }, messages: [ ...props.messages, asked ] }
 }
 
 export interface ConfirmationAnswer {
