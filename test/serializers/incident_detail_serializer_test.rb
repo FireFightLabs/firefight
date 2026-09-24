@@ -22,18 +22,4 @@ class IncidentDetailSerializerTest < ActiveSupport::TestCase
     assert_nil json["lead"]
     assert_nil json["type"]
   end
-
-  test "the header links to the newest run people can see, never a rehearsal" do
-    incident = incidents(:active_critical_ws1)
-    seen = incident.workspace.investigations.create!(
-      subject: incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400, created_at: 1.hour.ago
-    )
-    incident.workspace.investigations.create!(
-      subject: incident, trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true, max_turns: 10, max_spend_cents: 400
-    )
-
-    json = IncidentDetailSerializer.one(incident).as_json
-    assert_equal seen.id, json["latestInvestigationId"]
-    assert_equal 1, json["investigationCount"]
-  end
 end

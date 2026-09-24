@@ -77,7 +77,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
   test "a job that lost the run to another worker is dropped rather than retried" do
     Investigation::Runner.any_instance.stubs(:run).raises(Investigation::Runner::LeaseLost, "taken over")
 
-    assert_no_enqueued_jobs { InvestigationJob.perform_now(@investigation.id) }
+    assert_no_enqueued_jobs(only: InvestigationJob) { InvestigationJob.perform_now(@investigation.id) }
   end
 
   test "a second pass over a finished run changes nothing" do
@@ -147,7 +147,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
   test "an error no retry can fix ends the run at once" do
     Investigation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError.new("too long"))
 
-    assert_no_enqueued_jobs { InvestigationJob.perform_now(@investigation.id) }
+    assert_no_enqueued_jobs(only: InvestigationJob) { InvestigationJob.perform_now(@investigation.id) }
 
     @investigation.reload
     assert_equal Investigation::STATUS_FAILED, @investigation.status

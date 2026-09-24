@@ -12,7 +12,3 @@ export function formatSeconds(seconds: number | null | undefined): string {
   }
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
-
-export function formatSpend(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`
-}

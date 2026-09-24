@@ -6,6 +6,7 @@ class Investigation::Delivery
 
   # A resumed run already said it started, and picks its thread back up rather than opening a second.
   def start!
+    @investigation.note_started!
     return unless channel_id
     return if thread_id
 
@@ -27,6 +28,7 @@ class Investigation::Delivery
   end
 
   def answered!(finding)
+    @investigation.note_answered!(finding)
     return unless thread_id
 
     adapter.post_investigation_answer(
@@ -36,6 +38,7 @@ class Investigation::Delivery
 
   # rerunnable is for a stop on our side. A spent budget or a person's stop would only end the same way.
   def stopped!(reason, rerunnable: false)
+    @investigation.note_stopped!(reason)
     return unless thread_id
 
     adapter.post_investigation_stopped(

@@ -31,6 +31,10 @@ class IncidentEvent < ApplicationRecord
   RUNBOOK_ATTACHED = "runbook.attached"
   RUNBOOK_APPLIED = "runbook.applied"
   MILESTONE_NOTED = "milestone.noted"
+  INVESTIGATION_STARTED = "investigation.started"
+  INVESTIGATION_ANSWERED = "investigation.answered"
+  INVESTIGATION_STOPPED = "investigation.stopped"
+  INVESTIGATION_EVENTS = [ INVESTIGATION_STARTED, INVESTIGATION_ANSWERED, INVESTIGATION_STOPPED ].freeze
 
   # The extractor picks one per note and the timeline colours the entry from it.
   MILESTONE_HYPOTHESIS = "hypothesis"
@@ -57,7 +61,8 @@ class IncidentEvent < ApplicationRecord
     ESCALATION_ACKNOWLEDGED, ESCALATION_NUDGED,
     ALERT_ATTACHED, ALERT_RESOLVED,
     RUNBOOK_ATTACHED, RUNBOOK_APPLIED,
-    MILESTONE_NOTED
+    MILESTONE_NOTED,
+    *INVESTIGATION_EVENTS
   ].freeze
 
   EVENT_DESCRIPTIONS = {
@@ -89,7 +94,10 @@ class IncidentEvent < ApplicationRecord
     ALERT_RESOLVED => "resolved the alert",
     RUNBOOK_ATTACHED => "attached the runbook",
     RUNBOOK_APPLIED => "added runbook steps as actions",
-    MILESTONE_NOTED => "noted"
+    MILESTONE_NOTED => "noted",
+    INVESTIGATION_STARTED => "started",
+    INVESTIGATION_ANSWERED => "found",
+    INVESTIGATION_STOPPED => "stopped"
   }.freeze
 
   # Only events backed by a Recordable snapshot. Action-only events carry
@@ -215,6 +223,9 @@ class IncidentEvent < ApplicationRecord
     when ROLE_ASSIGNED then meta["member_name"]
     when LEAD_ASSIGNED then eventable&.lead&.actor_display_name
     when MILESTONE_NOTED then meta["statement"]
+    when INVESTIGATION_STARTED then "an investigation"
+    when INVESTIGATION_ANSWERED then "an answer"
+    when INVESTIGATION_STOPPED then "the investigation"
     end
   end
 

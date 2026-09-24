@@ -18,6 +18,7 @@ import {
   IconHandGrab,
   IconKey,
   IconLink,
+  IconListSearch,
   IconListCheck,
   IconPaperclip,
   IconPencil,
@@ -33,8 +34,8 @@ import {
 import type { ActorCompact } from "@/types/serializers"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { TimelineEvent } from "@/pages/incidents/types"
-import { ActorChip } from "@/pages/incidents/components/index/actor-chip"
-import { PRINCIPAL_KINDS } from "@/lib/generated/constants"
+import { ActorChip } from "@/components/actor-chip"
+import { INVESTIGATION_EVENT_TYPES, OPEN_INVESTIGATION_PROP, PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import {
   DismissNoteAction,
   NoteQuote,
@@ -46,6 +47,8 @@ import { revealAction } from "@/pages/incidents/lib/action-anchor"
 import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
 
 type EventType = TimelineEvent["eventType"]
+
+const INVESTIGATION_EVENTS: readonly string[] = INVESTIGATION_EVENT_TYPES
 
 const eventIcons: Record<EventType, typeof IconFlame> = {
   "incident.created": IconFlame,
@@ -77,6 +80,9 @@ const eventIcons: Record<EventType, typeof IconFlame> = {
   "runbook.attached": IconBook,
   "runbook.applied": IconListCheck,
   "milestone.noted": IconSparkles,
+  "investigation.started": IconListSearch,
+  "investigation.answered": IconListSearch,
+  "investigation.stopped": IconListSearch,
 }
 
 type DotAccent = "primary" | "emerald" | "amber" | "rose" | "violet" | "neutral"
@@ -94,6 +100,9 @@ const eventAccent: Partial<Record<EventType, DotAccent>> = {
   "action.completed": "emerald",
   "alert.attached": "amber",
   "alert.resolved": "emerald",
+  "investigation.started": "primary",
+  "investigation.answered": "emerald",
+  "investigation.stopped": "amber",
 }
 
 const solidAccent: Record<DotAccent, string> = {
@@ -207,6 +216,20 @@ function EventSubject({ event }: { event: TimelineEvent }) {
   }
   if (!event.subject) {
     return null
+  }
+  // A run opens over this page, so only the run is loaded and the timeline stays where it is.
+  if (event.subject.href && INVESTIGATION_EVENTS.includes(event.eventType)) {
+    return (
+      <Link
+        href={event.subject.href}
+        only={[OPEN_INVESTIGATION_PROP]}
+        preserveScroll
+        preserveState
+        className="font-medium text-foreground hover:underline"
+      >
+        {event.subject.label}
+      </Link>
+    )
   }
   if (event.subject.href) {
     return (

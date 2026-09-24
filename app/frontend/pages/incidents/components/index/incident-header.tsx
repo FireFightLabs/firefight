@@ -2,9 +2,7 @@ import { useState } from "react"
 import {
   IconBrandSlack,
   IconExternalLink,
-  IconListSearch,
 } from "@tabler/icons-react"
-import { Link } from "@inertiajs/react"
 
 import type { Incident } from "@/pages/incidents/types"
 import { severityBadgeStyle } from "@/lib/severity-color"
@@ -12,14 +10,14 @@ import { formatDuration } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MetaCell } from "@/pages/incidents/components/index/meta-cell"
-import { ActorChip } from "@/pages/incidents/components/index/actor-chip"
+import { ActorChip } from "@/components/actor-chip"
 import { IncidentMenu } from "@/pages/incidents/components/index/incident-menu"
 import { InlineSelect } from "@/pages/incidents/components/index/inline-select"
 import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
 import type { LinkableIncident } from "@/pages/incidents/components/index/link-incident-dialog"
 import { StatusIcon } from "@/pages/dashboard/components/status-icon"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { assignIncidentRolePath, investigationPath, investigationsPath } from "@/lib/routes"
+import { assignIncidentRolePath } from "@/lib/routes"
 import { LEAD_ROLE_SLUG } from "@/lib/generated/constants"
 
 // Clicking the badge opens the workspace's Update form. Once the incident is
@@ -93,27 +91,6 @@ function ChannelLink({ url, label }: { url?: string | null; label: string }) {
         <span className="hidden sm:inline">#{label}</span>
         <IconExternalLink className="size-3 opacity-50" />
       </a>
-    </Button>
-  )
-}
-
-interface InvestigationsLinkProps {
-  incidentId: string
-  latestId: string
-  count: number
-}
-
-// One run opens directly. Several open the list narrowed to this incident, so none is out of reach.
-function InvestigationsLink({ incidentId, latestId, count }: InvestigationsLinkProps) {
-  const href = count > 1 ? investigationsPath({ incident_id: incidentId }) : investigationPath(latestId)
-
-  return (
-    <Button asChild variant="outline" size="sm" className="h-8 gap-2 px-3 text-[12px]">
-      <Link href={href}>
-        <IconListSearch className="size-3.5" />
-        {count > 1 ? "Investigations" : "Investigation"}
-        {count > 1 && <span className="text-muted-foreground tabular-nums">{count}</span>}
-      </Link>
     </Button>
   )
 }
@@ -192,13 +169,6 @@ export function IncidentHeader({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {incident.latestInvestigationId && (
-            <InvestigationsLink
-              incidentId={incident.id}
-              latestId={incident.latestInvestigationId}
-              count={incident.investigationCount}
-            />
-          )}
           <ChannelLink url={channelUrl} label={incident.channelLabel} />
           {canEdit && <IncidentMenu incident={incident} linkable={linkable} members={members} />}
         </div>

@@ -21,6 +21,11 @@ class InvestigationStepSerializer < BaseSerializer
     step.compacted_result
   end
 
+  type :string, optional: true
+  def started_at
+    step.started_at&.utc&.iso8601
+  end
+
   type :number, optional: true
   def seconds
     (step.completed_at - step.started_at).round if step.started_at && step.completed_at

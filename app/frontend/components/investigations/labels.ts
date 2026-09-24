@@ -17,15 +17,22 @@ export const STATUS_LABELS: Record<InvestigationStatus, string> = {
 
 export const TRIGGER_LABELS: Record<InvestigationTrigger, string> = {
   command: "/ff investigate",
-  button: "the Investigate button",
-  conversation: "a chat",
-  mcp: "an outside agent",
-  rehearsal: "a rehearsal",
+  button: "Investigate button",
+  conversation: "Chat",
+  mcp: "Outside agent",
+  rehearsal: "Rehearsal",
 }
 
 export const HYPOTHESIS_LABELS: Record<HypothesisStatus, string> = {
   open: "Open",
   supported: "Supported",
+  refuted: "Ruled out",
+}
+
+// How the story tells a theory once it is settled.
+export const SETTLED_LABELS: Record<HypothesisStatus, string> = {
+  open: "Still open",
+  supported: "Confirmed",
   refuted: "Ruled out",
 }
 

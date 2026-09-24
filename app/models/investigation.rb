@@ -1,6 +1,7 @@
 class Investigation < ApplicationRecord
   include Investigation::Seeding
   include Investigation::Citing
+  include Investigation::Timeline
 
   STATUS_PENDING = "pending"
   STATUS_RUNNING = "running"
@@ -13,8 +14,8 @@ class Investigation < ApplicationRecord
 
   LIVE_STATUSES = [ STATUS_PENDING, STATUS_RUNNING ].freeze
 
-  DEFAULT_PER_PAGE = 25
-  MAX_PER_PAGE = 50
+  # Opens a run over the page of what it is about, since a run is read where it was asked for.
+  QUERY_PARAM = "investigation"
 
   # The plain sentences a run stops with, the only ones people are shown. Anything else in error_summary is a technical
   # cause kept for whoever debugs it.
@@ -94,19 +95,6 @@ class Investigation < ApplicationRecord
 
     Rails.logger.warn({ event: "ai.model_without_context_window", model: model, workspace_id: workspace.id }.to_json)
     "The AI model is not fully set up yet. An admin needs to finish setting it up."
-  end
-
-  # The runs people see, newest first, a page at a time, with what the list shows loaded up front.
-  def self.page_of(page: nil, per_page: nil)
-    scope = seen.order(created_at: :desc, id: :desc)
-    total_count = scope.count
-    per_page = (per_page || DEFAULT_PER_PAGE).to_i.clamp(1, MAX_PER_PAGE)
-    total_pages = [ (total_count.to_f / per_page).ceil, 1 ].max
-    page = (page || 1).to_i.clamp(1, total_pages)
-    listed = scope.includes(:subject, :triggered_by, finding: :winning_hypothesis).offset((page - 1) * per_page).limit(per_page).to_a
-    Principal.preload_users(listed.map(&:triggered_by))
-
-    { investigations: listed, pagination: { page:, perPage: per_page, totalCount: total_count, totalPages: total_pages } }
   end
 
   def self.available_for?(workspace)

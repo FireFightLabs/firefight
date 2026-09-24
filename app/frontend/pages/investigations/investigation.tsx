@@ -1,28 +1,25 @@
 import { Head, usePage } from "@inertiajs/react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
-import { AnswerCard } from "@/pages/investigations/components/answer-card"
-import { InvestigationHeader } from "@/pages/investigations/components/investigation-header"
-import { StepsCard } from "@/pages/investigations/components/steps-card"
-import { TheoriesCard } from "@/pages/investigations/components/theories-card"
-import { useLiveInvestigation } from "@/pages/investigations/hooks/use-live-investigation"
+import { InvestigationStory, investigationTitle } from "@/components/investigations/investigation-story"
+import { useLiveInvestigation } from "@/components/investigations/use-live-investigation"
+import { INVESTIGATION_PROP } from "@/lib/generated/constants"
 import type { InvestigationPageProps } from "@/pages/investigations/types"
 
+// A run with nothing of its own to be drawn over. A run on an incident opens over the incident instead.
 export default function Investigation() {
   const { investigation } = usePage<InvestigationPageProps>().props
-  const live = useLiveInvestigation(investigation.status)
-  const title = investigation.incidentIdentifier ? `${investigation.incidentIdentifier} investigation` : "Investigation"
+  useLiveInvestigation(investigation.status, INVESTIGATION_PROP)
+  const title = investigationTitle(investigation)
 
   return (
-    <AuthenticatedLayout title="Investigations">
+    <AuthenticatedLayout title="Investigation">
       <Head title={title} />
-      <div className="flex flex-col gap-6 px-4 py-4 md:py-6 lg:px-6">
-        <InvestigationHeader investigation={investigation} />
-        <AnswerCard investigation={investigation} live={live} />
-        <div className="grid gap-6 lg:grid-cols-3">
-          <StepsCard steps={investigation.steps} className="lg:col-span-2" />
-          <TheoriesCard hypotheses={investigation.hypotheses} />
-        </div>
+      <div className="mx-auto w-full max-w-3xl px-6 py-4 md:py-8 lg:px-10">
+        <InvestigationStory
+          investigation={investigation}
+          title={<h1 className="text-3xl font-semibold tracking-tight text-balance">{title}</h1>}
+        />
       </div>
     </AuthenticatedLayout>
   )
