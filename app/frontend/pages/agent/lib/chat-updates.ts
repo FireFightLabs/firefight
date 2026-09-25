@@ -11,8 +11,9 @@ type ChatChange = { title: string } | { pinned: boolean } | { archived: boolean 
 
 const OPEN_CHAT = [
   AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONFIRMATIONS,
-  AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION,
+  AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS,
 ]
+const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
@@ -71,6 +72,11 @@ export function closeRun(chatId: string) {
 // A run answers after the turn that started it, so its card is told to look again whenever it moves.
 export function refreshRuns() {
   router.reload({ only: RUNS })
+}
+
+// A step that returned charts arrives while the answer is still being written, so only the charts are loaded.
+export function refreshCharts() {
+  router.reload({ only: CHARTS })
 }
 
 export function refreshOpenChat() {

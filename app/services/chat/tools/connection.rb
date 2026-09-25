@@ -29,14 +29,17 @@ class Chat::Tools::Connection < RubyLLM::Tool
     arguments = given.except(Integration::Tool::ENVIRONMENT_ARG)
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
 
+    result = nil
     said = @agent_run.tool_call(
       action_key: @tool.action_key, params: arguments, scope: scope, tool_name: name,
       label: Chat::Tools.label(name, arguments), **{ approval_id: approval_id }.compact
     ) do
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)
-      text_of(integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key))
+      result = integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key)
+      text_of(result)
     end
+    keep_charts(tool_call_id, result, said.step)
     Chat::Tools.hand_over(@agent_run, name, said)
   rescue Integration::UnknownEnvironment => error
     failed(tool_call_id, error.message)
@@ -60,6 +63,15 @@ class Chat::Tools::Connection < RubyLLM::Tool
   end
 
   def approved_by_asker?(approval) = requires_approval? && Chat::Tools.approve_for_asker(@agent_run, approval)
+
+  # A chart is for the person, so it is kept with the chat and never handed to the model.
+  def keep_charts(tool_call_id, result, step_position)
+    charts = result&.dig(Integrations::Telemetry::STRUCTURED, Integrations::Telemetry::CHARTS)
+    return if charts.blank? || tool_call_id.blank?
+
+    chat = @agent_run.chat
+    Chat::Chart.record!(chat, tool_call_id, charts, step_position: step_position) if chat
+  end
 
   def text_of(result)
     Array(result["content"]).filter_map { |part| part["text"] }.join("\n").presence || result.to_json

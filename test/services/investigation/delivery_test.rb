@@ -47,6 +47,19 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     delivery.answered!(finding)
   end
 
+  test "the charts a run drew are posted in its thread after the answer" do
+    delivery = Investigation::Delivery.new(@investigation)
+    delivery.start!
+    chat = @workspace.chats.create!(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
+    Chat::Chart.record!(chat, "call_1", [ { "title" => "5xx responses of web", "unit" => "count", "from" => "2026-09-25T14:00:00Z",
+                                             "to" => "2026-09-25T15:00:00Z", "series" => [ { "label" => "web-1", "points" => [ [ "2026-09-25T14:05:00Z", 42 ] ] } ] } ])
+    finding = @investigation.conclude!(summary: "The 14:02 deploy did it", gaps: "logs")
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
+    Slack::Client.expects(:upload_file).with { |arguments| arguments[:title] == "5xx responses of web" && arguments[:thread_ts] == @investigation.reload.thread_id }.returns({ ok: true })
+
+    delivery.answered!(finding)
+  end
+
   test "a run that stops without an answer says why" do
     delivery = Investigation::Delivery.new(@investigation)
     delivery.start!

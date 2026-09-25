@@ -68,6 +68,11 @@ class InvestigationDetailSerializer < BaseSerializer
     investigation.hypotheses.includes(citations: :source)
   end
 
+  # Charts the run's tools returned, each shown under the step that drew it.
+  has_many :charts, serializer: ChatChartSerializer do
+    investigation.chat&.charts || []
+  end
+
   has_many :steps, serializer: InvestigationStepSerializer do
     investigation.steps.where.not(position: nil).includes(:invocation)
   end

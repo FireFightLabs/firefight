@@ -12,6 +12,7 @@ import type { ReactNode } from "react"
 
 import { formatTime } from "@/lib/formatters"
 import { HYPOTHESIS_STATUS, INVESTIGATION_STEP_STATUS } from "@/lib/generated/constants"
+import { MetricChart } from "@/components/charts/metric-chart"
 import { formatSeconds } from "@/components/investigations/format"
 import { SETTLED_LABELS, STEP_LABELS, isKeyOf, labelFor } from "@/components/investigations/labels"
 import { StepDetails } from "@/components/investigations/step-row"
@@ -83,6 +84,7 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
     case "step": {
       const { step } = entry
       const tone = isKeyOf(STEP_TONES, step.status) ? STEP_TONES[step.status] : "neutral"
+      const stepCharts = investigation.charts.filter((chart) => chart.stepPosition === step.position)
       return (
         <Row
           id={`step-${step.position}`}
@@ -99,6 +101,11 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
           connected={connected}
         >
           <StepDetails step={step} />
+          {stepCharts.map((chart) => (
+            <div key={chart.id} className="mt-3 rounded-lg border border-border bg-card px-3 py-2.5">
+              <MetricChart chart={chart} />
+            </div>
+          ))}
         </Row>
       )
     }

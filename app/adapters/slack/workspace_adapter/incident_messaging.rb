@@ -523,6 +523,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     end
   end
 
+  def post_charts(channel_id:, thread_id:, charts:)
+    translate_errors do
+      charts.map { |chart| { message_id: post_chart(channel_id, thread_id, chart)[:ts], channel_id: channel_id } }
+    end
+  end
+
   def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
@@ -612,6 +618,20 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   private
+
+  # The caption goes as the upload's comment. A note with no image, or a workspace that has not granted file uploads,
+  # gets the caption as a plain message instead.
+  def post_chart(channel_id, thread_id, chart)
+    caption = Slack::Messages::ChartCaption.build(chart)
+    return Slack::Client.post_message(workspace: @workspace, channel: channel_id, thread_ts: thread_id, text: caption) if chart.png.nil?
+
+    Slack::Client.upload_file(
+      workspace: @workspace, channel: channel_id, thread_ts: thread_id, filename: Slack::Messages::ChartCaption.filename(chart),
+      content: chart.png, title: chart.title, comment: caption
+    )
+  rescue AdapterError::MissingPermission
+    Slack::Client.post_message(workspace: @workspace, channel: channel_id, thread_ts: thread_id, text: caption)
+  end
 
   # Shown in push notifications, where a cancellation must not read as an update.
   def notification_text(incident)

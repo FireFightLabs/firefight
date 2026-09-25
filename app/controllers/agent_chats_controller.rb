@@ -14,12 +14,13 @@ class AgentChatsController < InertiaController
   # The runs the open chat started, which its cards draw, and the one the address asks to open over the chat.
   PROP_INVESTIGATIONS = "investigations"
   PROP_OPEN_INVESTIGATION = "openInvestigation"
+  PROP_CHARTS = "charts"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
     "CONFIRMATIONS" => PROP_CONFIRMATIONS, "INTEGRATION_CARDS" => PROP_INTEGRATION_CARDS,
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
-    "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION
+    "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -36,7 +37,8 @@ class AgentChatsController < InertiaController
   # Sent empty so a partial visit here clears the open chat instead of keeping the last one.
   def index
     render inertia: "agent/index", props: base_props.merge(
-      PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil
+      PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
+      PROP_CHARTS => []
     )
   end
 
@@ -46,7 +48,8 @@ class AgentChatsController < InertiaController
       PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(ruby_llm_tool_calls: :result) || []),
       PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || []),
       PROP_INVESTIGATIONS => InvestigationCardSerializer.many(started_investigations),
-      PROP_OPEN_INVESTIGATION => open_investigation
+      PROP_OPEN_INVESTIGATION => open_investigation,
+      PROP_CHARTS => ChatChartSerializer.many(conversation.chat&.charts || [])
     )
   end
 

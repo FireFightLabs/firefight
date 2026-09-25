@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -327,6 +327,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_150000) do
     t.index ["workspace_id", "slug"], name: "index_catalog_types_on_workspace_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id", "system_key"], name: "index_catalog_types_on_workspace_id_and_system_key", unique: true, where: "(system_key IS NOT NULL)"
     t.index ["workspace_id"], name: "index_catalog_types_on_workspace_id"
+  end
+
+  create_table "chat_charts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "range_end", null: false
+    t.datetime "range_start", null: false
+    t.text "series", null: false
+    t.string "source_url"
+    t.integer "step_position"
+    t.text "summary"
+    t.string "title", null: false
+    t.string "tool_call_id", null: false
+    t.string "unit"
+    t.index ["chat_id", "tool_call_id"], name: "index_chat_charts_on_chat_id_and_tool_call_id"
   end
 
   create_table "chat_compactions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1588,6 +1604,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_150000) do
   add_foreign_key "catalog_entry_relationships", "catalog_entries", column: "target_entry_id"
   add_foreign_key "catalog_entry_relationships", "workspaces"
   add_foreign_key "catalog_types", "workspaces"
+  add_foreign_key "chat_charts", "chats", on_delete: :cascade
   add_foreign_key "chat_compactions", "chats"
   add_foreign_key "chat_messages", "chats"
   add_foreign_key "chat_saved_results", "chats"

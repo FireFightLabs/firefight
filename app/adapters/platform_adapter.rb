@@ -415,6 +415,14 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Charts under an agent's answer, each as an image with its numbers and a link to the live chart. A workspace that has
+  # not granted the permission to post images gets the numbers and the link as text, so nothing is lost.
+  # @param charts [Array<Chat::Chart::Post>]
+  # @return [Array<Hash>] { message_id:, channel_id: } per chart, message_id nil for an uploaded image
+  def post_charts(channel_id:, thread_id:, charts:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Ends the working state with the reply. streamed means the person already read the text as it arrived.
   # @return [Hash] { message_id:, channel_id: }
   def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)

@@ -65,6 +65,37 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "s3cret"
   end
 
+  test "Northflank connects with a token and a project, discovers its tools, and the token is never sent back" do
+    Integrations::NorthflankApi.any_instance.stubs(:project).returns("data" => { "id" => "firefight" })
+
+    post integrations_path, params: {
+      provider: "northflank", name: "Northflank",
+      credentials: { Integrations::Packs::Northflank::API_TOKEN => "nf-s3cret", Integrations::Packs::Northflank::PROJECT => "firefight" }
+    }
+
+    integration = @workspace.integrations.find_by!(name: "Northflank")
+    row = integration.integration_environments.sole
+    assert_equal "nf-s3cret", row.credentials_hash[Integrations::Packs::Northflank::API_TOKEN]
+    assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
+    assert_equal %w[list_resources query_metrics recent_builds search_logs], integration.tools.pluck(:name).sort
+
+    get integrations_path, headers: inertia_headers
+    assert_not_includes response.body, "nf-s3cret"
+    provider = inertia_props["providers"].find { |candidate| candidate["key"] == "northflank" }
+    assert_equal [ Integrations::Packs::Northflank::API_TOKEN, Integrations::Packs::Northflank::PROJECT ], provider["credentialFields"].map { |field| field["key"] }
+  end
+
+  test "a Northflank token that is refused is said on the form and nothing is saved" do
+    Integrations::NorthflankApi.any_instance.stubs(:project).raises(Integrations::NorthflankApi::Error, "Northflank answered 401: Unauthorized")
+
+    post integrations_path, params: {
+      provider: "northflank", name: "Northflank",
+      credentials: { Integrations::Packs::Northflank::API_TOKEN => "wrong", Integrations::Packs::Northflank::PROJECT => "firefight" }
+    }, headers: inertia_headers
+
+    assert_nil @workspace.integrations.find_by(name: "Northflank")
+  end
+
   test "the same name adds another environment to a database connection rather than a second connection" do
     Integrations::Packs::Postgres.stubs(:connection_refusal).returns(nil)
     Integrations::Packs::Postgres.any_instance.stubs(:check_health!).returns(true)

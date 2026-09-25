@@ -12,6 +12,7 @@ class Chat < ApplicationRecord
   belongs_to :workspace
   belongs_to :owner, polymorphic: true
   has_many :saved_results, -> { in_order }, class_name: "Chat::SavedResult", dependent: :destroy, inverse_of: :chat
+  has_many :charts, -> { in_order }, class_name: "Chat::Chart", dependent: :delete_all, inverse_of: :chat
 
   # The registry holds no context window for the model this chat runs on. Nothing is assumed in
   # its place, so an operator adds the model to the registry with its window.

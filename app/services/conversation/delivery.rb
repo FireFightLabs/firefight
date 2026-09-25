@@ -30,6 +30,7 @@ class Conversation::Delivery
   # A thread shows every step the same way, so what kind it is and how long it took are the dashboard's alone.
   def step(key:, step:, status:, kind: nil, seconds: nil, failed: false)
     cards << step.card if step.card && status == FirefightAi::AgentLoop::STEP_DONE && !failed
+    charted << key if step.card&.kind == Chat::Tools::CARD_CHART
     @text.flush!
     adapter.report_agent_step(
       channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status
@@ -74,8 +75,11 @@ class Conversation::Delivery
 
   def cards = @cards ||= []
 
+  def charted = @charted ||= []
+
   # Posted under the answer rather than into the stream, so the reply reads first and the table follows it.
   def post_cards
+    post_charts
     cards.uniq.each do |card|
       next unless card.kind == Chat::Tools::CARD_INTEGRATIONS
 
@@ -83,6 +87,15 @@ class Conversation::Delivery
         channel_id: @conversation.channel_id, thread_id: @conversation.thread_id,
         card: IntegrationProvider.card_for(@conversation.workspace, IntegrationProvider.category_for!(card.category))
       )
+    end
+  end
+
+  def post_charts
+    return if charted.empty?
+
+    charts = @conversation.chat.charts.where(tool_call_id: charted.uniq)
+    Chat::Chart.posted_under_answer(charts) do |posts|
+      adapter.post_charts(channel_id: @conversation.channel_id, thread_id: @conversation.thread_id, charts: posts)
     end
   end
 
