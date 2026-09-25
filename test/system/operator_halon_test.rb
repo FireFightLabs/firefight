@@ -40,6 +40,24 @@ class OperatorHalonTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/operator-trace.png"))
   end
 
+  test "an operator pastes an id into Find and lands on its trace, and an incident number lists every workspace's" do
+    visit operator_root_path
+    fill_in "operator-find", with: @run.id.first(8)
+    find("#operator-find").send_keys(:enter)
+    assert_text(/selected span/i)
+    assert_current_path(/#{operator_halon_run_path(@run)}/)
+
+    other = workspaces(:slack_workspace_two).incidents.find_by(identifier: @incident.identifier)
+    fill_in "operator-find", with: @incident.identifier
+    find("#operator-find").send_keys(:enter)
+    if other
+      assert_text "matches for"
+      page.save_screenshot(Rails.root.join("tmp/screenshots/operator-find.png"))
+    else
+      assert_current_path(/#{operator_incident_path(@incident)}/)
+    end
+  end
+
   test "an operator opens a chat and reads each turn on its own clock" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
     conversation.update!(title: "Why is checkout slow")

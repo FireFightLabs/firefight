@@ -22,7 +22,7 @@ class Operator::HalonTest < ActionDispatch::IntegrationTest
   test "nobody but a verified operator reaches Halon's runs, traces or chats" do
     sign_in(users(:bob), @workspace)
 
-    [ operator_root_path, operator_halon_path, operator_halon_run_path(@run), operator_halon_chats_path ].each do |path|
+    [ operator_root_path, operator_halon_path, operator_halon_run_path(@run), operator_halon_chats_path, operator_find_path(q: @run.id) ].each do |path|
       get path, headers: inertia_headers
       assert_response :not_found
     end
@@ -75,6 +75,16 @@ class Operator::HalonTest < ActionDispatch::IntegrationTest
 
     get operator_halon_chat_path(conversation), headers: inertia_headers
     assert_equal 1, inertia_props["turns"]
+  end
+
+  test "find opens the one record that matches, and lists several" do
+    as_operator
+
+    get operator_find_path(q: @run.id)
+    assert_redirected_to operator_halon_run_path(@run)
+
+    get operator_find_path(q: "zzzzzz"), headers: inertia_headers
+    assert_equal [], inertia_props["matches"]
   end
 
   private

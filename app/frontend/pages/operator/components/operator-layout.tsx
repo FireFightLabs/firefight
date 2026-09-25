@@ -6,19 +6,22 @@ import {
   IconLayoutDashboard,
   IconLogout,
   IconMessages,
+  IconSearch,
   IconSparkles,
   IconStack2,
   type Icon,
 } from "@tabler/icons-react"
-import type { ReactNode } from "react"
+import { useState, type FormEvent, type ReactNode } from "react"
 
 import { FireFightLogo } from "@/components/fire-fight-logo"
 import { FlashToaster } from "@/components/flash-toaster"
 import { Toaster } from "@/components/ui/sonner"
+import { Input } from "@/components/ui/input"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import {
   dashboardPath,
   logoutPath,
+  operatorFindPath,
   operatorHalonChatsPath,
   operatorHalonPath,
   operatorIncidentsPath,
@@ -96,6 +99,42 @@ function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badg
   )
 }
 
+// Any id pasted from a log, a trace address or a customer, or an incident number. One match opens it.
+function FindBox() {
+  const [query, setQuery] = useState("")
+
+  function change(event: React.ChangeEvent<HTMLInputElement>) {
+    setQuery(event.target.value)
+  }
+
+  function find(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const pasted = query.trim()
+    if (!pasted) {
+      return
+    }
+    router.get(operatorFindPath({ q: pasted }))
+  }
+
+  return (
+    <form role="search" onSubmit={find} className="border-b border-border px-3 py-3">
+      <label className="relative block">
+        <span className="sr-only">Find by id or incident number</span>
+        <IconSearch className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+        <Input
+          id="operator-find"
+          value={query}
+          onChange={change}
+          placeholder="Find an id or INC-042"
+          autoComplete="off"
+          spellCheck={false}
+          className="h-8 pl-8 font-mono text-xs"
+        />
+      </label>
+    </form>
+  )
+}
+
 function signOut() {
   router.delete(logoutPath())
 }
@@ -118,6 +157,7 @@ export function OperatorLayout({ title, children }: { title: string; children: R
               Operator
             </span>
           </div>
+          <FindBox />
           <nav aria-label="Operator console" className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-6">
             {SECTIONS.map((section) => (
               <div key={section.title} className="flex flex-col gap-1">

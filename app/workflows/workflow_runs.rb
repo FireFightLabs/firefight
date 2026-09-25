@@ -43,6 +43,11 @@ module WorkflowRuns
     started(since, workspace:).failed.includes(:steps, :subject).order(updated_at: :desc).limit(limit)
   end
 
+  # Runs whose id begins with what an operator pasted.
+  def self.starting_with(query, limit:)
+    SolidWorkflow::Workflow.includes(:subject).where(Operator::Finder.id_starts(SolidWorkflow::Workflow.arel_table, query)).limit(limit)
+  end
+
   # Running with nothing recorded for longer than the engine allows, whatever window is read.
   def self.stuck(workspace: nil, limit:)
     scope = SolidWorkflow::Workflow.stuck.includes(:subject).order(:updated_at).limit(limit)

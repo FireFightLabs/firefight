@@ -369,6 +369,13 @@ export const OPERATOR_TRACE_KINDS = {
   "RUN": "run"
 } as const
 
+export const OPERATOR_FIND_KINDS = {
+  "INCIDENT": "incident",
+  "RUN": "run",
+  "CHAT": "chat",
+  "WORKFLOW": "workflow"
+} as const
+
 export const OPERATOR_WINDOWS = {
   "DAY": "24h",
   "WEEK": "7d",

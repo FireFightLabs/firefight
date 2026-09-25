@@ -360,6 +360,7 @@ Rails.application.routes.draw do
     resources :webhook_deliveries, only: [] do
       member { post :redeliver }
     end
+    get "find", to: "find#show", as: :find
     get "halon", to: "halon#show", as: :halon
     resources :halon_runs, path: "halon/runs", only: :show
     resources :halon_chats, path: "halon/chats", only: %i[index show]

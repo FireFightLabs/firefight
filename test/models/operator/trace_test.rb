@@ -82,6 +82,30 @@ class Operator::TraceTest < ActiveSupport::TestCase
     assert_includes stop.facts, [ "Recorded cause", "Faraday::TimeoutError" ]
   end
 
+  test "a chat's tool call lasts from when its result was saved until it was filled in, and the next model call starts after it" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
+    chat = @workspace.chats.create!(owner: conversation, model: "claude-sonnet-4-5", provider: :anthropic)
+    start = 2.minutes.ago
+    chat.add_message(role: :user, content: "Which workspaces do we have?").update_columns(created_at: start, updated_at: start)
+    asking = chat.add_message(role: :assistant, content: "")
+    asking.update_columns(created_at: start + 1.second, updated_at: start + 3.seconds)
+    result = chat.add_message(role: :tool, content: "2 rows")
+    result.update_columns(created_at: start + 3.seconds, updated_at: start + 27.seconds)
+    call = RubyLLM::ActiveRecord::ToolCall.create!(message: asking, tool_call_id: "call_1", name: "run_query", arguments: {}, result: result)
+    reply = chat.add_message(role: :assistant, content: "Two.")
+    reply.update_columns(created_at: start + 27.seconds, updated_at: start + 29.seconds)
+    usage = RubyLLM::ActiveRecord::Usage.create!(chat: chat, message: reply, operation: "chat", provider: "anthropic", model: "claude",
+                                                 status: "succeeded", input_tokens: 10, output_tokens: 2)
+    usage.update_columns(created_at: start + 29.seconds, updated_at: start + 29.seconds)
+
+    spans = Operator::ChatTrace.new(conversation.reload).spans.index_by(&:key)
+
+    tool = spans["call-#{call.id}"]
+    model = spans["model-#{usage.id}"]
+    assert_in_delta 24, tool.ended_at - tool.started_at, 0.01
+    assert_in_delta 2, model.ended_at - model.started_at, 0.01
+  end
+
   test "a chat is drawn one turn at a time, each from what the person asked" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
     chat = @workspace.chats.create!(owner: conversation, model: "claude-sonnet-4-5", provider: :anthropic)

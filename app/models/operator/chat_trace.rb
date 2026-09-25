@@ -63,9 +63,10 @@ module Operator
         message = turn.find { |candidate| candidate.id == usage.message_id }
         before = messages.reverse.find { |candidate| candidate.created_at < message.created_at }
         failed = usage.status == USAGE_FAILED
+        # A call starts once what came before it was finished, which for a tool result is when it was filled in.
         Trace.span(
-          key: "model-#{usage.id}", kind: KIND_MODEL, title: "Model call", started_at: before&.created_at || message.created_at,
-          ended_at: [ usage.updated_at, message.created_at ].max, tone: failed ? IncidentProcess::TONE_BAD : IncidentProcess::TONE_INFO,
+          key: "model-#{usage.id}", kind: KIND_MODEL, title: "Model call", started_at: before&.updated_at || message.created_at,
+          ended_at: [ usage.updated_at, message.updated_at ].max, tone: failed ? IncidentProcess::TONE_BAD : IncidentProcess::TONE_INFO,
           detail: failed ? "#{usage.status} · #{usage.model}" : usage_detail(usage),
           facts: [
             [ "Model", "#{usage.provider} #{usage.model}" ], [ "Status", usage.status ], [ "Input tokens", usage.input_tokens ],
@@ -83,10 +84,12 @@ module Operator
       calls.select { |call| ids.include?(call.message_id) }.map do |call|
         asked = messages.find { |message| message.id == call.message_id }
         result = messages.find { |message| message.id == call.result_id }
+        # The result is saved as the tool starts and filled in when it answers, so those two times are the call.
+        started = result&.created_at || asked.updated_at
         Trace.span(
-          key: "call-#{call.id}", kind: KIND_TOOL, title: call.name, started_at: asked.created_at, ended_at: result&.created_at,
+          key: "call-#{call.id}", kind: KIND_TOOL, title: call.name, started_at: started, ended_at: result&.updated_at,
           tone: call.failed ? IncidentProcess::TONE_BAD : IncidentProcess::TONE_OK,
-          detail: [ call.failed ? "failed" : "done", ("approval #{call.approval}" if call.approval), Trace.seconds(asked.created_at, result&.created_at),
+          detail: [ call.failed ? "failed" : "done", ("approval #{call.approval}" if call.approval), Trace.seconds(started, result&.updated_at),
                     Trace.size(result&.content) ].compact.join(" · "),
           facts: [ [ "Asked with", call.arguments.presence&.to_json ], [ "Approval", call.approval ], [ "Returned", Trace.size(result&.content) ],
                    [ "Run by the provider", ("yes" if call.remote) ] ],

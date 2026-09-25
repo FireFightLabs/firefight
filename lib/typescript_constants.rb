@@ -83,6 +83,7 @@ module TypescriptConstants
       Export.new("OPERATOR_PROCESS_TONES", Operator::IncidentProcess::TONES.index_by(&:upcase), nil),
       Export.new("OPERATOR_HALON_ENDINGS", Operator::HalonRuns::ENDINGS.index_by(&:upcase), nil),
       Export.new("OPERATOR_TRACE_KINDS", Operator::Trace::KINDS.index_by(&:upcase), nil),
+      Export.new("OPERATOR_FIND_KINDS", Operator::Finder::KINDS.index_by(&:upcase), nil),
       Export.new("OPERATOR_WINDOWS", { "DAY" => Operator::Filter::WINDOW_DAY, "WEEK" => Operator::Filter::WINDOW_WEEK, "MONTH" => Operator::Filter::WINDOW_MONTH }, nil),
       Export.new("OPERATOR_SPAN_PARAM", Operator::Trace::SPAN_PARAM, nil),
       Export.new("OPERATOR_SPAN_BODY_PROP", Operator::Trace::BODY_PROP, nil),
