@@ -11,6 +11,25 @@ class Slack::ClientTest < ActiveSupport::TestCase
     )
   end
 
+  test "a failed call is kept for the operator console, with its channel, and still raises" do
+    stub_ok_false_response("not_in_channel")
+
+    assert_raises(AdapterError::NotInChannel) do
+      Slack::Client.post_message(workspace: @workspace, channel: "C0PRIVATE", text: "hi")
+    end
+
+    failure = PlatformCallFailure.find_by!(workspace: @workspace)
+    assert_equal [ "chat.postMessage", "C0PRIVATE", "AdapterError::NotInChannel" ], [ failure.operation, failure.channel_id, failure.error_class ]
+  end
+
+  test "an answer the app expects and handles is not kept as a failure" do
+    stub_ok_false_response("name_taken")
+
+    assert_raises(AdapterError::ChannelExists) { Slack::Client.create_channel(workspace: @workspace, name: "exists") }
+
+    assert_not PlatformCallFailure.exists?(workspace: @workspace)
+  end
+
   test "translates name_taken to ChannelExistsError" do
     stub_ok_false_response("name_taken")
     assert_raises(AdapterError::ChannelExists) do

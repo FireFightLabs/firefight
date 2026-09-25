@@ -32,6 +32,10 @@ development:
   refresh_platform_credentials:
     class: RefreshPlatformCredentialsJob
     schedule: every hour
+  platform_call_failure_cleanup:
+    class: PlatformCallFailureCleanupJob # drops failed platform calls older than 30 days, kept for the operator console
+    queue: background
+    schedule: at 3am every day
   workflow_sweeper:
     class: SolidWorkflow::SweeperJob
     queue: workflows
@@ -78,6 +82,10 @@ staging:
   refresh_platform_credentials:
     class: RefreshPlatformCredentialsJob
     schedule: every hour
+  platform_call_failure_cleanup:
+    class: PlatformCallFailureCleanupJob # drops failed platform calls older than 30 days, kept for the operator console
+    queue: background
+    schedule: at 3am every day
   workflow_sweeper:
     class: SolidWorkflow::SweeperJob
     queue: workflows
@@ -124,6 +132,10 @@ production:
   refresh_platform_credentials:
     class: RefreshPlatformCredentialsJob
     schedule: every hour
+  platform_call_failure_cleanup:
+    class: PlatformCallFailureCleanupJob # drops failed platform calls older than 30 days, kept for the operator console
+    queue: background
+    schedule: at 3am every day
   workflow_sweeper:
     class: SolidWorkflow::SweeperJob
     queue: workflows

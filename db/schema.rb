@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1162,6 +1162,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_120000) do
     t.index ["user_id"], name: "index_operator_credentials_on_user_id", unique: true
   end
 
+  create_table "platform_call_failures", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "channel_id"
+    t.datetime "created_at", null: false
+    t.string "error_class", null: false
+    t.text "message"
+    t.string "operation", null: false
+    t.string "platform", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["created_at"], name: "index_platform_call_failures_on_created_at"
+    t.index ["workspace_id", "channel_id", "created_at"], name: "idx_on_workspace_id_channel_id_created_at_c08063a9e7"
+    t.index ["workspace_id"], name: "index_platform_call_failures_on_workspace_id"
+  end
+
   create_table "policies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "domain", null: false
@@ -1660,6 +1673,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_120000) do
   add_foreign_key "oauth_access_tokens", "oauth_applications", column: "application_id"
   add_foreign_key "oauth_access_tokens", "workspace_memberships", column: "resource_owner_id"
   add_foreign_key "operator_credentials", "users"
+  add_foreign_key "platform_call_failures", "workspaces", on_delete: :cascade
   add_foreign_key "policies", "workspaces"
   add_foreign_key "policy_rules", "policies"
   add_foreign_key "postmortem_updates", "incidents"

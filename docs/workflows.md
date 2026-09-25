@@ -64,6 +64,10 @@ After each step completes, the engine finds newly ready steps (all dependencies 
 
 Every state transition records a `SolidWorkflow::Event` (workflow-level and step-level). `workflow.timeline` returns the chronological audit trail.
 
+## Reading runs from the app
+
+Only workflow classes and the engine name `SolidWorkflow`. The operator console, which lists every run and pauses, resumes, cancels, retries or skips them, goes through `WorkflowRuns` in `app/workflows/workflow_runs.rb`, the one window onto the engine's records. See [operator.md](operator.md).
+
 ## Key Engine Files
 
 ```

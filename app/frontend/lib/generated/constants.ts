@@ -309,6 +309,42 @@ export const INVESTIGATION_QUERY_PARAM = "investigation" as const
 
 export const INCIDENT_NAME_FIELD_KEY = "name" as const
 
+export const OPERATOR_WORKFLOW_STATES = {
+  "PENDING": "pending",
+  "RUNNING": "running",
+  "PAUSED": "paused",
+  "SUCCEEDED": "succeeded",
+  "FAILED": "failed",
+  "CANCELLED": "cancelled"
+} as const
+
+export const OPERATOR_STEP_STATUSES = {
+  "PENDING": "pending",
+  "RUNNING": "running",
+  "SUCCEEDED": "succeeded",
+  "FAILED": "failed",
+  "SKIPPED": "skipped",
+  "CANCELLED": "cancelled"
+} as const
+
+export const OPERATOR_PROCESS_KINDS = {
+  "ALERT": "alert",
+  "INCIDENT": "incident",
+  "WORKFLOW": "workflow",
+  "STEP": "step",
+  "WEBHOOK": "webhook",
+  "PLATFORM": "platform",
+  "HALON": "halon"
+} as const
+
+export const OPERATOR_PROCESS_TONES = {
+  "OK": "ok",
+  "INFO": "info",
+  "WARN": "warn",
+  "BAD": "bad",
+  "IDLE": "idle"
+} as const
+
 export const INVESTIGATION_EVENT_TYPES = [
   "investigation.started",
   "investigation.answered",

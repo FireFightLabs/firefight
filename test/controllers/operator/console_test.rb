@@ -41,7 +41,7 @@ class Operator::ConsoleTest < ActionDispatch::IntegrationTest
     assert_equal OperatorCredential::RECOVERY_CODE_COUNT, inertia_props["codes"].size
 
     get routes.operator_root_path
-    assert_redirected_to routes.operator_jobs_path
+    assert_redirected_to routes.operator_incidents_path
   end
 
   test "an operator is asked for a code before the jobs dashboard, and a wrong one says so" do
