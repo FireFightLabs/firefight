@@ -51,6 +51,12 @@ Slack handlers, the API, MCP, and the dashboard normalize input and call shared 
 - **AI records belong to the app.** `engines/firefight_ai` never names `Investigation`, `Chat` or anything nested under them: it returns a result, the app writes the row. A new AI SRE record is a nested `Investigation::*` model, or `Chat::*` when every agent run needs it, in `app/models`, not another generic name at the top level.
 - **Raced writes are one statement.** A status two workers could reach moves with a guarded `update_all` whose `WHERE` names the states it may leave, never a read followed by a write, and the row count is what says who won. A value that has to survive the race is computed in SQL, not read off a record that may be stale. A new `lock_version` column is a different answer to a solved problem.
 
+## The operator console
+
+- **The app never knows it exists.** No association, method, constant or callback outside `Operator` exists only for the console. A console query that needs a scope writes it in `app/models/operator/`, not on the app model.
+- **Guards live in `Operator::Actions`.** A console action checks one `*_blocked_reason`, the controller refuses with it, and the serializer ships it. A page never decides from a status which buttons to show.
+- **Customer data stays behind a click.** Tool output, messages and prompts load one record at a time when the operator opens it, never in a list or a log.
+
 ## The agent and its tools
 
 What a model is handed decides what it does. Each of these was found in a real chat during the AI SRE base work, September 2026.

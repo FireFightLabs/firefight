@@ -12,7 +12,7 @@ class Investigation::IncidentSeed
   def gather
     alerts = seed_alerts
     {
-      "gathered_at" => Time.current.iso8601,
+      Investigation::Seeding::KEY_GATHERED_AT => Time.current.iso8601,
       "incident" => incident_facts,
       "alerts" => alerts.map { |alert| alert_facts(alert) },
       "alerts_held_back" => [ @incident.alerts.count - alerts.size, 0 ].max,

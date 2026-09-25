@@ -1,7 +1,6 @@
 class User < ApplicationRecord
   has_many :workspace_memberships, dependent: :destroy
   has_many :workspaces, through: :workspace_memberships
-  has_one :operator_credential, dependent: :destroy
 
   validates :email, presence: true, uniqueness: true
   validates :name, presence: true
