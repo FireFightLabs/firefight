@@ -41,6 +41,7 @@ class Investigation::Delivery
     adapter.post_investigation_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: @answer_id, finding: finding
     )
+    posted!
   end
 
   # rerunnable is for a stop on our side. A spent budget or a person's stop would only end the same way.
@@ -54,9 +55,15 @@ class Investigation::Delivery
       rerun: (@investigation.incident if rerunnable),
       rerun_question: (@investigation if rerunnable && @investigation.incident.nil?), investigation: @investigation
     )
+    posted!
   end
 
   private
+
+  # Only after the platform took it, so a run whose last post failed is one an operator can find.
+  def posted!
+    @investigation.update_columns(answer_posted_at: Time.current)
+  end
 
   def tell_chat
     conversation = @investigation.conversation

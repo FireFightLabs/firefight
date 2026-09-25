@@ -3,8 +3,8 @@ require "application_system_test_case"
 class OperatorProcessesTest < ApplicationSystemTestCase
   setup do
     @operator = users(:alice)
-    @previous = ENV[OperatorCredential::OPERATOR_IDS_ENV]
-    ENV[OperatorCredential::OPERATOR_IDS_ENV] = @operator.id
+    @previous = ENV[Operator::Credential::OPERATOR_IDS_ENV]
+    ENV[Operator::Credential::OPERATOR_IDS_ENV] = @operator.id
     sign_in(@operator, workspaces(:slack_workspace_one))
     Operator::BaseController.any_instance.stubs(:operator_verified?).returns(true)
     @incident = incidents(:active_critical_ws1)
@@ -28,7 +28,7 @@ class OperatorProcessesTest < ApplicationSystemTestCase
   end
 
   teardown do
-    ENV[OperatorCredential::OPERATOR_IDS_ENV] = @previous
+    ENV[Operator::Credential::OPERATOR_IDS_ENV] = @previous
   end
 
   test "an operator follows a failed incident to its workflow and sees what failed and why" do

@@ -1,29 +1,82 @@
 import { Head, Link, router, usePage } from "@inertiajs/react"
-import { IconArrowLeft, IconFlame, IconHierarchy2, IconLogout, IconStack2, type Icon } from "@tabler/icons-react"
-import type { ReactNode } from "react"
+import {
+  IconArrowLeft,
+  IconFlame,
+  IconHierarchy2,
+  IconLayoutDashboard,
+  IconLogout,
+  IconMessages,
+  IconSearch,
+  IconSparkles,
+  IconStack2,
+  type Icon,
+} from "@tabler/icons-react"
+import { useState, type FormEvent, type ReactNode } from "react"
 
 import { FireFightLogo } from "@/components/fire-fight-logo"
 import { FlashToaster } from "@/components/flash-toaster"
 import { Toaster } from "@/components/ui/sonner"
+import { Input } from "@/components/ui/input"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { dashboardPath, logoutPath, operatorIncidentsPath, operatorJobsPath, operatorWorkflowsPath } from "@/lib/routes"
+import {
+  dashboardPath,
+  logoutPath,
+  operatorFindPath,
+  operatorHalonChatsPath,
+  operatorHalonPath,
+  operatorIncidentsPath,
+  operatorJobsPath,
+  operatorRootPath,
+  operatorWorkflowsPath,
+} from "@/lib/routes"
 import type { OperatorPageProps } from "@/pages/operator/types"
 
 interface NavItem {
   title: string
   href: string
   icon: Icon
-  // Flightdeck draws its own pages, so its link loads the page whole.
+  // Flightdeck is not an Inertia page, so its link does a full page load.
   external?: boolean
+  // Every console path starts with the overview's path, so the overview only matches exactly.
+  exact?: boolean
+  // Paths under this item's path that belong to another item.
+  except?: string[]
 }
 
-const PROCESSES: NavItem[] = [
-  { title: "Incidents", href: operatorIncidentsPath(), icon: IconFlame },
-  { title: "Workflows", href: operatorWorkflowsPath(), icon: IconHierarchy2 },
-  { title: "Jobs", href: operatorJobsPath(), icon: IconStack2, external: true },
+interface NavSection {
+  title: string
+  items: NavItem[]
+}
+
+const SECTIONS: NavSection[] = [
+  { title: "Watch", items: [{ title: "Overview", href: operatorRootPath(), icon: IconLayoutDashboard, exact: true }] },
+
+  {
+    title: "Processes",
+    items: [
+      { title: "Incidents", href: operatorIncidentsPath(), icon: IconFlame },
+      { title: "Workflows", href: operatorWorkflowsPath(), icon: IconHierarchy2 },
+      { title: "Jobs", href: operatorJobsPath(), icon: IconStack2, external: true },
+    ],
+  },
+  {
+    title: "Halon",
+    items: [
+      { title: "Runs and health", href: operatorHalonPath(), icon: IconSparkles, except: [operatorHalonChatsPath()] },
+      { title: "Chats", href: operatorHalonChatsPath(), icon: IconMessages },
+    ],
+  },
 ]
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function isActive(item: NavItem, url: string): boolean {
+  const path = url.split("?")[0]
+  if (item.except?.some((prefix) => path.startsWith(prefix))) {
+    return false
+  }
+  return item.exact ? path === item.href : path.startsWith(item.href)
+}
+
+function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badge?: number }) {
   const ItemIcon = item.icon
   const className = `relative flex h-9 items-center gap-3 rounded-lg px-3 text-sm transition-colors ${
     active ? "bg-card text-foreground" : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
@@ -33,6 +86,9 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       {active && <span aria-hidden className="absolute top-2 bottom-2 -left-3 w-0.5 rounded-full bg-primary" />}
       <ItemIcon className={`size-4 ${active ? "text-primary" : ""}`} stroke={1.6} />
       {item.title}
+      {badge ? (
+        <span className="ml-auto rounded-full bg-rose-500/15 px-1.5 font-mono text-[11px] text-rose-600 dark:text-rose-400">{badge}</span>
+      ) : null}
     </>
   )
 
@@ -43,15 +99,51 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   )
 }
 
+// Find box. Submits a pasted id or incident number to the find page, which opens a single match.
+function FindBox() {
+  const [query, setQuery] = useState("")
+
+  function change(event: React.ChangeEvent<HTMLInputElement>) {
+    setQuery(event.target.value)
+  }
+
+  function find(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const pasted = query.trim()
+    if (!pasted) {
+      return
+    }
+    router.get(operatorFindPath({ q: pasted }))
+  }
+
+  return (
+    <form role="search" onSubmit={find} className="border-b border-border px-3 py-3">
+      <label className="relative block">
+        <span className="sr-only">Find by id or incident number</span>
+        <IconSearch className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+        <Input
+          id="operator-find"
+          value={query}
+          onChange={change}
+          placeholder="Find an id or INC-042"
+          autoComplete="off"
+          spellCheck={false}
+          className="h-8 pl-8 font-mono text-xs"
+        />
+      </label>
+    </form>
+  )
+}
+
 function signOut() {
   router.delete(logoutPath())
 }
 
-// The console's own frame, with its sections, who is signed in, and the way back to Firefight. No workspace, since an
-// operator looks across all of them.
+// The console layout, a sidebar with sections, the signed in operator, and a link back to Firefight. It has no
+// workspace selector, since operators see all workspaces.
 export function OperatorLayout({ title, children }: { title: string; children: ReactNode }) {
   const page = usePage<OperatorPageProps>()
-  const { operator } = page.props
+  const { operator, attention } = page.props
 
   return (
     <TooltipProvider>
@@ -65,10 +157,15 @@ export function OperatorLayout({ title, children }: { title: string; children: R
               Operator
             </span>
           </div>
-          <nav aria-label="Operator console" className="flex flex-1 flex-col gap-1 px-3 py-6">
-            <p className="px-3 pb-2 text-[10.5px] font-medium tracking-[0.18em] text-muted-foreground/75 uppercase">Processes</p>
-            {PROCESSES.map((item) => (
-              <NavLink key={item.title} item={item} active={page.url.startsWith(item.href)} />
+          <FindBox />
+          <nav aria-label="Operator console" className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-6">
+            {SECTIONS.map((section) => (
+              <div key={section.title} className="flex flex-col gap-1">
+                <p className="px-3 pb-2 text-[10.5px] font-medium tracking-[0.18em] text-muted-foreground/75 uppercase">{section.title}</p>
+                {section.items.map((item) => (
+                  <NavLink key={item.title} item={item} active={isActive(item, page.url)} badge={item.href === operatorRootPath() ? attention : undefined} />
+                ))}
+              </div>
             ))}
           </nav>
           <div className="flex flex-col gap-1 border-t border-border p-3">
