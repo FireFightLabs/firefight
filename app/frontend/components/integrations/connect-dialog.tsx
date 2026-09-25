@@ -24,6 +24,8 @@ import {
   toEnvironmentId,
 } from "@/components/integrations/environment-select";
 import { ProviderMark } from "@/components/integrations/provider-mark";
+import { ConnectionUrlForm } from "@/components/integrations/connection-url-form";
+import { INTEGRATION_CONNECT_WITH } from "@/lib/generated/constants";
 import { whenClosed } from "@/lib/handlers";
 
 function oauthHref(providerKey: string, name: string, environmentId: string, returnTo?: string) {
@@ -103,13 +105,18 @@ function ConnectForm({
   const [useToken, setUseToken] = useState(false);
   const [separateAccount, setSeparateAccount] = useState(false);
 
-  const nativeConnect = provider.kind === INTEGRATION_KINDS.NATIVE;
+  const connectsWithUrl = provider.connectWith === INTEGRATION_CONNECT_WITH.CONNECTION_URL;
+  const nativeConnect = provider.kind === INTEGRATION_KINDS.NATIVE && !connectsWithUrl;
   const oauthAvailable = nativeConnect || provider.serverUrl !== "";
-  const showManualForm = (!oauthAvailable || useToken) && !nativeConnect;
+  const showManualForm = connectsWithUrl ? useToken : (!oauthAvailable || useToken) && !nativeConnect;
   const showSecondAccountLink = !separateAccount;
   const showTokenLink = !nativeConnect;
   const alreadyConnected = existingNames.length > 0;
   const nameTaken = separateAccount && existingNames.includes(name.trim());
+
+  function switchToMcpServer() {
+    setUseToken(true);
+  }
 
   function toggleSeparateAccount() {
     const next = !separateAccount;
@@ -148,7 +155,11 @@ function ConnectForm({
             : `Connect ${provider.name}`}
         </DialogTitle>
         <DialogDescription className="mx-auto max-w-xs leading-relaxed">
-          {alreadyConnected
+          {connectsWithUrl
+            ? alreadyConnected
+              ? "Use the same name to add an environment or replace its URL, or a new name for another database."
+              : "Paste a connection URL for each environment. Halon reads tables, runs read-only queries and sees what the database is doing."
+            : alreadyConnected
             ? "Authorize another environment on the connection you have, or name this one to keep a second account's permissions separate."
             : nativeConnect
               ? "Install the Firefight app, choose what it can reach, and pick which tools to enable. Nothing turns on automatically."
@@ -156,7 +167,17 @@ function ConnectForm({
         </DialogDescription>
       </DialogHeader>
 
-      {oauthAvailable && !useToken && (
+      {connectsWithUrl && !useToken && (
+        <ConnectionUrlForm
+          provider={provider}
+          environments={environments}
+          returnTo={returnTo}
+          onDismiss={onDismiss}
+          onUseMcpServer={switchToMcpServer}
+        />
+      )}
+
+      {oauthAvailable && !useToken && !connectsWithUrl && (
         <div className="flex flex-col gap-4 pt-1">
           {(environments.length > 0 || separateAccount) && (
             <div className="border-border divide-border divide-y rounded-lg border">
@@ -260,14 +281,14 @@ function ConnectForm({
 
       {showManualForm && (
         <div className="flex flex-col gap-4 pt-1">
-          {oauthAvailable && (
+          {(oauthAvailable || connectsWithUrl) && (
             <button
               type="button"
               onClick={() => setUseToken(false)}
               className="text-muted-foreground hover:text-foreground -mt-1 flex items-center gap-1 self-start text-xs"
             >
               <IconArrowLeft className="size-3.5" />
-              Back to one-click connect
+              {connectsWithUrl ? "Back to connection URL" : "Back to one-click connect"}
             </button>
           )}
           <div className="flex flex-col gap-1.5">
