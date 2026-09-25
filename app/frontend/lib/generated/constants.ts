@@ -8,7 +8,8 @@ export const LIFECYCLE_STAGES = {
 } as const
 
 export const INTEGRATION_CONNECT_WITH = {
-  "CONNECTION_URL": "connection_url"
+  "CONNECTION_URL": "connection_url",
+  "API_TOKEN": "api_token"
 } as const
 
 export const INTEGRATION_KINDS = {
@@ -280,7 +281,8 @@ export const AGENT_STEP_KINDS = {
 
 export const AGENT_CARD_KINDS = {
   "INTEGRATIONS": "integrations",
-  "INVESTIGATION": "investigation"
+  "INVESTIGATION": "investigation",
+  "CHART": "chart"
 } as const
 
 export const INTEGRATION_CARD_STATES = {
@@ -302,7 +304,8 @@ export const AGENT_CHAT_PROPS = {
   "INTEGRATION_CARDS": "integrationCards",
   "ENVIRONMENTS": "environments",
   "INVESTIGATIONS": "investigations",
-  "OPEN_INVESTIGATION": "openInvestigation"
+  "OPEN_INVESTIGATION": "openInvestigation",
+  "CHARTS": "charts"
 } as const
 
 export const INVESTIGATION_QUERY_PARAM = "investigation" as const

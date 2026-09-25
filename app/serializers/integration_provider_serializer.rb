@@ -24,4 +24,12 @@ class IntegrationProviderSerializer < BaseSerializer
   def connect_with
     provider.connect_with
   end
+
+  # What the connect form asks for when a provider connects with credentials, as the provider's pack declares it.
+  type "{ key: string; label: string; hint: string; placeholder: string; secret: boolean }[]"
+  def credential_fields
+    return [] unless provider.api_token?
+
+    Integrations::NativePack.for(provider.key)&.credential_fields.to_a.map(&:to_h)
+  end
 end

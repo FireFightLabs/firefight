@@ -12,6 +12,8 @@ class AdapterError < StandardError
   class IsArchived < AdapterError; end
   class NotInChannel < AdapterError; end
   class RestrictedAction < AdapterError; end
+  # The workspace has not granted the app a permission the call needs, such as uploading files.
+  class MissingPermission < AdapterError; end
   class UnsafeDownloadHost < AdapterError; end
 
   class AuthRevoked < AdapterError

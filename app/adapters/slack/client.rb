@@ -16,11 +16,34 @@ module Slack
       "already_in_channel" => AdapterError::AlreadyInChannel,
       "cant_invite_self"   => AdapterError::AlreadyInChannel,
       "restricted_action"  => AdapterError::RestrictedAction,
+      "missing_scope"      => AdapterError::MissingPermission,
       "token_revoked"      => AdapterError::AuthRevoked,
       "account_inactive"   => AdapterError::AuthRevoked,
       "invalid_auth"       => AdapterError::AuthRevoked,
       "not_authed"         => AdapterError::AuthRevoked
     }.freeze
+
+    # Slack's upload takes three calls: ask for an upload address, send the bytes there, then share the file in a thread.
+    def self.upload_file(workspace:, channel:, thread_ts:, filename:, content:, title:, comment:)
+      ticket = api_get(workspace: workspace, endpoint: "files.getUploadURLExternal", params: { filename: filename, length: content.bytesize })
+      send_upload(URI(ticket[:upload_url]), content)
+      api_post(
+        workspace: workspace,
+        endpoint: "files.completeUploadExternal",
+        payload: { files: [ { id: ticket[:file_id], title: title } ], channel_id: channel, thread_ts: thread_ts, initial_comment: comment }.compact
+      )
+    end
+
+    def self.send_upload(uri, content)
+      request = Net::HTTP::Post.new(uri)
+      request["Content-Type"] = "application/octet-stream"
+      request.body = content
+      response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, open_timeout: 5, read_timeout: 30) { |http| http.request(request) }
+      raise AdapterError::ServerError, "Slack refused the file upload with #{response.code}" unless response.code.to_i.between?(200, 299)
+    rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError => error
+      raise AdapterError::Unavailable, "could not reach Slack's upload address (#{error.class.name})"
+    end
+    private_class_method :send_upload
 
     # A trigger_id expires three seconds after the slash command.
     def self.open_modal(workspace:, trigger_id:, view:)

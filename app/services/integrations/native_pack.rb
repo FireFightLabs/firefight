@@ -4,11 +4,16 @@ module Integrations
   class NativePack
     class Error < Integrations::Error; end
 
+    # One value a pack connected with credentials (connect_with: api_token) asks for on the connect form. A secret one is
+    # typed into a password field and never shown again.
+    CredentialField = Data.define(:key, :label, :hint, :placeholder, :secret)
+
     # Providers listed here execute through the pack instead of an MCP server, their
     # registry entry declares kind: native so connect skips the server URL.
     REGISTRY = {
       "github" => "Integrations::Packs::Github",
-      "postgresql" => "Integrations::Packs::Postgres"
+      "postgresql" => "Integrations::Packs::Postgres",
+      "northflank" => "Integrations::Packs::Northflank"
     }.freeze
 
     class << self
@@ -45,6 +50,18 @@ module Integrations
 
       # The certificates a pack connected from a URL may be given, pasted as text.
       def certificate_fields = []
+
+      # A pack connected with credentials (connect_with: api_token) lists the fields it asks for, says why the values
+      # cannot be used or nil, and stores them on an environment row. It owns their shape, so nothing else reads them.
+      def credential_fields = []
+
+      def credential_refusal(_values)
+        raise NotImplementedError, "#{name} does not connect with credentials"
+      end
+
+      def store_credentials!(_environment_row, _values)
+        raise NotImplementedError, "#{name} does not connect with credentials"
+      end
 
       def tool(name, description:, params_schema:, read_only:)
         name = name.to_s

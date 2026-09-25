@@ -47,6 +47,15 @@ providers:
     color: "#632ca6"
     description: Query logs, metrics and monitors during investigations.
     server_url: https://mcp.datadoghq.com/api/unstable/mcp-server/mcp
+  - key: northflank
+    name: Northflank
+    category: Telemetry
+    mark: NF
+    color: "#0aa4d8"
+    description: Logs, metrics and builds of the services and databases in a Northflank project, with a read-only API token.
+    server_url: ""
+    kind: native
+    connect_with: api_token
   - key: grafana
     name: Grafana
     category: Telemetry

@@ -1,4 +1,5 @@
 import { AGENT_CARD_KINDS } from "@/lib/generated/constants"
+import { ChartCard } from "@/pages/agent/components/chart-card"
 import { IntegrationCard } from "@/pages/agent/components/integration-card"
 import { InvestigationRunCard } from "@/pages/agent/components/investigation-run-card"
 import type { AgentCard as AgentCardValue } from "@/pages/agent/types"
@@ -16,6 +17,9 @@ export function AgentCard({ card, stepKey }: AgentCardProps) {
   }
   if (card.kind === AGENT_CARD_KINDS.INVESTIGATION) {
     return <InvestigationRunCard toolCallKey={stepKey} />
+  }
+  if (card.kind === AGENT_CARD_KINDS.CHART) {
+    return <ChartCard toolCallKey={stepKey} />
   }
 
   return null

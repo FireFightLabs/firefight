@@ -13,6 +13,7 @@ class AgentChatMessageSerializer < BaseSerializer
   def tools
     workspace = message.chat.workspace
     calls = message.ruby_llm_tool_calls.sort_by(&:created_at)
+    charted = message.chat.charts.unscope(:order).where(tool_call_id: calls.map(&:tool_call_id)).distinct.pluck(:tool_call_id).to_set
     calls.filter_map do |call|
       step = Chat::Tools.step(call.name, call.arguments)
       next unless step
@@ -21,8 +22,12 @@ class AgentChatMessageSerializer < BaseSerializer
       { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked,
         status: status, kind: Chat::Tools.kind(call.name, workspace),
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
-        card: (step.card&.to_h if status == Conversation::LiveDelivery::STATUS_DONE) }
+        card: (card_for(step, call, charted)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE) }
     end
+  end
+
+  def card_for(step, call, charted)
+    step.card || (Chat::Tools.chart_card if charted.include?(call.tool_call_id))
   end
 
   # What the page adds up for "thought for n seconds", counted from when the model started this reply, so the time it

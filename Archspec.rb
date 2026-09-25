@@ -88,7 +88,7 @@ component :solid_workflow_namespace, namespace: "SolidWorkflow"
 component :ability_gateway, constants: %w[AbilityGateway]
 component :ability_ledger, constants: %w[Ability::Invocation]
 component :integration_clients,
-          constants: %w[Integrations::McpClient Integrations::OauthClient Integrations::GithubApp Integrations::Http]
+          constants: %w[Integrations::McpClient Integrations::OauthClient Integrations::GithubApp Integrations::NorthflankApi Integrations::Http]
 component :sandbox_clients, namespace: "Integrations::Sandboxes"
 component :operator_namespace, namespace: "Operator"
 

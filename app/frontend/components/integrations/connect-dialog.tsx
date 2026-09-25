@@ -25,6 +25,7 @@ import {
 } from "@/components/integrations/environment-select";
 import { ProviderMark } from "@/components/integrations/provider-mark";
 import { ConnectionUrlForm } from "@/components/integrations/connection-url-form";
+import { CredentialsForm } from "@/components/integrations/credentials-form";
 import { INTEGRATION_CONNECT_WITH } from "@/lib/generated/constants";
 import { whenClosed } from "@/lib/handlers";
 
@@ -106,9 +107,10 @@ function ConnectForm({
   const [separateAccount, setSeparateAccount] = useState(false);
 
   const connectsWithUrl = provider.connectWith === INTEGRATION_CONNECT_WITH.CONNECTION_URL;
-  const nativeConnect = provider.kind === INTEGRATION_KINDS.NATIVE && !connectsWithUrl;
+  const connectsWithCredentials = provider.connectWith === INTEGRATION_CONNECT_WITH.API_TOKEN;
+  const nativeConnect = provider.kind === INTEGRATION_KINDS.NATIVE && !connectsWithUrl && !connectsWithCredentials;
   const oauthAvailable = nativeConnect || provider.serverUrl !== "";
-  const showManualForm = connectsWithUrl ? useToken : (!oauthAvailable || useToken) && !nativeConnect;
+  const showManualForm = connectsWithUrl ? useToken : (!oauthAvailable || useToken) && !nativeConnect && !connectsWithCredentials;
   const showSecondAccountLink = !separateAccount;
   const showTokenLink = !nativeConnect;
   const alreadyConnected = existingNames.length > 0;
@@ -155,7 +157,11 @@ function ConnectForm({
             : `Connect ${provider.name}`}
         </DialogTitle>
         <DialogDescription className="mx-auto max-w-xs leading-relaxed">
-          {connectsWithUrl
+          {connectsWithCredentials
+            ? alreadyConnected
+              ? "Use the same name to add an environment or replace its credentials, or a new name for another account."
+              : "Enter credentials for each environment. Halon reads what they can reach and nothing more."
+            : connectsWithUrl
             ? alreadyConnected
               ? "Use the same name to add an environment or replace its URL, or a new name for another database."
               : "Paste a connection URL for each environment. Halon reads tables, runs read-only queries and sees what the database is doing."
@@ -166,6 +172,10 @@ function ConnectForm({
               : "Firefight discovers this server's tools and you pick which to enable. Nothing turns on automatically."}
         </DialogDescription>
       </DialogHeader>
+
+      {connectsWithCredentials && (
+        <CredentialsForm provider={provider} environments={environments} returnTo={returnTo} onDismiss={onDismiss} />
+      )}
 
       {connectsWithUrl && !useToken && (
         <ConnectionUrlForm

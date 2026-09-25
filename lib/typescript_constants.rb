@@ -12,7 +12,7 @@ module TypescriptConstants
         "TRIAGE" => IncidentLifecycleStage::TRIAGE, "ACTIVE" => IncidentLifecycleStage::ACTIVE,
         "CLOSED" => IncidentLifecycleStage::CLOSED, "CANCELED" => IncidentLifecycleStage::CANCELED
       }, nil),
-      Export.new("INTEGRATION_CONNECT_WITH", { "CONNECTION_URL" => IntegrationProvider::CONNECT_CONNECTION_URL }, nil),
+      Export.new("INTEGRATION_CONNECT_WITH", { "CONNECTION_URL" => IntegrationProvider::CONNECT_CONNECTION_URL, "API_TOKEN" => IntegrationProvider::CONNECT_API_TOKEN }, nil),
       Export.new("INTEGRATION_KINDS", {
         "MCP" => Integration::KIND_MCP, "HTTP" => Integration::KIND_HTTP, "NATIVE" => Integration::KIND_NATIVE
       }, nil),
@@ -67,7 +67,8 @@ module TypescriptConstants
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT
       }, nil),
       Export.new("AGENT_CARD_KINDS", {
-        "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS, "INVESTIGATION" => Chat::Tools::CARD_INVESTIGATION
+        "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS, "INVESTIGATION" => Chat::Tools::CARD_INVESTIGATION,
+        "CHART" => Chat::Tools::CARD_CHART
       }, nil),
       Export.new("INTEGRATION_CARD_STATES", {
         "CONNECTED" => IntegrationProvider::STATE_CONNECTED, "NEEDS_ATTENTION" => IntegrationProvider::STATE_NEEDS_ATTENTION,

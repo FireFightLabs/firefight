@@ -24,6 +24,7 @@ class IntegrationsController < InertiaController
   def create
     provider = IntegrationProvider.find(params[:provider]) || IntegrationProvider.find(Integration::PROVIDER_CUSTOM_MCP)
     return connect_with_url(provider) if provider&.connection_url? && params.key?(:connection_url)
+    return connect_with_credentials(provider) if provider&.api_token?
 
     # A database connected from a URL can also be reached through an MCP server the team runs.
     kind = provider.nil? || provider.connection_url? ? Integration::KIND_MCP : provider.kind
@@ -150,6 +151,23 @@ class IntegrationsController < InertiaController
 
     environment_row = connect!(provider, params.require(:name), environment_id_param)
     pack.store_connection!(environment_row, url: url, certificates: certificates)
+    Integrations::ConnectionRefresh.run!(environment_row.integration)
+
+    connected(environment_row.integration.name, return_to_param)
+  rescue NameTaken
+    redirect_back fallback_location: integrations_path, inertia: { errors: { name: "Another connection already uses that name. Pick a different one." } }
+  end
+
+  # Like a URL, the same name connects another environment or replaces its credentials. The pack checks the values with
+  # the provider before anything is saved, so a wrong token is said on the form.
+  def connect_with_credentials(provider)
+    pack = Integrations::NativePack.for(provider.key)
+    values = params.fetch(:credentials, {}).permit(*pack.credential_fields.map(&:key)).to_h
+    refusal = pack.credential_refusal(values)
+    return redirect_back(fallback_location: integrations_path, inertia: { errors: { connection: refusal } }) if refusal
+
+    environment_row = connect!(provider, params.require(:name), environment_id_param)
+    pack.store_credentials!(environment_row, values)
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     connected(environment_row.integration.name, return_to_param)

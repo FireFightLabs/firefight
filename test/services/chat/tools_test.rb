@@ -334,6 +334,26 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_match "GitHub said no", tool.call(text: "hi")
   end
 
+  test "charts a tool returns are kept with the run's chat and its step, and only the text reaches the model" do
+    grant!(@tool)
+    chat = @workspace.chats.create!(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
+    chart = { "title" => "5xx responses of web", "unit" => "count", "from" => "2026-09-25T14:00:00Z", "to" => "2026-09-25T15:00:00Z",
+              "summary" => "web-1: max 42", "link" => "https://app.northflank.com/t/acme/project/p/services/web",
+              "series" => [ { "label" => "web-1", "points" => [ [ "2026-09-25T14:05:00Z", 42.0 ] ] } ] }
+    Integrations::NativeExecutor.stubs(:call).returns(
+      "content" => [ { "type" => "text", "text" => "web-1: max 42" } ], Integrations::Telemetry::STRUCTURED => { Integrations::Telemetry::CHARTS => [ chart ] }
+    )
+    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == "fake_echo_text" }.tool
+
+    said = tool.call(tool_call: stub(id: "call_7"), text: "hi")
+
+    assert_no_match "series", said
+    kept = chat.charts.sole
+    assert_equal "call_7", kept.tool_call_id
+    assert_equal @investigation.steps.sole.position, kept.step_position
+    assert_equal "https://app.northflank.com/t/acme/project/p/services/web", kept.source_url
+  end
+
   test "the model sees each tool's own description and parameters" do
     grant!(@tool)
     tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool

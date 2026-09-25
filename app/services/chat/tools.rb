@@ -31,7 +31,11 @@ module Chat::Tools
   CARD_INTEGRATIONS = "integrations".freeze
   # The run a chat started. The page finds it by the step's tool call, since the run exists only once the tool has run.
   CARD_INVESTIGATION = "investigation".freeze
-  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION ].freeze
+  # Charts a tool returned. The page finds them by the step's tool call, since a tool only returns them when it has data.
+  CARD_CHART = "chart".freeze
+  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION, CARD_CHART ].freeze
+
+  def self.chart_card = Card.new(kind: CARD_CHART, category: nil)
 
   def self.card_for(tool_name, arguments)
     return Card.new(kind: CARD_INVESTIGATION, category: nil) if tool_name.to_s == Mcp::Tools::START_INVESTIGATION

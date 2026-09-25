@@ -42,6 +42,7 @@ class Investigation::Delivery
       channel_id: channel_id, thread_id: thread_id, answer_id: @answer_id, finding: finding
     )
     posted!
+    post_charts
   end
 
   # rerunnable is for a stop on our side. A spent budget or a person's stop would only end the same way.
@@ -56,6 +57,7 @@ class Investigation::Delivery
       rerun_question: (@investigation if rerunnable && @investigation.incident.nil?), investigation: @investigation
     )
     posted!
+    post_charts
   end
 
   private
@@ -63,6 +65,19 @@ class Investigation::Delivery
   # Only after the platform took it, so a run whose last post failed is one an operator can find.
   def posted!
     @investigation.update_columns(answer_posted_at: Time.current)
+  end
+
+  # The charts the run drew, under its answer or its reason for stopping. The answer is already posted, so a chart that
+  # cannot be posted is logged rather than failing the run.
+  def post_charts
+    charts = @investigation.chat&.charts
+    return if charts.blank?
+
+    Chat::Chart.posted_under_answer(charts) do |posts|
+      adapter.post_charts(channel_id: channel_id, thread_id: thread_id, charts: posts)
+    end
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "investigation.charts_undelivered", investigation_id: @investigation.id, error: error.message }.to_json)
   end
 
   def tell_chat
