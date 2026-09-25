@@ -9,6 +9,8 @@ module Operator
     inertia_share do
       { operator: current_user && { name: current_user.name.presence || current_user.email, email: current_user.email } }
     end
+    # The nav counts what needs a person in the last day, read only when a console page renders.
+    inertia_share attention: -> { Attention.new(Filter.new, jobs: JobHealth.read(since: Filter.new.since)).items.size }
 
     private
 
@@ -32,6 +34,19 @@ module Operator
     def operator_verified?
       stamp = session[:operator_verified]
       stamp.is_a?(Hash) && stamp["user_id"] == current_user.id && stamp["until"].to_i > Time.current.to_i
+    end
+
+    def filter = @filter ||= Filter.from(params)
+
+    # What the window and workspace pickers offer, with the choice made.
+    def filter_props
+      { filter: filter.to_h, windows: Filter::WINDOWS.keys, workspaces: Workspace.order(:name).map { |workspace| { id: workspace.id, name: workspace.name } } }
+    end
+
+    # A computed value, such as a count or a health figure, as the page reads it. Only its own keys change, so a nested
+    # map keyed by data, such as error classes, keeps them.
+    def camelized(value)
+      value && value.to_h.transform_keys { |key| key.to_s.camelize(:lower) }
     end
 
     # Written on what an operator changes, such as a paused workflow, so it says who did it.

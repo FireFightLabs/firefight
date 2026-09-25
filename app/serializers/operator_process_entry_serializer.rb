@@ -31,4 +31,7 @@ class OperatorProcessEntrySerializer < BaseSerializer
 
   type :string, optional: true
   def redeliver_id = entry.redeliver_id
+
+  type :string, optional: true
+  def run_id = entry.run_id
 end

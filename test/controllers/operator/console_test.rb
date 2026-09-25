@@ -40,8 +40,8 @@ class Operator::ConsoleTest < ActionDispatch::IntegrationTest
     post routes.operator_setup_path, params: { code: code_for(@user) }, headers: inertia_headers
     assert_equal OperatorCredential::RECOVERY_CODE_COUNT, inertia_props["codes"].size
 
-    get routes.operator_root_path
-    assert_redirected_to routes.operator_incidents_path
+    get routes.operator_root_path, headers: inertia_headers
+    assert_equal "operator/overview", JSON.parse(response.body)["component"]
   end
 
   test "an operator is asked for a code before the jobs dashboard, and a wrong one says so" do

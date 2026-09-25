@@ -24,8 +24,9 @@ module Operator
     # An incident as a list shows it, with how many of its records failed.
     Row = Data.define(:incident, :problems)
 
-    # retry_step_id and redeliver_id name what the operator can act on, and technical is the raw cause, shown folded.
-    Entry = Data.define(:key, :at, :kind, :tone, :title, :detail, :technical, :retry_step_id, :redeliver_id)
+    # retry_step_id and redeliver_id name what the operator can act on, run_id a Halon run's trace, and technical is the
+    # raw cause, shown folded.
+    Entry = Data.define(:key, :at, :kind, :tone, :title, :detail, :technical, :retry_step_id, :redeliver_id, :run_id)
 
     def self.problem_counts(incidents)
       ids = incidents.map(&:id)
@@ -55,8 +56,8 @@ module Operator
 
     private
 
-    def entry(key:, at:, kind:, tone:, title:, detail: nil, technical: nil, retry_step_id: nil, redeliver_id: nil)
-      Entry.new(key:, at:, kind:, tone:, title:, detail:, technical:, retry_step_id:, redeliver_id:)
+    def entry(key:, at:, kind:, tone:, title:, detail: nil, technical: nil, retry_step_id: nil, redeliver_id: nil, run_id: nil)
+      Entry.new(key:, at:, kind:, tone:, title:, detail:, technical:, retry_step_id:, redeliver_id:, run_id:)
     end
 
     def alert_entries
@@ -129,11 +130,11 @@ module Operator
     def halon_entries
       @incident.investigations.seen.includes(:finding).flat_map do |run|
         started = entry(key: "halon-#{run.id}", at: run.created_at, kind: KIND_HALON, tone: TONE_INFO, title: "Halon asked",
-                        detail: run.question || run.trigger_source)
+                        detail: run.question || run.trigger_source, run_id: run.id)
         ended = run.completed_at && entry(
           key: "halon-end-#{run.id}", at: run.completed_at, kind: KIND_HALON, tone: halon_tone(run),
           title: run.finding ? "Halon answered" : "Halon stopped",
-          detail: [ run.finding&.summary || run.stopped_because, "#{run.turns_used} turns", "$#{run.spent_cents}" ].compact.join(" · "),
+          detail: [ run.finding&.summary || run.stopped_because, "#{run.turns_used} turns", Money.dollars(run.spent_micros) ].compact.join(" · "),
           technical: (run.error_summary if run.status == Investigation::STATUS_FAILED)
         )
         [ started, ended ].compact

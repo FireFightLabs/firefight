@@ -47,6 +47,27 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     delivery.answered!(finding)
   end
 
+  test "an answer that reaches the thread is recorded as posted, so an operator can find one that did not" do
+    delivery = Investigation::Delivery.new(@investigation)
+    delivery.start!
+    finding = @investigation.conclude!(summary: "The 14:02 deploy did it", gaps: "logs")
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
+
+    delivery.answered!(finding)
+
+    assert @investigation.reload.answer_posted_at
+  end
+
+  test "an answer whose post fails is not recorded as posted" do
+    delivery = Investigation::Delivery.new(@investigation)
+    delivery.start!
+    finding = @investigation.conclude!(summary: "The 14:02 deploy did it", gaps: "logs")
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_investigation_answer).raises(AdapterError::ServerError, "ratelimited")
+
+    assert_raises(AdapterError::ServerError) { delivery.answered!(finding) }
+    assert_nil @investigation.reload.answer_posted_at
+  end
+
   test "a run that stops without an answer says why" do
     delivery = Investigation::Delivery.new(@investigation)
     delivery.start!

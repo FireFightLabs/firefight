@@ -1,12 +1,31 @@
 import { Head, Link, router, usePage } from "@inertiajs/react"
-import { IconArrowLeft, IconFlame, IconHierarchy2, IconLogout, IconStack2, type Icon } from "@tabler/icons-react"
+import {
+  IconArrowLeft,
+  IconFlame,
+  IconHierarchy2,
+  IconLayoutDashboard,
+  IconLogout,
+  IconMessages,
+  IconSparkles,
+  IconStack2,
+  type Icon,
+} from "@tabler/icons-react"
 import type { ReactNode } from "react"
 
 import { FireFightLogo } from "@/components/fire-fight-logo"
 import { FlashToaster } from "@/components/flash-toaster"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { dashboardPath, logoutPath, operatorIncidentsPath, operatorJobsPath, operatorWorkflowsPath } from "@/lib/routes"
+import {
+  dashboardPath,
+  logoutPath,
+  operatorHalonChatsPath,
+  operatorHalonPath,
+  operatorIncidentsPath,
+  operatorJobsPath,
+  operatorRootPath,
+  operatorWorkflowsPath,
+} from "@/lib/routes"
 import type { OperatorPageProps } from "@/pages/operator/types"
 
 interface NavItem {
@@ -15,15 +34,46 @@ interface NavItem {
   icon: Icon
   // Flightdeck draws its own pages, so its link loads the page whole.
   external?: boolean
+  // The overview's address begins every other one, so only it is matched whole.
+  exact?: boolean
+  // Addresses under this one that another item stands for.
+  except?: string[]
 }
 
-const PROCESSES: NavItem[] = [
-  { title: "Incidents", href: operatorIncidentsPath(), icon: IconFlame },
-  { title: "Workflows", href: operatorWorkflowsPath(), icon: IconHierarchy2 },
-  { title: "Jobs", href: operatorJobsPath(), icon: IconStack2, external: true },
+interface NavSection {
+  title: string
+  items: NavItem[]
+}
+
+const SECTIONS: NavSection[] = [
+  { title: "Watch", items: [{ title: "Overview", href: operatorRootPath(), icon: IconLayoutDashboard, exact: true }] },
+
+  {
+    title: "Processes",
+    items: [
+      { title: "Incidents", href: operatorIncidentsPath(), icon: IconFlame },
+      { title: "Workflows", href: operatorWorkflowsPath(), icon: IconHierarchy2 },
+      { title: "Jobs", href: operatorJobsPath(), icon: IconStack2, external: true },
+    ],
+  },
+  {
+    title: "Halon",
+    items: [
+      { title: "Runs and health", href: operatorHalonPath(), icon: IconSparkles, except: [operatorHalonChatsPath()] },
+      { title: "Chats", href: operatorHalonChatsPath(), icon: IconMessages },
+    ],
+  },
 ]
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function isActive(item: NavItem, url: string): boolean {
+  const path = url.split("?")[0]
+  if (item.except?.some((prefix) => path.startsWith(prefix))) {
+    return false
+  }
+  return item.exact ? path === item.href : path.startsWith(item.href)
+}
+
+function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badge?: number }) {
   const ItemIcon = item.icon
   const className = `relative flex h-9 items-center gap-3 rounded-lg px-3 text-sm transition-colors ${
     active ? "bg-card text-foreground" : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
@@ -33,6 +83,9 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       {active && <span aria-hidden className="absolute top-2 bottom-2 -left-3 w-0.5 rounded-full bg-primary" />}
       <ItemIcon className={`size-4 ${active ? "text-primary" : ""}`} stroke={1.6} />
       {item.title}
+      {badge ? (
+        <span className="ml-auto rounded-full bg-rose-500/15 px-1.5 font-mono text-[11px] text-rose-600 dark:text-rose-400">{badge}</span>
+      ) : null}
     </>
   )
 
@@ -51,7 +104,7 @@ function signOut() {
 // operator looks across all of them.
 export function OperatorLayout({ title, children }: { title: string; children: ReactNode }) {
   const page = usePage<OperatorPageProps>()
-  const { operator } = page.props
+  const { operator, attention } = page.props
 
   return (
     <TooltipProvider>
@@ -65,10 +118,14 @@ export function OperatorLayout({ title, children }: { title: string; children: R
               Operator
             </span>
           </div>
-          <nav aria-label="Operator console" className="flex flex-1 flex-col gap-1 px-3 py-6">
-            <p className="px-3 pb-2 text-[10.5px] font-medium tracking-[0.18em] text-muted-foreground/75 uppercase">Processes</p>
-            {PROCESSES.map((item) => (
-              <NavLink key={item.title} item={item} active={page.url.startsWith(item.href)} />
+          <nav aria-label="Operator console" className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-6">
+            {SECTIONS.map((section) => (
+              <div key={section.title} className="flex flex-col gap-1">
+                <p className="px-3 pb-2 text-[10.5px] font-medium tracking-[0.18em] text-muted-foreground/75 uppercase">{section.title}</p>
+                {section.items.map((item) => (
+                  <NavLink key={item.title} item={item} active={isActive(item, page.url)} badge={item.href === operatorRootPath() ? attention : undefined} />
+                ))}
+              </div>
             ))}
           </nav>
           <div className="flex flex-col gap-1 border-t border-border p-3">

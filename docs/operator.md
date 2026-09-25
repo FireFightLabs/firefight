@@ -1,6 +1,6 @@
 # Operator console
 
-`/operator` is for the people who run a Firefight install, not for a workspace. It holds the incident process, workflows and the jobs dashboard, and Halon's screens as they land. Its pages share `OperatorLayout` (`pages/operator/components/`), a frame of its own with no workspace, since an operator looks across all of them. `/operator` opens on Incidents.
+`/operator` is for the people who run a Firefight install, not for a workspace. It holds the overview, the incident process, workflows, the jobs dashboard, and Halon's runs, health, traces and chats. Its pages share `OperatorLayout` (`pages/operator/components/`), a frame of its own with no workspace, since an operator looks across all of them. `/operator` opens on the overview.
 
 ## Who gets in
 
@@ -19,13 +19,33 @@
 - **After a correct code** the browser loads the next screen whole (`inertia_location`), since Flightdeck is not an Inertia page.
 - **A lost phone and lost recovery codes**: `bin/rails 'operator:reset_authenticator[USER_ID]'` removes the row, and the next visit sets up anew.
 
+## Window and workspace
+
+The overview, Halon and chats read one window (the last 24 hours, 7 days or 30 days) across every workspace or one, from the query string (`Operator::Filter`). The window is open ended, so nothing written while the page loads is missed. The last day is charted by the hour, anything longer by the day. Figures that are not per workspace, the job queue, say so.
+
+## Overview
+
+`/operator` puts what needs a person first, then each process in numbers.
+
+- **Needs attention** (`Operator::Attention`) is failures in the window and anything backed up or stuck now: failed and stuck workflows, failing webhook deliveries (one item per webhook), failed Slack calls (one item per workspace, call, error and channel, with a count), alerts stuck in routing, backed up queues and failed jobs, and Halon runs that failed on our side, reached their budget or turn limit, finished without their last post reaching the thread, or have no worker. Failures sort before warnings. Each item names what it opens (`TARGET_*`), and the serializer turns that into an address, so the model holds no routes. The nav shows the count for the last day on every console page.
+- **Panels** (`Operator::Overview`) count incidents, workflows, jobs and Halon for the window.
+- **The job queue** is read by `Operator::JobHealth` from Solid Queue's own tables. It returns nil when they are not there, as in tests, so the page says the queue could not be read rather than failing. It checks the table exists before querying, since a failed query would abort the transaction a caller is in.
+
+## Halon
+
+- **Runs and health** at `/operator/halon` (`Operator::HalonHealth`): runs and chat turns, how many answered, median and p90 time, spend from the inference ledger (runs, their citation re-read and chat turns), and the team's verdicts. A chart of runs by how they ended, and why the rest did not answer. Tools from the invocation ledger, with failed and denied calls and median time. Model calls with their error classes. The run prompt's latest wordings, each with how the runs it started went, over all time so an older wording is there to compare, and its text. Then the runs, filtered by how they ended. Rehearsals are never counted.
+- **How a run ended** (`Operator::HalonRuns`): answered, stopped (a limit it reached, said to the thread in `PLAIN_STOP_REASONS`, or a person), failed (anything else, a cause on our side), or working. A failure is shown with the technical cause in `error_summary`, which only operators see.
+- **A run's trace** at `/operator/halon/runs/:id` (`Operator::RunTrace`) draws every record the run left on one clock: the job claiming it, the facts it started from, each model call (from the inference ledger, placed by its latency, with its reply), each tool call (with the gateway's decision, who it ran as, its scope, time and ledger id), theories, the critique, the answer or why it stopped, the thread opening and the last post (or that it was not posted), failed Slack calls in its channel, and verdicts, which come later and do not stretch the clock.
+- **Chats** at `/operator/halon/chats`, and one chat's trace (`Operator::ChatTrace`), each turn on its own clock from what the person asked. A chat's ledger rows name its incident rather than the chat, so its model calls come from RubyLLM's usage rows and its tool calls from its saved tool calls. The latest 20 turns are drawn.
+- **Span content is read one span at a time.** The trace carries no tool output, model reply or question, only whether a span has one. Opening a span asks for the optional `spanBody` prop with `span` in the query string, so the address says which span is open. Content past 100,000 characters is cut and says so. It is the customer's data, and the page says so beside it.
+
 ## Jobs
 
 Flightdeck (`solid_queue-flightdeck`) is mounted at `/operator/jobs`, with `Operator::FlightdeckController` as its base controller, so every one of its pages runs both checks above. It reads Solid Queue's own tables. The test database has none, so tests prove the checks and not Flightdeck's pages.
 
 ## Incidents
 
-`/operator/incidents` lists every incident across workspaces, newest first, with how many of its records failed (`Operator::IncidentProcess.problem_counts`: failed workflow steps, failed webhook deliveries and failed platform calls in its channel). One incident opens its whole process on one timeline, built by `Operator::IncidentProcess` from every table that records it: alerts and their routing, incident events, each workflow and its steps, webhook deliveries, failed platform calls in the incident's channel, and Halon's runs. It is read only. A failed step offers **Run again** and **Skip** (skipping asks first), and a failed delivery offers **Send again** (`WebhookDelivery#replay!`, a delivery of its own with the bytes sent the first time). The raw cause of a failure is folded under each record.
+`/operator/incidents` lists every incident across workspaces, newest first, with how many of its records failed (`Operator::IncidentProcess.problem_counts`: failed workflow steps, failed webhook deliveries and failed platform calls in its channel). One incident opens its whole process on one timeline, built by `Operator::IncidentProcess` from every table that records it: alerts and their routing, incident events, each workflow and its steps, webhook deliveries, failed platform calls in the incident's channel, and Halon's runs. It is read only. A failed step offers **Run again** and **Skip** (skipping asks first), and a failed delivery offers **Send again** (`WebhookDelivery#replay!`, a delivery of its own with the bytes sent the first time). The raw cause of a failure is folded under each record, and a Halon run opens its trace.
 
 ## Workflows
 

@@ -37,3 +37,4 @@ export function processToneClasses(tone: ProcessTone): string {
 }
 
 export { TONE_CLASSES }
+export type { Tone }

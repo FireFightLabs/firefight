@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { formatDateTime, formatTime } from "@/lib/formatters"
 import { OPERATOR_PROCESS_KINDS, OPERATOR_PROCESS_TONES } from "@/lib/generated/constants"
-import { operatorIncidentsPath, redeliverOperatorWebhookDeliveryPath } from "@/lib/routes"
+import { operatorHalonRunPath, operatorIncidentsPath, redeliverOperatorWebhookDeliveryPath } from "@/lib/routes"
 import { OperatorLayout } from "@/pages/operator/components/operator-layout"
 import { PageHeading } from "@/pages/operator/components/page-heading"
 import { StepActions } from "@/pages/operator/components/step-actions"
@@ -90,6 +90,11 @@ function EntryRow({ entry, last }: { entry: OperatorProcessEntry; last: boolean 
       <div className="flex items-start gap-3 pt-0.5">
         {entry.retryStepId && <StepActions stepId={entry.retryStepId} stepName={entry.title} />}
         {entry.redeliverId && <Redeliver deliveryId={entry.redeliverId} />}
+        {entry.runId && (
+          <Button asChild size="sm" variant="outline">
+            <Link href={operatorHalonRunPath(entry.runId)}>Trace</Link>
+          </Button>
+        )}
         <time dateTime={entry.at} className="text-muted-foreground/80 pt-1.5 font-mono text-xs" title={formatDateTime(entry.at)}>
           {formatTime(entry.at)}
         </time>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_170100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -903,7 +903,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_150000) do
     t.string "model", null: false
     t.integer "output_tokens", default: 0, null: false
     t.string "prompt_template"
-    t.integer "prompt_version"
+    t.string "prompt_version"
     t.string "provider", null: false
     t.string "provider_request_id"
     t.string "status", null: false
@@ -1054,6 +1054,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_150000) do
   end
 
   create_table "investigations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "answer_posted_at"
     t.integer "attempts", default: 0, null: false
     t.jsonb "brief", default: {}, null: false
     t.boolean "cancel_requested", default: false, null: false
