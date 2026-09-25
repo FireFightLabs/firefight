@@ -1,5 +1,5 @@
 module Operator
-  # Every incident across workspaces, and one incident's whole process on one timeline.
+  # Lists incidents across all workspaces, and shows one incident's full timeline.
   class IncidentsController < BaseController
     PER_PAGE = 25
 
@@ -12,7 +12,7 @@ module Operator
       problems = IncidentProcess.problem_counts(incidents)
 
       render inertia: "operator/incidents/index", props: {
-        incidents: OperatorIncidentRowSerializer.many(incidents.map { |incident| IncidentProcess::Row.new(incident, problems[incident.id]) }),
+        incidents: IncidentRowSerializer.many(incidents.map { |incident| IncidentProcess::Row.new(incident, problems[incident.id]) }),
         page: page, more: more
       }
     end
@@ -22,8 +22,9 @@ module Operator
       process = IncidentProcess.new(incident)
 
       render inertia: "operator/incidents/show", props: {
-        incident: OperatorIncidentRowSerializer.one(IncidentProcess::Row.new(incident, process.counts[:problems])),
-        entries: process.entries.map { |entry| OperatorProcessEntrySerializer.one(entry) }
+        incident: IncidentRowSerializer.one(IncidentProcess::Row.new(incident, process.counts[:problems])),
+        entries: process.entries.map { |entry| ProcessEntrySerializer.one(entry) },
+        total: process.counts[:records]
       }
     end
   end

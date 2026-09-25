@@ -115,7 +115,7 @@ jobs:
 
       # The run includes the system tests, which render the real page.
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -164,7 +164,7 @@ jobs:
 
       # A system test renders the real page, so the assets have to be buildable.
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm

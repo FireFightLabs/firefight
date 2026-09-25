@@ -2,7 +2,8 @@ import { Link } from "@inertiajs/react"
 
 import { Button } from "@/components/ui/button"
 
-// Newest first, a page at a time. Only "is there more" is known, since counting every row across workspaces is not worth it.
+// Newer and Older buttons. The server only says whether there are more rows, since counting across all workspaces is
+// slow.
 export function Pager({ page, more, hrefFor }: { page: number; more: boolean; hrefFor: (page: number) => string }) {
   if (page === 1 && !more) {
     return null

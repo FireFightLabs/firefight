@@ -337,7 +337,7 @@ Rails.application.routes.draw do
 
   # The operator console, for the people who run Firefight rather than a workspace. Everyone else gets not found.
   namespace :operator do
-    root "home#show"
+    root "overview#show"
     get "setup", to: "second_factors#setup", as: :setup
     post "setup", to: "second_factors#confirm"
     get "verify", to: "second_factors#verify", as: :verify
@@ -360,6 +360,10 @@ Rails.application.routes.draw do
     resources :webhook_deliveries, only: [] do
       member { post :redeliver }
     end
+    get "find", to: "find#show", as: :find
+    get "halon", to: "halon#show", as: :halon
+    resources :halon_runs, path: "halon/runs", only: :show
+    resources :halon_chats, path: "halon/chats", only: %i[index show]
   end
 
   # Targets for `config.exceptions_app`.

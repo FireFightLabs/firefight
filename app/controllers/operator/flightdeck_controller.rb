@@ -1,5 +1,5 @@
 module Operator
-  # Flightdeck's controllers inherit from this, so the jobs dashboard sits behind the same two checks as the console.
+  # Base controller for the Flightdeck jobs dashboard, so it runs the same operator and authenticator checks.
   class FlightdeckController < BaseController
   end
 end

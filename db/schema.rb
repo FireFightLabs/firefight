@@ -919,7 +919,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_190000) do
     t.string "model", null: false
     t.integer "output_tokens", default: 0, null: false
     t.string "prompt_template"
-    t.integer "prompt_version"
+    t.string "prompt_version"
     t.string "provider", null: false
     t.string "provider_request_id"
     t.string "status", null: false
@@ -1070,6 +1070,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_190000) do
   end
 
   create_table "investigations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "answer_posted_at"
     t.integer "attempts", default: 0, null: false
     t.jsonb "brief", default: {}, null: false
     t.boolean "cancel_requested", default: false, null: false
@@ -1689,7 +1690,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_190000) do
   add_foreign_key "oauth_access_grants", "workspace_memberships", column: "resource_owner_id"
   add_foreign_key "oauth_access_tokens", "oauth_applications", column: "application_id"
   add_foreign_key "oauth_access_tokens", "workspace_memberships", column: "resource_owner_id"
-  add_foreign_key "operator_credentials", "users"
+  add_foreign_key "operator_credentials", "users", on_delete: :cascade
   add_foreign_key "platform_call_failures", "workspaces", on_delete: :cascade
   add_foreign_key "policies", "workspaces"
   add_foreign_key "policy_rules", "policies"

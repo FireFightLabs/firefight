@@ -10,6 +10,9 @@ module Investigation::Seeding
 
   class UnknownSubject < StandardError; end
 
+  # When the facts were read, which every seeder writes.
+  KEY_GATHERED_AT = "gathered_at".freeze
+
   # Gathered once, so every turn and a resumed run read the same facts.
   def build_seed_pack!
     return seed_pack if seed_pack.present?

@@ -348,6 +348,47 @@ export const OPERATOR_PROCESS_TONES = {
   "IDLE": "idle"
 } as const
 
+export const OPERATOR_HALON_ENDINGS = {
+  "ANSWERED": "answered",
+  "STOPPED": "stopped",
+  "FAILED": "failed",
+  "LIVE": "live"
+} as const
+
+export const OPERATOR_TRACE_KINDS = {
+  "JOB": "job",
+  "FACTS": "facts",
+  "MODEL": "model",
+  "TOOL": "tool",
+  "THEORY": "theory",
+  "CHECK": "check",
+  "ANSWER": "answer",
+  "STOP": "stop",
+  "POST": "post",
+  "PLATFORM": "platform",
+  "VERDICT": "verdict",
+  "ASK": "ask",
+  "REPLY": "reply",
+  "RUN": "run"
+} as const
+
+export const OPERATOR_FIND_KINDS = {
+  "INCIDENT": "incident",
+  "RUN": "run",
+  "CHAT": "chat",
+  "WORKFLOW": "workflow"
+} as const
+
+export const OPERATOR_WINDOWS = {
+  "DAY": "24h",
+  "WEEK": "7d",
+  "MONTH": "30d"
+} as const
+
+export const OPERATOR_SPAN_PARAM = "span" as const
+
+export const OPERATOR_SPAN_BODY_PROP = "spanBody" as const
+
 export const INVESTIGATION_EVENT_TYPES = [
   "investigation.started",
   "investigation.answered",

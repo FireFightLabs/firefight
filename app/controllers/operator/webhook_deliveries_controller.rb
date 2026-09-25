@@ -1,9 +1,10 @@
 module Operator
-  # Sending a failed webhook again, with the bytes that were sent the first time, as a delivery of its own.
+  # Sends a failed webhook delivery again, as a new delivery with the same payload bytes.
   class WebhookDeliveriesController < BaseController
     def redeliver
       delivery = WebhookDelivery.includes(:webhook).find(params[:id])
-      return redirect_back(fallback_location: operator_incidents_path, alert: "Only a failed delivery can be sent again.") unless delivery.failed?
+      blocked = Actions.redelivery_blocked_reason(delivery)
+      return redirect_back(fallback_location: operator_incidents_path, alert: blocked) if blocked
 
       delivery.replay!
       redirect_back fallback_location: operator_incidents_path, notice: "Sending #{delivery.event_type} to #{delivery.webhook.name} again."

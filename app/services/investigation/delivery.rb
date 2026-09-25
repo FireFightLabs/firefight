@@ -41,6 +41,7 @@ class Investigation::Delivery
     adapter.post_investigation_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: @answer_id, finding: finding
     )
+    posted!
     post_charts
   end
 
@@ -55,10 +56,16 @@ class Investigation::Delivery
       rerun: (@investigation.incident if rerunnable),
       rerun_question: (@investigation if rerunnable && @investigation.incident.nil?), investigation: @investigation
     )
+    posted!
     post_charts
   end
 
   private
+
+  # Only after the platform took it, so a run whose last post failed is one an operator can find.
+  def posted!
+    @investigation.update_columns(answer_posted_at: Time.current)
+  end
 
   # The charts the run drew, under its answer or its reason for stopping. The answer is already posted, so a chart that
   # cannot be posted is logged rather than failing the run.
