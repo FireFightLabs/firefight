@@ -15,12 +15,14 @@ class AgentChatsController < InertiaController
   PROP_INVESTIGATIONS = "investigations"
   PROP_OPEN_INVESTIGATION = "openInvestigation"
   PROP_CHARTS = "charts"
+  # What the person sent while the agent worked, which joins the answer at its next step.
+  PROP_WAITING_MESSAGES = "waitingMessages"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
     "CONFIRMATIONS" => PROP_CONFIRMATIONS, "INTEGRATION_CARDS" => PROP_INTEGRATION_CARDS,
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
-    "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS
+    "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -38,7 +40,7 @@ class AgentChatsController < InertiaController
   def index
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
-      PROP_CHARTS => []
+      PROP_CHARTS => [], PROP_WAITING_MESSAGES => []
     )
   end
 
@@ -49,7 +51,8 @@ class AgentChatsController < InertiaController
       PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || []),
       PROP_INVESTIGATIONS => InvestigationCardSerializer.many(started_investigations),
       PROP_OPEN_INVESTIGATION => open_investigation,
-      PROP_CHARTS => ChatChartSerializer.many(conversation.chat&.charts || [])
+      PROP_CHARTS => ChatChartSerializer.many(conversation.chat&.charts || []),
+      PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(conversation.chat&.queued_messages&.waiting || [])
     )
   end
 

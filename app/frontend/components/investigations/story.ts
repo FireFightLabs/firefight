@@ -1,14 +1,20 @@
-import type { InvestigationDetail, InvestigationHypothesis, InvestigationStep } from "@/types/serializers"
+import type { InvestigationDetail, InvestigationHypothesis, InvestigationNote, InvestigationStep } from "@/types/serializers"
 
 export type StoryEntry =
   | { kind: "asked"; key: string }
   | { kind: "step"; key: string; step: InvestigationStep }
   | { kind: "theory"; key: string; hypothesis: InvestigationHypothesis }
   | { kind: "settled"; key: string; hypothesis: InvestigationHypothesis }
+  | { kind: "note"; key: string; note: InvestigationNote }
   | { kind: "end"; key: string }
 
 function beforeStep(hypothesis: InvestigationHypothesis, step: InvestigationStep): boolean {
   return step.startedAt != null && hypothesis.createdAt <= step.startedAt
+}
+
+// A note is placed where the run read it, and one still waiting for the next step comes last.
+function readBefore(note: InvestigationNote, step: InvestigationStep): boolean {
+  return note.takenAt != null && step.startedAt != null && note.takenAt <= step.startedAt
 }
 
 // The run in the order it happened. A theory appears where it was first written down, and again as settled right
@@ -36,12 +42,25 @@ export function buildStory(investigation: InvestigationDetail): StoryEntry[] {
     story.push({ kind: "settled", key: `settled-${hypothesis.id}`, hypothesis })
   }
 
+  const unreadNotes = [...investigation.notes]
+
+  function placeNotesBefore(step: InvestigationStep | null) {
+    while (unreadNotes.length > 0 && (step == null || readBefore(unreadNotes[0], step))) {
+      const note = unreadNotes.shift()
+      if (note) {
+        story.push({ kind: "note", key: `note-${note.id}`, note })
+      }
+    }
+  }
+
   steps.forEach((step) => {
+    placeNotesBefore(step)
     placeTheoriesBefore(step)
     story.push({ kind: "step", key: `step-${step.position}`, step })
     investigation.hypotheses.filter((hypothesis) => hypothesis.settledAfterStep === step.position).forEach(settle)
   })
   placeTheoriesBefore(null)
+  placeNotesBefore(null)
 
   // A theory settled with no step behind it is still settled, at the end.
   investigation.hypotheses.filter((hypothesis) => hypothesis.settled && hypothesis.settledAfterStep == null).forEach(settle)

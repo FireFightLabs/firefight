@@ -73,6 +73,40 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "a responder adds a note to a running run, which the story shows until and after the run reads it" do
+    investigation = investigation_run(status: Investigation::STATUS_RUNNING)
+
+    post investigation_notes_url(investigation), params: { note: "  skip GitHub, look at 5xx on web  " }
+
+    assert_equal Investigation::Noting::NOTE_ADDED, flash[:notice]
+    note = investigation.notes.sole
+    assert_equal "skip GitHub, look at 5xx on web", note.content
+    assert_equal workspace_memberships(:alice_workspace_one), note.sender
+
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+
+    shown = inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION]["notes"].sole
+    assert_equal "skip GitHub, look at 5xx on web", shown["content"]
+    assert_nil shown["takenAt"]
+  end
+
+  test "a finished run takes no note, and says why" do
+    investigation = investigation_run
+
+    post investigation_notes_url(investigation), params: { note: "skip GitHub" }
+
+    assert_equal Investigation::Noting::NOTE_AFTER_THE_END, flash[:alert]
+    assert_empty investigation.notes
+  end
+
+  test "an empty note is refused" do
+    investigation = investigation_run(status: Investigation::STATUS_RUNNING)
+
+    post investigation_notes_url(investigation), params: { note: "   " }
+
+    assert_equal Investigation::Noting::NOTE_EMPTY, flash[:alert]
+  end
+
   private
 
   def investigation_run(**attributes)

@@ -73,6 +73,17 @@ class InvestigationDetailSerializer < BaseSerializer
     investigation.chat&.charts || []
   end
 
+  # Why the run takes no note now, or nil while it does. The story offers the note box only then.
+  type :string, optional: true
+  def note_blocked_reason
+    investigation.note_blocked_reason
+  end
+
+  # What responders added while it worked, placed in the story where the run read each one.
+  has_many :notes, serializer: InvestigationNoteSerializer do
+    investigation.notes
+  end
+
   has_many :steps, serializer: InvestigationStepSerializer do
     investigation.steps.where.not(position: nil).includes(:invocation)
   end

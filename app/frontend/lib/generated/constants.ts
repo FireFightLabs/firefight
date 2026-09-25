@@ -305,7 +305,8 @@ export const AGENT_CHAT_PROPS = {
   "ENVIRONMENTS": "environments",
   "INVESTIGATIONS": "investigations",
   "OPEN_INVESTIGATION": "openInvestigation",
-  "CHARTS": "charts"
+  "CHARTS": "charts",
+  "WAITING_MESSAGES": "waitingMessages"
 } as const
 
 export const INVESTIGATION_QUERY_PARAM = "investigation" as const

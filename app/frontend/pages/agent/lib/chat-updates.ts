@@ -12,6 +12,7 @@ type ChatChange = { title: string } | { pinned: boolean } | { archived: boolean 
 const OPEN_CHAT = [
   AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONFIRMATIONS,
   AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS,
+  AGENT_CHAT_PROPS.WAITING_MESSAGES,
 ]
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
@@ -31,7 +32,8 @@ export function startNewChat() {
 }
 
 // The question and the working state show the moment it is sent, so the chat never sits still while the request is out.
-// The server's answer replaces both, and a refusal puts the page back.
+// Sent while the agent works, it waits to join the answer at the next step. The server's answer replaces both, and a
+// refusal puts the page back.
 export function ask(conversationId: string | null, question: string) {
   const path = conversationId ? agentChatAskPath(conversationId) : agentChatsPath()
   router
@@ -41,6 +43,10 @@ export function ask(conversationId: string | null, question: string) {
 
 // A new chat has no id until the server makes it, and an empty one opens no live connection.
 function askedNow(props: AgentPageProps, question: string): Partial<AgentPageProps> {
+  if (props.conversation?.busy) {
+    return { waitingMessages: [ ...props.waitingMessages, { id: `waiting-${props.waitingMessages.length}`, body: question } ] }
+  }
+
   const asked = { id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [] }
   const conversation = props.conversation ?? {
     id: "", title: question, preview: question, archived: false, pinned: false, pinnedAt: null,

@@ -19,6 +19,9 @@ class Investigation::Step < ApplicationRecord
 
   scope :ordered, -> { order(:created_at, :id) }
 
+  # What a reader sees for the step, such as "Get form declare", or the tool's name when it had no label.
+  def shown_label = label.presence || tool_name.to_s.tr("_", " ").humanize
+
   def succeed!(compacted_result:, raw_result: nil)
     update!(
       status: STATUS_SUCCEEDED, compacted_result: compacted_result, raw_result: raw_result,

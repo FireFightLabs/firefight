@@ -17,7 +17,7 @@ import { agentChatsPath } from "@/lib/routes"
 const BACK_LINK_CLASS = "px-4 pt-3 text-left text-[13px] text-ink-2 md:hidden"
 
 export default function AgentPage() {
-  const { conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation } = usePage<AgentPageProps>().props
+  const { conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, conversation?.busy ?? false)
   const [ fill, setFill ] = useState<ComposerFill | null>(null)
@@ -78,6 +78,7 @@ export default function AgentPage() {
                   conversationId={conversationId}
                   confirmations={confirmations}
                   messages={messages}
+                  waiting={waitingMessages}
                   stream={stream}
                 />
               </>

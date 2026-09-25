@@ -31,7 +31,6 @@ class Investigation::Rehearsal
         incident.workspace, incident, brief: brief, max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents, model: model, provider: provider
       )
       run.build_seed_pack!
-      Investigation::WhatChanged.new(run).note!
       finish(run)
     end
 

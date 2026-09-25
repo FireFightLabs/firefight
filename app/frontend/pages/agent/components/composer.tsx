@@ -17,6 +17,7 @@ export interface ComposerFill {
 interface ComposerProps {
   conversationId: string | null
   incidents: AgentChatIncident[]
+  // Only changes the hint. A message sent while the agent works joins its answer at the next step.
   busy: boolean
   fill: ComposerFill | null
 }
@@ -34,7 +35,7 @@ export function Composer({ conversationId, incidents, busy, fill }: ComposerProp
 
   function placeholder() {
     if (busy) {
-      return "The agent is working"
+      return "Add something while Halon works"
     }
 
     return "Ask the agent, or @ an incident"
@@ -55,7 +56,6 @@ export function Composer({ conversationId, incidents, busy, fill }: ComposerProp
     <div className="mx-auto w-full max-w-3xl">
       <PromptBar
         key={fill?.key ?? 0}
-        busy={busy}
         modelPicker={false}
         dictation={false}
         sources={sources}

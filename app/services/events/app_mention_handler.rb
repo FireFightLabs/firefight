@@ -27,6 +27,10 @@ module Events
       if agent?(workspace)
         return investigate(workspace, channel_id, event, user_text) if investigate?(user_text)
 
+        # In a live run's thread a mention is added to the run, which reads it at its next step.
+        run = parent_thread_ts && Investigation.live_in_thread(workspace, parent_thread_ts)
+        return add_note(workspace, run, channel_id, event, user_text) if run
+
         return answer_as_agent(workspace, incident, channel_id, reply_thread_ts, event, user_text)
       end
 
@@ -59,6 +63,13 @@ module Events
       notify_blocked(workspace, channel_id, event["user"], refusal[:text]) if refusal.is_a?(Hash)
     end
     private_class_method :investigate
+
+    def self.add_note(workspace, run, channel_id, event, user_text)
+      member = Conversation::Opener.member(workspace, event["user"])
+      refusal = run.add_note_from(user_text, member: member, source: AbilityGateway::SOURCE_SLACK)
+      notify_blocked(workspace, channel_id, event["user"], refusal) if refusal
+    end
+    private_class_method :add_note
 
     def self.answer_as_agent(workspace, incident, channel_id, thread_id, event, user_text)
       conversation = Conversation::Opener.call(

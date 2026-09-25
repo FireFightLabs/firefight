@@ -5,7 +5,8 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
   class FakeInvestigator
     attr_reader :calls
 
-    def initialize(investigation, outcome:, turns: [], conclude: false)
+    def initialize(investigation, outcome:, turns: [], conclude: false, take: false)
+      @take = take
       @investigation = investigation
       @outcome = outcome
       @turns = turns
@@ -16,6 +17,7 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     def run(**arguments)
       @calls << arguments
       @turns.each { |turn| yield turn }
+      arguments[:take_messages].call if @take
       @investigation.conclude!(summary: "The 14:02 deploy raised the pool size") if @conclude
       @outcome
     end
@@ -158,17 +160,32 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     assert_includes investigator.calls.sole[:tools].map(&:name), Mcp::Tools::SEARCH_INCIDENTS
   end
 
+  test "a responder's note joins the run at its next step, says who added it, and shows as a step" do
+    bob = workspace_memberships(:bob_workspace_one)
+    @investigation.add_note!("skip GitHub, look at 5xx on web", by: bob)
+    fake(outcome: :answered, conclude: true, take: true)
+    Investigation::Delivery.any_instance.expects(:step).with(
+      key: "note-#{@investigation.notes.sole.id}", title: "Read what #{bob.display_name} added", status: FirefightAi::AgentLoop::STEP_DONE
+    )
+
+    Investigation::Runner.new(@investigation).run
+
+    said = @investigation.chat.messages.where(role: Chat::Message::ROLE_USER).map(&:content)
+    assert_includes said, "#{bob.display_name} added: skip GitHub, look at 5xx on web"
+    assert @investigation.notes.sole.taken_at
+  end
+
   private
 
   def turn(turns_used, spent_micros)
     FirefightAi::AgentLoop::Turn.new(turns_used: turns_used, spent_micros: spent_micros)
   end
 
-  def fake(outcome:, turns: [], conclude: false)
+  def fake(outcome:, turns: [], conclude: false, take: false)
     investigator = FakeInvestigator.new(
       @investigation,
       outcome: FirefightAi::AgentLoop::Outcome.new(status: outcome, turns_used: turns.size, spent_micros: 0),
-      turns: turns, conclude: conclude
+      turns: turns, conclude: conclude, take: take
     )
     FirefightAi::Investigator.stubs(:new).returns(investigator)
     investigator

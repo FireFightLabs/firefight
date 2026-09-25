@@ -20,7 +20,7 @@ class Investigation::Runner
 
   def run
     delivery.start!
-    chat = chat_record
+    chat = @investigation.chat_record(investigator.ai_model)
     chat.discard_interrupted_reply!
 
     outcome = investigator.run(
@@ -32,7 +32,8 @@ class Investigation::Runner
       canceled: -> { @investigation.reload.cancel_requested? },
       on_step: method(:report_step),
       nudge: chat.method(:nudge!),
-      memory: chat
+      memory: chat,
+      take_messages: method(:take_notes)
     ) do |turn|
       unless @investigation.record_turn!(turns_used: turn.turns_used, spent_micros: turn.spent_micros)
         raise LeaseLost, "another worker holds this run"
@@ -65,6 +66,14 @@ class Investigation::Runner
 
   def titles = @titles ||= {}
 
+  # Shown where the run's steps are, so whoever added a note sees the run read it.
+  def take_notes
+    @investigation.take_notes!.each do |note|
+      name = note.sender&.display_name || Investigation::Noting::UNNAMED_RESPONDER
+      delivery.step(key: "note-#{note.id}", title: "Read what #{name} added", status: FirefightAi::AgentLoop::STEP_DONE)
+    end.any?
+  end
+
   def investigator
     @investigator ||= FirefightAi::Investigator.new(
       @investigation.workspace, inferable: @investigation, member: member, model: @investigation.model_choice
@@ -80,12 +89,6 @@ class Investigation::Runner
     FirefightAi::AgentLoop::Budget.new(
       max_spend_cents: @investigation.max_spend_cents, max_turns: @investigation.max_turns,
       turns_used: @investigation.turns_used, spent_micros: @investigation.spent_micros
-    )
-  end
-
-  def chat_record
-    @investigation.chat || Chat.open!(
-      owner: @investigation, workspace: @investigation.workspace, model_choice: investigator.ai_model
     )
   end
 

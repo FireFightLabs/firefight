@@ -9,8 +9,9 @@ class Conversation::Asking
   end
 
   # The asker is who the turn acts as, which in a Slack thread can be someone other than whoever started it.
+  # A question sent while a turn runs joins it, and the job queued behind finds nothing left to answer.
   def self.ask(conversation, question, asker:)
-    conversation.ask!(question)
+    conversation.ask!(question, asker: asker)
     reply(conversation, asker)
   end
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_200100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -374,6 +374,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_190000) do
     t.text "thinking_text"
     t.datetime "updated_at", null: false
     t.index ["chat_id", "created_at"], name: "index_chat_messages_on_chat_id_and_created_at"
+  end
+
+  create_table "chat_queued_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.uuid "sender_id"
+    t.datetime "taken_at"
+    t.datetime "updated_at", null: false
+    t.index ["chat_id"], name: "index_chat_queued_messages_waiting", where: "(taken_at IS NULL)"
+    t.index ["sender_id"], name: "index_chat_queued_messages_on_sender_id"
   end
 
   create_table "chat_saved_results", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1608,6 +1619,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_190000) do
   add_foreign_key "chat_charts", "chats", on_delete: :cascade
   add_foreign_key "chat_compactions", "chats"
   add_foreign_key "chat_messages", "chats"
+  add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
+  add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_saved_results", "chats"
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"

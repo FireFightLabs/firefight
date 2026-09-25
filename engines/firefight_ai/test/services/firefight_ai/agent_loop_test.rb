@@ -295,6 +295,29 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal 133_456, outcome.spent_micros
   end
 
+  test "a message sent while the agent works joins after the tool's result, before the next model call" do
+    chat = FakeChat.new([ tool_reply("call_1"), llm_reply(content: "Checked the metrics instead") ])
+    sent = [ nil, "skip GitHub, look at metrics" ]
+    take = -> { sent.shift&.then { |text| chat.add_message(role: :user, content: text) }.present? }
+
+    run_loop(chat, reply_is_answer: true, take_messages: take)
+
+    roles = chat.messages.map { |message| [ message.role, message.content ] }
+    assert_equal [ :assistant, :tool, :user, :assistant ], roles.map(&:first)
+    assert_equal "skip GitHub, look at metrics", roles[2].last
+  end
+
+  test "a message sent after a reply that did nothing gives the agent another chance rather than ending the run" do
+    chat = FakeChat.new([ llm_reply(content: "I think it was the deploy"), llm_reply(content: "Reading it"), tool_reply("call_1") ])
+    sent = [ nil, "look at the 14:02 deploy" ]
+    take = -> { sent.shift&.then { |text| chat.add_message(role: :user, content: text) }.present? }
+    answered = -> { chat.messages.any?(&:tool_result?) }
+
+    outcome = run_loop(chat, answered: answered, take_messages: take)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+  end
+
   private
 
   def tool_reply(tool_call_id, cost: 0.0)
@@ -311,10 +334,10 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
   end
 
   def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, on_chunk: nil, reply_is_answer: false,
-               nudge: nil, check: nil, hold: nil, &on_turn)
+               nudge: nil, check: nil, hold: nil, take_messages: nil, &on_turn)
     FirefightAi::AgentLoop.new(
       chat: chat, budget: budget, answered: answered, on_step: on_step, on_chunk: on_chunk,
-      reply_is_answer: reply_is_answer, nudge: nudge, check: check, hold: hold,
+      reply_is_answer: reply_is_answer, nudge: nudge, check: check, hold: hold, take_messages: take_messages,
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
     ).run(&on_turn)
   end

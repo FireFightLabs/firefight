@@ -13,6 +13,7 @@ class Chat < ApplicationRecord
   belongs_to :owner, polymorphic: true
   has_many :saved_results, -> { in_order }, class_name: "Chat::SavedResult", dependent: :destroy, inverse_of: :chat
   has_many :charts, -> { in_order }, class_name: "Chat::Chart", dependent: :delete_all, inverse_of: :chat
+  has_many :queued_messages, class_name: "Chat::QueuedMessage", dependent: :delete_all, inverse_of: :chat
 
   # The registry holds no context window for the model this chat runs on. Nothing is assumed in
   # its place, so an operator adds the model to the registry with its window.
@@ -37,6 +38,20 @@ class Chat < ApplicationRecord
   # Only the two sides of the conversation, not the system prompt, tool results or the agent's nudges to itself.
   def readable_messages
     messages.where(role: Chat::Message::READABLE_ROLES, nudge: false).order(:created_at)
+  end
+
+  def queue_message!(content, sender:)
+    queued_messages.create!(content: content, sender: sender)
+  end
+
+  # Adds what was sent while the agent worked, in the order it was sent, and returns what it added. from limits it to one
+  # person's messages, since a turn acts with the permissions of whoever asked it. The block words each message.
+  def take_queued!(from: :anyone)
+    waiting = queued_messages.waiting
+    waiting = waiting.where(sender: from) unless from == :anyone
+    waiting.to_a.select(&:take!).each do |queued|
+      add_message(role: Chat::Message::ROLE_USER, content: block_given? ? yield(queued) : queued.content)
+    end
   end
 
   # The loop keeps the agent moving by speaking as the user, which is how a model reads it.

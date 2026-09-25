@@ -1,8 +1,8 @@
 class Conversation::Tools::StartInvestigation < RubyLLM::Tool
-  description "Start a full investigation when answering needs real work rather than a lookup. It needs no incident. " \
-              "It runs on its own, for minutes, and posts what it finds here. Hand over what the person told you: what " \
-              "is failing, roughly when it started, any names and any error text. Ask once when it started if nobody " \
-              "has said, and accept not knowing as an answer."
+  description "Start an investigation, only when the person asks for one. It needs no incident. It runs on its own, " \
+              "posts what it finds here, and on an incident its steps are followed in the incident's channel. Hand over " \
+              "what the person told you: what is failing, roughly when it started, any names and any error text. Ask " \
+              "once when it started if nobody has said, and accept not knowing as an answer."
 
   def self.tool_name = Mcp::Tools::START_INVESTIGATION
 
