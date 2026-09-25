@@ -15,8 +15,8 @@ module Workspace::InvestigationLimits
               numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   end
 
-  # A chat question does the work it needs itself, so it may spend what a run may. It stops once answered, so a lookup
-  # still costs what a lookup costs.
+  # A chat question does the work it needs itself, so it may spend what a run may. The turn ends once answered, so a
+  # lookup still costs a few calls.
   def conversation_limits = investigation_limits
 
   def investigation_limits

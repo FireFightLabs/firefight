@@ -18,6 +18,7 @@ class Conversation::Runner
       return nil
     end
 
+    # A question that waited behind the last turn was never marked as owed, since one already was.
     @conversation.expect_reply!
     delivery.thinking!
 

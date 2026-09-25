@@ -61,7 +61,7 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" onClick={open}>
-          {working ? "Follow it" : "See how it got there"}
+          {working ? "Open the run" : "See how it got there"}
         </Button>
         {run.suggestsIncident && (
           <Button size="sm" variant="primary" onClick={startDeclaring}>

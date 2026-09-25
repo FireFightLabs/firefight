@@ -32,8 +32,8 @@ export function startNewChat() {
 }
 
 // The question and the working state show the moment it is sent, so the chat never sits still while the request is out.
-// Sent while the agent works, it waits to join the answer at the next step. The server's answer replaces both, and a
-// refusal puts the page back.
+// Sent while the agent works, it shows as waiting instead. The server's answer replaces both, and a refusal puts the page
+// back.
 export function ask(conversationId: string | null, question: string) {
   const path = conversationId ? agentChatAskPath(conversationId) : agentChatsPath()
   router

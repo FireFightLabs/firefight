@@ -45,10 +45,10 @@ class Chat < ApplicationRecord
   end
 
   # Adds what was sent while the agent worked, in the order it was sent, and returns what it added. from limits it to one
-  # person's messages, since a turn acts with the permissions of whoever asked it. The block words each message.
-  def take_queued!(from: :anyone)
+  # person's messages, since a chat turn acts with the permissions of whoever asked it. The block words each message.
+  def take_queued!(from: nil)
     waiting = queued_messages.waiting
-    waiting = waiting.where(sender: from) unless from == :anyone
+    waiting = waiting.where(sender: from) if from
     waiting.to_a.select(&:take!).each do |queued|
       add_message(role: Chat::Message::ROLE_USER, content: block_given? ? yield(queued) : queued.content)
     end
