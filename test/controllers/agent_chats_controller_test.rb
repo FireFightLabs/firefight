@@ -397,6 +397,22 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal run.id, inertia_props.dig(AgentChatsController::PROP_OPEN_INVESTIGATION, "id")
   end
 
+  test "stopping an answer under way asks the worker to stop, and one with nothing running is refused" do
+    conversation = start_chat
+    conversation.ask!("anything in metrics?")
+
+    post agent_chat_stop_url(conversation)
+
+    assert conversation.chat.reload.stop_requested?
+
+    conversation.reply_delivered!
+    conversation.chat.clear_stop!
+    post agent_chat_stop_url(conversation)
+
+    assert_equal Conversation::NOTHING_TO_STOP, flash[:alert]
+    assert_not conversation.chat.reload.stop_requested?
+  end
+
   private
 
   def start_chat

@@ -9,7 +9,7 @@ import { isLive } from "@/components/investigations/use-live-investigation"
 import { incidentPath } from "@/lib/routes"
 import { AnswerText } from "@/pages/agent/components/answer-text"
 import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
-import { openRun } from "@/pages/agent/lib/chat-updates"
+import { openRun, stopRun } from "@/pages/agent/lib/chat-updates"
 import type { AgentPageProps } from "@/pages/agent/types"
 import type { InvestigationCard } from "@/types/serializers"
 
@@ -34,6 +34,10 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
 
   function open() {
     openRun(chatId, runId)
+  }
+
+  function stop() {
+    stopRun(runId)
   }
 
   function startDeclaring() {
@@ -63,6 +67,11 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
         <Button size="sm" variant="secondary" onClick={open}>
           {working ? "Open the run" : "See how it got there"}
         </Button>
+        {run.stopBlockedReason == null && (
+          <Button size="sm" variant="secondary" onClick={stop}>
+            Stop
+          </Button>
+        )}
         {run.suggestsIncident && (
           <Button size="sm" variant="primary" onClick={startDeclaring}>
             Declare incident

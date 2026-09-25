@@ -104,6 +104,13 @@ class Conversation < ApplicationRecord
 
   def reply_delivered! = update_in_place!(answer_owed_since: nil)
 
+  NOTHING_TO_STOP = "Halon is not working on anything in this chat.".freeze
+
+  def stop_blocked_reason = (NOTHING_TO_STOP unless answer_owed?)
+
+  # The worker reads the stop from the chat's row, between steps and while a model call runs.
+  def request_stop! = chat_record.cancel
+
   # A turn owed this long belongs to a dead worker, and neither the page nor the queue waits on it.
   def answer_owed? = answer_owed_since.present? && answer_owed_since > REPLY_CEILING.ago
 

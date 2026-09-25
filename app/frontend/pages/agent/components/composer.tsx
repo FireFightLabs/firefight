@@ -1,7 +1,9 @@
+import { useState } from "react"
+
 import PromptBar from "@/components/agent-ui/prompt-bar"
 import { agentChatsIncidentsPath } from "@/lib/routes"
 import { useRemoteSearch } from "@/pages/agent/hooks/use-remote-search"
-import { ask } from "@/pages/agent/lib/chat-updates"
+import { ask, stopChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatIncident } from "@/types/serializers"
 
 function incidentSearchPath(query: string) {
@@ -17,23 +19,37 @@ export interface ComposerFill {
 interface ComposerProps {
   conversationId: string | null
   incidents: AgentChatIncident[]
-  // Only changes the hint. A message sent while the agent works joins its answer at the next step.
+  // Turns send into Stop while nothing is typed. A message sent while the agent works joins its answer at the next step.
   busy: boolean
   fill: ComposerFill | null
 }
 
 export function Composer({ conversationId, incidents, busy, fill }: ComposerProps) {
   const { results, search } = useRemoteSearch<AgentChatIncident>(incidentSearchPath)
+  // Set when Stop is pressed and cleared by the next question, so the hint says so until the answer ends.
+  const [ stopRequested, setStopRequested ] = useState(false)
+  const stopping = busy && stopRequested
 
   function send(question: string) {
     if (question.trim().length === 0) {
       return
     }
 
+    setStopRequested(false)
     ask(conversationId, question)
   }
 
+  function stop() {
+    if (conversationId) {
+      setStopRequested(true)
+      stopChat(conversationId)
+    }
+  }
+
   function placeholder() {
+    if (stopping) {
+      return "Stopping"
+    }
     if (busy) {
       return "Add something while Halon works"
     }
@@ -56,6 +72,7 @@ export function Composer({ conversationId, incidents, busy, fill }: ComposerProp
     <div className="mx-auto w-full max-w-3xl">
       <PromptBar
         key={fill?.key ?? 0}
+        onStop={busy && !stopping && conversationId ? stop : undefined}
         modelPicker={false}
         dictation={false}
         sources={sources}

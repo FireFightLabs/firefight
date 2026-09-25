@@ -31,7 +31,7 @@ class AgentChatsController < InertiaController
 
   # Asking spends money, so it needs the same permission as starting an investigation.
   authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search], update: %i[update], delete: %i[destroy]
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
   before_action :require_agent!
@@ -75,6 +75,15 @@ class AgentChatsController < InertiaController
     return redirect_to(agent_chat_path(conversation), alert: NOTHING_ASKED) if question.blank?
 
     Conversation::Asking.ask(conversation, question, asker: current_membership)
+    redirect_to agent_chat_path(conversation)
+  end
+
+  # The page shows the answer ending with Stopped once the worker stops.
+  def stop
+    blocked = conversation.stop_blocked_reason
+    return redirect_to(agent_chat_path(conversation), alert: blocked) if blocked
+
+    conversation.request_stop!
     redirect_to agent_chat_path(conversation)
   end
 

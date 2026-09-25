@@ -35,6 +35,12 @@ class InvestigationCardSerializer < BaseSerializer
     investigation.incident.nil? && investigation.finding&.suggests_incident == true
   end
 
+  # Why the run cannot be stopped now, or nil while it can. The card offers Stop only then.
+  type :string, optional: true
+  def stop_blocked_reason
+    investigation.stop_blocked_reason
+  end
+
   type :number, optional: true
   def duration_seconds
     investigation.duration_seconds

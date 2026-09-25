@@ -1,7 +1,7 @@
 import { router } from "@inertiajs/react"
 
 import { AGENT_CHAT_PROPS, CHAT_MESSAGE_ROLES, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
-import { agentChatAskPath, agentChatConfirmPath, agentChatPath, agentChatsPath } from "@/lib/routes"
+import { agentChatAskPath, agentChatConfirmPath, agentChatPath, agentChatStopPath, agentChatsPath, investigationStopPath } from "@/lib/routes"
 import type { AgentPageProps } from "@/pages/agent/types"
 import type { AgentChat } from "@/types/serializers"
 
@@ -54,6 +54,15 @@ function askedNow(props: AgentPageProps, question: string): Partial<AgentPagePro
   }
 
   return { conversation: { ...conversation, busy: true }, messages: [ ...props.messages, asked ] }
+}
+
+// The answer ends with Stopped once the worker stops, and the live connection brings that in.
+export function stopChat(conversationId: string) {
+  router.post(agentChatStopPath(conversationId), {}, { ...IN_PLACE, only: OPEN_CHAT })
+}
+
+export function stopRun(investigationId: string) {
+  router.post(investigationStopPath(investigationId), {}, { ...IN_PLACE, only: RUNS })
 }
 
 export interface ConfirmationAnswer {
