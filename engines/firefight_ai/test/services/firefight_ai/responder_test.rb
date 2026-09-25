@@ -6,6 +6,15 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     FirefightAi::AgentLoop.any_instance.stubs(:run).returns(:outcome)
   end
 
+  # Seen in a real chat, a list of workspaces read from the database was checked by running the same 24 second query again.
+  test "the check lets an answer that only repeats results go out without running anything again" do
+    check = FirefightAi::Responder::CHECK
+
+    assert_match "only repeats a value a result you read shows needs no check", check
+    assert_match "write the answer as it is and run nothing", check
+    assert_match "such as a cause, a diagnosis or a recommendation, needs one", check
+  end
+
   # Seen in a real chat, an answer that opened with "The workspace setup tools opened successfully."
   test "the agent is told to keep how it works to itself" do
     chat = mock("chat")

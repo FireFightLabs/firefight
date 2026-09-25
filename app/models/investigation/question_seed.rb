@@ -14,7 +14,7 @@ class Investigation::QuestionSeed
   def gather
     alerts = recent_alerts
     {
-      "gathered_at" => Time.current.iso8601,
+      Investigation::Seeding::KEY_GATHERED_AT => Time.current.iso8601,
       "question" => @investigation.question,
       "brief" => @investigation.brief.presence,
       "open_incidents" => open_incident_facts,

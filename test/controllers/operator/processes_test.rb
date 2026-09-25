@@ -3,8 +3,8 @@ require "test_helper"
 class Operator::ProcessesTest < ActionDispatch::IntegrationTest
   setup do
     @operator = users(:alice)
-    @previous = ENV[OperatorCredential::OPERATOR_IDS_ENV]
-    ENV[OperatorCredential::OPERATOR_IDS_ENV] = @operator.id
+    @previous = ENV[Operator::Credential::OPERATOR_IDS_ENV]
+    ENV[Operator::Credential::OPERATOR_IDS_ENV] = @operator.id
     @incident = incidents(:active_critical_ws1)
     @workflow = SolidWorkflow::Workflow.create!(
       name: "incident.creation.v1", workflow_class: "IncidentCreationWorkflow", subject: @incident, state: "failed"
@@ -14,7 +14,7 @@ class Operator::ProcessesTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
-    ENV[OperatorCredential::OPERATOR_IDS_ENV] = @previous
+    ENV[Operator::Credential::OPERATOR_IDS_ENV] = @previous
   end
 
   test "nobody but a verified operator reaches the processes or acts on them" do
@@ -69,7 +69,7 @@ class Operator::ProcessesTest < ActionDispatch::IntegrationTest
     assert @step.reload.skipped?
 
     post run_again_operator_workflow_step_path(@step)
-    assert_equal "Only a failed step can be run again.", flash[:alert]
+    assert_equal Operator::Actions.step_blocked_reason(@step), flash[:alert]
   end
 
   test "a running workflow pauses, resumes and cancels, each under the operator's name" do
@@ -88,7 +88,7 @@ class Operator::ProcessesTest < ActionDispatch::IntegrationTest
     assert @workflow.reload.cancelled?
 
     post pause_operator_workflow_path(@workflow)
-    assert_equal "Only a running workflow can be paused.", flash[:alert]
+    assert_equal Operator::Actions.pause_blocked_reason(@workflow), flash[:alert]
   end
 
   test "a failed webhook delivery is sent again as a delivery of its own" do

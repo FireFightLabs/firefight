@@ -9,11 +9,11 @@ interface CodeFormProps {
   label: string;
   submitLabel: string;
   hint?: string;
-  // A recovery code is letters too, so the field only asks for digits where only digits fit.
+  // Recovery codes contain letters, so the numeric keyboard is used only for authenticator codes.
   digitsOnly?: boolean;
 }
 
-// One field for the code and one button. The server says why a code was refused, and the field stays focused to retry.
+// One code field and a submit button. Shows the server's reason for a refused code and keeps the field focused.
 export function CodeForm({ action, label, submitLabel, hint, digitsOnly = false }: CodeFormProps) {
   const form = useForm({ code: "" });
 

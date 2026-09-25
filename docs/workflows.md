@@ -66,7 +66,7 @@ Every state transition records a `SolidWorkflow::Event` (workflow-level and step
 
 ## Reading runs from the app
 
-Only workflow classes and the engine name `SolidWorkflow`. The operator console, which lists every run and pauses, resumes, cancels, retries or skips them, goes through `WorkflowRuns` in `app/workflows/workflow_runs.rb`, the one window onto the engine's records. See [operator.md](operator.md).
+Only workflow classes, the engine and the operator console name `SolidWorkflow`. The console lists every run and pauses, resumes, cancels, retries or skips them through `Operator::WorkflowRuns` (`app/models/operator/workflow_runs.rb`). See [operator.md](operator.md).
 
 ## Key Engine Files
 

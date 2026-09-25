@@ -3,7 +3,7 @@ import { CardHeader } from "@/components/auth/card-header";
 import { Button } from "@/components/ui/button";
 import { operatorRootPath } from "@/lib/routes";
 
-// Shown once, straight after setup. They are kept only in a form that cannot be read back.
+// Shown once, right after setup. The server stores only their digests, so they cannot be shown again.
 export default function OperatorRecoveryCodes({ codes }: { codes: string[] }) {
   return (
     <AuthLayout title="Save your recovery codes" variant="centered">
