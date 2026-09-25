@@ -144,11 +144,12 @@ class IntegrationsController < InertiaController
   def connect_with_url(provider)
     pack = Integrations::NativePack.for(provider.key)
     url = params[:connection_url].to_s
-    refusal = pack.connection_url_refusal(url)
-    return redirect_back(fallback_location: integrations_path, inertia: { errors: { connection_url: refusal } }) if refusal
+    certificates = params.fetch(:certificates, {}).permit(*pack.certificate_fields).to_h
+    refusal = pack.connection_refusal(url, certificates)
+    return redirect_back(fallback_location: integrations_path, inertia: { errors: { connection: refusal } }) if refusal
 
     environment_row = connect!(provider, params.require(:name), environment_id_param)
-    pack.store_connection_url!(environment_row, url)
+    pack.store_connection!(environment_row, url: url, certificates: certificates)
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     connected(environment_row.integration.name, return_to_param)

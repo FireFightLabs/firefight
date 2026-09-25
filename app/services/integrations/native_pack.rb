@@ -33,15 +33,18 @@ module Integrations
         @tool_definitions ||= []
       end
 
-      # A pack connected from a pasted URL (connect_with: connection_url) says why a URL cannot be used, or nil, and
-      # stores one on an environment row. It owns the credential's shape, so nothing else reads it.
-      def connection_url_refusal(_url)
+      # A pack connected from a pasted URL (connect_with: connection_url) says why a URL and its certificates cannot be
+      # used, or nil, and stores them on an environment row. It owns the credential's shape, so nothing else reads it.
+      def connection_refusal(_url, _certificates)
         raise NotImplementedError, "#{name} does not connect from a URL"
       end
 
-      def store_connection_url!(_environment_row, _url)
+      def store_connection!(_environment_row, url:, certificates:)
         raise NotImplementedError, "#{name} does not connect from a URL"
       end
+
+      # The certificates a pack connected from a URL may be given, pasted as text.
+      def certificate_fields = []
 
       def tool(name, description:, params_schema:, read_only:)
         name = name.to_s

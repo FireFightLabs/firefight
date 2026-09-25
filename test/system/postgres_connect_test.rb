@@ -17,6 +17,15 @@ class PostgresConnectTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/postgres-connect.png"))
 
     within("[role=dialog]") do
+      click_button "Add certificates"
+      fill_in "CA certificate (optional)", with: "not a certificate"
+      fill_in "Connection URL", with: "postgresql://reader:secret@203.0.113.5:5432/orders"
+      click_button "Connect"
+      assert_text "The CA certificate is not a PEM certificate."
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/postgres-certificates.png"))
+
+    within("[role=dialog]") do
       click_button "Use an MCP server instead"
       assert_field "MCP server URL"
       click_button "Back to connection URL"

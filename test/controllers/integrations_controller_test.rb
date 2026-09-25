@@ -49,7 +49,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a database connects from a URL, discovers its tools and records health, and the URL is never sent back" do
-    Integrations::Packs::Postgres.stubs(:connection_url_refusal).returns(nil)
+    Integrations::Packs::Postgres.stubs(:connection_refusal).returns(nil)
     Integrations::Packs::Postgres.any_instance.stubs(:check_health!).returns(true)
 
     post integrations_path, params: { provider: "postgresql", name: "Orders DB", connection_url: "postgresql://reader:s3cret@db.example.com/orders" }
@@ -66,7 +66,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the same name adds another environment to a database connection rather than a second connection" do
-    Integrations::Packs::Postgres.stubs(:connection_url_refusal).returns(nil)
+    Integrations::Packs::Postgres.stubs(:connection_refusal).returns(nil)
     Integrations::Packs::Postgres.any_instance.stubs(:check_health!).returns(true)
     staging = @workspace.environment_entries.first || skip("no environment entries in fixtures")
 
@@ -93,7 +93,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to integrations_url
-    assert_match "private network", session[:inertia_errors].to_h.with_indifferent_access[:connection_url].to_s
+    assert_match "private network", session[:inertia_errors].to_h.with_indifferent_access[:connection].to_s
   end
 
   test "an unreachable server still connects, marked failing" do

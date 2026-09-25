@@ -6,6 +6,7 @@ import { integrationsPath } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ALL_ENVIRONMENTS,
   EnvironmentSelect,
@@ -21,7 +22,36 @@ interface ConnectionUrlFormProps {
   onUseMcpServer: () => void;
 }
 
-type FieldErrors = Partial<Record<"name" | "connection_url", string>>;
+type FieldErrors = Partial<Record<"name" | "connection", string>>;
+
+type Certificates = {
+  root_cert: string;
+  client_cert: string;
+  client_key: string;
+};
+
+const NO_CERTIFICATES: Certificates = { root_cert: "", client_cert: "", client_key: "" };
+
+const CERTIFICATE_FIELDS: { key: keyof Certificates; label: string; hint: string; placeholder: string }[] = [
+  {
+    key: "root_cert",
+    label: "CA certificate",
+    hint: "For a database whose certificate is signed by its own authority, such as a cloud provider's.",
+    placeholder: "-----BEGIN CERTIFICATE-----",
+  },
+  {
+    key: "client_cert",
+    label: "Client certificate",
+    hint: "For a database that asks the client to prove who it is.",
+    placeholder: "-----BEGIN CERTIFICATE-----",
+  },
+  {
+    key: "client_key",
+    label: "Client key",
+    hint: "The unencrypted private key for the client certificate.",
+    placeholder: "-----BEGIN PRIVATE KEY-----",
+  },
+];
 
 // A database connected from a URL, one per environment. The same name adds an environment to the connection, or
 // replaces the URL of one it has. The server checks the URL before saving anything and says what is wrong on the form.
@@ -31,6 +61,16 @@ export function ConnectionUrlForm({ provider, environments, returnTo, onDismiss,
   const [environmentId, setEnvironmentId] = useState(ALL_ENVIRONMENTS);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [showCertificates, setShowCertificates] = useState(false);
+  const [certificates, setCertificates] = useState<Certificates>(NO_CERTIFICATES);
+
+  function revealCertificates() {
+    setShowCertificates(true);
+  }
+
+  function setCertificate(key: keyof Certificates, value: string) {
+    setCertificates((current) => ({ ...current, [key]: value }));
+  }
 
   function finish() {
     setSubmitting(false);
@@ -45,6 +85,7 @@ export function ConnectionUrlForm({ provider, environments, returnTo, onDismiss,
         provider: provider.key,
         name,
         connection_url: connectionUrl,
+        certificates,
         environment_id: toEnvironmentId(environmentId),
         return_to: returnTo,
       },
@@ -75,15 +116,36 @@ export function ConnectionUrlForm({ provider, environments, returnTo, onDismiss,
           onChange={(event) => setConnectionUrl(event.target.value)}
           placeholder="postgresql://readonly:password@db.example.com:5432/app"
         />
-        {errors.connection_url ? (
-          <p className="text-destructive text-xs">{errors.connection_url}</p>
-        ) : (
-          <p className="text-muted-foreground text-xs">
-            Use a database user that can only read. Firefight also runs every query read-only and stops any that
-            runs longer than 10 seconds. Stored encrypted, never shown again.
-          </p>
-        )}
+        <p className="text-muted-foreground text-xs">
+          Use a database user that can only read. Firefight also runs every query read-only and stops any that
+          runs longer than 10 seconds. Connections over the internet are always encrypted. Stored encrypted, never
+          shown again.
+        </p>
       </div>
+      {showCertificates ? (
+        CERTIFICATE_FIELDS.map((field) => (
+          <div key={field.key} className="flex flex-col gap-1.5">
+            <Label htmlFor={`connect-${field.key}`}>
+              {field.label} <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Textarea
+              id={`connect-${field.key}`}
+              rows={3}
+              spellCheck={false}
+              value={certificates[field.key]}
+              onChange={(event) => setCertificate(field.key, event.target.value)}
+              placeholder={field.placeholder}
+              className="font-mono text-xs"
+            />
+            <p className="text-muted-foreground text-xs">{field.hint}</p>
+          </div>
+        ))
+      ) : (
+        <button type="button" onClick={revealCertificates} className="text-muted-foreground hover:text-foreground self-start text-xs">
+          Add certificates
+        </button>
+      )}
+      {errors.connection && <p className="text-destructive text-sm">{errors.connection}</p>}
       <div className="flex items-center justify-end gap-2 pt-2">
         <button type="button" onClick={onUseMcpServer} className="text-muted-foreground hover:text-foreground mr-auto text-xs">
           Use an MCP server instead

@@ -70,10 +70,16 @@ module Integrations
            },
            read_only: true
 
-      def self.connection_url_refusal(url) = Connection.refusal(url)
+      CERTIFICATES = "certificates".freeze
 
-      def self.store_connection_url!(environment_row, url)
+      def self.connection_refusal(url, certificates) = Connection.refusal(url, certificates)
+
+      def self.certificate_fields = Connection::CERTIFICATES
+
+      # Each connect sets the whole credential, so certificates left out are removed rather than kept from before.
+      def self.store_connection!(environment_row, url:, certificates:)
         environment_row.store_credential!(CONNECTION_URL, url.to_s.strip)
+        environment_row.store_credential!(CERTIFICATES, certificates.to_h.slice(*Connection::CERTIFICATES).compact_blank)
       end
 
       def list_tables(environment_row:, arguments:)
@@ -190,10 +196,11 @@ module Integrations
       private
 
       def read(environment_row, &)
-        url = environment_row.credentials_hash[CONNECTION_URL]
+        credentials = environment_row.credentials_hash
+        url = credentials[CONNECTION_URL]
         fail! "This environment has no connection URL. Reconnect it on the Integrations page." if url.blank?
 
-        Connection.open(url, &)
+        Connection.open(url, credentials[CERTIFICATES] || {}, &)
       end
 
       # How Postgres refuses a statement a cursor cannot hold, which is every statement that writes.

@@ -11,7 +11,7 @@ module Integrations
         @row = @integration.integration_environments.create!
         @previous = ENV[ALLOWED]
         ENV[ALLOWED] = "127.0.0.1"
-        Postgres.store_connection_url!(@row, test_database_url)
+        Postgres.store_connection!(@row, url: test_database_url, certificates: {})
         @pack = Postgres.new(@integration)
       end
 
@@ -75,7 +75,7 @@ module Integrations
       end
 
       test "a wrong password says it could not connect, and the health check fails on it" do
-        Postgres.store_connection_url!(@row, test_database_url(password: "wrong"))
+        Postgres.store_connection!(@row, url: test_database_url(password: "wrong"), certificates: {})
 
         error = assert_raises(NativePack::Error) { @pack.check_health!(@row) }
         assert_match "Could not connect to the database", error.message
@@ -93,21 +93,79 @@ module Integrations
       test "a private address is refused unless an operator allowed it" do
         ENV[ALLOWED] = ""
 
-        assert_match "private network", Postgres.connection_url_refusal("postgresql://reader:secret@10.1.2.3:5432/app")
-        assert_match "private network", Postgres.connection_url_refusal("postgresql://reader:secret@127.0.0.1/app")
-        assert_match "private network", Postgres.connection_url_refusal("postgresql://reader:secret@100.64.0.9/app")
+        assert_match "private network", Postgres.connection_refusal("postgresql://reader:secret@10.1.2.3:5432/app", {})
+        assert_match "private network", Postgres.connection_refusal("postgresql://reader:secret@127.0.0.1/app", {})
+        assert_match "private network", Postgres.connection_refusal("postgresql://reader:secret@100.64.0.9/app", {})
 
         ENV[ALLOWED] = "10.0.0.0/8"
-        assert_nil Postgres.connection_url_refusal("postgresql://reader:secret@10.1.2.3:5432/app")
+        assert_nil Postgres.connection_refusal("postgresql://reader:secret@10.1.2.3:5432/app", {})
       end
 
       test "a URL that is not Postgres, has no host, a socket or several hosts is refused" do
-        assert_match "must start with", Postgres.connection_url_refusal("mysql://reader:secret@db.example.com/app")
-        assert_match "no host", Postgres.connection_url_refusal("postgresql:///app")
-        assert_match "one host only", Postgres.connection_url_refusal("postgresql://reader:secret@db1.example.com,db2.example.com/app")
+        assert_match "must start with", Postgres.connection_refusal("mysql://reader:secret@db.example.com/app", {})
+        assert_match "no host", Postgres.connection_refusal("postgresql:///app", {})
+        assert_match "one host only", Postgres.connection_refusal("postgresql://reader:secret@db1.example.com,db2.example.com/app", {})
+      end
+
+      test "a database on the internet is only reached encrypted, however the URL says it" do
+        assert_equal "require", public_parameters("postgresql://reader:secret@203.0.113.5/app")["sslmode"]
+        assert_equal "require", public_parameters("postgresql://reader:secret@203.0.113.5/app?sslmode=prefer")["sslmode"]
+        assert_equal "verify-full", public_parameters("postgresql://reader:secret@203.0.113.5/app?sslmode=verify-full")["sslmode"]
+        assert_match "only connects over the internet with encryption", Postgres.connection_refusal("postgresql://reader:secret@203.0.113.5/app?sslmode=disable", {})
+      end
+
+      test "a database an operator allowed on the private network keeps the URL's own encryption setting" do
+        assert_nil Postgres::Connection.new("postgresql://reader:secret@127.0.0.1/app").parameters["sslmode"]
+      end
+
+      test "a URL may not name files on Firefight's servers, except the system's own certificate authorities" do
+        assert_match "rather than naming files", Postgres.connection_refusal("postgresql://reader:secret@203.0.113.5/app?sslrootcert=/etc/passwd", {})
+        assert_match "rather than naming files", Postgres.connection_refusal("postgresql://reader:secret@203.0.113.5/app?passfile=/root/.pgpass", {})
+        assert_nil Postgres.connection_refusal("postgresql://reader:secret@203.0.113.5/app?sslmode=verify-full&sslrootcert=system", {})
+      end
+
+      test "certificates must be PEM, and a client certificate comes with its key" do
+        cert, key = certificate_and_key
+        url = "postgresql://reader:secret@203.0.113.5/app"
+
+        assert_nil Postgres.connection_refusal(url, "root_cert" => cert, "client_cert" => cert, "client_key" => key)
+        assert_match "CA certificate is not a PEM", Postgres.connection_refusal(url, "root_cert" => "not a cert")
+        assert_match "needs its key", Postgres.connection_refusal(url, "client_cert" => cert)
+        assert_match "client key is not", Postgres.connection_refusal(url, "client_cert" => cert, "client_key" => "-----BEGIN ENCRYPTED PRIVATE KEY-----\nx\n-----END ENCRYPTED PRIVATE KEY-----")
+      end
+
+      test "certificates reach the driver as private files that are removed once the connection closes" do
+        cert, key = certificate_and_key
+        seen = {}
+        PG.stubs(:connect).with do |options|
+          seen = options.slice("sslrootcert", "sslcert", "sslkey").transform_values { |path| [ File.read(path), File.stat(path).mode & 0o777, path ] }
+        end.raises(PG::ConnectionBad, "stop here")
+
+        assert_raises(NativePack::Error) do
+          Postgres::Connection.open("postgresql://reader:secret@203.0.113.5/app", "root_cert" => cert, "client_cert" => cert, "client_key" => key) { }
+        end
+
+        assert_equal [ cert, 0o600 ], seen["sslrootcert"].first(2)
+        assert_equal [ key, 0o600 ], seen["sslkey"].first(2)
+        assert seen.values.none? { |(_, _, path)| File.exist?(path) }
       end
 
       private
+
+      def public_parameters(url) = Postgres::Connection.new(url).parameters
+
+      def certificate_and_key
+        key = OpenSSL::PKey::RSA.new(2048)
+        cert = OpenSSL::X509::Certificate.new
+        cert.version = 2
+        cert.serial = 1
+        cert.subject = cert.issuer = OpenSSL::X509::Name.parse("/CN=halon-test")
+        cert.public_key = key.public_key
+        cert.not_before = Time.current
+        cert.not_after = 1.day.from_now
+        cert.sign(key, OpenSSL::Digest.new("SHA256"))
+        [ cert.to_pem.strip, key.private_to_pem.strip ]
+      end
 
       def call(tool, arguments = {})
         @pack.call(tool.to_s, environment_row: @row, arguments: arguments)
