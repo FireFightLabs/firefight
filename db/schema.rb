@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1149,6 +1149,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_090000) do
     t.index ["uid"], name: "index_oauth_applications_on_uid", unique: true
   end
 
+  create_table "operator_credentials", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "confirmed_at"
+    t.datetime "created_at", null: false
+    t.integer "failed_attempts", default: 0, null: false
+    t.bigint "last_used_step"
+    t.datetime "locked_until"
+    t.string "recovery_code_digests", default: [], null: false, array: true
+    t.text "totp_secret", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["user_id"], name: "index_operator_credentials_on_user_id", unique: true
+  end
+
   create_table "policies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "domain", null: false
@@ -1646,6 +1659,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_090000) do
   add_foreign_key "oauth_access_grants", "workspace_memberships", column: "resource_owner_id"
   add_foreign_key "oauth_access_tokens", "oauth_applications", column: "application_id"
   add_foreign_key "oauth_access_tokens", "workspace_memberships", column: "resource_owner_id"
+  add_foreign_key "operator_credentials", "users"
   add_foreign_key "policies", "workspaces"
   add_foreign_key "policy_rules", "policies"
   add_foreign_key "postmortem_updates", "incidents"

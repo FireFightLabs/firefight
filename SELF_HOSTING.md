@@ -109,6 +109,16 @@ Boxes can reach the internet, so a repository's own tests can too. Running comma
 
 Every setting is described in [`.env.example`](.env.example).
 
+## The operator console
+
+`/operator` shows your install's background jobs: what is waiting, what failed and why, with retry. Only people you name can open it. Everyone else sees a not found page.
+
+1. Sign in to Firefight once, then find your user id with `docker compose exec web bin/rails runner 'puts User.find_by(email: "you@example.com").id'`.
+2. Add `OPERATOR_USER_IDS=<that id>` to `.env` (comma separated for more than one), then `docker compose up -d`.
+3. Open `/operator`. The first time, scan the QR code with any authenticator app and save the recovery codes it shows. After that it asks for a code every 12 hours.
+
+Lost your phone and your recovery codes: `docker compose exec web bin/rails 'operator:reset_authenticator[USER_ID]'`, then set it up again.
+
 ## When something is wrong
 
 **The page will not load and Caddy logs a certificate error.** The DNS record is not pointing at the machine yet, or port 80 is closed. Let's Encrypt has to reach it to issue.

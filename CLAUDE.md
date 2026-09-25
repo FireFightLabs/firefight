@@ -99,6 +99,7 @@ Detailed docs live in `docs/`. Read the relevant one **before** working in that 
 | [docs/mcp.md](docs/mcp.md) | Working on the MCP server (`/mcp`, `app/mcp/`), its tools, or agent-facing auth |
 | [docs/integrations.md](docs/integrations.md) | Adding or changing an integration provider or connection, and anything touching the Ability Gateway (actions, grants, approvals, the invocation ledger) |
 | [docs/ai.md](docs/ai.md) | AI features (`engines/firefight_ai/`), the Inference ledger, transcript store/scrubbing, or model configuration |
+| [docs/operator.md](docs/operator.md) | Touching the operator console (`/operator`), who counts as an operator, its second factor, or the jobs dashboard |
 
 ## Code Style
 

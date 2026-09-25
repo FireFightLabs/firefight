@@ -335,6 +335,16 @@ Rails.application.routes.draw do
     get "/settings/api-keys", to: redirect("/app/developer/api-keys")
   end
 
+  # The operator console, for the people who run Firefight rather than a workspace. Everyone else gets not found.
+  namespace :operator do
+    root "home#show"
+    get "setup", to: "second_factors#setup", as: :setup
+    post "setup", to: "second_factors#confirm"
+    get "verify", to: "second_factors#verify", as: :verify
+    post "verify", to: "second_factors#check"
+    mount Flightdeck::Engine, at: "jobs", as: :jobs
+  end
+
   # Targets for `config.exceptions_app`.
   match "/404", to: "errors#not_found", via: :all
   match "/422", to: "errors#unprocessable", via: :all

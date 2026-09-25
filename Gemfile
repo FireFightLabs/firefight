@@ -4,6 +4,11 @@ source "https://rubygems.org"
 gem "rails", "~> 8.1.3", ">= 8.1.3.1"
 # Use postgresql as the database for Active Record
 gem "pg", "~> 1.6"
+
+# The operator console: a second factor for operators, and the jobs dashboard behind it.
+gem "rotp", "~> 6.3"
+gem "rqrcode", "~> 3.2"
+gem "solid_queue-flightdeck", "~> 1.2"
 # Casts pgvector columns and builds nearest neighbour queries.
 gem "neighbor", "~> 1.2"
 # Use the Puma web server [https://github.com/puma/puma]
