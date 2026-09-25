@@ -1,16 +1,27 @@
 # Operator console
 
-`/operator` is for the people who run a Firefight install, not for a workspace. It holds the overview, the incident process, workflows, the jobs dashboard, and Halon's runs, health, traces and chats. Its pages share `OperatorLayout` (`pages/operator/components/`), a frame of its own with no workspace, since an operator looks across all of them. `/operator` opens on the overview.
+`/operator` is for the people who run a Firefight install, not for a workspace. It holds the overview, the incident process, workflows, the jobs dashboard, and Halon's runs, health, traces and chats. Its pages share `OperatorLayout` (`pages/operator/components/`), a layout with no workspace selector, since an operator sees all workspaces. `/operator` opens on the overview.
+
+## Boundary
+
+The console is self-contained, so it can be replaced or removed without changing app code.
+
+- **Everything is under `Operator`**: controllers in `app/controllers/operator/`, models in `app/models/operator/` (including `Operator::Credential` and `Operator::WorkflowRuns`), serializers in `app/serializers/operator/`, pages in `app/frontend/pages/operator/`.
+- **The app never references it.** ArchSpec (`Archspec.rb`) makes the operator files their own components, lets only them name `Operator`, and forbids every other component from using them. The same layer rules as the app's controllers, models and serializers apply to them.
+- **Dependencies point one way.** The console reads app models, the ability ledger and the SolidWorkflow tables. `User` has no association to the credential, and the database deletes a user's credential with the user.
+- **Shared files hold one line each**: the route block in `config/routes.rb`, the Flightdeck base controller in `config/initializers/flightdeck.rb`, and `Operator::TypescriptConstants.exports` in `lib/typescript_constants.rb`.
+- **What the app records for everyone** and the console reads: `PlatformCallFailure`, `investigations.answer_posted_at`, `inferences.prompt_version`. They name nothing in the console.
+- **Actions have one guard each** in `Operator::Actions`, a sentence saying why not or nil. Controllers refuse with it and serializers ship it, so a page shows a button only when the server would accept it.
 
 ## Who gets in
 
-- **An operator is a user id in `OPERATOR_USER_IDS`**, comma separated, read on every request (`OperatorCredential.operator?`). It is deploy config, so nothing a workspace can edit makes someone an operator. A user id rather than an email, since an email is only as good as whichever sign-in method last vouched for it.
+- **An operator is a user id in `OPERATOR_USER_IDS`**, comma separated, read on every request (`Operator::Credential.operator?`). It is deploy config, so nothing a workspace can edit makes someone an operator. A user id rather than an email, since an email is only as good as whichever sign-in method last vouched for it.
 - **Anyone else gets the app's own not found page**, signed in or not, on every console address including the jobs dashboard (`Operator::BaseController#require_operator!`). The console does not reveal it exists. Flightdeck serves its own stylesheet, script and fonts without a check, by design, so an asset address can show that it is mounted, and nothing more.
-- **Then an authenticator code**, asked for again every `OperatorCredential::VERIFIED_FOR` (12 hours) in a session, so a taken-over sign-in alone opens nothing. Any TOTP app works.
+- **Then an authenticator code**, asked for again every `Operator::Credential::VERIFIED_FOR` (12 hours) in a session, so a taken-over sign-in alone opens nothing. Any TOTP app works.
 
 ## The second factor
 
-`OperatorCredential`, one row per operator:
+`Operator::Credential` (table `operator_credentials`), one row per operator:
 
 - **Setup** at `/operator/setup` shows a QR code (drawn by the page from the squares `rqrcode` returns, so no markup crosses to the browser) and the key in groups of four. The secret is created once and kept until the first code confirms it, so a mistyped code does not mean scanning again. It is encrypted.
 - **Recovery codes**: ten, each working once, handed back once when setup is confirmed and rendered rather than redirected with, so they sit in no address, flash or log. Only an HMAC of each is stored.
@@ -53,7 +64,7 @@ Flightdeck (`solid_queue-flightdeck`) is mounted at `/operator/jobs`, with `Oper
 
 ## Workflows
 
-`/operator/workflows` lists every SolidWorkflow run, filtered by state and kind. The console reads the engine's records only through `WorkflowRuns` (`app/workflows/workflow_runs.rb`), since ArchSpec keeps the `SolidWorkflow` namespace to workflows and the engine. One run shows its steps drawn from `depends_on` (`Operator::WorkflowGraph` puts a step one column after the last step it waits for), the selected step's attempts, time and last error, and every event the engine recorded. **Pause**, **Resume** and **Cancel** (which asks first) call the engine's own `pause!`, `resume!` and `cancel!`, and **Run again** and **Skip** its `retry_now!` and `skip!`, which bring a failed workflow back to running. Each is recorded on the workflow under the operator's email. The engine's `pause!` and `resume!` return nothing meaningful, so the state they leave is what the toast reports.
+`/operator/workflows` lists every SolidWorkflow run, filtered by state and kind. The console reads the engine's records through `Operator::WorkflowRuns`, and ArchSpec allows only workflows, the engine and the console to name `SolidWorkflow`. One run shows its steps drawn from `depends_on` (`Operator::WorkflowGraph` puts a step one column after the last step it waits for), the selected step's attempts, time and last error, and every event the engine recorded. **Pause**, **Resume** and **Cancel** (which asks first) call the engine's own `pause!`, `resume!` and `cancel!`, and **Run again** and **Skip** its `retry_now!` and `skip!`, which bring a failed workflow back to running. Each is recorded on the workflow under the operator's email. The engine's `pause!` and `resume!` return nothing meaningful, so the state they leave is what the toast reports. Every action button is disabled while its request runs, so a double click does not act twice.
 
 ## Failed platform calls
 

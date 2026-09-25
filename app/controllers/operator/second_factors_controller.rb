@@ -1,11 +1,11 @@
 module Operator
-  # Setting up an authenticator once, then entering its code each time the console is opened.
+  # Authenticator setup on the first visit, and the code check on later visits.
   class SecondFactorsController < BaseController
     skip_before_action :require_second_factor!
     before_action :require_setup, only: %i[verify check]
 
     def setup
-      credential = OperatorCredential.start_for!(current_user)
+      credential = Credential.start_for!(current_user)
       return redirect_to operator_verify_path if credential.confirmed?
 
       render inertia: "operator/setup", props: {
@@ -13,9 +13,9 @@ module Operator
       }
     end
 
-    # The recovery codes are rendered, never redirected with, so they are in no address, flash or log.
+    # Renders the recovery codes instead of redirecting, so they never appear in a URL, flash message or log.
     def confirm
-      credential = OperatorCredential.start_for!(current_user)
+      credential = Credential.start_for!(current_user)
       return redirect_to operator_verify_path if credential.confirmed?
 
       codes = credential.confirm!(params[:code])
@@ -40,9 +40,9 @@ module Operator
 
     private
 
-    def credential = @credential ||= current_user.operator_credential
+    def credential = @credential ||= Credential.for(current_user)
 
-    # The console's screens are not all Inertia pages (Flightdeck draws its own), so the browser loads the next one whole.
+    # Flightdeck pages are not Inertia pages, so after a correct code the browser loads the next page in full.
     def open_console(path)
       request.inertia? ? inertia_location(path) : redirect_to(path)
     end
@@ -52,7 +52,7 @@ module Operator
     end
 
     def refusal(credential)
-      credential.reload.locked? ? OperatorCredential::LOCKED_MESSAGE : OperatorCredential::WRONG_MESSAGE
+      credential.reload.locked? ? Credential::LOCKED_MESSAGE : Credential::WRONG_MESSAGE
     end
   end
 end

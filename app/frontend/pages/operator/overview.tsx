@@ -35,6 +35,8 @@ import type { OperatorAttentionItem } from "@/types/serializers"
 
 interface OverviewProps extends OperatorPageProps, FilterProps {
   attentionItems: OperatorAttentionItem[]
+  attentionCapped: boolean
+  attentionLimit: number
   incidents: IncidentsSummary
   workflows: WorkflowsSummary
   jobs: JobsSummary | null
@@ -113,7 +115,7 @@ function Panel({ title, icon: PanelIcon, href, source, external, children }: Pan
 
 export default function OperatorOverview() {
   const props = usePage<OverviewProps>().props
-  const { attentionItems, incidents, workflows, jobs, halon, filter } = props
+  const { attentionItems, attentionCapped, attentionLimit, incidents, workflows, jobs, halon, filter } = props
   const filterQuery = { window: filter.window, workspace: filter.workspace ?? undefined }
   const didNotAnswer = halon.stopped + halon.failed
   const noAnswerTone = halon.failed > 0 ? "rose" : didNotAnswer > 0 ? "amber" : "neutral"
@@ -150,6 +152,11 @@ export default function OperatorOverview() {
               <AttentionRow key={item.key} item={item} />
             ))}
           </ul>
+        )}
+        {attentionCapped && (
+          <p className="text-muted-foreground border-t border-border px-5 py-3 text-xs">
+            Each kind lists its latest {attentionLimit}. Open Incidents, Workflows, Jobs or Halon for the rest.
+          </p>
         )}
       </Card>
 

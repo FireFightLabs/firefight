@@ -1,6 +1,6 @@
 module Operator
-  # Finds what an operator pasted: any record's id, the start of one copied from a log, or an incident number such as
-  # INC-042, which each workspace counts on its own and so can match several.
+  # Finds records from what an operator pastes, a full id, the first characters of one, or an incident number such as
+  # INC-042. Each workspace numbers its own incidents, so a number can match several.
   class Finder
     KIND_INCIDENT = "incident".freeze
     KIND_RUN = "run".freeze
@@ -8,19 +8,19 @@ module Operator
     KIND_WORKFLOW = "workflow".freeze
     KINDS = [ KIND_INCIDENT, KIND_RUN, KIND_CHAT, KIND_WORKFLOW ].freeze
 
-    # Shorter than this, the start of an id matches too much to mean anything.
+    # Fewer characters than this would match too many records.
     SHORTEST_PREFIX = 6
     LIMIT = 25
     ID_START = /\A[0-9a-f-]+\z/
     INCIDENT_NUMBER = /\A[a-z]+-\d+\z/i
-    # A row of a trace is named by its kind and the id of its record, as the address of an opened row shows it.
+    # A trace row key such as model-<id>, as it appears in a trace URL.
     SPAN_KEY = /\A([a-z]+)-([0-9a-f][0-9a-f-]{5,})\z/
 
-    # label names the record, place says where it lives, via what the pasted id was when it was not the record's own,
-    # and span the trace row to open at.
+    # label names the record and place is its workspace. via is the pasted id when it belongs to a record inside this
+    # one. span is the trace row to open.
     Match = Data.define(:kind, :id, :label, :place, :via, :span)
 
-    # The id read as text, so the start of one matches. Shared with WorkflowRuns, which reads the engine's table.
+    # Matches ids that start with the query, by casting the id to text. WorkflowRuns uses it for the engine's table.
     def self.id_starts(table, query)
       Arel::Nodes::NamedFunction.new("CAST", [ table[:id].as("text") ]).matches("#{ActiveRecord::Base.sanitize_sql_like(query)}%", nil, true)
     end
@@ -56,7 +56,7 @@ module Operator
       ]
     end
 
-    # The saved chat has its own id, which is what a model call's error names.
+    # A saved chat has its own id, and model call errors show that id.
     def through_chats
       starting(Chat.includes(:owner)).filter_map do |chat|
         owner = chat.owner
@@ -75,13 +75,13 @@ module Operator
       end
     end
 
-    # A tool call's ledger row, as a trace shows it, leads back to the run that made it.
+    # A ledger id shown in a trace leads back to the run whose tool call wrote it.
     def through_ledger
       steps = Investigation::Step.where(invocation_id: starting(Ability::Invocation).select(:id)).includes(investigation: %i[workspace subject])
       steps.map { |step| run_match(step.investigation, via: "Ledger entry #{step.invocation_id}") }
     end
 
-    # A run's model call is a ledger row of its own, and a chat's is the model's usage row.
+    # A run's model calls are inference rows. A chat's model calls are RubyLLM usage rows.
     def through_model_calls
       runs = starting(Inference.where(inferable_type: Investigation.name).includes(inferable: %i[workspace subject])).map do |inference|
         run_match(inference.inferable, via: "Model call #{inference.id}", span: "#{Trace::KIND_MODEL}-#{inference.id}")

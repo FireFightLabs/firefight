@@ -10,7 +10,7 @@ const WINDOW_LABELS: Record<OperatorWindow, string> = {
 }
 const ALL_WORKSPACES = ""
 
-// The same address with the window or workspace changed, back on the first page since the rows are different ones.
+// The current URL with the window or workspace changed. Drops the page number, since the rows change.
 function withFilter(url: string, changes: Record<string, string | null>): string {
   const [path, query] = url.split("?")
   const params = new URLSearchParams(query)

@@ -4,7 +4,7 @@ import { TONE_CLASSES } from "@/pages/operator/lib/tone"
 
 type StatTone = "neutral" | "rose" | "amber"
 
-// One figure with what it counts and one line of context under it. A figure that needs a person is coloured.
+// One number with its label and a line of context. Rose or amber when it needs attention.
 export function Stat({ label, value, note, tone = "neutral" }: { label: string; value: ReactNode; note?: ReactNode; tone?: StatTone }) {
   const coloured = tone !== "neutral"
   return (

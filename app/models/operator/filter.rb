@@ -1,6 +1,6 @@
 module Operator
-  # The window and workspace an operator page reads, from its query string. Anything unknown falls back to the last day
-  # across every workspace.
+  # The window and workspace an operator page reads from its query string. Unknown values fall back to the last 24 hours
+  # across all workspaces.
   class Filter
     WINDOW_DAY = "24h".freeze
     WINDOW_WEEK = "7d".freeze
@@ -25,7 +25,7 @@ module Operator
 
     def range = (since..)
 
-    # The last day is read by the hour, anything longer by the day.
+    # The 24 hour window is grouped by hour, longer windows by day.
     def bucket = window == WINDOW_DAY ? :hour : :day
 
     def buckets

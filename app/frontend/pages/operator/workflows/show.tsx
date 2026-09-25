@@ -1,4 +1,4 @@
-import { Link, router, usePage } from "@inertiajs/react"
+import { Link, usePage } from "@inertiajs/react"
 import { IconCheck, IconClock, IconPlayerPause, IconPlayerPlay, IconPlayerStop, IconX, type Icon } from "@tabler/icons-react"
 import { useState } from "react"
 
@@ -6,7 +6,7 @@ import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { formatDateTime, formatTime } from "@/lib/formatters"
-import { OPERATOR_STEP_STATUSES, OPERATOR_WORKFLOW_STATES } from "@/lib/generated/constants"
+import { OPERATOR_STEP_STATUSES } from "@/lib/generated/constants"
 import {
   cancelOperatorWorkflowPath,
   operatorIncidentPath,
@@ -17,6 +17,7 @@ import {
 import { OperatorLayout } from "@/pages/operator/components/operator-layout"
 import { PageHeading } from "@/pages/operator/components/page-heading"
 import { StepActions } from "@/pages/operator/components/step-actions"
+import { useAction } from "@/pages/operator/lib/use-action"
 import { WorkflowState } from "@/pages/operator/components/workflow-state"
 import { STEP_STATUS_TONES, TONE_CLASSES } from "@/pages/operator/lib/tone"
 import type { OperatorPageProps } from "@/pages/operator/types"
@@ -32,8 +33,6 @@ const NODE_WIDTH = 200
 const NODE_HEIGHT = 52
 const COLUMN_GAP = 44
 const ROW_GAP = 18
-const LIVE: OperatorWorkflow["state"][] = [OPERATOR_WORKFLOW_STATES.PENDING, OPERATOR_WORKFLOW_STATES.RUNNING]
-const IN_PLACE = { preserveScroll: true }
 
 function statusIcon(status: Step["status"]): Icon {
   if (status === OPERATOR_STEP_STATUSES.SUCCEEDED) {
@@ -49,7 +48,7 @@ function place(step: Step) {
   return { left: step.column * (NODE_WIDTH + COLUMN_GAP), top: step.row * (NODE_HEIGHT + ROW_GAP) }
 }
 
-// Each step with an edge from every step it waits for, so what blocked a failure is visible at a glance.
+// An edge from each step to every step it waits for. Edges into a failed step are drawn in rose.
 function StepGraph({ steps, selected, onSelect }: { steps: Step[]; selected: string | null; onSelect: (id: string) => void }) {
   const byName = new Map(steps.map((step) => [step.name, step]))
   const width = (Math.max(0, ...steps.map((step) => step.column)) + 1) * (NODE_WIDTH + COLUMN_GAP)
@@ -127,7 +126,7 @@ function StepDetail({ step }: { step: Step }) {
       {step.lastError && (
         <pre className="bg-muted/40 max-h-64 overflow-auto rounded-md border border-border p-3 font-mono text-xs whitespace-pre-wrap text-rose-300">{step.lastError}</pre>
       )}
-      {step.status === OPERATOR_STEP_STATUSES.FAILED && <StepActions stepId={step.id} stepName={step.name} />}
+      {step.actionBlockedReason === null && <StepActions stepId={step.id} stepName={step.name} />}
     </div>
   )
 }
@@ -137,16 +136,15 @@ export default function OperatorWorkflowPage() {
   const firstFailed = workflow.steps.find((step) => step.status === OPERATOR_STEP_STATUSES.FAILED)
   const [selectedId, setSelectedId] = useState<string | null>(firstFailed?.id ?? workflow.steps[0]?.id ?? null)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const { busy, post } = useAction()
   const selected = workflow.steps.find((step) => step.id === selectedId) ?? null
-  const live = LIVE.includes(workflow.state)
-  const paused = workflow.state === OPERATOR_WORKFLOW_STATES.PAUSED
 
   function pause() {
-    router.post(pauseOperatorWorkflowPath(workflow.id), {}, IN_PLACE)
+    post(pauseOperatorWorkflowPath(workflow.id))
   }
 
   function resume() {
-    router.post(resumeOperatorWorkflowPath(workflow.id), {}, IN_PLACE)
+    post(resumeOperatorWorkflowPath(workflow.id))
   }
 
   function askToCancel() {
@@ -159,7 +157,7 @@ export default function OperatorWorkflowPage() {
 
   function cancel() {
     setConfirmingCancel(false)
-    router.post(cancelOperatorWorkflowPath(workflow.id), {}, IN_PLACE)
+    post(cancelOperatorWorkflowPath(workflow.id))
   }
 
   return (
@@ -171,20 +169,20 @@ export default function OperatorWorkflowPage() {
         title={<span className="font-mono">{workflow.workflowClass}</span>}
         lead={`Started ${formatDateTime(workflow.createdAt)} for ${workflow.subjectLabel}. ${workflow.stepsDone} of ${workflow.stepsTotal} steps done.`}
       >
-        {live && (
-          <Button type="button" variant="outline" onClick={pause}>
+        {!workflow.pauseBlockedReason && (
+          <Button type="button" variant="outline" onClick={pause} disabled={busy}>
             <IconPlayerPause className="size-4" />
             Pause
           </Button>
         )}
-        {paused && (
-          <Button type="button" variant="outline" onClick={resume}>
+        {!workflow.resumeBlockedReason && (
+          <Button type="button" variant="outline" onClick={resume} disabled={busy}>
             <IconPlayerPlay className="size-4" />
             Resume
           </Button>
         )}
-        {(live || paused) && (
-          <Button type="button" variant="outline" onClick={askToCancel}>
+        {!workflow.cancelBlockedReason && (
+          <Button type="button" variant="outline" onClick={askToCancel} disabled={busy}>
             <IconPlayerStop className="size-4" />
             Cancel
           </Button>

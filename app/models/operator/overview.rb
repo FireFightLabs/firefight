@@ -1,5 +1,5 @@
 module Operator
-  # The numbers behind each process on the overview, for one window. Jobs is nil when the queue could not be read.
+  # Summary numbers for each area on the overview, for one window. jobs is nil when the queue cannot be read.
   class Overview
     Incidents = Data.define(:declared, :from_alerts, :platform_failures, :webhooks_failed, :webhooks_sent, :alerts_waiting, :oldest_alert_at)
     Workflows = Data.define(:ran, :failed, :retrying, :paused, :kinds)

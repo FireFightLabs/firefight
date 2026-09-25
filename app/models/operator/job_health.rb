@@ -1,9 +1,8 @@
 module Operator
-  # Solid Queue as the overview reads it: what finished in the window, what failed and is still held, what is waiting,
-  # and whether the workers are alive. The queue keeps its own database, so one that cannot be read gives nil and the
-  # page says so, rather than the page failing.
+  # Reads Solid Queue for the overview, jobs finished in the window, failed jobs still held, waiting jobs, and live
+  # workers. The queue has its own database. When it cannot be read, read returns nil and the page says so.
   class JobHealth
-    # A queue whose oldest ready job has waited this long is behind.
+    # A queue whose oldest ready job has waited this long counts as backed up.
     BACKED_UP_AFTER = 2.minutes
 
     Queue = Data.define(:name, :waiting, :oldest_at)
@@ -11,7 +10,7 @@ module Operator
 
     attr_reader :finished, :failed, :failed_kinds, :waiting, :oldest_waiting_at, :workers, :workers_alive, :backed_up
 
-    # Asked first, since a failed query would abort a transaction the caller is in.
+    # Checks the table exists first, because a failed query would abort the caller's transaction.
     def self.read(since:)
       return nil unless SolidQueue::Job.table_exists?
 

@@ -1,10 +1,10 @@
-import { Link, router, usePage } from "@inertiajs/react"
+import { Link, usePage } from "@inertiajs/react"
 import {
   IconBell,
-  IconBrandSlack,
   IconChevronRight,
   IconFlame,
   IconHierarchy2,
+  IconPlugConnectedX,
   IconRefresh,
   IconSparkles,
   IconStepInto,
@@ -21,6 +21,7 @@ import { operatorHalonRunPath, operatorIncidentsPath, redeliverOperatorWebhookDe
 import { OperatorLayout } from "@/pages/operator/components/operator-layout"
 import { PageHeading } from "@/pages/operator/components/page-heading"
 import { StepActions } from "@/pages/operator/components/step-actions"
+import { useAction } from "@/pages/operator/lib/use-action"
 import { TONE_CLASSES, processToneClasses } from "@/pages/operator/lib/tone"
 import type { OperatorPageProps } from "@/pages/operator/types"
 import type { OperatorIncidentRow, OperatorProcessEntry } from "@/types/serializers"
@@ -28,6 +29,7 @@ import type { OperatorIncidentRow, OperatorProcessEntry } from "@/types/serializ
 interface IncidentProps extends OperatorPageProps {
   incident: OperatorIncidentRow
   entries: OperatorProcessEntry[]
+  total: number
 }
 
 const KINDS: Record<OperatorProcessEntry["kind"], { label: string; icon: Icon }> = {
@@ -36,17 +38,19 @@ const KINDS: Record<OperatorProcessEntry["kind"], { label: string; icon: Icon }>
   workflow: { label: "Workflow", icon: IconHierarchy2 },
   step: { label: "Step", icon: IconStepInto },
   webhook: { label: "Webhook", icon: IconWebhook },
-  platform: { label: "Slack", icon: IconBrandSlack },
+  platform: { label: "Platform call", icon: IconPlugConnectedX },
   halon: { label: "Halon", icon: IconSparkles },
 }
 
 function Redeliver({ deliveryId }: { deliveryId: string }) {
+  const { busy, post } = useAction()
+
   function redeliver() {
-    router.post(redeliverOperatorWebhookDeliveryPath(deliveryId), {}, { preserveScroll: true })
+    post(redeliverOperatorWebhookDeliveryPath(deliveryId))
   }
 
   return (
-    <Button type="button" size="sm" variant="outline" onClick={redeliver}>
+    <Button type="button" size="sm" variant="outline" onClick={redeliver} disabled={busy}>
       <IconRefresh className="size-3.5" />
       Send again
     </Button>
@@ -104,7 +108,7 @@ function EntryRow({ entry, last }: { entry: OperatorProcessEntry; last: boolean 
 }
 
 export default function OperatorIncident() {
-  const { incident, entries } = usePage<IncidentProps>().props
+  const { incident, entries, total } = usePage<IncidentProps>().props
 
   return (
     <OperatorLayout title={incident.identifier}>
@@ -118,7 +122,7 @@ export default function OperatorIncident() {
             <span>{incident.name}</span>
           </span>
         }
-        lead="Everything Firefight did for this incident, in order: its alerts and routing, its events, each workflow step, webhook deliveries, calls to Slack that failed, and Halon's runs."
+        lead="Everything Firefight did for this incident, in order: its alerts and routing, its events, each workflow step, webhook deliveries, failed calls to the chat platform, and Halon's runs."
       />
       <div className="mb-6 flex flex-wrap gap-2 text-xs">
         <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.primary}`}>{incident.status}</span>
@@ -126,7 +130,9 @@ export default function OperatorIncident() {
         {incident.problems > 0 && (
           <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.rose}`}>{incident.problems} failed</span>
         )}
-        <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.neutral}`}>{entries.length} records</span>
+        <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.neutral}`}>
+          {entries.length < total ? `first ${entries.length} of ${total} records` : `${total} records`}
+        </span>
       </div>
       <Card className="px-6 pt-6 pb-1">
         {entries.length === 0 ? (

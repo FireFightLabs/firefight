@@ -1,6 +1,6 @@
 module Operator
-  # How Halon is doing in a window: how runs end, how long they take, what they cost, which tools and model calls
-  # fail, and what people said about the answers. Rehearsals are never counted.
+  # Halon's numbers for a window, how runs ended, how long they took, what they cost, which tools and model calls
+  # failed, and how people voted. Rehearsals are excluded.
   class HalonHealth
     Totals = Data.define(:runs, :live, :chat_turns, :answered, :finished, :median_seconds, :p90_seconds, :spent_micros, :median_run_micros)
     Bucket = Data.define(:at, :answered, :stopped, :failed, :live)
@@ -12,7 +12,7 @@ module Operator
     TOOL_LIMIT = 25
     PROMPT_LIMIT = 5
 
-    # Median and p90, written out whole since each is read from its own column.
+    # Median and p90 as SQL, each written out in full so no SQL is built from strings.
     RUN_SECONDS = [
       "percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM investigations.completed_at - investigations.started_at))",
       "percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM investigations.completed_at - investigations.started_at))"
@@ -56,7 +56,7 @@ module Operator
       end
     end
 
-    # Why runs did not answer. A failure is named by its technical cause, which only operators see.
+    # Why runs did not answer, grouped by reason. Failures are grouped by their technical cause.
     def reasons
       rows.select { |row| [ HalonRuns::ENDING_STOPPED, HalonRuns::ENDING_FAILED ].include?(row[:ending]) }
           .group_by { |row| [ row[:ending], reason_for(row) ] }
@@ -84,12 +84,12 @@ module Operator
       )
     end
 
-    # The run prompt's latest wordings, each with how the runs it drove went, over all time so an older wording is
-    # still there to compare against.
+    # The latest versions of the run prompt, each with results for the runs that used it. Covers all time, so older
+    # versions stay available to compare.
     def prompts
       versions = PromptVersion.where(template: FirefightAi::Investigator::FEATURE).order(first_seen_at: :desc).limit(PROMPT_LIMIT)
       ledger = @filter.scope(Inference.where(prompt_template: FirefightAi::Investigator::FEATURE, prompt_version: versions.map(&:version), inferable_type: Investigation.name))
-      # A run that crossed a deploy counts under the wording it started with.
+      # A run that spans a deploy counts under the version it started with.
       first_version = ledger.order(:created_at).pluck(:inferable_id, :prompt_version).reverse.to_h
       runs = Investigation.seen.where(id: first_version.keys).includes(:finding).index_by(&:id)
 

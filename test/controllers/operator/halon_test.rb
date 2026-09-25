@@ -3,8 +3,8 @@ require "test_helper"
 class Operator::HalonTest < ActionDispatch::IntegrationTest
   setup do
     @operator = users(:alice)
-    @previous = ENV[OperatorCredential::OPERATOR_IDS_ENV]
-    ENV[OperatorCredential::OPERATOR_IDS_ENV] = @operator.id
+    @previous = ENV[Operator::Credential::OPERATOR_IDS_ENV]
+    ENV[Operator::Credential::OPERATOR_IDS_ENV] = @operator.id
     @workspace = workspaces(:slack_workspace_one)
     @run = @workspace.investigations.create!(
       subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 20, max_spend_cents: 400,
@@ -16,7 +16,7 @@ class Operator::HalonTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
-    ENV[OperatorCredential::OPERATOR_IDS_ENV] = @previous
+    ENV[Operator::Credential::OPERATOR_IDS_ENV] = @previous
   end
 
   test "nobody but a verified operator reaches Halon's runs, traces or chats" do

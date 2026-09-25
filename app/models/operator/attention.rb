@@ -1,6 +1,6 @@
 module Operator
-  # What needs a person, across every process: failures in the window, and anything backed up or stuck right now. Each
-  # item names the record that opens it, and repeats of one failure are one item with a count.
+  # Builds the Needs attention list from failures in the window and anything backed up or stuck now. Each item links to
+  # its record. Repeats of one failure become one item with a count.
   class Attention
     KIND_WORKFLOW_FAILED = "workflow_failed".freeze
     KIND_WORKFLOW_STUCK = "workflow_stuck".freeze
@@ -18,7 +18,7 @@ module Operator
       KIND_QUEUE_BACKED_UP, KIND_JOBS_FAILED, KIND_HALON_FAILED, KIND_HALON_LIMIT, KIND_HALON_NOT_POSTED, KIND_HALON_STUCK
     ].freeze
 
-    # What an item opens.
+    # The page an item opens.
     TARGET_WORKFLOW = "workflow".freeze
     TARGET_INCIDENT = "incident".freeze
     TARGET_RUN = "run".freeze
@@ -26,10 +26,10 @@ module Operator
     TARGET_QUEUES = "queues".freeze
     TARGETS = [ TARGET_WORKFLOW, TARGET_INCIDENT, TARGET_RUN, TARGET_FAILED_JOBS, TARGET_QUEUES ].freeze
 
-    # Halon reaching these is worth tuning, the others are a person's choice or the model going quiet.
+    # Stop reasons worth tuning. The other reasons are a person's choice or the model ending without an answer.
     TUNING_LIMITS = [ Investigation::BUDGET_SPENT, Investigation::TOO_MANY_TURNS ].freeze
 
-    # An alert still waiting for routing this long after it arrived is stuck.
+    # An alert still waiting for routing this long after it arrived counts as stuck.
     ALERT_STUCK_AFTER = 5.minutes
     PER_KIND = 10
 
@@ -38,6 +38,11 @@ module Operator
     def initialize(filter, jobs:)
       @filter = filter
       @jobs = jobs
+    end
+
+    # Kinds that reached PER_KIND, so the page can say the list is cut.
+    def capped_kinds
+      items.group_by(&:kind).select { |_kind, group| group.size >= PER_KIND }.keys
     end
 
     def items
@@ -108,7 +113,7 @@ module Operator
       end
     end
 
-    # The queue is shared by every workspace, so it is only read across all of them.
+    # The job queue is shared by all workspaces, so queue items show only when no workspace is selected.
     def job_items
       return [] if @jobs.nil? || @filter.workspace
 

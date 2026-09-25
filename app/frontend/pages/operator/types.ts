@@ -3,13 +3,13 @@ import type { OperatorHalonRun } from "@/types/serializers"
 
 export interface OperatorPageProps extends Record<string, unknown> {
   operator: { name: string; email: string } | null
-  // What needs a person in the last day, counted for the nav.
+  // Needs attention count for the last 24 hours, shown in the sidebar.
   attention?: number
 }
 
 export type OperatorWindow = (typeof OPERATOR_WINDOWS)[keyof typeof OPERATOR_WINDOWS]
 
-// The window and workspace a page reads, echoed back with what the pickers offer.
+// The selected window and workspace, and the choices for both pickers.
 export interface FilterProps {
   filter: { window: OperatorWindow; workspace: string | null }
   windows: OperatorWindow[]

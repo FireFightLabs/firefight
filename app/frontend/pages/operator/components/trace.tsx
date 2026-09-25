@@ -59,25 +59,25 @@ const KINDS: Record<Kind, { label: string; icon: Icon }> = {
 
 const MONO_KINDS: Kind[] = [OPERATOR_TRACE_KINDS.TOOL]
 const TICKS = 6
-// A span shorter than this share of its clock is still drawn wide enough to see and click.
+// Minimum bar width, as a percentage, so a very short span can still be seen and clicked.
 const MIN_WIDTH = 0.6
 
 interface TraceProps extends OperatorPageProps {
   [OPERATOR_SPAN_BODY_PROP]?: string | null
 }
 
-function clock(group: OperatorTraceGroup) {
+function timeAxis(group: OperatorTraceGroup) {
   const start = new Date(group.startedAt ?? 0).getTime()
   const end = new Date(group.endedAt ?? group.startedAt ?? 0).getTime()
   return { start, total: Math.max(end - start, 1) }
 }
 
-// Anything outside the clock, such as a verdict given later, sits at its edge.
+// Clamps a position to the axis, so a record outside the run's time, such as a later vote, sits at the edge.
 function offset(at: string, start: number, total: number): number {
   return Math.min(Math.max(((new Date(at).getTime() - start) / total) * 100, 0), 100)
 }
 
-// A short clock is read in tenths of a second, a long one in minutes and hours.
+// Formats a tick. Under a second in ms, under ten seconds in tenths, longer ones as m:ss or h:mm:ss.
 function tickLabel(milliseconds: number, span: number): string {
   if (span < 1000) {
     return `${Math.round(milliseconds)}ms`
@@ -95,7 +95,7 @@ function tickLabel(milliseconds: number, span: number): string {
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${secondsLeft}` : `${minutes}:${secondsLeft}`
 }
 
-// The first tick hangs right of its mark and the last left of it, so neither runs off the ruler.
+// Keeps the first and last tick labels inside the ruler.
 function tickAlign(index: number): string {
   if (index === 0) {
     return ""
@@ -107,7 +107,7 @@ function secondsBetween(from: number, to: number): string {
   return `${((to - from) / 1000).toFixed(1)}s`
 }
 
-// Where a span sits on the clock, said in words for whoever hovers it.
+// Hover text for a span, when it started relative to the group and how long it took.
 function whenSaid(span: OperatorTraceSpan, start: number): string {
   const began = new Date(span.startedAt).getTime()
   const at = `at +${secondsBetween(start, began)}`
@@ -159,7 +159,7 @@ function SpanRow({ span, start, total, selected, onSelect }: { span: OperatorTra
 }
 
 function Group({ group, selected, onSelect }: { group: OperatorTraceGroup; selected: string | null; onSelect: (key: string) => void }) {
-  const { start, total } = clock(group)
+  const { start, total } = timeAxis(group)
   const ticks = Array.from({ length: TICKS }, (_, index) => (total / (TICKS - 1)) * index)
 
   return (
@@ -190,7 +190,7 @@ function Group({ group, selected, onSelect }: { group: OperatorTraceGroup; selec
   )
 }
 
-// What the shapes and colours mean, since a chart nobody can read is only decoration.
+// Explains what the bar and diamond shapes and each colour mean.
 function Legend() {
   return (
     <div className="text-muted-foreground flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border px-2 pb-4 text-xs">
@@ -261,8 +261,8 @@ function Selected({ span, body, loading }: { span: OperatorTraceSpan; body: stri
   )
 }
 
-// Spans on one clock per group, and the selected span beside them. Its content is read only when it is opened, and the
-// address keeps which one is open, so a trace can be sent to someone at the span that matters.
+// Draws each group's spans on its own time axis, with the selected span's details beside them. A span's content loads
+// only when it is opened. The URL keeps the open span, so a link opens the trace at that span.
 export function Trace({ groups }: { groups: OperatorTraceGroup[] }) {
   const page = usePage<TraceProps>()
   const spans = groups.flatMap((group) => group.spans)

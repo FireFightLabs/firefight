@@ -30,7 +30,7 @@ class Operator::FinderTest < ActiveSupport::TestCase
 
     assert_equal @run.id, match.id
     assert_equal "#{Operator::Trace::KIND_MODEL}-#{inference.id}", match.span
-    assert_match "span=#{Operator::Trace::KIND_MODEL}-#{inference.id}", OperatorFindMatchSerializer.path_for(match)
+    assert_match "span=#{Operator::Trace::KIND_MODEL}-#{inference.id}", Operator::FindMatchSerializer.path_for(match)
   end
 
   test "a ledger entry leads back to the run whose tool call it was" do

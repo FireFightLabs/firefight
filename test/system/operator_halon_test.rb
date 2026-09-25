@@ -3,8 +3,8 @@ require "application_system_test_case"
 class OperatorHalonTest < ApplicationSystemTestCase
   setup do
     @operator = users(:alice)
-    @previous = ENV[OperatorCredential::OPERATOR_IDS_ENV]
-    ENV[OperatorCredential::OPERATOR_IDS_ENV] = @operator.id
+    @previous = ENV[Operator::Credential::OPERATOR_IDS_ENV]
+    ENV[Operator::Credential::OPERATOR_IDS_ENV] = @operator.id
     @workspace = workspaces(:slack_workspace_one)
     sign_in(@operator, @workspace)
     Operator::BaseController.any_instance.stubs(:operator_verified?).returns(true)
@@ -18,7 +18,7 @@ class OperatorHalonTest < ApplicationSystemTestCase
   end
 
   teardown do
-    ENV[OperatorCredential::OPERATOR_IDS_ENV] = @previous
+    ENV[Operator::Credential::OPERATOR_IDS_ENV] = @previous
   end
 
   test "an operator goes from what needs attention to a run's health and then its trace, and reads one tool call" do

@@ -1,5 +1,5 @@
 module Operator
-  # How Halon is doing in a window, and its runs, each of which opens its trace.
+  # Halon's health numbers for the selected window, and the list of runs.
   class HalonController < BaseController
     PER_PAGE = 25
 
@@ -17,7 +17,8 @@ module Operator
         tools: health.tools.map { |tool| camelized(tool) },
         model: camelized(health.model),
         prompts: health.prompts.map { |prompt| camelized(prompt) },
-        runs: OperatorHalonRunSerializer.many(runs.first(PER_PAGE)),
+        limits: { tools: HalonHealth::TOOL_LIMIT, prompts: HalonHealth::PROMPT_LIMIT },
+        runs: HalonRunSerializer.many(runs.first(PER_PAGE)),
         page: page, more: runs.size > PER_PAGE, ending: ending,
         **filter_props
       }

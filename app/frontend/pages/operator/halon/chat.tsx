@@ -32,7 +32,7 @@ export default function OperatorHalonChat() {
       </Link>
       <PageHeading
         title={chat.title}
-        lead="Each turn on its own clock: what the person asked, every model call and tool call that followed, the reply, and any run it started. Select a span to read it."
+        lead="One timeline per message the person sent: what they asked, every model call and tool call that followed, the reply, and any run it started. Select a row to read it."
       />
       <div className="mb-6 flex flex-wrap items-center gap-2 text-xs">
         <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.neutral}`}>{chat.workspaceName}</span>

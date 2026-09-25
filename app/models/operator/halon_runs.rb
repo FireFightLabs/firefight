@@ -1,6 +1,6 @@
 module Operator
-  # Halon's runs as the console lists them, and how each one ended. A stop is Halon reaching a limit or a person
-  # stopping it, and a failure is something going wrong on our side, which is the one an operator has to look at.
+  # Lists runs and says how each one ended. Stopped means Halon hit a limit or a person stopped it. Failed means an
+  # error on our side, which is what an operator needs to look at.
   module HalonRuns
     ENDING_ANSWERED = "answered".freeze
     ENDING_STOPPED = "stopped".freeze
@@ -8,10 +8,10 @@ module Operator
     ENDING_LIVE = "live".freeze
     ENDINGS = [ ENDING_ANSWERED, ENDING_STOPPED, ENDING_FAILED, ENDING_LIVE ].freeze
 
-    # Limits a run reached, said to the thread in these words. Anything else in error_summary is a cause on our side.
+    # Stop reasons that mean a limit was reached. Any other error_summary is a failure on our side.
     LIMIT_REASONS = (Investigation::PLAIN_STOP_REASONS - [ Investigation::GAVE_UP ]).freeze
 
-    # The models Halon calls: its runs, their citation re-read, and chat turns.
+    # Inference features that belong to Halon, its runs, their citation check, and chat turns.
     FEATURES = [ FirefightAi::Investigator::FEATURE, FirefightAi::CitationCheck::FEATURE, FirefightAi::Responder::FEATURE ].freeze
 
     def self.ending(status, error_summary)
@@ -45,7 +45,7 @@ module Operator
       end
     end
 
-    # Finished and told the thread it would answer, but the last post never went through.
+    # The run finished and opened a thread, but its last post to that thread failed.
     def self.not_posted?(run)
       run.over? && run.thread_id.present? && run.answer_posted_at.nil?
     end

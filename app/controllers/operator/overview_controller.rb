@@ -1,12 +1,15 @@
 module Operator
-  # The console's front page: what needs a person, then each process in numbers, for one window and workspace.
+  # The console's home page. Lists what needs attention, then summary numbers for each area.
   class OverviewController < BaseController
     def show
       jobs = JobHealth.read(since: filter.since)
       overview = Overview.new(filter, jobs: jobs)
+      attention = Attention.new(filter, jobs: jobs)
 
       render inertia: "operator/overview", props: {
-        attentionItems: OperatorAttentionItemSerializer.many(Attention.new(filter, jobs: jobs).items),
+        attentionItems: AttentionItemSerializer.many(attention.items),
+        attentionCapped: attention.capped_kinds.any?,
+        attentionLimit: Attention::PER_KIND,
         incidents: camelized(overview.incidents),
         workflows: camelized(overview.workflows),
         jobs: camelized(overview.jobs),

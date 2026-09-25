@@ -39,7 +39,7 @@ export default function OperatorHalonRun() {
       </Link>
       <PageHeading
         title={run.label}
-        lead="One run on one clock: the job, the facts it started from, every model call and tool call, its self checks, and how the answer reached people. Select a span to read it."
+        lead="Everything this run did, in order: the job, the facts it started from, every model call and tool call, its self checks, and how the answer reached people. Select a row to read it."
       >
         {live && (
           <Button type="button" variant="outline" size="sm" onClick={refresh}>

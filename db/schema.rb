@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_170100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1673,7 +1673,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_170100) do
   add_foreign_key "oauth_access_grants", "workspace_memberships", column: "resource_owner_id"
   add_foreign_key "oauth_access_tokens", "oauth_applications", column: "application_id"
   add_foreign_key "oauth_access_tokens", "workspace_memberships", column: "resource_owner_id"
-  add_foreign_key "operator_credentials", "users"
+  add_foreign_key "operator_credentials", "users", on_delete: :cascade
   add_foreign_key "platform_call_failures", "workspaces", on_delete: :cascade
   add_foreign_key "policies", "workspaces"
   add_foreign_key "policy_rules", "policies"

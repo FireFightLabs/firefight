@@ -1,6 +1,6 @@
 const MICROS_PER_DOLLAR = 1_000_000
 
-// Spend is kept in millionths of a dollar. Operators read dollars, with cents below a dollar kept.
+// Spend is stored in micros, millionths of a dollar. Formats it in dollars and cents.
 export function dollars(micros: number | null | undefined): string {
   if (micros === null || micros === undefined) {
     return "-"
@@ -31,7 +31,7 @@ export function count(value: number): string {
   return new Intl.NumberFormat("en-US", { notation: value >= 10_000 ? "compact" : "standard" }).format(value)
 }
 
-// How long ago, in the largest unit that fits.
+// Time since a moment, in the largest unit that fits.
 export function since(at: string | null | undefined, now: Date = new Date()): string {
   if (!at) {
     return "-"

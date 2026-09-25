@@ -1,6 +1,6 @@
 module Operator
-  # One Halon run on one clock, from every record it left: the job taking it, the facts it started from, each model
-  # call and tool call, its theories, its answer or why it stopped, how that reached the thread, and what people said.
+  # Builds the trace for one Halon run from every record it wrote, the job claim, the starting facts, each model call
+  # and tool call, theories, the answer or stop reason, the posts to its thread, and votes.
   class RunTrace
     include Trace
 
@@ -26,7 +26,7 @@ module Operator
 
     def body_for(key) = spans.find { |span| span.key == key }&.read_body
 
-    # The wording the run started with, which the health page compares.
+    # The prompt version the run started with. The health page compares versions.
     def prompt_version = inferences.find { |inference| inference.feature == FirefightAi::Investigator::FEATURE }&.prompt_version
 
     def model = inferences.first&.model
@@ -53,7 +53,7 @@ module Operator
       pack = run.seed_pack
       return nil if pack.blank?
 
-      # Whatever the seeder gathered, counted by section, so a new section shows without a change here.
+      # Counts every list in the seed pack, so a new section shows up without changing this code.
       counted = pack.filter_map do |name, value|
         "#{value.size} #{name.humanize(capitalize: false)}" if value.is_a?(Array) && value.any?
       end
@@ -113,8 +113,8 @@ module Operator
       end
     end
 
-    # The gateway ledgers every call that leaves Firefight and every refusal, but not a read of Firefight's own data, and
-    # a refused call never reaches the step that would link its row. So a step without a row is named by what it was.
+    # The gateway ledgers calls that leave Firefight and every denial, but not reads of Firefight's own data. A denied
+    # call is never linked to its step. So a step with no ledger row is labeled by what happened.
     def decision_word(step, whole: false)
       return DECISION_WORDS.fetch(step.invocation.decision, step.invocation.decision) if step.invocation
       return "replayed from its record" if run.replay_of_id
@@ -215,7 +215,8 @@ module Operator
       @assistant_messages ||= run.chat ? run.chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).to_a : []
     end
 
-    # The loop saves each reply as its call returns, so a call's reply is the first saved inside it or just after.
+    # The loop saves each reply when its model call returns, so the reply is the first assistant message saved during or
+    # just after the call.
     def assistant_message_between(started, ended)
       assistant_messages.find { |message| message.created_at >= started && message.created_at <= ended + 2.seconds }
     end

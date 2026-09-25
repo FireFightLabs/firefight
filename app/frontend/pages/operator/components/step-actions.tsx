@@ -1,19 +1,18 @@
-import { router } from "@inertiajs/react"
 import { IconPlayerTrackNext, IconRefresh } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { runAgainOperatorWorkflowStepPath, skipOperatorWorkflowStepPath } from "@/lib/routes"
+import { useAction } from "@/pages/operator/lib/use-action"
 
-const IN_PLACE = { preserveScroll: true }
-
-// A failed step can run again now, or be skipped so the rest of its workflow carries on. Skipping asks first.
+// Run again and Skip buttons for a failed step. Skip asks for confirmation first.
 export function StepActions({ stepId, stepName }: { stepId: string; stepName: string }) {
   const [confirmingSkip, setConfirmingSkip] = useState(false)
+  const { busy, post } = useAction()
 
   function runAgain() {
-    router.post(runAgainOperatorWorkflowStepPath(stepId), {}, IN_PLACE)
+    post(runAgainOperatorWorkflowStepPath(stepId))
   }
 
   function askToSkip() {
@@ -26,16 +25,16 @@ export function StepActions({ stepId, stepName }: { stepId: string; stepName: st
 
   function skip() {
     setConfirmingSkip(false)
-    router.post(skipOperatorWorkflowStepPath(stepId), {}, IN_PLACE)
+    post(skipOperatorWorkflowStepPath(stepId))
   }
 
   return (
     <div className="flex gap-2">
-      <Button type="button" size="sm" variant="outline" onClick={runAgain}>
+      <Button type="button" size="sm" variant="outline" onClick={runAgain} disabled={busy}>
         <IconRefresh className="size-3.5" />
         Run again
       </Button>
-      <Button type="button" size="sm" variant="ghost" onClick={askToSkip}>
+      <Button type="button" size="sm" variant="ghost" onClick={askToSkip} disabled={busy}>
         <IconPlayerTrackNext className="size-3.5" />
         Skip
       </Button>

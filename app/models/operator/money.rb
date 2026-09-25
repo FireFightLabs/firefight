@@ -1,5 +1,5 @@
 module Operator
-  # Spend is kept in micros, millionths of a dollar, and read by operators in dollars.
+  # Spend is stored in micros, millionths of a dollar. This formats it in dollars.
   module Money
     MICROS_PER_DOLLAR = 1_000_000
 

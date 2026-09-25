@@ -1,6 +1,6 @@
 module Operator
-  # What a trace is drawn from: spans on one clock, in groups. A run is one group, a chat is one group per turn, so each
-  # turn has its own clock. A span's body, which can be large and is the customer's data, is read one at a time by key.
+  # Shared shapes for traces. A trace is spans in groups. A run is one group, and a chat has one group per turn, each
+  # with its own time axis. Span content can be large and is customer data, so it loads one span at a time.
   module Trace
     KIND_JOB = "job".freeze
     KIND_FACTS = "facts".freeze
@@ -21,15 +21,15 @@ module Operator
       KIND_PLATFORM, KIND_VERDICT, KIND_ASK, KIND_REPLY, KIND_RUN
     ].freeze
 
-    # The query parameter that names the opened span, and the prop its content comes back in.
+    # The query parameter that names the open span, and the prop its content comes back in.
     SPAN_PARAM = "span".freeze
     BODY_PROP = "spanBody".freeze
 
-    # A body past this is cut, and says so.
+    # Content longer than this is cut, with a note saying so.
     BODY_LIMIT = 100_000
 
-    # facts are label and value pairs for the selected span. body is a block that reads the span's content when it is
-    # opened. run_id names a run the span opens.
+    # facts are label and value pairs shown for the selected span. body is a lambda that loads the content when the span
+    # is opened. run_id links to a run.
     Span = Data.define(:key, :kind, :tone, :title, :detail, :started_at, :ended_at, :facts, :body, :run_id) do
       def body? = !body.nil?
 
@@ -41,7 +41,7 @@ module Operator
       Span.new(key:, kind:, tone:, title:, detail:, started_at:, ended_at:, facts: facts.reject { |_label, value| value.blank? }, body:, run_id:)
     end
 
-    # What people said comes after the work, days later at times, so it is listed last and does not stretch the clock.
+    # Votes can come days later, so they are listed last and left off the time axis.
     AFTERWARDS = [ KIND_VERDICT ].freeze
 
     def self.build_group(key, title, spans)
@@ -50,7 +50,7 @@ module Operator
       Group.new(key:, title:, started_at: timed.map(&:started_at).min, ended_at: timed.filter_map { |span| span.ended_at || span.started_at }.max, spans:)
     end
 
-    # Bodies are built only when asked for, since a run's tool output alone can run to megabytes.
+    # Bodies are built only when requested, because a run's tool output can reach megabytes.
     def self.body_text(value)
       text = value.is_a?(String) ? value : JSON.pretty_generate(value)
       text.length > BODY_LIMIT ? "#{text.first(BODY_LIMIT)}\n\n[Cut at #{BODY_LIMIT} of #{text.length} characters]" : text

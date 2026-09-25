@@ -1,6 +1,6 @@
 module Operator
-  # A workflow's steps placed for drawing. A step's column is how many steps must finish before it can start, so steps
-  # that run together stand together and every edge points right.
+  # Places a workflow's steps for drawing. A step's column is the length of its longest dependency chain, so steps that
+  # can run together share a column and every edge points right.
   class WorkflowGraph
     Node = Data.define(:step, :column, :row)
 

@@ -35,11 +35,11 @@ interface NavItem {
   title: string
   href: string
   icon: Icon
-  // Flightdeck draws its own pages, so its link loads the page whole.
+  // Flightdeck is not an Inertia page, so its link does a full page load.
   external?: boolean
-  // The overview's address begins every other one, so only it is matched whole.
+  // Every console path starts with the overview's path, so the overview only matches exactly.
   exact?: boolean
-  // Addresses under this one that another item stands for.
+  // Paths under this item's path that belong to another item.
   except?: string[]
 }
 
@@ -99,7 +99,7 @@ function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badg
   )
 }
 
-// Any id pasted from a log, a trace address or a customer, or an incident number. One match opens it.
+// Find box. Submits a pasted id or incident number to the find page, which opens a single match.
 function FindBox() {
   const [query, setQuery] = useState("")
 
@@ -139,8 +139,8 @@ function signOut() {
   router.delete(logoutPath())
 }
 
-// The console's own frame, with its sections, who is signed in, and the way back to Firefight. No workspace, since an
-// operator looks across all of them.
+// The console layout, a sidebar with sections, the signed in operator, and a link back to Firefight. It has no
+// workspace selector, since operators see all workspaces.
 export function OperatorLayout({ title, children }: { title: string; children: ReactNode }) {
   const page = usePage<OperatorPageProps>()
   const { operator, attention } = page.props

@@ -1,7 +1,7 @@
 module Operator
-  # Everything Firefight did for one incident, from every table that records it, in one order. That is the alerts and their
-  # routing, the incident's own events, each workflow and its steps, webhook deliveries, failed platform calls in its
-  # channel, and Halon's runs. Read only. A failure carries what an operator can do about it.
+  # Builds one incident's timeline from every table that records it, alerts and routing, incident events, workflows and
+  # their steps, webhook deliveries, failed platform calls in its channel, and Halon runs. Read only. A failure carries
+  # the action an operator can take.
   class IncidentProcess
     KIND_ALERT = "alert".freeze
     KIND_INCIDENT = "incident".freeze
@@ -21,11 +21,11 @@ module Operator
 
     ENTRY_LIMIT = 300
 
-    # An incident as a list shows it, with how many of its records failed.
+    # An incident row for the list, with its count of failed records.
     Row = Data.define(:incident, :problems)
 
-    # retry_step_id and redeliver_id name what the operator can act on, run_id a Halon run's trace, and technical is the
-    # raw cause, shown folded.
+    # retry_step_id and redeliver_id are the actions an operator can take. run_id links a Halon run's trace. technical
+    # is the raw error, shown collapsed.
     Entry = Data.define(:key, :at, :kind, :tone, :title, :detail, :technical, :retry_step_id, :redeliver_id, :run_id)
 
     def self.problem_counts(incidents)
@@ -44,13 +44,16 @@ module Operator
       @incident = incident
     end
 
-    def entries
-      [ *alert_entries, *event_entries, *workflow_entries, *webhook_entries, *platform_entries, *halon_entries ]
-        .select(&:at).sort_by { |entry| [ entry.at, entry.key ] }.first(ENTRY_LIMIT)
+    # The first ENTRY_LIMIT records by time. all_entries has all of them.
+    def entries = all_entries.first(ENTRY_LIMIT)
+
+    def all_entries
+      @all_entries ||= [ *alert_entries, *event_entries, *workflow_entries, *webhook_entries, *platform_entries, *halon_entries ]
+                       .select(&:at).sort_by { |entry| [ entry.at, entry.key ] }
     end
 
     def counts
-      all = entries
+      all = all_entries
       { records: all.size, problems: all.count { |entry| entry.tone == TONE_BAD } }
     end
 
@@ -92,7 +95,7 @@ module Operator
       entry(
         key: "step-#{step.id}", at: step.completed_at || step.started_at || step.created_at, kind: KIND_STEP, tone: step_tone(step),
         title: step.name, detail: step_detail(workflow, step), technical: (step.last_error if failed),
-        retry_step_id: (step.id if failed)
+        retry_step_id: (step.id unless Actions.step_blocked_reason(step))
       )
     end
 
@@ -111,7 +114,7 @@ module Operator
           title: "Webhook #{delivery.event_type}",
           detail: [ URI(delivery.webhook.url.to_s).host, ("HTTP #{delivery.response_code}" if delivery.response_code),
                     "#{delivery.attempts} #{'attempt'.pluralize(delivery.attempts)}", delivery.state ].compact.join(" · "),
-          technical: (delivery.error_message if failed), redeliver_id: (delivery.id if failed)
+          technical: (delivery.error_message if failed), redeliver_id: (delivery.id unless Actions.redelivery_blocked_reason(delivery))
         )
       rescue URI::InvalidURIError
         nil

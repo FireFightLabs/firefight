@@ -3,12 +3,12 @@ require "test_helper"
 class Operator::ConsoleTest < ActionDispatch::IntegrationTest
   setup do
     @user = users(:alice)
-    @previous = ENV[OperatorCredential::OPERATOR_IDS_ENV]
-    ENV[OperatorCredential::OPERATOR_IDS_ENV] = @user.id
+    @previous = ENV[Operator::Credential::OPERATOR_IDS_ENV]
+    ENV[Operator::Credential::OPERATOR_IDS_ENV] = @user.id
   end
 
   teardown do
-    ENV[OperatorCredential::OPERATOR_IDS_ENV] = @previous
+    ENV[Operator::Credential::OPERATOR_IDS_ENV] = @previous
   end
 
   test "anyone who is not an operator gets not found everywhere in the console, the jobs dashboard included" do
@@ -38,7 +38,7 @@ class Operator::ConsoleTest < ActionDispatch::IntegrationTest
     assert inertia_props["qr"].is_a?(Array)
 
     post routes.operator_setup_path, params: { code: code_for(@user) }, headers: inertia_headers
-    assert_equal OperatorCredential::RECOVERY_CODE_COUNT, inertia_props["codes"].size
+    assert_equal Operator::Credential::RECOVERY_CODE_COUNT, inertia_props["codes"].size
 
     get routes.operator_root_path, headers: inertia_headers
     assert_equal "operator/overview", JSON.parse(response.body)["component"]
@@ -46,7 +46,7 @@ class Operator::ConsoleTest < ActionDispatch::IntegrationTest
 
   test "an operator is asked for a code before the jobs dashboard, and a wrong one says so" do
     sign_in(@user, workspaces(:slack_workspace_one))
-    credential = OperatorCredential.start_for!(@user)
+    credential = Operator::Credential.start_for!(@user)
     credential.confirm!(code_for(@user))
 
     get "#{routes.operator_jobs_path}/"
@@ -63,7 +63,7 @@ class Operator::ConsoleTest < ActionDispatch::IntegrationTest
 
   test "a correct code from the page loads the console whole, since Flightdeck is not an Inertia page" do
     sign_in(@user, workspaces(:slack_workspace_one))
-    OperatorCredential.start_for!(@user).confirm!(code_for(@user))
+    Operator::Credential.start_for!(@user).confirm!(code_for(@user))
 
     travel 31.seconds do
       post routes.operator_verify_path, params: { code: code_for(@user) }, headers: inertia_headers
@@ -81,12 +81,12 @@ class Operator::ConsoleTest < ActionDispatch::IntegrationTest
 
   test "a verified console asks again once the window runs out" do
     sign_in(@user, workspaces(:slack_workspace_one))
-    OperatorCredential.start_for!(@user).confirm!(code_for(@user))
+    Operator::Credential.start_for!(@user).confirm!(code_for(@user))
     travel 31.seconds do
       post routes.operator_verify_path, params: { code: code_for(@user) }
     end
 
-    travel OperatorCredential::VERIFIED_FOR + 1.minute do
+    travel Operator::Credential::VERIFIED_FOR + 1.minute do
       get routes.operator_root_path
       assert_redirected_to routes.operator_verify_path
     end
@@ -97,5 +97,5 @@ class Operator::ConsoleTest < ActionDispatch::IntegrationTest
   # After a request into Flightdeck the test's own helpers carry its prefix, so the app's routes are named directly.
   def routes = Rails.application.routes.url_helpers
 
-  def code_for(user) = ROTP::TOTP.new(user.operator_credential.reload.totp_secret).now
+  def code_for(user) = ROTP::TOTP.new(Operator::Credential.for(user).totp_secret).now
 end

@@ -1,17 +1,17 @@
 module Operator
-  # A chat with Halon, one turn at a time, each on its own clock: what the person asked, every model call and tool call
-  # that followed, the reply, and any run the turn started. Drawn from the chat's saved messages and the model's usage
-  # rows, since a chat's ledger rows name the incident it is about rather than the chat.
+  # Builds the trace for a Halon chat, one timeline per turn. A turn has the question, each model call and tool call,
+  # the reply, and any run it started. Model calls come from RubyLLM usage rows, because a chat's inference rows point
+  # at its incident and not at the chat.
   class ChatTrace
     include Trace
 
-    # The latest turns, so a long chat still opens quickly.
+    # Draws only the latest turns, so a long chat still loads quickly.
     TURN_LIMIT = 20
     USAGE_FAILED = RubyLLM::Accounting::Usage::Entry::STATUSES.find { |status| status == :failed }.to_s
 
     attr_reader :conversation
 
-    # Chats active in the window, the latest first, each with a saved chat to draw.
+    # Chats active in the window, newest first. Only chats that have a saved chat record.
     def self.recent(filter)
       filter.scope(Conversation.joins(:chat).where(updated_at: filter.range)).includes(:workspace, :subject).order(updated_at: :desc, id: :desc)
     end
@@ -39,7 +39,7 @@ module Operator
       @messages ||= conversation.chat ? conversation.chat.messages.to_a : []
     end
 
-    # A turn starts at each thing the person said. The loop's own nudges are part of the turn they fall in.
+    # A turn starts at each message the person sent. Nudges that the loop sends as the user stay in the current turn.
     def turns
       @turns ||= messages.reject { |message| message.role == Chat::Message::ROLE_SYSTEM }
                          .slice_before { |message| person_said?(message) }.select { |turn| person_said?(turn.first) }
@@ -63,7 +63,8 @@ module Operator
         message = turn.find { |candidate| candidate.id == usage.message_id }
         before = messages.reverse.find { |candidate| candidate.created_at < message.created_at }
         failed = usage.status == USAGE_FAILED
-        # A call starts once what came before it was finished, which for a tool result is when it was filled in.
+        # A model call starts when the message before it was last written. For a tool result, that is when the result
+        # arrived.
         Trace.span(
           key: "model-#{usage.id}", kind: KIND_MODEL, title: "Model call", started_at: before&.updated_at || message.created_at,
           ended_at: [ usage.updated_at, message.updated_at ].max, tone: failed ? IncidentProcess::TONE_BAD : IncidentProcess::TONE_INFO,
@@ -84,7 +85,8 @@ module Operator
       calls.select { |call| ids.include?(call.message_id) }.map do |call|
         asked = messages.find { |message| message.id == call.message_id }
         result = messages.find { |message| message.id == call.result_id }
-        # The result is saved as the tool starts and filled in when it answers, so those two times are the call.
+        # RubyLLM saves a tool result row when the tool starts and updates it when the tool returns, so those two times
+        # are the call's start and end.
         started = result&.created_at || asked.updated_at
         Trace.span(
           key: "call-#{call.id}", kind: KIND_TOOL, title: call.name, started_at: started, ended_at: result&.updated_at,
@@ -102,7 +104,7 @@ module Operator
       reply = turn.reverse.find { |message| message.role == Chat::Message::ROLE_ASSISTANT && !message.nudge && message.content.present? }
       return nil unless reply
 
-      # A reply is saved as it starts streaming, and finished when it was last written.
+      # A reply row is created when streaming starts and updated when it ends. The span uses the end.
       Trace.span(key: "reply-#{reply.id}", kind: KIND_REPLY, title: "Replied", started_at: reply.updated_at,
                  detail: reply.content.to_s.squish.truncate(140), body: -> { reply.content.to_s })
     end

@@ -42,6 +42,7 @@ interface HalonProps extends OperatorPageProps, FilterProps {
   tools: HalonTool[]
   model: HalonModel
   prompts: HalonPrompt[]
+  limits: { tools: number; prompts: number }
   runs: OperatorHalonRun[]
   page: number
   more: boolean
@@ -93,7 +94,7 @@ function tickLabel(window: string) {
 
 export default function OperatorHalon() {
   const props = usePage<HalonProps>().props
-  const { totals, verdicts, buckets, reasons, tools, model, prompts, runs, page, more, ending, filter } = props
+  const { totals, verdicts, buckets, reasons, tools, model, prompts, limits, runs, page, more, ending, filter } = props
   const [readingPrompt, setReadingPrompt] = useState<HalonPrompt | null>(null)
   const filterQuery = { window: filter.window, workspace: filter.workspace ?? undefined }
   const verdictCount = Object.values(verdicts).reduce((sum, votes) => sum + votes, 0)
@@ -162,7 +163,7 @@ export default function OperatorHalon() {
       </div>
 
       <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Section title="Tools" note="Every call Halon made through the gateway, runs and chats">
+        <Section title="Tools" note={`The ${limits.tools} most called through the gateway, runs and chats`}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -214,7 +215,7 @@ export default function OperatorHalon() {
       </div>
 
       <div className="mb-6">
-        <Section title="Run prompt versions" note="Latest wordings, each with the runs it started, over all time">
+        <Section title="Run prompt versions" note={`The latest ${limits.prompts} wordings, each with the runs it started, over all time`}>
           <Table>
             <TableHeader>
               <TableRow>
