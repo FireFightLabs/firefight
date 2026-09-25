@@ -1,12 +1,13 @@
-# Someone pressed stop on a running investigation.
+# Someone pressed stop on a running investigation, or on an answer in a chat thread.
 module Events
   class AgentSessionStoppedHandler
     def self.execute(workspace, payload)
-      event = payload["event"]
-      investigation = workspace.investigations.live.find_by(thread_id: event["thread_ts"])
-      return unless investigation
+      thread_id = payload.dig("event", "thread_ts")
+      investigation = workspace.investigations.live.find_by(thread_id: thread_id)
+      return investigation.request_cancel! if investigation
 
-      investigation.request_cancel!
+      conversation = workspace.conversations.find_by(thread_id: thread_id)
+      conversation.request_stop! if conversation && conversation.stop_blocked_reason.nil?
     end
   end
 end

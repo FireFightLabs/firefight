@@ -31,6 +31,18 @@ class Events::AgentSessionStoppedHandlerTest < ActiveSupport::TestCase
     assert_not @investigation.reload.cancel_requested?
   end
 
+  test "pressing stop on an answer in a chat thread stops that answer" do
+    conversation = @workspace.conversations.create!(
+      kind: Conversation::KIND_CHANNEL, channel_id: "C0CHAT", thread_id: "1700000000.000500",
+      started_by: workspace_memberships(:alice_workspace_one), max_turns: 10, max_spend_cents: 400
+    )
+    conversation.ask!("anything in metrics?")
+
+    Events::AgentSessionStoppedHandler.execute(@workspace, payload(thread_ts: "1700000000.000500"))
+
+    assert conversation.chat.stop_requested?
+  end
+
   private
 
   def payload(thread_ts:)

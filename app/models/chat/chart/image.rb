@@ -5,11 +5,17 @@ require "vips"
 # SVG among them, for every upload in the app.
 class Chat::Chart::Image
   WIDTH = 960
-  HEIGHT = 420
   LEFT = 72
   RIGHT = 24
-  TOP = 64
-  BOTTOM = 72
+  TOP = 72
+  PLOT_HEIGHT = 280
+  # Room under the plot for the time labels, then one legend row per two series, each wide enough for a container name.
+  AXIS_ROOM = 40
+  LEGEND_ROW = 22
+  LEGEND_COLUMNS = 2
+  LEGEND_LABEL = 52
+  MARGIN = 20
+  DAY = 24 * 60 * 60
   COLORS = [ [ 14, 143, 163 ], [ 59, 130, 246 ], [ 16, 185, 129 ], [ 245, 158, 11 ], [ 139, 92, 246 ], [ 239, 68, 68 ], [ 236, 72, 153 ], [ 100, 116, 139 ] ].freeze
   WHITE = [ 255, 255, 255 ].freeze
   INK = [ 15, 23, 42 ].freeze
@@ -29,8 +35,10 @@ class Chat::Chart::Image
     end
   end
 
+  def height = legend_top + (legend_rows * LEGEND_ROW) + MARGIN
+
   def png
-    image = (Vips::Image.black(WIDTH, HEIGHT) + WHITE).cast(:uchar).copy(interpretation: :srgb)
+    image = (Vips::Image.black(WIDTH, height) + WHITE).cast(:uchar).copy(interpretation: :srgb)
     image = image.mutate do |canvas|
       draw_grid(canvas)
       draw_lines(canvas)
@@ -44,15 +52,17 @@ class Chat::Chart::Image
   def labels
     low, high = value_range
     from, to = time_range
-    texts = [ [ @chart.title.to_s, LEFT, 16, INK, 16, :left ], [ @chart.unit.to_s, WIDTH - RIGHT, 18, MUTED, 12, :right ] ]
+    texts = [
+      [ @chart.title.to_s, LEFT, 14, INK, 16, :left ], [ @chart.unit.to_s, WIDTH - RIGHT, 16, MUTED, 12, :right ],
+      [ range_text(from, to), LEFT, 40, MUTED, 10, :left ]
+    ]
     (0..TICKS).each do |index|
       value = low + ((high - low) * index / TICKS)
       texts << [ number(value), LEFT - 8, y(value) - 7, MUTED, 10, :right ]
       time = from + ((to - from) * index / TICKS)
-      texts << [ Time.at(time).utc.strftime("%H:%M"), x(time), HEIGHT - BOTTOM + 10, MUTED, 10, :center ]
+      texts << [ Time.at(time).utc.strftime(tick_format(from, to)), x(time), plot_bottom + 10, MUTED, 10, :center ]
     end
-    @series.each_with_index { |line, index| texts << [ line[:label].truncate(18), LEFT + (index * 150) + 16, HEIGHT - 30, INK, 10, :left ] }
-    texts << [ "#{Time.at(from).utc.strftime('%b %-d %H:%M')} to #{Time.at(to).utc.strftime('%H:%M')} UTC", WIDTH - RIGHT, HEIGHT - 30, MUTED, 10, :right ]
+    legend.each { |line, left, top| texts << [ line[:label].truncate(LEGEND_LABEL), left + 16, top - 2, INK, 10, :left ] }
     texts
   end
 
@@ -78,9 +88,32 @@ class Chat::Chart::Image
   end
 
   def draw_swatches(canvas)
-    @series.each_index do |index|
-      canvas.draw_rect!(COLORS[index], LEFT + (index * 150), HEIGHT - 29, 10, 10, fill: true)
+    legend.each_with_index { |(_line, left, top), index| canvas.draw_rect!(COLORS[index], left, top, 10, 10, fill: true) }
+  end
+
+  # One series needs no key, since the title names it. Series fill two columns, row by row.
+  def legend
+    return [] if @series.size < 2
+
+    column_width = (WIDTH - LEFT - RIGHT) / LEGEND_COLUMNS
+    @series.each_with_index.map do |line, index|
+      [ line, LEFT + ((index % LEGEND_COLUMNS) * column_width), legend_top + ((index / LEGEND_COLUMNS) * LEGEND_ROW) ]
     end
+  end
+
+  def legend_rows = @series.size < 2 ? 0 : (@series.size.to_f / LEGEND_COLUMNS).ceil
+
+  def plot_bottom = TOP + PLOT_HEIGHT
+
+  def legend_top = plot_bottom + AXIS_ROOM
+
+  # Over more than a day the axis shows dates, since times alone repeat.
+  def tick_format(from, to) = to - from > DAY ? "%b %-d" : "%H:%M"
+
+  def range_text(from, to)
+    start, finish = Time.at(from).utc, Time.at(to).utc
+    ending = start.to_date == finish.to_date ? finish.strftime("%H:%M") : finish.strftime("%b %-d %H:%M")
+    "#{start.strftime('%b %-d %H:%M')} to #{ending} UTC"
   end
 
   def write(image, text, left, top, color, size, align)
@@ -93,7 +126,7 @@ class Chat::Chart::Image
     when :center then left - (mask.width / 2)
     else left
     end
-    image.composite2(ink, :over, x: placed_left.round.clamp(0, WIDTH - 1), y: top.round.clamp(0, HEIGHT - 1)).flatten(background: WHITE).cast(:uchar).copy(interpretation: :srgb)
+    image.composite2(ink, :over, x: placed_left.round.clamp(0, WIDTH - 1), y: top.round.clamp(0, height - 1)).flatten(background: WHITE).cast(:uchar).copy(interpretation: :srgb)
   end
 
   def all_points = @series.flat_map { |line| line[:points] }
@@ -129,8 +162,7 @@ class Chat::Chart::Image
 
   def y(value)
     low, high = value_range
-    plot_height = HEIGHT - TOP - BOTTOM
-    TOP + plot_height - ((value - low) / (high - low) * plot_height)
+    TOP + PLOT_HEIGHT - ((value - low) / (high - low) * PLOT_HEIGHT)
   end
 
   def number(value)
