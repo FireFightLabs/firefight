@@ -6,6 +6,10 @@ module Operator
     before_action :require_operator!
     before_action :require_second_factor!
 
+    inertia_share do
+      { operator: current_user && { name: current_user.name.presence || current_user.email, email: current_user.email } }
+    end
+
     private
 
     def require_operator!
@@ -29,6 +33,9 @@ module Operator
       stamp = session[:operator_verified]
       stamp.is_a?(Hash) && stamp["user_id"] == current_user.id && stamp["until"].to_i > Time.current.to_i
     end
+
+    # Written on what an operator changes, such as a paused workflow, so it says who did it.
+    def operator_label = "#{current_user.email} (operator)"
 
     def mark_verified!
       session[:operator_verified] = { "user_id" => current_user.id, "until" => OperatorCredential::VERIFIED_FOR.from_now.to_i }

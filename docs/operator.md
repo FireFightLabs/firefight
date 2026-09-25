@@ -1,6 +1,6 @@
 # Operator console
 
-`/operator` is for the people who run a Firefight install, not for a workspace. It holds the jobs dashboard today, and the workflows, incident process and Halon screens as they land.
+`/operator` is for the people who run a Firefight install, not for a workspace. It holds the incident process, workflows and the jobs dashboard, and Halon's screens as they land. Its pages share `OperatorLayout` (`pages/operator/components/`), a frame of its own with no workspace, since an operator looks across all of them. `/operator` opens on Incidents.
 
 ## Who gets in
 
@@ -22,3 +22,16 @@
 ## Jobs
 
 Flightdeck (`solid_queue-flightdeck`) is mounted at `/operator/jobs`, with `Operator::FlightdeckController` as its base controller, so every one of its pages runs both checks above. It reads Solid Queue's own tables. The test database has none, so tests prove the checks and not Flightdeck's pages.
+
+## Incidents
+
+`/operator/incidents` lists every incident across workspaces, newest first, with how many of its records failed (`Operator::IncidentProcess.problem_counts`: failed workflow steps, failed webhook deliveries and failed platform calls in its channel). One incident opens its whole process on one timeline, built by `Operator::IncidentProcess` from every table that records it: alerts and their routing, incident events, each workflow and its steps, webhook deliveries, failed platform calls in the incident's channel, and Halon's runs. It is read only. A failed step offers **Run again** and **Skip** (skipping asks first), and a failed delivery offers **Send again** (`WebhookDelivery#replay!`, a delivery of its own with the bytes sent the first time). The raw cause of a failure is folded under each record.
+
+## Workflows
+
+`/operator/workflows` lists every SolidWorkflow run, filtered by state and kind. The console reads the engine's records only through `WorkflowRuns` (`app/workflows/workflow_runs.rb`), since ArchSpec keeps the `SolidWorkflow` namespace to workflows and the engine. One run shows its steps drawn from `depends_on` (`Operator::WorkflowGraph` puts a step one column after the last step it waits for), the selected step's attempts, time and last error, and every event the engine recorded. **Pause**, **Resume** and **Cancel** (which asks first) call the engine's own `pause!`, `resume!` and `cancel!`, and **Run again** and **Skip** its `retry_now!` and `skip!`, which bring a failed workflow back to running. Each is recorded on the workflow under the operator's email. The engine's `pause!` and `resume!` return nothing meaningful, so the state they leave is what the toast reports.
+
+## Failed platform calls
+
+`PlatformCallFailure` keeps every Slack API call that failed, written in `Slack::Client.noting_failure` around `api_get` and `api_post`, so every caller is covered and none can forget, and the client decides which answers are worth keeping. It keeps the endpoint, the error class and message, and the channel when the call named one, which is how an incident's timeline finds its own. Answers the app expects and handles itself (already in the channel, a channel name taken, already archived or not archived) are not kept. Recording can never break the call it records. Rows are kept for 30 days (`PlatformCallFailureCleanupJob`, daily).
+

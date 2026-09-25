@@ -503,32 +503,51 @@ module Slack
     private
 
     def self.api_get(workspace:, endpoint:, params: {})
-      uri = URI("#{SLACK_API_BASE}/#{endpoint}")
-      uri.query = URI.encode_www_form(params) if params.any?
-      request = Net::HTTP::Get.new(uri)
-      request["Authorization"] = "Bearer #{workspace.access_token}"
+      noting_failure(workspace, endpoint, params[:channel]) do
+        uri = URI("#{SLACK_API_BASE}/#{endpoint}")
+        uri.query = URI.encode_www_form(params) if params.any?
+        request = Net::HTTP::Get.new(uri)
+        request["Authorization"] = "Bearer #{workspace.access_token}"
 
-      response = pool_request(uri, request, endpoint: endpoint)
+        response = pool_request(uri, request, endpoint: endpoint)
 
-      body = parse_json_body(response.body)
-      return body if body[:ok]
+        body = parse_json_body(response.body)
+        next body if body[:ok]
 
-      raise typed_error_for(body[:error], body)
+        raise typed_error_for(body[:error], body)
+      end
     end
 
     def self.api_post(workspace:, endpoint:, payload:)
-      uri = URI("#{SLACK_API_BASE}/#{endpoint}")
-      request = Net::HTTP::Post.new(uri)
-      request["Authorization"] = "Bearer #{workspace.access_token}"
-      request["Content-Type"] = "application/json"
-      request.body = payload.to_json
+      noting_failure(workspace, endpoint, payload[:channel]) do
+        uri = URI("#{SLACK_API_BASE}/#{endpoint}")
+        request = Net::HTTP::Post.new(uri)
+        request["Authorization"] = "Bearer #{workspace.access_token}"
+        request["Content-Type"] = "application/json"
+        request.body = payload.to_json
 
-      response = pool_request(uri, request, endpoint: endpoint)
+        response = pool_request(uri, request, endpoint: endpoint)
 
-      body = parse_json_body(response.body)
-      return body if body[:ok]
+        body = parse_json_body(response.body)
+        next body if body[:ok]
 
-      raise typed_error_for(body[:error], body)
+        raise typed_error_for(body[:error], body)
+      end
+    end
+
+    # Answers the app expects and handles on its own, such as inviting someone already in the channel.
+    EXPECTED_FAILURES = [
+      AdapterError::AlreadyInChannel, AdapterError::ChannelExists, AdapterError::AlreadyArchived, AdapterError::NotArchived
+    ].freeze
+
+    # Every other failed call is kept for the operator console, which ties it to an incident by its channel.
+    def self.noting_failure(workspace, endpoint, channel)
+      yield
+    rescue AdapterError => error
+      unless EXPECTED_FAILURES.any? { |expected| error.is_a?(expected) }
+        PlatformCallFailure.note(workspace: workspace, platform: Platforms::SLACK, operation: endpoint, error: error, channel_id: channel)
+      end
+      raise
     end
 
     def self.parse_json_body(raw)

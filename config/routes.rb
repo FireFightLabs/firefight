@@ -343,6 +343,23 @@ Rails.application.routes.draw do
     get "verify", to: "second_factors#verify", as: :verify
     post "verify", to: "second_factors#check"
     mount Flightdeck::Engine, at: "jobs", as: :jobs
+    resources :incidents, only: %i[index show]
+    resources :workflows, only: %i[index show] do
+      member do
+        post :pause
+        post :resume
+        post :cancel
+      end
+    end
+    resources :workflow_steps, only: [] do
+      member do
+        post :run_again
+        post :skip
+      end
+    end
+    resources :webhook_deliveries, only: [] do
+      member { post :redeliver }
+    end
   end
 
   # Targets for `config.exceptions_app`.
