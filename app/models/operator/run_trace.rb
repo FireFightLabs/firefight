@@ -93,15 +93,16 @@ module Operator
     def tool_spans
       run.steps.includes(:invocation).map do |step|
         invocation = step.invocation
-        denied = invocation&.decision == Ability::Invocation::DECISION_DENY
+        denied = denied?(step)
         failed = step.status == Investigation::Step::STATUS_FAILED
         Trace.span(
           key: "tool-#{step.id}", kind: KIND_TOOL, title: step.tool_name || step.action_key.to_s,
           started_at: step.started_at || step.created_at, ended_at: step.completed_at,
           tone: failed || denied ? IncidentProcess::TONE_BAD : IncidentProcess::TONE_OK,
-          detail: [ DECISION_WORDS.fetch(invocation&.decision, "replayed from its record"), Trace.seconds(step.started_at, step.completed_at), Trace.size(step.raw_result), step.error_summary ].compact.join(" · "),
+          detail: [ decision_word(step), Trace.seconds(step.started_at, step.completed_at), Trace.size(step.raw_result),
+                    (step.error_summary unless denied?(step)) ].compact.join(" · "),
           facts: [
-            [ "Step", step.position ], [ "Action", step.action_key ], [ "Decision", invocation && DECISION_WORDS.fetch(invocation.decision, invocation.decision) ],
+            [ "Step", step.position ], [ "Action", step.action_key ], [ "Decision", decision_word(step, whole: true) ],
             [ "As", invocation&.principal_label ], [ "Scope", invocation&.scope.presence&.to_json ],
             [ "Took", invocation&.duration_ms && "#{invocation.duration_ms} ms" ], [ "Returned", Trace.size(step.raw_result) ],
             [ "Kept for the model", Trace.size(step.compacted_result) ], [ "Asked with", step.params.presence&.to_json ],
@@ -110,6 +111,21 @@ module Operator
           body: -> { step.raw_result.presence || step.compacted_result.to_s }
         )
       end
+    end
+
+    # The gateway ledgers every call that leaves Firefight and every refusal, but not a read of Firefight's own data, and
+    # a refused call never reaches the step that would link its row. So a step without a row is named by what it was.
+    def decision_word(step, whole: false)
+      return DECISION_WORDS.fetch(step.invocation.decision, step.invocation.decision) if step.invocation
+      return "replayed from its record" if run.replay_of_id
+      return "denied" if denied?(step)
+
+      whole ? "allowed, a read of Firefight's own data, which the gateway does not ledger" : "allowed, own data"
+    end
+
+    def denied?(step)
+      step.invocation&.decision == Ability::Invocation::DECISION_DENY ||
+        step.error_summary == AbilityGateway::Denied.name.demodulize
     end
 
     def theory_spans

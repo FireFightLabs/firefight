@@ -21,14 +21,24 @@ import {
 import { useEffect, useState } from "react"
 
 import { Card } from "@/components/ui/card"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatDateTime } from "@/lib/formatters"
-import { OPERATOR_SPAN_BODY_PROP, OPERATOR_SPAN_PARAM, OPERATOR_TRACE_KINDS } from "@/lib/generated/constants"
+import { OPERATOR_PROCESS_TONES, OPERATOR_SPAN_BODY_PROP, OPERATOR_SPAN_PARAM, OPERATOR_TRACE_KINDS } from "@/lib/generated/constants"
 import { operatorHalonRunPath } from "@/lib/routes"
 import { processToneClasses } from "@/pages/operator/lib/tone"
 import type { OperatorPageProps } from "@/pages/operator/types"
 import type { OperatorTraceGroup, OperatorTraceSpan } from "@/types/serializers"
 
 type Kind = OperatorTraceSpan["kind"]
+type SpanTone = OperatorTraceSpan["tone"]
+
+const TONE_MEANINGS: { tone: SpanTone; meaning: string }[] = [
+  { tone: OPERATOR_PROCESS_TONES.INFO, meaning: "Model call or a step in its thinking" },
+  { tone: OPERATOR_PROCESS_TONES.OK, meaning: "Went fine" },
+  { tone: OPERATOR_PROCESS_TONES.BAD, meaning: "Failed or denied" },
+  { tone: OPERATOR_PROCESS_TONES.WARN, meaning: "Worth a look, such as a limit reached" },
+  { tone: OPERATOR_PROCESS_TONES.IDLE, meaning: "Skipped or ruled out" },
+]
 
 const KINDS: Record<Kind, { label: string; icon: Icon }> = {
   [OPERATOR_TRACE_KINDS.JOB]: { label: "Job", icon: IconPlayerPlay },
@@ -93,6 +103,17 @@ function tickAlign(index: number): string {
   return index === TICKS - 1 ? "-translate-x-full" : "-translate-x-1/2"
 }
 
+function secondsBetween(from: number, to: number): string {
+  return `${((to - from) / 1000).toFixed(1)}s`
+}
+
+// Where a span sits on the clock, said in words for whoever hovers it.
+function whenSaid(span: OperatorTraceSpan, start: number): string {
+  const began = new Date(span.startedAt).getTime()
+  const at = `at +${secondsBetween(start, began)}`
+  return span.endedAt ? `${at}, took ${secondsBetween(began, new Date(span.endedAt).getTime())}` : at
+}
+
 function urlSpan(url: string): string | null {
   return new URLSearchParams(url.split("?")[1]).get(OPERATOR_SPAN_PARAM)
 }
@@ -121,11 +142,16 @@ function SpanRow({ span, start, total, selected, onSelect }: { span: OperatorTra
           </span>
         </span>
         <span className="relative h-5">
-          {width > 0 ? (
-            <span className={`absolute top-1 h-3 rounded-sm border ${processToneClasses(span.tone)}`} style={{ left: `${left}%`, width: `${Math.min(width, 100 - left)}%` }} />
-          ) : (
-            <span className={`absolute top-1 size-3 -translate-x-1/2 rotate-45 rounded-[2px] border ${processToneClasses(span.tone)}`} style={{ left: `${left}%` }} />
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {width > 0 ? (
+                <span className={`absolute top-1 h-3 rounded-sm border ${processToneClasses(span.tone)}`} style={{ left: `${left}%`, width: `${Math.min(width, 100 - left)}%` }} />
+              ) : (
+                <span className={`absolute top-1 size-3 -translate-x-1/2 rotate-45 rounded-[2px] border ${processToneClasses(span.tone)}`} style={{ left: `${left}%` }} />
+              )}
+            </TooltipTrigger>
+            <TooltipContent>{whenSaid(span, start)}</TooltipContent>
+          </Tooltip>
         </span>
       </button>
     </li>
@@ -161,6 +187,28 @@ function Group({ group, selected, onSelect }: { group: OperatorTraceGroup; selec
         ))}
       </ol>
     </section>
+  )
+}
+
+// What the shapes and colours mean, since a chart nobody can read is only decoration.
+function Legend() {
+  return (
+    <div className="text-muted-foreground flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border px-2 pb-4 text-xs">
+      <span className="flex items-center gap-2">
+        <span className="border-muted-foreground/70 h-3 w-6 rounded-sm border" />
+        Took time, from when it started for as long as it ran
+      </span>
+      <span className="flex items-center gap-2">
+        <span className="border-muted-foreground/70 size-2.5 rotate-45 rounded-[2px] border" />
+        A moment
+      </span>
+      {TONE_MEANINGS.map((entry) => (
+        <span key={entry.tone} className="flex items-center gap-2">
+          <span className={`size-2.5 rounded-full border bg-current! ${processToneClasses(entry.tone)}`} />
+          {entry.meaning}
+        </span>
+      ))}
+    </div>
   )
 }
 
@@ -245,6 +293,7 @@ export function Trace({ groups }: { groups: OperatorTraceGroup[] }) {
   return (
     <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <Card className="gap-6 overflow-hidden px-4 py-5">
+        <Legend />
         {groups.map((group) => (
           <Group key={group.key} group={group} selected={selected} onSelect={setSelected} />
         ))}

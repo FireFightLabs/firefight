@@ -32,6 +32,21 @@ class Operator::TraceTest < ActiveSupport::TestCase
     assert_match "active | 96", trace.body_for(span.key)
   end
 
+  test "a call with no ledger row says what it was, never that it was replayed when the run is not a replay" do
+    read = @run.steps.create!(position: 1, tool_name: "get_incident", action_key: "incidents.read", status: Investigation::Step::STATUS_SUCCEEDED,
+                              started_at: @started, completed_at: @started + 1.second)
+    refused = @run.steps.create!(position: 2, tool_name: "github_changes_before", action_key: "github.changes_before",
+                                 status: Investigation::Step::STATUS_FAILED, error_summary: "Denied", started_at: @started)
+
+    spans = Operator::RunTrace.new(@run).spans.index_by(&:key)
+
+    assert_match "allowed, own data", spans["tool-#{read.id}"].detail
+    assert_includes spans["tool-#{read.id}"].facts, [ "Decision", "allowed, a read of Firefight's own data, which the gateway does not ledger" ]
+    assert_equal Operator::IncidentProcess::TONE_BAD, spans["tool-#{refused.id}"].tone
+    assert_match "denied", spans["tool-#{refused.id}"].detail
+    assert_no_match "replayed", spans.values.map(&:detail).join
+  end
+
   test "each model call sits on the clock where it ran, with its tokens and cost" do
     inference = Inference.create!(workspace: @workspace, feature: FirefightAi::Investigator::FEATURE, provider: "anthropic", model: "claude",
                                   status: Inference::STATUS_SUCCESS, inferable: @run, input_tokens: 400, cache_read_tokens: 18_000,
