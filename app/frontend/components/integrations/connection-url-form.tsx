@@ -17,13 +17,15 @@ interface ConnectionUrlFormProps {
   environments: EnvironmentOption[];
   returnTo?: string;
   onDismiss: () => void;
+  // For a team that already runs an MCP server for the database, or cannot open it to the internet.
+  onUseMcpServer: () => void;
 }
 
 type FieldErrors = Partial<Record<"name" | "connection_url", string>>;
 
 // A database connected from a URL, one per environment. The same name adds an environment to the connection, or
 // replaces the URL of one it has. The server checks the URL before saving anything and says what is wrong on the form.
-export function ConnectionUrlForm({ provider, environments, returnTo, onDismiss }: ConnectionUrlFormProps) {
+export function ConnectionUrlForm({ provider, environments, returnTo, onDismiss, onUseMcpServer }: ConnectionUrlFormProps) {
   const [name, setName] = useState(provider.name);
   const [connectionUrl, setConnectionUrl] = useState("");
   const [environmentId, setEnvironmentId] = useState(ALL_ENVIRONMENTS);
@@ -82,7 +84,10 @@ export function ConnectionUrlForm({ provider, environments, returnTo, onDismiss 
           </p>
         )}
       </div>
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onClick={onUseMcpServer} className="text-muted-foreground hover:text-foreground mr-auto text-xs">
+          Use an MCP server instead
+        </button>
         <Button type="button" variant="outline" onClick={onDismiss}>
           Cancel
         </Button>

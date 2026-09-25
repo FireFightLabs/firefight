@@ -108,11 +108,15 @@ function ConnectForm({
   const connectsWithUrl = provider.connectWith === INTEGRATION_CONNECT_WITH.CONNECTION_URL;
   const nativeConnect = provider.kind === INTEGRATION_KINDS.NATIVE && !connectsWithUrl;
   const oauthAvailable = nativeConnect || provider.serverUrl !== "";
-  const showManualForm = (!oauthAvailable || useToken) && !nativeConnect && !connectsWithUrl;
+  const showManualForm = connectsWithUrl ? useToken : (!oauthAvailable || useToken) && !nativeConnect;
   const showSecondAccountLink = !separateAccount;
   const showTokenLink = !nativeConnect;
   const alreadyConnected = existingNames.length > 0;
   const nameTaken = separateAccount && existingNames.includes(name.trim());
+
+  function switchToMcpServer() {
+    setUseToken(true);
+  }
 
   function toggleSeparateAccount() {
     const next = !separateAccount;
@@ -163,8 +167,14 @@ function ConnectForm({
         </DialogDescription>
       </DialogHeader>
 
-      {connectsWithUrl && (
-        <ConnectionUrlForm provider={provider} environments={environments} returnTo={returnTo} onDismiss={onDismiss} />
+      {connectsWithUrl && !useToken && (
+        <ConnectionUrlForm
+          provider={provider}
+          environments={environments}
+          returnTo={returnTo}
+          onDismiss={onDismiss}
+          onUseMcpServer={switchToMcpServer}
+        />
       )}
 
       {oauthAvailable && !useToken && !connectsWithUrl && (
@@ -271,14 +281,14 @@ function ConnectForm({
 
       {showManualForm && (
         <div className="flex flex-col gap-4 pt-1">
-          {oauthAvailable && (
+          {(oauthAvailable || connectsWithUrl) && (
             <button
               type="button"
               onClick={() => setUseToken(false)}
               className="text-muted-foreground hover:text-foreground -mt-1 flex items-center gap-1 self-start text-xs"
             >
               <IconArrowLeft className="size-3.5" />
-              Back to one-click connect
+              {connectsWithUrl ? "Back to connection URL" : "Back to one-click connect"}
             </button>
           )}
           <div className="flex flex-col gap-1.5">

@@ -15,6 +15,13 @@ class PostgresConnectTest < ApplicationSystemTestCase
       assert_text "10.1.2.3 is on a private network, which Firefight does not connect to."
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/postgres-connect.png"))
+
+    within("[role=dialog]") do
+      click_button "Use an MCP server instead"
+      assert_field "MCP server URL"
+      click_button "Back to connection URL"
+      assert_field "Connection URL"
+    end
     assert_equal 0, workspaces(:slack_workspace_one).integrations.where(provider: "postgresql").count
   end
 end

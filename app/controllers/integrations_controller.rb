@@ -23,9 +23,10 @@ class IntegrationsController < InertiaController
 
   def create
     provider = IntegrationProvider.find(params[:provider]) || IntegrationProvider.find(Integration::PROVIDER_CUSTOM_MCP)
-    return connect_with_url(provider) if provider&.connection_url?
+    return connect_with_url(provider) if provider&.connection_url? && params.key?(:connection_url)
 
-    kind = provider&.kind || Integration::KIND_MCP
+    # A database connected from a URL can also be reached through an MCP server the team runs.
+    kind = provider.nil? || provider.connection_url? ? Integration::KIND_MCP : provider.kind
 
     integration = current_workspace.integrations.create!(
       kind: kind,

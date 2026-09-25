@@ -76,6 +76,16 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, @workspace.integrations.find_by!(name: "Orders DB").integration_environments.count
   end
 
+  test "a database can still be connected through an MCP server the team runs" do
+    Integrations::McpExecutor.stubs(:tool_definitions).returns([])
+    Integrations::McpExecutor.stubs(:check_health!).returns(true)
+
+    post integrations_path, params: { provider: "postgresql", name: "Orders MCP", server_url: "https://pg-mcp.example.com/mcp", authorization: "Bearer x" }
+
+    integration = @workspace.integrations.find_by!(name: "Orders MCP")
+    assert_equal [ Integration::KIND_MCP, "https://pg-mcp.example.com/mcp" ], [ integration.kind, integration.settings["server_url"] ]
+  end
+
   test "a database URL that cannot be used is said on the form and nothing is saved" do
     assert_no_difference -> { @workspace.integrations.count } do
       post integrations_path, params: { provider: "postgresql", name: "Orders DB", connection_url: "postgresql://reader:secret@10.1.2.3/orders" },
