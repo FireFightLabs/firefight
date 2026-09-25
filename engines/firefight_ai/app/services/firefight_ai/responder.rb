@@ -3,13 +3,16 @@ module FirefightAi
   class Responder
     FEATURE = "conversation".freeze
 
-    # Asked once before an answer built on what was looked up goes out. The draft is held, so the person reads only what follows.
-    CHECK = "Before this answer goes out, try to prove it wrong. Name the claim it rests on and the check that would show " \
-            "that claim false. If you have not run that check and can, run it now. Only a result you read can change the " \
-            "answer: correct a claim a result contradicts, and never replace it with one you reasoned your way to without a " \
-            "result that shows it. Say a possibility you could not check is unchecked, or leave it out. Then write the answer " \
-            "the person will read, in full, changed or not, as a plain answer that never mentions this check. They have not " \
-            "seen your draft.".freeze
+    # Asked once before an answer built on what was looked up goes out. The draft is held, so the person reads only what
+    # follows. A draft that only repeats what results showed goes out unchanged, so a plain lookup is not run twice.
+    CHECK = "Before this answer goes out, look at each claim in it. A claim that only repeats a value a result you read " \
+            "shows needs no check. If every claim is like that, write the answer as it is and run nothing. A claim that " \
+            "goes further, such as a cause, a diagnosis or a recommendation, needs one. Name the claim and the check that " \
+            "would show it false. If you have not run that check and can, run it now. Only a result you read can change " \
+            "the answer. Correct a claim a result contradicts, and never replace it with one you reasoned your way to " \
+            "without a result that shows it. Say a possibility you could not check is unchecked, or leave it out. Then " \
+            "write the answer the person will read, in full, changed or not, as a plain answer that never mentions this " \
+            "check. They have not seen your draft.".freeze
 
     def initialize(workspace, inferable:, member: nil, output_style: nil)
       @workspace = workspace
