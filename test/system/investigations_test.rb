@@ -60,6 +60,27 @@ class InvestigationsTest < ApplicationSystemTestCase
     assert_text @incident.name
   end
 
+  test "a responder steers a running run from its panel, and the story shows where the run read the note" do
+    @investigation.update_columns(status: Investigation::STATUS_RUNNING, completed_at: nil)
+    @investigation.finding.destroy!
+    bob = workspace_memberships(:bob_workspace_one)
+    @investigation.add_note!("It started right after the 14:02 deploy", by: bob)
+    @investigation.notes.sole.update!(created_at: 110.seconds.ago, taken_at: 102.seconds.ago)
+
+    visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
+
+    within("[role=dialog]") do
+      assert_text bob.display_name
+      assert_text "It started right after the 14:02 deploy"
+      fill_in "Tell Halon something", with: "Skip GitHub and look at 5xx errors on web"
+      click_button "Add to the run"
+      assert_text "added, waiting for the next step"
+      assert_text "Skip GitHub and look at 5xx errors on web"
+    end
+    assert_equal 2, @investigation.notes.count
+    page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-notes.png"))
+  end
+
   private
 
   def step(position, label, result, seconds_ago)

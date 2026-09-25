@@ -12,12 +12,14 @@ module Investigation::Seeding
 
   # When the facts were read, which every seeder writes.
   KEY_GATHERED_AT = "gathered_at".freeze
+  # Where the clues point, for whatever the agent decides to check. Gathering them calls nothing.
+  KEY_CLUES = "clues".freeze
 
   # Gathered once, so every turn and a resumed run read the same facts.
   def build_seed_pack!
     return seed_pack if seed_pack.present?
 
-    update!(seed_pack: seeder.gather)
+    update!(seed_pack: seeder.gather.merge(KEY_CLUES => Investigation::Clues.new(self).gather))
     seed_pack
   end
 

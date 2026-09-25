@@ -93,7 +93,6 @@ export default function PromptBar({
   commands,
   modelPicker = true,
   dictation = true,
-  busy = false,
   onSourceSearch,
   sourceHint = "Type to search sources & files",
   initialDraft = "",
@@ -110,8 +109,6 @@ export default function PromptBar({
   /** controls with nothing behind them yet are off rather than shown and dead */
   modelPicker?: boolean;
   dictation?: boolean;
-  /** a turn is already running, so sending again is refused */
-  busy?: boolean;
   /** @ asks the caller as the person types, and the caller answers through sources, unfiltered here */
   onSourceSearch?: (query: string) => void;
   /** the line under the @ menu, naming what @ finds */
@@ -281,7 +278,7 @@ export default function PromptBar({
     inputRef.current?.focus();
   };
 
-  const canSend = !busy && (draft.trim().length > 0 || attachments.length > 0);
+  const canSend = draft.trim().length > 0 || attachments.length > 0;
   const send = () => {
     if (!canSend) return;
     onSend?.(draft.trim());

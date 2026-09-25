@@ -1,5 +1,5 @@
 module FirefightAi
-  # The agent answering a person. Same loop as an investigation, and the reply is the answer.
+  # The agent answering a person. Same loop as an investigation, and the reply is the answer. It does the work itself.
   class Responder
     FEATURE = "conversation".freeze
 
@@ -24,7 +24,7 @@ module FirefightAi
     # The app has already saved the question as the last message.
     # check and hold go to the loop, see AgentLoop.
     def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, nudge: nil, memory: nil,
-            check: nil, hold: nil, &on_turn)
+            check: nil, hold: nil, take_messages: nil, &on_turn)
       FirefightAi.translating_errors do
         chat.with_instructions("#{template_text}\n#{context}")
         chat.with_tools(*tools)
@@ -34,7 +34,7 @@ module FirefightAi
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
           on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true,
-          check: check, hold: hold
+          check: check, hold: hold, take_messages: take_messages
         ).run(&on_turn)
       end
     end
@@ -68,7 +68,9 @@ module FirefightAi
         - Never say you cannot check or do something without reading the groups and opening the one that fits first, including when asked what you are able to do. The groups also say when tools exist but this person may not use them, or when nothing is connected, and that is worth saying.
         - When a tool refuses, tell the person plainly and who can do it instead.
         - #{Evidence::RULE}
-        - When a question needs real work, several tools and a written answer, call start_investigation instead of doing it here.
+        - Do the work a question needs yourself, however deep it goes. Check only what the question needs, starting from where the signal came from. A question about metrics reads metrics, and an error seen in logs leads to the code that raised it. Stop once you can answer.
+        - The person may add something while you work. Their newest message decides what you check next.
+        - Call start_investigation only when the person asks for an investigation. It saves a run on the incident that responders follow in its channel.
         - When you read code for a failing page or endpoint, find the code that handles it and check that everything running before it is defined, with find_definition, before suspecting data or configuration.
         - When an investigation has finished without checking something it can reach now, such as a tool granted since, offer to run it again and call start_investigation when the person agrees. Never tell them to start it themselves.
         - When someone asks to set up Firefight, go one step at a time. Read what is configured first, then offer the most useful missing piece: where alerts come from, then code, then the rest. Change a setting only once they agree to it.

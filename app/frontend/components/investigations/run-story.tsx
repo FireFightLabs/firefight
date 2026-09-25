@@ -6,6 +6,7 @@ import {
   IconFlag,
   IconLoader2,
   IconMessageQuestion,
+  IconMessagePlus,
   type Icon,
 } from "@tabler/icons-react"
 import type { ReactNode } from "react"
@@ -15,6 +16,7 @@ import { HYPOTHESIS_STATUS, INVESTIGATION_STEP_STATUS } from "@/lib/generated/co
 import { MetricChart } from "@/components/charts/metric-chart"
 import { formatSeconds } from "@/components/investigations/format"
 import { SETTLED_LABELS, STEP_LABELS, isKeyOf, labelFor } from "@/components/investigations/labels"
+import { AddNote } from "@/components/investigations/add-note"
 import { StepDetails } from "@/components/investigations/step-row"
 import { StepLinks } from "@/components/investigations/step-links"
 import { type StoryEntry, buildStory } from "@/components/investigations/story"
@@ -138,6 +140,25 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
         </Row>
       )
     }
+    case "note": {
+      const { note } = entry
+      return (
+        <Row
+          marker={<IconMarker icon={IconMessagePlus} />}
+          tone="primary"
+          title={
+            <>
+              <span className="font-medium">{note.author?.name ?? "A responder"}</span>
+              <span className="text-muted-foreground">{note.takenAt ? "added" : "added, waiting for the next step"}</span>
+            </>
+          }
+          at={note.createdAt}
+          connected={connected}
+        >
+          <p className="text-sm leading-relaxed">{note.content}</p>
+        </Row>
+      )
+    }
     case "end":
       return <EndRow investigation={investigation} />
   }
@@ -146,12 +167,19 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
 function EndRow({ investigation }: { investigation: InvestigationDetail }) {
   if (isLive(investigation.status)) {
     return (
-      <Row
-        marker={<IconLoader2 className="size-3.5 animate-spin" />}
-        tone="primary"
-        title={<span className="text-muted-foreground">Still working. This updates as it goes.</span>}
-        connected={false}
-      />
+      <>
+        <Row
+          marker={<IconLoader2 className="size-3.5 animate-spin" />}
+          tone="primary"
+          title={<span className="text-muted-foreground">Still working. This updates as it goes.</span>}
+          connected={false}
+        />
+        {investigation.noteBlockedReason == null && (
+          <li>
+            <AddNote investigationId={investigation.id} />
+          </li>
+        )}
+      </>
     )
   }
   if (investigation.finding) {

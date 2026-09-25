@@ -2,6 +2,7 @@ class Investigation < ApplicationRecord
   include Investigation::Seeding
   include Investigation::Citing
   include Investigation::Timeline
+  include Investigation::Noting
 
   STATUS_PENDING = "pending"
   STATUS_RUNNING = "running"
@@ -103,6 +104,11 @@ class Investigation < ApplicationRecord
 
   def self.available_for?(workspace)
     unavailable_reason(workspace).nil?
+  end
+
+  # The run a thread belongs to while it works, which is where a responder's note goes.
+  def self.live_in_thread(workspace, thread_id)
+    workspace.investigations.live.seen.find_by(thread_id: thread_id)
   end
 
   # Every way in asks this, so a refusal reads the same from the command, the button, the chat and MCP.

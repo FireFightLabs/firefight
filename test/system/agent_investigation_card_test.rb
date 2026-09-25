@@ -29,7 +29,7 @@ class AgentInvestigationCardTest < ApplicationSystemTestCase
     within("section[aria-label='Investigation']") do
       assert_text "Checkout is slow"
       assert_text "Checkout writes time out on the orders database"
-      click_button "Open"
+      click_button "See how it got there"
     end
 
     within("[role=dialog]") do

@@ -1,5 +1,5 @@
-# A person talking to the agent. An investigation is the job it starts when a question needs real
-# work, and the two share the loop, the tools and the saved chat.
+# A person talking to the agent, which does the work the question needs itself. An investigation is the saved record of a
+# run someone asked for, and the two share the loop, the tools and the saved chat.
 class Conversation < ApplicationRecord
   KIND_CHANNEL = "channel"
   KIND_PERSONAL = "personal"
@@ -89,7 +89,10 @@ class Conversation < ApplicationRecord
   def code_box_key = "conversation-#{id}"
 
   # Saved before the job runs, so the person sees it at once and a retried job asks only once. From here an answer is owed.
-  def ask!(question)
+  # While a turn is running the question waits and joins that turn at the agent's next step, so the person can steer it.
+  def ask!(question, asker: nil)
+    return chat_record.queue_message!(question, sender: asker) if asker.is_a?(WorkspaceMembership) && answer_owed?
+
     chat_record.add_message(role: Chat::Message::ROLE_USER, content: question)
     update!(title: question.truncate(TITLE_LIMIT)) if title.blank?
     expect_reply!

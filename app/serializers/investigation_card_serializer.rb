@@ -34,4 +34,21 @@ class InvestigationCardSerializer < BaseSerializer
   def suggests_incident
     investigation.incident.nil? && investigation.finding&.suggests_incident == true
   end
+
+  type :number, optional: true
+  def duration_seconds
+    investigation.duration_seconds
+  end
+
+  # What it looked at, as the chat shows its own lookups. The whole of each step is in the run's story.
+  type "{ position: number, label: string, status: string }[]"
+  def steps
+    investigation.steps.where.not(position: nil).map do |step|
+      { position: step.position, label: step.shown_label, status: step.status }
+    end
+  end
+
+  has_many :charts, serializer: ChatChartSerializer do
+    investigation.chat&.charts || []
+  end
 end

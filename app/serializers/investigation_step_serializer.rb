@@ -6,7 +6,7 @@ class InvestigationStepSerializer < BaseSerializer
 
   type :string
   def label
-    step.label.presence || step.tool_name.to_s.tr("_", " ").humanize
+    step.shown_label
   end
 
   # A technical cause, such as a denial or a timeout. The step's own words, never a model's.

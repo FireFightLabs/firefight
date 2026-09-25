@@ -11,6 +11,15 @@ class Conversation::Runner
     @marked = Time.current
     chat = @conversation.chat_record
     chat.discard_interrupted_reply!
+    take_queued(chat)
+    # The turn before this one already answered what this job was queued for.
+    if answered_already?(chat)
+      @conversation.reply_delivered!
+      return nil
+    end
+
+    # A question that waited behind the last turn was never marked as owed, since one already was.
+    @conversation.expect_reply!
     delivery.thinking!
 
     outcome = responder.run(
@@ -23,7 +32,8 @@ class Conversation::Runner
       nudge: chat.method(:nudge!),
       memory: chat,
       check: -> { FirefightAi::Responder::CHECK if @looked_outside },
-      hold: chat.method(:hold_last_reply!)
+      hold: chat.method(:hold_last_reply!),
+      take_messages: -> { take_queued(chat) }
     ) do |turn|
       record(turn)
     end
@@ -60,6 +70,18 @@ class Conversation::Runner
   end
 
   def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
+
+  # Only the asker's own messages, since the turn acts with their permissions.
+  def take_queued(chat)
+    asker = @turn.asker
+    asker.is_a?(WorkspaceMembership) && chat.take_queued!(from: asker).any?
+  end
+
+  # The last word is a finished reply, so nothing is waiting for one. A turn paused on a confirmation ends on a tool call.
+  def answered_already?(chat)
+    last = chat.sent_messages.reload.last
+    last.present? && last.role == Chat::Message::ROLE_ASSISTANT && !last.nudge && last.ruby_llm_tool_calls.empty?
+  end
 
   def waiting?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_WAITING
 

@@ -15,7 +15,7 @@ export function StepDetails({ step }: { step: InvestigationStep }) {
 
   const receipt = step.receipt
     ? `${labelFor(DECISION_LABELS, step.receipt.decision)} by the gateway at ${formatTime(step.receipt.at)}`
-    : "No gateway receipt"
+    : "Allowed. Reads of Firefight's own records are not logged"
 
   return (
     <div className="flex flex-col gap-1.5">

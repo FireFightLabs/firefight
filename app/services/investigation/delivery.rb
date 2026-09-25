@@ -26,6 +26,7 @@ class Investigation::Delivery
   end
 
   def step(key:, title:, status:)
+    tell_chat
     return unless thread_id
 
     adapter.report_agent_step(

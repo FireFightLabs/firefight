@@ -9,13 +9,12 @@ class Investigation::QuestionSeedTest < ActiveSupport::TestCase
     )
   end
 
-  test "a question with no incident starts from what is open, what fired lately and every service" do
+  test "a question starts from what was asked and where it points, and looks up the rest only when it needs it" do
     pack = @investigation.build_seed_pack!
 
     assert_equal "checkout is slow", pack["question"]
-    assert_includes pack["open_incidents"].map { |incident| incident["identifier"] }, incidents(:active_critical_ws1).identifier
-    assert pack.key?("recent_alerts")
-    assert pack.key?("services")
+    assert pack.key?(Investigation::Seeding::KEY_CLUES)
+    assert_empty pack.keys & %w[open_incidents recent_alerts services]
   end
 
   test "a run with no incident and nothing asked is refused" do

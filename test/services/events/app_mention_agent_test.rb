@@ -108,16 +108,54 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_no_enqueued_jobs { mention("what is going on", channel: "C0GENERAL") }
   end
 
+  test "a mention in a running investigation's thread is added to the run, and opens no chat" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    run = running_investigation
+
+    assert_no_enqueued_jobs(only: ConversationReplyJob) do
+      mention("skip GitHub, look at 5xx on web", thread_ts: "1700000000.000950", parent: run.thread_id)
+    end
+
+    assert_equal "skip GitHub, look at 5xx on web", run.notes.sole.content
+    assert_equal workspace_memberships(:alice_workspace_one), run.notes.sole.sender
+    assert_equal 0, @workspace.conversations.count
+  end
+
+  test "a mention in a finished investigation's thread is answered as a chat, as before" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    run = running_investigation(status: Investigation::STATUS_SUCCEEDED)
+
+    assert_enqueued_with(job: ConversationReplyJob) { mention("why was that", thread_ts: "1700000000.000950", parent: run.thread_id) }
+  end
+
+  test "someone who may not start an investigation is told, and nothing is added" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    run = running_investigation
+    AbilityGateway.stubs(:authorize!).raises(AbilityGateway::Denied.new("investigations.create"))
+    Slack::Client.expects(:post_ephemeral).with { |arguments| arguments[:text].include?("may not add to an investigation") }.returns({ ok: true })
+
+    mention("skip GitHub", thread_ts: "1700000000.000950", parent: run.thread_id)
+
+    assert_empty run.notes
+  end
+
   private
 
-  def mention(text, thread_ts: "1700000000.000100", by: workspace_memberships(:alice_workspace_one), channel: @incident.channel_id)
+  def mention(text, thread_ts: "1700000000.000100", by: workspace_memberships(:alice_workspace_one), channel: @incident.channel_id, parent: nil)
     Events::AppMentionHandler.execute(@workspace, {
       "team_id" => @workspace.platform_id,
       "event" => {
         "type" => Identifiers::EVENT_APP_MENTION, "channel" => channel,
         "user" => by.platform_user_id,
-        "ts" => thread_ts, "text" => "<@U123> #{text}"
-      }
+        "ts" => thread_ts, "thread_ts" => parent, "text" => "<@U123> #{text}"
+      }.compact
     })
+  end
+
+  def running_investigation(status: Investigation::STATUS_RUNNING)
+    @workspace.investigations.create!(
+      subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: workspace_memberships(:alice_workspace_one),
+      max_turns: 10, max_spend_cents: 400, thread_id: "1700000000.000900", status: status
+    )
   end
 end

@@ -35,8 +35,10 @@ module FirefightAi
     # memory is the saved chat when it can make room for itself, which lets a long run outlive its window.
     # check is what to ask before an answer goes out, or nil when none is owed yet. An answer it is owed is held back
     # unseen, hold is how the app keeps that draft out of what the person reads, and the answer after the check goes out.
+    # take_messages adds what a person sent while the agent worked to the chat and says whether there was any. It is
+    # called only between a tool's result and the next model call, the one place a new message keeps the chat valid.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
-                   reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil)
+                   reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil)
       @chat = chat
       @room = Room.new(chat, memory)
       @nudge = nudge || ->(text) { chat.add_message(role: :user, content: text) }
@@ -51,6 +53,7 @@ module FirefightAi
       @reply_is_answer = reply_is_answer
       @check = check
       @hold = hold
+      @take_messages = take_messages
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
     end
@@ -114,6 +117,8 @@ module FirefightAi
     def advance
       return @chat.step if tools_pending?
 
+      # Someone said something new, so a reply that did nothing before this is not held against the agent.
+      @reminders = 0 if @take_messages&.call
       @room.make { handover_note }
       generate
     end

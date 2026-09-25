@@ -6,7 +6,8 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     attr_reader :calls
     attr_accessor :options
 
-    def initialize(chat, outcome:, reply: nil, turns: [], steps: [], pieces: [])
+    def initialize(chat, outcome:, reply: nil, turns: [], steps: [], pieces: [], take: false)
+      @take = take
       @chat = chat
       @outcome = outcome
       @reply = reply
@@ -21,6 +22,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
       @steps.each { |step| arguments[:on_step].call(step) }
       @pieces.each { |piece| arguments[:on_chunk].call(piece) }
       @turns.each { |turn| on_turn.call(turn) }
+      arguments[:take_messages].call if @take
       @chat.call.add_message(role: :assistant, content: @reply) if @reply
       @outcome
     end
@@ -289,6 +291,36 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     with_app_host { ask(@conversation, "what can we connect for logs") }
   end
 
+  test "a message sent while the agent works joins that turn, and the job queued behind it does not answer twice" do
+    alice = workspace_memberships(:alice_workspace_one)
+    responder = fake(reply: "Metrics show 5xx on web since 14:02", take: true)
+    @conversation.ask!("anything in metrics?", asker: alice)
+    @conversation.ask!("skip GitHub, only metrics", asker: alice)
+
+    Conversation::Runner.new(@conversation, asker: alice).run
+    second = Conversation::Runner.new(@conversation.reload, asker: alice).run
+
+    assert_nil second
+    assert_equal 1, responder.calls.size
+    assert_equal [ "anything in metrics?", "skip GitHub, only metrics" ],
+                 @conversation.chat.readable_messages.where(role: Chat::Message::ROLE_USER).map(&:content)
+    assert_not @conversation.reload.answer_owed?
+  end
+
+  test "someone else's message waits for their own turn, since a turn acts with its asker's permissions" do
+    alice = workspace_memberships(:alice_workspace_one)
+    bob = workspace_memberships(:bob_workspace_one)
+    responder = fake(reply: "Here is what I found", take: true)
+    @conversation.ask!("anything in metrics?", asker: alice)
+    @conversation.ask!("resolve it", asker: bob)
+
+    Conversation::Runner.new(@conversation, asker: alice).run
+    Conversation::Runner.new(@conversation.reload, asker: bob).run
+
+    assert_equal 2, responder.calls.size
+    assert_equal "resolve it", @conversation.chat.readable_messages.where(role: Chat::Message::ROLE_USER).last.content
+  end
+
   private
 
   def with_app_host
@@ -312,11 +344,11 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     )
   end
 
-  def fake(outcome: FirefightAi::AgentLoop::STATUS_ANSWERED, reply: nil, turns: [], steps: [], pieces: [])
+  def fake(outcome: FirefightAi::AgentLoop::STATUS_ANSWERED, reply: nil, turns: [], steps: [], pieces: [], take: false)
     responder = FakeResponder.new(
       -> { @conversation.reload.chat },
       outcome: FirefightAi::AgentLoop::Outcome.new(status: outcome, turns_used: turns.size, spent_micros: 0),
-      reply: reply, turns: turns, steps: steps, pieces: pieces
+      reply: reply, turns: turns, steps: steps, pieces: pieces, take: take
     )
     FirefightAi::Responder.stubs(:new).with { |*, **options| responder.options = options }.returns(responder)
     responder

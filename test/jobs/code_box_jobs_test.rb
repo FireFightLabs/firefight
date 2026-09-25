@@ -33,7 +33,6 @@ class CodeBoxJobsTest < ActiveJob::TestCase
       subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400
     )
     Investigation.any_instance.stubs(:build_seed_pack!)
-    Investigation::WhatChanged.any_instance.stubs(:note!)
     Investigation::Runner.any_instance.stubs(:run).returns(Investigation::Runner::Result.new(status: Investigation::STATUS_SUCCEEDED, error_summary: nil))
     Integrations::CodeReading.expects(:close).with(investigation.code_box_key)
 
