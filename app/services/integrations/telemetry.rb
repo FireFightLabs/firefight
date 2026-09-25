@@ -2,7 +2,7 @@ module Integrations
   # Provider-neutral shapes for telemetry tools. A provider pack turns its API's answers into these, and this module
   # writes the text the model reads and the chart data a person sees. A new telemetry provider only maps its API.
   module Telemetry
-    # Where charts travel in a tool result, next to the text. MCP calls this part of a result structuredContent.
+    # The key a tool result keeps its charts under, next to its text. MCP names this part of a result structuredContent.
     STRUCTURED = "structuredContent".freeze
     CHARTS = "charts".freeze
 
@@ -32,13 +32,16 @@ module Integrations
       end
     end
 
-    def self.logs_text(lines, asked:)
+    # limit is how many lines the provider was asked for. Reaching it means older lines were not returned, and the text
+    # says so, so the model narrows the range or filters rather than taking the lines as all there were.
+    def self.logs_text(lines, asked:, limit: LOG_LINE_LIMIT)
       return "No log lines matched #{asked}." if lines.empty?
 
       shown = lines.first(LOG_LINE_LIMIT).map do |line|
         "#{line.at.utc.iso8601} #{line.source} #{line.text.to_s.strip.truncate(LOG_CELL_LIMIT)}".squish
       end
-      "#{lines.size} log lines for #{asked}, newest first.\n#{shown.join("\n")}"
+      cut = lines.size >= limit ? " These are only the newest #{limit}. Older lines in the range were not returned, so narrow the range or filter to see them." : ""
+      "#{lines.size} log lines for #{asked}, newest first.#{cut}\n#{shown.join("\n")}"
     end
 
     # The model reads numbers, a person reads the chart. Each series is summed up in one line.
@@ -69,7 +72,7 @@ module Integrations
       result
     end
 
-    # The time range a tool was asked for: minutes back from now, or an explicit start and end.
+    # The time range a tool was asked for, as minutes back from now or as an explicit start and end.
     def self.range(arguments, default_minutes:, max_minutes:)
       ended = parse_time(arguments["end"]) || Time.current
       started = parse_time(arguments["start"])

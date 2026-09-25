@@ -51,6 +51,14 @@ module Integrations
         assert_match "2026-09-25T14:02:03Z web-1 upstream timeout after 30s", text
       end
 
+      test "a log search that reaches its limit tells the model older lines were not returned" do
+        lines = (1..3).map { |index| { "ts" => "2026-09-25T14:0#{index}:00Z", "containerId" => "web-1", "log" => "line #{index}" } }
+        NorthflankApi.any_instance.stubs(:logs).returns(lines)
+
+        assert_match "These are only the newest 3", call(:search_logs, "resource" => "web", "limit" => 3)
+        assert_no_match "only the newest", call(:search_logs, "resource" => "web", "limit" => 10)
+      end
+
       test "metrics come back as numbers for the model and as charts for the person, with a link to the live page" do
         NorthflankApi.any_instance.stubs(:metrics).returns(
           "http5xxResponses" => {

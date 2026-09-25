@@ -104,7 +104,7 @@ class Chat::Chart::Image
     to > from ? [ from, to ] : [ from, from + 1 ]
   end
 
-  # The axis starts at zero unless values go below it, so a small change does not look like a cliff. It ends on a round
+  # The axis starts at zero unless values go below it, so a small change does not look like a large drop. It ends on a round
   # step, 1, 2, 2.5 or 5 times a power of ten, so the grid lines read as round numbers.
   def value_range
     @value_range ||= begin

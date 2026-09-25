@@ -2,8 +2,8 @@
 class IntegrationProvider
   REGISTRY_PATH = Rails.root.join("config/integration_providers.yml")
 
-  # connect_with names a connect flow other than OAuth or an app install. A connection URL is pasted per environment,
-  # and an API token (with whatever else the provider asks for) is typed per environment.
+  # connect_with names a connect flow other than OAuth or an app install. A connection URL is pasted per environment.
+  # An API token, and whatever else the provider asks for, is typed per environment.
   CONNECT_CONNECTION_URL = "connection_url".freeze
   CONNECT_API_TOKEN = "api_token".freeze
   CONNECT_WITH = [ CONNECT_CONNECTION_URL, CONNECT_API_TOKEN ].freeze

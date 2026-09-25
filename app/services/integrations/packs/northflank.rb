@@ -12,6 +12,7 @@ module Integrations
       KIND_ADDONS = "addons".freeze
 
       LOG_TYPES = %w[runtime build ingress mesh cdn backup restore].freeze
+      DEFAULT_LOG_TYPE = LOG_TYPES.first
       METRICS = %w[cpu memory requests http4xxResponses http5xxResponses networkIngress networkEgress tcpConnectionsOpen diskUsage bandwidth].freeze
       DEFAULT_METRICS = %w[cpu memory requests http5xxResponses].freeze
       UNITS = { "pct" => "%", "vCPU" => "vCPU", "mb" => "MB", "kbps" => "kbps", "rps" => "requests/s", "count" => "count" }.freeze
@@ -128,13 +129,13 @@ module Integrations
         limit = arguments["limit"].to_i.positive? ? [ arguments["limit"].to_i, LOG_LIMIT ].min : LOG_LIMIT
         query = {
           "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601, "lineLimit" => limit, "direction" => "backward",
-          "type" => arguments["type"].presence_in(LOG_TYPES) || "runtime", "textIncludes" => arguments["text"].presence,
+          "type" => arguments["type"].presence_in(LOG_TYPES) || DEFAULT_LOG_TYPE, "textIncludes" => arguments["text"].presence,
           "regexIncludes" => arguments["regex"].presence, "textNotIncludes" => arguments["exclude"].presence
         }
         lines = api(environment_row).logs(project_of(environment_row), resource[:kind], resource[:id], query).map do |line|
           Telemetry::LogLine.new(at: Telemetry.parse_time(line["ts"]) || ended, source: line["containerId"].to_s, text: line["log"])
         end
-        Telemetry.result(Telemetry.logs_text(lines, asked: "#{resource[:name]} from #{started.utc.iso8601} to #{ended.utc.iso8601}"))
+        Telemetry.result(Telemetry.logs_text(lines, asked: "#{resource[:name]} from #{started.utc.iso8601} to #{ended.utc.iso8601}", limit: limit))
       end
 
       def query_metrics(environment_row:, arguments:)
