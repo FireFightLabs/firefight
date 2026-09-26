@@ -66,7 +66,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
     assert_equal @member.principal_label, invocation.triggered_by_label
   end
 
-  test "a tool that raises records the reason on the step and the ledger row" do
+  test "a tool that raises records the reason on the step with its message, and only its class on the ledger row" do
     assert_raises(RuntimeError) do
       Investigation::ToolCall.run!(@investigation, action_key: CREATE_KEY) do
         raise "the database said no"
@@ -75,7 +75,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
 
     step = @investigation.steps.sole
     assert_equal Investigation::Step::STATUS_FAILED, step.status
-    assert_equal "RuntimeError", step.error_summary
+    assert_equal "RuntimeError: the database said no", step.error_summary
     assert_nil step.compacted_result, "a failure is not a result"
 
     invocation = Ability::Invocation.find(step.invocation_id)
@@ -94,7 +94,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
     assert_not ran
     step = @investigation.steps.sole
     assert_equal Investigation::Step::STATUS_FAILED, step.status
-    assert_equal "Denied", step.error_summary
+    assert_equal "Denied: Not permitted to perform '#{CREATE_KEY}'", step.error_summary
     assert_nil step.invocation_id
   end
 
