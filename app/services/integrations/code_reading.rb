@@ -4,6 +4,13 @@ module Integrations
   # the connection's token and pushes plain git objects, so no credential ever enters the box.
   class CodeReading
     NOT_SET_UP = "Code reading is not set up on this install. Whoever runs Firefight sets SANDBOX_PROVIDER to docker or northflank.".freeze
+    # What the agent is told when the box cannot start, so it stops reaching for code tools and says why in its answer.
+    UNAVAILABLE = "Code reading cannot run right now: %<reason>s Every tool that reads code in the sandbox will fail the " \
+                  "same way for the rest of this run, whatever you pass, so do not call them again. Fetching one file " \
+                  "or its blame from the code host still works. Say in your answer that code could not be searched, " \
+                  "and why.".freeze
+    # A box that would not start is not tried again for this long, so a run's later reads fail at once.
+    UNAVAILABLE_FOR = 10.minutes
     MISSING_COMMIT = /has no commit/
     # A commit the box does not know may have been pushed since, so the repository is fetched again once.
     REFETCH_AFTER = 30.seconds
@@ -44,7 +51,20 @@ module Integrations
         end
       end
 
+      # In process memory, since one run's reads happen in the job that holds it.
+      def unavailable(key)
+        failed = unavailable_by_key[key]
+        failed[:message] if failed && failed[:at] > UNAVAILABLE_FOR.ago
+      end
+
+      def unavailable!(key, message)
+        unavailable_by_key[key] = { message: message, at: Time.current }
+        message
+      end
+
       private
+
+      def unavailable_by_key = @unavailable_by_key ||= Concurrent::Map.new
 
       def provider_for(key) = key == Sandboxes.provider_key ? Sandboxes.provider : nil
     end
@@ -95,8 +115,11 @@ module Integrations
     end
 
     def start!
+      known = self.class.unavailable(@key)
+      raise Unavailable, known if known
+
       provider = Sandboxes.provider
-      raise Error, NOT_SET_UP unless provider
+      raise Unavailable, self.class.unavailable!(@key, format(UNAVAILABLE, reason: NOT_SET_UP)) unless provider
 
       started = provider.start(name: Sandboxes.box_name)
       Sandboxes::Client.new(started).wait_until_ready!
@@ -104,6 +127,9 @@ module Integrations
         workspace: @workspace, key: @key, provider: Sandboxes.provider_key, box_ref: started.ref,
         address: started.address, secret: started.key, last_used_at: Time.current
       )
+    rescue Sandboxes::Error => error
+      provider&.stop(started.ref) if started
+      raise Unavailable, self.class.unavailable!(@key, format(UNAVAILABLE, reason: error.message))
     rescue StandardError
       provider&.stop(started.ref) if started
       raise

@@ -31,8 +31,19 @@ class Investigation::Step < ApplicationRecord
 
   # The reason goes in its own column, so it is readable in a query and no branch
   # reads it back as something a tool returned.
+  # An exception keeps its message too, since its class alone, such as Error, says nothing about what went wrong.
   def fail!(reason)
-    reason = reason.class.name.demodulize unless reason.is_a?(String)
+    reason = failure_of(reason) unless reason.is_a?(String)
     update!(status: STATUS_FAILED, error_summary: reason, completed_at: Time.current)
+  end
+
+  FAILURE_LIMIT = 300
+
+  private
+
+  def failure_of(error)
+    name = error.class.name.demodulize
+    message = error.message.to_s.squish
+    message.empty? || message == error.class.name ? name : "#{name}: #{message}".truncate(FAILURE_LIMIT)
   end
 end

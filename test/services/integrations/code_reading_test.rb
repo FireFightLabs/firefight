@@ -69,11 +69,22 @@ module Integrations
       assert_equal 2, @pushed.size
     end
 
-    test "without a provider the tool says code reading is not set up" do
+    test "without a provider the tool says code reading is not set up, and that it will not start working mid run" do
       Sandboxes.stubs(:provider).returns(nil)
 
-      error = assert_raises(Error) { reading("investigation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
-      assert_equal CodeReading::NOT_SET_UP, error.message
+      error = assert_raises(Unavailable) { reading("investigation-no-provider").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
+      assert_match CodeReading::NOT_SET_UP, error.message
+      assert_match "do not call them again", error.message
+    end
+
+    test "a box that cannot start is reported once, and later reads in the run fail at once without trying again" do
+      @provider.expects(:start).once.raises(Sandboxes::Error, "SANDBOX_PROVIDER is docker, but the Docker daemon at /var/run/docker.sock cannot be reached (EACCES).")
+
+      first = assert_raises(Unavailable) { reading("investigation-cannot-start").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
+      second = assert_raises(Unavailable) { reading("investigation-cannot-start").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
+
+      assert_match "cannot be reached (EACCES)", first.message
+      assert_equal first.message, second.message
     end
 
     test "a token never shows in a failed fetch" do
