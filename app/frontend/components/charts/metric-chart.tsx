@@ -3,8 +3,6 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import {
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
@@ -34,8 +32,20 @@ function configOf(chart: ChatChart): ChartConfig {
   return Object.fromEntries(chart.series.map((series, index) => [ `s${index}`, { label: series.label, color: COLORS[index % COLORS.length] } ]))
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
 function clock(time: number): string {
   return new Date(time).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
+}
+
+function day(time: number): string {
+  return new Date(time).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+// A chart over more than a day marks its axis with dates, since times alone repeat and read out of order.
+function tickFormatterFor(chart: ChatChart): (time: number) => string {
+  const span = new Date(chart.rangeEnd).getTime() - new Date(chart.rangeStart).getTime()
+  return span > DAY_MS ? day : clock
 }
 
 function moment(value: unknown): string {
@@ -46,8 +56,28 @@ function tooltipTime(_label: unknown, payload: ReadonlyArray<{ payload?: { at?: 
   return moment(payload?.[0]?.payload?.at)
 }
 
+// The end names its day too when the range crosses midnight.
 function rangeOf(chart: ChatChart): string {
-  return `${moment(new Date(chart.rangeStart).getTime())} to ${clock(new Date(chart.rangeEnd).getTime())}`
+  const start = new Date(chart.rangeStart).getTime()
+  const end = new Date(chart.rangeEnd).getTime()
+  const sameDay = new Date(start).toDateString() === new Date(end).toDateString()
+  return `${moment(start)} to ${sameDay ? clock(end) : moment(end)}`
+}
+
+// Container names are long and made of parts that must stay together, so each series gets its own line.
+function Legend({ chart }: { chart: ChatChart }) {
+  return (
+    <ul className="flex flex-col gap-1 text-xs">
+      {chart.series.map((series, index) => (
+        <li key={series.label} className="flex min-w-0 items-center gap-2">
+          <span aria-hidden className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+          <span className="truncate font-mono text-[11.5px] text-foreground/90" title={series.label}>
+            {series.label}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 // One chart a tool returned: its title and unit, a line per series over the range asked for, and a link to the live
@@ -67,16 +97,16 @@ export function MetricChart({ chart }: { chart: ChatChart }) {
         <ChartContainer config={configOf(chart)} className="aspect-auto h-44 w-full">
           <LineChart data={rows} margin={{ left: -16, right: 6, top: 4 }}>
             <CartesianGrid vertical={false} />
-            <XAxis dataKey="at" type="number" scale="time" domain={[ "dataMin", "dataMax" ]} tickFormatter={clock} tickLine={false} axisLine={false} minTickGap={32} />
+            <XAxis dataKey="at" type="number" scale="time" domain={[ "dataMin", "dataMax" ]} tickFormatter={tickFormatterFor(chart)} tickLine={false} axisLine={false} minTickGap={32} />
             <YAxis tickLine={false} axisLine={false} width={48} />
             <ChartTooltip content={<ChartTooltipContent labelFormatter={tooltipTime} />} />
-            {chart.series.length > 1 && <ChartLegend content={<ChartLegendContent />} />}
             {chart.series.map((series, index) => (
               <Line key={series.label} dataKey={`s${index}`} type="monotone" stroke={`var(--color-s${index})`} strokeWidth={1.6} dot={false} connectNulls={false} isAnimationActive={false} />
             ))}
           </LineChart>
         </ChartContainer>
       )}
+      {rows.length > 0 && chart.series.length > 1 && <Legend chart={chart} />}
       <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
         <span>{rangeOf(chart)}</span>
         {chart.sourceUrl && (

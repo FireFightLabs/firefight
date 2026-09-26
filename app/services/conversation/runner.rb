@@ -1,6 +1,9 @@
 # One turn of a conversation: the agent reads the question, uses what it can reach, and replies.
 class Conversation::Runner
   NO_ROOM_LEFT = "I could not finish that one. Ask me something narrower, or start an investigation.".freeze
+  STOPPED = "Stopped.".freeze
+  # What the model is told for a tool it asked for and never got, so the chat stays one a provider accepts.
+  STOPPED_BEFORE_RUNNING = "Not run. The person stopped this answer first.".freeze
 
   def initialize(conversation, asker:)
     @conversation = conversation
@@ -20,6 +23,9 @@ class Conversation::Runner
 
     # A question that waited behind the last turn was never marked as owed, since one already was.
     @conversation.expect_reply!
+    # Pressed while this turn waited behind the last one.
+    return stopped!(chat) if chat.stop_requested?
+
     delivery.thinking!
 
     outcome = responder.run(
@@ -33,18 +39,24 @@ class Conversation::Runner
       memory: chat,
       check: -> { FirefightAi::Responder::CHECK if @looked_outside },
       hold: chat.method(:hold_last_reply!),
-      take_messages: -> { take_queued(chat) }
+      take_messages: -> { take_queued(chat) },
+      canceled: chat.method(:stop_requested?)
     ) do |turn|
       record(turn)
     end
 
+    return stopped!(chat) if outcome.status == FirefightAi::AgentLoop::STATUS_CANCELED
     return ask_to_confirm(chat, outcome) if waiting?(outcome)
 
     @reply = reply_for(outcome, chat)
     # Cleared before the page is told, so its reload sees the turn as over.
     @conversation.reply_delivered!
+    # A stop pressed as the answer finished has nothing left to stop, and must not stop the next question.
+    chat.clear_stop!
     delivery.answered!(@reply)
     outcome
+  rescue FirefightAi::Canceled
+    stopped!(@conversation.chat_record)
   end
 
   # What the person was told, for a caller that waits for the answer rather than watching it arrive.
@@ -71,6 +83,18 @@ class Conversation::Runner
 
   def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
 
+  # The person stopped this answer. What ran stays in the chat, and the next question starts clean.
+  def stopped!(chat)
+    chat.clear_stop!
+    chat.discard_interrupted_reply!
+    chat.answer_unanswered_calls!(STOPPED_BEFORE_RUNNING)
+    @conversation.note!(STOPPED)
+    @reply = STOPPED
+    @conversation.reply_delivered!
+    delivery.answered!(STOPPED)
+    FirefightAi::AgentLoop::Outcome.new(status: FirefightAi::AgentLoop::STATUS_CANCELED, turns_used: 0, spent_micros: 0)
+  end
+
   # Only the asker's own messages, since the turn acts with their permissions.
   def take_queued(chat)
     asker = @turn.asker
@@ -89,6 +113,7 @@ class Conversation::Runner
   def ask_to_confirm(chat, outcome)
     chat.request_decisions!(chat.to_llm.pending_approvals.map(&:id))
     @conversation.reply_delivered!
+    chat.clear_stop!
     delivery.confirm!(chat.awaiting_decision.to_a)
     outcome
   end

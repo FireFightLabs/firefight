@@ -73,6 +73,12 @@ class InvestigationDetailSerializer < BaseSerializer
     investigation.chat&.charts || []
   end
 
+  # Why the run cannot be stopped now, or nil while it can. The story offers Stop only then.
+  type :string, optional: true
+  def stop_blocked_reason
+    investigation.stop_blocked_reason
+  end
+
   # Why the run takes no note now, or nil while it does. The story offers the note box only then.
   type :string, optional: true
   def note_blocked_reason

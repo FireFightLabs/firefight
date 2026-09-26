@@ -31,6 +31,24 @@ class Chat::ChartTest < ActiveSupport::TestCase
     File.binwrite(ENV["CHART_PREVIEW"], png) if ENV["CHART_PREVIEW"]
   end
 
+  test "a chart over several days marks its axis with dates, gives its range both ends' days, and keeps long names whole" do
+    week = chart_hash("Memory of job").merge("to" => (@started + 7.days).iso8601)
+    week["series"] = [ "job-5646f5b664-pq8pz", "job-5fc548d4b8-7vbdt", "job-7a1c2e9d01-xk2mt" ].map do |label|
+      { "label" => label, "points" => [ [ @started.iso8601, 50 ], [ (@started + 7.days).iso8601, 55 ] ] }
+    end
+    Chat::Chart.record!(@chat, "call_1", [ week ])
+    image = Chat::Chart::Image.new(@chat.charts.sole)
+
+    texts = image.labels.map(&:first)
+
+    assert_includes texts, "Sep 25 14:00 to Oct 2 14:00 UTC"
+    assert_includes texts, "Sep 27"
+    assert_includes texts, "job-5646f5b664-pq8pz"
+    assert_includes texts, "job-7a1c2e9d01-xk2mt"
+    assert image.png.start_with?("\x89PNG".b)
+    File.binwrite(ENV["CHART_PREVIEW"].sub(".png", "-week.png"), image.png) if ENV["CHART_PREVIEW"]
+  end
+
   private
 
   def chart_hash(title)

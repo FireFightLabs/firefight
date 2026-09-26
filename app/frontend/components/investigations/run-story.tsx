@@ -17,6 +17,7 @@ import { MetricChart } from "@/components/charts/metric-chart"
 import { formatSeconds } from "@/components/investigations/format"
 import { SETTLED_LABELS, STEP_LABELS, isKeyOf, labelFor } from "@/components/investigations/labels"
 import { AddNote } from "@/components/investigations/add-note"
+import { StopRun } from "@/components/investigations/stop-run"
 import { StepDetails } from "@/components/investigations/step-row"
 import { StepLinks } from "@/components/investigations/step-links"
 import { type StoryEntry, buildStory } from "@/components/investigations/story"
@@ -172,6 +173,7 @@ function EndRow({ investigation }: { investigation: InvestigationDetail }) {
           marker={<IconLoader2 className="size-3.5 animate-spin" />}
           tone="primary"
           title={<span className="text-muted-foreground">Still working. This updates as it goes.</span>}
+          aside={investigation.stopBlockedReason == null && <StopRun investigationId={investigation.id} />}
           connected={false}
         />
         {investigation.noteBlockedReason == null && (

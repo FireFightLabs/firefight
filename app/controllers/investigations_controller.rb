@@ -3,7 +3,7 @@
 class InvestigationsController < InertiaController
   PROP_INVESTIGATION = "investigation"
 
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show], create: %i[add_note]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show], create: %i[add_note stop]
 
   def show
     investigation = current_workspace.investigations.seen.find(params[:id])
@@ -24,5 +24,15 @@ class InvestigationsController < InertiaController
 
     investigation.add_note!(text.strip, by: current_membership)
     redirect_back_or_to investigation_path(investigation), notice: Investigation::Noting::NOTE_ADDED
+  end
+
+  # Whoever may start a run may stop one, as Slack's own stop button allows anyone in the thread.
+  def stop
+    investigation = current_workspace.investigations.seen.find(params[:id])
+    blocked = investigation.stop_blocked_reason
+    return redirect_back_or_to(investigation_path(investigation), alert: blocked) if blocked
+
+    investigation.request_cancel!
+    redirect_back_or_to investigation_path(investigation), notice: Investigation::STOPPING
   end
 end

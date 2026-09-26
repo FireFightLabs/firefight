@@ -6,7 +6,8 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     attr_reader :calls
     attr_accessor :options
 
-    def initialize(chat, outcome:, reply: nil, turns: [], steps: [], pieces: [], take: false)
+    def initialize(chat, outcome:, reply: nil, turns: [], steps: [], pieces: [], take: false, during: nil)
+      @during = during
       @take = take
       @chat = chat
       @outcome = outcome
@@ -23,6 +24,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
       @pieces.each { |piece| arguments[:on_chunk].call(piece) }
       @turns.each { |turn| on_turn.call(turn) }
       arguments[:take_messages].call if @take
+      @during&.call(arguments)
       @chat.call.add_message(role: :assistant, content: @reply) if @reply
       @outcome
     end
@@ -321,6 +323,63 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal "resolve it", @conversation.chat.readable_messages.where(role: Chat::Message::ROLE_USER).last.content
   end
 
+  test "a stop ends the turn where it is, answers any tool it never ran, and says Stopped" do
+    call_asked_for = lambda do |_arguments|
+      reply = @conversation.chat.add_message(role: :assistant, content: "")
+      reply.ruby_llm_tool_calls.create!(tool_call_id: "call_9", name: "search_logs", arguments: {})
+      @conversation.request_stop!
+    end
+    fake(outcome: FirefightAi::AgentLoop::STATUS_CANCELED, during: call_asked_for)
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
+
+    outcome = ask(@conversation, "anything in metrics?")
+
+    chat = @conversation.chat.reload
+    assert_equal FirefightAi::AgentLoop::STATUS_CANCELED, outcome.status
+    assert_equal Conversation::Runner::STOPPED_BEFORE_RUNNING, chat.tool_calls.find_by!(tool_call_id: "call_9").result.content
+    assert_equal Conversation::Runner::STOPPED, chat.readable_messages.last.content
+    assert_not chat.stop_requested?
+    assert_not @conversation.reload.answer_owed?
+  end
+
+  test "a stop that lands while the model is answering ends the turn the same way" do
+    fake(during: ->(_arguments) { raise FirefightAi::Canceled, "cancelled" })
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
+
+    ask(@conversation, "anything in metrics?")
+
+    assert_equal Conversation::Runner::STOPPED, @conversation.chat.readable_messages.last.content
+  end
+
+  test "a stop pressed while the turn waited to start ends it before the model is asked" do
+    responder = fake(reply: "never")
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
+    @conversation.ask!("anything in metrics?")
+    @conversation.request_stop!
+
+    Conversation::Runner.new(@conversation, asker: @conversation.started_by).run
+
+    assert_empty responder.calls
+    assert_equal Conversation::Runner::STOPPED, @conversation.chat.readable_messages.last.content
+  end
+
+  test "a stop that lands as the answer finishes does not stop the next question" do
+    responder = fake(reply: "Web is fine", during: ->(_arguments) { @conversation.request_stop! })
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
+    ask(@conversation, "anything in metrics?")
+
+    assert_not @conversation.chat.reload.stop_requested?
+    assert_equal 1, responder.calls.size
+  end
+
+  test "stopping needs an answer to be under way" do
+    assert_equal Conversation::NOTHING_TO_STOP, @conversation.stop_blocked_reason
+
+    @conversation.ask!("anything in metrics?")
+
+    assert_nil @conversation.stop_blocked_reason
+  end
+
   private
 
   def with_app_host
@@ -344,11 +403,11 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     )
   end
 
-  def fake(outcome: FirefightAi::AgentLoop::STATUS_ANSWERED, reply: nil, turns: [], steps: [], pieces: [], take: false)
+  def fake(outcome: FirefightAi::AgentLoop::STATUS_ANSWERED, reply: nil, turns: [], steps: [], pieces: [], take: false, during: nil)
     responder = FakeResponder.new(
       -> { @conversation.reload.chat },
       outcome: FirefightAi::AgentLoop::Outcome.new(status: outcome, turns_used: turns.size, spent_micros: 0),
-      reply: reply, turns: turns, steps: steps, pieces: pieces, take: take
+      reply: reply, turns: turns, steps: steps, pieces: pieces, take: take, during: during
     )
     FirefightAi::Responder.stubs(:new).with { |*, **options| responder.options = options }.returns(responder)
     responder

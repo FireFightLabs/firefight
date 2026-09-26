@@ -287,6 +287,11 @@ class Investigation < ApplicationRecord
       ) > 0
   end
 
+  ALREADY_FINISHED = "This investigation has already finished.".freeze
+  STOPPING = "Stopping. Halon ends the run after the step it is on.".freeze
+
+  def stop_blocked_reason = (ALREADY_FINISHED unless live?)
+
   # The worker notices between turns, and RubyLLM stops a model call already in flight.
   def request_cancel!
     moved = self.class.where(id: id, status: LIVE_STATUSES)

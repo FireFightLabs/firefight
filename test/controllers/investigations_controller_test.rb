@@ -107,6 +107,19 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Investigation::Noting::NOTE_EMPTY, flash[:alert]
   end
 
+  test "a running run is stopped from the dashboard, and a finished one says it already finished" do
+    running = investigation_run(status: Investigation::STATUS_RUNNING)
+
+    post investigation_stop_url(running)
+
+    assert running.reload.cancel_requested?
+    assert_equal Investigation::STOPPING, flash[:notice]
+
+    post investigation_stop_url(investigation_run(subject: nil, brief: { Investigation::Brief::KEY_SYMPTOM => "slow" }))
+
+    assert_equal Investigation::ALREADY_FINISHED, flash[:alert]
+  end
+
   private
 
   def investigation_run(**attributes)

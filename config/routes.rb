@@ -289,6 +289,7 @@ Rails.application.routes.draw do
     post "/incidents/:incident_id/postmortem/ai_rewrite", to: "incidents#ai_rewrite_postmortem", as: :incident_postmortem_ai_rewrite
     get "/investigations/:id", to: "investigations#show", as: :investigation
     post "/investigations/:id/notes", to: "investigations#add_note", as: :investigation_notes
+    post "/investigations/:id/stop", to: "investigations#stop", as: :investigation_stop
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"
     get "/agent/search", to: "agent_chats#search", as: :agent_chats_search
@@ -298,6 +299,7 @@ Rails.application.routes.draw do
     delete "/agent/:id", to: "agent_chats#destroy"
     post "/agent/:id/ask", to: "agent_chats#ask", as: :agent_chat_ask
     post "/agent/:id/confirm", to: "agent_chats#confirm", as: :agent_chat_confirm
+    post "/agent/:id/stop", to: "agent_chats#stop", as: :agent_chat_stop
     get "/catalogue", to: "catalogue#index", as: :catalogue
     get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
     post "/catalogue/types", to: "catalogue#create_type"

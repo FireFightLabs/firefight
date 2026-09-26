@@ -54,6 +54,23 @@ class Chat < ApplicationRecord
     end
   end
 
+  # RubyLLM saves a stop on the chat's row and checks it while a model call runs, so a stop pressed in the web process
+  # reaches the worker. Read from the row, since this record may be one the worker loaded before the stop.
+  def stop_requested? = self.class.where(id: id).pick(:cancelled) == true
+
+  def clear_stop! = update_column(:cancelled, false)
+
+  # A stop can land after the model asked for tools and before they ran. Each such call is answered, since a provider
+  # refuses a chat with a call and no result.
+  def answer_unanswered_calls!(text)
+    last = sent_messages.reload.where(role: Chat::Message::ROLE_ASSISTANT).last
+    return unless last
+
+    last.ruby_llm_tool_calls.where(result_id: nil).find_each do |call|
+      add_message(role: Chat::Message::ROLE_TOOL, content: text, tool_call_id: call.tool_call_id)
+    end
+  end
+
   # The loop keeps the agent moving by speaking as the user, which is how a model reads it.
   # Marked, because the content is encrypted and nothing else could tell it from the person's words.
   def nudge!(text)

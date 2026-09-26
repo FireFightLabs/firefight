@@ -93,6 +93,7 @@ export default function PromptBar({
   commands,
   modelPicker = true,
   dictation = true,
+  onStop,
   onSourceSearch,
   sourceHint = "Type to search sources & files",
   initialDraft = "",
@@ -109,6 +110,8 @@ export default function PromptBar({
   /** controls with nothing behind them yet are off rather than shown and dead */
   modelPicker?: boolean;
   dictation?: boolean;
+  /** while something is running and nothing is typed, the send button stops it instead */
+  onStop?: () => void;
   /** @ asks the caller as the person types, and the caller answers through sources, unfiltered here */
   onSourceSearch?: (query: string) => void;
   /** the line under the @ menu, naming what @ finds */
@@ -279,6 +282,7 @@ export default function PromptBar({
   };
 
   const canSend = draft.trim().length > 0 || attachments.length > 0;
+  const stops = onStop !== undefined && !canSend;
   const send = () => {
     if (!canSend) return;
     onSend?.(draft.trim());
@@ -558,19 +562,23 @@ export default function PromptBar({
           </button>
           )}
 
-          {/* send — tactile square */}
+          {/* send, or stop while something runs and nothing is typed */}
           <button
             type="button"
-            aria-label="Send"
-            disabled={!canSend}
-            onClick={send}
+            aria-label={stops ? "Stop" : "Send"}
+            disabled={!canSend && !stops}
+            onClick={stops ? onStop : send}
             className={`flex size-7 shrink-0 items-center justify-center transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.94] rounded-[8px] ${wide ? "col-start-5 row-start-2" : "col-start-5 row-start-1"}`}
             style={{
-              background: canSend ? "var(--ink)" : "var(--line-strong)",
-              color: canSend ? "var(--surface)" : "var(--ink-2)",
+              background: canSend || stops ? "var(--ink)" : "var(--line-strong)",
+              color: canSend || stops ? "var(--surface)" : "var(--ink-2)",
             }}
           >
-            <Icon size={16} strokeWidth={2.4}><path d="M12 19V5M5 12l7-7 7 7" /></Icon>
+            {stops ? (
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" rx="2" fill="currentColor" /></svg>
+            ) : (
+              <Icon size={16} strokeWidth={2.4}><path d="M12 19V5M5 12l7-7 7 7" /></Icon>
+            )}
           </button>
         </div>
       </div>
