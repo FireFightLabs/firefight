@@ -21,7 +21,7 @@ module Integrations
       def wait_until_ready!
         deadline = READY_TIMEOUT.seconds.from_now
         loop do
-          return if ready?
+          return if alive?
           raise Error, "The code sandbox did not come up within #{READY_TIMEOUT} seconds." if Time.current > deadline
 
           sleep 1
@@ -41,18 +41,18 @@ module Integrations
         send_json(Net::HTTP::Post, "/prepare", payload: { repo: repository, ref: ref }.compact, read_timeout: 20.minutes.to_i + MARGIN)
       end
 
+      def alive?
+        send_json(Net::HTTP::Get, "/health", read_timeout: 5)["ok"] == true
+      rescue Error
+        false
+      end
+
       def lsp(repository:, method:, ref: nil, path: nil, line: nil, column: nil, language: nil, query: nil)
         payload = { repo: repository, ref: ref, method: method, path: path, line: line, column: column, language: language, query: query }.compact
         send_json(Net::HTTP::Post, "/lsp", payload: payload, read_timeout: 120)
       end
 
       private
-
-      def ready?
-        send_json(Net::HTTP::Get, "/health", read_timeout: 5)["ok"] == true
-      rescue Error
-        false
-      end
 
       def send_json(verb, path, payload: nil, body: nil, content_type: "application/json", read_timeout: 30)
         uri = URI.parse("#{@box.address}#{path}")
