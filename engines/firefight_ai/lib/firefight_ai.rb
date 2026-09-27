@@ -32,6 +32,7 @@ module FirefightAi
       AiPurpose::SUMMARY => "SUMMARY_AI",
       AiPurpose::MILESTONES => "MILESTONES_AI",
       AiPurpose::INVESTIGATION => "INVESTIGATION_AI",
+      AiPurpose::CITATION_CHECK => "CITATION_CHECK_AI",
       AiPurpose::EMBEDDING => "EMBEDDING_AI"
     }.fetch(purpose)
   end
@@ -48,7 +49,7 @@ module FirefightAi
   end
 
   # Most specific first, workspace override for the purpose, for any purpose, the
-  # purpose's env var, the deployment default, the fallback.
+  # purpose's env var, then the parent purpose's model when it has one, the deployment default, the fallback.
   def model_for(purpose, workspace: nil)
     override = workspace && workspace.ai_model_overrides.for_purpose(purpose).min_by { |row| row.purpose == purpose ? 0 : 1 }
     return ModelChoice.new(model: override.model, provider: override.provider.presence) if override
@@ -57,6 +58,9 @@ module FirefightAi
     if ENV["#{prefix}_MODEL"].present?
       return ModelChoice.new(model: ENV["#{prefix}_MODEL"], provider: ENV["#{prefix}_PROVIDER"].presence)
     end
+
+    parent = AiPurpose::PARENTS[purpose]
+    return model_for(parent, workspace: workspace) if parent
     if configuration.default_model.present?
       return ModelChoice.new(model: configuration.default_model, provider: configuration.default_provider.presence)
     end
