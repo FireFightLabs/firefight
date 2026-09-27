@@ -14,11 +14,14 @@ module FirefightAi
             "write the answer the person will read, in full, changed or not, as a plain answer that never mentions this " \
             "check. They have not seen your draft.".freeze
 
-    def initialize(workspace, inferable:, member: nil, output_style: nil)
+    # model is the ModelChoice the chat was opened with, so a chat started before the setting changed is billed as the
+    # model it really runs on. nil means the workspace's chat model.
+    def initialize(workspace, inferable:, member: nil, output_style: nil, model: nil)
       @workspace = workspace
       @inferable = inferable
       @member = member
       @output_style = output_style
+      @ai_model = model
     end
 
     # The app has already saved the question as the last message.
@@ -40,7 +43,7 @@ module FirefightAi
     end
 
     def ai_model
-      @ai_model ||= FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+      @ai_model ||= FirefightAi.model_for(AiPurpose::CONVERSATION, workspace: @workspace)
     end
 
     private

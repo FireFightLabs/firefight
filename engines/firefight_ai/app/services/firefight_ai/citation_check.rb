@@ -67,7 +67,7 @@ module FirefightAi
     end
 
     def model_choice
-      @model_choice ||= FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+      @model_choice ||= FirefightAi.model_for(AiPurpose::CITATION_CHECK, workspace: @workspace)
     end
 
     def system_prompt

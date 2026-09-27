@@ -69,7 +69,7 @@ class Conversation::Runner
   def responder
     @responder ||= FirefightAi::Responder.new(
       @conversation.workspace, inferable: @conversation.subject, member: @turn.asker,
-      output_style: delivery.output_style
+      output_style: delivery.output_style, model: @conversation.chat_record.model_choice
     )
   end
 

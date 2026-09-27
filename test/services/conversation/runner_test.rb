@@ -380,6 +380,18 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_nil @conversation.stop_blocked_reason
   end
 
+  test "a chat keeps the model it was opened with, and its turns are billed as that model, after the chat model changes" do
+    responder = fake(reply: "done")
+    @conversation.chat_record
+    opened_with = @conversation.chat.model_id
+
+    FirefightAi.stubs(:model_for).returns(FirefightAi::ModelChoice.new(model: "z-ai/glm-5.3", provider: "openrouter"))
+    ask(@conversation, "anything in metrics?")
+
+    assert_equal opened_with, responder.options[:model].model
+    assert_equal opened_with, @conversation.chat.reload.model_id
+  end
+
   private
 
   def with_app_host

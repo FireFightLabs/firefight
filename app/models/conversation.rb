@@ -146,7 +146,7 @@ class Conversation < ApplicationRecord
     reload_chat
   end
 
-  def ai_model = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace)
+  def ai_model = FirefightAi.model_for(AiPurpose::CONVERSATION, workspace: workspace)
 
   # The ledger and the prompt want an incident. A conversation about nothing has none.
   def incident

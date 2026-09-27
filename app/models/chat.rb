@@ -148,6 +148,11 @@ class Chat < ApplicationRecord
     chat
   end
 
+  # The model this chat was opened with. A chat keeps it for good, since a history cannot move between providers.
+  def model_choice
+    FirefightAi::ModelChoice.new(model: model_id, provider: model&.provider) if model_id.present?
+  end
+
   # A killed worker leaves an empty reply that RubyLLM reads as the final answer. Only the job holding the run may call this.
   def discard_interrupted_reply!
     last_message = sent_messages.reload.last
