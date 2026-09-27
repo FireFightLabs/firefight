@@ -8,6 +8,7 @@ module Integrations
       PROJECT = "project".freeze
 
       APP_ROOT = "https://app.northflank.com".freeze
+      OBSERVE = "observe".freeze
       KIND_SERVICES = "services".freeze
       KIND_ADDONS = "addons".freeze
 
@@ -205,12 +206,15 @@ module Integrations
         found || fail!("No service or database called #{asked} in this project. list_resources shows what there is.")
       end
 
-      # The resource's page in Northflank's app. appId starts with the team, as in /team/project/service.
+      # The resource's page in Northflank's app. appId starts with the team, as in /team/project/service. A service's
+      # charts link to its Observe page, which opens on the metrics. A database keeps its main page, since its Observe
+      # address has not been checked.
       def page_of(environment_row, resource)
         team = resource[:app_id].to_s.split("/").reject(&:empty?).first
         return nil if team.blank?
 
         segments = [ "t", team, "project", project_of(environment_row), resource[:kind], resource[:id] ].map { |part| ERB::Util.url_encode(part) }
+        segments << OBSERVE if resource[:kind] == KIND_SERVICES
         "#{APP_ROOT}/#{segments.join('/')}"
       end
 

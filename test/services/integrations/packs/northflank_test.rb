@@ -59,7 +59,7 @@ module Integrations
         assert_no_match "only the newest", call(:search_logs, "resource" => "web", "limit" => 10)
       end
 
-      test "metrics come back as numbers for the model and as charts for the person, with a link to the live page" do
+      test "metrics come back as numbers for the model and as charts for the person, with a link to the service's metrics" do
         NorthflankApi.any_instance.stubs(:metrics).returns(
           "http5xxResponses" => {
             "metricInfo" => { "metricUnit" => "count" },
@@ -75,7 +75,7 @@ module Integrations
         assert_match "web-1: min 0.0, avg 21.0, max 42.0 at 2026-09-25T14:05:00Z", text
         chart = result.dig(Telemetry::STRUCTURED, Telemetry::CHARTS).sole
         assert_equal [ [ "2026-09-25T14:00:00Z", 0.0 ], [ "2026-09-25T14:05:00Z", 42.0 ] ], chart["series"].sole["points"]
-        assert_equal "https://app.northflank.com/t/firefight-labs/project/firefight/services/web", chart["link"]
+        assert_equal "https://app.northflank.com/t/firefight-labs/project/firefight/services/web/observe", chart["link"]
       end
 
       test "a metric with more containers than a chart keeps says how many were left out" do
