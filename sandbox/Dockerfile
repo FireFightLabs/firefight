@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential pkg-config libpq-dev libyaml-dev libssl-dev zlib1g-dev libffi-dev \
       nodejs npm python3 python3-pip python3-venv \
       postgresql redis-server \
+      libvips42 fonts-dejavu-core \
       util-linux procps \
     && rm -rf /var/lib/apt/lists/*
 
