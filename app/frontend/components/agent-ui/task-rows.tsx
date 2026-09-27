@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import DetailList, { type Detail } from "@/components/agent-ui/detail-list";
 import { AGENT_STEP_STATUSES } from "@/lib/generated/constants";
 
 /* ─────────────────────────────────────────────────────────
@@ -57,7 +58,7 @@ const PauseIcon = (
 );
 
 /* One detail line shown when a task row is expanded. */
-export type TaskDetail = { label: string; meta: string };
+export type TaskDetail = Detail;
 
 // The same words the server uses for a step, so the two cannot drift apart.
 export type TaskRowStatus = (typeof AGENT_STEP_STATUSES)[keyof typeof AGENT_STEP_STATUSES];
@@ -194,23 +195,10 @@ export default function TaskRows({
                 <div className="overflow-hidden">
                   <div className="mb-2.5 grid grid-cols-[24px_1fr] gap-2.5 px-2.5">
                     <span aria-hidden className="mx-auto h-full w-px bg-line" />
-                    <div className="flex flex-col gap-1.5">
-                      {row.details.map((d, j) => (
-                        <div
-                          key={`${row.key}:${j}`}
-                          className="flex items-center justify-between"
-                          style={
-                            open
-                              ? { animation: `fade-up 300ms cubic-bezier(0.23,1,0.32,1) ${120 + j * 100}ms both` }
-                              : undefined
-                          }
-                        >
-                          <span className="text-[12px] text-ink-2">{d.label}</span>
-                          <span className="font-mono text-[11.5px] text-ink-3 tabular-nums">
-                            {d.meta}
-                          </span>
-                        </div>
-                      ))}
+                    <div
+                      style={open ? { animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) 120ms both" } : undefined}
+                    >
+                      <DetailList details={row.details} />
                     </div>
                   </div>
                 </div>

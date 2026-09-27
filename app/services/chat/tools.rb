@@ -18,7 +18,8 @@ module Chat::Tools
   end
 
   HEADLINE_ARGUMENTS = %w[query name identifier title].freeze
-  ASKED_LIMIT = 60
+  # Long enough that a command someone is asked to confirm is shown whole. The page wraps it.
+  ASKED_LIMIT = 400
 
   KIND_READ = "read"
   KIND_ACT = "act"
