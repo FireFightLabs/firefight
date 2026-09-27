@@ -87,6 +87,30 @@ module Integrations
       assert_equal first.message, second.message
     end
 
+    test "a box that is gone, stopped outside Firefight, is replaced once and the read runs in the new one" do
+      reading("investigation-lost").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+      Sandboxes::Client.any_instance.stubs(:exec).raises(Sandboxes::Error, "could not reach 127.0.0.1 (Errno::ECONNREFUSED)")
+                                              .then.returns("stdout" => "found", "commit" => "abc")
+      Sandboxes::Client.any_instance.stubs(:alive?).returns(false)
+
+      result = reading("investigation-lost").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+
+      assert_equal "found", result["stdout"]
+      assert_equal 2, @provider.started.size
+      assert_equal [ "box-1" ], @provider.stopped
+      assert_equal "box-2", CodeBox.live.find_by!(key: "investigation-lost").box_ref
+      assert_equal 2, @pushed.size, "the new box is handed the repository again"
+    end
+
+    test "a command that fails in a box that still answers is reported, and the box is kept" do
+      reading("investigation-alive").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+      Sandboxes::Client.any_instance.stubs(:exec).raises(Sandboxes::Error, "grep: bad regex")
+      Sandboxes::Client.any_instance.stubs(:alive?).returns(true)
+
+      assert_raises(Sandboxes::Error) { reading("investigation-alive").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
+      assert_equal 1, @provider.started.size
+    end
+
     test "a token never shows in a failed fetch" do
       CodeReading.any_instance.stubs(:remote_url).returns("/nowhere/at/all")
 

@@ -91,15 +91,27 @@ module Integrations
 
     private
 
-    def with_repository(repository)
+    # A box can be gone while its row says it is live, stopped by hand, by a restart or by the provider. When a call
+    # fails and the box no longer answers, its row is closed and the call runs once more in a new box.
+    def with_repository(repository, replaced: false, &)
       ensure_repository!(repository)
       box.used!
       yield stored_name(repository)
     rescue Sandboxes::Error => error
-      raise unless error.message.match?(MISSING_COMMIT) && refetchable?(repository)
+      if error.message.match?(MISSING_COMMIT) && refetchable?(repository)
+        push!(repository)
+        return yield stored_name(repository)
+      end
+      raise if replaced || client.alive?
 
-      push!(repository)
-      yield stored_name(repository)
+      replace_lost_box!
+      with_repository(repository, replaced: true, &)
+    end
+
+    def replace_lost_box!
+      self.class.stop(box)
+      @box = nil
+      @client = nil
     end
 
     def refetchable?(repository)
