@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import DetailList, { type Detail } from "@/components/agent-ui/detail-list";
 import { Button } from "@/components/agent-ui/button";
 import GlideMenu from "@/components/agent-ui/glide-menu";
 
@@ -17,6 +18,8 @@ export type ApprovalQuestion = {
   q: string;
   type: "radio" | "check";
   options: string[];
+  /** what the question is about, shown under it as a list rather than run into the sentence */
+  details?: Detail[];
 };
 
 const QUESTIONS: ApprovalQuestion[] = [
@@ -328,6 +331,7 @@ export default function ApprovalCard({
                     style={questionStyle}
                   >
                     <div className="pr-7 text-[14px] font-medium text-ink">{question.q}</div>
+                    {question.details && question.details.length > 0 && <DetailList details={question.details} className="mt-2.5" />}
                     <GlideMenu className="mt-2.5 flex flex-col gap-1" highlightClassName="inset-x-0 rounded-control bg-hover">
                       {question.options.map((option, i) => {
                         const on = picked.includes(i);

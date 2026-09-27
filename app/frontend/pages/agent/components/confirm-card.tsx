@@ -14,7 +14,8 @@ const OPTIONS = [ CONFIRM, CANCEL ]
 // A question left unanswered stays open, so the agent carries on only once every one is answered.
 export function ConfirmCard({ conversationId, confirmations }: ConfirmCardProps) {
   const questions = confirmations.map((confirmation) => ({
-    q: questionText(confirmation),
+    q: confirmation.question,
+    details: confirmation.asked.map(([ label, meta ]) => ({ label, meta })),
     type: "radio" as const,
     options: OPTIONS,
   }))
@@ -37,10 +38,4 @@ export function ConfirmCard({ conversationId, confirmations }: ConfirmCardProps)
       onSubmitted={submit}
     />
   )
-}
-
-function questionText(confirmation: AgentChatConfirmation): string {
-  const details = confirmation.asked.map(([ name, value ]) => `${name}: ${value}`).join(", ")
-
-  return details ? `${confirmation.question} ${details}` : confirmation.question
 }
