@@ -24,9 +24,9 @@ class RefreshModelRegistryJob < ApplicationJob
   end
 
   def agent_models
-    deployment = Investigation::AGENT_PURPOSES.map { |purpose| FirefightAi.model_for(purpose).model }
-    overrides = Investigation::AGENT_PURPOSES.flat_map { |purpose| AiModelOverride.for_purpose(purpose).distinct.pluck(:model) }
-    (deployment + overrides).compact.uniq
+    deployment = FirefightAi.model_for(AiPurpose::INVESTIGATION).model
+    overrides = AiModelOverride.for_purpose(AiPurpose::INVESTIGATION).distinct.pluck(:model)
+    ([ deployment ] + overrides).compact.uniq
   end
 
   # What this deployment would actually run, since a price nobody uses is nobody's problem.

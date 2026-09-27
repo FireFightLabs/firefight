@@ -15,9 +15,6 @@ class Investigation < ApplicationRecord
 
   LIVE_STATUSES = [ STATUS_PENDING, STATUS_RUNNING ].freeze
 
-  # The purposes whose models run the agent loop, which makes room from the model's window.
-  AGENT_PURPOSES = [ AiPurpose::INVESTIGATION, AiPurpose::CONVERSATION ].freeze
-
   # Opens a run over the page of what it is about, since a run is read where it was asked for.
   QUERY_PARAM = "investigation"
 
@@ -97,13 +94,11 @@ class Investigation < ApplicationRecord
 
   # The agent makes room from how full the model's window is, so a model with no known window does
   # not run. The operator is told which model, the person only that setup is not finished.
-  # The chat and runs can use different models, and both have to be known.
   def self.unknown_window_reason(workspace)
-    models = AGENT_PURPOSES.map { |purpose| FirefightAi.model_for(purpose, workspace: workspace).model }.uniq
-    unknown = models.reject { |model| FirefightAi.context_window(model) }
-    return nil if unknown.empty?
+    model = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace).model
+    return nil if FirefightAi.context_window(model)
 
-    unknown.each { |model| Rails.logger.warn({ event: "ai.model_without_context_window", model: model, workspace_id: workspace.id }.to_json) }
+    Rails.logger.warn({ event: "ai.model_without_context_window", model: model, workspace_id: workspace.id }.to_json)
     "The AI model is not fully set up yet. An admin needs to finish setting it up."
   end
 

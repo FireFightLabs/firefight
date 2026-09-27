@@ -3,7 +3,7 @@ require "test_helper"
 class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
   MODEL_ENV = %w[
     POSTMORTEM_AI_MODEL POSTMORTEM_AI_PROVIDER INVESTIGATION_AI_MODEL INVESTIGATION_AI_PROVIDER
-    CONVERSATION_AI_MODEL CONVERSATION_AI_PROVIDER CITATION_CHECK_AI_MODEL CITATION_CHECK_AI_PROVIDER
+    CITATION_CHECK_AI_MODEL CITATION_CHECK_AI_PROVIDER
   ].freeze
 
   setup do
@@ -92,31 +92,30 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
     assert_not @workspace.ai_model_overrides.new(purpose: AiPurpose::SUMMARY, model: "gpt-4o-mini").valid?
   end
 
-  test "the chat and the citation check use the investigation's model until they are given their own" do
+  test "the citation check uses the investigation's model until it is given its own" do
     ENV["INVESTIGATION_AI_MODEL"] = "gpt-5.6-sol"
 
-    assert_equal "gpt-5.6-sol", FirefightAi.model_for(AiPurpose::CONVERSATION, workspace: @workspace).model
     assert_equal "gpt-5.6-sol", FirefightAi.model_for(AiPurpose::CITATION_CHECK, workspace: @workspace).model
   end
 
-  test "a chat model set for the deployment answers chats and leaves investigations alone" do
+  test "a citation check model set for the deployment runs the check and leaves investigations alone" do
     ENV["INVESTIGATION_AI_MODEL"] = "gpt-5.6-sol"
-    ENV["CONVERSATION_AI_MODEL"] = "z-ai/glm-5.3"
-    ENV["CONVERSATION_AI_PROVIDER"] = "openrouter"
+    ENV["CITATION_CHECK_AI_MODEL"] = "z-ai/glm-4.7-flash"
+    ENV["CITATION_CHECK_AI_PROVIDER"] = "openrouter"
 
-    chat = FirefightAi.model_for(AiPurpose::CONVERSATION, workspace: @workspace)
+    check = FirefightAi.model_for(AiPurpose::CITATION_CHECK, workspace: @workspace)
 
-    assert_equal [ "z-ai/glm-5.3", "openrouter" ], [ chat.model, chat.provider ]
+    assert_equal [ "z-ai/glm-4.7-flash", "openrouter" ], [ check.model, check.provider ]
     assert_equal "gpt-5.6-sol", FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace).model
   end
 
-  test "a workspace that pins its investigation model gets it for chats too, unless it pins a chat model" do
+  test "a workspace that pins its investigation model gets it for the citation check too, unless it pins one for the check" do
     @workspace.ai_model_overrides.create!(purpose: AiPurpose::INVESTIGATION, model: "claude-sonnet-4-5")
 
-    assert_equal "claude-sonnet-4-5", FirefightAi.model_for(AiPurpose::CONVERSATION, workspace: @workspace).model
+    assert_equal "claude-sonnet-4-5", FirefightAi.model_for(AiPurpose::CITATION_CHECK, workspace: @workspace).model
 
-    @workspace.ai_model_overrides.create!(purpose: AiPurpose::CONVERSATION, model: "z-ai/glm-5.3-flash", provider: "openrouter")
+    @workspace.ai_model_overrides.create!(purpose: AiPurpose::CITATION_CHECK, model: "z-ai/glm-4.7-flash", provider: "openrouter")
 
-    assert_equal "z-ai/glm-5.3-flash", FirefightAi.model_for(AiPurpose::CONVERSATION, workspace: @workspace).model
+    assert_equal "z-ai/glm-4.7-flash", FirefightAi.model_for(AiPurpose::CITATION_CHECK, workspace: @workspace).model
   end
 end
