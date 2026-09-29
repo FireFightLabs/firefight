@@ -1,10 +1,10 @@
-# Once a week, copies each provider's guides again (bin/sync-skill-references) and opens a pull request when they
+# Once a day, copies each provider's guides again (bin/sync-skill-references) and opens a pull request when they
 # changed, so an update is read before Halon uses it.
 name: Skill references
 
 on:
   schedule:
-    - cron: "0 6 * * 1"
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 permissions:

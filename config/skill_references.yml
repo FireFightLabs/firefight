@@ -7,3 +7,51 @@ planetscale:
     skills/postgres/references: postgres
     skills/mysql/references: mysql
     skills/vitess/references: vitess
+
+# Cloudflare's documentation is CC BY 4.0. Each page is copied as the markdown Cloudflare serves at its index.md.
+cloudflare:
+  site: https://developers.cloudflare.com
+  license: |
+    These guides are pages of Cloudflare's developer documentation (https://developers.cloudflare.com), copied
+    unchanged from the markdown Cloudflare publishes for each page. They are licensed under the Creative Commons
+    Attribution 4.0 International license, https://creativecommons.org/licenses/by/4.0/. Copyright Cloudflare, Inc.
+  pages:
+    mcp/cloudflare-api-mcp.md: agents/model-context-protocol/cloudflare/servers-for-cloudflare
+    api/token-permissions.md: fundamentals/api/reference/permissions
+    api/limits.md: fundamentals/api/reference/limits
+    security/ip-access-rules.md: waf/tools/ip-access-rules
+    security/ip-access-rules-create.md: waf/tools/ip-access-rules/create
+    security/ip-access-rules-actions.md: waf/tools/ip-access-rules/actions
+    security/ip-access-rules-parameters.md: waf/tools/ip-access-rules/parameters
+    security/custom-rules.md: waf/custom-rules
+    security/custom-rules-create-api.md: waf/custom-rules/create-api
+    security/block-countries.md: waf/custom-rules/use-cases/block-traffic-from-specific-countries
+    security/allowlist-only.md: waf/custom-rules/use-cases/allow-traffic-from-ips-in-allowlist
+    security/rate-limiting-rules.md: waf/rate-limiting-rules
+    security/rate-limiting-rules-create-api.md: waf/rate-limiting-rules/create-api
+    security/lists.md: waf/tools/lists
+    security/lists-api-endpoints.md: waf/tools/lists/lists-api/endpoints
+    security/security-level.md: waf/tools/security-level
+    security/under-attack-mode.md: fundamentals/reference/under-attack-mode
+    security/under-ddos-attack.md: fundamentals/security/under-ddos-attack
+    security/security-events.md: waf/analytics/security-events
+    security/querying-firewall-events.md: analytics/graphql-api/tutorials/querying-firewall-events
+    errors/cloudflare-5xx-errors.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors
+    errors/error-502-504.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-502-504
+    errors/error-520.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-520
+    errors/error-521.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-521
+    errors/error-522.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-522
+    errors/error-524.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-524
+    errors/error-525.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-525
+    errors/error-526.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-526
+    cache/purge-cache.md: cache/how-to/purge-cache
+    cache/purge-by-single-file.md: cache/how-to/purge-cache/purge-by-single-file
+    cache/purge-by-prefix.md: cache/how-to/purge-cache/purge_by_prefix
+    cache/purge-by-hostname.md: cache/how-to/purge-cache/purge-by-hostname
+    cache/purge-everything.md: cache/how-to/purge-cache/purge-everything
+    cache/investigating-uncached-responses.md: cache/troubleshooting/investigating-uncached-responses
+    dns/dns-records.md: dns/manage-dns-records
+    dns/create-dns-records.md: dns/manage-dns-records/how-to/create-dns-records
+    origin/protect-your-origin-server.md: fundamentals/security/protect-your-origin-server
+    origin/traffic-flow.md: fundamentals/concepts/traffic-flow-cloudflare
+    analytics/graphql-querying-basics.md: analytics/graphql-api/getting-started/querying-basics
