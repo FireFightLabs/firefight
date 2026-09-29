@@ -18,6 +18,10 @@ module ResourceMap
   RELATION_BRANCH_OF = "branch_of".freeze
   RELATION_USES = "uses".freeze
   RELATIONS = [ RELATION_RUNS_BUILDS_OF, RELATION_BUILT_FROM, RELATION_SERVES, RELATION_BRANCH_OF, RELATION_USES ].freeze
+  RELATION_WORDS = {
+    RELATION_RUNS_BUILDS_OF => "runs builds of", RELATION_BUILT_FROM => "is built from", RELATION_SERVES => "serves",
+    RELATION_BRANCH_OF => "is a branch of", RELATION_USES => "uses"
+  }.freeze
 
   # How a link was found. Declared and matched come from sweeps and are replaced by the next one. Added by a person and
   # suggested by Halon are kept until someone removes them, and a suggestion is not a fact until it is confirmed.

@@ -1,0 +1,56 @@
+require "test_helper"
+
+module Mcp
+  module Tools
+    class GetResourceMapTest < ActiveSupport::TestCase
+      setup do
+        @workspace = workspaces(:slack_workspace_one)
+        integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank", slug: "northflank")
+        @row = integration.integration_environments.create!
+        web = found("northflank", "acme/shop", ResourceMap::KIND_SERVICE, "web", status: "running")
+        builder = found("northflank", "acme/shop", ResourceMap::KIND_BUILD_SERVICE, "builder")
+        repository = found("github", "acme", ResourceMap::KIND_REPOSITORY, "acme/app")
+        ResourceMap.record!(@row, ResourceMap::Snapshot.new(
+          resources: [ web, builder, repository ],
+          links: [ ResourceMap::FoundLink.new(from: web.key, to: builder.key, relation: ResourceMap::RELATION_RUNS_BUILDS_OF),
+                   ResourceMap::FoundLink.new(from: builder.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM) ],
+          gaps: [ "Jobs could not be read" ]
+        ))
+      end
+
+      test "without a resource, the whole map by account, with what each connection could not read" do
+        payload = call
+
+        assert_equal [ [ "github", "acme", [ "repository, acme/app" ] ], [ "northflank", "acme/shop", [ "build_service, builder", "service, web, running" ] ] ],
+                     payload[:accounts].map { |account| [ account[:provider], account[:account], account[:resources] ] }
+        assert_equal [ { connection: "Northflank", swept: @row.reload.map_swept_at.iso8601, gaps: [ "Jobs could not be read" ] } ], payload[:connections]
+      end
+
+      test "a resource's fact sheet has its page and every link within two hops, saying how each was found" do
+        web = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web")
+        ResourceMap::Link.create!(workspace: @workspace, from_resource: web, to_resource: ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "acme/app"),
+                                  relation: ResourceMap::RELATION_USES, origin: ResourceMap::ORIGIN_SUGGESTED, last_seen_at: Time.current)
+
+        sheet = call(resource: "WEB")[:resources].sole
+
+        assert_equal [ "web", ResourceMap::KIND_SERVICE, "running" ], sheet.values_at(:name, :kind, :status)
+        assert_equal "https://example.test/web", sheet[:page]
+        assert_includes sheet[:links], "web runs builds of builder (declared by Northflank)"
+        assert_includes sheet[:links], "builder is built from acme/app (declared by Northflank, two links away)"
+        assert_includes sheet[:links], "web uses acme/app (suggested by Halon, not confirmed)"
+      end
+
+      test "a name that is not on the map says how to see what is" do
+        assert_match "Leave the resource out to see the whole map", call(resource: "checkout")[:error]
+      end
+
+      private
+
+      def found(provider, account, kind, id, status: nil)
+        ResourceMap::Found.new(provider: provider, account: account, kind: kind, external_id: id, name: id, status: status, url: "https://example.test/#{id}")
+      end
+
+      def call(**args) = GetResourceMap.perform(workspace: @workspace, args: args).structured_content
+    end
+  end
+end
