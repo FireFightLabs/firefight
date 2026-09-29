@@ -11,6 +11,10 @@ module Integrations
     SERIES_LIMIT = 8
 
     LogLine = Data.define(:at, :source, :text)
+    # Where the person sees what a tool returned, on the provider itself, opened on the same filter and time range when
+    # the provider's address can carry them. An answer about logs or metrics that cannot be checked at the source is
+    # worth little, so a result names its link or says it has none.
+    Link = Data.define(:provider, :url)
     # points are [time, value] pairs in time order. label tells series of one metric apart, such as a container.
     Series = Data.define(:label, :points)
     # link is the chart's page on the provider, where the full, live chart is.
@@ -66,11 +70,14 @@ module Integrations
 
     def self.left_out(total) = "#{total - SERIES_LIMIT} more series not shown, only the first #{SERIES_LIMIT} are kept"
 
-    def self.result(text, charts: [])
+    def self.result(text, link:, charts: [])
+      text = "#{text}\n#{link_line(link)}" if link
       result = { "content" => [ { "type" => "text", "text" => text } ] }
       result[STRUCTURED] = { CHARTS => charts.map(&:to_h) } if charts.any?
       result
     end
+
+    def self.link_line(link) = "Open this in #{link.provider}, and give the person this link with what you found: #{link.url}"
 
     # The time range a tool was asked for, as minutes back from now or as an explicit start and end.
     def self.range(arguments, default_minutes:, max_minutes:)

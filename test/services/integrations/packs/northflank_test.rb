@@ -75,7 +75,50 @@ module Integrations
         assert_match "web-1: min 0.0, avg 21.0, max 42.0 at 2026-09-25T14:05:00Z", text
         chart = result.dig(Telemetry::STRUCTURED, Telemetry::CHARTS).sole
         assert_equal [ [ "2026-09-25T14:00:00Z", 0.0 ], [ "2026-09-25T14:05:00Z", 42.0 ] ], chart["series"].sole["points"]
-        assert_equal "https://app.northflank.com/t/firefight-labs/project/firefight/services/web/observe", chart["link"]
+        assert_equal text.lines.last.split(": ", 2).last, chart["link"]
+        assert_match %r{\Ahttps://app\.northflank\.com/t/firefight-labs/project/firefight/services/web/observe/metrics\?endDate=.+&range=custom&startDate=}, chart["link"]
+      end
+
+      test "logs link to the same search and time range on the service's Observe page, for the model to hand the person" do
+        NorthflankApi.any_instance.stubs(:logs).returns([ { "ts" => "2026-09-25T14:02:03Z", "containerId" => "web-1", "log" => "probe" } ])
+
+        text = call(:search_logs, "resource" => "web", "text" => "195.178.110.247", "start" => "2026-09-28T16:00:00Z", "end" => "2026-09-29T16:00:00Z")
+
+        assert_includes text, "Open this in Northflank, and give the person this link with what you found: " \
+                              "https://app.northflank.com/t/firefight-labs/project/firefight/services/web/observe/logs?" \
+                              "endDate=2026-09-29T16%3A00%3A00.000Z&matchType=match&queryType=text&range=custom" \
+                              "&searchQuery=195.178.110.247&startDate=2026-09-28T16%3A00%3A00.000Z"
+      end
+
+      test "a log link carries a regular expression, or text to leave out, when that was the search" do
+        NorthflankApi.any_instance.stubs(:logs).returns([])
+
+        assert_match "matchType=match&queryType=regex&range=custom&searchQuery=5%5Cd%5Cd", call(:search_logs, "resource" => "web", "regex" => "5\\d\\d")
+        assert_match "matchType=noMatch&queryType=text&range=custom&searchQuery=health", call(:search_logs, "resource" => "web", "exclude" => "health")
+      end
+
+      test "a database's logs link to its page, since its Observe address has not been checked" do
+        NorthflankApi.any_instance.stubs(:logs).returns([])
+
+        assert_match %r{link with what you found: https://app\.northflank\.com/t/firefight-labs/project/firefight/addons/db\z}, call(:search_logs, "resource" => "db")
+      end
+
+      test "every tool's answer links to where it is on Northflank" do
+        NorthflankApi.any_instance.stubs(logs: [], metrics: {}, builds: [], deployments: [], containers: [], build_logs: [],
+                                         service: { "deployment" => {}, "healthChecks" => [] },
+                                         jobs: [ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ], job_runs: [])
+        arguments = { "resource" => "web", "job" => "nightly", "build" => "jovial-writer-6307" }
+        links = Northflank.tool_definitions.to_h { |definition| [ definition.name.to_s, call(definition.name, arguments).lines.last ] }
+
+        assert links.values.all? { |line| line.start_with?("Open this in Northflank") }, links.inspect
+        assert_match %r{/project/firefight\z}, links["list_resources"]
+        assert_match %r{/project/firefight/jobs\z}, links["list_jobs"]
+        assert_match %r{/project/firefight/jobs/nightly/runs\z}, links["job_runs"]
+        assert_match %r{/services/web/builds\z}, links["recent_builds"]
+        assert_match %r{/services/web/builds/jovial-writer-6307\z}, links["build_logs"]
+        assert_match %r{/services/web/deployments\z}, links["list_deployments"]
+        assert_match %r{/services/web/observe\z}, links["list_containers"]
+        assert_match %r{/services/web\z}, links["describe_resource"]
       end
 
       test "a metric with more containers than a chart keeps says how many were left out" do
